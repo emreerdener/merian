@@ -56,6 +56,7 @@ targets:
     sources: [MerianWatch]
     settings:
       base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.merian.Merian.watchkitapp
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.merian.Merian
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: NO
