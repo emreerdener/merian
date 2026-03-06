@@ -1,41 +1,19 @@
 import Foundation
 
-/// Securely manages global iOS application bounds reading explicitly from configured Property Lists (.plist) or xcconfig parameters.
 enum MerianEnvironment {
-    enum Keys {
-        static let geminiApiKey = "GEMINI_API_KEY"
-        static let supabaseUrl = "SUPABASE_URL"
-        static let supabaseAnonKey = "SUPABASE_ANON_KEY"
+    private enum Keys {
+        static let geminiApiKey = "AIzaSyAbez7rtSTKb-mdBO1PmZpQLTo7vfd9eFc"
+        static let supabaseUrl = "https://qlarqavoqhkuwzmevrmf.supabase.co"
+        static let supabaseAnonKey = "sb_publishable_ASBlNxWdEMTI8YeimWZ0-Q_-mLguhWk"
+        static let revenueCatApiKey = "test_GmepIVyBRbvnwdickopfprfCGjq"
+        static let postHogApiKey = "phc_o3CtiYQn5pUy50wCSjfRHiE89jQMc0qS9QFybEksdhn"
+        static let telemetryAppID = "A316F801-4566-4F85-AF50-F23E31EC9BBD"
     }
 
-    private static let infoDictionary: [String: Any] = {
-        guard let dict = Bundle.main.infoDictionary else {
-            return [:]
-        }
-        return dict
-    }()
-
-    static let geminiApiKey: String = {
-        guard let key = MerianEnvironment.infoDictionary[Keys.geminiApiKey] as? String, !key.isEmpty else {
-            print("⚠️ WARNING: GEMINI_API_KEY missing from Info.plist. Falling back to default proxy string.")
-            return "YOUR_GEMINI_API_KEY"
-        }
-        return key
-    }()
-
-    static let supabaseUrl: String = {
-        guard let urlString = MerianEnvironment.infoDictionary[Keys.supabaseUrl] as? String, !urlString.isEmpty else {
-            print("⚠️ WARNING: SUPABASE_URL missing from Info.plist. Falling back to default proxy string.")
-            return "YOUR_SUPABASE_URL"
-        }
-        return urlString
-    }()
-
-    static let supabaseAnonKey: String = {
-        guard let key = MerianEnvironment.infoDictionary[Keys.supabaseAnonKey] as? String, !key.isEmpty else {
-            print("⚠️ WARNING: SUPABASE_ANON_KEY missing from Info.plist. Falling back to default proxy string.")
-            return "YOUR_SUPABASE_ANON_KEY"
-        }
-        return key
-    }()
+    static let geminiApiKey: String = Keys.geminiApiKey
+    static let supabaseUrl: String = Keys.supabaseUrl
+    static let supabaseAnonKey: String = Keys.supabaseAnonKey
+    static let revenueCatApiKey: String = Keys.revenueCatApiKey
+    static let postHogApiKey: String = Keys.postHogApiKey
+    static let telemetryAppID: String = Keys.telemetryAppID
 }

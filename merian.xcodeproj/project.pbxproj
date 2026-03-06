@@ -6,88 +6,134 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXContainerItemProxy section */
-		88E5306E2F5B77DE008E4664 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 88E530562F5B77DD008E4664 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 88E5305D2F5B77DD008E4664;
-			remoteInfo = merian;
-		};
-		88E530782F5B77DE008E4664 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 88E530562F5B77DD008E4664 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 88E5305D2F5B77DD008E4664;
-			remoteInfo = merian;
-		};
-/* End PBXContainerItemProxy section */
+/* Begin PBXBuildFile section */
+		07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */; };
+		16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */; };
+		1AF3C8456601927E288B1890 /* HardwareOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */; };
+		2632809FB1F933EC169350AB /* MerianNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */; };
+		2EA34DB4680CC269E0767805 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF6016D928A11551039654D0 /* Assets.xcassets */; };
+		4C6CFCA137410A34B0F97A27 /* MerianActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E96E3236A58E1380603B5D /* MerianActionBar.swift */; };
+		4D44E3680C7B0A2827090B7C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D6636FC58125D5F4C5ECEDDF /* Supabase */; };
+		8D28D290FD319AF4DFE6056C /* LifeListSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */; };
+		8F655442A6D196335FD58F8B /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B4F36BE3B0243F44D0C1A93C /* RevenueCat */; };
+		9664363BC59C58EF6717049F /* RiveRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 8AF45E48D940462F64FF38E6 /* RiveRuntime */; };
+		A123A04B5017550DD392464D /* WatchAcousticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4BEA507B47DB69F9590047 /* WatchAcousticManager.swift */; };
+		A18D50B4063A85EC6D9718AA /* SocialGuardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */; };
+		A75F38D210D42BDC6EAC0FD6 /* InsightSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */; };
+		B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */; };
+		B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */; };
+		C11ED297AD9651C7F44C4A96 /* MerianEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */; };
+		C585EF3BFA0012F2973D3C91 /* MerianAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E57E8F1984879D600108892 /* MerianAppIntents.swift */; };
+		C7AA31ECCE527E151CF6C39C /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 0CC02679840538A8E220C0F6 /* TelemetryDeck */; };
+		CE394152F5071221586CE196 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = A0635D9DFE936BD480B327EA /* PostHog */; };
+		D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D57A8D01CDAF8E994655620 /* MerianApp.swift */; };
+		D8914F42F1667394F72C0C63 /* SyncStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F441743E545E21D4B647A5E /* SyncStateManager.swift */; };
+		DC5976B3161BF677189AC001 /* OfflineQueuedScan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF2E6642104DA1CAA60F1BE /* OfflineQueuedScan.swift */; };
+		DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */; };
+		E0757E56E9E1A43C7EAECDD9 /* OfflineQueueManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		88E5305E2F5B77DD008E4664 /* merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		88E5306D2F5B77DE008E4664 /* merianTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		88E530772F5B77DE008E4664 /* merianUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		00E96E3236A58E1380603B5D /* MerianActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianActionBar.swift; sourceTree = "<group>"; };
+		17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
+		1F4BEA507B47DB69F9590047 /* WatchAcousticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAcousticManager.swift; sourceTree = "<group>"; };
+		2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetView.swift; sourceTree = "<group>"; };
+		46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClient.swift; sourceTree = "<group>"; };
+		4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianEnvironment.swift; sourceTree = "<group>"; };
+		51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraRootView.swift; sourceTree = "<group>"; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5D57A8D01CDAF8E994655620 /* MerianApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianApp.swift; sourceTree = "<group>"; };
+		5FF2E6642104DA1CAA60F1BE /* OfflineQueuedScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueuedScan.swift; sourceTree = "<group>"; };
+		6F441743E545E21D4B647A5E /* SyncStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStateManager.swift; sourceTree = "<group>"; };
+		7E57E8F1984879D600108892 /* MerianAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianAppIntents.swift; sourceTree = "<group>"; };
+		7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialGuardManager.swift; sourceTree = "<group>"; };
+		87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerrariumView.swift; sourceTree = "<group>"; };
+		8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeListSearchManager.swift; sourceTree = "<group>"; };
+		A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManager.swift; sourceTree = "<group>"; };
+		B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		BF6016D928A11551039654D0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticComparisonView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		88E530602F5B77DD008E4664 /* merian */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = merian;
-			sourceTree = "<group>";
-		};
-		88E530702F5B77DE008E4664 /* merianTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = merianTests;
-			sourceTree = "<group>";
-		};
-		88E5307A2F5B77DE008E4664 /* merianUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = merianUITests;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
-
 /* Begin PBXFrameworksBuildPhase section */
-		88E5305B2F5B77DD008E4664 /* Frameworks */ = {
+		21CC6ACD2ED3E29E2FC749EF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		88E5306A2F5B77DE008E4664 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		88E530742F5B77DE008E4664 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				8F655442A6D196335FD58F8B /* RevenueCat in Frameworks */,
+				CE394152F5071221586CE196 /* PostHog in Frameworks */,
+				4D44E3680C7B0A2827090B7C /* Supabase in Frameworks */,
+				C7AA31ECCE527E151CF6C39C /* TelemetryDeck in Frameworks */,
+				9664363BC59C58EF6717049F /* RiveRuntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		88E530552F5B77DD008E4664 = {
+		43788D0ED2F865E69A83AE35 /* App */ = {
 			isa = PBXGroup;
 			children = (
-				88E530602F5B77DD008E4664 /* merian */,
-				88E530702F5B77DE008E4664 /* merianTests */,
-				88E5307A2F5B77DE008E4664 /* merianUITests */,
-				88E5305F2F5B77DD008E4664 /* Products */,
+				51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */,
+				CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */,
+				2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */,
+				B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */,
+				98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */,
+				00E96E3236A58E1380603B5D /* MerianActionBar.swift */,
+				5D57A8D01CDAF8E994655620 /* MerianApp.swift */,
+				87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		82DCBDD326D8981E3A5B8879 /* CoreServices */ = {
+			isa = PBXGroup;
+			children = (
+				8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */,
+				17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */,
+				7E57E8F1984879D600108892 /* MerianAppIntents.swift */,
+				4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */,
+				46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */,
+				A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */,
+				7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */,
+				6F441743E545E21D4B647A5E /* SyncStateManager.swift */,
+				1F4BEA507B47DB69F9590047 /* WatchAcousticManager.swift */,
+			);
+			path = CoreServices;
+			sourceTree = "<group>";
+		};
+		B107761B737813AA9586836E /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				5FF2E6642104DA1CAA60F1BE /* OfflineQueuedScan.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		CD1C36A63AE192CF4E651D3F = {
+			isa = PBXGroup;
+			children = (
+				E7702D88B7F7A1860DCB8689 /* Merian */,
+				F420A3E8A335E1F061C6E39C /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		88E5305F2F5B77DD008E4664 /* Products */ = {
+		E7702D88B7F7A1860DCB8689 /* Merian */ = {
 			isa = PBXGroup;
 			children = (
-				88E5305E2F5B77DD008E4664 /* merian.app */,
-				88E5306D2F5B77DE008E4664 /* merianTests.xctest */,
-				88E530772F5B77DE008E4664 /* merianUITests.xctest */,
+				BF6016D928A11551039654D0 /* Assets.xcassets */,
+				43788D0ED2F865E69A83AE35 /* App */,
+				82DCBDD326D8981E3A5B8879 /* CoreServices */,
+				B107761B737813AA9586836E /* Models */,
+			);
+			path = Merian;
+			sourceTree = "<group>";
+		};
+		F420A3E8A335E1F061C6E39C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				595E6381B45FC4DAA8014A89 /* Merian.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,188 +141,139 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		88E5305D2F5B77DD008E4664 /* merian */ = {
+		D06FD3E9CDCF533A0C2D2843 /* Merian */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 88E530812F5B77DE008E4664 /* Build configuration list for PBXNativeTarget "merian" */;
+			buildConfigurationList = 349F75561072D4C00D971A2E /* Build configuration list for PBXNativeTarget "Merian" */;
 			buildPhases = (
-				88E5305A2F5B77DD008E4664 /* Sources */,
-				88E5305B2F5B77DD008E4664 /* Frameworks */,
-				88E5305C2F5B77DD008E4664 /* Resources */,
+				CCD1122796932DE51F271174 /* Sources */,
+				AAFE341D60F3C52B0EEC299C /* Resources */,
+				21CC6ACD2ED3E29E2FC749EF /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				88E530602F5B77DD008E4664 /* merian */,
-			);
-			name = merian;
+			name = Merian;
 			packageProductDependencies = (
+				B4F36BE3B0243F44D0C1A93C /* RevenueCat */,
+				A0635D9DFE936BD480B327EA /* PostHog */,
+				D6636FC58125D5F4C5ECEDDF /* Supabase */,
+				0CC02679840538A8E220C0F6 /* TelemetryDeck */,
+				8AF45E48D940462F64FF38E6 /* RiveRuntime */,
 			);
-			productName = merian;
-			productReference = 88E5305E2F5B77DD008E4664 /* merian.app */;
+			productName = Merian;
+			productReference = 595E6381B45FC4DAA8014A89 /* Merian.app */;
 			productType = "com.apple.product-type.application";
-		};
-		88E5306C2F5B77DE008E4664 /* merianTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 88E530842F5B77DE008E4664 /* Build configuration list for PBXNativeTarget "merianTests" */;
-			buildPhases = (
-				88E530692F5B77DE008E4664 /* Sources */,
-				88E5306A2F5B77DE008E4664 /* Frameworks */,
-				88E5306B2F5B77DE008E4664 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				88E5306F2F5B77DE008E4664 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				88E530702F5B77DE008E4664 /* merianTests */,
-			);
-			name = merianTests;
-			packageProductDependencies = (
-			);
-			productName = merianTests;
-			productReference = 88E5306D2F5B77DE008E4664 /* merianTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		88E530762F5B77DE008E4664 /* merianUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 88E530872F5B77DE008E4664 /* Build configuration list for PBXNativeTarget "merianUITests" */;
-			buildPhases = (
-				88E530732F5B77DE008E4664 /* Sources */,
-				88E530742F5B77DE008E4664 /* Frameworks */,
-				88E530752F5B77DE008E4664 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				88E530792F5B77DE008E4664 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				88E5307A2F5B77DE008E4664 /* merianUITests */,
-			);
-			name = merianUITests;
-			packageProductDependencies = (
-			);
-			productName = merianUITests;
-			productReference = 88E530772F5B77DE008E4664 /* merianUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		88E530562F5B77DD008E4664 /* Project object */ = {
+		C2202C8EFE32EB682F84E931 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
-				LastUpgradeCheck = 2630;
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
-					88E5305D2F5B77DD008E4664 = {
-						CreatedOnToolsVersion = 26.3;
-					};
-					88E5306C2F5B77DE008E4664 = {
-						CreatedOnToolsVersion = 26.3;
-						TestTargetID = 88E5305D2F5B77DD008E4664;
-					};
-					88E530762F5B77DE008E4664 = {
-						CreatedOnToolsVersion = 26.3;
-						TestTargetID = 88E5305D2F5B77DD008E4664;
-					};
 				};
 			};
-			buildConfigurationList = 88E530592F5B77DD008E4664 /* Build configuration list for PBXProject "merian" */;
+			buildConfigurationList = 972FBC3FD9777422C0AAC783 /* Build configuration list for PBXProject "Merian" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				en,
 			);
-			mainGroup = 88E530552F5B77DD008E4664;
+			mainGroup = CD1C36A63AE192CF4E651D3F;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E3129842C30F4CED63055F81 /* XCRemoteSwiftPackageReference "posthog-ios" */,
+				CE261A90057CF93D57C2B7CE /* XCRemoteSwiftPackageReference "purchases-ios" */,
+				F00F1D918B7D9520625EA31D /* XCRemoteSwiftPackageReference "rive-ios" */,
+				A68D7B2C0AC3928BB3164D73 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */,
+			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 88E5305F2F5B77DD008E4664 /* Products */;
+			productRefGroup = F420A3E8A335E1F061C6E39C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				88E5305D2F5B77DD008E4664 /* merian */,
-				88E5306C2F5B77DE008E4664 /* merianTests */,
-				88E530762F5B77DE008E4664 /* merianUITests */,
+				D06FD3E9CDCF533A0C2D2843 /* Merian */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		88E5305C2F5B77DD008E4664 /* Resources */ = {
+		AAFE341D60F3C52B0EEC299C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		88E5306B2F5B77DE008E4664 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		88E530752F5B77DE008E4664 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				2EA34DB4680CC269E0767805 /* Assets.xcassets in Resources */,
+				B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		88E5305A2F5B77DD008E4664 /* Sources */ = {
+		CCD1122796932DE51F271174 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		88E530692F5B77DE008E4664 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		88E530732F5B77DE008E4664 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
+				B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */,
+				16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */,
+				07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */,
+				1AF3C8456601927E288B1890 /* HardwareOrchestrator.swift in Sources */,
+				A75F38D210D42BDC6EAC0FD6 /* InsightSheetView.swift in Sources */,
+				8D28D290FD319AF4DFE6056C /* LifeListSearchManager.swift in Sources */,
+				4C6CFCA137410A34B0F97A27 /* MerianActionBar.swift in Sources */,
+				D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */,
+				C585EF3BFA0012F2973D3C91 /* MerianAppIntents.swift in Sources */,
+				C11ED297AD9651C7F44C4A96 /* MerianEnvironment.swift in Sources */,
+				2632809FB1F933EC169350AB /* MerianNetworkClient.swift in Sources */,
+				E0757E56E9E1A43C7EAECDD9 /* OfflineQueueManager.swift in Sources */,
+				DC5976B3161BF677189AC001 /* OfflineQueuedScan.swift in Sources */,
+				A18D50B4063A85EC6D9718AA /* SocialGuardManager.swift in Sources */,
+				D8914F42F1667394F72C0C63 /* SyncStateManager.swift in Sources */,
+				DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */,
+				A123A04B5017550DD392464D /* WatchAcousticManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		88E5306F2F5B77DE008E4664 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 88E5305D2F5B77DD008E4664 /* merian */;
-			targetProxy = 88E5306E2F5B77DE008E4664 /* PBXContainerItemProxy */;
-		};
-		88E530792F5B77DE008E4664 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 88E5305D2F5B77DD008E4664 /* merian */;
-			targetProxy = 88E530782F5B77DE008E4664 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin XCBuildConfiguration section */
-		88E5307F2F5B77DE008E4664 /* Debug */ = {
+		2A070EB1D51EB18C60B10AFC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsMultipleScenes = NO;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				NSCameraUsageDescription = "Merian needs camera access for instant AI-powered ecological identification.";
+				NSLocationWhenInUseUsageDescription = "Merian requires your location to determine regional ecological context and coordinate mapping.";
+				NSMicrophoneUsageDescription = "Merian needs microphone access for aviary and insect sound classification.";
+				PRODUCT_BUNDLE_IDENTIFIER = com.merian.Merian;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		7A7F91EC857905B224836889 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -304,17 +301,15 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
 					"$(inherited)",
+					"DEBUG=1",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -322,25 +317,27 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		88E530802F5B77DE008E4664 /* Release */ = {
+		DFA8A85D68846B429AD00C28 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -368,11 +365,9 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = TA8S64ST9W;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -380,204 +375,135 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
-				VALIDATE_PRODUCT = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
-		88E530822F5B77DE008E4664 /* Debug */ = {
+		FA85932515F575EB75458FFA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsMultipleScenes = NO;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.merian.merian;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				NSCameraUsageDescription = "Merian needs camera access for instant AI-powered ecological identification.";
+				NSLocationWhenInUseUsageDescription = "Merian requires your location to determine regional ecological context and coordinate mapping.";
+				NSMicrophoneUsageDescription = "Merian needs microphone access for aviary and insect sound classification.";
+				PRODUCT_BUNDLE_IDENTIFIER = com.merian.Merian;
+				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
-		};
-		88E530832F5B77DE008E4664 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.merian.merian;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		88E530852F5B77DE008E4664 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.merian.merianTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/merian.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/merian";
-			};
-			name = Debug;
-		};
-		88E530862F5B77DE008E4664 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.merian.merianTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/merian.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/merian";
-			};
-			name = Release;
-		};
-		88E530882F5B77DE008E4664 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.merian.merianUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = merian;
-			};
-			name = Debug;
-		};
-		88E530892F5B77DE008E4664 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.merian.merianUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = merian;
-			};
-			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		88E530592F5B77DD008E4664 /* Build configuration list for PBXProject "merian" */ = {
+		349F75561072D4C00D971A2E /* Build configuration list for PBXNativeTarget "Merian" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				88E5307F2F5B77DE008E4664 /* Debug */,
-				88E530802F5B77DE008E4664 /* Release */,
+				FA85932515F575EB75458FFA /* Debug */,
+				2A070EB1D51EB18C60B10AFC /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
-		88E530812F5B77DE008E4664 /* Build configuration list for PBXNativeTarget "merian" */ = {
+		972FBC3FD9777422C0AAC783 /* Build configuration list for PBXProject "Merian" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				88E530822F5B77DE008E4664 /* Debug */,
-				88E530832F5B77DE008E4664 /* Release */,
+				7A7F91EC857905B224836889 /* Debug */,
+				DFA8A85D68846B429AD00C28 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		88E530842F5B77DE008E4664 /* Build configuration list for PBXNativeTarget "merianTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				88E530852F5B77DE008E4664 /* Debug */,
-				88E530862F5B77DE008E4664 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		88E530872F5B77DE008E4664 /* Build configuration list for PBXNativeTarget "merianUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				88E530882F5B77DE008E4664 /* Debug */,
-				88E530892F5B77DE008E4664 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/TelemetryDeck/SwiftClient.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.0;
+			};
+		};
+		A68D7B2C0AC3928BB3164D73 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.0;
+			};
+		};
+		CE261A90057CF93D57C2B7CE /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.41.0;
+			};
+		};
+		E3129842C30F4CED63055F81 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.1.2;
+			};
+		};
+		F00F1D918B7D9520625EA31D /* XCRemoteSwiftPackageReference "rive-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/rive-app/rive-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0CC02679840538A8E220C0F6 /* TelemetryDeck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */;
+			productName = TelemetryDeck;
+		};
+		8AF45E48D940462F64FF38E6 /* RiveRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F00F1D918B7D9520625EA31D /* XCRemoteSwiftPackageReference "rive-ios" */;
+			productName = RiveRuntime;
+		};
+		A0635D9DFE936BD480B327EA /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E3129842C30F4CED63055F81 /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
+		};
+		B4F36BE3B0243F44D0C1A93C /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE261A90057CF93D57C2B7CE /* XCRemoteSwiftPackageReference "purchases-ios" */;
+			productName = RevenueCat;
+		};
+		D6636FC58125D5F4C5ECEDDF /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A68D7B2C0AC3928BB3164D73 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 88E530562F5B77DD008E4664 /* Project object */;
+	rootObject = C2202C8EFE32EB682F84E931 /* Project object */;
 }
