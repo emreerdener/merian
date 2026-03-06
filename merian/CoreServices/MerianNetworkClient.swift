@@ -32,10 +32,10 @@ struct PreSignedURL: Codable {
 class MerianNetworkClient {
     static let shared = MerianNetworkClient()
     
-    // Configurable endpoints (mocked for now)
-    private let geminiApiKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"] ?? "YOUR_GEMINI_API_KEY"
-    private let supabaseUrl = ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "YOUR_SUPABASE_URL"
-    private let supabaseAnonKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"] ?? "YOUR_SUPABASE_ANON_KEY"
+    // Configurable endpoints structurally pulled from explicit targets rather than ProcessInfo on iOS
+    private let geminiApiKey = MerianEnvironment.geminiApiKey
+    private let supabaseUrl = MerianEnvironment.supabaseUrl
+    private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
     // Step 1: Ephemeral Upload to Gemini File API
     // Returns the lightweight fileUri

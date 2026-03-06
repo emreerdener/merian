@@ -22,8 +22,8 @@ final class SocialGuardManager: ObservableObject {
     
     @Published var blockedUserIds: Set<String> = []
     
-    private let supabaseUrl = ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "YOUR_SUPABASE_URL"
-    private let supabaseAnonKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"] ?? "YOUR_SUPABASE_ANON_KEY"
+    private let supabaseUrl = MerianEnvironment.supabaseUrl
+    private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
     private init() {}
     

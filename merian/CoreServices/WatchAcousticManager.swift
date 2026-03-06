@@ -3,9 +3,10 @@ import AVFoundation
 import CoreLocation
 import WeatherKit
 import WatchKit
+import WatchConnectivity
 
 @MainActor
-class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate, CLLocationManagerDelegate {
+class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate, CLLocationManagerDelegate, WCSessionDelegate {
     @Published var isRecording: Bool = false
     @Published var isProcessing: Bool = false
     @Published var authorizationState: CLAuthorizationStatus = .notDetermined
@@ -15,11 +16,25 @@ class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate,
     private var currentLocation: CLLocation?
     private var currentWeather: Weather?
     private var recordingURL: URL?
+    private var session: WCSession?
     
     override init() {
         super.init()
         locationManager.delegate = self
+        setupWatchConnectivity()
         requestPermissions()
+    }
+    
+    private func setupWatchConnectivity() {
+        if WCSession.isSupported() {
+            session = WCSession.default
+            session?.delegate = self
+            session?.activate()
+        }
+    }
+    
+    nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        print("WCSession globally active: \(activationState.rawValue)")
     }
     
     private func requestPermissions() {
@@ -132,8 +147,17 @@ class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate,
                 payload["weatherTemperatureF"] = weather.currentWeather.temperature.converted(to: .fahrenheit).value
             }
             
-            // This payload runs out securely over WatchConnectivity to the iOS Device or directly via Cellular models.
             print("Successfully encoded WatchOS Payload! Keys: \(payload.keys)")
+            
+            // Dispatch completely over WatchConnectivity explicitly bridging to the iPhone OfflineQueueManager
+            if let session = self.session, session.isReachable {
+                session.sendMessage(payload, replyHandler: nil) { error in
+                    print("Foreground WCSession Error. Transitioning to background transport: \(error)")
+                    self.session?.transferUserInfo(payload)
+                }
+            } else {
+                session?.transferUserInfo(payload)
+            }
             
         } catch {
             print("Failed to encode acoustic payload: \(error)")
