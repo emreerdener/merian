@@ -21,6 +21,9 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     // CoreML inferred state
     var isLiveInferencePaused: Bool = false
     
+    // VUI Throttle parameters
+    private var lastVUIAnalysisTime = Date()
+    
     private override init() {
         super.init()
         setupSession()
@@ -199,6 +202,21 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             Task { @MainActor in
                 self.subjectDistanceInMeters = clampedDistance
             }
+        }
+    }
+    
+    nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        
+        Task { @MainActor in
+            guard !self.isLiveInferencePaused else { return }
+            
+            // Throttle rendering to only occur once every third of a second for optimal thermal/battery preservation
+            let now = Date()
+            guard now.timeIntervalSince(self.lastVUIAnalysisTime) > 0.3 else { return }
+            self.lastVUIAnalysisTime = now
+            
+            ViewfinderIntelligence.shared.analyze(pixelBuffer: pixelBuffer, distance: self.subjectDistanceInMeters)
         }
     }
 }

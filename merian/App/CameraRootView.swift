@@ -4,6 +4,7 @@ import AVFoundation
 struct CameraRootView: View {
     @StateObject private var cameraManager = CameraManager.shared
     @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared
+    @StateObject private var vui = ViewfinderIntelligence.shared
     
     @State private var isInsightSheetOpen: Bool = false
     
@@ -32,6 +33,20 @@ struct CameraRootView: View {
             // Action Overlay Context
             VStack {
                 Spacer()
+                
+                // Viewfinder Intelligence Hint Banner
+                if !vui.isOptimal {
+                    Text(vui.currentHint.rawValue)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark)
+                        .clipShape(Capsule())
+                        .padding(.bottom, 16)
+                }
                 
                 // Floating Action Bar Interface
                 HStack {
