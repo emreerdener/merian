@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */; };
 		07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */; };
 		16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */; };
 		1AF3C8456601927E288B1890 /* HardwareOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */; };
@@ -24,7 +25,7 @@
 		B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */; };
 		C11ED297AD9651C7F44C4A96 /* MerianEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */; };
 		C585EF3BFA0012F2973D3C91 /* MerianAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E57E8F1984879D600108892 /* MerianAppIntents.swift */; };
-		C7AA31ECCE527E151CF6C39C /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 0CC02679840538A8E220C0F6 /* TelemetryDeck */; };
+		C7AA31ECCE527E151CF6C39C /* TelemetryClient in Frameworks */ = {isa = PBXBuildFile; productRef = B41D79C304B7AE7C8A98F7A4 /* TelemetryClient */; };
 		CE394152F5071221586CE196 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = A0635D9DFE936BD480B327EA /* PostHog */; };
 		D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D57A8D01CDAF8E994655620 /* MerianApp.swift */; };
 		D8914F42F1667394F72C0C63 /* SyncStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F441743E545E21D4B647A5E /* SyncStateManager.swift */; };
@@ -40,6 +41,7 @@
 		2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetView.swift; sourceTree = "<group>"; };
 		46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClient.swift; sourceTree = "<group>"; };
 		4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianEnvironment.swift; sourceTree = "<group>"; };
+		4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligence.swift; sourceTree = "<group>"; };
 		51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraRootView.swift; sourceTree = "<group>"; };
 		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5D57A8D01CDAF8E994655620 /* MerianApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianApp.swift; sourceTree = "<group>"; };
@@ -64,7 +66,7 @@
 				8F655442A6D196335FD58F8B /* RevenueCat in Frameworks */,
 				CE394152F5071221586CE196 /* PostHog in Frameworks */,
 				4D44E3680C7B0A2827090B7C /* Supabase in Frameworks */,
-				C7AA31ECCE527E151CF6C39C /* TelemetryDeck in Frameworks */,
+				C7AA31ECCE527E151CF6C39C /* TelemetryClient in Frameworks */,
 				9664363BC59C58EF6717049F /* RiveRuntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -98,6 +100,7 @@
 				A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */,
 				7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */,
 				6F441743E545E21D4B647A5E /* SyncStateManager.swift */,
+				4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */,
 				1F4BEA507B47DB69F9590047 /* WatchAcousticManager.swift */,
 			);
 			path = CoreServices;
@@ -158,7 +161,7 @@
 				B4F36BE3B0243F44D0C1A93C /* RevenueCat */,
 				A0635D9DFE936BD480B327EA /* PostHog */,
 				D6636FC58125D5F4C5ECEDDF /* Supabase */,
-				0CC02679840538A8E220C0F6 /* TelemetryDeck */,
+				B41D79C304B7AE7C8A98F7A4 /* TelemetryClient */,
 				8AF45E48D940462F64FF38E6 /* RiveRuntime */,
 			);
 			productName = Merian;
@@ -235,6 +238,7 @@
 				A18D50B4063A85EC6D9718AA /* SocialGuardManager.swift in Sources */,
 				D8914F42F1667394F72C0C63 /* SyncStateManager.swift in Sources */,
 				DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */,
+				02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */,
 				A123A04B5017550DD392464D /* WatchAcousticManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -247,6 +251,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsMultipleScenes = NO;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -392,6 +397,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsMultipleScenes = NO;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -478,11 +484,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		0CC02679840538A8E220C0F6 /* TelemetryDeck */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */;
-			productName = TelemetryDeck;
-		};
 		8AF45E48D940462F64FF38E6 /* RiveRuntime */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = F00F1D918B7D9520625EA31D /* XCRemoteSwiftPackageReference "rive-ios" */;
@@ -492,6 +493,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E3129842C30F4CED63055F81 /* XCRemoteSwiftPackageReference "posthog-ios" */;
 			productName = PostHog;
+		};
+		B41D79C304B7AE7C8A98F7A4 /* TelemetryClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */;
+			productName = TelemetryClient;
 		};
 		B4F36BE3B0243F44D0C1A93C /* RevenueCat */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -30,6 +30,7 @@ targets:
     sources: [Merian]
     settings:
       base:
+        GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsMultipleScenes: NO
@@ -43,5 +44,6 @@ targets:
       - package: RevenueCat
       - package: PostHog
       - package: Supabase
-      - package: TelemetryDeck
+      - product: TelemetryClient
+        package: TelemetryDeck
       - package: RiveRuntime
