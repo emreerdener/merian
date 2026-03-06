@@ -74,6 +74,6 @@ struct MerianShortcuts: AppShortcutsProvider {
     }
     
     static var shortcutTileColor: ShortcutTileColor {
-        return .green
+        return .teal
     }
 }
