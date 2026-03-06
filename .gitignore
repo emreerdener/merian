@@ -1,0 +1,91 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Xcode
+#
+# build/ is the default output folder
+build/
+*.pcm
+*.d
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# DerivedData
+DerivedData/
+
+# User-specific Xcode / Workspace state
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserdatad/
+*.xcscmblueprint
+*.xccheckout
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code coverage (for Xcode)
+*.xccovreport
+*.xcresult
+
+# Crashlytics / TelemetryDeck
+# Ignore downloaded/generated dSYMs
+appDsyms/
+
+# Supabase & Deno Backend
+
+# CRITICAL: Environmental Variables
+# Never commit credentials, Supabase connection strings, or Gemini API keys
+.env
+.env.local
+.env.*
+*.env
+
+# Supabase Local State
+supabase/.temp/
+supabase/.branches/
+supabase/.supabase/
+
+# Deno Cache / Dependencies
+vendor/
+deno.lock
+node_modules/
+
+# IDE & Editor Configs
+.vscode/
+.idea/
+*.swp
+*.swo

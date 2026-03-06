@@ -1,0 +1,47 @@
+name: Merian
+options:
+  bundleIdPrefix: com.merian
+  deploymentTarget:
+    iOS: 17.0
+    macOS: 14.0
+
+packages:
+  RevenueCat:
+    url: https://github.com/RevenueCat/purchases-ios.git
+    from: 4.41.0
+  PostHog:
+    url: https://github.com/PostHog/posthog-ios.git
+    from: 3.1.2
+  Supabase:
+    url: https://github.com/supabase-community/supabase-swift.git
+    from: 2.3.0
+  TelemetryDeck:
+    url: https://github.com/TelemetryDeck/SwiftClient.git
+    from: 1.5.0
+  RiveRuntime:
+    url: https://github.com/rive-app/rive-ios.git
+    from: 5.8.0
+
+targets:
+  Merian:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [Merian]
+    settings:
+      base:
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsMultipleScenes: NO
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
+        NSCameraUsageDescription: "Merian needs camera access for instant AI-powered ecological identification."
+        NSMicrophoneUsageDescription: "Merian needs microphone access for aviary and insect sound classification."
+        NSLocationWhenInUseUsageDescription: "Merian requires your location to determine regional ecological context and coordinate mapping."
+        TARGETED_DEVICE_FAMILY: "1,2" # iPhone and iPad
+    dependencies:
+      - package: RevenueCat
+      - package: PostHog
+      - package: Supabase
+      - package: TelemetryDeck
+      - package: RiveRuntime
