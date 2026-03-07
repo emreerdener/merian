@@ -32,6 +32,10 @@ final class InferenceEngine: ObservableObject {
         
         self.inferenceTask = Task {
             do {
+                if CircuitBreakerManager.shared.isCircuitTripped {
+                    throw URLError(.notConnectedToInternet)
+                }
+                
                 let client = MerianNetworkClient.shared
                 
                 // 1. Upload high-res physical image cleanly to Gemini
@@ -66,6 +70,8 @@ final class InferenceEngine: ObservableObject {
                             diagnosticComparison: nil
                         )
                         
+                        
+                        CircuitBreakerManager.shared.recordSuccess()
                         self.speciesData = mappedData
                     } else {
                         print("⚠️ Inference Engine: Failed to structure Gemini JSON properly")
@@ -73,8 +79,9 @@ final class InferenceEngine: ObservableObject {
                     }
                 }
             } catch {
+                CircuitBreakerManager.shared.recordFailure()
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
-                self.speciesData = SpeciesData(commonName: "Network Timeout", scientificName: "Offline Mode", insightData: InsightData(description: "Please check your network boundary connection.", isPoisonous: false), confidenceScore: 0, diagnosticComparison: nil)
+                self.speciesData = SpeciesData(commonName: "Network Timeout", scientificName: "Offline Mode", insightData: InsightData(description: "Please check your network boundary connection. The scan has been safely queued offline.", isPoisonous: false), confidenceScore: 0, diagnosticComparison: nil)
             }
             
             // Unconditionally clear the active loading hardware state

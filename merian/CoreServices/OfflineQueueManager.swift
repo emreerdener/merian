@@ -187,6 +187,11 @@ final class OfflineQueueManager: ObservableObject {
                 }
             }
             
+            // Pre-Purge Archive Safety Protocol
+            // Before deleting from the volatile local cache, attempt to pull high-res into Apple Photos
+            let imagesToArchive = scan.localImagePaths.map { documentsDirectory.appendingPathComponent($0) }
+            await ArchiveManager.shared.initiatePrePurgeSync(pendingImages: imagesToArchive)
+            
             // Clear successfully synced captures 200 OK locally 
             for path in scan.localImagePaths {
                 let fileURL = documentsDirectory.appendingPathComponent(path)
@@ -196,6 +201,7 @@ final class OfflineQueueManager: ObservableObject {
             modelContext.delete(scan)
             try modelContext.save()
             updateUnsyncedItemCount()
+            CircuitBreakerManager.shared.recordSuccess()
             
         } catch {
             print("Failed to process scan \(scan.id): \(error)")

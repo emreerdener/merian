@@ -14,6 +14,8 @@ struct MerianApp: App {
     @StateObject private var revenueCatManager = RevenueCatManager.shared
     @StateObject private var usageManager = UsageManager.shared
     @StateObject private var gamificationManager = GamificationManager.shared
+    @StateObject private var circuitBreakerManager = CircuitBreakerManager.shared
+    @StateObject private var archiveManager = ArchiveManager.shared
 
     let container: ModelContainer
     
@@ -51,6 +53,8 @@ struct MerianApp: App {
                 .environmentObject(revenueCatManager)
                 .environmentObject(usageManager)
                 .environmentObject(gamificationManager)
+                .environmentObject(circuitBreakerManager)
+                .environmentObject(archiveManager)
                 .modelContainer(container)
                 .onAppear {
                     revenueCatManager.configure()
