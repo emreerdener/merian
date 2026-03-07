@@ -1,5 +1,7 @@
 import SwiftUI
 
+import SafariServices
+
 // MARK: - Primary Domain Models (Data received from InferenceEngine/Gemini Edge JSON)
 struct SpeciesData {
     let commonName: String
@@ -7,6 +9,8 @@ struct SpeciesData {
     let insightData: InsightData
     let confidenceScore: Double
     let diagnosticComparison: DiagnosticComparison?
+    let wikipediaUrl: String?
+    let referenceImageUrl: String?
 }
 
 struct InsightData {
@@ -33,6 +37,9 @@ struct InsightSheetView: View {
 
     @Binding var isPresented: Bool
     
+    @State private var isSafariPresented = false
+    @State private var selectedWikiURL: URL?
+    
     // Safety Bounds
     private var isPoisonous: Bool {
         inferenceEngine.speciesData?.insightData.isPoisonous ?? false
@@ -50,6 +57,33 @@ struct InsightSheetView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 
+                // 0. The Reference Image (Fetched perfectly from Wikipedia REST API)
+                if let refUrlString = inferenceEngine.speciesData?.referenceImageUrl, let refUrl = URL(string: refUrlString) {
+                    AsyncImage(url: refUrl) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .frame(height: 200)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(12)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 200)
+                                .frame(maxWidth: .infinity)
+                                .clipped()
+                                .cornerRadius(12)
+                        case .failure:
+                            EmptyView()
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
                 // 1. The Toxicity Banner (Safety Critical)
                 if isPoisonous {
                     HStack {
@@ -105,6 +139,26 @@ struct InsightSheetView: View {
                     Text(description)
                         .font(.body)
                         .padding(.horizontal)
+                        
+                    if let wikiString = inferenceEngine.speciesData?.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
+                        Button(action: {
+                            selectedWikiURL = wikiUrl
+                            isSafariPresented = true
+                        }) {
+                            HStack {
+                                Image(systemName: "safari.fill")
+                                Text("Read more on Wikipedia")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(10)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 4)
+                        .foregroundColor(.primary)
+                    }
                 }
                 
                 // 4. Fallback Validation Block
@@ -118,6 +172,12 @@ struct InsightSheetView: View {
             }
             .padding(.top, 24)
         }
+        .sheet(isPresented: $isSafariPresented) {
+            if let safeUrl = selectedWikiURL {
+                SafariView(url: safeUrl)
+                    .ignoresSafeArea()
+            }
+        }
         // Force glassmorphism bounds gracefully above the underlying camera UI
         .presentationBackground(.ultraThinMaterial)
         .presentationDetents([.large])
@@ -130,4 +190,14 @@ struct InsightSheetView: View {
             }
         }
     }
+}
+// MARK: - Safari View Wrapper
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: UIViewControllerRepresentableContext<SafariView>) -> SFSafariViewController {
+        return SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: UIViewControllerRepresentableContext<SafariView>) {}
 }

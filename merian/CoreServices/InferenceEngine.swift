@@ -22,6 +22,8 @@ final class InferenceEngine: ObservableObject {
             let is_poisonous: Bool?
         }
         let insight_data: Insight?
+        let wikipedia_url: String?
+        let reference_image_url: String?
     }
     
     func analyze(imageData: Data) {
@@ -67,7 +69,9 @@ final class InferenceEngine: ObservableObject {
                             scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
                             insightData: insight,
                             confidenceScore: edgeRes.confidence_score ?? 0.0,
-                            diagnosticComparison: nil
+                            diagnosticComparison: nil,
+                            wikipediaUrl: edgeRes.wikipedia_url,
+                            referenceImageUrl: edgeRes.reference_image_url
                         )
                         
                         
@@ -75,13 +79,13 @@ final class InferenceEngine: ObservableObject {
                         self.speciesData = mappedData
                     } else {
                         print("⚠️ Inference Engine: Failed to structure Gemini JSON properly")
-                        self.speciesData = SpeciesData(commonName: "Analysis Failed", scientificName: "Data Unreadable", insightData: InsightData(description: "Cannot process the server taxonomy schema.", isPoisonous: false), confidenceScore: 0, diagnosticComparison: nil)
+                        self.speciesData = SpeciesData(commonName: "Analysis Failed", scientificName: "Data Unreadable", insightData: InsightData(description: "Cannot process the server taxonomy schema.", isPoisonous: false), confidenceScore: 0, diagnosticComparison: nil, wikipediaUrl: nil, referenceImageUrl: nil)
                     }
                 }
             } catch {
                 CircuitBreakerManager.shared.recordFailure()
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
-                self.speciesData = SpeciesData(commonName: "Network Timeout", scientificName: "Offline Mode", insightData: InsightData(description: "Please check your network boundary connection. The scan has been safely queued offline.", isPoisonous: false), confidenceScore: 0, diagnosticComparison: nil)
+                self.speciesData = SpeciesData(commonName: "Network Timeout", scientificName: "Offline Mode", insightData: InsightData(description: "Please check your network boundary connection. The scan has been safely queued offline.", isPoisonous: false), confidenceScore: 0, diagnosticComparison: nil, wikipediaUrl: nil, referenceImageUrl: nil)
             }
             
             // Unconditionally clear the active loading hardware state

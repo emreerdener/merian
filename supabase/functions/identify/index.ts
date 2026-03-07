@@ -170,16 +170,19 @@ Crucial instructions:
         const { data: existingSpecies, error: selectError } =
           await supabaseAdmin
             .from("species_dictionary")
-            .select("id")
+            .select("id, wikipedia_url, reference_image_url")
             .eq("scientific_name", parsedData.scientific_name)
             .single();
 
         if (existingSpecies) {
           speciesId = existingSpecies.id;
+          parsedData.wikipedia_url = existingSpecies.wikipedia_url;
+          parsedData.reference_image_url = existingSpecies.reference_image_url;
         } else {
           console.log("[5.1] Enriching data for:", parsedData.scientific_name);
           let wikiUrl = null;
           let gbifKey = null;
+          let imageUrl = null;
 
           try {
             // Unauthenticated taxonomy fetch to global GBIF registry
@@ -198,6 +201,10 @@ Crucial instructions:
             if (wikiRes.ok) {
               const wikiJson = await wikiRes.json();
               wikiUrl = wikiJson.content_urls?.desktop?.page || null;
+              imageUrl =
+                wikiJson.originalimage?.source ||
+                wikiJson.thumbnail?.source ||
+                null;
             }
           } catch (e) {
             console.log("Data enrichment failed silently: ", e);
@@ -217,6 +224,7 @@ Crucial instructions:
               descriptions: { insight: parsedData.insight_data.description },
               wikipedia_url: wikiUrl,
               gbif_taxon_key: gbifKey,
+              reference_image_url: imageUrl,
               native_region: "Unknown",
             })
             .select("id")
@@ -224,6 +232,8 @@ Crucial instructions:
           if (newSpecies) {
             speciesId = newSpecies.id;
           }
+          parsedData.wikipedia_url = wikiUrl;
+          parsedData.reference_image_url = imageUrl;
         }
       }
 
@@ -249,7 +259,8 @@ Crucial instructions:
     }
 
     // Wrap the resulting taxonomy cleanly up in the JSON shell required strictly by the Native Swift Codable mappings
-    return new Response(JSON.stringify({ result: responseText }), {
+    const finalResponseText = JSON.stringify(parsedData);
+    return new Response(JSON.stringify({ result: finalResponseText }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
