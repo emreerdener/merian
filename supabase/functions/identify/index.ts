@@ -40,7 +40,7 @@ Crucial instructions:
 3. If your confidence_score is below 0.85 (85%), you MUST fill out the 'diagnostic_comparison' object.`;
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       systemInstruction: systemInstruction,
     });
 
@@ -58,7 +58,8 @@ Crucial instructions:
         is_live_capture: { type: SchemaType.BOOLEAN },
         ecology_type: {
           type: SchemaType.STRING,
-          description: "Must be one of: wild, urban, domesticated, unknown",
+          enum: ["wild", "urban", "domesticated", "unknown"],
+          description: "Identify the ecological origin of the subject.",
         },
         scientific_name: { type: SchemaType.STRING },
         common_name: { type: SchemaType.STRING },

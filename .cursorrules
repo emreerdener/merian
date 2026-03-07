@@ -21,8 +21,9 @@ You are an AI assistant working on the Merian project. Merian is an offline-firs
 ## 4. Gamification (Rive & UserDefaults)
 - Merian gamifies learning taxonomy. State is tracked natively in `GamificationManager` using `UserDefaults` and pumped explicitly into `TerrariumView` using Rive State Machines (`.setInput()`). Do not perform heavy logic inside the views.
 
-## 5. Security Protocols 
+## 5. Security Protocols & Test Script Hygiene 
 - Never log or commit API keys (`.xcconfig` is strictly in `.gitignore`).
+- **CRITICAL RULE FOR AI TESTING**: Any temporary testing script (e.g., Python, Node, bash) written by an AI agent to hit LIVE network endpoints MUST natively load environment variables instead of hardcoded strings. If an API key MUST be hardcoded for a one-off validation, that script MUST be physically deleted from the file system the exact millisecond the execution finishes so it never leaks into git or the user's workspace.
 - GPS coordinates are processed securely: `gps_lat_exact` is protected strictly in the DB, `gps_lat_public` is fuzzed for the community feed.
 
 ## 6. How to Respond
