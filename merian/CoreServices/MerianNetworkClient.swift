@@ -65,7 +65,14 @@ class MerianNetworkClient {
         var request = URLRequest(url: functionUrl)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let activeJWT = try await SupabaseManager.shared.getActiveJWT()
+            request.setValue("Bearer \(activeJWT)", forHTTPHeaderField: "Authorization")
+        } catch {
+            print("⚠️ MerianNetworkClient: Failed to extract active JWT: \(error.localizedDescription)")
+            request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        }
         
         let payload: [String: Any?] = [
             "geminiFileUri": uri,
@@ -96,7 +103,13 @@ class MerianNetworkClient {
         var request = URLRequest(url: functionUrl)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let activeJWT = try await SupabaseManager.shared.getActiveJWT()
+            request.setValue("Bearer \(activeJWT)", forHTTPHeaderField: "Authorization")
+        } catch {
+            request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        }
         
         let payload: [String: Any] = ["fileNames": fileNames]
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)

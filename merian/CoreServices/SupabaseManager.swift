@@ -75,4 +75,10 @@ final class SupabaseManager: ObservableObject {
             print("⚠️ Failed to purge local Supabase Auth state: \(error.localizedDescription)")
         }
     }
+    
+    /// Securely resolves the local JWT token out of the active user session structure.
+    func getActiveJWT() async throws -> String {
+        let session = try await client.auth.session
+        return session.accessToken
+    }
 }

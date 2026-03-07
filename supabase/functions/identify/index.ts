@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
   GoogleGenerativeAI,
   SchemaType,
-} from "https://esm.sh/@google/generative-ai@0.1.1";
+} from "https://esm.sh/@google/generative-ai@0.24.1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
@@ -120,7 +120,7 @@ Crucial instructions:
       contents: [{ role: "user", parts }],
       generationConfig: {
         responseMimeType: "application/json",
-        responseSchema: merianResponseSchema,
+        responseSchema: merianResponseSchema as any,
       },
     });
 
