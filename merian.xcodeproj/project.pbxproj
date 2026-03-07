@@ -19,7 +19,6 @@
 		4D44E3680C7B0A2827090B7C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D6636FC58125D5F4C5ECEDDF /* Supabase */; };
 		57B3AB95EA69F38741E9E500 /* UsageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E10F6B4FBB693F712392A78 /* UsageManager.swift */; };
 		6F75D7C9545B200B2B45122E /* AppTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF836BCE5722B41748153F02 /* AppTelemetry.swift */; };
-		72414E618C52C7EE8B39556E /* MerianWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0481771C41C383D2737DDEC7 /* MerianWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		80923B86E3B63DA5F4791FBC /* MerianWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8166641171629DC4E41B081 /* MerianWatchApp.swift */; };
 		8D28D290FD319AF4DFE6056C /* LifeListSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */; };
 		8F655442A6D196335FD58F8B /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B4F36BE3B0243F44D0C1A93C /* RevenueCat */; };
@@ -42,30 +41,6 @@
 		E0757E56E9E1A43C7EAECDD9 /* OfflineQueueManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */; };
 		EFE45D1E60FF237738BE989A /* PostHogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70302F69A69AAA03EA359409 /* PostHogManager.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		57CA45A0CA6171010ACC3EBA /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = C2202C8EFE32EB682F84E931 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = E59BC2C6A28D64E9B810676B;
-			remoteInfo = MerianWatch;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		BD2DB57784E75CA81D57CF89 /* Embed Watch Content */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
-			dstSubfolderSpec = 16;
-			files = (
-				72414E618C52C7EE8B39556E /* MerianWatch.app in Embed Watch Content */,
-			);
-			name = "Embed Watch Content";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		00E96E3236A58E1380603B5D /* MerianActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianActionBar.swift; sourceTree = "<group>"; };
@@ -223,12 +198,10 @@
 				CCD1122796932DE51F271174 /* Sources */,
 				AAFE341D60F3C52B0EEC299C /* Resources */,
 				21CC6ACD2ED3E29E2FC749EF /* Frameworks */,
-				BD2DB57784E75CA81D57CF89 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				A9FB5DF4CB7089758D570E73 /* PBXTargetDependency */,
 			);
 			name = Merian;
 			packageProductDependencies = (
@@ -350,23 +323,16 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		A9FB5DF4CB7089758D570E73 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = E59BC2C6A28D64E9B810676B /* MerianWatch */;
-			targetProxy = 57CA45A0CA6171010ACC3EBA /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin XCBuildConfiguration section */
 		16E59262791D4BC7B239672B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = TA8S64ST9W;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.merian.Merian;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = app.merian.Merian;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = com.merian.Merian.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = app.merian.Merian.watchkitapp;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -391,7 +357,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.merian.Merian;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -429,6 +395,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -458,6 +425,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
 		};
@@ -465,10 +433,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = TA8S64ST9W;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.merian.Merian;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = app.merian.Merian;
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = com.merian.Merian.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = app.merian.Merian.watchkitapp;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -510,6 +479,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -532,6 +502,7 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
 		};
@@ -552,7 +523,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.merian.Merian;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
