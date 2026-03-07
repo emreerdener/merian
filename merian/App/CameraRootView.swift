@@ -201,7 +201,7 @@ struct CameraRootView: View {
             TerrariumView()
         }
         .sheet(isPresented: $isLifeListOpen) {
-            LifeListSearchView()
+            LifeListSearchView(isInsightSheetOpen: $isInsightSheetOpen)
         }
     }
 }

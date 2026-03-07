@@ -15,6 +15,9 @@ final class LocalScanRecord {
     
     // The Semantic Index explicitly driven by Gemini tags, enabling full Natural Language queries completely off-network.
     var semanticTags: [String]
+    var isPoisonous: Bool
+    var wikipediaUrl: String?
+    var referenceImageUrl: String?
     
     init(id: String = UUID().uuidString,
          speciesId: String,
@@ -23,7 +26,10 @@ final class LocalScanRecord {
          insightDescription: String,
          timestamp: Date = Date(),
          localImagePath: String? = nil,
-         semanticTags: [String] = []) {
+         semanticTags: [String] = [],
+         isPoisonous: Bool = false,
+         wikipediaUrl: String? = nil,
+         referenceImageUrl: String? = nil) {
         
         self.id = id
         self.speciesId = speciesId
@@ -33,6 +39,9 @@ final class LocalScanRecord {
         self.timestamp = timestamp
         self.localImagePath = localImagePath
         self.semanticTags = semanticTags
+        self.isPoisonous = isPoisonous
+        self.wikipediaUrl = wikipediaUrl
+        self.referenceImageUrl = referenceImageUrl
     }
 }
 
@@ -80,6 +89,10 @@ class LifeListSearchManager: ObservableObject {
 struct LifeListSearchView: View {
     @StateObject private var searchManager = LifeListSearchManager()
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
+    
+    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(\.dismiss) var dismiss
+    @Binding var isInsightSheetOpen: Bool
     
     let columns = [
         GridItem(.flexible()),
@@ -134,6 +147,13 @@ struct LifeListSearchView: View {
                         }
                         .background(.ultraThinMaterial)
                         .cornerRadius(12)
+                        .onTapGesture {
+                            inferenceEngine.load(from: scan)
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                isInsightSheetOpen = true
+                            }
+                        }
                     }
                 }
                 .padding()

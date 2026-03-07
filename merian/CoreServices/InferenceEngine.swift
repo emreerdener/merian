@@ -88,7 +88,10 @@ final class InferenceEngine: ObservableObject {
                                 insightDescription: mappedData.insightData.description,
                                 timestamp: Date(),
                                 localImagePath: url.path,
-                                semanticTags: [mappedData.commonName, mappedData.scientificName]
+                                semanticTags: [mappedData.commonName, mappedData.scientificName],
+                                isPoisonous: mappedData.insightData.isPoisonous,
+                                wikipediaUrl: mappedData.wikipediaUrl,
+                                referenceImageUrl: mappedData.referenceImageUrl
                             )
                             context.insert(record)
                             try? context.save()
@@ -118,5 +121,27 @@ final class InferenceEngine: ObservableObject {
         inferenceTask?.cancel()
         isProcessing = false
         activePayload = nil
+    }
+    
+    /// Rehydrates the SpeciesData and UI payloads natively from an offline Life List record
+    func load(from record: LocalScanRecord) {
+        self.isProcessing = true
+        
+        if let path = record.localImagePath, let url = URL(string: path) ?? URL(fileURLWithPath: path), let data = try? Data(contentsOf: url) {
+            self.activePayload = data
+        } else {
+            self.activePayload = nil
+        }
+        
+        self.speciesData = SpeciesData(
+            commonName: record.commonName,
+            scientificName: record.scientificName,
+            insightData: InsightData(description: record.insightDescription, isPoisonous: record.isPoisonous),
+            confidenceScore: 1.0, 
+            diagnosticComparison: nil,
+            wikipediaUrl: record.wikipediaUrl,
+            referenceImageUrl: record.referenceImageUrl
+        )
+        self.isProcessing = false
     }
 }
