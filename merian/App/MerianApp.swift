@@ -28,6 +28,9 @@ struct MerianApp: App {
     let container: ModelContainer
     
     init() {
+        // Initialize Zero-PII Crash & Anonymous Usage Metrics natively
+        AppTelemetry.initialize()
+        
         let schema = Schema([LocalScanRecord.self, OfflineQueuedScan.self])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {

@@ -74,6 +74,7 @@ final class HardwareOrchestrator: ObservableObject {
             targetFPS = 15
             isGlassmorphismEnabled = false
             isCriticalHeatWarningActive = true
+            AppTelemetry.trackThermalThrottling(fpsLimit: 15)
         @unknown default:
             targetFPS = 30
             isGlassmorphismEnabled = false

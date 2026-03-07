@@ -60,9 +60,11 @@ struct CameraRootView: View {
                     Button(action: {
                         if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
                             usageManager.recordSuccessfulScan()
+                            AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
                             isInsightSheetOpen = true
                         } else {
                             // User hit the strict architectural boundary of 3 free logs
+                            AppTelemetry.trackPaywallImpression()
                             isPaywallOpen = true
                         }
                     }) {
