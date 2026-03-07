@@ -2,6 +2,9 @@ import Foundation
 import Network
 import Combine
 import SwiftData
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Uses NWPathMonitor for a zero-data loss offline queue automatically syncing securely when a link is confirmed.
 @MainActor
@@ -14,6 +17,9 @@ final class OfflineQueueManager: ObservableObject {
     @Published var isOnline: Bool = false
     @Published var unsyncedItemsCount: Int = 0
     
+    private var isSyncing: Bool = false
+    private var syncTask: Task<Void, Never>?
+    
     var modelContext: ModelContext?
     
     private init() {
@@ -24,11 +30,22 @@ final class OfflineQueueManager: ObservableObject {
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
                 let newStatus = path.status == .satisfied
-                self?.isOnline = newStatus
                 
-                if newStatus {
-                    // Start sync when reconnected
-                    self?.syncPendingScans()
+                // Only act on actual state changes to avoid redundant thrashing
+                if newStatus != self?.isOnline {
+                    self?.isOnline = newStatus
+                    print("NWPathMonitor Status Changed: \(newStatus ? "Online" : "Offline")")
+                    
+                    if newStatus {
+                        // Debounce slightly to allow the OS network stack to fully resolve
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        self?.syncPendingScans()
+                    } else {
+                        // Immediately circuit-break any active uploads if we drop off-grid
+                        self?.syncTask?.cancel()
+                        self?.isSyncing = false
+                        SyncStateManager.shared.completeSync()
+                    }
                 }
             }
         }
@@ -75,9 +92,10 @@ final class OfflineQueueManager: ObservableObject {
     }
     
     func syncPendingScans() {
+        guard isOnline else { return }
+        guard !isSyncing else { return } // Prevent parallel overlap attacks
         guard let modelContext = modelContext else { return }
         
-        // Fetch all non-deleted captures
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { !$0.isDeleted })
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
         
@@ -85,13 +103,46 @@ final class OfflineQueueManager: ObservableObject {
             let pendingScans = try modelContext.fetch(descriptor)
             guard !pendingScans.isEmpty else { return }
             
-            Task {
-                for scan in pendingScans {
-                    await processScan(scan)
+            isSyncing = true
+            SyncStateManager.shared.beginSync(itemCount: pendingScans.count)
+            
+            #if os(iOS)
+            // Critical: Request explicit background execution time from iOS to wrap up field uploads while the device is in the user's pocket
+            var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+            backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
+                // Time expiring
+                self.syncTask?.cancel()
+                self.isSyncing = false
+                SyncStateManager.shared.completeSync()
+                if backgroundTaskID != .invalid {
+                    UIApplication.shared.endBackgroundTask(backgroundTaskID)
                 }
             }
+            #endif
+            
+            syncTask = Task {
+                for scan in pendingScans {
+                    // Pre-check the circuit breaker natively before each payload fires
+                    if Task.isCancelled || !self.isOnline { break }
+                    await processScan(scan)
+                }
+                
+                await MainActor.run {
+                    self.isSyncing = false
+                    SyncStateManager.shared.completeSync()
+                    
+                    #if os(iOS)
+                    if backgroundTaskID != .invalid {
+                        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                    }
+                    #endif
+                }
+            }
+            
         } catch {
             print("Failed to fetch pending scans: \(error)")
+            isSyncing = false
+            SyncStateManager.shared.completeSync()
         }
     }
     
