@@ -67,11 +67,19 @@ class MerianNetworkClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {
-            let activeJWT = try await SupabaseManager.shared.getActiveJWT()
-            request.setValue("Bearer \(activeJWT)", forHTTPHeaderField: "Authorization")
+            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            if activeJWT == nil {
+                print("⚠️ MerianNetworkClient: Active JWT missing. Forcing local Ghost Session auth.")
+                await SupabaseManager.shared.initializeGhostSession()
+                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            }
+            guard let finalJWT = activeJWT else {
+                throw NetworkError.invalidResponse
+            }
+            request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
         } catch {
-            print("⚠️ MerianNetworkClient: Failed to extract active JWT: \(error.localizedDescription)")
-            request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+            print("⚠️ MerianNetworkClient: Critical Auth Failure: \(error.localizedDescription)")
+            throw NetworkError.invalidResponse
         }
         
         let payload: [String: Any?] = [
@@ -105,10 +113,17 @@ class MerianNetworkClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {
-            let activeJWT = try await SupabaseManager.shared.getActiveJWT()
-            request.setValue("Bearer \(activeJWT)", forHTTPHeaderField: "Authorization")
+            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            if activeJWT == nil {
+                await SupabaseManager.shared.initializeGhostSession()
+                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            }
+            guard let finalJWT = activeJWT else {
+                throw NetworkError.invalidResponse
+            }
+            request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
         } catch {
-            request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+            throw NetworkError.invalidResponse
         }
         
         let payload: [String: Any] = ["fileNames": fileNames]

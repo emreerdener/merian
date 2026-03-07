@@ -130,14 +130,17 @@ Crucial instructions:
     // Parse Gemini response to persist securely into the physical DB
     const parsedData = JSON.parse(responseText);
 
-    // Initialize secure Auth Client mimicking the active Apple device native context natively
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const authHeader = req.headers.get("Authorization");
 
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader || "" } },
     });
+
+    // Admin client strictly explicitly to push securely into the global read-only species dictionary natively
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: userData, error: _ } = await supabaseClient.auth.getUser();
 
@@ -147,16 +150,17 @@ Crucial instructions:
 
       // Upsert physical taxonomy object dictionary lookup cleanly
       if (parsedData.scientific_name) {
-        const { data: existingSpecies } = await supabaseClient
-          .from("species_dictionary")
-          .select("id")
-          .eq("scientific_name", parsedData.scientific_name)
-          .single();
+        const { data: existingSpecies, error: selectError } =
+          await supabaseAdmin
+            .from("species_dictionary")
+            .select("id")
+            .eq("scientific_name", parsedData.scientific_name)
+            .single();
 
         if (existingSpecies) {
           speciesId = existingSpecies.id;
         } else {
-          const { data: newSpecies } = await supabaseClient
+          const { data: newSpecies, error: insertError } = await supabaseAdmin
             .from("species_dictionary")
             .insert({
               scientific_name: parsedData.scientific_name,
@@ -192,6 +196,10 @@ Crucial instructions:
         is_live_capture: parsedData.is_live_capture,
         weather_condition: weatherCondition,
       });
+    } else {
+      throw new Error(
+        "Unauthorized: Invalid or missing User JWT. Scans cannot be saved without a Ghost Session.",
+      );
     }
 
     // Wrap the resulting taxonomy cleanly up in the JSON shell required strictly by the Native Swift Codable mappings
