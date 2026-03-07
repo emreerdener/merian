@@ -30,6 +30,7 @@
 		A75F38D210D42BDC6EAC0FD6 /* InsightSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */; };
 		B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */; };
 		B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */; };
+		B877508EC5465B634C8BAF4D /* GamificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0D60BF7DCA58CC49289F8B /* GamificationManager.swift */; };
 		C11ED297AD9651C7F44C4A96 /* MerianEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */; };
 		C585EF3BFA0012F2973D3C91 /* MerianAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E57E8F1984879D600108892 /* MerianAppIntents.swift */; };
 		C7AA31ECCE527E151CF6C39C /* TelemetryClient in Frameworks */ = {isa = PBXBuildFile; productRef = B41D79C304B7AE7C8A98F7A4 /* TelemetryClient */; };
@@ -71,6 +72,7 @@
 		0481771C41C383D2737DDEC7 /* MerianWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MerianWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0544663A0318949724DDE300 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
+		1E0D60BF7DCA58CC49289F8B /* GamificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationManager.swift; sourceTree = "<group>"; };
 		2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetView.swift; sourceTree = "<group>"; };
 		46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClient.swift; sourceTree = "<group>"; };
 		4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
@@ -135,6 +137,7 @@
 			children = (
 				EF836BCE5722B41748153F02 /* AppTelemetry.swift */,
 				8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */,
+				1E0D60BF7DCA58CC49289F8B /* GamificationManager.swift */,
 				17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */,
 				7E57E8F1984879D600108892 /* MerianAppIntents.swift */,
 				4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */,
@@ -311,6 +314,7 @@
 				B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */,
 				16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */,
 				07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */,
+				B877508EC5465B634C8BAF4D /* GamificationManager.swift in Sources */,
 				1AF3C8456601927E288B1890 /* HardwareOrchestrator.swift in Sources */,
 				A75F38D210D42BDC6EAC0FD6 /* InsightSheetView.swift in Sources */,
 				8D28D290FD319AF4DFE6056C /* LifeListSearchManager.swift in Sources */,

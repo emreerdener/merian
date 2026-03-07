@@ -1,17 +1,9 @@
 import SwiftUI
 import RiveRuntime
 
-extension HapticManager {
-    func triggerSelectionPulse() {
-        print("Selection Pulse Haptic successfully fired.")
-    }
-}
-
 // 1. Digital Terrarium Integration mapping directly to users' physical taxonomical growth
 struct TerrariumView: View {
-    // Stat dependencies pulling naturally from standard global bounds
-    let unlockedSpeciesCount: Int
-    let hasFireflyBadge: Bool
+    @EnvironmentObject var gamificationManager: GamificationManager
     
     // Connect explicitly into the custom animated .riv asset file and corresponding state architecture
     @StateObject private var terrariumVM = RiveViewModel(
@@ -35,16 +27,16 @@ struct TerrariumView: View {
             HapticManager.shared.triggerSelectionPulse()
         }
         // 2. Continuous State Sync Pipeline observing changes passively
-        .onChange(of: unlockedSpeciesCount) { _, newValue in
+        .onChange(of: gamificationManager.unlockedSpeciesCount) { _, newValue in
             terrariumVM.setInput("TotalSpeciesCount", value: Double(newValue))
         }
-        .onChange(of: hasFireflyBadge) { _, newValue in
+        .onChange(of: gamificationManager.hasFireflyBadge) { _, newValue in
             terrariumVM.setInput("ShowFireflies", value: newValue)
         }
         // 3. Initial sync cascade
         .onAppear {
-            terrariumVM.setInput("TotalSpeciesCount", value: Double(unlockedSpeciesCount))
-            terrariumVM.setInput("ShowFireflies", value: hasFireflyBadge)
+            terrariumVM.setInput("TotalSpeciesCount", value: Double(gamificationManager.unlockedSpeciesCount))
+            terrariumVM.setInput("ShowFireflies", value: gamificationManager.hasFireflyBadge)
         }
     }
 }

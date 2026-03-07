@@ -13,6 +13,20 @@ final class HapticManager {
             generator.notificationOccurred(.error)
         }
     }
+    
+    func triggerSelectionPulse() {
+        DispatchQueue.main.async {
+            let generator = UISelectionFeedbackGenerator()
+            generator.selectionChanged()
+        }
+    }
+    
+    func triggerSuccessPulse() {
+        DispatchQueue.main.async {
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+        }
+    }
 }
 
 /// Automates Frontend Blocking capabilities syncing Optimistic Renders directly to TS Edges

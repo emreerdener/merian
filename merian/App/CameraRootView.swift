@@ -8,6 +8,7 @@ struct CameraRootView: View {
     
     @EnvironmentObject var revenueCatManager: RevenueCatManager
     @EnvironmentObject var usageManager: UsageManager
+    @EnvironmentObject var gamificationManager: GamificationManager
     
     @State private var isInsightSheetOpen: Bool = false
     @State private var isPaywallOpen: Bool = false
@@ -54,6 +55,20 @@ struct CameraRootView: View {
                 
                 // Floating Action Bar Interface
                 HStack {
+                    // Digital Terrarium Left Overlay
+                    Button(action: {
+                        gamificationManager.showTerrariumSheet = true
+                    }) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.15))
+                                .frame(width: 50, height: 50)
+                            Image(systemName: "leaf.fill")
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .padding(.leading, 12)
+                    
                     Spacer()
                     
                     // The Shutter / Analyze Button
@@ -66,6 +81,7 @@ struct CameraRootView: View {
                                     
                                     await MainActor.run {
                                         usageManager.recordSuccessfulScan()
+                                        gamificationManager.recordNewSpeciesDiscovered()
                                         AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
                                         isInsightSheetOpen = true
                                     }
@@ -127,6 +143,9 @@ struct CameraRootView: View {
         }
         .sheet(isPresented: $isPaywallOpen) {
             PaywallView()
+        }
+        .sheet(isPresented: $gamificationManager.showTerrariumSheet) {
+            TerrariumView()
         }
     }
 }
