@@ -57,30 +57,51 @@ struct InsightSheetView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 
-                // 0. The Reference Image (Fetched perfectly from Wikipedia REST API)
-                if let refUrlString = inferenceEngine.speciesData?.referenceImageUrl, let refUrl = URL(string: refUrlString) {
-                    AsyncImage(url: refUrl) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                                .frame(height: 200)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.white.opacity(0.1))
-                                .cornerRadius(12)
-                        case .success(let image):
-                            image
+                // 0. The Image Carousel (Active Capture + Wikipedia Reference)
+                let hasReferenceImage = (inferenceEngine.speciesData?.referenceImageUrl != nil)
+                let hasUserImage = (inferenceEngine.activePayload != nil)
+                
+                if hasUserImage || hasReferenceImage {
+                    TabView {
+                        // Tab 1: User's Uploaded Image
+                        if let payload = inferenceEngine.activePayload, let uiImage = UIImage(data: payload) {
+                            Image(uiImage: uiImage)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(height: 200)
+                                .frame(height: 250)
                                 .frame(maxWidth: .infinity)
                                 .clipped()
-                                .cornerRadius(12)
-                        case .failure:
-                            EmptyView()
-                        @unknown default:
-                            EmptyView()
+                                .tag(0)
+                        }
+                        
+                        // Tab 2: Wikipedia Reference Image
+                        if let refUrlString = inferenceEngine.speciesData?.referenceImageUrl, let refUrl = URL(string: refUrlString) {
+                            AsyncImage(url: refUrl) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .frame(height: 250)
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color.white.opacity(0.1))
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(height: 250)
+                                        .frame(maxWidth: .infinity)
+                                        .clipped()
+                                case .failure:
+                                    EmptyView()
+                                @unknown default:
+                                    EmptyView()
+                                }
+                            }
+                            .tag(1)
                         }
                     }
+                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
+                    .frame(height: 250)
+                    .cornerRadius(12)
                     .padding(.horizontal)
                 }
 
