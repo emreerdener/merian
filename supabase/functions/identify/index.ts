@@ -18,6 +18,7 @@ serve(async (req: Request) => {
   }
 
   try {
+    console.log("[1] Request received");
     const {
       geminiFileUri,
       gpsLatitude,
@@ -117,6 +118,11 @@ Crucial instructions:
       { text: "Perform the biological identification." },
     ];
 
+    console.log(
+      "[2] Extracted body, calling Gemini. ServiceKey length:",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.length,
+    );
+
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
       generationConfig: {
@@ -125,6 +131,7 @@ Crucial instructions:
       },
     });
 
+    console.log("[3] Gemini Finished, Parsing JSON");
     const responseText = result.response.text();
 
     // Parse Gemini response to persist securely into the physical DB
@@ -142,7 +149,13 @@ Crucial instructions:
     // Admin client strictly explicitly to push securely into the global read-only species dictionary natively
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: userData, error: _ } = await supabaseClient.auth.getUser();
+    const token = authHeader?.replace("Bearer ", "") ?? "";
+    const { data: userData, error: _ } =
+      await supabaseClient.auth.getUser(token);
+    console.log("[4] Checking User Identity:", {
+      id: userData?.user?.id,
+      err: _,
+    });
 
     if (userData && userData.user) {
       const userId = userData.user.id;
@@ -150,6 +163,10 @@ Crucial instructions:
 
       // Upsert physical taxonomy object dictionary lookup cleanly
       if (parsedData.scientific_name) {
+        console.log(
+          "[5] Upserting Dictionary with: ",
+          parsedData.scientific_name,
+        );
         const { data: existingSpecies, error: selectError } =
           await supabaseAdmin
             .from("species_dictionary")
@@ -160,6 +177,32 @@ Crucial instructions:
         if (existingSpecies) {
           speciesId = existingSpecies.id;
         } else {
+          console.log("[5.1] Enriching data for:", parsedData.scientific_name);
+          let wikiUrl = null;
+          let gbifKey = null;
+
+          try {
+            // Unauthenticated taxonomy fetch to global GBIF registry
+            const gbifRes = await fetch(
+              `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(parsedData.scientific_name)}`,
+            );
+            if (gbifRes.ok) {
+              const gbifJson = await gbifRes.json();
+              gbifKey = gbifJson.usageKey || null;
+            }
+
+            // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
+            const wikiRes = await fetch(
+              `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsedData.scientific_name.replace(/ /g, "_"))}`,
+            );
+            if (wikiRes.ok) {
+              const wikiJson = await wikiRes.json();
+              wikiUrl = wikiJson.content_urls?.desktop?.page || null;
+            }
+          } catch (e) {
+            console.log("Data enrichment failed silently: ", e);
+          }
+
           const { data: newSpecies, error: insertError } = await supabaseAdmin
             .from("species_dictionary")
             .insert({
@@ -172,6 +215,8 @@ Crucial instructions:
               family: parsedData.taxonomy.family,
               genus: parsedData.taxonomy.genus,
               descriptions: { insight: parsedData.insight_data.description },
+              wikipedia_url: wikiUrl,
+              gbif_taxon_key: gbifKey,
               native_region: "Unknown",
             })
             .select("id")
@@ -182,6 +227,7 @@ Crucial instructions:
         }
       }
 
+      console.log("[6] Inserting Scan");
       // Finally natively bind the architectural map directly down to the Ghost User UUID
       await supabaseClient.from("scans").insert({
         user_id: userId,
@@ -208,6 +254,7 @@ Crucial instructions:
       status: 200,
     });
   } catch (error) {
+    console.error("FATAL ERROR IN EDGE LAYER:", error);
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

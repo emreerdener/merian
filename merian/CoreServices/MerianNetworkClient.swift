@@ -49,7 +49,13 @@ class MerianNetworkClient {
         request.httpBody = imageData
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.uploadFailed
+        }
+        
+        if httpResponse.statusCode != 200 {
+            let errString = String(data: data, encoding: .utf8) ?? "Unknown"
+            print("🚨 GEMINI UPLOAD FAILED [\(httpResponse.statusCode)]: \(errString)")
             throw NetworkError.uploadFailed
         }
         
@@ -96,7 +102,13 @@ class MerianNetworkClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: cleanPayload)
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse
+        }
+        
+        if httpResponse.statusCode != 200 {
+            let errString = String(data: data, encoding: .utf8) ?? "Unknown"
+            print("🚨 SUPABASE EDGE FAILED [\(httpResponse.statusCode)]: \(errString)")
             throw NetworkError.invalidResponse
         }
         
@@ -130,7 +142,13 @@ class MerianNetworkClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse
+        }
+        
+        if httpResponse.statusCode != 200 {
+            let errString = String(data: data, encoding: .utf8) ?? "Unknown"
+            print("🚨 GENERATE URLS FAILED [\(httpResponse.statusCode)]: \(errString)")
             throw NetworkError.invalidResponse
         }
         
@@ -147,8 +165,14 @@ class MerianNetworkClient {
         request.setValue(mimeType, forHTTPHeaderField: "Content-Type")
         request.httpBody = data
         
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.uploadFailed
+        }
+        
+        if httpResponse.statusCode != 200 {
+            let errString = String(data: data, encoding: .utf8) ?? "Unknown"
+            print("🚨 R2 UPLOAD FAILED [\(httpResponse.statusCode)]: \(errString)")
             throw NetworkError.uploadFailed
         }
     }
