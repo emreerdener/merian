@@ -21,6 +21,7 @@ struct MerianApp: App {
     @StateObject private var offlineQueueManager = OfflineQueueManager.shared
     @StateObject private var inferenceEngine = InferenceEngine()
     @StateObject private var syncStateManager = SyncStateManager.shared
+    @StateObject private var supabaseManager = SupabaseManager.shared
 
     let container: ModelContainer
     
@@ -42,6 +43,7 @@ struct MerianApp: App {
                 .environmentObject(offlineQueueManager)
                 .environmentObject(inferenceEngine)
                 .environmentObject(syncStateManager)
+                .environmentObject(supabaseManager)
                 .modelContainer(container)
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -59,8 +61,10 @@ struct MerianApp: App {
                 // Restore thermal feeds dynamically safely
                 cameraManager.startSession()
                 
-                // Check edge databases implicitly for ghost uploads
+                // Initialize the anonymous session natively if they haven't authenticated
+                // Then check edge databases implicitly for ghost uploads
                 Task {
+                    await supabaseManager.initializeGhostSession()
                     offlineQueueManager.syncPendingScans()
                 }
             @unknown default:
