@@ -38,23 +38,26 @@ class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate,
     }
     
     private func requestPermissions() {
-        AVAudioApplication.requestRecordPermission { [weak self] granted in
+        AVAudioApplication.requestRecordPermission { granted in
             print("Microphone access granted: \(granted)")
         }
         locationManager.requestWhenInUseAuthorization()
     }
     
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        self.authorizationState = manager.authorizationStatus
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in
+            self.authorizationState = manager.authorizationStatus
+        }
     }
     
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        self.currentLocation = location
-        // Stop updating immediately to save battery on WatchOS
-        locationManager.stopUpdatingLocation()
         
-        Task {
+        Task { @MainActor in
+            self.currentLocation = location
+            // Stop updating immediately to save battery on WatchOS
+            self.locationManager.stopUpdatingLocation()
+            
             do {
                 self.currentWeather = try await WeatherService.shared.weather(for: location)
             } catch {
