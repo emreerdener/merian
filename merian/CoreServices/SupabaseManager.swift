@@ -40,13 +40,15 @@ final class SupabaseManager: ObservableObject {
     func initializeGhostSession() async {
         do {
             // Check if they are already actively signed in (either as a Ghost or an Authenticated Apple user)
-            if try await client.auth.session != nil {
+            if let session = try await client.auth.session {
                 print("👻 Active Merian User Identity already resolved natively on device.")
+                await RevenueCatManager.shared.linkWithSupabase(userId: session.user.id)
                 return
             }
             
             let authResponse = try await client.auth.signInAnonymously()
             print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id)")
+            await RevenueCatManager.shared.linkWithSupabase(userId: authResponse.user.id)
         } catch {
             print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
             // Future gracefully degraded UI triggers can be queued here natively

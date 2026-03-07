@@ -22,6 +22,8 @@ struct MerianApp: App {
     @StateObject private var inferenceEngine = InferenceEngine()
     @StateObject private var syncStateManager = SyncStateManager.shared
     @StateObject private var supabaseManager = SupabaseManager.shared
+    @StateObject private var revenueCatManager = RevenueCatManager.shared
+    @StateObject private var usageManager = UsageManager.shared
 
     let container: ModelContainer
     
@@ -44,7 +46,12 @@ struct MerianApp: App {
                 .environmentObject(inferenceEngine)
                 .environmentObject(syncStateManager)
                 .environmentObject(supabaseManager)
+                .environmentObject(revenueCatManager)
+                .environmentObject(usageManager)
                 .modelContainer(container)
+                .onAppear {
+                    revenueCatManager.configure()
+                }
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {

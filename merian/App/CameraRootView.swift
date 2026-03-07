@@ -6,7 +6,11 @@ struct CameraRootView: View {
     @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared
     @StateObject private var vui = ViewfinderIntelligence.shared
     
+    @EnvironmentObject var revenueCatManager: RevenueCatManager
+    @EnvironmentObject var usageManager: UsageManager
+    
     @State private var isInsightSheetOpen: Bool = false
+    @State private var isPaywallOpen: Bool = false
     
     var body: some View {
         ZStack {
@@ -54,7 +58,13 @@ struct CameraRootView: View {
                     
                     // The Shutter / Analyze Button
                     Button(action: {
-                        isInsightSheetOpen = true
+                        if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
+                            usageManager.recordSuccessfulScan()
+                            isInsightSheetOpen = true
+                        } else {
+                            // User hit the strict architectural boundary of 3 free logs
+                            isPaywallOpen = true
+                        }
                     }) {
                         ZStack {
                             Circle()
@@ -101,6 +111,9 @@ struct CameraRootView: View {
         }
         .onDisappear {
             cameraManager.stopSession()
+        }
+        .sheet(isPresented: $isPaywallOpen) {
+            PaywallView()
         }
     }
 }
