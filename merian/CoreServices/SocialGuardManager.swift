@@ -2,34 +2,7 @@ import Foundation
 import Combine
 import SwiftUI
 
-/// Mocked Manager assumed available globally within Merian Architecture
-final class HapticManager {
-    static let shared = HapticManager()
-    private init() {}
-    
-    func triggerErrorThump() {
-        DispatchQueue.main.async {
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.error)
-        }
-    }
-    
-    func triggerSelectionPulse() {
-        DispatchQueue.main.async {
-            let generator = UISelectionFeedbackGenerator()
-            generator.selectionChanged()
-        }
-    }
-    
-    func triggerSuccessPulse() {
-        DispatchQueue.main.async {
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.success)
-        }
-    }
-}
 
-/// Automates Frontend Blocking capabilities syncing Optimistic Renders directly to TS Edges
 @MainActor
 final class SocialGuardManager: ObservableObject {
     static let shared = SocialGuardManager()
@@ -70,8 +43,10 @@ final class SocialGuardManager: ObservableObject {
         request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
         
-        // Using mock user for sync pipeline assumption
-        let mockBlockerId = "current-merian-user-uuid" 
+        guard let mockBlockerId = SupabaseManager.shared.currentUser?.id.uuidString else {
+            print("SocialGuard: Backend sync aborted. No active local Superbase Identity found.")
+            return false
+        }
         
         let payload: [String: String] = [
             "blocker_id": mockBlockerId,

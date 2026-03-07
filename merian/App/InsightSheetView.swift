@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Models (Mocked to match Deno Edge specifications)
+// MARK: - Primary Domain Models (Data received from InferenceEngine/Gemini Edge JSON)
 struct SpeciesData {
     let commonName: String
     let scientificName: String

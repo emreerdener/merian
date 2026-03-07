@@ -24,4 +24,8 @@ final class HapticManager {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.error.notificationOccurred(.error) }
     }
     func triggerSelectionPulse() { selection.selectionChanged() }
+    func triggerSuccessPulse() {
+        let success = UINotificationFeedbackGenerator()
+        success.notificationOccurred(.success)
+    }
 }

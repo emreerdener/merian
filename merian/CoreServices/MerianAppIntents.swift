@@ -8,14 +8,7 @@ struct AppState {
     func navigateToLastScan() { print("Pushed Last Scan Modal natively.") }
 }
 
-extension HapticManager {
-    func triggerFocusSnap() {
-        print("Haptic Focus Snap Fired.")
-    }
-    func triggerSheetSpring() {
-        print("Haptic Sheet Spring Fired.")
-    }
-}
+
 
 // Intent 1: Identify Nature
 struct IdentifyNatureIntent: AppIntent {
