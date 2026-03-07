@@ -22,6 +22,8 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
 
 The `merianResponseSchema` within Deno forces Gemini structurally into this exact format. If an AI Agent mutates any key here, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to prevent silent Swift failures during decoding.
 
+**Critical Edge Limitation (Gemini 2.5):** The model natively errors with `400 Bad Request` if developers strictly supply descriptive strings for enum checks. The `ecology_type` must be explicitly formatted as a structural JSON `enum: ["wild", "urban", "domesticated", "unknown"]` constraint within Deno to map cleanly.
+
 ```json
 {
   "is_biological_subject": true,
@@ -64,3 +66,5 @@ struct IdentifyResponse: Codable {
     let result: String
 }
 ```
+
+**Client Authentication Caveat**: `MerianNetworkClient` explicitly enforces token provisioning natively. If a network call fails to discover an active Ghost Session (JWT), it intercepts the dispatch implicitly, awaits `SupabaseManager.shared.initializeGhostSession()`, and secures the token before routing to prevent silent foreign key violations on the Edge node.

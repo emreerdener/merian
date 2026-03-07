@@ -12,9 +12,9 @@ To maximize user conversion, Merian demands zero upfront onboarding friction:
 
 ## Paywalls and Entitlements (`RevenueCatManager`)
 
-Controls strict Apple ecosystem bounds dictating core app functionalities intuitively.
-
+- Controls strict Apple ecosystem bounds dictating core app functionalities intuitively.
 - Initializes `.configure(withAPIKey:)` silently pulling the active iOS `ProcessInfo` values physically mapping to `.xcconfig` secure layers.
+- **CRITICAL DEBUG NOTE**: In explicit Release configurations, if a `test_` public key is detected instead of a `pk_`, `RevenueCatManager` intercepts the boot and injects a pseudo key to successfully bypass severe Apple `SIGTRAP` crash events during TestFlight deployments.
 - Uses `logIn(currentAppUserID)` binding the Supabase Ghost user natively.
 - Evaluates `isProActive` booleans via `.purchaserInfo()` observing `"pro_subscription"` logic seamlessly updating SwiftUI.
 

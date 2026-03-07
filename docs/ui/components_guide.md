@@ -8,14 +8,15 @@ The massive full-bleed base architecture.
 
 - Maps an `AVCaptureVideoPreviewLayer` wrapping `UIViewRepresentable` entirely behind a `ZStack` physically.
 - Listens to the `@StateObject var vui = ViewfinderIntelligence.shared`.
+- Integrates iOS native `PhotosPicker` natively along the bottom `.glassmorphism` capsule to scan legacy captures directly from the camera roll.
 - Throws `.ultraThinMaterial` dynamic SwiftUI hints ("Move Closer", "Too Dark") instantly without `alert` blockers.
 - Orchestrates dynamic `.black` bounding boxes removing transparent elements completely when `HardwareOrchestrator` triggers thermal throttling states.
 
-## 2. Default `InsightSheetView.swift` (Unbuilt)
+## 2. Default `InsightSheetView.swift` (Built Structure)
 
 The physical analytical response boundary natively wrapping the `SpeciesData` schema generated natively by Deno.
 
-- Always renders up in the "Natural Thumb Zone" from the bottom.
+- Always renders up in the "Natural Thumb Zone" from the bottom. Defaults exclusively to a full-screen `.large` presentation detent explicitly obscuring the background viewfinder cleanly.
 - Displays dynamic Taxonomy (Kingdom, Phylum) dynamically bound exclusively via Deno metadata inputs.
 - Triggers `isPresented` conditionally freezing the background camera logic instantly saving maximum hardware battery draw natively behind the user.
 - Automatically drops VoiceOver explicitly reading the `commonNames` strings first, followed deeply by `isPoisonous` states.
