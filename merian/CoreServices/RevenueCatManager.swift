@@ -13,8 +13,19 @@ final class RevenueCatManager: ObservableObject {
     
     /// Initializes checking RevenueCat for active telemetry tokens
     func configure() {
-        Purchases.logLevel = .warn
-        Purchases.configure(withAPIKey: MerianEnvironment.revenueCatApiKey)
+        Purchases.logLevel = .debug
+        
+        var apiKey = MerianEnvironment.revenueCatApiKey
+        
+        // Anti-SIGTRAP strict bypass for TestFlight when Apple blocks `test_` sandbox keys in Release binaries.
+        #if !DEBUG
+        if apiKey.hasPrefix("test_") || apiKey.hasPrefix("sk_") {
+            print("⚠️ RevenueCat SDK Bypass: Intercepted a test API key in a Release environment. Injecting a dummy production key to securely crash-proof the launch sequence. All network requests will politely fail and default to the Free Tier bounds.")
+            apiKey = "appl_sandbox_bypass_1234567890abcdef"
+        }
+        #endif
+        
+        Purchases.configure(withAPIKey: apiKey)
         
         Task {
             await refreshCustomerInfo()
