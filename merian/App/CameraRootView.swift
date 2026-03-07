@@ -59,9 +59,20 @@ struct CameraRootView: View {
                     // The Shutter / Analyze Button
                     Button(action: {
                         if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
-                            usageManager.recordSuccessfulScan()
-                            AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
-                            isInsightSheetOpen = true
+                            Task {
+                                do {
+                                    let captureData = try await cameraManager.captureImage()
+                                    OfflineQueueManager.shared.enqueueCapture(imageData: captureData)
+                                    
+                                    await MainActor.run {
+                                        usageManager.recordSuccessfulScan()
+                                        AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
+                                        isInsightSheetOpen = true
+                                    }
+                                } catch {
+                                    print("⚠️ Shutter failure: \(error.localizedDescription)")
+                                }
+                            }
                         } else {
                             // User hit the strict architectural boundary of 3 free logs
                             AppTelemetry.trackPaywallImpression()

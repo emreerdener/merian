@@ -3,6 +3,7 @@ import {
   GoogleGenerativeAI,
   SchemaType,
 } from "https://esm.sh/@google/generative-ai@0.1.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,16 +19,15 @@ serve(async (req: Request) => {
 
   try {
     const {
-      geminiFileUris,
-      gpsLatExact,
-      gpsLongExact,
-      subjectDistanceInMeters,
-      currentMonth,
-      deviceLocale,
+      geminiFileUri,
+      gpsLatitude,
+      gpsLongitude,
+      depthScaleText,
+      weatherCondition,
     } = await req.json();
 
-    if (!Array.isArray(geminiFileUris) || geminiFileUris.length === 0) {
-      throw new Error("Missing geminiFileUris array.");
+    if (!geminiFileUri) {
+      throw new Error("Missing geminiFileUri.");
     }
 
     const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!);
@@ -46,10 +46,9 @@ Crucial instructions:
 
     const dynamicContext = `
       Environmental Context:
-      - GPS Coordinates: Lat ${gpsLatExact ?? "Unknown"}, Long ${gpsLongExact ?? "Unknown"}
-      - Subject Distance: ${subjectDistanceInMeters ? `${subjectDistanceInMeters} meters` : "Unknown"}
-      - Current Month: ${currentMonth ?? "Unknown"}
-      - Device Locale: ${deviceLocale ?? "Unknown"}
+      - GPS Coordinates: Lat ${gpsLatitude ?? "Unknown"}, Long ${gpsLongitude ?? "Unknown"}
+      - Depth Scale (Lidar): ${depthScaleText ?? "Unknown"}
+      - Weather Condition: ${weatherCondition ?? "Unknown"}
     `;
 
     const merianResponseSchema = {
@@ -111,12 +110,11 @@ Crucial instructions:
       ],
     };
 
-    const parts = geminiFileUris.map((uri: string) => ({
-      fileData: { mimeType: "image/jpeg", fileUri: uri },
-    }));
-
-    parts.push({ text: dynamicContext });
-    parts.push({ text: "Perform the biological identification." });
+    const parts = [
+      { fileData: { mimeType: "image/jpeg", fileUri: geminiFileUri } },
+      { text: dynamicContext },
+      { text: "Perform the biological identification." },
+    ];
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
@@ -128,12 +126,80 @@ Crucial instructions:
 
     const responseText = result.response.text();
 
-    return new Response(responseText, {
+    // Parse Gemini response to persist securely into the physical DB
+    const parsedData = JSON.parse(responseText);
+
+    // Initialize secure Auth Client mimicking the active Apple device native context natively
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const authHeader = req.headers.get("Authorization");
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader || "" } },
+    });
+
+    const { data: userData, error: _ } = await supabaseClient.auth.getUser();
+
+    if (userData && userData.user) {
+      const userId = userData.user.id;
+      let speciesId = null;
+
+      // Upsert physical taxonomy object dictionary lookup cleanly
+      if (parsedData.scientific_name) {
+        const { data: existingSpecies } = await supabaseClient
+          .from("species_dictionary")
+          .select("id")
+          .eq("scientific_name", parsedData.scientific_name)
+          .single();
+
+        if (existingSpecies) {
+          speciesId = existingSpecies.id;
+        } else {
+          const { data: newSpecies } = await supabaseClient
+            .from("species_dictionary")
+            .insert({
+              scientific_name: parsedData.scientific_name,
+              common_names: { default: parsedData.common_name },
+              kingdom: parsedData.taxonomy.kingdom,
+              phylum: parsedData.taxonomy.phylum,
+              class: parsedData.taxonomy.class,
+              order: parsedData.taxonomy.order,
+              family: parsedData.taxonomy.family,
+              genus: parsedData.taxonomy.genus,
+              descriptions: { insight: parsedData.insight_data.description },
+              native_region: "Unknown",
+            })
+            .select("id")
+            .single();
+          if (newSpecies) {
+            speciesId = newSpecies.id;
+          }
+        }
+      }
+
+      // Finally natively bind the architectural map directly down to the Ghost User UUID
+      await supabaseClient.from("scans").insert({
+        user_id: userId,
+        species_id: speciesId,
+        gps_lat_exact: gpsLatitude,
+        gps_long_exact: gpsLongitude,
+        ai_confidence_score: parsedData.confidence_score,
+        ecology_type: parsedData.ecology_type,
+        is_invasive: parsedData.is_invasive,
+        regional_status_rationale:
+          parsedData.insight_data.regional_status_rationale,
+        is_live_capture: parsedData.is_live_capture,
+        weather_condition: weatherCondition,
+      });
+    }
+
+    // Wrap the resulting taxonomy cleanly up in the JSON shell required strictly by the Native Swift Codable mappings
+    return new Response(JSON.stringify({ result: responseText }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

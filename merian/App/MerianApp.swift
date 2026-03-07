@@ -36,6 +36,7 @@ struct MerianApp: App {
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
             container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            OfflineQueueManager.shared.modelContext = container.mainContext
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }

@@ -5,12 +5,13 @@ import Combine
 
 /// Manages AVFoundation stack and depth mapping memory-safely
 @MainActor
-final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate {
+final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate {
     static let shared = CameraManager()
     
     let session = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let depthOutput = AVCaptureDepthDataOutput()
+    private let photoOutput = AVCapturePhotoOutput()
     
     private let queue = DispatchQueue(label: "com.merian.camera")
     private var cancellables = Set<AnyCancellable>()
@@ -23,6 +24,9 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     // VUI Throttle parameters
     private var lastVUIAnalysisTime = Date()
+    
+    // Photo capture state
+    private var activePhotoContinuation: CheckedContinuation<Data, Error>?
     
     private override init() {
         super.init()
@@ -64,6 +68,11 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             if let connection = depthOutput.connection(with: .depthData) {
                 connection.isEnabled = true
             }
+        }
+        
+        if session.canAddOutput(photoOutput) {
+            session.addOutput(photoOutput)
+            photoOutput.isHighResolutionCaptureEnabled = true
         }
         
         session.commitConfiguration()
@@ -217,6 +226,41 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             self.lastVUIAnalysisTime = now
             
             ViewfinderIntelligence.shared.analyze(pixelBuffer: pixelBuffer, distance: self.subjectDistanceInMeters)
+        }
+    }
+    
+    func captureImage() async throws -> Data {
+        return try await withCheckedThrowingContinuation { continuation in
+            guard activePhotoContinuation == nil else {
+                continuation.resume(throwing: NSError(domain: "CameraManager", code: -1, userInfo: [NSLocalizedDescriptionKey : "Capture already in progress"]))
+                return
+            }
+            
+            activePhotoContinuation = continuation
+            
+            queue.async {
+                let settings = AVCapturePhotoSettings()
+                settings.isHighResolutionPhotoEnabled = true
+                if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
+                    settings.isDepthDataDeliveryEnabled = true
+                }
+                
+                self.photoOutput.capturePhoto(with: settings, delegate: self)
+            }
+        }
+    }
+    
+    nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        Task { @MainActor in
+            if let error = error {
+                activePhotoContinuation?.resume(throwing: error)
+            } else if let data = photo.fileDataRepresentation() {
+                activePhotoContinuation?.resume(returning: data)
+            } else {
+                activePhotoContinuation?.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))
+            }
+            
+            activePhotoContinuation = nil
         }
     }
 }
