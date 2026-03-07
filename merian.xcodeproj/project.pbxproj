@@ -94,9 +94,11 @@
 		98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeListSearchManager.swift; sourceTree = "<group>"; };
 		A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManager.swift; sourceTree = "<group>"; };
 		A8166641171629DC4E41B081 /* MerianWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianWatchApp.swift; sourceTree = "<group>"; };
+		B03EAD808B1F5D84E75D030C /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		BF6016D928A11551039654D0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticComparisonView.swift; sourceTree = "<group>"; };
+		CC5EE4B93ABC3C36FCF55922 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EF836BCE5722B41748153F02 /* AppTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetry.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -130,6 +132,15 @@
 				87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		4614202F6465E0F5BE4F99BA /* merian */ = {
+			isa = PBXGroup;
+			children = (
+				B03EAD808B1F5D84E75D030C /* Config.xcconfig */,
+			);
+			name = merian;
+			path = .;
 			sourceTree = "<group>";
 		};
 		82DCBDD326D8981E3A5B8879 /* CoreServices */ = {
@@ -166,6 +177,7 @@
 			isa = PBXGroup;
 			children = (
 				E7702D88B7F7A1860DCB8689 /* Merian */,
+				4614202F6465E0F5BE4F99BA /* merian */,
 				FA698C58EA619367BF3921C1 /* MerianWatch */,
 				F420A3E8A335E1F061C6E39C /* Products */,
 			);
@@ -175,6 +187,7 @@
 			isa = PBXGroup;
 			children = (
 				BF6016D928A11551039654D0 /* Assets.xcassets */,
+				CC5EE4B93ABC3C36FCF55922 /* Info.plist */,
 				43788D0ED2F865E69A83AE35 /* App */,
 				82DCBDD326D8981E3A5B8879 /* CoreServices */,
 				B107761B737813AA9586836E /* Models */,
@@ -365,29 +378,17 @@
 		};
 		2A070EB1D51EB18C60B10AFC /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_GEMINI_API_KEY = "$(GEMINI_API_KEY)";
-				INFOPLIST_KEY_POSTHOG_API_KEY = "$(POSTHOG_API_KEY)";
-				INFOPLIST_KEY_REVENUECAT_API_KEY = "$(REVENUECAT_API_KEY)";
-				INFOPLIST_KEY_SUPABASE_ANON_KEY = "$(SUPABASE_ANON_KEY)";
-				INFOPLIST_KEY_SUPABASE_URL = "$(SUPABASE_URL)";
-				INFOPLIST_KEY_TELEMETRY_APP_ID = "$(TELEMETRY_APP_ID)";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsMultipleScenes = NO;
-				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Merian/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				NSCameraUsageDescription = "Merian needs camera access for instant AI-powered ecological identification.";
-				NSLocationWhenInUseUsageDescription = "Merian requires your location to determine regional ecological context and coordinate mapping.";
-				NSMicrophoneUsageDescription = "Merian needs microphone access for aviary and insect sound classification.";
 				PRODUCT_BUNDLE_IDENTIFIER = com.merian.Merian;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -530,29 +531,17 @@
 		};
 		FA85932515F575EB75458FFA /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_GEMINI_API_KEY = "$(GEMINI_API_KEY)";
-				INFOPLIST_KEY_POSTHOG_API_KEY = "$(POSTHOG_API_KEY)";
-				INFOPLIST_KEY_REVENUECAT_API_KEY = "$(REVENUECAT_API_KEY)";
-				INFOPLIST_KEY_SUPABASE_ANON_KEY = "$(SUPABASE_ANON_KEY)";
-				INFOPLIST_KEY_SUPABASE_URL = "$(SUPABASE_URL)";
-				INFOPLIST_KEY_TELEMETRY_APP_ID = "$(TELEMETRY_APP_ID)";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsMultipleScenes = NO;
-				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Merian/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				NSCameraUsageDescription = "Merian needs camera access for instant AI-powered ecological identification.";
-				NSLocationWhenInUseUsageDescription = "Merian requires your location to determine regional ecological context and coordinate mapping.";
-				NSMicrophoneUsageDescription = "Merian needs microphone access for aviary and insect sound classification.";
 				PRODUCT_BUNDLE_IDENTIFIER = com.merian.Merian;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

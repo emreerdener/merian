@@ -28,26 +28,13 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources: [Merian]
+    configFiles:
+      Debug: Config.xcconfig
+      Release: Config.xcconfig
     settings:
-      configFiles:
-        Debug: Config.xcconfig
-        Release: Config.xcconfig
       base:
-        INFOPLIST_KEY_GEMINI_API_KEY: $(GEMINI_API_KEY)
-        INFOPLIST_KEY_SUPABASE_URL: $(SUPABASE_URL)
-        INFOPLIST_KEY_SUPABASE_ANON_KEY: $(SUPABASE_ANON_KEY)
-        INFOPLIST_KEY_REVENUECAT_API_KEY: $(REVENUECAT_API_KEY)
-        INFOPLIST_KEY_POSTHOG_API_KEY: $(POSTHOG_API_KEY)
-        INFOPLIST_KEY_TELEMETRY_APP_ID: $(TELEMETRY_APP_ID)
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        INFOPLIST_KEY_UIApplicationSupportsMultipleScenes: NO
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
-        NSCameraUsageDescription: "Merian needs camera access for instant AI-powered ecological identification."
-        NSMicrophoneUsageDescription: "Merian needs microphone access for aviary and insect sound classification."
-        NSLocationWhenInUseUsageDescription: "Merian requires your location to determine regional ecological context and coordinate mapping."
+        INFOPLIST_FILE: Merian/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2" # iPhone and iPad
     dependencies:
       - target: MerianWatch # Natively bundles the companion watchApp binary directly into the parent iPhone executable
