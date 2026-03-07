@@ -127,7 +127,7 @@ final class InferenceEngine: ObservableObject {
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
         
-        if let path = record.localImagePath, let data = try? Data(contentsOf: URL(string: path) ?? URL(fileURLWithPath: path)) {
+        if let path = record.localImagePath, let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
             self.activePayload = data
         } else {
             self.activePayload = nil

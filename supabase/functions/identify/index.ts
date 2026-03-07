@@ -180,11 +180,12 @@ Crucial instructions:
           parsedData.reference_image_url = existingSpecies.reference_image_url;
         } else {
           console.log("[5.1] Enriching data for:", parsedData.scientific_name);
-          let wikiUrl = null;
-          let gbifKey = null;
-          let imageUrl = null;
+          let wikiUrl: string | null = null;
+          let gbifKey: number | null = null;
+          let combinedImageUrls: string | null = null;
 
           try {
+            let fetchedUrls: string[] = [];
             // Unauthenticated taxonomy fetch to global GBIF registry
             const gbifRes = await fetch(
               `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(parsedData.scientific_name)}`,
@@ -192,6 +193,22 @@ Crucial instructions:
             if (gbifRes.ok) {
               const gbifJson = await gbifRes.json();
               gbifKey = gbifJson.usageKey || null;
+              if (gbifKey) {
+                const mediaRes = await fetch(
+                  `https://api.gbif.org/v1/species/${gbifKey}/media`,
+                );
+                if (mediaRes.ok) {
+                  const mediaJson = await mediaRes.json();
+                  if (mediaJson.results && mediaJson.results.length > 0) {
+                    fetchedUrls = mediaJson.results
+                      .filter(
+                        (m: any) => m.type === "StillImage" && m.identifier,
+                      )
+                      .map((m: any) => m.identifier)
+                      .slice(0, 5);
+                  }
+                }
+              }
             }
 
             // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
@@ -201,10 +218,17 @@ Crucial instructions:
             if (wikiRes.ok) {
               const wikiJson = await wikiRes.json();
               wikiUrl = wikiJson.content_urls?.desktop?.page || null;
-              imageUrl =
+              let wikiImg =
                 wikiJson.originalimage?.source ||
                 wikiJson.thumbnail?.source ||
                 null;
+              if (wikiImg) {
+                fetchedUrls.unshift(wikiImg);
+              }
+            }
+            if (fetchedUrls.length > 0) {
+              // Deduplicate explicitly and serialize
+              combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
             }
           } catch (e) {
             console.log("Data enrichment failed silently: ", e);
@@ -224,7 +248,7 @@ Crucial instructions:
               descriptions: { insight: parsedData.insight_data.description },
               wikipedia_url: wikiUrl,
               gbif_taxon_key: gbifKey,
-              reference_image_url: imageUrl,
+              reference_image_url: combinedImageUrls,
               native_region: "Unknown",
             })
             .select("id")
@@ -233,7 +257,7 @@ Crucial instructions:
             speciesId = newSpecies.id;
           }
           parsedData.wikipedia_url = wikiUrl;
-          parsedData.reference_image_url = imageUrl;
+          parsedData.reference_image_url = combinedImageUrls;
         }
       }
 

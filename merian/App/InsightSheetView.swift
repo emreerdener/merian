@@ -58,12 +58,13 @@ struct InsightSheetView: View {
             VStack(alignment: .leading, spacing: 20) {
                 
                 // 0. The Image Carousel (Active Capture + Wikipedia Reference)
-                let hasReferenceImage = (inferenceEngine.speciesData?.referenceImageUrl != nil)
+                let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
+                let hasReferenceImage = !refUrls.isEmpty
                 let hasUserImage = (inferenceEngine.activePayload != nil)
                 
                 if hasUserImage || hasReferenceImage {
                     TabView {
-                        // Tab 1: User's Uploaded Image
+                        // Tab 0: User's Uploaded Image
                         if let payload = inferenceEngine.activePayload, let uiImage = UIImage(data: payload) {
                             Image(uiImage: uiImage)
                                 .resizable()
@@ -71,32 +72,39 @@ struct InsightSheetView: View {
                                 .frame(height: 250)
                                 .frame(maxWidth: .infinity)
                                 .clipped()
-                                .tag(0)
+                                .tag("user_image")
                         }
                         
-                        // Tab 2: Wikipedia Reference Image
-                        if let refUrlString = inferenceEngine.speciesData?.referenceImageUrl, let refUrl = URL(string: refUrlString) {
-                            AsyncImage(url: refUrl) { phase in
-                                switch phase {
-                                case .empty:
-                                    ProgressView()
-                                        .frame(height: 250)
-                                        .frame(maxWidth: .infinity)
-                                        .background(Color.white.opacity(0.1))
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(height: 250)
-                                        .frame(maxWidth: .infinity)
-                                        .clipped()
-                                case .failure:
-                                    EmptyView()
-                                @unknown default:
-                                    EmptyView()
+                        // Tab 1+: Wikipedia / GBIF Reference Images
+                        ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
+                            if let refUrl = URL(string: urlString) {
+                                AsyncImage(url: refUrl) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        ProgressView()
+                                            .frame(height: 250)
+                                            .frame(maxWidth: .infinity)
+                                            .background(Color.white.opacity(0.1))
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(height: 250)
+                                            .frame(maxWidth: .infinity)
+                                            .clipped()
+                                    case .failure:
+                                        Image(systemName: "photo")
+                                            .font(.largeTitle)
+                                            .foregroundColor(.gray.opacity(0.5))
+                                            .frame(height: 250)
+                                            .frame(maxWidth: .infinity)
+                                            .background(Color.white.opacity(0.1))
+                                    @unknown default:
+                                        EmptyView()
+                                    }
                                 }
+                                .tag("ref_\(index)")
                             }
-                            .tag(1)
                         }
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
