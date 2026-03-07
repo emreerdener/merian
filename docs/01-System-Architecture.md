@@ -2,6 +2,27 @@
 
 Merian is a powerful biological classification and gamification platform engineered natively for iOS and watchOS. The architecture relies on robust decoupled physical modules connecting the onboard Apple hardware completely to a Supabase PostgreSQL backend bridging heavy LLM inferences safely via Cloudflare R2 bounds and Gemini models.
 
+## Architectural Data Flow (Overview)
+
+```mermaid
+flowchart TD
+    A([📱 iPhone Lens / CameraManager]) -->|Snaps high-res JPEG & Sensors| B[OfflineQueueManager]
+    B -->|Persists Locally if Off-grid| C[(SwiftData Native DB)]
+    C -->|NWPathMonitor Awoken by Cell Tower| D{Network Status 200 OK}
+
+    D --> E[Gemini Ephemeral Storage API]
+    E --> F([⚡️ Supabase Edge /identify])
+
+    F -->|System Prompt & Payload Validation| G[🤖 Gemini Flash 1.5]
+    G -->|Extracts Strict JSON Schema| F
+
+    F -->|Upserts biological dictionaries| H[(PostgreSQL `species_dictionary`)]
+    F -->|Persists UUID scan constraints| I[(PostgreSQL `scans`)]
+
+    F -->|Returns Encapsulated iOS Schema| B
+    B -->|Triggers UI| J[GamificationManager & TerrariumView]
+```
+
 ## Core Architectural Pillars
 
 ### 1. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`)

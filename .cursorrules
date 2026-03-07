@@ -1,0 +1,31 @@
+# AI Agent Instructions for Merian
+
+You are an AI assistant working on the Merian project. Merian is an offline-first, biological classification and gamification platform built natively for iOS and watchOS, backed by Supabase PostgreSQL and Deno Edge Functions.
+
+## 1. Core Architectural Rules (STRICT TRUTH)
+- **Offline-First Resilience**: All physical native captures MUST be enqueued into `OfflineQueueManager` (via SwiftData) before attempting a network boundary. Do not make raw `URLSession` calls from the UI layer. 
+- **Privacy & Zero-PII**: Merian is strictly Zero-PII. Telemetry (TelemetryDeck/PostHog) must NEVER log plain-text GPS, names, or emails. We use Supabase Anonymous UUIDs exclusively for identification until a user explicitly converts their account.
+- **Hardware Sensitivities & Thermal State**: iOS camera buffers run hot. `CameraManager` natively respects `HardwareOrchestrator`. Do not override `targetFPS` or ignore `AVCapturePhotoOutput` configurations. Glassmorphism MUST gracefully degrade when the thermal state reaches `.serious` or `.critical`.
+- **Backend Isolation**: The iOS app MUST NOT contact Gemini directly. The iOS app talks to the Deno `/identify` Edge function. The Edge function securely holds the `GEMINI_API_KEY`, executes the LLM reasoning, updates the PostgreSQL `scans` table natively, and returns the strictly typed Codable JSON mapping to Swift.
+
+## 2. iOS Frontend Stack (SwiftUI)
+- Use standard SwiftUI declarative syntax.
+- State Management relies completely on `ObservableObject` and `@EnvironmentObject` bound at the root `MerianApp.swift` level. Avoid prop drilling.
+- Dependencies: `SwiftData` for local persistence. `RiveRuntime` for Gamification (.riv files). `RevenueCat` for entitlements.
+
+## 3. Backend Stack (Supabase Edge & Deno)
+- Edge functions are written in TypeScript using Supabase Deno runtime (`supabase/functions/`).
+- Use `@supabase/supabase-js` `createClient` using the forwarded `Authorization` header to maintain Row Level Security (RLS) contexts down to the user natively.
+- Strict Type checking: If you modify the Gemini extraction prompt, you MUST update both the Deno `merianResponseSchema` and the Swift `IdentifyResponse` Codable struct.
+
+## 4. Gamification (Rive & UserDefaults)
+- Merian gamifies learning taxonomy. State is tracked natively in `GamificationManager` using `UserDefaults` and pumped explicitly into `TerrariumView` using Rive State Machines (`.setInput()`). Do not perform heavy logic inside the views.
+
+## 5. Security Protocols 
+- Never log or commit API keys (`.xcconfig` is strictly in `.gitignore`).
+- GPS coordinates are processed securely: `gps_lat_exact` is protected strictly in the DB, `gps_lat_public` is fuzzed for the community feed.
+
+## 6. How to Respond
+- Always verify your dependencies. If you need a new Swift file, declare it clearly and ensure it compiles via `xcodebuild`.
+- When modifying Edge Functions, remember to build and deploy using the Supabase CLI: `supabase functions deploy [name]`.
+- Provide architectural explanations for *why* you are implementing a specific pattern, specifically citing its impact on battery, offline queues, or data persistence.
