@@ -18,7 +18,10 @@ final class SupabaseManager: ObservableObject {
         
         self.client = SupabaseClient(
             supabaseURL: url,
-            supabaseKey: MerianEnvironment.supabaseAnonKey
+            supabaseKey: MerianEnvironment.supabaseAnonKey,
+            options: SupabaseClientOptions(
+                auth: .init(emitLocalSessionAsInitialSession: true)
+            )
         )
         
         Task {
@@ -29,8 +32,13 @@ final class SupabaseManager: ObservableObject {
     /// Monitors Session tokens and updates the UI layer reactively
     private func setupAuthStateListener() async {
         for await state in client.auth.authStateChanges {
-            self.currentUser = state.session?.user
-            self.isAuthenticated = (self.currentUser != nil)
+            if let session = state.session, !session.isExpired {
+                self.currentUser = session.user
+                self.isAuthenticated = true
+            } else {
+                self.currentUser = nil
+                self.isAuthenticated = false
+            }
             
             print("🔐 Supabase Auth Event: \(state.event) | Authenticated: \(self.isAuthenticated)")
         }
@@ -40,7 +48,7 @@ final class SupabaseManager: ObservableObject {
     func initializeGhostSession() async {
         do {
             // Check if they are already actively signed in (either as a Ghost or an Authenticated Apple user)
-            if let session = try? await client.auth.session {
+            if let session = try? await client.auth.session, !session.isExpired {
                 print("👻 Active Merian User Identity already resolved natively on device.")
                 await RevenueCatManager.shared.linkWithSupabase(userId: session.user.id.uuidString)
                 PostHogManager.shared.identifyUser(userId: session.user.id.uuidString)

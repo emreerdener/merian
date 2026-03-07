@@ -8,10 +8,10 @@ import Combine
 final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate {
     static let shared = CameraManager()
     
-    let session = AVCaptureSession()
-    private let videoOutput = AVCaptureVideoDataOutput()
-    private let depthOutput = AVCaptureDepthDataOutput()
-    private let photoOutput = AVCapturePhotoOutput()
+    nonisolated let session = AVCaptureSession()
+    nonisolated private let videoOutput = AVCaptureVideoDataOutput()
+    nonisolated private let depthOutput = AVCaptureDepthDataOutput()
+    nonisolated private let photoOutput = AVCapturePhotoOutput()
     
     private let queue = DispatchQueue(label: "com.merian.camera")
     private var cancellables = Set<AnyCancellable>()
@@ -72,7 +72,13 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
-            photoOutput.isHighResolutionCaptureEnabled = true
+            if #available(iOS 16.0, *) {
+                if let maxDim = captureDevice.activeFormat.supportedMaxPhotoDimensions.last {
+                    photoOutput.maxPhotoDimensions = maxDim
+                }
+            } else {
+                photoOutput.isHighResolutionCaptureEnabled = true
+            }
         }
         
         session.commitConfiguration()
@@ -240,7 +246,11 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             
             queue.async {
                 let settings = AVCapturePhotoSettings()
-                settings.isHighResolutionPhotoEnabled = true
+                if #available(iOS 16.0, *) {
+                    settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
+                } else {
+                    settings.isHighResolutionPhotoEnabled = true
+                }
                 if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
                     settings.isDepthDataDeliveryEnabled = true
                 }

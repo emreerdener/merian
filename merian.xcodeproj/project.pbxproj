@@ -606,7 +606,7 @@
 			repositoryURL = "https://github.com/RevenueCat/purchases-ios.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.41.0;
+				minimumVersion = 5.0.0;
 			};
 		};
 		E3129842C30F4CED63055F81 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
