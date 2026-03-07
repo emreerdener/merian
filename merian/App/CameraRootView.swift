@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import PhotosUI
 
 struct CameraRootView: View {
     @StateObject private var cameraManager = CameraManager.shared
@@ -13,6 +14,7 @@ struct CameraRootView: View {
     
     @State private var isInsightSheetOpen: Bool = false
     @State private var isPaywallOpen: Bool = false
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
     
     var body: some View {
         ZStack {
@@ -108,7 +110,17 @@ struct CameraRootView: View {
                         }
                     }
                     
-                    Spacer()
+                    // Photo Library Picker Right Overlay
+                    PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.15))
+                                .frame(width: 50, height: 50)
+                            Image(systemName: "photo.on.rectangle")
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.trailing, 12)
                 }
                 .padding(.vertical, 16)
                 // State-based Glassmorphism
@@ -142,6 +154,27 @@ struct CameraRootView: View {
         }
         .onDisappear {
             cameraManager.stopSession()
+        }
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            Task {
+                guard let newItem = newItem,
+                      let data = try? await newItem.loadTransferable(type: Data.self) else { return }
+                
+                if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
+                    await MainActor.run {
+                        inferenceEngine.analyze(imageData: data)
+                        usageManager.recordSuccessfulScan()
+                        gamificationManager.recordNewSpeciesDiscovered()
+                        AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
+                        isInsightSheetOpen = true
+                    }
+                } else {
+                    await MainActor.run {
+                        AppTelemetry.trackPaywallImpression()
+                        isPaywallOpen = true
+                    }
+                }
+            }
         }
         .sheet(isPresented: $isPaywallOpen) {
             PaywallView()

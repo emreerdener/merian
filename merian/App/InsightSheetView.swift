@@ -120,7 +120,7 @@ struct InsightSheetView: View {
         }
         // Force glassmorphism bounds gracefully above the underlying camera UI
         .presentationBackground(.ultraThinMaterial)
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         // Ensure VoiceOver properly sequences the primary components autonomously upon render
         .onAppear {
