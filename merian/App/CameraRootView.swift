@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import PhotosUI
+import SwiftData
 
 struct CameraRootView: View {
     @StateObject private var cameraManager = CameraManager.shared
@@ -12,8 +13,11 @@ struct CameraRootView: View {
     @EnvironmentObject var gamificationManager: GamificationManager
     @EnvironmentObject var inferenceEngine: InferenceEngine
     
+    @Environment(\.modelContext) private var modelContext
+    
     @State private var isInsightSheetOpen: Bool = false
     @State private var isPaywallOpen: Bool = false
+    @State private var isLifeListOpen: Bool = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     
     var body: some View {
@@ -58,16 +62,30 @@ struct CameraRootView: View {
                 
                 // Floating Action Bar Interface
                 HStack {
-                    // Digital Terrarium Left Overlay
-                    Button(action: {
-                        gamificationManager.showTerrariumSheet = true
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.15))
-                                .frame(width: 50, height: 50)
-                            Image(systemName: "leaf.fill")
-                                .foregroundColor(.green)
+                    // Left Vertical Overlay (Life List & Gamification)
+                    VStack(spacing: 16) {
+                        Button(action: {
+                            isLifeListOpen = true
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.15))
+                                    .frame(width: 50, height: 50)
+                                Image(systemName: "books.vertical.fill")
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        
+                        Button(action: {
+                            gamificationManager.showTerrariumSheet = true
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.15))
+                                    .frame(width: 50, height: 50)
+                                Image(systemName: "leaf.fill")
+                                    .foregroundColor(.green)
+                            }
                         }
                     }
                     .padding(.leading, 12)
@@ -83,7 +101,7 @@ struct CameraRootView: View {
                                     OfflineQueueManager.shared.enqueueCapture(imageData: captureData)
                                     
                                     await MainActor.run {
-                                        inferenceEngine.analyze(imageData: captureData)
+                                        inferenceEngine.analyze(imageData: captureData, modelContext: modelContext)
                                         usageManager.recordSuccessfulScan()
                                         gamificationManager.recordNewSpeciesDiscovered()
                                         AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
@@ -162,7 +180,7 @@ struct CameraRootView: View {
                 
                 if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
                     await MainActor.run {
-                        inferenceEngine.analyze(imageData: data)
+                        inferenceEngine.analyze(imageData: data, modelContext: modelContext)
                         usageManager.recordSuccessfulScan()
                         gamificationManager.recordNewSpeciesDiscovered()
                         AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
@@ -181,6 +199,9 @@ struct CameraRootView: View {
         }
         .sheet(isPresented: $gamificationManager.showTerrariumSheet) {
             TerrariumView()
+        }
+        .sheet(isPresented: $isLifeListOpen) {
+            LifeListSearchView()
         }
     }
 }

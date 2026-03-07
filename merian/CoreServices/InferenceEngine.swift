@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import SwiftData
 
 /// Manages real-time AI taxonomy processing via Supabase Edge Functions
 @MainActor
@@ -26,7 +27,7 @@ final class InferenceEngine: ObservableObject {
         let reference_image_url: String?
     }
     
-    func analyze(imageData: Data) {
+    func analyze(imageData: Data, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
@@ -74,6 +75,24 @@ final class InferenceEngine: ObservableObject {
                             referenceImageUrl: edgeRes.reference_image_url
                         )
                         
+                        // Persist to SwiftData Life List if analysis was valid
+                        if mappedData.confidenceScore > 0.0, let context = modelContext {
+                            let filename = "\(UUID().uuidString)_lifelist.jpg"
+                            let url = URL.documentsDirectory.appendingPathComponent(filename)
+                            try? imageData.write(to: url, options: .atomic)
+                            
+                            let record = LocalScanRecord(
+                                speciesId: UUID().uuidString,
+                                scientificName: mappedData.scientificName,
+                                commonName: mappedData.commonName,
+                                insightDescription: mappedData.insightData.description,
+                                timestamp: Date(),
+                                localImagePath: url.path,
+                                semanticTags: [mappedData.commonName, mappedData.scientificName]
+                            )
+                            context.insert(record)
+                            try? context.save()
+                        }
                         
                         CircuitBreakerManager.shared.recordSuccess()
                         self.speciesData = mappedData
