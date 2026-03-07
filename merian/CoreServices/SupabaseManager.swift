@@ -40,15 +40,17 @@ final class SupabaseManager: ObservableObject {
     func initializeGhostSession() async {
         do {
             // Check if they are already actively signed in (either as a Ghost or an Authenticated Apple user)
-            if let session = try await client.auth.session {
+            if let session = try? await client.auth.session {
                 print("👻 Active Merian User Identity already resolved natively on device.")
-                await RevenueCatManager.shared.linkWithSupabase(userId: session.user.id)
+                await RevenueCatManager.shared.linkWithSupabase(userId: session.user.id.uuidString)
+                PostHogManager.shared.identifyUser(userId: session.user.id.uuidString)
                 return
             }
             
             let authResponse = try await client.auth.signInAnonymously()
-            print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id)")
-            await RevenueCatManager.shared.linkWithSupabase(userId: authResponse.user.id)
+            print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
+            await RevenueCatManager.shared.linkWithSupabase(userId: authResponse.user.id.uuidString)
+            PostHogManager.shared.identifyUser(userId: authResponse.user.id.uuidString)
         } catch {
             print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
             // Future gracefully degraded UI triggers can be queued here natively
@@ -59,6 +61,7 @@ final class SupabaseManager: ObservableObject {
     func signOut() async {
         do {
             try await client.auth.signOut()
+            PostHogManager.shared.reset()
             print("User actively signed out and token flushed")
         } catch {
             print("⚠️ Failed to purge local Supabase Auth state: \(error.localizedDescription)")

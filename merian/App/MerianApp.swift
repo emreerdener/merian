@@ -30,6 +30,7 @@ struct MerianApp: App {
     init() {
         // Initialize Zero-PII Crash & Anonymous Usage Metrics natively
         AppTelemetry.initialize()
+        PostHogManager.shared.configure()
         
         let schema = Schema([LocalScanRecord.self, OfflineQueuedScan.self])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)

@@ -14,13 +14,18 @@
 		2632809FB1F933EC169350AB /* MerianNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */; };
 		2BF1BEB4A71119405DD5F026 /* WatchAcousticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A5A4F88C1B623CFF5B25F /* WatchAcousticManager.swift */; };
 		2EA34DB4680CC269E0767805 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF6016D928A11551039654D0 /* Assets.xcassets */; };
+		382BE761F821EA8A0CC87A2A /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63769A30A57E0746D270C60E /* SupabaseManager.swift */; };
 		4C6CFCA137410A34B0F97A27 /* MerianActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E96E3236A58E1380603B5D /* MerianActionBar.swift */; };
 		4D44E3680C7B0A2827090B7C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D6636FC58125D5F4C5ECEDDF /* Supabase */; };
+		57B3AB95EA69F38741E9E500 /* UsageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E10F6B4FBB693F712392A78 /* UsageManager.swift */; };
+		6F75D7C9545B200B2B45122E /* AppTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF836BCE5722B41748153F02 /* AppTelemetry.swift */; };
 		72414E618C52C7EE8B39556E /* MerianWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0481771C41C383D2737DDEC7 /* MerianWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		80923B86E3B63DA5F4791FBC /* MerianWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8166641171629DC4E41B081 /* MerianWatchApp.swift */; };
 		8D28D290FD319AF4DFE6056C /* LifeListSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */; };
 		8F655442A6D196335FD58F8B /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B4F36BE3B0243F44D0C1A93C /* RevenueCat */; };
+		9432B1A5023ECCD2540CE505 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0544663A0318949724DDE300 /* PaywallView.swift */; };
 		9664363BC59C58EF6717049F /* RiveRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 8AF45E48D940462F64FF38E6 /* RiveRuntime */; };
+		9B99A069523FF98347A3C557 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */; };
 		A18D50B4063A85EC6D9718AA /* SocialGuardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */; };
 		A75F38D210D42BDC6EAC0FD6 /* InsightSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */; };
 		B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */; };
@@ -34,6 +39,7 @@
 		DC5976B3161BF677189AC001 /* OfflineQueuedScan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF2E6642104DA1CAA60F1BE /* OfflineQueuedScan.swift */; };
 		DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */; };
 		E0757E56E9E1A43C7EAECDD9 /* OfflineQueueManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */; };
+		EFE45D1E60FF237738BE989A /* PostHogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70302F69A69AAA03EA359409 /* PostHogManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,16 +69,21 @@
 /* Begin PBXFileReference section */
 		00E96E3236A58E1380603B5D /* MerianActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianActionBar.swift; sourceTree = "<group>"; };
 		0481771C41C383D2737DDEC7 /* MerianWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MerianWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0544663A0318949724DDE300 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
 		2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetView.swift; sourceTree = "<group>"; };
 		46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClient.swift; sourceTree = "<group>"; };
+		4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
 		4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianEnvironment.swift; sourceTree = "<group>"; };
+		4E10F6B4FBB693F712392A78 /* UsageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManager.swift; sourceTree = "<group>"; };
 		4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligence.swift; sourceTree = "<group>"; };
 		51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraRootView.swift; sourceTree = "<group>"; };
 		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5D57A8D01CDAF8E994655620 /* MerianApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianApp.swift; sourceTree = "<group>"; };
 		5FF2E6642104DA1CAA60F1BE /* OfflineQueuedScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueuedScan.swift; sourceTree = "<group>"; };
+		63769A30A57E0746D270C60E /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
 		6F441743E545E21D4B647A5E /* SyncStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStateManager.swift; sourceTree = "<group>"; };
+		70302F69A69AAA03EA359409 /* PostHogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostHogManager.swift; sourceTree = "<group>"; };
 		7E57E8F1984879D600108892 /* MerianAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianAppIntents.swift; sourceTree = "<group>"; };
 		7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialGuardManager.swift; sourceTree = "<group>"; };
 		87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerrariumView.swift; sourceTree = "<group>"; };
@@ -84,6 +95,7 @@
 		B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		BF6016D928A11551039654D0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticComparisonView.swift; sourceTree = "<group>"; };
+		EF836BCE5722B41748153F02 /* AppTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetry.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +124,7 @@
 				98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */,
 				00E96E3236A58E1380603B5D /* MerianActionBar.swift */,
 				5D57A8D01CDAF8E994655620 /* MerianApp.swift */,
+				0544663A0318949724DDE300 /* PaywallView.swift */,
 				87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */,
 			);
 			path = App;
@@ -120,14 +133,19 @@
 		82DCBDD326D8981E3A5B8879 /* CoreServices */ = {
 			isa = PBXGroup;
 			children = (
+				EF836BCE5722B41748153F02 /* AppTelemetry.swift */,
 				8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */,
 				17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */,
 				7E57E8F1984879D600108892 /* MerianAppIntents.swift */,
 				4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */,
 				46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */,
 				A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */,
+				70302F69A69AAA03EA359409 /* PostHogManager.swift */,
+				4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */,
 				7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */,
+				63769A30A57E0746D270C60E /* SupabaseManager.swift */,
 				6F441743E545E21D4B647A5E /* SyncStateManager.swift */,
+				4E10F6B4FBB693F712392A78 /* UsageManager.swift */,
 				4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */,
 			);
 			path = CoreServices;
@@ -289,6 +307,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6F75D7C9545B200B2B45122E /* AppTelemetry.swift in Sources */,
 				B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */,
 				16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */,
 				07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */,
@@ -302,9 +321,14 @@
 				2632809FB1F933EC169350AB /* MerianNetworkClient.swift in Sources */,
 				E0757E56E9E1A43C7EAECDD9 /* OfflineQueueManager.swift in Sources */,
 				DC5976B3161BF677189AC001 /* OfflineQueuedScan.swift in Sources */,
+				9432B1A5023ECCD2540CE505 /* PaywallView.swift in Sources */,
+				EFE45D1E60FF237738BE989A /* PostHogManager.swift in Sources */,
+				9B99A069523FF98347A3C557 /* RevenueCatManager.swift in Sources */,
 				A18D50B4063A85EC6D9718AA /* SocialGuardManager.swift in Sources */,
+				382BE761F821EA8A0CC87A2A /* SupabaseManager.swift in Sources */,
 				D8914F42F1667394F72C0C63 /* SyncStateManager.swift in Sources */,
 				DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */,
+				57B3AB95EA69F38741E9E500 /* UsageManager.swift in Sources */,
 				02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
