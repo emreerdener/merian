@@ -1,17 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// Mock InferenceEngine resolving architecture boundaries
-class InferenceEngine: ObservableObject {
-    @Published var isProcessing: Bool = false
-    @Published var activePayload: Data? = nil
-    
-    func cancelActiveRequest() {
-        print("Cancelled active inference request to prevent watchdog termination.")
-        isProcessing = false
-    }
-}
-
 @main
 struct MerianApp: App {
     @Environment(\.scenePhase) private var scenePhase

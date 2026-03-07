@@ -29,20 +29,21 @@ struct KeyDifferentiator: Identifiable {
 
 // MARK: - Insight Sheet View
 struct InsightSheetView: View {
-    let speciesData: SpeciesData?
+    @EnvironmentObject var inferenceEngine: InferenceEngine
+
     @Binding var isPresented: Bool
     
     // Safety Bounds
     private var isPoisonous: Bool {
-        speciesData?.insightData.isPoisonous ?? false
+        inferenceEngine.speciesData?.insightData.isPoisonous ?? false
     }
     
     private var commonName: String {
-        speciesData?.commonName ?? "Scanning Subject..."
+        inferenceEngine.speciesData?.commonName ?? "Scanning Subject..."
     }
     
     private var scientificName: String {
-        speciesData?.scientificName ?? "Awaiting Taxonomy"
+        inferenceEngine.speciesData?.scientificName ?? "Awaiting Taxonomy"
     }
     
     var body: some View {
@@ -100,14 +101,14 @@ struct InsightSheetView: View {
                 .padding(.horizontal)
                 
                 // 3. Ecological Descriptive Insight
-                if let description = speciesData?.insightData.description {
+                if let description = inferenceEngine.speciesData?.insightData.description {
                     Text(description)
                         .font(.body)
                         .padding(.horizontal)
                 }
                 
                 // 4. Fallback Validation Block
-                if let score = speciesData?.confidenceScore, score < 0.85, let diagnosticData = speciesData?.diagnosticComparison {
+                if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.85, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
                     DiagnosticComparisonView(diagnosticData: diagnosticData)
                         .padding(.horizontal)
                         .padding(.top, 16)

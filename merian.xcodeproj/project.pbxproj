@@ -33,6 +33,7 @@
 		C11ED297AD9651C7F44C4A96 /* MerianEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */; };
 		C585EF3BFA0012F2973D3C91 /* MerianAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E57E8F1984879D600108892 /* MerianAppIntents.swift */; };
 		C7AA31ECCE527E151CF6C39C /* TelemetryClient in Frameworks */ = {isa = PBXBuildFile; productRef = B41D79C304B7AE7C8A98F7A4 /* TelemetryClient */; };
+		CA208FA4F6C1789DC6AE5E7A /* InferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 808D6822C902BA82BDB51428 /* InferenceEngine.swift */; };
 		CE394152F5071221586CE196 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = A0635D9DFE936BD480B327EA /* PostHog */; };
 		D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D57A8D01CDAF8E994655620 /* MerianApp.swift */; };
 		D8914F42F1667394F72C0C63 /* SyncStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F441743E545E21D4B647A5E /* SyncStateManager.swift */; };
@@ -63,6 +64,7 @@
 		70302F69A69AAA03EA359409 /* PostHogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostHogManager.swift; sourceTree = "<group>"; };
 		7E57E8F1984879D600108892 /* MerianAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianAppIntents.swift; sourceTree = "<group>"; };
 		7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialGuardManager.swift; sourceTree = "<group>"; };
+		808D6822C902BA82BDB51428 /* InferenceEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InferenceEngine.swift; sourceTree = "<group>"; };
 		87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerrariumView.swift; sourceTree = "<group>"; };
 		8E1A5A4F88C1B623CFF5B25F /* WatchAcousticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAcousticManager.swift; sourceTree = "<group>"; };
 		8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
@@ -136,6 +138,7 @@
 				6F441743E545E21D4B647A5E /* SyncStateManager.swift */,
 				4E10F6B4FBB693F712392A78 /* UsageManager.swift */,
 				4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */,
+				808D6822C902BA82BDB51428 /* InferenceEngine.swift */,
 			);
 			path = CoreServices;
 			sourceTree = "<group>";
@@ -226,8 +229,6 @@
 			dependencies = (
 			);
 			name = MerianWatch;
-			packageProductDependencies = (
-			);
 			productName = MerianWatch;
 			productReference = 0481771C41C383D2737DDEC7 /* MerianWatch.app */;
 			productType = "com.apple.product-type.application";
@@ -241,7 +242,7 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 2630;
 			};
-			buildConfigurationList = 972FBC3FD9777422C0AAC783 /* Build configuration list for PBXProject "merian" */;
+			buildConfigurationList = 972FBC3FD9777422C0AAC783 /* Build configuration list for PBXProject "Merian" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -257,7 +258,6 @@
 				A68D7B2C0AC3928BB3164D73 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = F420A3E8A335E1F061C6E39C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -318,6 +318,7 @@
 				DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */,
 				57B3AB95EA69F38741E9E500 /* UsageManager.swift in Sources */,
 				02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */,
+				CA208FA4F6C1789DC6AE5E7A /* InferenceEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -548,7 +549,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		972FBC3FD9777422C0AAC783 /* Build configuration list for PBXProject "merian" */ = {
+		972FBC3FD9777422C0AAC783 /* Build configuration list for PBXProject "Merian" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				7A7F91EC857905B224836889 /* Debug */,

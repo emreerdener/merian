@@ -9,6 +9,7 @@ struct CameraRootView: View {
     @EnvironmentObject var revenueCatManager: RevenueCatManager
     @EnvironmentObject var usageManager: UsageManager
     @EnvironmentObject var gamificationManager: GamificationManager
+    @EnvironmentObject var inferenceEngine: InferenceEngine
     
     @State private var isInsightSheetOpen: Bool = false
     @State private var isPaywallOpen: Bool = false
@@ -80,6 +81,7 @@ struct CameraRootView: View {
                                     OfflineQueueManager.shared.enqueueCapture(imageData: captureData)
                                     
                                     await MainActor.run {
+                                        inferenceEngine.analyze(imageData: captureData)
                                         usageManager.recordSuccessfulScan()
                                         gamificationManager.recordNewSpeciesDiscovered()
                                         AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
@@ -129,7 +131,7 @@ struct CameraRootView: View {
             // Restore appropriate target FPS from idle state based on hardware orchestrator targets
             cameraManager.restoreFromIdleState()
         }) {
-            InsightSheetView(speciesData: nil, isPresented: $isInsightSheetOpen)
+            InsightSheetView(isPresented: $isInsightSheetOpen)
                 .onAppear {
                     // Start cooling down AV session
                     cameraManager.throttleToIdleState()

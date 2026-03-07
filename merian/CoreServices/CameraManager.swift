@@ -114,7 +114,16 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         let device = deviceInput.device
         do {
             try device.lockForConfiguration()
-            let rate = CMTime(value: 1, timescale: Int32(fps))
+            var rate = CMTime(value: 1, timescale: Int32(fps))
+            
+            // Safeguard against physically unsupported frame rates to prevent NSException hardware crashing
+            if let range = device.activeFormat.videoSupportedFrameRateRanges.first {
+                if CMTimeCompare(rate, range.minFrameDuration) < 0 {
+                    rate = range.minFrameDuration
+                } else if CMTimeCompare(rate, range.maxFrameDuration) > 0 {
+                    rate = range.maxFrameDuration
+                }
+            }
             
             let currentMin = device.activeVideoMinFrameDuration
             if CMTimeCompare(rate, currentMin) > 0 {
@@ -137,18 +146,28 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         guard let deviceInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
             return
         }
+        let device = deviceInput.device
         do {
-            try deviceInput.device.lockForConfiguration()
-            let idleRate = CMTime(value: 1, timescale: 1)
-            let currentMin = deviceInput.device.activeVideoMinFrameDuration
-            if CMTimeCompare(idleRate, currentMin) > 0 {
-                deviceInput.device.activeVideoMaxFrameDuration = idleRate
-                deviceInput.device.activeVideoMinFrameDuration = idleRate
-            } else {
-                deviceInput.device.activeVideoMinFrameDuration = idleRate
-                deviceInput.device.activeVideoMaxFrameDuration = idleRate
+            try device.lockForConfiguration()
+            var idleRate = CMTime(value: 1, timescale: 1)
+            
+            if let range = device.activeFormat.videoSupportedFrameRateRanges.first {
+                if CMTimeCompare(idleRate, range.minFrameDuration) < 0 {
+                    idleRate = range.minFrameDuration
+                } else if CMTimeCompare(idleRate, range.maxFrameDuration) > 0 {
+                    idleRate = range.maxFrameDuration
+                }
             }
-            deviceInput.device.unlockForConfiguration()
+            
+            let currentMin = device.activeVideoMinFrameDuration
+            if CMTimeCompare(idleRate, currentMin) > 0 {
+                device.activeVideoMaxFrameDuration = idleRate
+                device.activeVideoMinFrameDuration = idleRate
+            } else {
+                device.activeVideoMinFrameDuration = idleRate
+                device.activeVideoMaxFrameDuration = idleRate
+            }
+            device.unlockForConfiguration()
         } catch {
             print("Failed to lock for configuration in idle state: \(error)")
         }
