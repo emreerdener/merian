@@ -60,19 +60,21 @@ struct InsightSheetView: View {
                 // 0. The Image Carousel (Active Capture + Wikipedia Reference)
                 let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
                 let hasReferenceImage = !refUrls.isEmpty
-                let hasUserImage = (inferenceEngine.activePayload != nil)
+                let hasUserImage = !inferenceEngine.activePayloads.isEmpty
                 
                 if hasUserImage || hasReferenceImage {
                     TabView {
-                        // Tab 0: User's Uploaded Image
-                        if let payload = inferenceEngine.activePayload, let uiImage = UIImage(data: payload) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 250)
-                                .frame(maxWidth: .infinity)
-                                .clipped()
-                                .tag("user_image")
+                        // User's Uploaded Images (Historic Pipeline)
+                        ForEach(Array(inferenceEngine.activePayloads.enumerated()), id: \.offset) { index, payload in
+                            if let uiImage = UIImage(data: payload) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(height: 250)
+                                    .frame(maxWidth: .infinity)
+                                    .clipped()
+                                    .tag("user_image_\(index)")
+                            }
                         }
                         
                         // Tab 1+: Wikipedia / GBIF Reference Images

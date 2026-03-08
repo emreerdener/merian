@@ -18,6 +18,7 @@ final class LocalScanRecord {
     var isPoisonous: Bool
     var wikipediaUrl: String?
     var referenceImageUrl: String?
+    var additionalImagePaths: [String]?
     
     init(id: String = UUID().uuidString,
          speciesId: String,
@@ -29,7 +30,8 @@ final class LocalScanRecord {
          semanticTags: [String] = [],
          isPoisonous: Bool = false,
          wikipediaUrl: String? = nil,
-         referenceImageUrl: String? = nil) {
+         referenceImageUrl: String? = nil,
+         additionalImagePaths: [String]? = nil) {
         
         self.id = id
         self.speciesId = speciesId
@@ -42,6 +44,7 @@ final class LocalScanRecord {
         self.isPoisonous = isPoisonous
         self.wikipediaUrl = wikipediaUrl
         self.referenceImageUrl = referenceImageUrl
+        self.additionalImagePaths = additionalImagePaths
     }
 }
 

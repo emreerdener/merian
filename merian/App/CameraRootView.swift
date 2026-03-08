@@ -96,19 +96,35 @@ struct CameraRootView: View {
                         Color.black.opacity(isPulseAnimating ? 0.1 : 0.4)
                             .ignoresSafeArea()
                         
-                        // Rainbow AI Edge Pulse
-                        Rectangle()
-                            .stroke(
-                                AngularGradient(
-                                    gradient: Gradient(colors: [.purple, .indigo, .blue, .teal, .green, .yellow, .orange, .red, .purple]),
-                                    center: .center,
-                                    angle: .degrees(isPulseAnimating ? 90 : -90)
-                                ),
-                                lineWidth: isPulseAnimating ? 80 : 30
-                            )
-                            .blur(radius: 50)
-                            .opacity(isPulseAnimating ? 0.9 : 0.4)
-                            .ignoresSafeArea()
+                        // Perfectly aligned 4-edge rainbow gradient
+                        ZStack {
+                            // Left edge
+                            LinearGradient(colors: [.cyan, .teal, .green], startPoint: .top, endPoint: .bottom)
+                                .frame(width: isPulseAnimating ? 40 : 20)
+                                .blur(radius: isPulseAnimating ? 20 : 10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            // Right edge
+                            LinearGradient(colors: [.pink, .red, .orange], startPoint: .top, endPoint: .bottom)
+                                .frame(width: isPulseAnimating ? 40 : 20)
+                                .blur(radius: isPulseAnimating ? 20 : 10)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                            
+                            // Top edge
+                            LinearGradient(colors: [.cyan, .blue, .purple, .pink], startPoint: .leading, endPoint: .trailing)
+                                .frame(height: isPulseAnimating ? 40 : 20)
+                                .blur(radius: isPulseAnimating ? 20 : 10)
+                                .frame(maxHeight: .infinity, alignment: .top)
+                            
+                            // Bottom edge
+                            LinearGradient(colors: [.green, .yellow, .orange], startPoint: .leading, endPoint: .trailing)
+                                .frame(height: isPulseAnimating ? 40 : 20)
+                                .blur(radius: isPulseAnimating ? 20 : 10)
+                                .frame(maxHeight: .infinity, alignment: .bottom)
+                        }
+                        .hueRotation(.degrees(isPulseAnimating ? 360 : 0))
+                        .opacity(isPulseAnimating ? 0.9 : 0.6)
+                        .ignoresSafeArea()
                     }
                     .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isPulseAnimating)
                     .onAppear {

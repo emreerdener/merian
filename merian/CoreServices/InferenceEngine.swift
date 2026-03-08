@@ -8,6 +8,7 @@ import SwiftData
 final class InferenceEngine: ObservableObject {
     @Published var isProcessing: Bool = false
     @Published var activePayload: Data? = nil
+    @Published var activePayloads: [Data] = []
     @Published var speciesData: SpeciesData? = nil
     
     private var inferenceTask: Task<Void, Never>?
@@ -31,6 +32,7 @@ final class InferenceEngine: ObservableObject {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
+        self.activePayloads = [imageData]
         self.speciesData = nil
         
         self.inferenceTask = Task {
@@ -81,19 +83,40 @@ final class InferenceEngine: ObservableObject {
                             let url = URL.documentsDirectory.appendingPathComponent(filename)
                             try? imageData.write(to: url, options: .atomic)
                             
-                            let record = LocalScanRecord(
-                                speciesId: UUID().uuidString,
-                                scientificName: mappedData.scientificName,
-                                commonName: mappedData.commonName,
-                                insightDescription: mappedData.insightData.description,
-                                timestamp: Date(),
-                                localImagePath: url.path,
-                                semanticTags: [mappedData.commonName, mappedData.scientificName],
-                                isPoisonous: mappedData.insightData.isPoisonous,
-                                wikipediaUrl: mappedData.wikipediaUrl,
-                                referenceImageUrl: mappedData.referenceImageUrl
+                            let targetName = mappedData.scientificName
+                            let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+                                predicate: #Predicate { $0.scientificName == targetName }
                             )
-                            context.insert(record)
+                            
+                            if let existingRecord = try? context.fetch(fetchDescriptor).first {
+                                // Update the existing species record rather than inserting a duplicate
+                                if existingRecord.additionalImagePaths == nil {
+                                    existingRecord.additionalImagePaths = []
+                                }
+                                existingRecord.additionalImagePaths?.append(url.path)
+                                
+                                existingRecord.timestamp = Date()
+                                // Note: intentionally leaving the primary localImagePath alone so the thumbnail remains the first chronological capture
+                                existingRecord.insightDescription = mappedData.insightData.description
+                                existingRecord.isPoisonous = mappedData.insightData.isPoisonous
+                                existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
+                                existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
+                            } else {
+                                // First time encountering this species; insert new record natively
+                                let record = LocalScanRecord(
+                                    speciesId: UUID().uuidString,
+                                    scientificName: mappedData.scientificName,
+                                    commonName: mappedData.commonName,
+                                    insightDescription: mappedData.insightData.description,
+                                    timestamp: Date(),
+                                    localImagePath: url.path,
+                                    semanticTags: [mappedData.commonName, mappedData.scientificName],
+                                    isPoisonous: mappedData.insightData.isPoisonous,
+                                    wikipediaUrl: mappedData.wikipediaUrl,
+                                    referenceImageUrl: mappedData.referenceImageUrl
+                                )
+                                context.insert(record)
+                            }
                             try? context.save()
                         }
                         
@@ -121,6 +144,7 @@ final class InferenceEngine: ObservableObject {
         inferenceTask?.cancel()
         isProcessing = false
         activePayload = nil
+        activePayloads.removeAll()
     }
     
     /// Rehydrates the SpeciesData and UI payloads natively from an offline Life List record
@@ -129,8 +153,19 @@ final class InferenceEngine: ObservableObject {
         
         if let path = record.localImagePath, let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
             self.activePayload = data
+            var payloads: [Data] = [data]
+            
+            if let extraPaths = record.additionalImagePaths {
+                for extra in extraPaths {
+                    if let extraData = try? Data(contentsOf: URL(fileURLWithPath: extra)) {
+                        payloads.append(extraData)
+                    }
+                }
+            }
+            self.activePayloads = payloads
         } else {
             self.activePayload = nil
+            self.activePayloads = []
         }
         
         self.speciesData = SpeciesData(
