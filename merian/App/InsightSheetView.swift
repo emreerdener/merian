@@ -164,6 +164,20 @@ struct InsightSheetView: View {
                     .cornerRadius(12)
                     // Accessibility: Explicitly anchor screen readers to the threat first
                     .accessibilityAddTraits(.isHeader)
+                } else {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(.gray)
+                            .padding(.top, 2)
+                        Text("Edibility Unknown. Merian is an educational tool. Never ingest wild flora.")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.leading)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(12)
                 }
                 
                 // 2. Core Taxonomy Block
@@ -351,18 +365,24 @@ struct TaxonomyNode: View {
     let name: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(spacing: 2) {
             Text(level)
                 .font(.caption2)
+                .bold()
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
             Text(name)
-                .font(.callout)
-                .fontWeight(.medium)
+                .font(.subheadline)
+                .fontWeight(.semibold)
                 .foregroundColor(.primary)
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(8)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+        )
     }
 }

@@ -1,8 +1,15 @@
 import SwiftUI
 import SwiftData
 
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        OfflineQueueManager.shared.backgroundCompletionHandler = completionHandler
+    }
+}
+
 @main
 struct MerianApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     
     @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared

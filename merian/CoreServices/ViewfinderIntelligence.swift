@@ -22,7 +22,7 @@ final class ViewfinderIntelligence: ObservableObject {
     
     private init() {}
     
-    func analyze(pixelBuffer: CVPixelBuffer, distance: Float) {
+    func analyze(pixelBuffer: CVPixelBuffer, distance: Float?) {
         // Drop frames instantly if we're currently processing one to maintain zero latency in the viewfinder
         guard !isAnalyzing else { return }
         isAnalyzing = true
@@ -35,7 +35,7 @@ final class ViewfinderIntelligence: ObservableObject {
             
             // 1. Distance Heuristic
             // Standard botanical / biological subjects normally sit below 2.5 meters.
-            if distance > 2.5 {
+            if let dist = distance, dist > 2.5 {
                 await self.updateHint(.moveCloser)
                 return
             }

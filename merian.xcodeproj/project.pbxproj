@@ -32,6 +32,7 @@
 		9B99A069523FF98347A3C557 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */; };
 		A18D50B4063A85EC6D9718AA /* SocialGuardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */; };
 		A75F38D210D42BDC6EAC0FD6 /* InsightSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */; };
+		ACDBCA9A92E372B8DF991898 /* DeviceIdentityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EF7CCC60CCF5F5B934D5E9 /* DeviceIdentityManager.swift */; };
 		B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */; };
 		B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */; };
 		B877508EC5465B634C8BAF4D /* GamificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0D60BF7DCA58CC49289F8B /* GamificationManager.swift */; };
@@ -101,6 +102,7 @@
 		8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeListSearchManager.swift; sourceTree = "<group>"; };
 		A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManager.swift; sourceTree = "<group>"; };
+		A1EF7CCC60CCF5F5B934D5E9 /* DeviceIdentityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = merian/CoreServices/DeviceIdentityManager.swift; sourceTree = "<group>"; };
 		A3B97D3AA157B3879CC2370C /* CircuitBreakerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircuitBreakerManager.swift; sourceTree = "<group>"; };
 		A8166641171629DC4E41B081 /* MerianWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianWatchApp.swift; sourceTree = "<group>"; };
 		B03EAD808B1F5D84E75D030C /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
@@ -144,10 +146,19 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		453CAF8669C1EAEAB2FF2A52 /* CoreServices */ = {
+			isa = PBXGroup;
+			children = (
+				A1EF7CCC60CCF5F5B934D5E9 /* DeviceIdentityManager.swift */,
+			);
+			name = CoreServices;
+			sourceTree = "<group>";
+		};
 		4614202F6465E0F5BE4F99BA /* merian */ = {
 			isa = PBXGroup;
 			children = (
 				B03EAD808B1F5D84E75D030C /* Config.xcconfig */,
+				453CAF8669C1EAEAB2FF2A52 /* CoreServices */,
 			);
 			name = merian;
 			path = .;
@@ -269,8 +280,6 @@
 			dependencies = (
 			);
 			name = MerianWatch;
-			packageProductDependencies = (
-			);
 			productName = MerianWatch;
 			productReference = 0481771C41C383D2737DDEC7 /* MerianWatch.app */;
 			productType = "com.apple.product-type.application";
@@ -300,7 +309,6 @@
 				A68D7B2C0AC3928BB3164D73 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = F420A3E8A335E1F061C6E39C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -373,6 +381,7 @@
 				DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */,
 				57B3AB95EA69F38741E9E500 /* UsageManager.swift in Sources */,
 				02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */,
+				ACDBCA9A92E372B8DF991898 /* DeviceIdentityManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

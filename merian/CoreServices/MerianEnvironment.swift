@@ -2,7 +2,6 @@ import Foundation
 
 enum MerianEnvironment {
     private enum Keys {
-        static let geminiApiKey = "GEMINI_API_KEY"
         static let supabaseUrl = "SUPABASE_URL"
         static let supabaseAnonKey = "SUPABASE_ANON_KEY"
         static let revenueCatApiKey = "REVENUECAT_API_KEY"
@@ -15,13 +14,6 @@ enum MerianEnvironment {
             fatalError("Plist file not found")
         }
         return dict
-    }()
-
-    static let geminiApiKey: String = {
-        guard let string = infoDictionary[Keys.geminiApiKey] as? String else {
-            fatalError("Gemini API Key not set in plist")
-        }
-        return string
     }()
 
     static let supabaseUrl: String = {

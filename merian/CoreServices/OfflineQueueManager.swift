@@ -8,21 +8,31 @@ import UIKit
 
 /// Uses NWPathMonitor for a zero-data loss offline queue automatically syncing securely when a link is confirmed.
 @MainActor
-final class OfflineQueueManager: ObservableObject {
+final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDelegate {
     static let shared = OfflineQueueManager()
     
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "MerianOfflineSyncQueue")
     
+    private lazy var backgroundSession: URLSession = {
+        let config = URLSessionConfiguration.background(withIdentifier: "com.merian.OfflineSyncBackground")
+        config.isDiscretionary = false
+        config.sessionSendsLaunchEvents = true
+        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
+    }()
+    
     @Published var isOnline: Bool = false
     @Published var unsyncedItemsCount: Int = 0
+    
+    var backgroundCompletionHandler: (() -> Void)?
     
     private var isSyncing: Bool = false
     private var syncTask: Task<Void, Never>?
     
     var modelContext: ModelContext?
     
-    private init() {
+    private override init() {
+        super.init()
         startMonitoring()
     }
     
@@ -110,7 +120,7 @@ final class OfflineQueueManager: ObservableObject {
             // Critical: Request explicit background execution time from iOS to wrap up field uploads while the device is in the user's pocket
             var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
             backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
-                // Time expiring
+                // Strict expirationHandler that safely suspends the queue without corrupting the data if the OS runs out of time.
                 self.syncTask?.cancel()
                 self.isSyncing = false
                 SyncStateManager.shared.completeSync()
@@ -121,10 +131,55 @@ final class OfflineQueueManager: ObservableObject {
             #endif
             
             syncTask = Task {
+                let documentsDirectory = URL.documentsDirectory
+                
+                var fileNames: [String] = []
+                var fileURLs: [URL] = []
+                var scanIDs: [String] = []
+                
+                // Aggregating all files to get Pre-Signed URLs in one batch
                 for scan in pendingScans {
-                    // Pre-check the circuit breaker natively before each payload fires
-                    if Task.isCancelled || !self.isOnline { break }
-                    await processScan(scan)
+                    for path in scan.localImagePaths {
+                        let fileURL = documentsDirectory.appendingPathComponent(path)
+                        let rawName = "\(scan.id)_\(path)"
+                        fileNames.append(rawName)
+                        fileURLs.append(fileURL)
+                        scanIDs.append(scan.id)
+                    }
+                }
+                
+                guard !fileNames.isEmpty else {
+                    await MainActor.run {
+                        self.isSyncing = false
+                        SyncStateManager.shared.completeSync()
+                    }
+                    return
+                }
+                
+                do {
+                    // Fetch Cloudflare R2 staging URLs (not chaining the Inference analyze API afterwards)
+                    let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(fileNames: fileNames)
+                    
+                    for (index, presignedURL) in presignedUrls.enumerated() {
+                        if Task.isCancelled { break } // Block loop execution instantly upon strict OS-level thread suspension
+                        
+                        guard index < fileURLs.count else { continue }
+                        guard let remoteUrl = URL(string: presignedURL.signedUrl) else { continue }
+                        
+                        var request = URLRequest(url: remoteUrl)
+                        request.httpMethod = "PUT"
+                        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                        
+                        // Enqueue to the iOS Background URLSession cleanly
+                        let uploadTask = self.backgroundSession.uploadTask(with: request, fromFile: fileURLs[index])
+                        uploadTask.taskDescription = scanIDs[index]
+                        uploadTask.resume()
+                    }
+                    
+                    // The backend will handle the actual Gemini inference asynchronously via a Supabase Storage Webhook once the file lands in the R2 staging bucket.
+                    
+                } catch {
+                    print("Failed to request Background staging URLs natively: \(error)")
                 }
                 
                 await MainActor.run {
@@ -146,65 +201,52 @@ final class OfflineQueueManager: ObservableObject {
         }
     }
     
-    private func processScan(_ scan: OfflineQueuedScan) async {
+    /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard error == nil else {
+            print("Background upload hard failed: \(error!)")
+            return
+        }
+        
+        guard let response = task.response as? HTTPURLResponse, response.statusCode == 200 else {
+            print("Background upload rejected physically by boundary constraints.")
+            return
+        }
+        
+        guard let scanId = task.taskDescription else { return }
+        
+        Task { @MainActor in
+            OfflineQueueManager.shared.finalizeScanCleanup(scanId: scanId)
+        }
+    }
+    
+    nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        Task { @MainActor in
+            guard let handler = OfflineQueueManager.shared.backgroundCompletionHandler else { return }
+            OfflineQueueManager.shared.backgroundCompletionHandler = nil
+            handler()
+        }
+    }
+    
+    private func finalizeScanCleanup(scanId: String) {
         guard let modelContext = modelContext else { return }
-        let documentsDirectory = URL.documentsDirectory
-        let networkClient = MerianNetworkClient.shared
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         
         do {
-            var fileUris: [String] = []
-            var fileNames: [String] = []
-            var imageDataArray: [Data] = []
-            
-            for path in scan.localImagePaths {
-                let fileURL = documentsDirectory.appendingPathComponent(path)
-                let data = try Data(contentsOf: fileURL)
-                imageDataArray.append(data)
-                
-                // Step 1: Ephemeral Upload Protocol
-                let fileUri = try await networkClient.uploadToGeminiFileAPI(imageData: data)
-                fileUris.append(fileUri)
-                fileNames.append("\(scan.id)_\(path)") // Safely append context metadata to filename
-            }
-            
-            // Step 2: Supabase Inference Route (Payload validation without base64 images)
-            let _ = try await networkClient.analyzeSubject(
-                fileUris: fileUris,
-                depthScaleText: nil, // Extrapolate metadata constraints if needed later via model syncs
-                gpsLatitude: scan.gpsLatitude,
-                gpsLongitude: scan.gpsLongitude,
-                weatherCondition: scan.weatherCondition
-            )
-            
-            // Step 3: Pre-Signed URL Authentication
-            let presignedUrls = try await networkClient.generateUploadURLs(fileNames: fileNames)
-            
-            // Step 4: Permanent Archive to R2
-            for (index, presignedURL) in presignedUrls.enumerated() {
-                if index < imageDataArray.count {
-                    let data = imageDataArray[index]
-                    try await networkClient.uploadToR2(url: presignedURL.signedUrl, data: data)
+            let matches = try modelContext.fetch(descriptor)
+            for scan in matches {
+                let documentsDirectory = URL.documentsDirectory
+                for path in scan.localImagePaths {
+                    let fileURL = documentsDirectory.appendingPathComponent(path)
+                    try? FileManager.default.removeItem(at: fileURL)
                 }
+                modelContext.delete(scan)
             }
-            
-            // Pre-Purge Archive Safety Protocol
-            // Before deleting from the volatile local cache, attempt to pull high-res into Apple Photos
-            let imagesToArchive = scan.localImagePaths.map { documentsDirectory.appendingPathComponent($0) }
-            await ArchiveManager.shared.initiatePrePurgeSync(pendingImages: imagesToArchive)
-            
-            // Clear successfully synced captures 200 OK locally 
-            for path in scan.localImagePaths {
-                let fileURL = documentsDirectory.appendingPathComponent(path)
-                try? FileManager.default.removeItem(at: fileURL)
-            }
-            
-            modelContext.delete(scan)
             try modelContext.save()
             updateUnsyncedItemCount()
             CircuitBreakerManager.shared.recordSuccess()
-            
         } catch {
-            print("Failed to process scan \(scan.id): \(error)")
+            print("Cleanup of Sync \(scanId) completely failed natively: \(error)")
         }
     }
     

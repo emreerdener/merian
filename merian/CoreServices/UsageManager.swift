@@ -12,8 +12,8 @@ final class UsageManager: ObservableObject {
     @Published var showPaywall: Bool = false
     
     private let defaults = UserDefaults.standard
-    private let lastScanDateKey = "Merian_LastScanDate"
-    private let scansUsedKey = "Merian_ScansUsedToday"
+    private var lastScanDateKey: String { "Merian_LastScanDate_\(DeviceIdentityManager.shared.deviceId)" }
+    private var scansUsedKey: String { "Merian_ScansUsedToday_\(DeviceIdentityManager.shared.deviceId)" }
     
     private init() {
         self.freeScansRemaining = maxFreeScansPerDay

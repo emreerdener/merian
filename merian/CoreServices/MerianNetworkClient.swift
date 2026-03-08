@@ -7,18 +7,9 @@ enum NetworkError: Error {
     case decodingFailed
 }
 
-struct GeminiFileResponse: Codable {
-    let file: GeminiFile
-}
+// Removed GeminiFile structures as we are no longer using the Gemini File API directly.
 
-struct GeminiFile: Codable {
-    let uri: String
-    let name: String
-}
-
-struct IdentifyResponse: Codable {
-    let result: String // Depending on schema structure
-}
+// Removed IdentifyResponse as payloads securely decode via nested JSON mapping natively downstream.
 
 struct PreSignedURLResponse: Codable {
     let urls: [PreSignedURL]
@@ -27,45 +18,18 @@ struct PreSignedURLResponse: Codable {
 struct PreSignedURL: Codable {
     let fileName: String
     let signedUrl: String
+    let objectKey: String
 }
 
 class MerianNetworkClient {
     static let shared = MerianNetworkClient()
     
     // Configurable endpoints structurally pulled from explicit targets rather than ProcessInfo on iOS
-    private let geminiApiKey = MerianEnvironment.geminiApiKey
     private let supabaseUrl = MerianEnvironment.supabaseUrl
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
-    // Step 1: Ephemeral Upload to Gemini File API
-    // Returns the lightweight fileUri
-    func uploadToGeminiFileAPI(imageData: Data, mimeType: String = "image/jpeg") async throws -> String {
-        let urlString = "https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=media&key=\(geminiApiKey)"
-        guard let url = URL(string: urlString) else { throw NetworkError.invalidURL }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(mimeType, forHTTPHeaderField: "Content-Type")
-        request.httpBody = imageData
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.uploadFailed
-        }
-        
-        if httpResponse.statusCode != 200 {
-            let errString = String(data: data, encoding: .utf8) ?? "Unknown"
-            print("🚨 GEMINI UPLOAD FAILED [\(httpResponse.statusCode)]: \(errString)")
-            throw NetworkError.uploadFailed
-        }
-        
-        let fileResponse = try JSONDecoder().decode(GeminiFileResponse.self, from: data)
-        return fileResponse.file.uri
-    }
-    
     // Step 2: Supabase Inference
-    func analyzeSubject(fileUris: [String], depthScaleText: String?, gpsLatitude: Double?, gpsLongitude: Double?, weatherCondition: String?) async throws -> String {
-        let uri = fileUris.first ?? ""
+    func analyzeSubject(r2ObjectKey: String, depthScaleText: String?, gpsLatitude: Double?, gpsLongitude: Double?, weatherCondition: String?) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
         
         var request = URLRequest(url: functionUrl)
@@ -88,8 +52,10 @@ class MerianNetworkClient {
             throw NetworkError.invalidResponse
         }
         
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
         let payload: [String: Any?] = [
-            "geminiFileUri": uri,
+            "r2ObjectKey": r2ObjectKey,
+            "user_id": deviceId,
             "mimeType": "image/jpeg",
             "depthScaleText": depthScaleText,
             "gpsLatitude": gpsLatitude,
@@ -112,8 +78,7 @@ class MerianNetworkClient {
             throw NetworkError.invalidResponse
         }
         
-        let res = try JSONDecoder().decode(IdentifyResponse.self, from: data)
-        return res.result
+        return data
     }
     
     // Step 3: Pre-Signed URLs

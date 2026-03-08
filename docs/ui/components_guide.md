@@ -12,14 +12,22 @@ The massive full-bleed base architecture.
 - Throws `.ultraThinMaterial` dynamic SwiftUI hints ("Move Closer", "Too Dark") instantly without `alert` blockers.
 - Orchestrates dynamic `.black` bounding boxes removing transparent elements completely when `HardwareOrchestrator` triggers thermal throttling states.
 
+## 1.5 `LifeListSearchManager` & Search Integration
+
+Manages the core historical species cataloging system.
+
+- Instantiates a bottom-aligned native iOS `.searchable` index filtering `LocalScanRecord` structures.
+- Deduplicates identical species captures natively into unified model wrappers containing arrays of historical `additionalImagePaths`.
+
 ## 2. Default `InsightSheetView.swift` (Built Structure)
 
 The physical analytical response boundary natively wrapping the `SpeciesData` schema generated natively by Deno.
 
 - Always renders up in the "Natural Thumb Zone" from the bottom. Defaults exclusively to a full-screen `.large` presentation detent explicitly obscuring the background viewfinder cleanly.
-- Displays dynamic Taxonomy (Kingdom, Phylum) dynamically bound exclusively via Deno metadata inputs.
-- Triggers `isPresented` conditionally freezing the background camera logic instantly saving maximum hardware battery draw natively behind the user.
-- Automatically drops VoiceOver explicitly reading the `commonNames` strings first, followed deeply by `isPoisonous` states.
+- Implements a horizontal `TabView` carousel displaying all historical encounters natively mapping to `activePayloads` arrays.
+- Renders dynamic metadata badges natively evaluating `isInvasive`, `ecologyType`, `isBiological`, and `isLiveCapture` flags beneath the primary confidence score UI.
+- Displays dynamic Taxonomy (Kingdom, Phylum) trees visually expanding the Deno metadata inputs.
+- Automatically drops VoiceOver explicitly reading the `commonNames` strings first, followed deeply by `isPoisonous` states natively.
 
 ## 3. The Digital Terrarium (`TerrariumView` - Partially Built)
 

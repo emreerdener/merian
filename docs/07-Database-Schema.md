@@ -49,3 +49,24 @@ Locally captures state when cell towers drop.
 - `weatherTemperatureF`: Double?
 - `blurScore`: Double?
 - `isDeleted`: Bool (Soft-delete boundary once 200 OK receives back from Edge)
+
+### `LocalScanRecord` (Life List)
+
+Tracks locally synchronized and unique species scans natively for the Life List.
+
+- `id`: String (UUID)
+- `timestamp`: Date
+- `scientificName`: String
+- `commonName`: String
+- `confidenceScore`: Double?
+- `localImagePath`: String? (Thumbnail index)
+- `additionalImagePaths`: [String]? (Multiple historic encounter arrays)
+- `insightDescription`: String
+- `isPoisonous`: Bool
+- `isBiological`: Bool (from Edge)
+- `isLiveCapture`: Bool (from Edge)
+- `isInvasive`: Bool (from Edge)
+- `ecologyType`: String (from Edge)
+- `semanticTags`: [String] (AI-generated hidden array of contextual tags to power local, offline semantic search routing without requiring an internet connection).
+- `wikipediaUrl`: String?
+- `referenceImageUrl`: String?

@@ -13,6 +13,12 @@ final class InferenceEngine: ObservableObject {
     
     private var inferenceTask: Task<Void, Never>?
     
+    /// Wrapper preventing double string decoding JSON extraction logic
+    private struct EdgeResponseWrapper: Codable {
+        let success: Bool?
+        let data: EdgeResponse
+    }
+    
     /// Struct defining the exact expected JSON schema from the Gemini Edge Function
     private struct EdgeResponse: Codable {
         let is_biological_subject: Bool?
@@ -58,23 +64,29 @@ final class InferenceEngine: ObservableObject {
                 
                 let client = MerianNetworkClient.shared
                 
-                // 1. Upload high-res physical image cleanly to Gemini
-                let fileUri = try await client.uploadToGeminiFileAPI(imageData: imageData)
+                // 1. Request Secure Cloudflare R2 Staging URL
+                let presignedUrls = try await client.generateUploadURLs(fileNames: ["live_scan.jpg"])
+                guard let target = presignedUrls.first else {
+                    throw URLError(.badServerResponse)
+                }
                 
-                // 2. Transmit the active URI to the robust Supabase architecture for verification
-                let resultString = try await client.analyzeSubject(
-                    fileUris: [fileUri],
+                // 2. Upload raw image bytes to R2
+                try await client.uploadToR2(url: target.signedUrl, data: imageData)
+                
+                // 3. Transmit the Object Key to the robust Supabase architecture for verification
+                // 3. Transmit the Object Key to the robust Supabase architecture for verification
+                let resultData = try await client.analyzeSubject(
+                    r2ObjectKey: target.objectKey,
                     depthScaleText: nil, // Extrapolating later if depth hardware demands it
                     gpsLatitude: nil,
                     gpsLongitude: nil,
                     weatherCondition: nil
                 )
                 
-                // 3. Decode the returned JSON string intelligently into our local Swift UI Models
-                if let jsonData = resultString.data(using: .utf8) {
-                    let decoder = JSONDecoder()
-                    // Silently handle schema discrepancies securely without crashing the UI
-                    if let edgeRes = try? decoder.decode(EdgeResponse.self, from: jsonData) {
+                // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely
+                let decoder = JSONDecoder()
+                if let parsedWrapper = try? decoder.decode(EdgeResponseWrapper.self, from: resultData) {
+                    let edgeRes = parsedWrapper.data
                         
                         // Map the Edge JSON cleanly into the established SpeciesData structure
                         let insight = InsightData(
@@ -171,9 +183,9 @@ final class InferenceEngine: ObservableObject {
                             taxonomy: nil
                         )
                     }
-                }
             } catch {
                 CircuitBreakerManager.shared.recordFailure()
+                OfflineQueueManager.shared.enqueueCapture(imageData: imageData)
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
                 self.speciesData = SpeciesData(
                     commonName: "Network Timeout",

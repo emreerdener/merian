@@ -12,11 +12,12 @@ The `OfflineQueueManager` handles the persistence explicitly with no risk.
 2. **Network Awakening (`NWPathMonitor`)**
    The `NWPathMonitor` instance listens natively to the internal cellular stack continuously. When a connection flips `.satisfied`, the manager debounces for 1,000 milliseconds to guarantee the pipeline has completely stabilized without thrashing before starting processing.
 
-3. **Background Processing (`UIBackgroundTaskIdentifier`)**
-   If the app is backgrounded, `OfflineQueueManager` asks the OS for explicitly 30 seconds of extended runtime securely executing `.syncPendingScans()`.
+3. **Background Processing (`URLSessionConfiguration.background`)**
+   The manager generates raw Presigned URLs from `/generate-upload-urls`. Instead of hanging the thread and forcing the app to wait via `UIBackgroundTaskIdentifier`, it cleanly hands the image files explicitly mapped to the generated Cloudflare R2 URLs directly into a strictly isolated native iOS `URLSession` Background Queue natively. The Operating System assumes full responsibility for byte transmission.
+   _Note: A strict `UIBackgroundTaskIdentifier` map requests up to 30 seconds of explicit background execution time from iOS. An `expirationHandler` is wrapped locally around the presigned URL generation phase to immediately stop the queue loop, leaving remaining items safely in SwiftData without corrupting data if the OS randomly runs out of time on weak 3G connections. Crucially, it implements an expirationHandler closure to safely suspend the loop and call endBackgroundTask if the OS runs out of execution time, preventing data corruption and app crashes._
 
-4. **Upload Lifecycle (`processScan`)**
-   - **Step A:** Ephemerally pushes the JPEG blindly to Gemini's File API, retrieving a temporary lightweight `uri`.
-   - **Step B:** Triggers the Supabase `/identify` Edge function via the native `MerianNetworkClient` validating the model natively.
-   - **Step C:** Upon a 200 HTTP OK, fetches a Cloudflare pre-signed link safely and PUTs the actual object successfully.
-   - **Step D:** Physically purges the `documentsDirectory` payload freeing storage and safely deletes the item locally inside `SwiftData`.
+4. **Upload Lifecycle via URLSession Delegates (iOS Background Hooks)**
+   - **Step A:** iOS natively transmits the data into the Staging bucket.
+   - **Step B:** Once bytes finish landing securely, SwiftUI invokes the `@UIApplicationDelegateAdaptor` inside `AppDelegate`, transferring the `handleEventsForBackgroundURLSession` handler straight to `OfflineQueueManager`.
+   - **Step C:** Native constraints fire `.urlSession(_:task:didCompleteWithError:)` triggering locally, securely deleting the item from `SwiftData` & clearing `documentsDirectory`. Finally, `.urlSessionDidFinishEvents` safely releases the background closure natively preventing any iOS watchdog crashes.
+   - **Step D:** The backend natively assumes control. It handles actual Gemini inferences asynchronously via a Supabase Storage Webhook once the payload file triggers an `ObjectCreated` event physically inside the Cloudflare bucket.

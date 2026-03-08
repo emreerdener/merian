@@ -10,7 +10,8 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
 
 ```json
 {
-  "geminiFileUri": "uri_string",
+  "r2ObjectKey": "staging/uuid_filename.jpg",
+  "user_id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
   "depthScaleText": "1.2 meters",
@@ -49,22 +50,29 @@ The `merianResponseSchema` within Deno forces Gemini structurally into this exac
 }
 ```
 
-## The "Wrapped" JSON Return Payload (From Supabase to Swift)
+## The Standardized JSON Return Payload (From Supabase to Swift)
 
-To seamlessly integrate with `MerianNetworkClient.swift`, the `/identify` Edge function wraps the stringified Gemini taxonomy output inside a simple JSON object under the `result` key.
+To seamlessly integrate with `MerianNetworkClient.swift` securely, the `/identify` Edge function returns standard, nested JSON array logic.
 
 ```json
 {
-  "result": "{ \"is_biological_subject\": true, ... }"
+  "success": true,
+  "data": {
+    "is_biological_subject": true,
+    "ecology_type": "wild",
+    "scientific_name": "Danaus plexippus"
+  }
 }
 ```
 
-This strict data contract bridges safely into the native Swift Codable layer:
+This strict data contract bridges safely into the native Swift Codable layer where nested JSON `Data` is natively verified safely preventing `JSONDecoder()` crashing states on double-escaped strings.
 
 ```swift
 struct IdentifyResponse: Codable {
-    let result: String
+    let success: Bool
+    let data: SpeciesData?
+    let error: String?
 }
 ```
 
-**Client Authentication Caveat**: `MerianNetworkClient` explicitly enforces token provisioning natively. If a network call fails to discover an active Ghost Session (JWT), it intercepts the dispatch implicitly, awaits `SupabaseManager.shared.initializeGhostSession()`, and secures the token before routing to prevent silent foreign key violations on the Edge node.
+**Client Authentication Caveat**: `MerianNetworkClient` explicitly enforces device-level hardware tokens natively. The `user_id` mapped inside the request body payload is extracted natively from `DeviceIdentityManager.shared.deviceId` (Apple IDFV) ensuring persistent identity mapping across sessions cleanly bypassing brittle Supabase authenticated cookie states.

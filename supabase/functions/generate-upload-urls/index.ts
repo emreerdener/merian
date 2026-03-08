@@ -14,16 +14,11 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { userId, imageCount } = await req.json();
+    const { fileNames } = await req.json();
 
-    if (!userId || typeof imageCount !== "number") {
-      throw new Error(
-        "Invalid request payload. Expected userId and imageCount.",
-      );
+    if (!Array.isArray(fileNames) || fileNames.length === 0) {
+      throw new Error("Invalid request payload. Expected fileNames array.");
     }
-
-    // Limit to max 5 images per request
-    const count = Math.min(imageCount, 5);
 
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
     const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
@@ -38,37 +33,30 @@ serve(async (req: Request) => {
     });
 
     const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+    const urls: { fileName: string; signedUrl: string; objectKey: string }[] =
+      [];
 
-    const uploadUrls: Record<number, string> = {};
-    const destinationUrls: Record<number, string> = {};
-
-    for (let i = 0; i < count; i++) {
-      // Generate random UUID using crypto
+    for (const fileName of fileNames) {
       const imageId = crypto.randomUUID();
-      // Construct strict quarantine path
-      const key = `quarantine/${userId}/${imageId}.jpg`;
+      const key = `staging/${imageId}_${fileName}`;
       const urlString = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
 
-      // 1. Generate Signed PUT URL (Expires in 900 seconds)
       const putUrl = new URL(urlString);
       putUrl.searchParams.set("X-Amz-Expires", "900");
+
       const signedPut = await aws.sign(putUrl, {
         method: "PUT",
         aws: { signQuery: true },
       });
-      uploadUrls[i] = signedPut.url;
 
-      // 2. Generate Signed GET URL (Expires in 3600 seconds)
-      const getUrl = new URL(urlString);
-      getUrl.searchParams.set("X-Amz-Expires", "3600");
-      const signedGet = await aws.sign(getUrl, {
-        method: "GET",
-        aws: { signQuery: true },
+      urls.push({
+        fileName: fileName,
+        signedUrl: signedPut.url,
+        objectKey: key,
       });
-      destinationUrls[i] = signedGet.url;
     }
 
-    return new Response(JSON.stringify({ uploadUrls, destinationUrls }), {
+    return new Response(JSON.stringify({ urls }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

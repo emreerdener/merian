@@ -16,6 +16,10 @@ final class LocalScanRecord {
     // The Semantic Index explicitly driven by Gemini tags, enabling full Natural Language queries completely off-network.
     var semanticTags: [String]
     var isPoisonous: Bool
+    var isBiological: Bool
+    var isLiveCapture: Bool
+    var isInvasive: Bool
+    var ecologyType: String
     var wikipediaUrl: String?
     var referenceImageUrl: String?
     var additionalImagePaths: [String]?
@@ -30,6 +34,10 @@ final class LocalScanRecord {
          localImagePath: String? = nil,
          semanticTags: [String] = [],
          isPoisonous: Bool = false,
+         isBiological: Bool = true,
+         isLiveCapture: Bool = true,
+         isInvasive: Bool = false,
+         ecologyType: String = "unknown",
          wikipediaUrl: String? = nil,
          referenceImageUrl: String? = nil,
          additionalImagePaths: [String]? = nil,
@@ -44,6 +52,10 @@ final class LocalScanRecord {
         self.localImagePath = localImagePath
         self.semanticTags = semanticTags
         self.isPoisonous = isPoisonous
+        self.isBiological = isBiological
+        self.isLiveCapture = isLiveCapture
+        self.isInvasive = isInvasive
+        self.ecologyType = ecologyType
         self.wikipediaUrl = wikipediaUrl
         self.referenceImageUrl = referenceImageUrl
         self.additionalImagePaths = additionalImagePaths
@@ -69,6 +81,7 @@ class LifeListSearchManager: ObservableObject {
         let searchableData = allScans.map { (id: $0.id, textData: [
             $0.commonName.lowercased(),
             $0.scientificName.lowercased(),
+            $0.ecologyType.lowercased(),
             $0.insightDescription.lowercased()
         ] + $0.semanticTags.map { $0.lowercased() }) }
         

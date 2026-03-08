@@ -17,7 +17,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     private var cancellables = Set<AnyCancellable>()
     
     @Published var isSessionRunning = false
-    @Published var subjectDistanceInMeters: Float = 0.0
+    @Published var subjectDistanceInMeters: Float? = nil
     
     // CoreML inferred state
     var isLiveInferencePaused: Bool = false
@@ -45,7 +45,13 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         session.beginConfiguration()
         session.sessionPreset = .photo
         
-        guard let captureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInLiDARDepthCamera, .builtInDualCamera, .builtInDualWideCamera, .builtInWideAngleCamera],
+            mediaType: .video,
+            position: .back
+        )
+        
+        guard let captureDevice = discoverySession.devices.first,
               let videoInput = try? AVCaptureDeviceInput(device: captureDevice) else {
             session.commitConfiguration()
             return
@@ -235,6 +241,10 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             
             Task { @MainActor in
                 self.subjectDistanceInMeters = clampedDistance
+            }
+        } else {
+            Task { @MainActor in
+                self.subjectDistanceInMeters = nil
             }
         }
     }

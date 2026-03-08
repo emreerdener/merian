@@ -1,10 +1,11 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.31.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.17";
 
 export async function evaluateAndProcessPayload(
   userId: string,
   imageId: string,
   geminiFinishReason: string | undefined,
+  // deno-lint-ignore no-explicit-any
   safetyRatings: any[] | undefined,
 ): Promise<"DELETED_WARNING" | "SHADOWBANNED" | "PROMOTED" | "ERROR"> {
   try {
