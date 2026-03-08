@@ -103,7 +103,8 @@ class MerianNetworkClient {
             throw NetworkError.invalidResponse
         }
         
-        let payload: [String: Any] = ["fileNames": fileNames]
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let payload: [String: Any] = ["fileNames": fileNames, "user_id": deviceId]
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         
         let (data, response) = try await URLSession.shared.data(for: request)

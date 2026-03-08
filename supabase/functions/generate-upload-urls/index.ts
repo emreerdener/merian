@@ -14,10 +14,18 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { fileNames } = await req.json();
+    const { fileNames, user_id } = await req.json();
 
-    if (!Array.isArray(fileNames) || fileNames.length === 0) {
-      throw new Error("Invalid request payload. Expected fileNames array.");
+    if (!user_id) {
+      throw new Error("Missing user_id.");
+    }
+
+    if (
+      !Array.isArray(fileNames) ||
+      fileNames.length === 0 ||
+      fileNames.length > 5
+    ) {
+      throw new Error("Invalid request or exceeded maximum files.");
     }
 
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
@@ -38,14 +46,15 @@ serve(async (req: Request) => {
 
     for (const fileName of fileNames) {
       const imageId = crypto.randomUUID();
-      const key = `staging/${imageId}_${fileName}`;
+      const key = `staging/${user_id}/${imageId}.jpg`;
       const urlString = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
 
       const putUrl = new URL(urlString);
       putUrl.searchParams.set("X-Amz-Expires", "900");
 
-      const signedPut = await aws.sign(putUrl, {
+      const signedPut = await aws.sign(putUrl.toString(), {
         method: "PUT",
+        headers: { "Content-Type": "image/jpeg" },
         aws: { signQuery: true },
       });
 
@@ -61,7 +70,7 @@ serve(async (req: Request) => {
       status: 200,
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

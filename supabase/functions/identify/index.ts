@@ -6,6 +6,7 @@ import {
   SchemaType,
 } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { evaluateAndProcessPayload } from "./moderation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,8 +116,13 @@ Crucial instructions:
           properties: {
             description: { type: SchemaType.STRING },
             regional_status_rationale: { type: SchemaType.STRING },
+            is_poisonous: { type: SchemaType.BOOLEAN },
           },
-          required: ["description", "regional_status_rationale"],
+          required: [
+            "description",
+            "regional_status_rationale",
+            "is_poisonous",
+          ],
         },
         diagnostic_comparison: {
           type: SchemaType.OBJECT,
@@ -166,6 +172,23 @@ Crucial instructions:
       },
     });
 
+    const candidate = result.response.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    const safetyRatings = candidate?.safetyRatings;
+
+    const modResult = await evaluateAndProcessPayload(
+      user_id,
+      r2ObjectKey,
+      finishReason,
+      safetyRatings,
+    );
+    if (
+      modResult.status === "SHADOWBANNED" ||
+      modResult.status === "DELETED_WARNING"
+    ) {
+      throw new Error("Media flagged by safety moderation");
+    }
+
     console.log("[3] Gemini Finished, Parsing JSON");
     const responseText = result.response.text();
 
@@ -184,7 +207,11 @@ Crucial instructions:
       let speciesId = null;
 
       // Upsert physical taxonomy object dictionary lookup cleanly
-      if (parsedData.scientific_name) {
+      if (
+        parsedData.is_biological_subject &&
+        parsedData.scientific_name &&
+        parsedData.taxonomy
+      ) {
         console.log(
           "[5] Upserting Dictionary with: ",
           parsedData.scientific_name,
@@ -211,6 +238,7 @@ Crucial instructions:
             // Unauthenticated taxonomy fetch to global GBIF registry
             const gbifRes = await fetch(
               `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(parsedData.scientific_name)}`,
+              { signal: AbortSignal.timeout(2500) },
             );
             if (gbifRes.ok) {
               const gbifJson = await gbifRes.json();
@@ -218,6 +246,7 @@ Crucial instructions:
               if (gbifKey) {
                 const mediaRes = await fetch(
                   `https://api.gbif.org/v1/species/${gbifKey}/media`,
+                  { signal: AbortSignal.timeout(2500) },
                 );
                 if (mediaRes.ok) {
                   const mediaJson = await mediaRes.json();
@@ -238,6 +267,7 @@ Crucial instructions:
             // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
             const wikiRes = await fetch(
               `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsedData.scientific_name.replace(/ /g, "_"))}`,
+              { signal: AbortSignal.timeout(2500) },
             );
             if (wikiRes.ok) {
               const wikiJson = await wikiRes.json();
@@ -270,6 +300,7 @@ Crucial instructions:
               family: parsedData.taxonomy.family,
               genus: parsedData.taxonomy.genus,
               descriptions: { insight: parsedData.insight_data.description },
+              is_poisonous: parsedData.insight_data.is_poisonous,
               wikipedia_url: wikiUrl,
               gbif_taxon_key: gbifKey,
               reference_image_url: combinedImageUrls,
@@ -285,6 +316,12 @@ Crucial instructions:
         }
       }
 
+      await supabaseAdmin
+        .from("users")
+        .upsert(
+          { id: userId, subscription_tier: "free" },
+          { onConflict: "id" },
+        );
       console.log("[6] Inserting Scan");
       // Finally natively bind the architectural map directly down to the Ghost User UUID
       await supabaseAdmin.from("scans").insert({
@@ -299,6 +336,7 @@ Crucial instructions:
           parsedData.insight_data.regional_status_rationale,
         is_live_capture: parsedData.is_live_capture,
         weather_condition: weatherCondition,
+        image_storage_urls: modResult.publicUrl ? [modResult.publicUrl] : [],
       });
     } else {
       throw new Error(

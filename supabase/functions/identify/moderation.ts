@@ -3,11 +3,11 @@ import { AwsClient } from "https://esm.sh/aws4fetch@1.0.17";
 
 export async function evaluateAndProcessPayload(
   userId: string,
-  imageId: string,
+  r2ObjectKey: string,
   geminiFinishReason: string | undefined,
   // deno-lint-ignore no-explicit-any
   safetyRatings: any[] | undefined,
-): Promise<"DELETED_WARNING" | "SHADOWBANNED" | "PROMOTED" | "ERROR"> {
+): Promise<{ status: string; publicUrl?: string }> {
   try {
     // 1. Evaluate Gemini Safety Ratings and Finish Reason
     let isUnsafe = false;
@@ -37,10 +37,9 @@ export async function evaluateAndProcessPayload(
     });
 
     const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-    const quarantineKey = `quarantine/${userId}/${imageId}.jpg`;
-    const publicUploadKey = `public_uploads/${userId}/${imageId}.jpg`;
+    const publicUploadKey = r2ObjectKey.replace("staging/", "public_uploads/");
 
-    const quarantineUrl = `${endpoint}/${R2_BUCKET_NAME}/${quarantineKey}`;
+    const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
     const publicUrl = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -54,8 +53,8 @@ export async function evaluateAndProcessPayload(
         `Unsafe media detected for user ${userId}. Engaging Unsafe Flow.`,
       );
 
-      // Step A: Send DELETE request purging image explicitly from quarantine
-      const deleteReq = new Request(quarantineUrl, { method: "DELETE" });
+      // Step A: Send DELETE request purging image explicitly from staging
+      const deleteReq = new Request(stagingUrl, { method: "DELETE" });
       const signedDelete = await aws.sign(deleteReq);
       await fetch(signedDelete);
 
@@ -90,7 +89,7 @@ export async function evaluateAndProcessPayload(
         console.error(`Failed to update user bounds. Error:`, updateError);
       }
 
-      return isShadowbanned ? "SHADOWBANNED" : "DELETED_WARNING";
+      return { status: isShadowbanned ? "SHADOWBANNED" : "DELETED_WARNING" };
     }
 
     // 4. Safe Flow Pipeline
@@ -100,7 +99,7 @@ export async function evaluateAndProcessPayload(
     const copyReq = new Request(publicUrl, {
       method: "PUT",
       headers: {
-        "x-amz-copy-source": `/${R2_BUCKET_NAME}/${quarantineKey}`,
+        "x-amz-copy-source": `/${R2_BUCKET_NAME}/${r2ObjectKey}`,
       },
     });
 
@@ -108,17 +107,17 @@ export async function evaluateAndProcessPayload(
     const copyRes = await fetch(signedCopy);
 
     if (copyRes.ok) {
-      // Step B: Purge origin from quarantine payload block after valid internal transfer
-      const originDeleteReq = new Request(quarantineUrl, { method: "DELETE" });
+      // Step B: Purge origin from staging payload block after valid internal transfer
+      const originDeleteReq = new Request(stagingUrl, { method: "DELETE" });
       const signedOriginDelete = await aws.sign(originDeleteReq);
       await fetch(signedOriginDelete);
     } else {
       console.error(`Failed to promote payload into R2. Pipeline stopped.`);
     }
 
-    return "PROMOTED";
+    return { status: "PROMOTED", publicUrl };
   } catch (error) {
     console.error(`Moderation Pipeline Critical Failure:`, error);
-    return "ERROR";
+    return { status: "ERROR" };
   }
 }
