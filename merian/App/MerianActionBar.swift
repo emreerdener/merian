@@ -7,7 +7,6 @@ struct MerianActionBar: View {
     @Binding var isPaywallOpen: Bool
     @Binding var isInsightSheetOpen: Bool
     @Binding var isAnalyzingFullscreen: Bool
-    @Binding var selectedPhotoItem: PhotosPickerItem?
     
     var onCaptureTriggered: () -> Void
     
@@ -28,30 +27,22 @@ struct MerianActionBar: View {
                 isLifeListOpen = true
             }) {
                 ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(width: 50, height: 50)
-                    Image(systemName: "books.vertical.fill")
+                    Group {
+                        if hardwareOrchestrator.isGlassmorphismEnabled {
+                            VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
+                        } else {
+                            Color.black.opacity(0.7)
+                        }
+                    }
+                    .frame(width: 50, height: 50)
+                    .clipShape(Circle())
+                    
+                    Image(systemName: "book")
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(.white)
                 }
             }
-            
-            Spacer()
-            
-            // Gamification
-            Button(action: {
-                gamificationManager.showTerrariumSheet = true
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(width: 50, height: 50)
-                    Image(systemName: "leaf.fill")
-                        .foregroundColor(.green)
-                }
-            }
-            
-            Spacer()
+            .frame(maxWidth: .infinity)
             
             // The Shutter / Analyze Button
             Button(action: {
@@ -75,7 +66,6 @@ struct MerianActionBar: View {
                         }
                     }
                 } else {
-                    // User hit the strict architectural boundary of 3 free logs
                     AppTelemetry.trackPaywallImpression()
                     isPaywallOpen = true
                 }
@@ -90,34 +80,32 @@ struct MerianActionBar: View {
                         .frame(width: 62, height: 62)
                 }
             }
+            .frame(maxWidth: .infinity)
             
-            Spacer()
-            
-            // Photo Library Picker Right Overlay
-            PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+            // User Profile Button
+            Button(action: {
+                isPaywallOpen = true
+            }) {
                 ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(width: 50, height: 50)
-                    Image(systemName: "photo.on.rectangle")
+                    Group {
+                        if hardwareOrchestrator.isGlassmorphismEnabled {
+                            VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
+                        } else {
+                            Color.black.opacity(0.7)
+                        }
+                    }
+                    .frame(width: 50, height: 50)
+                    .clipShape(Circle())
+                    
+                    Image(systemName: "person")
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(.white)
                 }
             }
+            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
-        // State-based Glassmorphism
-        .background(
-            Group {
-                if hardwareOrchestrator.isGlassmorphismEnabled {
-                    VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
-                } else {
-                    Color.black.opacity(0.85)
-                }
-            }
-        )
-        .clipShape(Capsule())
-        .padding(.horizontal, 30)
-        .padding(.bottom, 40)
+        .padding(.bottom, 24)
     }
 }

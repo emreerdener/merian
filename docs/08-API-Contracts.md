@@ -2,6 +2,37 @@
 
 Merian operates heavily decoupled. The iOS application exclusively hits Supabase Edge Functions, abstracting its physical networking entirely away from 3rd party providers like Google Gemini.
 
+## Deno `/generate-upload-urls` Edge Node
+
+To fetch cryptographic keys for direct-to-Cloudflare uploads safely bridging DDOS vectors, the client pushes standard limits arrays:
+
+### Request Payload
+
+```json
+{
+  "user_id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+  "fileNames": ["photo_1.jpg", "photo_2.jpg"]
+}
+```
+
+### Response Payload
+
+Yields securely locked Cloudflare R2 bounds explicitly tied to the original `user_id` preventing path traversal.
+
+```json
+{
+  "urls": [
+    {
+      "fileName": "photo_1.jpg",
+      "signedUrl": "https://<R2_URL>?X-Amz-Signature=...",
+      "objectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_photo_1.jpg"
+    }
+  ]
+}
+```
+
+---
+
 ## Deno `/identify` Edge Node
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
@@ -44,7 +75,8 @@ The `merianResponseSchema` within Deno forces Gemini structurally into this exac
   },
   "insight_data": {
     "description": "An iconic pollinator...",
-    "regional_status_rationale": "Native bounds active during summer months."
+    "regional_status_rationale": "Native bounds active during summer months.",
+    "is_poisonous": true
   },
   "diagnostic_comparison": null
 }

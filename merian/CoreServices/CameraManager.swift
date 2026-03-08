@@ -18,6 +18,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     @Published var isSessionRunning = false
     @Published var subjectDistanceInMeters: Float? = nil
+    @Published var isFlashEnabled = false
     
     // CoreML inferred state
     var isLiveInferencePaused: Bool = false
@@ -84,6 +85,9 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 }
             } else {
                 photoOutput.isHighResolutionCaptureEnabled = true
+            }
+            if photoOutput.isDepthDataDeliverySupported {
+                photoOutput.isDepthDataDeliveryEnabled = true
             }
         }
         
@@ -249,6 +253,23 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
     }
     
+    func toggleFlash() {
+        guard let deviceInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
+            return
+        }
+        let device = deviceInput.device
+        guard device.hasTorch else { return }
+        
+        do {
+            try device.lockForConfiguration()
+            isFlashEnabled.toggle()
+            device.torchMode = isFlashEnabled ? .on : .off
+            device.unlockForConfiguration()
+        } catch {
+            print("Failed to lock device for torch: \(error)")
+        }
+    }
+    
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
@@ -284,13 +305,19 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 }
                 
                 let settings = AVCapturePhotoSettings()
+                
+                // Set explicitly mapped hardware flash modes when physically firing the shutter 
+                if self.photoOutput.supportedFlashModes.contains(self.isFlashEnabled ? .on : .off) {
+                    settings.flashMode = self.isFlashEnabled ? .on : .off
+                }
+                
                 if #available(iOS 16.0, *) {
                     settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
                 } else {
-                    settings.isHighResolutionPhotoEnabled = true
+                    settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
                 }
                 if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
-                    settings.isDepthDataDeliveryEnabled = true
+                    settings.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliveryEnabled
                 }
                 
                 self.photoOutput.capturePhoto(with: settings, delegate: self)

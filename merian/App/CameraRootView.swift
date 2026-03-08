@@ -55,6 +55,51 @@ struct CameraRootView: View {
             // Action Overlay Context
             if !isAnalyzingFullscreen {
                 VStack {
+                    // Top Toolbar (Photos & Gamification)
+                    HStack {
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                            ZStack {
+                                Group {
+                                    if hardwareOrchestrator.isGlassmorphismEnabled {
+                                        VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
+                                    } else {
+                                        Color.black.opacity(0.7)
+                                    }
+                                }
+                                .frame(width: 50, height: 50)
+                                .clipShape(Circle())
+                                
+                                Image(systemName: "photo.on.rectangle")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            cameraManager.toggleFlash()
+                        }) {
+                            ZStack {
+                                Group {
+                                    if hardwareOrchestrator.isGlassmorphismEnabled {
+                                        VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
+                                    } else {
+                                        Color.black.opacity(0.7)
+                                    }
+                                }
+                                .frame(width: 50, height: 50)
+                                .clipShape(Circle())
+                                
+                                Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundColor(cameraManager.isFlashEnabled ? .yellow : .white)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 60)
+                    
                     Spacer()
                     
                     // Viewfinder Intelligence Hint Banner
@@ -77,7 +122,6 @@ struct CameraRootView: View {
                         isPaywallOpen: $isPaywallOpen,
                         isInsightSheetOpen: $isInsightSheetOpen,
                         isAnalyzingFullscreen: $isAnalyzingFullscreen,
-                        selectedPhotoItem: $selectedPhotoItem,
                         onCaptureTriggered: triggerFlash
                     )
                 }

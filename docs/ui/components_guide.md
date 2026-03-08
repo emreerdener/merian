@@ -8,7 +8,8 @@ The massive full-bleed base architecture.
 
 - Maps an `AVCaptureVideoPreviewLayer` wrapping `UIViewRepresentable` entirely behind a `ZStack` physically.
 - Listens to the `@StateObject var vui = ViewfinderIntelligence.shared`.
-- Integrates iOS native `PhotosPicker` natively along the bottom `.glassmorphism` capsule to scan legacy captures directly from the camera roll.
+- Integrates iOS native `PhotosPicker` natively within a floating Top Toolbar to scan legacy captures directly from the camera roll.
+- Renders contextual `VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)` liquid-glass nodes replacing bulky UI overlays, rendering floating interaction points (Flash/Torch top-right, Life List bottom-left, User Profile bottom-right, Shutter bottom-center).
 - Throws `.ultraThinMaterial` dynamic SwiftUI hints ("Move Closer", "Too Dark") instantly without `alert` blockers.
 - Orchestrates dynamic `.black` bounding boxes removing transparent elements completely when `HardwareOrchestrator` triggers thermal throttling states.
 
@@ -26,7 +27,8 @@ The physical analytical response boundary natively wrapping the `SpeciesData` sc
 - Always renders up in the "Natural Thumb Zone" from the bottom. Defaults exclusively to a full-screen `.large` presentation detent explicitly obscuring the background viewfinder cleanly.
 - Implements a horizontal `TabView` carousel displaying all historical encounters natively mapping to `activePayloads` arrays.
 - Renders dynamic metadata badges natively evaluating `isInvasive`, `ecologyType`, `isBiological`, and `isLiveCapture` flags beneath the primary confidence score UI.
-- Displays dynamic Taxonomy (Kingdom, Phylum) trees visually expanding the Deno metadata inputs.
+- Displays dynamic Taxonomy (Kingdom, Phylum) trees visually expanding the Deno metadata inputs explicitly using horizontal glassmorphic capsules natively.
+- Evaluates strict liability rules dictating `isPoisonous` renderings accurately: Merian strictly bounds a red warning badge if poisonous, otherwise defaults exclusively to "Edibility Unknown. Merian is an educational tool. Never ingest wild flora." securely protecting users from hallucinations natively.
 - Automatically drops VoiceOver explicitly reading the `commonNames` strings first, followed deeply by `isPoisonous` states natively.
 
 ## 3. The Digital Terrarium (`TerrariumView` - Partially Built)

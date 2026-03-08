@@ -21,6 +21,8 @@ The global source-of-truth mapping exact biological models natively.
 - `scientific_name` (Text): Unique strictly. (e.g., _Danaus plexippus_)
 - `common_names` (JSONB): e.g., `{"default": "Monarch Butterfly"}`
 - `kingdom`, `phylum`, `class`, `order`, `family`, `genus` (Text): Standard architectural Linnaean taxonomy.
+- `descriptions`, `is_poisonous` (Boolean): Stores liability protections natively.
+- `wikipedia_url`, `gbif_taxon_key`, `reference_image_url`: Extended biological context integrations.
 - `native_region` (Text): Origin markers.
 
 ### `scans`
@@ -34,6 +36,8 @@ The transaction log for every identification ever successfully passed.
 - `gps_lat_exact` / `gps_long_exact` (Float)
 - `is_live_capture` (Boolean): AI flags whether this was a real photo vs a screen/book capture.
 - `ecology_type` (ENUM): `'wild'` | `'urban'` | `'domesticated'` | `'unknown'`
+- `weather_condition`, `regional_status_rationale` (Text)
+- `image_storage_urls` (Text Array): Stores safe public Cloudflare links generated explicitly off the Moderation engine safely resolving explicit abuses natively.
 
 ## SwiftData Schema (Local Offline Queue)
 

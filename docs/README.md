@@ -4,10 +4,23 @@ Welcome to the Merian ecosystem documentation. This directory serves as the tech
 
 ## Directory Structure
 
-- **[`/architecture/system_overview.md`](./architecture/system_overview.md)** - Master philosophies, zero-OOM infrastructure strategy, and lazy-loading UX principles.
-- **[`/services/core_managers.md`](./services/core_managers.md)** - Deep dive into singleton components: `HardwareOrchestrator`, `OfflineQueueManager`, `DeviceIdentityManager`, `UsageManager`, etc.
-- **[`/backend/edge_infrastructure.md`](./backend/edge_infrastructure.md)** - Supabase Edge Functions, Row-Level Security, Database Schema constraints, and Cloudflare R2 presigned routing.
-- **[`/ui/components_guide.md`](./ui/components_guide.md)** - Native SwiftUI rendering logic for the Glassmorphic action bar, the `CameraRootView` full bleed, the DWC-A insights sheet, and the Rive Gamification (`TerrariumView`).
+### Core Systems
+
+- **[`01-System-Architecture.md`](./01-System-Architecture.md)** - Master philosophies, zero-OOM infrastructure strategy, and lazy-loading UX principles.
+- **[`02-Camera-and-Hardware.md`](./02-Camera-and-Hardware.md)** - Native AVFoundation bindings, LiDAR depth logic, and ViewfinderIntelligence constraints.
+- **[`03-Offline-Sync-Pipeline.md`](./03-Offline-Sync-Pipeline.md)** - Zero-data-loss architecture, SwiftData queues, and AppDelegate background URLSession mappings.
+- **[`04-Supabase-Edge-and-Database.md`](./04-Supabase-Edge-and-Database.md)** - Supabase Postgres schemas, Edge Function runtime rules, and RLS bypasses.
+- **[`05-Revenue-and-Identity.md`](./05-Revenue-and-Identity.md)** - IDFV Keychain bindings, anonymous onboarding, and RevenueCat entitlement structures.
+- **[`06-Gamification-and-Telemetry.md`](./06-Gamification-and-Telemetry.md)** - PostHog anonymous telemetry mappings and Rive `.riv` interactive logic.
+- **[`07-Database-Schema.md`](./07-Database-Schema.md)** - The physical table maps for PostgreSQL and the SwiftData persistent schemas.
+- **[`08-API-Contracts.md`](./08-API-Contracts.md)** - Raw JSON mapping contracts bridging the iOS client and Edge Deno engines.
+
+### Concept Spotlights
+
+- **[`/architecture/system_overview.md`](./architecture/system_overview.md)** - High-level structural decoupling overview.
+- **[`/backend/edge_infrastructure.md`](./backend/edge_infrastructure.md)** - In-depth breakdown of the Deno `/identify`, `/generate-upload-urls`, and `/safe-delete` functions natively.
+- **[`/services/core_managers.md`](./services/core_managers.md)** - Deep dive into singleton active instances across Merian (e.g. `HardwareOrchestrator`).
+- **[`/ui/components_guide.md`](./ui/components_guide.md)** - Native SwiftUI rendering logics, `CameraRootView`, and the DWC-A insights sheet mechanics.
 
 ## About Merian
 
