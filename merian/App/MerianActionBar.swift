@@ -6,6 +6,7 @@ struct MerianActionBar: View {
     @Binding var isLifeListOpen: Bool
     @Binding var isPaywallOpen: Bool
     @Binding var isInsightSheetOpen: Bool
+    @Binding var isAnalyzingFullscreen: Bool
     @Binding var selectedPhotoItem: PhotosPickerItem?
     
     var onCaptureTriggered: () -> Void
@@ -67,7 +68,7 @@ struct MerianActionBar: View {
                                 usageManager.recordSuccessfulScan()
                                 gamificationManager.recordNewSpeciesDiscovered()
                                 AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
-                                isInsightSheetOpen = true
+                                isAnalyzingFullscreen = true
                             }
                         } catch {
                             print("⚠️ Shutter failure: \(error.localizedDescription)")

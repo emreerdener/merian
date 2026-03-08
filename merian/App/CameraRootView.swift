@@ -21,6 +21,10 @@ struct CameraRootView: View {
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var flashOpacity: Double = 0.0
     
+    @State private var isAnalyzingFullscreen: Bool = false
+    @State private var scanningPhaseText: String = "Scanning..."
+    @State private var isPulseAnimating: Bool = false
+    
     var body: some View {
         ZStack {
             // Full-bleed camera feed
@@ -49,31 +53,70 @@ struct CameraRootView: View {
             }
             
             // Action Overlay Context
-            VStack {
-                Spacer()
-                
-                // Viewfinder Intelligence Hint Banner
-                if !vui.isOptimal {
-                    Text(vui.currentHint.rawValue)
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark)
-                        .clipShape(Capsule())
-                        .padding(.bottom, 16)
+            if !isAnalyzingFullscreen {
+                VStack {
+                    Spacer()
+                    
+                    // Viewfinder Intelligence Hint Banner
+                    if !vui.isOptimal {
+                        Text(vui.currentHint.rawValue)
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial)
+                            .environment(\.colorScheme, .dark)
+                            .clipShape(Capsule())
+                            .padding(.bottom, 16)
+                    }
+                    
+                    // Floating Action Bar Interface
+                    MerianActionBar(
+                        isLifeListOpen: $isLifeListOpen,
+                        isPaywallOpen: $isPaywallOpen,
+                        isInsightSheetOpen: $isInsightSheetOpen,
+                        isAnalyzingFullscreen: $isAnalyzingFullscreen,
+                        selectedPhotoItem: $selectedPhotoItem,
+                        onCaptureTriggered: triggerFlash
+                    )
                 }
-                
-                // Floating Action Bar Interface
-                MerianActionBar(
-                    isLifeListOpen: $isLifeListOpen,
-                    isPaywallOpen: $isPaywallOpen,
-                    isInsightSheetOpen: $isInsightSheetOpen,
-                    selectedPhotoItem: $selectedPhotoItem,
-                    onCaptureTriggered: triggerFlash
-                )
+            }
+            
+            // Full-Screen Scanning Overlay
+            if isAnalyzingFullscreen, let payload = inferenceEngine.activePayload, let uiImage = UIImage(data: payload) {
+                ZStack {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .ignoresSafeArea()
+                    
+                    Color.black.opacity(isPulseAnimating ? 0.3 : 0.6)
+                        .ignoresSafeArea()
+                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: isPulseAnimating)
+                        .onAppear {
+                            isPulseAnimating = true
+                        }
+                        .onDisappear {
+                            isPulseAnimating = false
+                        }
+                    
+                    VStack {
+                        Spacer()
+                        Text(scanningPhaseText)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial)
+                            .environment(\.colorScheme, .dark)
+                            .clipShape(Capsule())
+                            .padding(.bottom, 60)
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(10)
             }
         }
         // Insight Data View overlay 
@@ -103,7 +146,8 @@ struct CameraRootView: View {
                         usageManager.recordSuccessfulScan()
                         gamificationManager.recordNewSpeciesDiscovered()
                         AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
-                        isInsightSheetOpen = true
+                        isAnalyzingFullscreen = true
+                        selectedPhotoItem = nil
                     }
                 } else {
                     await MainActor.run {
@@ -139,6 +183,32 @@ struct CameraRootView: View {
                 .onAppear {
                     handleSheetAppear()
                 }
+        }
+        .onChange(of: isAnalyzingFullscreen) { _, isFullscreen in
+            if isFullscreen {
+                cameraManager.stopSession() // Revert viewport to off while analyzing over it
+                scanningPhaseText = "Scanning..."
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    if isAnalyzingFullscreen {
+                        withAnimation {
+                            scanningPhaseText = "Identifying..."
+                        }
+                    }
+                }
+            } else {
+                if !isInsightSheetOpen {
+                    cameraManager.startSession()
+                }
+            }
+        }
+        .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
+            if !isStillProcessing && isAnalyzingFullscreen {
+                withAnimation {
+                    isAnalyzingFullscreen = false
+                }
+                isInsightSheetOpen = true
+            }
         }
     }
     
