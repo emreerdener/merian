@@ -261,9 +261,18 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 return
             }
             
-            activePhotoContinuation = continuation
-            
             queue.async {
+                guard let connection = self.photoOutput.connection(with: .video), connection.isActive && connection.isEnabled else {
+                    Task { @MainActor in
+                        continuation.resume(throwing: NSError(domain: "CameraManager", code: -3, userInfo: [NSLocalizedDescriptionKey : "Camera hardware is not dynamically ready or powered down."]))
+                    }
+                    return
+                }
+                
+                Task { @MainActor in
+                    self.activePhotoContinuation = continuation
+                }
+                
                 let settings = AVCapturePhotoSettings()
                 if #available(iOS 16.0, *) {
                     settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions

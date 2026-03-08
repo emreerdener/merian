@@ -218,6 +218,11 @@ struct InsightSheetView: View {
                 UIAccessibility.post(notification: .announcement, argument: announcement)
             }
         }
+        .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
+            if !isStillProcessing {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }
     }
 }
 // MARK: - Safari View Wrapper

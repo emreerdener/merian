@@ -19,7 +19,7 @@ struct CameraRootView: View {
     @State private var isPaywallOpen: Bool = false
     @State private var isLifeListOpen: Bool = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
-    @State private var shutterRadius: CGFloat = 2000
+    @State private var flashOpacity: Double = 0.0
     
     var body: some View {
         ZStack {
@@ -27,11 +27,10 @@ struct CameraRootView: View {
             CameraPreviewView(session: cameraManager.session)
                 .ignoresSafeArea()
             
-            // Camera Shutter Aperture Overlay
+            // Shutter Snap Animation
             Color.black
                 .ignoresSafeArea()
-                .clipShape(ApertureMask(holeRadius: shutterRadius), style: FillStyle(eoFill: true))
-
+                .opacity(flashOpacity)
             
             // Thermal Warning Indicator overlay
             if hardwareOrchestrator.isCriticalHeatWarningActive {
@@ -72,7 +71,8 @@ struct CameraRootView: View {
                     isLifeListOpen: $isLifeListOpen,
                     isPaywallOpen: $isPaywallOpen,
                     isInsightSheetOpen: $isInsightSheetOpen,
-                    selectedPhotoItem: $selectedPhotoItem
+                    selectedPhotoItem: $selectedPhotoItem,
+                    onCaptureTriggered: triggerFlash
                 )
             }
         }
@@ -143,30 +143,17 @@ struct CameraRootView: View {
     }
     
     private func handleSheetAppear() {
-        // Animate the aperture closing over the camera feed
-        withAnimation(.easeInOut(duration: 0.5)) {
-            shutterRadius = 0
-        }
-        
-        // Once closed, fully power down the camera AV session behind the sheet
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            cameraManager.stopSession()
-        }
+        cameraManager.stopSession()
     }
     
     private func handleSheetDismiss() {
-        // Instead of returning to idle, we fully power back on the camera and animate the shutter
-        Task {
-            cameraManager.startSession()
-            
-            // Allow a few seconds for the hardware to wake up and start streaming frames
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            
-            await MainActor.run {
-                withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
-                    shutterRadius = 2000
-                }
-            }
+        cameraManager.startSession()
+    }
+    
+    private func triggerFlash() {
+        flashOpacity = 1.0
+        withAnimation(.easeOut(duration: 0.15)) {
+            flashOpacity = 0.0
         }
     }
 }
@@ -208,27 +195,4 @@ struct VisualEffectBlur: UIViewRepresentable {
     }
 }
 
-// Custom shape for the closing/opening camera aperture mask
-struct ApertureMask: Shape {
-    var holeRadius: CGFloat
-    
-    var animatableData: CGFloat {
-        get { holeRadius }
-        set { holeRadius = newValue }
-    }
-    
-    func path(in rect: CGRect) -> Path {
-        var path = Path(rect)
-        // Ensure the hole fits cleanly minus out the center of the mask bounds
-        let holeRect = CGRect(
-            x: rect.midX - holeRadius,
-            y: rect.midY - holeRadius,
-            width: holeRadius * 2,
-            height: holeRadius * 2
-        )
-        // By drawing the outermost rect and then drawing an ellipse in it, 
-        // passing eoFill: true to clipShape will subtract the ellipse.
-        path.addPath(Path(ellipseIn: holeRect))
-        return path
-    }
-}
+

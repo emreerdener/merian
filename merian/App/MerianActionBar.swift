@@ -8,6 +8,8 @@ struct MerianActionBar: View {
     @Binding var isInsightSheetOpen: Bool
     @Binding var selectedPhotoItem: PhotosPickerItem?
     
+    var onCaptureTriggered: () -> Void
+    
     @EnvironmentObject var revenueCatManager: RevenueCatManager
     @EnvironmentObject var usageManager: UsageManager
     @EnvironmentObject var gamificationManager: GamificationManager
@@ -53,6 +55,8 @@ struct MerianActionBar: View {
             // The Shutter / Analyze Button
             Button(action: {
                 if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onCaptureTriggered()
                     Task {
                         do {
                             let captureData = try await cameraManager.captureImage()
