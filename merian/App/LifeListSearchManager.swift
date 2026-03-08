@@ -200,7 +200,7 @@ struct LifeListSearchView: View {
         .navigationTitle("Life List")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: LocalScanRecord.self) { scan in
-            InsightSheetView(isPresented: .constant(true))
+            InsightSheetView(isPresented: .constant(true), showCloseButton: false)
         }
         .onAppear {
             searchManager.allScans = allRecords

@@ -18,6 +18,7 @@ struct CameraRootView: View {
     @State private var isInsightSheetOpen: Bool = false
     @State private var isPaywallOpen: Bool = false
     @State private var isLifeListOpen: Bool = false
+    @State private var isUserProfileOpen: Bool = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var flashOpacity: Double = 0.0
     
@@ -59,15 +60,16 @@ struct CameraRootView: View {
                     HStack {
                         PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
                             ZStack {
-                                Group {
-                                    if hardwareOrchestrator.isGlassmorphismEnabled {
-                                        VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
-                                    } else {
-                                        Color.black.opacity(0.7)
-                                    }
+                                if hardwareOrchestrator.isGlassmorphismEnabled {
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .environment(\.colorScheme, .dark)
+                                        .frame(width: 50, height: 50)
+                                } else {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.7))
+                                        .frame(width: 50, height: 50)
                                 }
-                                .frame(width: 50, height: 50)
-                                .clipShape(Circle())
                                 
                                 Image(systemName: "photo.on.rectangle")
                                     .font(.system(size: 20, weight: .medium))
@@ -81,15 +83,16 @@ struct CameraRootView: View {
                             cameraManager.toggleFlash()
                         }) {
                             ZStack {
-                                Group {
-                                    if hardwareOrchestrator.isGlassmorphismEnabled {
-                                        VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
-                                    } else {
-                                        Color.black.opacity(0.7)
-                                    }
+                                if hardwareOrchestrator.isGlassmorphismEnabled {
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .environment(\.colorScheme, .dark)
+                                        .frame(width: 50, height: 50)
+                                } else {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.7))
+                                        .frame(width: 50, height: 50)
                                 }
-                                .frame(width: 50, height: 50)
-                                .clipShape(Circle())
                                 
                                 Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
                                     .font(.system(size: 20, weight: .medium))
@@ -122,6 +125,7 @@ struct CameraRootView: View {
                         isPaywallOpen: $isPaywallOpen,
                         isInsightSheetOpen: $isInsightSheetOpen,
                         isAnalyzingFullscreen: $isAnalyzingFullscreen,
+                        isUserProfileOpen: $isUserProfileOpen,
                         onCaptureTriggered: triggerFlash
                     )
                 }
@@ -140,37 +144,24 @@ struct CameraRootView: View {
                         Color.black.opacity(isPulseAnimating ? 0.1 : 0.4)
                             .ignoresSafeArea()
                         
-                        // Perfectly aligned 4-edge rainbow gradient
-                        ZStack {
-                            // Left edge
-                            LinearGradient(colors: [.cyan, .teal, .green], startPoint: .top, endPoint: .bottom)
-                                .frame(width: isPulseAnimating ? 40 : 20)
-                                .blur(radius: isPulseAnimating ? 20 : 10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            // Right edge
-                            LinearGradient(colors: [.pink, .red, .orange], startPoint: .top, endPoint: .bottom)
-                                .frame(width: isPulseAnimating ? 40 : 20)
-                                .blur(radius: isPulseAnimating ? 20 : 10)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                            
-                            // Top edge
-                            LinearGradient(colors: [.cyan, .blue, .purple, .pink], startPoint: .leading, endPoint: .trailing)
-                                .frame(height: isPulseAnimating ? 40 : 20)
-                                .blur(radius: isPulseAnimating ? 20 : 10)
-                                .frame(maxHeight: .infinity, alignment: .top)
-                            
-                            // Bottom edge
-                            LinearGradient(colors: [.green, .yellow, .orange], startPoint: .leading, endPoint: .trailing)
-                                .frame(height: isPulseAnimating ? 40 : 20)
-                                .blur(radius: isPulseAnimating ? 20 : 10)
-                                .frame(maxHeight: .infinity, alignment: .bottom)
-                        }
-                        .hueRotation(.degrees(isPulseAnimating ? 360 : 0))
-                        .opacity(isPulseAnimating ? 0.9 : 0.6)
+                        // AI Data Scanning Pulse Overlay
+                        LinearGradient(
+                            colors: [
+                                Color.teal,
+                                Color.blue,
+                                Color.purple,
+                                Color.pink
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .blendMode(.colorDodge) // Melds into the captured image pixel buffer natively
+                        .opacity(isPulseAnimating ? 0.6 : 0.2)
+                        .hueRotation(.degrees(isPulseAnimating ? 45 : 0))
+                        .scaleEffect(isPulseAnimating ? 1.1 : 1.0)
                         .ignoresSafeArea()
                     }
-                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isPulseAnimating)
+                    .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isPulseAnimating)
                     .onAppear {
                         isPulseAnimating = true
                     }
@@ -238,6 +229,15 @@ struct CameraRootView: View {
             handleSheetDismiss()
         }) {
             PaywallView()
+                .presentationDragIndicator(.visible)
+                .onAppear {
+                    handleSheetAppear()
+                }
+        }
+        .sheet(isPresented: $isUserProfileOpen, onDismiss: {
+            handleSheetDismiss()
+        }) {
+            UserProfileView()
                 .presentationDragIndicator(.visible)
                 .onAppear {
                     handleSheetAppear()

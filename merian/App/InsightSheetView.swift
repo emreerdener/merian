@@ -50,8 +50,12 @@ struct KeyDifferentiator: Identifiable {
 // MARK: - Insight Sheet View
 struct InsightSheetView: View {
     @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(\.dismiss) var dismiss
 
     @Binding var isPresented: Bool
+    var showCloseButton: Bool = true
+    
+    @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared
     
     @State private var isSafariPresented = false
     @State private var selectedWikiURL: URL?
@@ -72,6 +76,81 @@ struct InsightSheetView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                
+                // Header Actions (Close/Back & Share)
+                HStack {
+                    if showCloseButton {
+                        Button(action: {
+                            isPresented = false
+                        }) {
+                            ZStack {
+                                if hardwareOrchestrator.isGlassmorphismEnabled {
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .environment(\.colorScheme, .dark)
+                                        .frame(width: 50, height: 50)
+                                } else {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.7))
+                                        .frame(width: 50, height: 50)
+                                }
+                                
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                    } else {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            ZStack {
+                                if hardwareOrchestrator.isGlassmorphismEnabled {
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .environment(\.colorScheme, .dark)
+                                        .frame(width: 50, height: 50)
+                                } else {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.7))
+                                        .frame(width: 50, height: 50)
+                                }
+                                
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    let shareUrl = URL(string: "https://merian.app")!
+                    ShareLink(
+                        item: shareUrl,
+                        subject: Text("I found a \(commonName)!"),
+                        message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
+                    ) {
+                        ZStack {
+                            if hardwareOrchestrator.isGlassmorphismEnabled {
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .environment(\.colorScheme, .dark)
+                                    .frame(width: 50, height: 50)
+                            } else {
+                                Circle()
+                                    .fill(Color.black.opacity(0.7))
+                                    .frame(width: 50, height: 50)
+                            }
+                            
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 20, weight: .semibold))
+                                .offset(y: -2) // Optical bounding box nudging natively 
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .padding(.horizontal)
                 
                 // 0. The Image Carousel (Active Capture + Wikipedia Reference)
                 let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
@@ -310,6 +389,7 @@ struct InsightSheetView: View {
                     .ignoresSafeArea()
             }
         }
+        .navigationBarHidden(true)
         // Force glassmorphism bounds gracefully above the underlying camera UI
         .presentationBackground(.ultraThinMaterial)
         .presentationDetents([.large])

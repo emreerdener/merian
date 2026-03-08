@@ -7,6 +7,7 @@ struct MerianActionBar: View {
     @Binding var isPaywallOpen: Bool
     @Binding var isInsightSheetOpen: Bool
     @Binding var isAnalyzingFullscreen: Bool
+    @Binding var isUserProfileOpen: Bool
     
     var onCaptureTriggered: () -> Void
     
@@ -27,22 +28,24 @@ struct MerianActionBar: View {
                 isLifeListOpen = true
             }) {
                 ZStack {
-                    Group {
-                        if hardwareOrchestrator.isGlassmorphismEnabled {
-                            VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
-                        } else {
-                            Color.black.opacity(0.7)
-                        }
+                    if hardwareOrchestrator.isGlassmorphismEnabled {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .environment(\.colorScheme, .dark)
+                            .frame(width: 50, height: 50)
+                    } else {
+                        Circle()
+                            .fill(Color.black.opacity(0.7))
+                            .frame(width: 50, height: 50)
                     }
-                    .frame(width: 50, height: 50)
-                    .clipShape(Circle())
                     
                     Image(systemName: "book")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(.white)
                 }
             }
-            .frame(maxWidth: .infinity)
+            
+            Spacer()
             
             // The Shutter / Analyze Button
             Button(action: {
@@ -80,32 +83,158 @@ struct MerianActionBar: View {
                         .frame(width: 62, height: 62)
                 }
             }
-            .frame(maxWidth: .infinity)
+            
+            Spacer()
             
             // User Profile Button
             Button(action: {
-                isPaywallOpen = true
+                isUserProfileOpen = true
             }) {
                 ZStack {
-                    Group {
-                        if hardwareOrchestrator.isGlassmorphismEnabled {
-                            VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
-                        } else {
-                            Color.black.opacity(0.7)
-                        }
+                    if hardwareOrchestrator.isGlassmorphismEnabled {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .environment(\.colorScheme, .dark)
+                            .frame(width: 50, height: 50)
+                    } else {
+                        Circle()
+                            .fill(Color.black.opacity(0.7))
+                            .frame(width: 50, height: 50)
                     }
-                    .frame(width: 50, height: 50)
-                    .clipShape(Circle())
                     
                     Image(systemName: "person")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(.white)
                 }
             }
-            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
         .padding(.bottom, 24)
+    }
+}
+
+struct UserProfileView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 32) {
+                    
+                    // User Header
+                    VStack(spacing: 8) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .resizable()
+                            .frame(width: 80, height: 80)
+                            .foregroundColor(.gray)
+                            .padding(.bottom, 8)
+                        
+                        Text("Explorer Profile")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Connect an account to securely sync your life list across Apple devices.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .padding(.top, 32)
+                    
+                    // Authentication Layer
+                    VStack(spacing: 16) {
+                        Button(action: {
+                            // Explicit Action binding for Apple Sign-In
+                        }) {
+                            HStack {
+                                Image(systemName: "applelogo")
+                                Text("Sign in with Apple")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.primary)
+                            .foregroundColor(Color(UIColor.systemBackground))
+                            .cornerRadius(14)
+                        }
+                        
+                        Button(action: {
+                            // Explicit Action binding for Google Sign-In
+                        }) {
+                            HStack {
+                                Image(systemName: "g.circle.fill")
+                                Text("Sign in with Google")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .foregroundColor(.primary)
+                            .cornerRadius(14)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    
+                    // Lifetime Explorer Aggregates
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Lifetime Stats")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 24)
+                        
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                            StatCardView(title: "Species", value: "4", icon: "leaf.fill", color: .green)
+                            StatCardView(title: "Current Streak", value: "3 Days", icon: "flame.fill", color: .orange)
+                            StatCardView(title: "Rare Finds", value: "1", icon: "sparkles", color: .purple)
+                            StatCardView(title: "Persona", value: "Novice Botanist", icon: "tree.fill", color: .teal)
+                        }
+                        .padding(.horizontal, 24)
+                    }
+                }
+                .padding(.bottom, 40)
+            }
+            .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
+struct StatCardView: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(color)
+                    .font(.title2)
+                Spacer()
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(value)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(16)
     }
 }
