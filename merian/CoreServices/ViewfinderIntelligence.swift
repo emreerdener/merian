@@ -3,8 +3,8 @@ import CoreImage
 import AVFoundation
 
 enum VUIHint: String {
-    case tooDark = "Too Dark"
-    case moveCloser = "Move Closer"
+    case tooDark = "Too dark"
+    case moveCloser = "Move closer"
     case optimal = "Optimal"
 }
 

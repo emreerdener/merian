@@ -24,4 +24,4 @@ The battery and heat protection protocol monitoring physical usage thresholds gr
 An asynchronous heuristic layer blocking wasted network limits inherently.
 
 - Drops concurrent inference limits natively tracking frame boundaries natively via Core Image `CIAreaAverage` to actively monitor extreme luminance threshold values dynamically.
-- Triggers dynamic `VUIHint` prompts across the viewfinder alerting users visually (`"Too Dark"`, `"Move Closer"`) without executing any internet boundaries gracefully.
+- Triggers dynamic `VUIHint` prompts across the viewfinder alerting users visually (`"Too dark"`, `"Move closer"`) without executing any internet boundaries gracefully.

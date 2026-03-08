@@ -11,11 +11,27 @@ struct SpeciesData {
     let diagnosticComparison: DiagnosticComparison?
     let wikipediaUrl: String?
     let referenceImageUrl: String?
+    
+    let isBiological: Bool
+    let isLiveCapture: Bool
+    let isInvasive: Bool
+    let ecologyType: String
+    let taxonomy: TaxonomyData?
+}
+
+struct TaxonomyData {
+    let kingdom: String?
+    let phylum: String?
+    let className: String?
+    let order: String?
+    let family: String?
+    let genus: String?
 }
 
 struct InsightData {
     let description: String
     let isPoisonous: Bool
+    let regionalStatusRationale: String?
 }
 
 struct DiagnosticComparison {
@@ -158,10 +174,46 @@ struct InsightSheetView: View {
                         // Tie header routing to the name if there's no active poison banner
                         .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
                     
-                    Text(scientificName)
-                        .font(.title3)
-                        .italic()
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Text(scientificName)
+                            .font(.title3)
+                            .italic()
+                            .foregroundColor(.secondary)
+                            
+                        if let score = inferenceEngine.speciesData?.confidenceScore, score > 0.0 {
+                            Text("\(Int(score * 100))% Match")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(score >= 0.85 ? .green : .orange)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(score >= 0.85 ? Color.green.opacity(0.2) : Color.orange.opacity(0.2))
+                                .cornerRadius(8)
+                        }
+                    }
+                    
+                    if let species = inferenceEngine.speciesData {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                if species.isInvasive {
+                                    BadgeView(text: "Invasive", color: .purple, icon: "exclamationmark.shield.fill")
+                                }
+                                
+                                if !species.isLiveCapture {
+                                    BadgeView(text: "Not a Live Capture", color: .gray, icon: "photo.badge.exclamationmark.fill")
+                                }
+                                
+                                if !species.isBiological {
+                                    BadgeView(text: "Not Biological", color: .gray, icon: "xmark.seal.fill")
+                                }
+                                
+                                if species.ecologyType != "unknown" {
+                                    BadgeView(text: species.ecologyType.capitalized, color: .blue, icon: "leaf.fill")
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
                 }
                 .padding(.horizontal)
                 
@@ -170,6 +222,19 @@ struct InsightSheetView: View {
                     Text(description)
                         .font(.body)
                         .padding(.horizontal)
+                        
+                    if let rationale = inferenceEngine.speciesData?.insightData.regionalStatusRationale {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Regional Context")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.secondary)
+                            Text(rationale)
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal)
+                    }
                         
                     if let wikiString = inferenceEngine.speciesData?.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
                         Button(action: {
@@ -189,6 +254,28 @@ struct InsightSheetView: View {
                         .padding(.horizontal)
                         .padding(.top, 4)
                         .foregroundColor(.primary)
+                    }
+                    
+                    // 3.5 Taxonomy Tree
+                    if let taxonomy = inferenceEngine.speciesData?.taxonomy {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Taxonomy")
+                                .font(.headline)
+                                .padding(.horizontal)
+                                
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    if let kingdom = taxonomy.kingdom { TaxonomyNode(level: "Kingdom", name: kingdom) }
+                                    if let phylum = taxonomy.phylum { TaxonomyNode(level: "Phylum", name: phylum) }
+                                    if let cls = taxonomy.className { TaxonomyNode(level: "Class", name: cls) }
+                                    if let order = taxonomy.order { TaxonomyNode(level: "Order", name: order) }
+                                    if let family = taxonomy.family { TaxonomyNode(level: "Family", name: family) }
+                                    if let genus = taxonomy.genus { TaxonomyNode(level: "Genus", name: genus) }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                        .padding(.top, 8)
                     }
                 }
                 
@@ -236,4 +323,46 @@ struct SafariView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: UIViewControllerRepresentableContext<SafariView>) {}
+}
+
+// MARK: - Helper Views
+struct BadgeView: View {
+    let text: String
+    let color: Color
+    let icon: String
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+            Text(text)
+        }
+        .font(.caption)
+        .fontWeight(.semibold)
+        .foregroundColor(color)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.15))
+        .cornerRadius(12)
+    }
+}
+
+struct TaxonomyNode: View {
+    let level: String
+    let name: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(level)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+            Text(name)
+                .font(.callout)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(8)
+    }
 }

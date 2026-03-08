@@ -16,12 +16,27 @@ final class InferenceEngine: ObservableObject {
     /// Struct defining the exact expected JSON schema from the Gemini Edge Function
     private struct EdgeResponse: Codable {
         let is_biological_subject: Bool?
+        let is_live_capture: Bool?
+        let ecology_type: String?
+        let is_invasive: Bool?
         let scientific_name: String?
         let common_name: String?
         let confidence_score: Double?
+        
+        struct Taxonomy: Codable {
+            let kingdom: String?
+            let phylum: String?
+            let `class`: String?
+            let order: String?
+            let family: String?
+            let genus: String?
+        }
+        let taxonomy: Taxonomy?
+        
         struct Insight: Codable {
             let description: String?
             let is_poisonous: Bool?
+            let regional_status_rationale: String?
         }
         let insight_data: Insight?
         let wikipedia_url: String?
@@ -64,7 +79,17 @@ final class InferenceEngine: ObservableObject {
                         // Map the Edge JSON cleanly into the established SpeciesData structure
                         let insight = InsightData(
                             description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
-                            isPoisonous: edgeRes.insight_data?.is_poisonous ?? false
+                            isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
+                            regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
+                        )
+                        
+                        let taxonomyData = TaxonomyData(
+                            kingdom: edgeRes.taxonomy?.kingdom,
+                            phylum: edgeRes.taxonomy?.phylum,
+                            className: edgeRes.taxonomy?.class,
+                            order: edgeRes.taxonomy?.order,
+                            family: edgeRes.taxonomy?.family,
+                            genus: edgeRes.taxonomy?.genus
                         )
                         
                         let mappedData = SpeciesData(
@@ -74,7 +99,12 @@ final class InferenceEngine: ObservableObject {
                             confidenceScore: edgeRes.confidence_score ?? 0.0,
                             diagnosticComparison: nil,
                             wikipediaUrl: edgeRes.wikipedia_url,
-                            referenceImageUrl: edgeRes.reference_image_url
+                            referenceImageUrl: edgeRes.reference_image_url,
+                            isBiological: edgeRes.is_biological_subject ?? true,
+                            isLiveCapture: edgeRes.is_live_capture ?? true,
+                            isInvasive: edgeRes.is_invasive ?? false,
+                            ecologyType: edgeRes.ecology_type ?? "unknown",
+                            taxonomy: taxonomyData
                         )
                         
                         // Persist to SwiftData Life List if analysis was valid
@@ -101,6 +131,7 @@ final class InferenceEngine: ObservableObject {
                                 existingRecord.isPoisonous = mappedData.insightData.isPoisonous
                                 existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
                                 existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
+                                existingRecord.confidenceScore = mappedData.confidenceScore
                             } else {
                                 // First time encountering this species; insert new record natively
                                 let record = LocalScanRecord(
@@ -113,7 +144,8 @@ final class InferenceEngine: ObservableObject {
                                     semanticTags: [mappedData.commonName, mappedData.scientificName],
                                     isPoisonous: mappedData.insightData.isPoisonous,
                                     wikipediaUrl: mappedData.wikipediaUrl,
-                                    referenceImageUrl: mappedData.referenceImageUrl
+                                    referenceImageUrl: mappedData.referenceImageUrl,
+                                    confidenceScore: mappedData.confidenceScore
                                 )
                                 context.insert(record)
                             }
@@ -124,13 +156,39 @@ final class InferenceEngine: ObservableObject {
                         self.speciesData = mappedData
                     } else {
                         print("⚠️ Inference Engine: Failed to structure Gemini JSON properly")
-                        self.speciesData = SpeciesData(commonName: "Analysis Failed", scientificName: "Data Unreadable", insightData: InsightData(description: "Cannot process the server taxonomy schema.", isPoisonous: false), confidenceScore: 0, diagnosticComparison: nil, wikipediaUrl: nil, referenceImageUrl: nil)
+                        self.speciesData = SpeciesData(
+                            commonName: "Analysis Failed",
+                            scientificName: "Data Unreadable",
+                            insightData: InsightData(description: "Cannot process the server taxonomy schema.", isPoisonous: false, regionalStatusRationale: nil),
+                            confidenceScore: 0,
+                            diagnosticComparison: nil,
+                            wikipediaUrl: nil,
+                            referenceImageUrl: nil,
+                            isBiological: true,
+                            isLiveCapture: true,
+                            isInvasive: false,
+                            ecologyType: "unknown",
+                            taxonomy: nil
+                        )
                     }
                 }
             } catch {
                 CircuitBreakerManager.shared.recordFailure()
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
-                self.speciesData = SpeciesData(commonName: "Network Timeout", scientificName: "Offline Mode", insightData: InsightData(description: "Please check your network boundary connection. The scan has been safely queued offline.", isPoisonous: false), confidenceScore: 0, diagnosticComparison: nil, wikipediaUrl: nil, referenceImageUrl: nil)
+                self.speciesData = SpeciesData(
+                    commonName: "Network Timeout",
+                    scientificName: "Offline Mode",
+                    insightData: InsightData(description: "Please check your network boundary connection. The scan has been safely queued offline.", isPoisonous: false, regionalStatusRationale: nil),
+                    confidenceScore: 0,
+                    diagnosticComparison: nil,
+                    wikipediaUrl: nil,
+                    referenceImageUrl: nil,
+                    isBiological: true,
+                    isLiveCapture: true,
+                    isInvasive: false,
+                    ecologyType: "unknown",
+                    taxonomy: nil
+                )
             }
             
             // Unconditionally clear the active loading hardware state
@@ -171,11 +229,16 @@ final class InferenceEngine: ObservableObject {
         self.speciesData = SpeciesData(
             commonName: record.commonName,
             scientificName: record.scientificName,
-            insightData: InsightData(description: record.insightDescription, isPoisonous: record.isPoisonous),
-            confidenceScore: 1.0, 
+            insightData: InsightData(description: record.insightDescription, isPoisonous: record.isPoisonous, regionalStatusRationale: nil),
+            confidenceScore: record.confidenceScore ?? 1.0, 
             diagnosticComparison: nil,
             wikipediaUrl: record.wikipediaUrl,
-            referenceImageUrl: record.referenceImageUrl
+            referenceImageUrl: record.referenceImageUrl,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown",
+            taxonomy: nil
         )
         self.isProcessing = false
     }

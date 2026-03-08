@@ -19,6 +19,7 @@ final class LocalScanRecord {
     var wikipediaUrl: String?
     var referenceImageUrl: String?
     var additionalImagePaths: [String]?
+    var confidenceScore: Double?
     
     init(id: String = UUID().uuidString,
          speciesId: String,
@@ -31,7 +32,8 @@ final class LocalScanRecord {
          isPoisonous: Bool = false,
          wikipediaUrl: String? = nil,
          referenceImageUrl: String? = nil,
-         additionalImagePaths: [String]? = nil) {
+         additionalImagePaths: [String]? = nil,
+         confidenceScore: Double? = nil) {
         
         self.id = id
         self.speciesId = speciesId
@@ -45,6 +47,7 @@ final class LocalScanRecord {
         self.wikipediaUrl = wikipediaUrl
         self.referenceImageUrl = referenceImageUrl
         self.additionalImagePaths = additionalImagePaths
+        self.confidenceScore = confidenceScore
     }
 }
 
