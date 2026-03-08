@@ -1,6 +1,6 @@
 name: Merian
 options:
-  bundleIdPrefix: com.merian
+  bundleIdPrefix: app.merian
   deploymentTarget:
     iOS: 17.0
     macOS: 14.0
@@ -52,7 +52,23 @@ targets:
     sources: [MerianWatch]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.merian.Merian.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: app.merian.Merian.watchkitapp
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.merian.Merian
+        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: app.merian.Merian
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: NO
+
+schemes:
+  Merian:
+    build:
+      targets:
+        Merian: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

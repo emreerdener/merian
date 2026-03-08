@@ -94,24 +94,17 @@ struct LifeListSearchView: View {
     @Environment(\.dismiss) var dismiss
     @Binding var isInsightSheetOpen: Bool
     
+    @State private var navPath = NavigationPath()
+    
     let columns = [
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
     
     var body: some View {
-        VStack {
-            // Glassmorphic Semantic Input Bar
-            TextField("Search tags, habitats, colors...", text: $searchManager.searchQuery)
-                .padding()
-                .background(.ultraThinMaterial)
-                .cornerRadius(12)
-                .padding(.horizontal)
-                .onChange(of: searchManager.searchQuery) { _, newValue in
-                    searchManager.performSearch(query: newValue)
-                }
-            
-            ScrollView {
+        NavigationStack(path: $navPath) {
+            VStack(spacing: 0) {
+                ScrollView {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(searchManager.filteredScans) { scan in
                         VStack(alignment: .leading) {
@@ -149,15 +142,46 @@ struct LifeListSearchView: View {
                         .cornerRadius(12)
                         .onTapGesture {
                             inferenceEngine.load(from: scan)
-                            dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                isInsightSheetOpen = true
-                            }
+                            navPath.append(scan)
                         }
                     }
                 }
                 .padding()
             }
+            
+            // Bottom Search Bar mimicking native iOS search styling
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                
+                TextField("Search tags, habitats, colors...", text: $searchManager.searchQuery)
+                    .onChange(of: searchManager.searchQuery) { _, newValue in
+                        searchManager.performSearch(query: newValue)
+                    }
+                
+                if !searchManager.searchQuery.isEmpty {
+                    Button(action: {
+                        searchManager.searchQuery = ""
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .transition(.opacity)
+                }
+            }
+            .padding(10)
+            .background(.ultraThinMaterial)
+            .cornerRadius(10)
+            .padding(.horizontal)
+            .padding(.bottom, 16)
+            .padding(.top, 8)
+            .animation(.easeInOut(duration: 0.2), value: searchManager.searchQuery.isEmpty)
+        }
+        .navigationTitle("Life List")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: LocalScanRecord.self) { scan in
+            InsightSheetView(isPresented: .constant(true))
         }
         .onAppear {
             searchManager.allScans = allRecords
@@ -166,6 +190,7 @@ struct LifeListSearchView: View {
         .onChange(of: allRecords) { _, newRecords in
             searchManager.allScans = newRecords
             searchManager.performSearch(query: searchManager.searchQuery)
+        }
         }
     }
 }

@@ -19,12 +19,19 @@ struct CameraRootView: View {
     @State private var isPaywallOpen: Bool = false
     @State private var isLifeListOpen: Bool = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var shutterRadius: CGFloat = 2000
     
     var body: some View {
         ZStack {
             // Full-bleed camera feed
             CameraPreviewView(session: cameraManager.session)
                 .ignoresSafeArea()
+            
+            // Camera Shutter Aperture Overlay
+            Color.black
+                .ignoresSafeArea()
+                .clipShape(ApertureMask(holeRadius: shutterRadius), style: FillStyle(eoFill: true))
+
             
             // Thermal Warning Indicator overlay
             if hardwareOrchestrator.isCriticalHeatWarningActive {
@@ -61,110 +68,22 @@ struct CameraRootView: View {
                 }
                 
                 // Floating Action Bar Interface
-                HStack {
-                    // Left Vertical Overlay (Life List & Gamification)
-                    VStack(spacing: 16) {
-                        Button(action: {
-                            isLifeListOpen = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.white.opacity(0.15))
-                                    .frame(width: 50, height: 50)
-                                Image(systemName: "books.vertical.fill")
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        
-                        Button(action: {
-                            gamificationManager.showTerrariumSheet = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.white.opacity(0.15))
-                                    .frame(width: 50, height: 50)
-                                Image(systemName: "leaf.fill")
-                                    .foregroundColor(.green)
-                            }
-                        }
-                    }
-                    .padding(.leading, 12)
-                    
-                    Spacer()
-                    
-                    // The Shutter / Analyze Button
-                    Button(action: {
-                        if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
-                            Task {
-                                do {
-                                    let captureData = try await cameraManager.captureImage()
-                                    OfflineQueueManager.shared.enqueueCapture(imageData: captureData)
-                                    
-                                    await MainActor.run {
-                                        inferenceEngine.analyze(imageData: captureData, modelContext: modelContext)
-                                        usageManager.recordSuccessfulScan()
-                                        gamificationManager.recordNewSpeciesDiscovered()
-                                        AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
-                                        isInsightSheetOpen = true
-                                    }
-                                } catch {
-                                    print("⚠️ Shutter failure: \(error.localizedDescription)")
-                                }
-                            }
-                        } else {
-                            // User hit the strict architectural boundary of 3 free logs
-                            AppTelemetry.trackPaywallImpression()
-                            isPaywallOpen = true
-                        }
-                    }) {
-                        ZStack {
-                            Circle()
-                                .stroke(Color.white, lineWidth: 3)
-                                .frame(width: 72, height: 72)
-                            
-                            Circle()
-                                .fill(Color.white.opacity(0.9))
-                                .frame(width: 62, height: 62)
-                        }
-                    }
-                    
-                    // Photo Library Picker Right Overlay
-                    PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.15))
-                                .frame(width: 50, height: 50)
-                            Image(systemName: "photo.on.rectangle")
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.trailing, 12)
-                }
-                .padding(.vertical, 16)
-                // State-based Glassmorphism
-                .background(
-                    Group {
-                        if hardwareOrchestrator.isGlassmorphismEnabled {
-                            VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)
-                        } else {
-                            Color.black.opacity(0.85)
-                        }
-                    }
+                MerianActionBar(
+                    isLifeListOpen: $isLifeListOpen,
+                    isPaywallOpen: $isPaywallOpen,
+                    isInsightSheetOpen: $isInsightSheetOpen,
+                    selectedPhotoItem: $selectedPhotoItem
                 )
-                .clipShape(Capsule())
-                .padding(.horizontal, 30)
-                .padding(.bottom, 40)
             }
         }
         // Insight Data View overlay 
         .sheet(isPresented: $isInsightSheetOpen, onDismiss: {
-            // Restore appropriate target FPS from idle state based on hardware orchestrator targets
-            cameraManager.restoreFromIdleState()
+            handleSheetDismiss()
         }) {
             InsightSheetView(isPresented: $isInsightSheetOpen)
+                .presentationDragIndicator(.visible)
                 .onAppear {
-                    // Start cooling down AV session
-                    cameraManager.throttleToIdleState()
+                    handleSheetAppear()
                 }
         }
         .onAppear {
@@ -194,14 +113,60 @@ struct CameraRootView: View {
                 }
             }
         }
-        .sheet(isPresented: $isPaywallOpen) {
+        .sheet(isPresented: $isPaywallOpen, onDismiss: {
+            handleSheetDismiss()
+        }) {
             PaywallView()
+                .presentationDragIndicator(.visible)
+                .onAppear {
+                    handleSheetAppear()
+                }
         }
-        .sheet(isPresented: $gamificationManager.showTerrariumSheet) {
+        .sheet(isPresented: $gamificationManager.showTerrariumSheet, onDismiss: {
+            handleSheetDismiss()
+        }) {
             TerrariumView()
+                .presentationDragIndicator(.visible)
+                .onAppear {
+                    handleSheetAppear()
+                }
         }
-        .sheet(isPresented: $isLifeListOpen) {
+        .sheet(isPresented: $isLifeListOpen, onDismiss: {
+            handleSheetDismiss()
+        }) {
             LifeListSearchView(isInsightSheetOpen: $isInsightSheetOpen)
+                .presentationDragIndicator(.visible)
+                .onAppear {
+                    handleSheetAppear()
+                }
+        }
+    }
+    
+    private func handleSheetAppear() {
+        // Animate the aperture closing over the camera feed
+        withAnimation(.easeInOut(duration: 0.5)) {
+            shutterRadius = 0
+        }
+        
+        // Once closed, fully power down the camera AV session behind the sheet
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            cameraManager.stopSession()
+        }
+    }
+    
+    private func handleSheetDismiss() {
+        // Instead of returning to idle, we fully power back on the camera and animate the shutter
+        Task {
+            cameraManager.startSession()
+            
+            // Allow a few seconds for the hardware to wake up and start streaming frames
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            
+            await MainActor.run {
+                withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+                    shutterRadius = 2000
+                }
+            }
         }
     }
 }
@@ -243,4 +208,27 @@ struct VisualEffectBlur: UIViewRepresentable {
     }
 }
 
-
+// Custom shape for the closing/opening camera aperture mask
+struct ApertureMask: Shape {
+    var holeRadius: CGFloat
+    
+    var animatableData: CGFloat {
+        get { holeRadius }
+        set { holeRadius = newValue }
+    }
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path(rect)
+        // Ensure the hole fits cleanly minus out the center of the mask bounds
+        let holeRect = CGRect(
+            x: rect.midX - holeRadius,
+            y: rect.midY - holeRadius,
+            width: holeRadius * 2,
+            height: holeRadius * 2
+        )
+        // By drawing the outermost rect and then drawing an ellipse in it, 
+        // passing eoFill: true to clipShape will subtract the ellipse.
+        path.addPath(Path(ellipseIn: holeRect))
+        return path
+    }
+}
