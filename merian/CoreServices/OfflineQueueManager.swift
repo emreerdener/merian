@@ -167,6 +167,8 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     // Fetch Cloudflare R2 staging URLs (not chaining the Inference analyze API afterwards)
                     let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(fileNames: fileNames)
                     
+                    let backgroundSession = await MainActor.run { self.backgroundSession }
+                    
                     for (index, presignedURL) in presignedUrls.enumerated() {
                         if Task.isCancelled { break } // Block loop execution instantly upon strict OS-level thread suspension
                         
@@ -180,7 +182,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         let scanId = scanIDs[index]
                         let originalFileURL = fileURLs[index]
                         let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
-                        let backgroundSession = await MainActor.run { self.backgroundSession }
                         
                         if let downsampledData = self.downsampleLocalPayload(fileURL: originalFileURL) {
                             try? downsampledData.write(to: tempFileURL)

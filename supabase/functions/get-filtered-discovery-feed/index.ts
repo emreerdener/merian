@@ -54,8 +54,7 @@ serve(async (req: Request) => {
     );
     const isolatedExclusions = [userId, ...blockedIds];
 
-    // We format the array down securely to a nested TS query syntax string `(id1, id2)`
-    const isolatedExclusionsString = `(${isolatedExclusions.join(",")})`;
+    // The raw isolation array passed safely down into the PostgreSQL `in` bounds without string casting
 
     // 3. Query Scans matching Open bounds & Excluding Isolated Actors
     const { data: feedData, error: feedError } = await supabase
@@ -68,7 +67,7 @@ serve(async (req: Request) => {
       )
       .eq("geoprivacy", "open")
       .eq("is_live_capture", true)
-      .not("user_id", "in", isolatedExclusionsString)
+      .not("user_id", "in", isolatedExclusions)
       .order("timestamp", { ascending: false })
       .limit(limit);
 

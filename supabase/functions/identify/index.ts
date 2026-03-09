@@ -97,6 +97,8 @@ serve(async (req: Request) => {
         headers: {
           "X-Goog-Upload-Command": "start, upload, finalize",
           "X-Goog-Upload-Header-Content-Type": "image/jpeg",
+          "X-Goog-Upload-Header-Content-Length":
+            r2Response.headers.get("content-length") || "",
           "Content-Type": "image/jpeg",
         },
         body: r2Response.body,

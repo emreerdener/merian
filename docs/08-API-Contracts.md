@@ -111,7 +111,7 @@ struct IdentifyResponse: Codable {
 
 ## Deno `/get-filtered-discovery-feed` Edge Node
 
-Fetches the global social feed of public biological captures, explicitly excluding actors the user has explicitly blocked locally on their client.
+Fetches the global social feed of public biological captures, explicitly excluding actors the user has explicitly blocked locally on their client. To prevent PostgreSQL parser exceptions and `in` modifier failures, the native Array matrix of blocked `user_id`s is strictly passed as a raw un-formatted TypeScript array (e.g. `.not("user_id", "in", isolatedExclusions)`) into the native Supabase JS abstraction layer.
 
 ### Authentication Enforcement
 

@@ -73,7 +73,7 @@ struct MerianApp: App {
             switch newPhase {
             case .background:
                 // Safely intercept mid-flight networks limits rescuing images asynchronously before standard app suspension
-                if inferenceEngine.isProcessing, let payload = inferenceEngine.activePayload {
+                if inferenceEngine.isProcessing, let payload = inferenceEngine.activeCompressedPayload ?? inferenceEngine.activePayload {
                     offlineQueueManager.enqueueCapture(
                         imageData: payload,
                         gpsLatitude: inferenceEngine.activeLatitude,

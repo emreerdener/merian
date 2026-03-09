@@ -257,13 +257,19 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         let device = deviceInput.device
         guard device.hasTorch else { return }
         
-        do {
-            try device.lockForConfiguration()
-            isFlashEnabled.toggle()
-            device.torchMode = isFlashEnabled ? .on : .off
-            device.unlockForConfiguration()
-        } catch {
-            print("Failed to lock device for torch: \(error)")
+        queue.async {
+            do {
+                try device.lockForConfiguration()
+                let targetTorchMode: AVCaptureDevice.TorchMode = device.torchMode == .off ? .on : .off
+                device.torchMode = targetTorchMode
+                device.unlockForConfiguration()
+                
+                Task { @MainActor [weak self] in
+                    self?.isFlashEnabled = (targetTorchMode == .on)
+                }
+            } catch {
+                print("Failed to lock device for torch: \(error)")
+            }
         }
     }
     

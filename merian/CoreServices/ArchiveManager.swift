@@ -70,7 +70,9 @@ class ArchiveManager: ObservableObject {
         // If it's a remote URL, we'd need to download the data first.
         let data: Data
         if url.isFileURL {
-            data = try Data(contentsOf: url)
+            data = try await Task.detached(priority: .userInitiated) {
+                try Data(contentsOf: url)
+            }.value
         } else {
             let (downloadedData, response) = try await URLSession.shared.data(from: url)
             guard let httpResponse = response as? HTTPURLResponse,

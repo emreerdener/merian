@@ -9,6 +9,7 @@ import ImageIO
 final class InferenceEngine: ObservableObject {
     @Published var isProcessing: Bool = false
     @Published var activePayload: Data? = nil
+    @Published var activeCompressedPayload: Data? = nil
     @Published var activePayloads: [Data] = []
     @Published var speciesData: SpeciesData? = nil
     
@@ -58,6 +59,7 @@ final class InferenceEngine: ObservableObject {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
+        self.activeCompressedPayload = nil
         self.activePayloads = [imageData]
         self.speciesData = nil
         
@@ -70,6 +72,8 @@ final class InferenceEngine: ObservableObject {
             let compressedData = await Task.detached(priority: .userInitiated) {
                 return self.downsampleLocalPayload(data: imageData) ?? imageData
             }.value
+            
+            self.activeCompressedPayload = compressedData
             
             do {
                 if CircuitBreakerManager.shared.isCircuitTripped {
@@ -273,6 +277,21 @@ final class InferenceEngine: ObservableObject {
             )
             
             if mappedData.confidenceScore > 0.0 {
+                // Pre-process and securely duplicate offline image paths explicitly preventing aggressive FileManager cleanup deletions
+                var newlyCopiedPaths: [String] = []
+                for originalPath in originalImagePaths {
+                    let sourceURL = URL.documentsDirectory.appendingPathComponent(originalPath)
+                    let newFilename = "\(UUID().uuidString)_lifelist.jpg"
+                    let destinationURL = URL.documentsDirectory.appendingPathComponent(newFilename)
+                    
+                    do {
+                        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                        newlyCopiedPaths.append(newFilename)
+                    } catch {
+                        print("Failed to physically bridge offline queue image to persistent Life List: \(error)")
+                    }
+                }
+
                 let targetName = mappedData.scientificName
                 let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
                     predicate: #Predicate { $0.scientificName == targetName }
@@ -282,7 +301,7 @@ final class InferenceEngine: ObservableObject {
                     if existingRecord.additionalImagePaths == nil {
                         existingRecord.additionalImagePaths = []
                     }
-                    existingRecord.additionalImagePaths?.append(contentsOf: originalImagePaths)
+                    existingRecord.additionalImagePaths?.append(contentsOf: newlyCopiedPaths)
                     existingRecord.timestamp = Date()
                     
                     existingRecord.insightDescription = mappedData.insightData.description
@@ -297,12 +316,12 @@ final class InferenceEngine: ObservableObject {
                         commonName: mappedData.commonName,
                         insightDescription: mappedData.insightData.description,
                         timestamp: Date(),
-                        localImagePath: originalImagePaths.first,
+                        localImagePath: newlyCopiedPaths.first,
                         semanticTags: [mappedData.commonName, mappedData.scientificName],
                         isPoisonous: mappedData.insightData.isPoisonous,
                         wikipediaUrl: mappedData.wikipediaUrl,
                         referenceImageUrl: mappedData.referenceImageUrl,
-                        additionalImagePaths: originalImagePaths.count > 1 ? Array(originalImagePaths.dropFirst()) : nil,
+                        additionalImagePaths: newlyCopiedPaths.count > 1 ? Array(newlyCopiedPaths.dropFirst()) : nil,
                         confidenceScore: mappedData.confidenceScore
                     )
                     modelContext.insert(record)
@@ -318,6 +337,7 @@ final class InferenceEngine: ObservableObject {
         inferenceTask?.cancel()
         isProcessing = false
         activePayload = nil
+        activeCompressedPayload = nil
         activePayloads.removeAll()
         activeLatitude = nil
         activeLongitude = nil
