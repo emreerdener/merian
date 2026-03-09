@@ -19,8 +19,6 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     @Published var isSessionRunning = false
     @Published var subjectDistanceInMeters: Float? = nil
     @Published var isFlashEnabled = false
-    @Published var activeZoomFactor: CGFloat = 1.0
-    @Published var availableZoomFactors: [CGFloat] = [0.5, 1.0, 2.0, 4.0, 8.0]
     
     // CoreML inferred state
     var isLiveInferencePaused: Bool = false
@@ -62,14 +60,6 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         
         if session.canAddInput(videoInput) {
             session.addInput(videoInput)
-        }
-        
-        let availableZoom = captureDevice.activeFormat.videoMaxZoomFactor
-        // Filter elements bounds against true hardware max.
-        self.availableZoomFactors = [0.5, 1.0, 2.0, 4.0, 8.0].filter {
-            if $0 < 1.0 { return captureDevice.deviceType == .builtInDualWideCamera || captureDevice.deviceType == .builtInTripleCamera || captureDevice.deviceType == .builtInLiDARDepthCamera }
-            let hardwareEquivalent = (captureDevice.deviceType == .builtInDualWideCamera || captureDevice.deviceType == .builtInTripleCamera || captureDevice.deviceType == .builtInLiDARDepthCamera) ? $0 * 2.0 : $0
-            return hardwareEquivalent <= availableZoom
         }
         
         if session.canAddOutput(videoOutput) {
@@ -274,33 +264,6 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             device.unlockForConfiguration()
         } catch {
             print("Failed to lock device for torch: \(error)")
-        }
-    }
-    
-    func setZoom(factor: CGFloat) {
-        guard let deviceInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
-            return
-        }
-        let captureDevice = deviceInput.device
-        
-        do {
-            try captureDevice.lockForConfiguration()
-            let availableZoom = captureDevice.activeFormat.videoMaxZoomFactor
-            
-            // Re-map natural user "multipliers" against the hardware's internal index scaling natively.
-            let hasUltraWide = captureDevice.deviceType == .builtInDualWideCamera || captureDevice.deviceType == .builtInTripleCamera || captureDevice.deviceType == .builtInLiDARDepthCamera
-            var hardwareZoomOffset: CGFloat = factor
-            if hasUltraWide {
-                hardwareZoomOffset = factor * 2.0
-            }
-            
-            // Cap at actual maximum supported to prevent runtime traps
-            captureDevice.videoZoomFactor = max(1.0, min(hardwareZoomOffset, availableZoom))
-            captureDevice.unlockForConfiguration()
-            
-            self.activeZoomFactor = factor
-        } catch {
-            print("Failed to lock device for zoom: \(error)")
         }
     }
     

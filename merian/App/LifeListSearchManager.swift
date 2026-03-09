@@ -133,9 +133,12 @@ struct LifeListSearchView: View {
                                 if let imagePath = scan.localImagePath {
                                     LifeListThumbnailView(imagePath: imagePath)
                                 } else {
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .aspectRatio(1.0, contentMode: .fill)
+                                    Color.clear
+                                        .aspectRatio(1.0, contentMode: .fit)
+                                        .overlay(
+                                            Rectangle().fill(Color.gray.opacity(0.3))
+                                        )
+                                        .clipped()
                                 }
                             }
                             .onTapGesture {
@@ -209,19 +212,21 @@ struct LifeListThumbnailView: View {
     @State private var thumbnail: UIImage? = nil
     
     var body: some View {
-        Group {
-            if let uiImage = thumbnail {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .aspectRatio(1.0, contentMode: .fill)
-                    .clipped()
-            } else {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-                    .aspectRatio(1.0, contentMode: .fill)
-            }
-        }
+        Color.clear
+            .aspectRatio(1.0, contentMode: .fit)
+            .overlay(
+                Group {
+                    if let uiImage = thumbnail {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                    }
+                }
+            )
+            .clipped()
         .task {
             if thumbnail == nil {
                 let fullPathURL = URL.documentsDirectory.appendingPathComponent(imagePath)

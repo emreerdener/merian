@@ -19,13 +19,7 @@ A highly reusable UI primitive resolving Glassmorphism thermal state bounds acro
 
 - Accepts dynamic `.environmentObject` states securely dictating whether an `.ultraThinMaterial` backplate or an opaque `.black.opacity(0.7)` bounds natively. This ensures standard thermal drops execute globally without massive `ZStack` UI duplication.
 
-## 1.6 `CameraZoomControl.swift`
-
-Strictly mirrors the native Apple iOS camera application optical boundaries.
-
-- Loops through standard `"0.5x", "1x", "2x"` arrays dynamically binding to `CameraManager.shared.availableZoomFactors` mapping explicitly against `.deviceType` boundaries (eg: avoiding `"0.5x"` allocations gracefully if the particular iPhone lacks an Ultra-Wide lens natively).
-
-## 1.7 `ImageCropperView.swift`
+## 1.6 `ImageCropperView.swift`
 
 Forces symmetrical constraints natively upon captured payloads prior to inference.
 
@@ -33,7 +27,7 @@ Forces symmetrical constraints natively upon captured payloads prior to inferenc
 - Mathematically bounds translation and zoom arrays natively using `DragGesture` and `MagnificationGesture`. It explicitly traps images within the geometric viewport dynamically mapping `maxX` and `maxY` constraints enforcing rigid boundaries. If a user tries to zoom too far out, a `withAnimation(.spring())` wrapper snaps the picture seamlessly back inside the 1:1 footprint avoiding void or black edge exposure safely natively.
 - Leverages Apple's `ImageRenderer(content:)` scaled rigidly to `1.0` dynamically generating exact 1024x1024 geometric image buffers directly out of the SwiftUI layout.
 
-## 1.8 `LifeListSearchManager` & Search Integration
+## 1.7 `LifeListSearchManager` & Search Integration
 
 Manages the core historical species cataloging system.
 

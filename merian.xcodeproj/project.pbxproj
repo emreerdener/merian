@@ -14,7 +14,6 @@
 		2632809FB1F933EC169350AB /* MerianNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */; };
 		2BF1BEB4A71119405DD5F026 /* WatchAcousticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A5A4F88C1B623CFF5B25F /* WatchAcousticManager.swift */; };
 		2EA34DB4680CC269E0767805 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF6016D928A11551039654D0 /* Assets.xcassets */; };
-		34F267048C5505FC771A1B9A /* CameraZoomControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF7029A6B9A3F780291DCDC /* CameraZoomControl.swift */; };
 		382BE761F821EA8A0CC87A2A /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63769A30A57E0746D270C60E /* SupabaseManager.swift */; };
 		4C6CFCA137410A34B0F97A27 /* MerianActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E96E3236A58E1380603B5D /* MerianActionBar.swift */; };
 		4CDB0BC78597A0EDEE47912F /* GlassCircularButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB63EDC61FA78DAB2927F3 /* GlassCircularButton.swift */; };
@@ -116,7 +115,6 @@
 		CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticComparisonView.swift; sourceTree = "<group>"; };
 		CC5EE4B93ABC3C36FCF55922 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DAF1FE0041FD12C6CBBB1E2F /* InferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEngine.swift; sourceTree = "<group>"; };
-		DBF7029A6B9A3F780291DCDC /* CameraZoomControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraZoomControl.swift; sourceTree = "<group>"; };
 		EF836BCE5722B41748153F02 /* AppTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetry.swift; sourceTree = "<group>"; };
 		F846A699FD3A8B52168EBFDB /* ImageCropperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCropperView.swift; sourceTree = "<group>"; };
 		FAAB63EDC61FA78DAB2927F3 /* GlassCircularButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCircularButton.swift; sourceTree = "<group>"; };
@@ -142,7 +140,6 @@
 			isa = PBXGroup;
 			children = (
 				51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */,
-				DBF7029A6B9A3F780291DCDC /* CameraZoomControl.swift */,
 				CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */,
 				FAAB63EDC61FA78DAB2927F3 /* GlassCircularButton.swift */,
 				F846A699FD3A8B52168EBFDB /* ImageCropperView.swift */,
@@ -372,7 +369,6 @@
 				62585D359B99BDB288FB2D85 /* ArchiveManager.swift in Sources */,
 				B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */,
 				16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */,
-				34F267048C5505FC771A1B9A /* CameraZoomControl.swift in Sources */,
 				4D1C7504F6623989320777F3 /* CircuitBreakerManager.swift in Sources */,
 				AC0B930C3A05AB57FDF6CC81 /* DeviceIdentityManager.swift in Sources */,
 				07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */,

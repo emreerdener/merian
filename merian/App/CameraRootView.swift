@@ -119,11 +119,6 @@ struct CameraRootView: View {
                             .clipShape(Capsule())
                             .padding(.bottom, 16)
                     }
-                    
-                    // Camera Zoom Interface
-                    CameraZoomControl()
-                        .padding(.bottom, 8)
-                    
                     // Floating Action Bar Interface
                     MerianActionBar(
                         isLifeListOpen: $isLifeListOpen,
@@ -140,17 +135,17 @@ struct CameraRootView: View {
             // Full-Screen Scanning Overlay
             if isAnalyzingFullscreen, let uiImage = analysisImage {
                 ZStack {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                        .clipped()
+                    // Base darkening layer
+                    Color.black.opacity(isPulseAnimating ? 0.7 : 0.8)
                         .ignoresSafeArea()
                     
                     ZStack {
-                        // Base darkening layer
-                        Color.black.opacity(isPulseAnimating ? 0.1 : 0.4)
-                            .ignoresSafeArea()
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .aspectRatio(1.0, contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .shadow(color: .black.opacity(0.5), radius: 20, y: 10)
                         
                         // AI Data Scanning Pulse Overlay
                         LinearGradient(
@@ -167,8 +162,10 @@ struct CameraRootView: View {
                         .opacity(isPulseAnimating ? 0.6 : 0.2)
                         .hueRotation(.degrees(isPulseAnimating ? 45 : 0))
                         .scaleEffect(isPulseAnimating ? 1.1 : 1.0)
-                        .ignoresSafeArea()
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .aspectRatio(1.0, contentMode: .fit)
                     }
+                    .padding(.horizontal, 32)
                     .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isPulseAnimating)
                     .onAppear {
                         isPulseAnimating = true
