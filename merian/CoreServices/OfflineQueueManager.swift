@@ -170,9 +170,19 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         request.httpMethod = "PUT"
                         request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
                         
-                        // Enqueue to the iOS Background URLSession cleanly
-                        let uploadTask = self.backgroundSession.uploadTask(with: request, fromFile: fileURLs[index])
-                        uploadTask.taskDescription = scanIDs[index]
+                        let scanId = scanIDs[index]
+                        let originalFileURL = fileURLs[index]
+                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\\(scanId)_temp_upload.jpg")
+                        
+                        if let downsampledData = self.downsampleLocalPayload(fileURL: originalFileURL) {
+                            try? downsampledData.write(to: tempFileURL)
+                        } else {
+                            try? FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
+                        }
+                        
+                        // Enqueue to the iOS Background URLSession cleanly using the downsampled physical file
+                        let uploadTask = self.backgroundSession.uploadTask(with: request, fromFile: tempFileURL)
+                        uploadTask.taskDescription = scanId
                         uploadTask.resume()
                     }
                     
@@ -203,6 +213,11 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let scanId = task.taskDescription else { return }
+        
+        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
+        try? FileManager.default.removeItem(at: tempFileURL)
+        
         guard error == nil else {
             print("Background upload hard failed: \(error!)")
             return
@@ -212,8 +227,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             print("Background upload rejected physically by boundary constraints.")
             return
         }
-        
-        guard let scanId = task.taskDescription else { return }
         
         Task { @MainActor in
             guard let modelContext = OfflineQueueManager.shared.modelContext else { return }
@@ -297,5 +310,24 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         if let count = try? modelContext.fetchCount(descriptor) {
             self.unsyncedItemsCount = count
         }
+    }
+    
+    // Internal generic mapping to shrink original 12MP arrays securely before uploading
+    private func downsampleLocalPayload(fileURL: URL, maxDimension: CGFloat = 1024.0) -> Data? {
+        guard let data = try? Data(contentsOf: fileURL), let uiImage = UIImage(data: data) else { return nil }
+        
+        var targetSize = uiImage.size
+        if targetSize.width > maxDimension || targetSize.height > maxDimension {
+            let ratio = min(maxDimension / targetSize.width, maxDimension / targetSize.height)
+            targetSize = CGSize(width: targetSize.width * ratio, height: targetSize.height * ratio)
+        }
+        
+        // Native CoreGraphics context binding ensures RAM is safely released physically immediately
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let downscaledImage = renderer.image { _ in
+            uiImage.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        
+        return downscaledImage.jpegData(compressionQuality: 0.7)
     }
 }

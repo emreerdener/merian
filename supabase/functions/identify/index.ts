@@ -235,51 +235,70 @@ Crucial instructions:
 
           try {
             let fetchedUrls: string[] = [];
-            // Unauthenticated taxonomy fetch to global GBIF registry
-            const gbifRes = await fetch(
-              `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(parsedData.scientific_name)}`,
-              { signal: AbortSignal.timeout(2500) },
-            );
-            if (gbifRes.ok) {
-              const gbifJson = await gbifRes.json();
-              gbifKey = gbifJson.usageKey || null;
-              if (gbifKey) {
-                const mediaRes = await fetch(
-                  `https://api.gbif.org/v1/species/${gbifKey}/media`,
+
+            const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
+              // Unauthenticated taxonomy fetch to global GBIF registry
+              (async () => {
+                let key: number | null = null;
+                let urls: string[] = [];
+                const gbifRes = await fetch(
+                  `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(parsedData.scientific_name)}`,
                   { signal: AbortSignal.timeout(2500) },
                 );
-                if (mediaRes.ok) {
-                  const mediaJson = await mediaRes.json();
-                  if (mediaJson.results && mediaJson.results.length > 0) {
-                    fetchedUrls = mediaJson.results
-                      .filter(
+                if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
+                const gbifJson = await gbifRes.json();
+                key = gbifJson.usageKey || null;
+
+                if (key) {
+                  const mediaRes = await fetch(
+                    `https://api.gbif.org/v1/species/${key}/media`,
+                    { signal: AbortSignal.timeout(2500) },
+                  );
+                  if (mediaRes.ok) {
+                    const mediaJson = await mediaRes.json();
+                    if (mediaJson.results && mediaJson.results.length > 0) {
+                      urls = mediaJson.results
                         // deno-lint-ignore no-explicit-any
-                        (m: any) => m.type === "StillImage" && m.identifier,
-                      )
-                      // deno-lint-ignore no-explicit-any
-                      .map((m: any) => m.identifier)
-                      .slice(0, 5);
+                        .filter(
+                          (m: any) => m.type === "StillImage" && m.identifier,
+                        )
+                        // deno-lint-ignore no-explicit-any
+                        .map((m: any) => m.identifier)
+                        .slice(0, 5);
+                    }
                   }
                 }
+                return { key, urls };
+              })(),
+
+              // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
+              (async () => {
+                const wikiRes = await fetch(
+                  `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsedData.scientific_name.replace(/ /g, "_"))}`,
+                  { signal: AbortSignal.timeout(2500) },
+                );
+                if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
+                const wikiJson = await wikiRes.json();
+                const url = wikiJson.content_urls?.desktop?.page || null;
+                const img =
+                  wikiJson.originalimage?.source ||
+                  wikiJson.thumbnail?.source ||
+                  null;
+                return { url, img };
+              })(),
+            ]);
+
+            if (gbifOutcome.status === "fulfilled") {
+              gbifKey = gbifOutcome.value.key;
+              fetchedUrls.push(...gbifOutcome.value.urls);
+            }
+            if (wikiOutcome.status === "fulfilled") {
+              wikiUrl = wikiOutcome.value.url;
+              if (wikiOutcome.value.img) {
+                fetchedUrls.unshift(wikiOutcome.value.img);
               }
             }
 
-            // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
-            const wikiRes = await fetch(
-              `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsedData.scientific_name.replace(/ /g, "_"))}`,
-              { signal: AbortSignal.timeout(2500) },
-            );
-            if (wikiRes.ok) {
-              const wikiJson = await wikiRes.json();
-              wikiUrl = wikiJson.content_urls?.desktop?.page || null;
-              const wikiImg =
-                wikiJson.originalimage?.source ||
-                wikiJson.thumbnail?.source ||
-                null;
-              if (wikiImg) {
-                fetchedUrls.unshift(wikiImg);
-              }
-            }
             if (fetchedUrls.length > 0) {
               // Deduplicate explicitly and serialize
               combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");

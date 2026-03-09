@@ -9,7 +9,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 - _Behavior:_ Subscribes to `NWPathMonitor` to detect active cell boundaries physically.
 - Debounces exactly 1.0 second (`Task.sleep`) upon connection restoration to prevent thrashing.
 - Writes captures straight to `URL.documentsDirectory` inside a SwiftData `OfflineQueuedScan` wrapper when iOS hits Zero-Service.
-- _Background Sync:_ Wrapped within a strict 30-second `UIBackgroundTaskIdentifier` iOS limit to generate presigned staging URLs, the module actively immediately terminates execution loops on timeouts gracefully without corrupting local records. It natively interfaces directly with `URLSessionConfiguration.background`, handing the physical R2 `.jpeg` uploads securely over to the host OS. The pipeline explicitly intercepts the app lifecycle using `AppDelegate` to safely execute the `backgroundCompletionHandler` exclusively on the main thread, satisfying iOS watchdog timers upon completion.
+- _Background Sync:_ Wrapped within a strict 30-second `UIBackgroundTaskIdentifier` iOS limit to generate presigned staging URLs, the module actively immediately terminates execution loops on timeouts gracefully without corrupting local records. It natively interfaces directly with `URLSessionConfiguration.background`, handing the physical R2 `.jpeg` uploads securely over to the host OS. Before queueing, it downscales the heavy 12MP files down to a lightweight 1024px payload inside the temporary `URL.cachesDirectory`, enabling massive bandwidth reduction over 3G. The pipeline explicitly intercepts the app lifecycle using `AppDelegate` to safely execute the `backgroundCompletionHandler` exclusively on the main thread, satisfying iOS watchdog timers upon completion and purging the cache.
 
 ## 2. `ViewfinderIntelligence.swift` (VUI)
 
@@ -77,5 +77,6 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 
 - Coordinates all physical cloud validations (`MerianNetworkClient`) natively with UI interaction.
 - Extracts `gpsLatitude` and `weatherCondition` context natively transferring it to the `/identify` API.
+- Compresses the live pixel stream down to a 1024px (0.7 quality) boundary via `downsampleLocalPayload`, drastically improving network speeds while safely preserving the original 12MP bytes in `URL.documentsDirectory` for local Life List displays.
 - Acts as the explicit gatekeeper for `GamificationManager` and `UsageManager`; it ONLY triggers a successful scan statistic and gamification badge if the Gemini Edge infrastructure returns a confidence score `> 0.0`.
 - Catches network drops and cancellation states (`URLError`), intelligently deferring captures explicitly back to the `OfflineQueueManager` for physical local caching rather than updating usage limits.

@@ -128,14 +128,8 @@ struct LifeListSearchView: View {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(searchManager.filteredScans) { scan in
                         VStack(alignment: .leading) {
-                            if let imagePath = scan.localImagePath,
-                               let uiImage = UIImage(contentsOfFile: URL.documentsDirectory.appendingPathComponent(imagePath).path) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(height: 120)
-                                    .clipped()
-                                    .cornerRadius(8)
+                            if let imagePath = scan.localImagePath {
+                                LifeListThumbnailView(imagePath: imagePath)
                             } else {
                                 Rectangle()
                                     .fill(Color.gray.opacity(0.3))
@@ -223,6 +217,45 @@ struct LifeListSearchView: View {
             searchManager.allScans = newRecords
             searchManager.performSearch(query: searchManager.searchQuery)
         }
+        }
+    }
+}
+
+struct LifeListThumbnailView: View {
+    let imagePath: String
+    @State private var thumbnail: UIImage? = nil
+    
+    var body: some View {
+        Group {
+            if let uiImage = thumbnail {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 120)
+                    .clipped()
+                    .cornerRadius(8)
+            } else {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: 120)
+                    .cornerRadius(8)
+            }
+        }
+        .task {
+            if thumbnail == nil {
+                let fullPath = URL.documentsDirectory.appendingPathComponent(imagePath).path
+                let generatedThumb = await Task.detached(priority: .userInitiated) {
+                    return UIImage(contentsOfFile: fullPath)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
+                }.value
+                
+                await MainActor.run {
+                    if let generatedThumb = generatedThumb {
+                        self.thumbnail = generatedThumb
+                    } else if let fallbackImage = UIImage(contentsOfFile: fullPath) {
+                        self.thumbnail = fallbackImage
+                    }
+                }
+            }
         }
     }
 }

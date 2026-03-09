@@ -47,3 +47,8 @@ flowchart TD
 
 - Heavily abstracted, completely PII-free tracking mapping OS limits passively via `TelemetryClient`.
 - Identifies anonymous Day-7 usage funnels globally across UI interactions with `PostHog` dynamically mapping the UUID without any stringing risk natively.
+
+### 6. UI Initialization & Memory Operations
+
+- **Instant Cold Boot:** SDK injections (`AppTelemetry`, `PostHog`) are rigidly deferred onto a `Task.detached(priority: .background)` executor cleanly preventing the Main Actor from locking, ensuring a strict sub-1-second boot for the Camera pipeline.
+- **Asynchronous Grid Downsampling:** Displays mapping heavy physical Local File caches (`LifeListSearchView`) offload physical image decoding strictly to iOS 15's native `preparingThumbnail(of:)` via `.userInitiated` CPU blocks ensuring RAM strictly stays completely flat and scrolling remains flawlessly linked at 60fps locking OOM (Out-of-Memory) crashes completely out.

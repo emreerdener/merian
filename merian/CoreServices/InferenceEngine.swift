@@ -70,8 +70,9 @@ final class InferenceEngine: ObservableObject {
                     throw URLError(.badServerResponse)
                 }
                 
-                // 2. Upload raw image bytes to R2
-                try await client.uploadToR2(url: target.signedUrl, data: imageData)
+                // 2. Upload raw image bytes to R2 (compressed)
+                let compressedData = self.downsampleLocalPayload(data: imageData) ?? imageData
+                try await client.uploadToR2(url: target.signedUrl, data: compressedData)
                 
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification
@@ -266,5 +267,22 @@ final class InferenceEngine: ObservableObject {
             taxonomy: nil
         )
         self.isProcessing = false
+    }
+    
+    private func downsampleLocalPayload(data: Data, maxDimension: CGFloat = 1024.0) -> Data? {
+        guard let uiImage = UIImage(data: data) else { return nil }
+        
+        var targetSize = uiImage.size
+        if targetSize.width > maxDimension || targetSize.height > maxDimension {
+            let ratio = min(maxDimension / targetSize.width, maxDimension / targetSize.height)
+            targetSize = CGSize(width: targetSize.width * ratio, height: targetSize.height * ratio)
+        }
+        
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let downscaledImage = renderer.image { _ in
+            uiImage.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        
+        return downscaledImage.jpegData(compressionQuality: 0.7)
     }
 }

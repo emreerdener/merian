@@ -12,6 +12,8 @@ Powers the interactive `.riv` Rive model rendered by `TerrariumView`.
 
 ## Secure Telemetry Ecosystem
 
+To guarantee a sub-1-second "Instant-On" camera boot experience, **both Apple TelemetryDeck and PostHog tracking SDKs explicitly initialize off the iOS Main Thread.** The `MerianApp` root strictly delegates their configurations to a `Task.detached(priority: .background)` block with a forced `500ms` sleep, allowing the primary UI render pass undisturbed access to the CPU frame buffer natively.
+
 ### `AppTelemetry` (Telemetrydeck SDK)
 
 Monitors core system stability purely using completely PII-free Apple anonymous strings intelligently.
