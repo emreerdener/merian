@@ -71,36 +71,43 @@ class LifeListSearchManager: ObservableObject {
     @Published var filteredScans: [LocalScanRecord] = []
     
     var allScans: [LocalScanRecord] = []
+    private var searchTask: Task<Void, Never>?
     
     func performSearch(query: String) {
-        let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty {
-            self.filteredScans = allScans
-            return
-        }
+        searchTask?.cancel()
         
-        let searchableData = allScans.map { (id: $0.id, textData: [
-            $0.commonName.lowercased(),
-            $0.scientificName.lowercased(),
-            $0.ecologyType.lowercased(),
-            $0.insightDescription.lowercased()
-        ] + $0.semanticTags.map { $0.lowercased() }) }
-        
-        // Push the semantic filtering loop strictly to a background detached thread to ensure the UI scroll never stutters
-        Task.detached(priority: .userInitiated) {
-            let tokens = text.components(separatedBy: .whitespaces)
-            let matchingIds = Set(searchableData.filter { item in
-                
-                // Ensure all independent user query tokens resolve true against the compiled index bounds
-                return tokens.allSatisfy { token in
-                    item.textData.contains { $0.contains(token) }
-                }
-            }.map { $0.id })
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            if Task.isCancelled { return }
             
-            await MainActor.run { [weak self] in
-                guard let self = self else { return }
-                self.filteredScans = self.allScans.filter { matchingIds.contains($0.id) }
+            let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty {
+                self.filteredScans = allScans
+                return
             }
+            
+            let searchableData = allScans.map { (id: $0.id, textData: [
+                $0.commonName.lowercased(),
+                $0.scientificName.lowercased(),
+                $0.ecologyType.lowercased(),
+                $0.insightDescription.lowercased()
+            ] + $0.semanticTags.map { $0.lowercased() }) }
+            
+            // Push the semantic filtering loop strictly to a background detached thread to ensure the UI scroll never stutters
+            let matchingIds = await Task.detached(priority: .userInitiated) {
+                let tokens = text.components(separatedBy: .whitespaces)
+                let ids = Set(searchableData.filter { item in
+                    
+                    // Ensure all independent user query tokens resolve true against the compiled index bounds
+                    return tokens.allSatisfy { token in
+                        item.textData.contains { $0.contains(token) }
+                    }
+                }.map { $0.id })
+                return ids
+            }.value
+            
+            if Task.isCancelled { return }
+            self.filteredScans = self.allScans.filter { matchingIds.contains($0.id) }
         }
     }
 }

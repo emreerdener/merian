@@ -213,23 +213,26 @@ Crucial instructions:
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.length,
     );
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        // deno-lint-ignore no-explicit-any
-        responseSchema: merianResponseSchema as any,
-      },
-    });
-
+    let result;
     try {
-      const fileName = uploadData.file.name.replace("files/", "");
-      await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${geminiApiKey}`,
-        { method: "DELETE" },
-      );
-    } catch (e) {
-      console.error("Failed to delete temporary Google file", e);
+      result = await model.generateContent({
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          // deno-lint-ignore no-explicit-any
+          responseSchema: merianResponseSchema as any,
+        },
+      });
+    } finally {
+      try {
+        const fileName = uploadData.file.name.replace("files/", "");
+        await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${geminiApiKey}`,
+          { method: "DELETE" },
+        );
+      } catch (e) {
+        console.error("Failed to delete temporary Google file", e);
+      }
     }
 
     const candidate = result.response.candidates?.[0];

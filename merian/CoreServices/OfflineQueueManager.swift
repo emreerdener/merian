@@ -134,6 +134,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             }
             #endif
             
+            // Map the `PersistentModel` variables securely outside the detached block natively avoiding MainActor concurrency crashes
+            let scanData = pendingScans.map { (id: $0.id, localImagePaths: $0.localImagePaths) }
+            
             syncTask = Task.detached(priority: .background) {
                 let documentsDirectory = URL.documentsDirectory
                 
@@ -142,7 +145,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 var scanIDs: [String] = []
                 
                 // Aggregating all files to get Pre-Signed URLs in one batch
-                for scan in pendingScans {
+                for scan in scanData {
                     for path in scan.localImagePaths {
                         let fileURL = documentsDirectory.appendingPathComponent(path)
                         let rawName = "\(scan.id)_\(path)"
@@ -250,13 +253,14 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             #endif
             
             do {
-                _ = try await MerianNetworkClient.shared.analyzeSubject(
+                let resultData = try await MerianNetworkClient.shared.analyzeSubject(
                     r2ObjectKey: r2ObjectKey,
                     depthScaleText: nil,
                     gpsLatitude: scan.gpsLatitude,
                     gpsLongitude: scan.gpsLongitude,
                     weatherCondition: scan.weatherCondition
                 )
+                InferenceEngine.handleSuccessfulOfflineScan(resultData: resultData, originalImagePaths: scan.localImagePaths, modelContext: modelContext)
                 OfflineQueueManager.shared.finalizeScanCleanup(scanId: scanId)
             } catch {
                 print("Failed downstream inference on offline queued scan: \(error)")

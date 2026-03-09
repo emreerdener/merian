@@ -236,6 +236,82 @@ final class InferenceEngine: ObservableObject {
         }
     }
     
+    /// Called by the Offline Queue explicitly to ensure deferred scans are processed mathematically back down into the User's biological index natively.
+    static func handleSuccessfulOfflineScan(resultData: Data, originalImagePaths: [String], modelContext: ModelContext) {
+        let decoder = JSONDecoder()
+        if let parsedWrapper = try? decoder.decode(EdgeResponseWrapper.self, from: resultData) {
+            let edgeRes = parsedWrapper.data
+            
+            let insight = InsightData(
+                description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
+                isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
+                regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
+            )
+            
+            let taxonomyData = TaxonomyData(
+                kingdom: edgeRes.taxonomy?.kingdom,
+                phylum: edgeRes.taxonomy?.phylum,
+                className: edgeRes.taxonomy?.class,
+                order: edgeRes.taxonomy?.order,
+                family: edgeRes.taxonomy?.family,
+                genus: edgeRes.taxonomy?.genus
+            )
+            
+            let mappedData = SpeciesData(
+                commonName: edgeRes.common_name ?? "Unknown Subject",
+                scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
+                insightData: insight,
+                confidenceScore: edgeRes.confidence_score ?? 0.0,
+                diagnosticComparison: nil,
+                wikipediaUrl: edgeRes.wikipedia_url,
+                referenceImageUrl: edgeRes.reference_image_url,
+                isBiological: edgeRes.is_biological_subject ?? true,
+                isLiveCapture: edgeRes.is_live_capture ?? true,
+                isInvasive: edgeRes.is_invasive ?? false,
+                ecologyType: edgeRes.ecology_type ?? "unknown",
+                taxonomy: taxonomyData
+            )
+            
+            if mappedData.confidenceScore > 0.0 {
+                let targetName = mappedData.scientificName
+                let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+                    predicate: #Predicate { $0.scientificName == targetName }
+                )
+                
+                if let existingRecord = try? modelContext.fetch(fetchDescriptor).first {
+                    if existingRecord.additionalImagePaths == nil {
+                        existingRecord.additionalImagePaths = []
+                    }
+                    existingRecord.additionalImagePaths?.append(contentsOf: originalImagePaths)
+                    existingRecord.timestamp = Date()
+                    
+                    existingRecord.insightDescription = mappedData.insightData.description
+                    existingRecord.isPoisonous = mappedData.insightData.isPoisonous
+                    existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
+                    existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
+                    existingRecord.confidenceScore = mappedData.confidenceScore
+                } else {
+                    let record = LocalScanRecord(
+                        speciesId: UUID().uuidString,
+                        scientificName: mappedData.scientificName,
+                        commonName: mappedData.commonName,
+                        insightDescription: mappedData.insightData.description,
+                        timestamp: Date(),
+                        localImagePath: originalImagePaths.first,
+                        semanticTags: [mappedData.commonName, mappedData.scientificName],
+                        isPoisonous: mappedData.insightData.isPoisonous,
+                        wikipediaUrl: mappedData.wikipediaUrl,
+                        referenceImageUrl: mappedData.referenceImageUrl,
+                        additionalImagePaths: originalImagePaths.count > 1 ? Array(originalImagePaths.dropFirst()) : nil,
+                        confidenceScore: mappedData.confidenceScore
+                    )
+                    modelContext.insert(record)
+                }
+                try? modelContext.save()
+            }
+        }
+    }
+    
     /// Halts active inferences instantly if the iOS Watchdog forces a termination
     func cancelActiveRequest() {
         print("Cancelled active inference request to prevent watchdog termination.")
@@ -252,38 +328,59 @@ final class InferenceEngine: ObservableObject {
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
         
-        if let path = record.localImagePath, let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(path)) {
-            self.activePayload = data
-            var payloads: [Data] = [data]
-            
-            if let extraPaths = record.additionalImagePaths {
-                for extra in extraPaths {
-                    if let extraData = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(extra)) {
-                        payloads.append(extraData)
+        // Map local bounds securely prior to detaching context boundaries
+        let localPath = record.localImagePath
+        let extraPaths = record.additionalImagePaths
+        
+        let commonName = record.commonName
+        let scientificName = record.scientificName
+        let insightDescription = record.insightDescription
+        let isPoisonous = record.isPoisonous
+        let confidenceScore = record.confidenceScore ?? 1.0
+        let wikipediaUrl = record.wikipediaUrl
+        let referenceImageUrl = record.referenceImageUrl
+        
+        Task {
+            let payloads = await Task.detached(priority: .userInitiated) {
+                var loadedPayloads: [Data] = []
+                if let path = localPath, let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(path)) {
+                    loadedPayloads.append(data)
+                    
+                    if let extras = extraPaths {
+                        for extra in extras {
+                            if let extraData = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(extra)) {
+                                loadedPayloads.append(extraData)
+                            }
+                        }
                     }
                 }
+                return loadedPayloads
+            }.value
+            
+            if !payloads.isEmpty {
+                self.activePayload = payloads.first
+                self.activePayloads = payloads
+            } else {
+                self.activePayload = nil
+                self.activePayloads = []
             }
-            self.activePayloads = payloads
-        } else {
-            self.activePayload = nil
-            self.activePayloads = []
+            
+            self.speciesData = SpeciesData(
+                commonName: commonName,
+                scientificName: scientificName,
+                insightData: InsightData(description: insightDescription, isPoisonous: isPoisonous, regionalStatusRationale: nil),
+                confidenceScore: confidenceScore, 
+                diagnosticComparison: nil,
+                wikipediaUrl: wikipediaUrl,
+                referenceImageUrl: referenceImageUrl,
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: false,
+                ecologyType: "unknown",
+                taxonomy: nil
+            )
+            self.isProcessing = false
         }
-        
-        self.speciesData = SpeciesData(
-            commonName: record.commonName,
-            scientificName: record.scientificName,
-            insightData: InsightData(description: record.insightDescription, isPoisonous: record.isPoisonous, regionalStatusRationale: nil),
-            confidenceScore: record.confidenceScore ?? 1.0, 
-            diagnosticComparison: nil,
-            wikipediaUrl: record.wikipediaUrl,
-            referenceImageUrl: record.referenceImageUrl,
-            isBiological: true,
-            isLiveCapture: true,
-            isInvasive: false,
-            ecologyType: "unknown",
-            taxonomy: nil
-        )
-        self.isProcessing = false
     }
     
     nonisolated private func downsampleLocalPayload(data: Data, maxDimension: CGFloat = 1024.0) -> Data? {

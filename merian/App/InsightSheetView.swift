@@ -81,7 +81,7 @@ struct InsightSheetView: View {
                 HStack {
                     if showCloseButton {
                         GlassCircularButton(iconName: "xmark") {
-                            isPresented = false
+                            dismiss()
                         }
                     } else {
                         GlassCircularButton(iconName: "chevron.left") {

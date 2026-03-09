@@ -48,20 +48,36 @@ final class SupabaseManager: ObservableObject {
     func initializeGhostSession() async {
         do {
             // Check if they are already actively signed in (either as a Ghost or an Authenticated Apple user)
-            if let session = try? await client.auth.session, !session.isExpired {
-                print("👻 Active Merian User Identity already resolved natively on device.")
-                await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
-                PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
-                return
-            }
-            
-            let authResponse = try await client.auth.signInAnonymously()
-            print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
+            _ = try await client.auth.session
+            print("👻 Active Merian User Identity already resolved natively on device.")
             await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
             PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
         } catch {
-            print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
-            // Future gracefully degraded UI triggers can be queued here natively
+            let errString = String(describing: error)
+            
+            // If the user's session merely timed out offline or threw a Network Error, NEVER sign in anonymously.
+            // This prevents permanently erasing their Apple Sign-In and RevenueCat Pro Subscription boundaries natively.
+            if let authError = error as? AuthError, case .sessionNotFound = authError {
+                do {
+                    let authResponse = try await client.auth.signInAnonymously()
+                    print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
+                    await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
+                    PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
+                } catch {
+                    print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
+                }
+            } else if errString.contains("sessionNotFound") || errString.contains("sessionMissing") {
+                do {
+                    let authResponse = try await client.auth.signInAnonymously()
+                    print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
+                    await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
+                    PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
+                } catch {
+                    print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
+                }
+            } else {
+                print("⚠️ Bypassed Anonymous Sign-In: Existing user identity bounds protected despite network/expiration failure.")
+            }
         }
     }
     

@@ -34,6 +34,7 @@ Manages the core historical species cataloging system.
 - Instantiates a bottom-aligned native iOS `.searchable` index filtering `LocalScanRecord` structures.
 - Deduplicates identical species captures natively into unified model wrappers containing arrays of historical `additionalImagePaths`.
 - Executes semantic background thread filtration dynamically utilizing Swift native `Set<String>` collections, fundamentally solving O(N²) array bottlenecks to achieve an instant **O(1)** lookup on the `@MainActor` without dropping the 60fps frame rate when handling large offline Life Lists natively.
+- Enforces strict asynchronous debounce boundaries natively using `Task.sleep()` coupled with `searchTask?.cancel()` cancellation hooks on every keystroke. This cleanly prevents destructive O(N) CPU thrashing loops from executing over the Main Actor while users are rapidly typing search queries, guaranteeing buttery-smooth UI scroll performance.
 - Strips heavy typography text labels from the `LazyVGrid` feed explicitly in favor of a dense, 3-column `GridItem` layout enforcing a perfect 1:1 `aspectRatio(contentMode: .fill)` constraint on all historical payloads mirroring a native iOS Camera Roll.
 - To prevent layout collisions mapping modal presentations onto `NavigationStack` boundaries, the feed natively eliminates navigation routing inherently. Tapping specific historical arrays dynamically sets a localized `$selectedScanForInsight` object mapping instantly to a `.sheet()` modal. This bounds the `InsightSheetView` identical behavior identically matching the Viewfinder's bottom-up presentation loop.
 
@@ -42,6 +43,7 @@ Manages the core historical species cataloging system.
 The physical analytical response boundary natively wrapping the `SpeciesData` schema generated natively by Deno.
 
 - Always renders up in the "Natural Thumb Zone" from the bottom. Defaults exclusively to a full-screen `.large` presentation detent explicitly obscuring the background viewfinder cleanly.
+- To allow flexible integration across both state-driven flows and standalone item bindings (as deployed inside the Life List historical feed), all closing and dismissing events exclusively leverage the native SwiftUI `@Environment(\.dismiss)` hooks rather than rigidly mutating parent `@Binding var isPresented` states natively.
 - Implements a horizontal `TabView` carousel displaying all historical encounters natively mapping to `activePayloads` arrays. This image block strictly mathematically enforces a `1.0` `aspectRatio(contentMode: .fit)` boundary constraint making all rendered elements perfect grid-aligned squares.
 - Renders dynamic metadata badges natively evaluating `isInvasive`, `ecologyType`, `isBiological`, and `isLiveCapture` flags beneath the primary confidence score UI.
 - Displays dynamic Taxonomy (Kingdom, Phylum) trees visually expanding the Deno metadata inputs explicitly using horizontal glassmorphic capsules natively.

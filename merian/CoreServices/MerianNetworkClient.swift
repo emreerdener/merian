@@ -37,11 +37,10 @@ class MerianNetworkClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {
-            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            let activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
-                print("⚠️ MerianNetworkClient: Active JWT missing. Forcing local Ghost Session auth.")
-                await SupabaseManager.shared.initializeGhostSession()
-                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+                print("⚠️ MerianNetworkClient: Active JWT missing or expired. Throwing NetworkError to prevent Ghost overwrite.")
+                throw NetworkError.invalidResponse
             }
             guard let finalJWT = activeJWT else {
                 throw NetworkError.invalidResponse
@@ -90,10 +89,10 @@ class MerianNetworkClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {
-            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            let activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
-                await SupabaseManager.shared.initializeGhostSession()
-                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+                print("⚠️ MerianNetworkClient: Active JWT missing or expired. Throwing NetworkError to prevent Ghost overwrite.")
+                throw NetworkError.invalidResponse
             }
             guard let finalJWT = activeJWT else {
                 throw NetworkError.invalidResponse
