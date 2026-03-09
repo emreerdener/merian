@@ -54,6 +54,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 **Responsibility:** AVCaptureSession Abstraction.
 
 - Bootstraps the heavy physical hardware session constraints seamlessly instantiating `AVCaptureDevice.DiscoverySession` prioritizing `.builtInLiDARDepthCamera` hardware bounds before recursively failing down through standard Wide-Angle inputs.
+- Actively forces `AVCapturePhotoOutput.maxPhotoDimensions` natively down to a standard 12MP layer natively avoiding massive 48MP payloads that physically bottleneck 3G Cellular Connections gracefully.
 - Actively toggles hardware idle states (down-sampling framerate) exclusively when the `InsightSheetView` is functionally open on-screen to cool the device.
 
 ## 8. `WatchAcousticManager.swift` (watchOS Extension)

@@ -79,7 +79,15 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
-            photoOutput.isHighResolutionCaptureEnabled = true
+            
+            // Actively lock the max physical dimension to 12MP to prevent 48MP Cellular Upload Failures
+            let validDimensions = videoInput.device.activeFormat.supportedMaxPhotoDimensions
+            if let twelveMP = validDimensions.first(where: { $0.width == 4032 }) {
+                photoOutput.maxPhotoDimensions = twelveMP
+            } else if let fallback = validDimensions.last {
+                photoOutput.maxPhotoDimensions = fallback
+            }
+            
             if photoOutput.isDepthDataDeliverySupported {
                 photoOutput.isDepthDataDeliveryEnabled = true
             }
@@ -280,6 +288,9 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     }
     
     func captureImage() async throws -> Data {
+        // safely extract the MainActor state natively passing into the sendable closure
+        let flashStatus = self.isFlashEnabled
+        
         return try await withCheckedThrowingContinuation { continuation in
             guard activePhotoContinuation == nil else {
                 continuation.resume(throwing: NSError(domain: "CameraManager", code: -1, userInfo: [NSLocalizedDescriptionKey : "Capture already in progress"]))
@@ -301,11 +312,13 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 let settings = AVCapturePhotoSettings()
                 
                 // Set explicitly mapped hardware flash modes when physically firing the shutter 
-                if self.photoOutput.supportedFlashModes.contains(self.isFlashEnabled ? .on : .off) {
-                    settings.flashMode = self.isFlashEnabled ? .on : .off
+                let targetFlashMode: AVCaptureDevice.FlashMode = flashStatus ? .on : .off
+                if self.photoOutput.supportedFlashModes.contains(targetFlashMode) {
+                    settings.flashMode = targetFlashMode
                 }
                 
-                settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
+                settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
+                
                 if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
                     settings.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliveryEnabled
                 }
