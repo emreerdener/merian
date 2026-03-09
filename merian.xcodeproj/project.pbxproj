@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */; };
+		044CF67B9198ABF8E5577C0F /* PhotoLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48449DF73246B87BCD8F6CF1 /* PhotoLibraryManager.swift */; };
 		07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */; };
 		16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */; };
 		1AF3C8456601927E288B1890 /* HardwareOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */; };
@@ -84,6 +85,7 @@
 		2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetView.swift; sourceTree = "<group>"; };
 		3EC0CD2961B5B50E5D1DA82A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClient.swift; sourceTree = "<group>"; };
+		48449DF73246B87BCD8F6CF1 /* PhotoLibraryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoLibraryManager.swift; sourceTree = "<group>"; };
 		4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
 		4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianEnvironment.swift; sourceTree = "<group>"; };
 		4E10F6B4FBB693F712392A78 /* UsageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManager.swift; sourceTree = "<group>"; };
@@ -186,6 +188,7 @@
 				6F441743E545E21D4B647A5E /* SyncStateManager.swift */,
 				4E10F6B4FBB693F712392A78 /* UsageManager.swift */,
 				4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */,
+				48449DF73246B87BCD8F6CF1 /* PhotoLibraryManager.swift */,
 			);
 			path = CoreServices;
 			sourceTree = "<group>";
@@ -382,6 +385,7 @@
 				57B3AB95EA69F38741E9E500 /* UsageManager.swift in Sources */,
 				02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */,
 				ACDBCA9A92E372B8DF991898 /* DeviceIdentityManager.swift in Sources */,
+				044CF67B9198ABF8E5577C0F /* PhotoLibraryManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -29,3 +29,10 @@ An asynchronous heuristic layer blocking wasted network limits inherently.
 - Drops concurrent inference limits natively tracking frame boundaries natively via Core Image `CIAreaAverage` to actively monitor extreme luminance threshold values dynamically.
 - Triggers dynamic `VUIHint` prompts across the viewfinder alerting users visually (`"Too dark"`, `"Move closer"`) without executing any internet boundaries gracefully. Explicitly evaluates an optional `distance: Float?` constraint checking for subjects > 2.5 meters.
 - Explicitly blocks inference pipelines from querying cloud services for AI evaluation unless the internal brightness buffer returns successfully.
+
+### `PhotoLibraryManager`
+
+Acts as a dedicated `PHPhotoLibrary` handler intercepting the hardware buffers securely.
+
+- Binds `.opportunistic` `PHImageRequestOptions` gracefully extracting the most recently added native iOS Asset asynchronously to act as the Camera Gallery icon.
+- Safely wraps `.creationRequestForAsset` strictly bypassing the UI actor dynamically saving the unadulterated `12MP` sensor data straight into the native camera roll at the moment of shutter press to ensure physical persistence prior to inference logic executing.

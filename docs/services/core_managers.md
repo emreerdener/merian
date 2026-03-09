@@ -81,3 +81,12 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 - Compresses the live pixel stream down to a 1024px (0.7 quality) boundary via `downsampleLocalPayload`, drastically improving network speeds while safely preserving the original 12MP bytes in `URL.documentsDirectory` for local Life List displays.
 - Acts as the explicit gatekeeper for `GamificationManager` and `UsageManager`; it ONLY triggers a successful scan statistic and gamification badge if the Gemini Edge infrastructure returns a confidence score `> 0.0`.
 - Catches network drops and cancellation states (`URLError`), intelligently deferring captures explicitly back to the `OfflineQueueManager` for physical local caching rather than updating usage limits.
+
+## 11. `PhotoLibraryManager.swift`
+
+**Responsibility:** Secure Camera Roll Integrations.
+
+- Resolves explicit `PHPhotoLibrary.authorizationStatus` boundaries purely on the UI thread without silently crashing the App.
+- Securely extracts exactly `1` asset (the most recent photo) bounded aggressively using an `NSSortDescriptor(key: "creationDate", ascending: false)` constraint.
+- Offloads heavy full-resolution RAM extraction locally via `PHImageRequestOptions()` passing a strict `150x150` `CGSize` and `.opportunistic` quality matrix. This guarantees `MerianActionBar` renders a tiny, memory-safe square thumbnail.
+- Seamlessly acts as the passive bridge capturing `URL.documentsDirectory` 12MP payloads securely downstream straight into the Apple physical Camera Roll safely (`PHAssetChangeRequest.creationRequestForAsset`) the second a user pulls the shutter trigger.

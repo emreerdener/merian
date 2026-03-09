@@ -7,6 +7,7 @@ struct CameraRootView: View {
     @StateObject private var cameraManager = CameraManager.shared
     @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared
     @StateObject private var vui = ViewfinderIntelligence.shared
+    @StateObject private var photoLibraryManager = PhotoLibraryManager.shared
     
     @EnvironmentObject var revenueCatManager: RevenueCatManager
     @EnvironmentObject var usageManager: UsageManager
@@ -103,7 +104,30 @@ struct CameraRootView: View {
                             }
                             
                             PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
-                                glassButton(icon: "photo.on.rectangle")
+                                ZStack {
+                                    if hardwareOrchestrator.isGlassmorphismEnabled {
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .environment(\.colorScheme, .dark)
+                                            .frame(width: 50, height: 50)
+                                    } else {
+                                        Circle()
+                                            .fill(Color.black.opacity(0.7))
+                                            .frame(width: 50, height: 50)
+                                    }
+                                    
+                                    if let thumbnail = photoLibraryManager.latestThumbnail {
+                                        Image(uiImage: thumbnail)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 46, height: 46)
+                                            .clipShape(Circle())
+                                    } else {
+                                        Image(systemName: "photo.on.rectangle")
+                                            .font(.system(size: 20, weight: .medium))
+                                            .foregroundColor(.white)
+                                    }
+                                }
                             }
                         }
                     }
@@ -208,6 +232,7 @@ struct CameraRootView: View {
         }
         .onAppear {
             cameraManager.startSession()
+            photoLibraryManager.startObservingAndFetch()
         }
         .onDisappear {
             cameraManager.stopSession()

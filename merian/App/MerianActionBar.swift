@@ -56,6 +56,9 @@ struct MerianActionBar: View {
                         do {
                             let captureData = try await cameraManager.captureImage()
                             
+                            // Actively push the original 12MP buffer down natively into the user's Camera Roll securely
+                            await PhotoLibraryManager.shared.saveImageToLibrary(imageData: captureData)
+                            
                             await MainActor.run {
                                 inferenceEngine.analyze(imageData: captureData, modelContext: modelContext)
                                 isAnalyzingFullscreen = true

@@ -27,6 +27,7 @@ flowchart TD
 
 - Direct bindings into `AVCaptureSession`, dynamically negotiating `isHighResolutionPhotoEnabled` buffers using native ISP (Image Signal Processor) and Deep Fusion. Prioritizes `.builtInLiDARDepthCamera` hardware intelligently before falling back to Wide-Angle models seamlessly.
 - Active Thermal monitoring manipulating OS frames (`targetFPS`), dynamically rendering the Glassmorphism `.ultraThinMaterial` on-the-fly to prevent critical heat loads in extreme outdoor wilderness environments.
+- **Native Camera Roll Integration (`PhotoLibraryManager`):** Safely persists unmodified `12MP` high-quality output bounds securely into the user's local iOS `PHPhotoLibrary` instantaneously avoiding iCloud sync delays entirely natively on capture.
 
 ### 2. Ephemeral Offline-First Sync (`OfflineQueueManager`, `SwiftData`)
 
