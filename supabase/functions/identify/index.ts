@@ -89,8 +89,6 @@ serve(async (req: Request) => {
     }
 
     // Server-side robust encoded stream to prevent OOM
-    const arrayBuffer = await r2Response.arrayBuffer();
-
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
     const uploadRes = await fetch(
       `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
@@ -98,12 +96,11 @@ serve(async (req: Request) => {
         method: "POST",
         headers: {
           "X-Goog-Upload-Command": "start, upload, finalize",
-          "X-Goog-Upload-Header-Content-Length":
-            arrayBuffer.byteLength.toString(),
           "X-Goog-Upload-Header-Content-Type": "image/jpeg",
           "Content-Type": "image/jpeg",
         },
-        body: arrayBuffer,
+        body: r2Response.body,
+        duplex: "half",
       },
     );
 
@@ -224,6 +221,16 @@ Crucial instructions:
         responseSchema: merianResponseSchema as any,
       },
     });
+
+    try {
+      const fileName = uploadData.file.name.replace("files/", "");
+      await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${geminiApiKey}`,
+        { method: "DELETE" },
+      );
+    } catch (e) {
+      console.error("Failed to delete temporary Google file", e);
+    }
 
     const candidate = result.response.candidates?.[0];
     const finishReason = candidate?.finishReason;

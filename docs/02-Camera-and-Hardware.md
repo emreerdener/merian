@@ -13,6 +13,7 @@ The lowest level integration directly interfacing with the iPhone optics.
 - Evaluates `photoOutput.isDepthDataDeliverySupported` during configuration recursively mapping `.isDepthDataDeliveryEnabled` downstream natively to `AVCapturePhotoSettings`. This physical validation cleanly prevents fatal `SIGABRT` / `NSInvalidArgumentException` crash instances in AVFoundation if non-LiDAR iPhones attempt depth captures dynamically.
 - Actively leverages `photoOutput.isHighResolutionCaptureEnabled = true` letting Apple's underlying OS Image Signal Processor map and shrink dynamic resolution sizes, gracefully dodging explicit `48MP` RAW byte crashes completely.
 - Syncs a published `@Published var isFlashEnabled` variable actively driving hardware closures mapping natively through `device.torchMode` under `.lockForConfiguration()` streams to prevent dark environmental failures dynamically. The selected hardware flash mode is automatically resolved cleanly at shutter execution natively handling edge constraints gracefully. To satisfy Swift 6 Concurrency constraints, this MainActor property is securely copied down before executing any `queue.async` background capture enclosures.
+- Secures `AVFoundation` shutter callbacks against race conditions by actively mapping `withCheckedThrowingContinuation` assignments synchronously up onto the `@MainActor` before delegating the `capturePhoto` execution to the background queue. This physically enforces memory safety and prevents permanent UI deadlocks natively.
 - Throttles preview feeds linearly to conserve internal memory loads gracefully shifting between 15-60 FPS bounds seamlessly.
 
 ### `HardwareOrchestrator`
@@ -26,7 +27,7 @@ The battery and heat protection protocol monitoring physical usage thresholds gr
 
 An asynchronous heuristic layer blocking wasted network limits inherently.
 
-- Drops concurrent inference limits natively tracking frame boundaries natively via Core Image `CIAreaAverage` to actively monitor extreme luminance threshold values dynamically.
+- Drops concurrent inference limits natively tracking frame boundaries natively via Core Image `CIAreaAverage` to actively monitor extreme luminance threshold values dynamically. To prevent internal GPU thermal bottlenecks from millions of background `cvPixelBuffer` passes, the captured optical stream is explicitly down-sampled natively via `CGAffineTransform(scaleX: 0.05, y: 0.05)` prior to executing area extraction. Furthermore, the root `CIContext` is initialized entirely decoupled as a strictly detached `.fileprivate` global reference outside the main `ObservableObject` context. This rigidly isolates the CPU threads guaranteeing no data-race mutations breach the `@MainActor` loops natively while the pipeline scans the viewfinder asynchronously.
 - Triggers dynamic `VUIHint` prompts across the viewfinder alerting users visually (`"Too dark"`, `"Move closer"`) without executing any internet boundaries gracefully. Explicitly evaluates an optional `distance: Float?` constraint checking for subjects > 2.5 meters.
 - Explicitly blocks inference pipelines from querying cloud services for AI evaluation unless the internal brightness buffer returns successfully.
 

@@ -114,7 +114,7 @@ struct LifeListSearchView: View {
     @Environment(\.dismiss) var dismiss
     @Binding var isInsightSheetOpen: Bool
     
-    @State private var navPath = NavigationPath()
+    @State private var selectedScanForInsight: LocalScanRecord? = nil
     @FocusState private var isSearchFocused: Bool
     
     let columns = [
@@ -124,9 +124,8 @@ struct LifeListSearchView: View {
     ]
     
     var body: some View {
-        NavigationStack(path: $navPath) {
-            VStack(spacing: 0) {
-                ScrollView {
+        VStack(spacing: 0) {
+            ScrollView {
                     LazyVGrid(columns: columns, spacing: 2) {
                         ForEach(searchManager.filteredScans) { scan in
                             Group {
@@ -143,10 +142,13 @@ struct LifeListSearchView: View {
                             }
                             .onTapGesture {
                                 inferenceEngine.load(from: scan)
-                                navPath.append(scan)
+                                selectedScanForInsight = scan
                             }
                         }
                     }
+                }
+                .sheet(item: $selectedScanForInsight) { scan in
+                    InsightSheetView(isPresented: .constant(true), showCloseButton: true)
                 }
             }
         .toolbar {
@@ -190,11 +192,6 @@ struct LifeListSearchView: View {
                 .animation(.easeInOut(duration: 0.2), value: searchManager.searchQuery.isEmpty)
             }
         }
-        .navigationTitle("Life List")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: LocalScanRecord.self) { scan in
-            InsightSheetView(isPresented: .constant(true), showCloseButton: false)
-        }
         .onAppear {
             searchManager.allScans = allRecords
             searchManager.performSearch(query: searchManager.searchQuery)
@@ -203,7 +200,6 @@ struct LifeListSearchView: View {
             searchManager.allScans = newRecords
             searchManager.performSearch(query: searchManager.searchQuery)
         }
-        } // Ends NavigationStack
     }
 }
 

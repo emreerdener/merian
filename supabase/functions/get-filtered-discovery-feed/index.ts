@@ -14,16 +14,27 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { userId, limit = 20 } = await req.json();
-
-    if (!userId) {
-      throw new Error("Invalid payload: Missing userId inside request.");
-    }
+    const { limit = 20 } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     // Utilize Service Role Key to securely access shadowbanned users + global feeds via edge
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(authHeader);
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    const userId = user.id;
 
     // 1. Isolation Filter Hook - Query blocked_ids mapping the blocker explicitly
     const { data: blocksData, error: blocksError } = await supabase
@@ -38,7 +49,9 @@ serve(async (req: Request) => {
     }
 
     // 2. Build the Isolation Array
-    const blockedIds = blocksData.map((b: any) => b.blocked_id);
+    const blockedIds = blocksData.map(
+      (b: { blocked_id: string }) => b.blocked_id,
+    );
     const isolatedExclusions = [userId, ...blockedIds];
 
     // We format the array down securely to a nested TS query syntax string `(id1, id2)`
@@ -68,8 +81,10 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

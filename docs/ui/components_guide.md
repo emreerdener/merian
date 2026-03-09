@@ -25,7 +25,7 @@ Forces symmetrical constraints natively upon captured payloads prior to inferenc
 
 - Intercepts all inputs (`Camera` & `PhotosPicker`) with a `.fullScreenCover`, allowing users to pan/zoom their subject directly within a strictly enforced 1:1 `.clipShape(Rectangle())`.
 - Mathematically bounds translation and zoom arrays natively using `DragGesture` and `MagnificationGesture`. It explicitly traps images within the geometric viewport dynamically mapping `maxX` and `maxY` constraints enforcing rigid boundaries. If a user tries to zoom too far out, a `withAnimation(.spring())` wrapper snaps the picture seamlessly back inside the 1:1 footprint avoiding void or black edge exposure safely natively.
-- Leverages Apple's `ImageRenderer(content:)` scaled rigidly to `1.0` dynamically generating exact 1024x1024 geometric image buffers directly out of the SwiftUI layout.
+- Leverages Apple's `ImageRenderer(content:)` scaled rigidly to `1.0` dynamically generating exact 1024x1024 geometric image buffers directly out of the SwiftUI layout. To prevent Main Thread hanging during image manipulation, the rigid `UIImage` byte extraction natively wraps `.jpegData(compressionQuality: 0.7)` in a structurally isolated `Task.detached(priority: .userInitiated)` block, firing standard `UIImpactFeedbackGenerator` boundaries proactively bridging user interaction prior to asynchronous `.JPEG` matrix allocations natively.
 
 ## 1.7 `LifeListSearchManager` & Search Integration
 
@@ -35,6 +35,7 @@ Manages the core historical species cataloging system.
 - Deduplicates identical species captures natively into unified model wrappers containing arrays of historical `additionalImagePaths`.
 - Executes semantic background thread filtration dynamically utilizing Swift native `Set<String>` collections, fundamentally solving O(N²) array bottlenecks to achieve an instant **O(1)** lookup on the `@MainActor` without dropping the 60fps frame rate when handling large offline Life Lists natively.
 - Strips heavy typography text labels from the `LazyVGrid` feed explicitly in favor of a dense, 3-column `GridItem` layout enforcing a perfect 1:1 `aspectRatio(contentMode: .fill)` constraint on all historical payloads mirroring a native iOS Camera Roll.
+- To prevent layout collisions mapping modal presentations onto `NavigationStack` boundaries, the feed natively eliminates navigation routing inherently. Tapping specific historical arrays dynamically sets a localized `$selectedScanForInsight` object mapping instantly to a `.sheet()` modal. This bounds the `InsightSheetView` identical behavior identically matching the Viewfinder's bottom-up presentation loop.
 
 ## 2. Default `InsightSheetView.swift` (Built Structure)
 

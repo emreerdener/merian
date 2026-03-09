@@ -15,9 +15,7 @@ To fetch cryptographic keys for direct-to-Cloudflare uploads safely bridging DDO
 }
 ```
 
-### Response Payload
-
-Yields securely locked Cloudflare R2 bounds explicitly tied to the original `user_id` preventing path traversal.
+Yields securely locked Cloudflare R2 bounds explicitly tied to the original `user_id` preventing path traversal. These pre-signed `PUT` URLs dynamically generate an explicit `X-Amz-Expires=86400` query parameter (24 Hours). This extensive validation window explicitly decouples strict network connections, granting native Apple iOS `BackgroundTasks` total flexibility to execute data bursts overnight purely dictated by internal OS memory profiles, thermal bounds, and active Wi-Fi availability without inducing 403 Forbidden AWS errors.
 
 ```json
 {
@@ -108,3 +106,15 @@ struct IdentifyResponse: Codable {
 ```
 
 **Client Authentication Caveat**: `MerianNetworkClient` explicitly enforces device-level hardware tokens natively. The `user_id` mapped inside the request body payload is extracted natively from `DeviceIdentityManager.shared.deviceId` (Apple IDFV) ensuring persistent identity mapping across sessions cleanly bypassing brittle Supabase authenticated cookie states.
+
+---
+
+## Deno `/get-filtered-discovery-feed` Edge Node
+
+Fetches the global social feed of public biological captures, explicitly excluding actors the user has explicitly blocked locally on their client.
+
+### Authentication Enforcement
+
+Unlike legacy edge structures which trusted unverified `userId` variables inside body payloads (enabling severe IDOR scrape vulnerabilities), this network mapping **strictly extracts cryptographic JWT Identity** from the Supabase `Authorization: Bearer` Header utilizing `supabaseAdmin.auth.getUser()`.
+
+Any request attempting to fake a user session via a manipulated JSON body without passing a valid structural JWT signature in the header natively fails with a `401 Unauthorized` token boundary. This guarantees actors can only physically query Discovery Feeds mapping dynamically to their own authenticated blocklists natively.

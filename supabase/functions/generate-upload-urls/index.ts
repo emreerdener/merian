@@ -79,7 +79,7 @@ serve(async (req: Request) => {
       const urlString = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
 
       const putUrl = new URL(urlString);
-      putUrl.searchParams.set("X-Amz-Expires", "900");
+      putUrl.searchParams.set("X-Amz-Expires", "86400");
 
       const signedPut = await aws.sign(putUrl.toString(), {
         method: "PUT",

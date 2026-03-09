@@ -147,12 +147,27 @@ struct ImageCropperView: View {
         let renderer = ImageRenderer(content: cropContent)
         renderer.scale = 1.0 // strictly 1.0 to guarantee exactly 1024x1024 array outputs natively
         
-        if let outputImage = renderer.uiImage, let jpegData = outputImage.jpegData(compressionQuality: 0.7) {
+        if let outputImage = renderer.uiImage {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            onCrop(jpegData)
+            Task {
+                let jpegData = await Task.detached(priority: .userInitiated) {
+                    outputImage.jpegData(compressionQuality: 0.7) ?? Data()
+                }.value
+                await MainActor.run {
+                    onCrop(jpegData)
+                }
+            }
         } else {
             // Fallback natively 
-            onCrop(image.jpegData(compressionQuality: 0.7) ?? Data())
+            let originalImage = image
+            Task {
+                let fallbackData = await Task.detached(priority: .userInitiated) {
+                    originalImage.jpegData(compressionQuality: 0.7) ?? Data()
+                }.value
+                await MainActor.run {
+                    onCrop(fallbackData)
+                }
+            }
         }
     }
     

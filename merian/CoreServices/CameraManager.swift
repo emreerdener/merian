@@ -291,19 +291,16 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 continuation.resume(throwing: NSError(domain: "CameraManager", code: -1, userInfo: [NSLocalizedDescriptionKey : "Capture already in progress"]))
                 return
             }
+            self.activePhotoContinuation = continuation
             
             queue.async {
                 guard let connection = self.photoOutput.connection(with: .video), connection.isActive && connection.isEnabled else {
                     Task { @MainActor in
+                        self.activePhotoContinuation = nil
                         continuation.resume(throwing: NSError(domain: "CameraManager", code: -3, userInfo: [NSLocalizedDescriptionKey : "Camera hardware is not dynamically ready or powered down."]))
                     }
                     return
                 }
-                
-                Task { @MainActor in
-                    self.activePhotoContinuation = continuation
-                }
-                
                 let settings = AVCapturePhotoSettings()
                 
                 // Set explicitly mapped hardware flash modes when physically firing the shutter 

@@ -66,6 +66,11 @@ final class InferenceEngine: ObservableObject {
         self.activeWeatherCondition = weatherCondition
         
         self.inferenceTask = Task {
+            // 1. Instantly compress the payload off the main thread before attempting any network boundaries to prevent Sandbox bloat on offline paths
+            let compressedData = await Task.detached(priority: .userInitiated) {
+                return self.downsampleLocalPayload(data: imageData) ?? imageData
+            }.value
+            
             do {
                 if CircuitBreakerManager.shared.isCircuitTripped {
                     throw URLError(.notConnectedToInternet)
@@ -73,16 +78,13 @@ final class InferenceEngine: ObservableObject {
                 
                 let client = MerianNetworkClient.shared
                 
-                // 1. Request Secure Cloudflare R2 Staging URL
+                // 2. Request Secure Cloudflare R2 Staging URL
                 let presignedUrls = try await client.generateUploadURLs(fileNames: ["live_scan.jpg"])
                 guard let target = presignedUrls.first else {
                     throw URLError(.badServerResponse)
                 }
                 
-                // 2. Upload raw image bytes to R2 (compressed)
-                let compressedData = await Task.detached(priority: .userInitiated) {
-                    return self.downsampleLocalPayload(data: imageData) ?? imageData
-                }.value
+                // 3. Upload bytes to R2 (compressed)
                 try await client.uploadToR2(url: target.signedUrl, data: compressedData)
                 
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification
@@ -205,10 +207,9 @@ final class InferenceEngine: ObservableObject {
                     self.isProcessing = false
                     return
                 }
-                
                 CircuitBreakerManager.shared.recordFailure()
                 OfflineQueueManager.shared.enqueueCapture(
-                    imageData: imageData,
+                    imageData: compressedData,
                     gpsLatitude: gpsLatitude,
                     gpsLongitude: gpsLongitude,
                     weatherCondition: weatherCondition

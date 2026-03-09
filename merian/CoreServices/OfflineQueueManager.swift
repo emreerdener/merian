@@ -134,7 +134,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             }
             #endif
             
-            syncTask = Task {
+            syncTask = Task.detached(priority: .background) {
                 let documentsDirectory = URL.documentsDirectory
                 
                 var fileNames: [String] = []
@@ -177,6 +177,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         let scanId = scanIDs[index]
                         let originalFileURL = fileURLs[index]
                         let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
+                        let backgroundSession = await MainActor.run { self.backgroundSession }
                         
                         if let downsampledData = self.downsampleLocalPayload(fileURL: originalFileURL) {
                             try? downsampledData.write(to: tempFileURL)
@@ -185,7 +186,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         }
                         
                         // Enqueue to the iOS Background URLSession cleanly using the downsampled physical file
-                        let uploadTask = self.backgroundSession.uploadTask(with: request, fromFile: tempFileURL)
+                        let uploadTask = backgroundSession.uploadTask(with: request, fromFile: tempFileURL)
                         uploadTask.taskDescription = scanId
                         uploadTask.resume()
                     }
@@ -328,7 +329,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     }
     
     // Internal generic mapping to shrink original 12MP arrays securely before uploading
-    private func downsampleLocalPayload(fileURL: URL, maxDimension: CGFloat = 1024.0) -> Data? {
+    private nonisolated func downsampleLocalPayload(fileURL: URL, maxDimension: CGFloat = 1024.0) -> Data? {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
