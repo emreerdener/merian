@@ -317,6 +317,11 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                     settings.flashMode = targetFlashMode
                 }
                 
+                // Align the physical hardware ISP explicitly to native Portrait bounds to eliminate EXIF geometry offsets 
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = .portrait
+                }
+                
                 settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
                 
                 if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {

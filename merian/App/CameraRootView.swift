@@ -143,7 +143,9 @@ struct CameraRootView: View {
                 ZStack {
                     Image(uiImage: uiImage)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
+                        .scaledToFill()
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                        .clipped()
                         .ignoresSafeArea()
                     
                     ZStack {
