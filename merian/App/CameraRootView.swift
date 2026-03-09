@@ -26,6 +26,26 @@ struct CameraRootView: View {
     @State private var scanningPhaseText: String = "Scanning..."
     @State private var isPulseAnimating: Bool = false
     
+    @ViewBuilder
+    private func glassButton(icon: String) -> some View {
+        ZStack {
+            if hardwareOrchestrator.isGlassmorphismEnabled {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, .dark)
+                    .frame(width: 50, height: 50)
+            } else {
+                Circle()
+                    .fill(Color.black.opacity(0.7))
+                    .frame(width: 50, height: 50)
+            }
+            
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(.white)
+        }
+    }
+    
     var body: some View {
         ZStack {
             // Full-bleed camera feed
@@ -83,22 +103,7 @@ struct CameraRootView: View {
                             }
                             
                             PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
-                                ZStack {
-                                    if hardwareOrchestrator.isGlassmorphismEnabled {
-                                        Circle()
-                                            .fill(.ultraThinMaterial)
-                                            .environment(\.colorScheme, .dark)
-                                            .frame(width: 50, height: 50)
-                                    } else {
-                                        Circle()
-                                            .fill(Color.black.opacity(0.7))
-                                            .frame(width: 50, height: 50)
-                                    }
-                                    
-                                    Image(systemName: "photo.on.rectangle")
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(.white)
-                                }
+                                glassButton(icon: "photo.on.rectangle")
                             }
                         }
                     }
