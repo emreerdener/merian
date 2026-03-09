@@ -119,6 +119,10 @@ struct CameraRootView: View {
                             .padding(.bottom, 16)
                     }
                     
+                    // Camera Zoom Interface
+                    CameraZoomControl()
+                        .padding(.bottom, 8)
+                    
                     // Floating Action Bar Interface
                     MerianActionBar(
                         isLifeListOpen: $isLifeListOpen,
