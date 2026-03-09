@@ -2,6 +2,7 @@ import Foundation
 import Network
 import Combine
 import SwiftData
+import ImageIO
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -108,6 +109,8 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { !$0.isDeleted })
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
+        descriptor.fetchLimit = 5 // Strictly limit background upload chunks to prevent Edge Function timeout execution limits
+        
         
         do {
             let pendingScans = try modelContext.fetch(descriptor)
@@ -237,6 +240,13 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else { return }
             let r2ObjectKey = String(urlPath[range.lowerBound...])
             
+            #if os(iOS)
+            var inferenceTaskID: UIBackgroundTaskIdentifier = .invalid
+            inferenceTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
+                UIApplication.shared.endBackgroundTask(inferenceTaskID)
+            }
+            #endif
+            
             do {
                 _ = try await MerianNetworkClient.shared.analyzeSubject(
                     r2ObjectKey: r2ObjectKey,
@@ -249,6 +259,10 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             } catch {
                 print("Failed downstream inference on offline queued scan: \(error)")
             }
+            
+            #if os(iOS)
+            UIApplication.shared.endBackgroundTask(inferenceTaskID)
+            #endif
         }
     }
     
@@ -314,20 +328,18 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     // Internal generic mapping to shrink original 12MP arrays securely before uploading
     private func downsampleLocalPayload(fileURL: URL, maxDimension: CGFloat = 1024.0) -> Data? {
-        guard let data = try? Data(contentsOf: fileURL), let uiImage = UIImage(data: data) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxDimension
+        ]
         
-        var targetSize = uiImage.size
-        if targetSize.width > maxDimension || targetSize.height > maxDimension {
-            let ratio = min(maxDimension / targetSize.width, maxDimension / targetSize.height)
-            targetSize = CGSize(width: targetSize.width * ratio, height: targetSize.height * ratio)
+        guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+            return nil
         }
         
-        // Native CoreGraphics context binding ensures RAM is safely released physically immediately
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        let downscaledImage = renderer.image { _ in
-            uiImage.draw(in: CGRect(origin: .zero, size: targetSize))
-        }
-        
-        return downscaledImage.jpegData(compressionQuality: 0.7)
+        let thumbnail = UIImage(cgImage: cgImage)
+        return thumbnail.jpegData(compressionQuality: 0.7)
     }
 }

@@ -9,7 +9,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 - _Behavior:_ Subscribes to `NWPathMonitor` to detect active cell boundaries physically.
 - Debounces exactly 1.0 second (`Task.sleep`) upon connection restoration to prevent thrashing.
 - Writes captures straight to `URL.documentsDirectory` inside a SwiftData `OfflineQueuedScan` wrapper when iOS hits Zero-Service.
-- _Background Sync:_ Wrapped within a strict 30-second `UIBackgroundTaskIdentifier` iOS limit to generate presigned staging URLs, the module actively immediately terminates execution loops on timeouts gracefully without corrupting local records. It natively interfaces directly with `URLSessionConfiguration.background`, handing the physical R2 `.jpeg` uploads securely over to the host OS. Before queueing, it downscales the heavy 12MP files down to a lightweight 1024px payload inside the temporary `URL.cachesDirectory`, enabling massive bandwidth reduction over 3G. The pipeline explicitly intercepts the app lifecycle using `AppDelegate` to safely execute the `backgroundCompletionHandler` exclusively on the main thread, satisfying iOS watchdog timers upon completion and purging the cache.
+- _Background Sync:_ Wrapped within a strict 30-second `UIBackgroundTaskIdentifier` iOS limit to generate presigned staging URLs, the module actively immediately terminates execution loops on timeouts gracefully without corrupting local records. It natively interfaces directly with `URLSessionConfiguration.background`, handing the physical R2 `.jpeg` uploads securely over to the host OS. Before queueing, it downscales the heavy 12MP files down to a lightweight 1024px payload inside the temporary `URL.cachesDirectory`, enabling massive bandwidth reduction over 3G. The pipeline explicitly intercepts the app lifecycle using `AppDelegate` to safely execute the `backgroundCompletionHandler` exclusively on the main thread, satisfying iOS watchdog timers upon completion and purging the cache. Furthermore, the final `analyzeSubject` downstream edge inference is also heavily protected inside the URLSession callback natively utilizing a dedicated `UIBackgroundTaskIdentifier` boundary preventing iOS execution drops during slow connections.
 
 ## 2. `ViewfinderIntelligence.swift` (VUI)
 
@@ -54,7 +54,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 **Responsibility:** AVCaptureSession Abstraction.
 
 - Bootstraps the heavy physical hardware session constraints seamlessly instantiating `AVCaptureDevice.DiscoverySession` prioritizing `.builtInLiDARDepthCamera` hardware bounds before recursively failing down through standard Wide-Angle inputs.
-- Actively forces `AVCapturePhotoOutput.maxPhotoDimensions` natively down to a standard 12MP layer natively avoiding massive 48MP payloads that physically bottleneck 3G Cellular Connections gracefully.
+- Actively leverages `isHighResolutionCaptureEnabled` to prevent iOS 16 fallback crash warnings cleanly on dynamic iPhone Pro modules.
 - Actively toggles hardware idle states (down-sampling framerate) exclusively when the `InsightSheetView` is functionally open on-screen to cool the device.
 
 ## 8. `WatchAcousticManager.swift` (watchOS Extension)
@@ -90,3 +90,16 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 - Securely extracts exactly `1` asset (the most recent photo) bounded aggressively using an `NSSortDescriptor(key: "creationDate", ascending: false)` constraint.
 - Offloads heavy full-resolution RAM extraction locally via `PHImageRequestOptions()` passing a strict `150x150` `CGSize` and `.opportunistic` quality matrix. This guarantees `MerianActionBar` renders a tiny, memory-safe square thumbnail.
 - Seamlessly acts as the passive bridge capturing `URL.documentsDirectory` 12MP payloads securely downstream straight into the Apple physical Camera Roll safely (`PHAssetChangeRequest.creationRequestForAsset`) the second a user pulls the shutter trigger.
+
+## 12. `HapticManager.swift`
+
+**Responsibility:** Intuitive Vibration Feedback & UI Response.
+
+- Strictly declared as an `@MainActor` singleton natively to intercept and instantly execute `UIImpactFeedbackGenerator` boundaries securely without triggering generic thread-safety crashes from background SDKs parsing on child threads.
+
+## 13. `SocialGuardManager.swift`
+
+**Responsibility:** Moderation RLS Overrides & Toxicity Preventions.
+
+- Completely decouples blocking executions away from Supabase Native RLS (Row Level Security). Instead, it abstracts the boundary directly to a serverless Edge function (`/functions/v1/block-user`).
+- Automatically intercepts the internal hardware UUID (`DeviceIdentityManager.shared.deviceId`) injecting it cleanly as the `blocker_id`, ensuring completely anonymous moderation actions reliably process.

@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import SwiftUI
 import SwiftData
+import ImageIO
 
 /// Manages real-time AI taxonomy processing via Supabase Edge Functions
 @MainActor
@@ -270,19 +271,18 @@ final class InferenceEngine: ObservableObject {
     }
     
     private func downsampleLocalPayload(data: Data, maxDimension: CGFloat = 1024.0) -> Data? {
-        guard let uiImage = UIImage(data: data) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxDimension
+        ]
         
-        var targetSize = uiImage.size
-        if targetSize.width > maxDimension || targetSize.height > maxDimension {
-            let ratio = min(maxDimension / targetSize.width, maxDimension / targetSize.height)
-            targetSize = CGSize(width: targetSize.width * ratio, height: targetSize.height * ratio)
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+            return nil
         }
         
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        let downscaledImage = renderer.image { _ in
-            uiImage.draw(in: CGRect(origin: .zero, size: targetSize))
-        }
-        
-        return downscaledImage.jpegData(compressionQuality: 0.7)
+        let thumbnail = UIImage(cgImage: cgImage)
+        return thumbnail.jpegData(compressionQuality: 0.7)
     }
 }

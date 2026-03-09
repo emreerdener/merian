@@ -34,22 +34,17 @@ final class SocialGuardManager: ObservableObject {
     }
     
     private func syncBlockWithBackend(targetUserId: String) async -> Bool {
-        guard let url = URL(string: "\(supabaseUrl)/rest/v1/user_blocks") else { return false }
+        guard let url = URL(string: "\(supabaseUrl)/functions/v1/block-user") else { return false }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
-        request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
-        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
         
-        guard let mockBlockerId = SupabaseManager.shared.currentUser?.id.uuidString else {
-            print("SocialGuard: Backend sync aborted. No active local Superbase Identity found.")
-            return false
-        }
+        let blockerId = DeviceIdentityManager.shared.deviceId
         
         let payload: [String: String] = [
-            "blocker_id": mockBlockerId,
+            "blocker_id": blockerId,
             "blocked_id": targetUserId
         ]
         

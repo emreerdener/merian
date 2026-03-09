@@ -80,13 +80,8 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
             
-            // Actively lock the max physical dimension to 12MP to prevent 48MP Cellular Upload Failures
-            let validDimensions = videoInput.device.activeFormat.supportedMaxPhotoDimensions
-            if let twelveMP = validDimensions.first(where: { $0.width == 4032 }) {
-                photoOutput.maxPhotoDimensions = twelveMP
-            } else if let fallback = validDimensions.last {
-                photoOutput.maxPhotoDimensions = fallback
-            }
+            // Revert back to OS-managed resolution handling to prevent SIGABRT bounds
+            photoOutput.isHighResolutionCaptureEnabled = true
             
             if photoOutput.isDepthDataDeliverySupported {
                 photoOutput.isDepthDataDeliveryEnabled = true
@@ -322,7 +317,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                     connection.videoOrientation = .portrait
                 }
                 
-                settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
+                settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
                 
                 if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
                     settings.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliveryEnabled

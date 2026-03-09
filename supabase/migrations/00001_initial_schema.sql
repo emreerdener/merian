@@ -25,7 +25,7 @@ CREATE TABLE public.species_dictionary (
 
 -- 2. Create Users Table
 CREATE TABLE public.users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
     email TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     subscription_tier subscription_tier_enum NOT NULL DEFAULT 'free',

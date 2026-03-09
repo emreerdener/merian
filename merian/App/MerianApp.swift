@@ -27,11 +27,12 @@ struct MerianApp: App {
     let container: ModelContainer
     
     init() {
-        // Initialize Zero-PII Crash & Anonymous Usage Metrics natively off the main thread
-        Task.detached(priority: .background) {
-            try? await Task.sleep(nanoseconds: 500_000_000)
+        // Initialize Zero-PII Crash & Anonymous Usage Metrics safely on the main thread after the camera UI loads
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             AppTelemetry.initialize()
-            await PostHogManager.shared.configure()
+            Task {
+                await PostHogManager.shared.configure()
+            }
         }
         
         let schema = Schema([LocalScanRecord.self, OfflineQueuedScan.self])

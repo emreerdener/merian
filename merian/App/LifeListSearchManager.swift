@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import ImageIO
 
 // 1. Semantic Gamification Caching Model
 @Model
@@ -217,7 +218,7 @@ struct LifeListSearchView: View {
             searchManager.allScans = newRecords
             searchManager.performSearch(query: searchManager.searchQuery)
         }
-        }
+        } // Ends NavigationStack
     }
 }
 
@@ -243,17 +244,23 @@ struct LifeListThumbnailView: View {
         }
         .task {
             if thumbnail == nil {
-                let fullPath = URL.documentsDirectory.appendingPathComponent(imagePath).path
+                let fullPathURL = URL.documentsDirectory.appendingPathComponent(imagePath)
                 let generatedThumb = await Task.detached(priority: .userInitiated) {
-                    return UIImage(contentsOfFile: fullPath)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
+                    let options: [CFString: Any] = [
+                        kCGImageSourceCreateThumbnailFromImageAlways: true,
+                        kCGImageSourceCreateThumbnailWithTransform: true,
+                        kCGImageSourceThumbnailMaxPixelSize: 300
+                    ]
+                    
+                    guard let imageSource = CGImageSourceCreateWithURL(fullPathURL as CFURL, nil),
+                          let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+                        return UIImage(contentsOfFile: fullPathURL.path)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
+                    }
+                    return UIImage(cgImage: cgImage)
                 }.value
                 
                 await MainActor.run {
-                    if let generatedThumb = generatedThumb {
-                        self.thumbnail = generatedThumb
-                    } else if let fallbackImage = UIImage(contentsOfFile: fullPath) {
-                        self.thumbnail = fallbackImage
-                    }
+                    self.thumbnail = generatedThumb
                 }
             }
         }

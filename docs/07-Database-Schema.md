@@ -8,7 +8,7 @@ This document directly maps the expected shape of our persistence layers. AI Age
 
 Tracks the global state of the anonymous/authenticated user.
 
-- `id` (UUID): Maps natively to `auth.users` and PostHog/RevenueCat IDs.
+- `id` (UUID): Maps natively to PostHog/RevenueCat IDs. Explicitly decoupled from `auth.users` Foreign Keys to prevent Edge Upsert deadlocks.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `scans_remaining_today` (Int): Decoupled fallback. Managed physically via iOS `UsageManager` natively.
 - `current_streak_count` (Int): Gamification metric.

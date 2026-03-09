@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 
+@MainActor
 final class HapticManager {
     static let shared = HapticManager()
     

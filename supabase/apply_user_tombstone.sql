@@ -2,15 +2,6 @@
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM auth.users WHERE id = '00000000-0000-0000-0000-000000000000'
-    ) THEN
-        -- Insert into Supabase Auth table first (if necessary for foreign keys). 
-        -- Generally, auth.users contains the core identity, and public.users echoes it.
-        INSERT INTO auth.users (id, email)
-        VALUES ('00000000-0000-0000-0000-000000000000', 'tombstone@merian.app');
-    END IF;
-
-    IF NOT EXISTS (
         SELECT 1 FROM public.users WHERE id = '00000000-0000-0000-0000-000000000000'
     ) THEN
         INSERT INTO public.users (

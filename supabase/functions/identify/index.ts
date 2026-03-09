@@ -176,6 +176,18 @@ Crucial instructions:
     const finishReason = candidate?.finishReason;
     const safetyRatings = candidate?.safetyRatings;
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Ensure the Ghost User exists before potentially issuing an abuse strike in moderation
+    await supabaseAdmin
+      .from("users")
+      .upsert(
+        { id: user_id, subscription_tier: "free" },
+        { onConflict: "id", ignoreDuplicates: true },
+      );
+
     const modResult = await evaluateAndProcessPayload(
       user_id,
       r2ObjectKey,
@@ -192,15 +204,14 @@ Crucial instructions:
     console.log("[3] Gemini Finished, Parsing JSON");
     const responseText = result.response.text();
 
+    // Strip markdown formatting if Gemini hallucinates markdown blocks
+    const cleanJsonString = responseText
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
+
     // Parse Gemini response to persist securely into the physical DB
-    const parsedData = JSON.parse(responseText);
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
-    // Extract RLS Admin bypassing wrapper directly using Service Key for all operations.
-    // Admin client strictly explicitly to push securely into the global read-only species dictionary natively
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const parsedData = JSON.parse(cleanJsonString);
 
     const userId = user_id;
     if (userId) {
@@ -335,12 +346,6 @@ Crucial instructions:
         }
       }
 
-      await supabaseAdmin
-        .from("users")
-        .upsert(
-          { id: userId, subscription_tier: "free" },
-          { onConflict: "id", ignoreDuplicates: true },
-        );
       console.log("[6] Inserting Scan");
       // Finally natively bind the architectural map directly down to the Ghost User UUID
       await supabaseAdmin.from("scans").insert({

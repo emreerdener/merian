@@ -26,6 +26,7 @@ struct CameraRootView: View {
     @State private var isAnalyzingFullscreen: Bool = false
     @State private var scanningPhaseText: String = "Scanning..."
     @State private var isPulseAnimating: Bool = false
+    @State private var analysisImage: UIImage? = nil
     
     @ViewBuilder
     private func glassButton(icon: String) -> some View {
@@ -163,7 +164,7 @@ struct CameraRootView: View {
             }
             
             // Full-Screen Scanning Overlay
-            if isAnalyzingFullscreen, let payload = inferenceEngine.activePayload, let uiImage = UIImage(data: payload) {
+            if isAnalyzingFullscreen, let uiImage = analysisImage {
                 ZStack {
                     Image(uiImage: uiImage)
                         .resizable()
@@ -254,6 +255,15 @@ struct CameraRootView: View {
                         isPaywallOpen = true
                     }
                 }
+            }
+        }
+        .onChange(of: isAnalyzingFullscreen) { _, isFullscreen in
+            if isFullscreen {
+                if let payload = inferenceEngine.activePayload {
+                    analysisImage = UIImage(data: payload)
+                }
+            } else {
+                analysisImage = nil
             }
         }
         .sheet(isPresented: $isPaywallOpen, onDismiss: {
