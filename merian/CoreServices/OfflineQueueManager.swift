@@ -103,6 +103,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     }
     
     func syncPendingScans() {
+        guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }
         guard !isSyncing else { return } // Prevent parallel overlap attacks
         guard let modelContext = modelContext else { return }
@@ -175,7 +176,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         
                         let scanId = scanIDs[index]
                         let originalFileURL = fileURLs[index]
-                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\\(scanId)_temp_upload.jpg")
+                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
                         
                         if let downsampledData = self.downsampleLocalPayload(fileURL: originalFileURL) {
                             try? downsampledData.write(to: tempFileURL)

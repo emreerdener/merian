@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */; };
-		044CF67B9198ABF8E5577C0F /* PhotoLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48449DF73246B87BCD8F6CF1 /* PhotoLibraryManager.swift */; };
 		07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */; };
 		16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */; };
 		1AF3C8456601927E288B1890 /* HardwareOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */; };
@@ -17,6 +16,7 @@
 		2EA34DB4680CC269E0767805 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF6016D928A11551039654D0 /* Assets.xcassets */; };
 		382BE761F821EA8A0CC87A2A /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63769A30A57E0746D270C60E /* SupabaseManager.swift */; };
 		4C6CFCA137410A34B0F97A27 /* MerianActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E96E3236A58E1380603B5D /* MerianActionBar.swift */; };
+		4CDB0BC78597A0EDEE47912F /* GlassCircularButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB63EDC61FA78DAB2927F3 /* GlassCircularButton.swift */; };
 		4D1C7504F6623989320777F3 /* CircuitBreakerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B97D3AA157B3879CC2370C /* CircuitBreakerManager.swift */; };
 		4D44E3680C7B0A2827090B7C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D6636FC58125D5F4C5ECEDDF /* Supabase */; };
 		57B3AB95EA69F38741E9E500 /* UsageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E10F6B4FBB693F712392A78 /* UsageManager.swift */; };
@@ -33,7 +33,7 @@
 		9B99A069523FF98347A3C557 /* RevenueCatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */; };
 		A18D50B4063A85EC6D9718AA /* SocialGuardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */; };
 		A75F38D210D42BDC6EAC0FD6 /* InsightSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */; };
-		ACDBCA9A92E372B8DF991898 /* DeviceIdentityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EF7CCC60CCF5F5B934D5E9 /* DeviceIdentityManager.swift */; };
+		AC0B930C3A05AB57FDF6CC81 /* DeviceIdentityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B754BDA4D39266939A4131B2 /* DeviceIdentityManager.swift */; };
 		B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */; };
 		B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */; };
 		B877508EC5465B634C8BAF4D /* GamificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0D60BF7DCA58CC49289F8B /* GamificationManager.swift */; };
@@ -48,6 +48,7 @@
 		DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */; };
 		E0757E56E9E1A43C7EAECDD9 /* OfflineQueueManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */; };
 		EFE45D1E60FF237738BE989A /* PostHogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70302F69A69AAA03EA359409 /* PostHogManager.swift */; };
+		F19CD73821D2C5021D4FD5B4 /* PhotoLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B62EADF66626E41FB37037E /* PhotoLibraryManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,15 +84,15 @@
 		1E0D60BF7DCA58CC49289F8B /* GamificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationManager.swift; sourceTree = "<group>"; };
 		2938F5084B997031E0509420 /* ArchiveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveManager.swift; sourceTree = "<group>"; };
 		2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetView.swift; sourceTree = "<group>"; };
+		3B62EADF66626E41FB37037E /* PhotoLibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryManager.swift; sourceTree = "<group>"; };
 		3EC0CD2961B5B50E5D1DA82A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClient.swift; sourceTree = "<group>"; };
-		48449DF73246B87BCD8F6CF1 /* PhotoLibraryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PhotoLibraryManager.swift; sourceTree = "<group>"; };
 		4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatManager.swift; sourceTree = "<group>"; };
 		4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianEnvironment.swift; sourceTree = "<group>"; };
 		4E10F6B4FBB693F712392A78 /* UsageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManager.swift; sourceTree = "<group>"; };
 		4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligence.swift; sourceTree = "<group>"; };
 		51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraRootView.swift; sourceTree = "<group>"; };
-		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5D57A8D01CDAF8E994655620 /* MerianApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianApp.swift; sourceTree = "<group>"; };
 		5FF2E6642104DA1CAA60F1BE /* OfflineQueuedScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueuedScan.swift; sourceTree = "<group>"; };
 		63769A30A57E0746D270C60E /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
@@ -104,16 +105,17 @@
 		8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeListSearchManager.swift; sourceTree = "<group>"; };
 		A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManager.swift; sourceTree = "<group>"; };
-		A1EF7CCC60CCF5F5B934D5E9 /* DeviceIdentityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = merian/CoreServices/DeviceIdentityManager.swift; sourceTree = "<group>"; };
 		A3B97D3AA157B3879CC2370C /* CircuitBreakerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircuitBreakerManager.swift; sourceTree = "<group>"; };
 		A8166641171629DC4E41B081 /* MerianWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianWatchApp.swift; sourceTree = "<group>"; };
 		B03EAD808B1F5D84E75D030C /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		B754BDA4D39266939A4131B2 /* DeviceIdentityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentityManager.swift; sourceTree = "<group>"; };
 		BF6016D928A11551039654D0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticComparisonView.swift; sourceTree = "<group>"; };
 		CC5EE4B93ABC3C36FCF55922 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DAF1FE0041FD12C6CBBB1E2F /* InferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEngine.swift; sourceTree = "<group>"; };
 		EF836BCE5722B41748153F02 /* AppTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetry.swift; sourceTree = "<group>"; };
+		FAAB63EDC61FA78DAB2927F3 /* GlassCircularButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCircularButton.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +139,7 @@
 			children = (
 				51E5ABA1F24B91BB39104EA4 /* CameraRootView.swift */,
 				CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */,
+				FAAB63EDC61FA78DAB2927F3 /* GlassCircularButton.swift */,
 				2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */,
 				B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */,
 				98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */,
@@ -148,19 +151,10 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		453CAF8669C1EAEAB2FF2A52 /* CoreServices */ = {
-			isa = PBXGroup;
-			children = (
-				A1EF7CCC60CCF5F5B934D5E9 /* DeviceIdentityManager.swift */,
-			);
-			name = CoreServices;
-			sourceTree = "<group>";
-		};
 		4614202F6465E0F5BE4F99BA /* merian */ = {
 			isa = PBXGroup;
 			children = (
 				B03EAD808B1F5D84E75D030C /* Config.xcconfig */,
-				453CAF8669C1EAEAB2FF2A52 /* CoreServices */,
 			);
 			name = merian;
 			path = .;
@@ -173,6 +167,7 @@
 				2938F5084B997031E0509420 /* ArchiveManager.swift */,
 				8F7A71FD8E57DEAD8BD54B8D /* CameraManager.swift */,
 				A3B97D3AA157B3879CC2370C /* CircuitBreakerManager.swift */,
+				B754BDA4D39266939A4131B2 /* DeviceIdentityManager.swift */,
 				1E0D60BF7DCA58CC49289F8B /* GamificationManager.swift */,
 				00F8E1A22BF57BF9A60DB3D6 /* HapticManager.swift */,
 				17BDC16D6533BAE16A26F5D8 /* HardwareOrchestrator.swift */,
@@ -181,6 +176,7 @@
 				4D987ED745A175D5C5CDF8B3 /* MerianEnvironment.swift */,
 				46E47B0C03E9EC5DCE62C7E7 /* MerianNetworkClient.swift */,
 				A13495D01831DC8F10D3C01A /* OfflineQueueManager.swift */,
+				3B62EADF66626E41FB37037E /* PhotoLibraryManager.swift */,
 				70302F69A69AAA03EA359409 /* PostHogManager.swift */,
 				4D3E659D28C648C5C155FF88 /* RevenueCatManager.swift */,
 				7E7CDC8AFDD4FF1D0C25DB66 /* SocialGuardManager.swift */,
@@ -188,7 +184,6 @@
 				6F441743E545E21D4B647A5E /* SyncStateManager.swift */,
 				4E10F6B4FBB693F712392A78 /* UsageManager.swift */,
 				4EAC04987BA3EFEC3707C69E /* ViewfinderIntelligence.swift */,
-				48449DF73246B87BCD8F6CF1 /* PhotoLibraryManager.swift */,
 			);
 			path = CoreServices;
 			sourceTree = "<group>";
@@ -283,6 +278,8 @@
 			dependencies = (
 			);
 			name = MerianWatch;
+			packageProductDependencies = (
+			);
 			productName = MerianWatch;
 			productReference = 0481771C41C383D2737DDEC7 /* MerianWatch.app */;
 			productType = "com.apple.product-type.application";
@@ -294,7 +291,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					D06FD3E9CDCF533A0C2D2843 = {
+						DevelopmentTeam = LDL96V2WT5;
+					};
+					E59BC2C6A28D64E9B810676B = {
+						DevelopmentTeam = LDL96V2WT5;
+					};
+				};
 			};
 			buildConfigurationList = 972FBC3FD9777422C0AAC783 /* Build configuration list for PBXProject "Merian" */;
 			developmentRegion = en;
@@ -312,6 +317,7 @@
 				A68D7B2C0AC3928BB3164D73 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */,
 			);
+			preferredProjectObjectVersion = 77;
 			productRefGroup = F420A3E8A335E1F061C6E39C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -361,8 +367,10 @@
 				B646A6A1D6D10CAEB6C6276B /* CameraManager.swift in Sources */,
 				16673AF8A7AC00E010A16288 /* CameraRootView.swift in Sources */,
 				4D1C7504F6623989320777F3 /* CircuitBreakerManager.swift in Sources */,
+				AC0B930C3A05AB57FDF6CC81 /* DeviceIdentityManager.swift in Sources */,
 				07C3FD827D3E78D074A932E7 /* DiagnosticComparisonView.swift in Sources */,
 				B877508EC5465B634C8BAF4D /* GamificationManager.swift in Sources */,
+				4CDB0BC78597A0EDEE47912F /* GlassCircularButton.swift in Sources */,
 				C8AEC07E1DD57A9896A7F90F /* HapticManager.swift in Sources */,
 				1AF3C8456601927E288B1890 /* HardwareOrchestrator.swift in Sources */,
 				8D1DA35F1965114EDBD64702 /* InferenceEngine.swift in Sources */,
@@ -376,6 +384,7 @@
 				E0757E56E9E1A43C7EAECDD9 /* OfflineQueueManager.swift in Sources */,
 				DC5976B3161BF677189AC001 /* OfflineQueuedScan.swift in Sources */,
 				9432B1A5023ECCD2540CE505 /* PaywallView.swift in Sources */,
+				F19CD73821D2C5021D4FD5B4 /* PhotoLibraryManager.swift in Sources */,
 				EFE45D1E60FF237738BE989A /* PostHogManager.swift in Sources */,
 				9B99A069523FF98347A3C557 /* RevenueCatManager.swift in Sources */,
 				A18D50B4063A85EC6D9718AA /* SocialGuardManager.swift in Sources */,
@@ -384,8 +393,6 @@
 				DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */,
 				57B3AB95EA69F38741E9E500 /* UsageManager.swift in Sources */,
 				02744C5D1C5479E4C23ECC25 /* ViewfinderIntelligence.swift in Sources */,
-				ACDBCA9A92E372B8DF991898 /* DeviceIdentityManager.swift in Sources */,
-				044CF67B9198ABF8E5577C0F /* PhotoLibraryManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -404,6 +411,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -423,6 +431,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -470,12 +479,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -496,7 +502,6 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -507,6 +512,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -554,12 +560,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = TA8S64ST9W;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -573,7 +576,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -586,6 +588,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

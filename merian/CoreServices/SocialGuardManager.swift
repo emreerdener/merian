@@ -39,12 +39,22 @@ final class SocialGuardManager: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
         
-        let blockerId = DeviceIdentityManager.shared.deviceId
+        do {
+            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            if activeJWT == nil {
+                await SupabaseManager.shared.initializeGhostSession()
+                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            }
+            guard let finalJWT = activeJWT else {
+                return false
+            }
+            request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
+        } catch {
+            return false
+        }
         
         let payload: [String: String] = [
-            "blocker_id": blockerId,
             "blocked_id": targetUserId
         ]
         

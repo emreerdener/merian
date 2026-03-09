@@ -41,6 +41,8 @@ The transaction log for every identification ever successfully passed.
 
 ## SwiftData Schema (Local Offline Queue)
 
+_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. This explicit boundary guarantees users will never permanently lose their locally cached Life List or pending offline captures due to a missing App Store CoreData migration plan._
+
 ### `OfflineQueuedScan`
 
 Locally captures state when cell towers drop.

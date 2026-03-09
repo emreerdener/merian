@@ -14,10 +14,10 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { blocker_id, blocked_id } = await req.json();
+    const { blocked_id } = await req.json();
 
-    if (!blocker_id || !blocked_id) {
-      throw new Error("Missing blocker_id or blocked_id.");
+    if (!blocked_id) {
+      throw new Error("Missing blocked_id.");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -25,6 +25,34 @@ serve(async (req: Request) => {
 
     // Exact bypass mechanism to insert into user_blocks via strict Service Key RLS overwrite natively
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Missing token" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        },
+      );
+    }
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(authHeader);
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Invalid token" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        },
+      );
+    }
+
+    const blocker_id = user.id;
 
     const { error } = await supabaseAdmin
       .from("user_blocks")

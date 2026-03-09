@@ -14,8 +14,8 @@ The `00001_initial_schema.sql` database file defines the backend architecture. A
 
 The Deno `/identify` edge function acts as the universal proxy masking logic entirely:
 
-1. Receives a structured payload containing the `r2ObjectKey` and environmental constraints (like GPS and Weather) from the iOS native client.
-2. Generates an `aws4fetch` Stream connecting natively into Cloudflare R2, fetching the full image object. The stream is natively decoded into an `ArrayBuffer` and encoded into Base64 using `deno.land/std/encoding/base64.ts` by strictly mapping to `new Uint8Array(arrayBuffer)`, completely bypassing V8 string limits, typemapping compilation failures, and OOM crashes.
+1. Receives a structured payload containing the `r2ObjectKey` and environmental constraints (like GPS and Weather) from the iOS native client. Concurrently, it extracts the `user.id` cryptographically from the `Authorization` header JWT via `supabaseAdmin.auth.getUser()`, entirely bypassing IDOR (Insecure Direct Object Reference) vulnerabilities caused by client-side payload spoofing.
+2. Generates an `aws4fetch` Stream connecting natively into Cloudflare R2, fetching the full image object. The stream is natively decoded into an `ArrayBuffer`. Rather than encoding to Base64 (which previously caused massive V8 Out-Of-Memory string bloat limits), it explicitly uploads the raw binary stream directly to the Google `generativelanguage.googleapis.com/upload/v1beta/files` File API endpoints, cleanly extracting a `fileUri` to pass into the `.generateContent` context boundary securely bypassing memory crashes natively.
 3. Prompts `gemini-2.5-flash` passing the bytes cleanly using `.generateContent` system instructions demanding `.json` structured mapping boundaries mirroring the expected JSON payload schema constraints. (Note: The `ecology_type` field strictly uses an `enum: ["wild", "urban", "domesticated", "unknown"]` constraint within `SchemaType.STRING` to satisfy Gemini 2.5 constraints without raising a 400 Bad Request.)
 4. **Moderation Pipeline (`moderation.ts`)**: Evaluates the explicit Gemini Safety Ratings before any logic fires. Unsafe media throws an exception bounding the user with a `SHADOWBANNED` token intuitively incrementing abuse strikes natively and immediately wiping the R2 media natively.
 5. Decodes the taxonomy payload passively. Extracts enriched biological context via Wikipedia and GBIF APIs natively wrapped behind secure `AbortSignal.timeout(2500)` locks. Critically, these enrichments are executed entirely concurrently via `Promise.allSettled()`, cleanly halving edge execution time and gracefully returning metadata immediately back down to iOS. Additionally, Gemini responses are run through a regex (`replace(/```json/gi, '')`) to strip markdown block hallucinations before `JSON.parse` is called to prevent crash-loops.
@@ -28,9 +28,16 @@ The Deno `/identify` edge function acts as the universal proxy masking logic ent
 
 To completely bypass complex Row Level Security (RLS) policies acting upon anonymous Device ID (IDFV) boundaries implicitly, Merian completely routes Toxicity blocking protocols through this specific serverless Deno node:
 
-1. Native iOS extracts the internal UUID inside `DeviceIdentityManager.shared.deviceId` explicitly without relying on `Supabase.auth`.
-2. The payload `{"blocker_id": "...", "blocked_id": "..."}` is pushed securely via `.xcconfig` REST headers natively.
+1. Native iOS extracts the internal UUID inside `DeviceIdentityManager.shared.deviceId` explicitly and authenticates a Ghost session to fetch a secure valid JWT.
+2. The payload `{"blocked_id": "..."}` is pushed securely via `.xcconfig` REST headers natively. The boundary extracts the `blocker_id` exclusively from `supabaseAdmin.auth.getUser()`.
 3. The instance bypasses PostgreSQL Row Level locks by executing `supabaseAdmin.from('user_blocks').insert()` natively using the backend `SUPABASE_SERVICE_ROLE_KEY`, instantly locking off the social data boundary natively without exposing the DB array tables back to the iOS end-user grid.
+
+## Security & Environment Validation
+
+To permanently eradicate reverse-engineering threat vectors, iOS is explicitly isolated from executing LLM capabilities directly:
+
+- The `GEMINI_API_KEY` is entirely scrubbed and explicitly **removed** natively from the iOS client bundle (`Info.plist` & `.xcconfig`).
+- Instead, the `MerianApp` binary relies 100% on the `identify` and `block-user` Supabase Edge Functions which safely encrypt the LLM API Keys explicitly within the Supabase Cloud backend.
 
 ## Database Indexing & Performance
 

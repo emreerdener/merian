@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.17";
 import {
   GoogleGenerativeAI,
@@ -24,16 +24,47 @@ serve(async (req: Request) => {
     console.log("[1] Request received");
     const {
       r2ObjectKey,
-      user_id,
       gpsLatitude,
       gpsLongitude,
       depthScaleText,
       weatherCondition,
     } = await req.json();
 
-    if (!r2ObjectKey || !user_id) {
-      throw new Error("Missing r2ObjectKey or user_id.");
+    if (!r2ObjectKey) {
+      throw new Error("Missing r2ObjectKey.");
     }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Missing token" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        },
+      );
+    }
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(authHeader);
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Invalid token" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        },
+      );
+    }
+
+    const user_id = user.id;
 
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
     const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
@@ -59,9 +90,31 @@ serve(async (req: Request) => {
 
     // Server-side robust encoded stream to prevent OOM
     const arrayBuffer = await r2Response.arrayBuffer();
-    const base64Image = encode(new Uint8Array(arrayBuffer));
 
-    const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!);
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
+    const uploadRes = await fetch(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "X-Goog-Upload-Command": "start, upload, finalize",
+          "X-Goog-Upload-Header-Content-Length":
+            arrayBuffer.byteLength.toString(),
+          "X-Goog-Upload-Header-Content-Type": "image/jpeg",
+          "Content-Type": "image/jpeg",
+        },
+        body: arrayBuffer,
+      },
+    );
+
+    if (!uploadRes.ok) {
+      throw new Error(`Gemini File Upload Failed: ${uploadRes.statusText}`);
+    }
+
+    const uploadData = await uploadRes.json();
+    const googleFileUri = uploadData.file.uri;
+
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
 
     const systemInstruction = `You are Merian, the world's leading biological identification engine.
 Your task is to accurately identify biological subjects. 
@@ -149,9 +202,9 @@ Crucial instructions:
 
     const parts = [
       {
-        inlineData: {
+        fileData: {
           mimeType: "image/jpeg",
-          data: base64Image,
+          fileUri: googleFileUri,
         },
       },
       { text: dynamicContext },
@@ -176,9 +229,7 @@ Crucial instructions:
     const finishReason = candidate?.finishReason;
     const safetyRatings = candidate?.safetyRatings;
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    // supabaseAdmin already instantiated above
 
     // Ensure the Ghost User exists before potentially issuing an abuse strike in moderation
     await supabaseAdmin
@@ -245,7 +296,7 @@ Crucial instructions:
           let combinedImageUrls: string | null = null;
 
           try {
-            let fetchedUrls: string[] = [];
+            const fetchedUrls: string[] = [];
 
             const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
               // Unauthenticated taxonomy fetch to global GBIF registry
@@ -269,12 +320,11 @@ Crucial instructions:
                     const mediaJson = await mediaRes.json();
                     if (mediaJson.results && mediaJson.results.length > 0) {
                       urls = mediaJson.results
-                        // deno-lint-ignore no-explicit-any
                         .filter(
-                          (m: any) => m.type === "StillImage" && m.identifier,
+                          (m: Record<string, string>) =>
+                            m.type === "StillImage" && m.identifier,
                         )
-                        // deno-lint-ignore no-explicit-any
-                        .map((m: any) => m.identifier)
+                        .map((m: Record<string, string>) => m.identifier)
                         .slice(0, 5);
                     }
                   }

@@ -12,6 +12,10 @@ final class InferenceEngine: ObservableObject {
     @Published var activePayloads: [Data] = []
     @Published var speciesData: SpeciesData? = nil
     
+    private(set) var activeLatitude: Double? = nil
+    private(set) var activeLongitude: Double? = nil
+    private(set) var activeWeatherCondition: String? = nil
+    
     private var inferenceTask: Task<Void, Never>?
     
     /// Wrapper preventing double string decoding JSON extraction logic
@@ -57,6 +61,10 @@ final class InferenceEngine: ObservableObject {
         self.activePayloads = [imageData]
         self.speciesData = nil
         
+        self.activeLatitude = gpsLatitude
+        self.activeLongitude = gpsLongitude
+        self.activeWeatherCondition = weatherCondition
+        
         self.inferenceTask = Task {
             do {
                 if CircuitBreakerManager.shared.isCircuitTripped {
@@ -72,7 +80,9 @@ final class InferenceEngine: ObservableObject {
                 }
                 
                 // 2. Upload raw image bytes to R2 (compressed)
-                let compressedData = self.downsampleLocalPayload(data: imageData) ?? imageData
+                let compressedData = await Task.detached(priority: .userInitiated) {
+                    return self.downsampleLocalPayload(data: imageData) ?? imageData
+                }.value
                 try await client.uploadToR2(url: target.signedUrl, data: compressedData)
                 
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification
@@ -125,7 +135,9 @@ final class InferenceEngine: ObservableObject {
                         if mappedData.confidenceScore > 0.0, let context = modelContext {
                             let filename = "\(UUID().uuidString)_lifelist.jpg"
                             let url = URL.documentsDirectory.appendingPathComponent(filename)
-                            try? imageData.write(to: url, options: .atomic)
+                            await Task.detached(priority: .userInitiated) {
+                                try? compressedData.write(to: url, options: .atomic)
+                            }.value
                             
                             let targetName = mappedData.scientificName
                             let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
@@ -230,6 +242,9 @@ final class InferenceEngine: ObservableObject {
         isProcessing = false
         activePayload = nil
         activePayloads.removeAll()
+        activeLatitude = nil
+        activeLongitude = nil
+        activeWeatherCondition = nil
     }
     
     /// Rehydrates the SpeciesData and UI payloads natively from an offline Life List record
@@ -270,7 +285,7 @@ final class InferenceEngine: ObservableObject {
         self.isProcessing = false
     }
     
-    private func downsampleLocalPayload(data: Data, maxDimension: CGFloat = 1024.0) -> Data? {
+    nonisolated private func downsampleLocalPayload(data: Data, maxDimension: CGFloat = 1024.0) -> Data? {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

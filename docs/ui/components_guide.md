@@ -7,18 +7,25 @@ Merian enforces a radical, zero-friction UI mapping exclusively to physical hard
 The massive full-bleed base architecture.
 
 - Maps an `AVCaptureVideoPreviewLayer` wrapping `UIViewRepresentable` entirely behind a `ZStack` physically.
-- Listens to the `@StateObject var vui = ViewfinderIntelligence.shared`.
+- Listens to the `@EnvironmentObject var vui: ViewfinderIntelligence` injected from the root application.
 - Integrates iOS native `PhotosPicker` natively within a floating Top Toolbar to scan legacy captures directly from the camera roll.
 - Renders contextual `VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)` liquid-glass nodes replacing bulky UI overlays, rendering floating interaction points (Flash/Torch top-right, Life List bottom-left, User Profile bottom-right, Shutter bottom-center).
 - Throws `.ultraThinMaterial` dynamic SwiftUI hints ("Move Closer", "Too Dark") instantly without `alert` blockers.
 - Orchestrates dynamic `.black` bounding boxes removing transparent elements completely when `HardwareOrchestrator` triggers thermal throttling states.
 
-## 1.5 `LifeListSearchManager` & Search Integration
+## 1.5 `GlassCircularButton.swift`
+
+A highly reusable UI primitive resolving Glassmorphism thermal state bounds across the application.
+
+- Accepts dynamic `.environmentObject` states securely dictating whether an `.ultraThinMaterial` backplate or an opaque `.black.opacity(0.7)` bounds natively. This ensures standard thermal drops execute globally without massive `ZStack` UI duplication.
+
+## 1.6 `LifeListSearchManager` & Search Integration
 
 Manages the core historical species cataloging system.
 
 - Instantiates a bottom-aligned native iOS `.searchable` index filtering `LocalScanRecord` structures.
 - Deduplicates identical species captures natively into unified model wrappers containing arrays of historical `additionalImagePaths`.
+- Executes semantic background thread filtration dynamically utilizing Swift native `Set<String>` collections, fundamentally solving O(N²) array bottlenecks to achieve an instant **O(1)** lookup on the `@MainActor` without dropping the 60fps frame rate when handling large offline Life Lists natively.
 
 ## 2. Default `InsightSheetView.swift` (Built Structure)
 

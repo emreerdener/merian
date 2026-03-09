@@ -89,13 +89,13 @@ class LifeListSearchManager: ObservableObject {
         // Push the semantic filtering loop strictly to a background detached thread to ensure the UI scroll never stutters
         Task.detached(priority: .userInitiated) {
             let tokens = text.components(separatedBy: .whitespaces)
-            let matchingIds = searchableData.filter { item in
+            let matchingIds = Set(searchableData.filter { item in
                 
                 // Ensure all independent user query tokens resolve true against the compiled index bounds
                 return tokens.allSatisfy { token in
                     item.textData.contains { $0.contains(token) }
                 }
-            }.map { $0.id }
+            }.map { $0.id })
             
             await MainActor.run { [weak self] in
                 guard let self = self else { return }
@@ -245,24 +245,31 @@ struct LifeListThumbnailView: View {
         .task {
             if thumbnail == nil {
                 let fullPathURL = URL.documentsDirectory.appendingPathComponent(imagePath)
-                let generatedThumb = await Task.detached(priority: .userInitiated) {
-                    let options: [CFString: Any] = [
-                        kCGImageSourceCreateThumbnailFromImageAlways: true,
-                        kCGImageSourceCreateThumbnailWithTransform: true,
-                        kCGImageSourceThumbnailMaxPixelSize: 300
-                    ]
-                    
-                    guard let imageSource = CGImageSourceCreateWithURL(fullPathURL as CFURL, nil),
-                          let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-                        return UIImage(contentsOfFile: fullPathURL.path)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
+                if let generatedThumb = await generateThumbnail(for: fullPathURL) {
+                    await MainActor.run {
+                        self.thumbnail = generatedThumb
                     }
-                    return UIImage(cgImage: cgImage)
-                }.value
-                
-                await MainActor.run {
-                    self.thumbnail = generatedThumb
                 }
             }
         }
     }
+}
+
+nonisolated func generateThumbnail(for url: URL) async -> UIImage? {
+    if Task.isCancelled { return nil }
+    
+    let options: [CFString: Any] = [
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceThumbnailMaxPixelSize: 300
+    ]
+    
+    if Task.isCancelled { return nil }
+    
+    guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+        return UIImage(contentsOfFile: url.path)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
+    }
+    
+    return UIImage(cgImage: cgImage)
 }

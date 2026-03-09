@@ -78,7 +78,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 
 - Coordinates all physical cloud validations (`MerianNetworkClient`) natively with UI interaction.
 - Extracts `gpsLatitude` and `weatherCondition` context natively transferring it to the `/identify` API.
-- Compresses the live pixel stream down to a 1024px (0.7 quality) boundary via `downsampleLocalPayload`, drastically improving network speeds while safely preserving the original 12MP bytes in `URL.documentsDirectory` for local Life List displays.
+- Explictly prevents UI shutter lag by wrapping the Heavy `CGImageSourceCreateThumbnailAtIndex` operations and physical `URL.documentsDirectory` file-system writes in `Task.detached(priority: .userInitiated)` hooks. This offloads synchronous CoreGraphics and SwiftData write overhead off the `@MainActor`. Furthermore, to eradicate local sandbox storage bloat, it explicitly writes the lightweight `compressedData` thumbnail (~300KB) into the documents directory rather than the heavy 12MP original, preserving a 60fps camera viewfinder smoothly while concurrently pushing the `downsampleLocalPayload` pipeline back down the native thread.
 - Acts as the explicit gatekeeper for `GamificationManager` and `UsageManager`; it ONLY triggers a successful scan statistic and gamification badge if the Gemini Edge infrastructure returns a confidence score `> 0.0`.
 - Catches network drops and cancellation states (`URLError`), intelligently deferring captures explicitly back to the `OfflineQueueManager` for physical local caching rather than updating usage limits.
 
@@ -88,8 +88,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 
 - Resolves explicit `PHPhotoLibrary.authorizationStatus` boundaries purely on the UI thread without silently crashing the App.
 - Securely extracts exactly `1` asset (the most recent photo) bounded aggressively using an `NSSortDescriptor(key: "creationDate", ascending: false)` constraint.
-- Offloads heavy full-resolution RAM extraction locally via `PHImageRequestOptions()` passing a strict `150x150` `CGSize` and `.opportunistic` quality matrix. This guarantees `MerianActionBar` renders a tiny, memory-safe square thumbnail.
-- Seamlessly acts as the passive bridge capturing `URL.documentsDirectory` 12MP payloads securely downstream straight into the Apple physical Camera Roll safely (`PHAssetChangeRequest.creationRequestForAsset`) the second a user pulls the shutter trigger.
+- Seamlessly acts as the passive bridge capturing `URL.documentsDirectory` 12MP payloads securely downstream straight into the Apple physical Camera Roll safely utilizing `PHAssetCreationRequest.forAsset()` the second a user pulls the shutter trigger. This entirely bypasses traditional `UIImage` extraction, explicitly guaranteeing that deep metadata, GPS EXIF attributes, Deep Fusion vectors, and physical 3D LiDAR maps are securely written to the Camera Roll natively.
 
 ## 12. `HapticManager.swift`
 

@@ -20,8 +20,7 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>2</string>
-	<key>GEMINI_API_KEY</key>
-	<string>$(GEMINI_API_KEY)</string>
+
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>

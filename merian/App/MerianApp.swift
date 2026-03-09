@@ -41,14 +41,8 @@ struct MerianApp: App {
             container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             OfflineQueueManager.shared.modelContext = container.mainContext
         } catch {
-            print("Failed to load ModelContainer: \(error). Rebuilding from scratch to resolve schema mismatch.")
-            do {
-                try? FileManager.default.removeItem(at: modelConfiguration.url)
-                container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-                OfflineQueueManager.shared.modelContext = container.mainContext
-            } catch {
-                fatalError("Could not create ModelContainer even after wiping store: \(error)")
-            }
+            // Fatal error protects against wiping data when encountering production schema migrations
+            fatalError("Could not create ModelContainer: \(error)")
         }
     }
 
@@ -76,7 +70,12 @@ struct MerianApp: App {
             case .background:
                 // Safely intercept mid-flight networks limits rescuing images asynchronously before standard app suspension
                 if inferenceEngine.isProcessing, let payload = inferenceEngine.activePayload {
-                    offlineQueueManager.enqueueCapture(imageData: payload)
+                    offlineQueueManager.enqueueCapture(
+                        imageData: payload,
+                        gpsLatitude: inferenceEngine.activeLatitude,
+                        gpsLongitude: inferenceEngine.activeLongitude,
+                        weatherCondition: inferenceEngine.activeWeatherCondition
+                    )
                     inferenceEngine.cancelActiveRequest()
                 }
             case .inactive:

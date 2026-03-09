@@ -20,7 +20,7 @@ The lowest level integration directly interfacing with the iPhone optics.
 The battery and heat protection protocol monitoring physical usage thresholds gracefully.
 
 - Bridges the Apple internal `.thermalStateDidChangeNotification` explicitly dropping graphic resolutions and Glassmorphism shaders immediately on `.critical` or `.serious`.
-- Monitors passive `isLowPowerModeEnabled` strings mapping native 24 FPS `isExpeditionModeActive` pipelines on low-battery wilderness states explicitly.
+- Monitors passive `isLowPowerModeEnabled` strings mapping native 24 FPS `isExpeditionModeActive` pipelines on low-battery wilderness states explicitly. This flag securely intercepts the `OfflineQueueManager` natively, seamlessly pausing asynchronous background cellular uploads to preserve critical battery power while off-grid.
 
 ### `ViewfinderIntelligence` (VUI)
 
@@ -35,4 +35,4 @@ An asynchronous heuristic layer blocking wasted network limits inherently.
 Acts as a dedicated `PHPhotoLibrary` handler intercepting the hardware buffers securely.
 
 - Binds `.opportunistic` `PHImageRequestOptions` gracefully extracting the most recently added native iOS Asset asynchronously to act as the Camera Gallery icon.
-- Safely wraps `.creationRequestForAsset` strictly bypassing the UI actor dynamically saving the unadulterated `12MP` sensor data straight into the native camera roll at the moment of shutter press to ensure physical persistence prior to inference logic executing.
+- Safely wraps `PHAssetCreationRequest.forAsset()` strictly bypassing the UI actor dynamically cleanly saving the unadulterated `12MP` sensor data buffer straight into the native camera roll natively. Refusing to cast these payloads to explicit visual `UIImage` boundaries ensures physical persistence of exact EXIF, GPS tracking fields, proprietary physical 3D LiDAR boundaries, and Apple Deep Fusion algorithms safely inside the users Camera Roll prior to any external cloud inference.

@@ -18,31 +18,14 @@ struct MerianActionBar: View {
     
     @Environment(\.modelContext) private var modelContext
     
-    @StateObject private var cameraManager = CameraManager.shared
-    @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared
+    @EnvironmentObject var cameraManager: CameraManager
+    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
     
     var body: some View {
         HStack {
             // Life List
-            Button(action: {
+            GlassCircularButton(iconName: "book") {
                 isLifeListOpen = true
-            }) {
-                ZStack {
-                    if hardwareOrchestrator.isGlassmorphismEnabled {
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .environment(\.colorScheme, .dark)
-                            .frame(width: 50, height: 50)
-                    } else {
-                        Circle()
-                            .fill(Color.black.opacity(0.7))
-                            .frame(width: 50, height: 50)
-                    }
-                    
-                    Image(systemName: "book")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.white)
-                }
             }
             
             Spacer()
@@ -86,25 +69,8 @@ struct MerianActionBar: View {
             Spacer()
             
             // User Profile Button
-            Button(action: {
+            GlassCircularButton(iconName: "person") {
                 isUserProfileOpen = true
-            }) {
-                ZStack {
-                    if hardwareOrchestrator.isGlassmorphismEnabled {
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .environment(\.colorScheme, .dark)
-                            .frame(width: 50, height: 50)
-                    } else {
-                        Circle()
-                            .fill(Color.black.opacity(0.7))
-                            .frame(width: 50, height: 50)
-                    }
-                    
-                    Image(systemName: "person")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.white)
-                }
             }
         }
         .padding(.horizontal, 24)

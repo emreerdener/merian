@@ -74,10 +74,9 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         // Need explicit permission physically verified before writing bounds natively to prevent crashes
         guard status == .authorized || status == .limited else { return }
         
-        guard let image = UIImage(data: imageData) else { return }
-        
         PHPhotoLibrary.shared().performChanges({
-            PHAssetChangeRequest.creationRequestForAsset(from: image)
+            let request = PHAssetCreationRequest.forAsset()
+            request.addResource(with: .photo, data: imageData, options: nil)
         }) { success, error in
             if let error = error {
                 print("⚠️ Failed to save image to photo library bounds natively: \(error)")

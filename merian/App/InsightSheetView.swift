@@ -55,7 +55,7 @@ struct InsightSheetView: View {
     @Binding var isPresented: Bool
     var showCloseButton: Bool = true
     
-    @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared
+    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
     
     @State private var isSafariPresented = false
     @State private var selectedWikiURL: URL?
@@ -80,46 +80,12 @@ struct InsightSheetView: View {
                 // Header Actions (Close/Back & Share)
                 HStack {
                     if showCloseButton {
-                        Button(action: {
+                        GlassCircularButton(iconName: "xmark") {
                             isPresented = false
-                        }) {
-                            ZStack {
-                                if hardwareOrchestrator.isGlassmorphismEnabled {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .environment(\.colorScheme, .dark)
-                                        .frame(width: 50, height: 50)
-                                } else {
-                                    Circle()
-                                        .fill(Color.black.opacity(0.7))
-                                        .frame(width: 50, height: 50)
-                                }
-                                
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(.white)
-                            }
                         }
                     } else {
-                        Button(action: {
+                        GlassCircularButton(iconName: "chevron.left") {
                             dismiss()
-                        }) {
-                            ZStack {
-                                if hardwareOrchestrator.isGlassmorphismEnabled {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .environment(\.colorScheme, .dark)
-                                        .frame(width: 50, height: 50)
-                                } else {
-                                    Circle()
-                                        .fill(Color.black.opacity(0.7))
-                                        .frame(width: 50, height: 50)
-                                }
-                                
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(.white)
-                            }
                         }
                     }
                     

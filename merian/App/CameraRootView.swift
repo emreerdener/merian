@@ -4,10 +4,10 @@ import PhotosUI
 import SwiftData
 
 struct CameraRootView: View {
-    @StateObject private var cameraManager = CameraManager.shared
-    @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared
-    @StateObject private var vui = ViewfinderIntelligence.shared
-    @StateObject private var photoLibraryManager = PhotoLibraryManager.shared
+    @EnvironmentObject var cameraManager: CameraManager
+    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
+    @EnvironmentObject var vui: ViewfinderIntelligence
+    @EnvironmentObject var photoLibraryManager: PhotoLibraryManager
     
     @EnvironmentObject var revenueCatManager: RevenueCatManager
     @EnvironmentObject var usageManager: UsageManager
@@ -28,25 +28,7 @@ struct CameraRootView: View {
     @State private var isPulseAnimating: Bool = false
     @State private var analysisImage: UIImage? = nil
     
-    @ViewBuilder
-    private func glassButton(icon: String) -> some View {
-        ZStack {
-            if hardwareOrchestrator.isGlassmorphismEnabled {
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
-                    .frame(width: 50, height: 50)
-            } else {
-                Circle()
-                    .fill(Color.black.opacity(0.7))
-                    .frame(width: 50, height: 50)
-            }
-            
-            Image(systemName: icon)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundColor(.white)
-        }
-    }
+
     
     var body: some View {
         ZStack {
@@ -83,25 +65,11 @@ struct CameraRootView: View {
                         Spacer()
                         
                         VStack(spacing: 16) {
-                            Button(action: {
+                            GlassCircularButton(
+                                iconName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill",
+                                iconColor: cameraManager.isFlashEnabled ? .yellow : .white
+                            ) {
                                 cameraManager.toggleFlash()
-                            }) {
-                                ZStack {
-                                    if hardwareOrchestrator.isGlassmorphismEnabled {
-                                        Circle()
-                                            .fill(.ultraThinMaterial)
-                                            .environment(\.colorScheme, .dark)
-                                            .frame(width: 50, height: 50)
-                                    } else {
-                                        Circle()
-                                            .fill(Color.black.opacity(0.7))
-                                            .frame(width: 50, height: 50)
-                                    }
-                                    
-                                    Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(cameraManager.isFlashEnabled ? .yellow : .white)
-                                }
                             }
                             
                             PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
