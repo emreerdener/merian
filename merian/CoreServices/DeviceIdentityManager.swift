@@ -19,8 +19,22 @@ final class DeviceIdentityManager: ObservableObject {
     }
     
     func getOrGeneratePersistentIDFV() -> String {
-        if let existingID = loadFromKeychain() {
+        let (existingID, status) = loadFromKeychain()
+        
+        if let existingID = existingID {
             return existingID
+        }
+        
+        // Critical: Protect existing user Identity records from background iOS wiping loops dynamically
+        if status == errSecInteractionNotAllowed {
+            print("DeviceIdentityManager: Keychain locked in background (errSecInteractionNotAllowed). Throttling execution to protect identities natively.")
+            #if canImport(UIKit)
+            return UIDevice.current.identifierForVendor?.uuidString ?? ""
+            #elseif canImport(WatchKit)
+            return WKInterfaceDevice.current().identifierForVendor?.uuidString ?? ""
+            #else
+            return ""
+            #endif
         }
         
         #if canImport(UIKit)
@@ -54,7 +68,7 @@ final class DeviceIdentityManager: ObservableObject {
         SecItemAdd(queryAdd as CFDictionary, nil)
     }
     
-    private func loadFromKeychain() -> String? {
+    private func loadFromKeychain() -> (String?, OSStatus) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: keychainKey,
@@ -66,8 +80,8 @@ final class DeviceIdentityManager: ObservableObject {
         let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
         
         if status == errSecSuccess, let data = dataTypeRef as? Data {
-            return String(data: data, encoding: .utf8)
+            return (String(data: data, encoding: .utf8), status)
         }
-        return nil
+        return (nil, status)
     }
 }

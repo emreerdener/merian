@@ -125,49 +125,82 @@ struct ImageCropperView: View {
             height: offset.height + currentOffset.height
         )
         
-        // Target rendering exact 1024x1024 resolving size for Gemini constraints
-        let renderSize: CGFloat = 1024
+        // Capture properties securely for detached thread to prevent MainActor UI block
+        let targetImage = image
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         
-        let multiplier = renderSize / displaySize
-        
-        let cropContent = ZStack {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: renderSize, height: renderSize)
-                .scaleEffect(finalScale)
-                .offset(
-                    x: finalOffset.width * multiplier,
-                    y: finalOffset.height * multiplier
-                )
-        }
-        .frame(width: renderSize, height: renderSize)
-        .clipped()
-        
-        let renderer = ImageRenderer(content: cropContent)
-        renderer.scale = 1.0 // strictly 1.0 to guarantee exactly 1024x1024 array outputs natively
-        
-        if let outputImage = renderer.uiImage {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            Task {
-                let jpegData = await Task.detached(priority: .userInitiated) {
-                    outputImage.jpegData(compressionQuality: 0.7) ?? Data()
-                }.value
-                await MainActor.run {
-                    onCrop(jpegData)
+        Task {
+            let processedData = await Task.detached(priority: .userInitiated) {
+                let W = targetImage.size.width
+                let H = targetImage.size.height
+                
+                guard let cgImg = targetImage.cgImage else {
+                    return targetImage.jpegData(compressionQuality: 0.7) ?? Data()
                 }
-            }
-        } else {
-            // Fallback natively 
-            let originalImage = image
-            Task {
-                let fallbackData = await Task.detached(priority: .userInitiated) {
-                    originalImage.jpegData(compressionQuality: 0.7) ?? Data()
-                }.value
-                await MainActor.run {
-                    onCrop(fallbackData)
+                
+                let imageRatio = W / H
+                let renderedWidth = imageRatio > 1 ? displaySize * imageRatio : displaySize
+                let imageScale = W / renderedWidth
+                
+                // Map the SwiftUI view transforms mathematically backward to original image points
+                let dxOffsetOriginal = -finalOffset.width / finalScale * imageScale
+                let dyOffsetOriginal = -finalOffset.height / finalScale * imageScale
+                
+                let visibleWidthOriginal = displaySize / finalScale * imageScale
+                let visibleHeightOriginal = displaySize / finalScale * imageScale
+                
+                let cropX = (W - visibleWidthOriginal) / 2.0 + dxOffsetOriginal
+                let cropY = (H - visibleHeightOriginal) / 2.0 + dyOffsetOriginal
+                
+                let rawUx = cropX / W
+                let rawUy = cropY / H
+                let rawUw = visibleWidthOriginal / W
+                let rawUh = visibleHeightOriginal / H
+                
+                let ux = max(0.0, min(1.0, rawUx))
+                let uy = max(0.0, min(1.0, rawUy))
+                let uw = min(1.0 - ux, max(0.0, rawUw))
+                let uh = min(1.0 - uy, max(0.0, rawUh))
+                
+                let cW = CGFloat(cgImg.width)
+                let cH = CGFloat(cgImg.height)
+                
+                // Natively flip bounds based on Apple sensor rotation (imageOrientation)
+                var cropRect: CGRect
+                switch targetImage.imageOrientation {
+                case .up:           cropRect = CGRect(x: ux * cW, y: uy * cH, width: uw * cW, height: uh * cH)
+                case .down:         cropRect = CGRect(x: (1 - ux - uw) * cW, y: (1 - uy - uh) * cH, width: uw * cW, height: uh * cH)
+                case .left:         cropRect = CGRect(x: (1 - uy - uh) * cW, y: ux * cH, width: uh * cW, height: uw * cH)
+                case .right:        cropRect = CGRect(x: uy * cW, y: (1 - ux - uw) * cH, width: uh * cW, height: uw * cH)
+                case .upMirrored:   cropRect = CGRect(x: (1 - ux - uw) * cW, y: uy * cH, width: uw * cW, height: uh * cH)
+                case .downMirrored: cropRect = CGRect(x: ux * cW, y: (1 - uy - uh) * cH, width: uw * cW, height: uh * cH)
+                case .leftMirrored: cropRect = CGRect(x: (1 - uy - uh) * cW, y: (1 - ux - uw) * cH, width: uh * cW, height: uw * cH)
+                case .rightMirrored:cropRect = CGRect(x: uy * cW, y: ux * cH, width: uh * cW, height: uw * cH)
+                @unknown default:   cropRect = CGRect(x: ux * cW, y: uy * cH, width: uw * cW, height: uh * cH)
                 }
-            }
+                
+                // Isolate memory extraction cleanly in the background CPU pool natively
+                guard let croppedCG = cgImg.cropping(to: cropRect) else {
+                    return targetImage.jpegData(compressionQuality: 0.7) ?? Data()
+                }
+                
+                // Rehydrate the image with native rotation
+                let croppedUIImage = UIImage(cgImage: croppedCG, scale: targetImage.scale, orientation: targetImage.imageOrientation)
+                
+                // Render cleanly out exactly to Gemini limits off the UI thread
+                let renderSize = CGSize(width: 1024, height: 1024)
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1.0
+                let renderer = UIGraphicsImageRenderer(size: renderSize, format: format)
+                
+                let finalImage = renderer.image { _ in
+                    croppedUIImage.draw(in: CGRect(origin: .zero, size: renderSize))
+                }
+                
+                return finalImage.jpegData(compressionQuality: 0.7) ?? Data()
+            }.value
+            
+            onCrop(processedData)
         }
     }
     

@@ -7,6 +7,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+// Exact bypass mechanism to insert into user_blocks via strict Service Key RLS overwrite natively
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
 serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -19,12 +25,6 @@ serve(async (req: Request) => {
     if (!blocked_id) {
       throw new Error("Missing blocked_id.");
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
-    // Exact bypass mechanism to insert into user_blocks via strict Service Key RLS overwrite natively
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
     if (!authHeader) {

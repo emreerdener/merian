@@ -8,7 +8,7 @@ enum VUIHint: String {
     case optimal = "Optimal"
 }
 
-fileprivate let globalCIContext = CIContext(options: [.workingColorSpace: NSNull()])
+
 
 /// Viewfinder Intelligence (VUI) Manager
 /// Evaluates incoming camera buffers asynchronously utilizing CoreImage statistics to prevent wasted AI inference API calls on flawed imagery.
@@ -41,24 +41,34 @@ final class ViewfinderIntelligence: ObservableObject {
                 return
             }
             
-            // 2. Brightness Heuristic utilizing Core Image native hardware-acceleration
-            let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-            // Scale the image down dramatically to save thermal load natively passing into the area filter
-            let scaledImage = ciImage.transformed(by: CGAffineTransform(scaleX: 0.05, y: 0.05))
-            guard let avgFilter = CIFilter(name: "CIAreaAverage") else { return }
-            avgFilter.setValue(scaledImage, forKey: kCIInputImageKey)
-            avgFilter.setValue(CIVector(cgRect: scaledImage.extent), forKey: kCIInputExtentKey)
-            
+            // 2. Brightness Heuristic utilizing direct Luma plane extraction purely on CPU
             var brightness: Float = 1.0
-            if let outputImage = avgFilter.outputImage {
-                var bitmap = [UInt8](repeating: 0, count: 4)
-                globalCIContext.render(outputImage, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+            if CVPixelBufferGetPlaneCount(pixelBuffer) > 0 {
+                CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
                 
-                let r = Float(bitmap[0])
-                let g = Float(bitmap[1])
-                let b = Float(bitmap[2])
-                // Standard Relative Luminance formula mapping identically to visual perception models
-                brightness = (r * 0.299 + g * 0.587 + b * 0.114) / 255.0
+                if let baseAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0) {
+                    let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0)
+                    let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
+                    let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
+                    
+                    var totalLuma: UInt64 = 0
+                    let sampleStep = 10 // Subsample explicitly to keep iteration latency ~0ms
+                    var sampleCount = 0
+                    
+                    let buffer = baseAddress.assumingMemoryBound(to: UInt8.self)
+                    for y in stride(from: 0, to: height, by: sampleStep) {
+                        let rowOffset = y * bytesPerRow
+                        for x in stride(from: 0, to: width, by: sampleStep) {
+                            totalLuma += UInt64(buffer[rowOffset + x])
+                            sampleCount += 1
+                        }
+                    }
+                    
+                    let averageLuma = sampleCount > 0 ? Float(totalLuma) / Float(sampleCount) : 255.0
+                    brightness = averageLuma / 255.0
+                }
+                
+                CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
             }
             
             // Strict threshold rejecting lighting boundaries before Gemini processing

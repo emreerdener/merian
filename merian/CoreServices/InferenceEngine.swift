@@ -10,7 +10,7 @@ final class InferenceEngine: ObservableObject {
     @Published var isProcessing: Bool = false
     @Published var activePayload: Data? = nil
     @Published var activeCompressedPayload: Data? = nil
-    @Published var activePayloads: [Data] = []
+    @Published var activePayloads: [String] = []
     @Published var speciesData: SpeciesData? = nil
     
     private(set) var activeLatitude: Double? = nil
@@ -20,13 +20,13 @@ final class InferenceEngine: ObservableObject {
     private var inferenceTask: Task<Void, Never>?
     
     /// Wrapper preventing double string decoding JSON extraction logic
-    private struct EdgeResponseWrapper: Codable {
+    struct EdgeResponseWrapper: Codable {
         let success: Bool?
         let data: EdgeResponse
     }
     
     /// Struct defining the exact expected JSON schema from the Gemini Edge Function
-    private struct EdgeResponse: Codable {
+    struct EdgeResponse: Codable {
         let is_biological_subject: Bool?
         let is_live_capture: Bool?
         let ecology_type: String?
@@ -55,12 +55,14 @@ final class InferenceEngine: ObservableObject {
         let reference_image_url: String?
     }
     
+
+    
     func analyze(imageData: Data, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, weatherCondition: String? = nil, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
         self.activeCompressedPayload = nil
-        self.activePayloads = [imageData]
+        self.activePayloads = []
         self.speciesData = nil
         
         self.activeLatitude = gpsLatitude
@@ -240,96 +242,7 @@ final class InferenceEngine: ObservableObject {
         }
     }
     
-    /// Called by the Offline Queue explicitly to ensure deferred scans are processed mathematically back down into the User's biological index natively.
-    static func handleSuccessfulOfflineScan(resultData: Data, originalImagePaths: [String], modelContext: ModelContext) {
-        let decoder = JSONDecoder()
-        if let parsedWrapper = try? decoder.decode(EdgeResponseWrapper.self, from: resultData) {
-            let edgeRes = parsedWrapper.data
-            
-            let insight = InsightData(
-                description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
-                isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
-                regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
-            )
-            
-            let taxonomyData = TaxonomyData(
-                kingdom: edgeRes.taxonomy?.kingdom,
-                phylum: edgeRes.taxonomy?.phylum,
-                className: edgeRes.taxonomy?.class,
-                order: edgeRes.taxonomy?.order,
-                family: edgeRes.taxonomy?.family,
-                genus: edgeRes.taxonomy?.genus
-            )
-            
-            let mappedData = SpeciesData(
-                commonName: edgeRes.common_name ?? "Unknown Subject",
-                scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
-                insightData: insight,
-                confidenceScore: edgeRes.confidence_score ?? 0.0,
-                diagnosticComparison: nil,
-                wikipediaUrl: edgeRes.wikipedia_url,
-                referenceImageUrl: edgeRes.reference_image_url,
-                isBiological: edgeRes.is_biological_subject ?? true,
-                isLiveCapture: edgeRes.is_live_capture ?? true,
-                isInvasive: edgeRes.is_invasive ?? false,
-                ecologyType: edgeRes.ecology_type ?? "unknown",
-                taxonomy: taxonomyData
-            )
-            
-            if mappedData.confidenceScore > 0.0 {
-                // Pre-process and securely duplicate offline image paths explicitly preventing aggressive FileManager cleanup deletions
-                var newlyCopiedPaths: [String] = []
-                for originalPath in originalImagePaths {
-                    let sourceURL = URL.documentsDirectory.appendingPathComponent(originalPath)
-                    let newFilename = "\(UUID().uuidString)_lifelist.jpg"
-                    let destinationURL = URL.documentsDirectory.appendingPathComponent(newFilename)
-                    
-                    do {
-                        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-                        newlyCopiedPaths.append(newFilename)
-                    } catch {
-                        print("Failed to physically bridge offline queue image to persistent Life List: \(error)")
-                    }
-                }
 
-                let targetName = mappedData.scientificName
-                let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
-                    predicate: #Predicate { $0.scientificName == targetName }
-                )
-                
-                if let existingRecord = try? modelContext.fetch(fetchDescriptor).first {
-                    if existingRecord.additionalImagePaths == nil {
-                        existingRecord.additionalImagePaths = []
-                    }
-                    existingRecord.additionalImagePaths?.append(contentsOf: newlyCopiedPaths)
-                    existingRecord.timestamp = Date()
-                    
-                    existingRecord.insightDescription = mappedData.insightData.description
-                    existingRecord.isPoisonous = mappedData.insightData.isPoisonous
-                    existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
-                    existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
-                    existingRecord.confidenceScore = mappedData.confidenceScore
-                } else {
-                    let record = LocalScanRecord(
-                        speciesId: UUID().uuidString,
-                        scientificName: mappedData.scientificName,
-                        commonName: mappedData.commonName,
-                        insightDescription: mappedData.insightData.description,
-                        timestamp: Date(),
-                        localImagePath: newlyCopiedPaths.first,
-                        semanticTags: [mappedData.commonName, mappedData.scientificName],
-                        isPoisonous: mappedData.insightData.isPoisonous,
-                        wikipediaUrl: mappedData.wikipediaUrl,
-                        referenceImageUrl: mappedData.referenceImageUrl,
-                        additionalImagePaths: newlyCopiedPaths.count > 1 ? Array(newlyCopiedPaths.dropFirst()) : nil,
-                        confidenceScore: mappedData.confidenceScore
-                    )
-                    modelContext.insert(record)
-                }
-                try? modelContext.save()
-            }
-        }
-    }
     
     /// Halts active inferences instantly if the iOS Watchdog forces a termination
     func cancelActiveRequest() {
@@ -348,9 +261,15 @@ final class InferenceEngine: ObservableObject {
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
         
-        // Map local bounds securely prior to detaching context boundaries
-        let localPath = record.localImagePath
-        let extraPaths = record.additionalImagePaths
+        self.activePayload = nil
+        var paths: [String] = []
+        if let localPath = record.localImagePath {
+            paths.append(localPath)
+        }
+        if let extras = record.additionalImagePaths {
+            paths.append(contentsOf: extras)
+        }
+        self.activePayloads = paths
         
         let commonName = record.commonName
         let scientificName = record.scientificName
@@ -360,47 +279,21 @@ final class InferenceEngine: ObservableObject {
         let wikipediaUrl = record.wikipediaUrl
         let referenceImageUrl = record.referenceImageUrl
         
-        Task {
-            let payloads = await Task.detached(priority: .userInitiated) {
-                var loadedPayloads: [Data] = []
-                if let path = localPath, let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(path)) {
-                    loadedPayloads.append(data)
-                    
-                    if let extras = extraPaths {
-                        for extra in extras {
-                            if let extraData = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(extra)) {
-                                loadedPayloads.append(extraData)
-                            }
-                        }
-                    }
-                }
-                return loadedPayloads
-            }.value
-            
-            if !payloads.isEmpty {
-                self.activePayload = payloads.first
-                self.activePayloads = payloads
-            } else {
-                self.activePayload = nil
-                self.activePayloads = []
-            }
-            
-            self.speciesData = SpeciesData(
-                commonName: commonName,
-                scientificName: scientificName,
-                insightData: InsightData(description: insightDescription, isPoisonous: isPoisonous, regionalStatusRationale: nil),
-                confidenceScore: confidenceScore, 
-                diagnosticComparison: nil,
-                wikipediaUrl: wikipediaUrl,
-                referenceImageUrl: referenceImageUrl,
-                isBiological: true,
-                isLiveCapture: true,
-                isInvasive: false,
-                ecologyType: "unknown",
-                taxonomy: nil
-            )
-            self.isProcessing = false
-        }
+        self.speciesData = SpeciesData(
+            commonName: commonName,
+            scientificName: scientificName,
+            insightData: InsightData(description: insightDescription, isPoisonous: isPoisonous, regionalStatusRationale: nil),
+            confidenceScore: confidenceScore, 
+            diagnosticComparison: nil,
+            wikipediaUrl: wikipediaUrl,
+            referenceImageUrl: referenceImageUrl,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown",
+            taxonomy: nil
+        )
+        self.isProcessing = false
     }
     
     nonisolated private func downsampleLocalPayload(data: Data, maxDimension: CGFloat = 1024.0) -> Data? {

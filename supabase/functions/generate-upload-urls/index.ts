@@ -8,6 +8,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
 serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -16,10 +20,6 @@ serve(async (req: Request) => {
 
   try {
     const { fileNames } = await req.json();
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
     if (!authHeader) {

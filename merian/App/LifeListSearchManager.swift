@@ -64,6 +64,32 @@ final class LocalScanRecord {
     }
 }
 
+// Background Detached Actor natively mapping Semantic Index loops exclusively to prevent MainActor SQLite faulting freezes
+@ModelActor
+actor BackgroundSearchActor {
+    func performSemanticSearch(query: String) -> Set<String> {
+        let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { return [] }
+        let tokens = text.components(separatedBy: .whitespaces)
+        
+        let descriptor = FetchDescriptor<LocalScanRecord>()
+        let records = (try? modelContext.fetch(descriptor)) ?? []
+        
+        return Set(records.filter { record in
+            let tags = record.semanticTags
+            let searchSpace = [
+                record.commonName.lowercased(),
+                record.scientificName.lowercased(),
+                record.ecologyType.lowercased(),
+                record.insightDescription.lowercased()
+            ] + tags.map { $0.lowercased() }
+            
+            return tokens.allSatisfy { token in
+                searchSpace.contains { $0.contains(token) }
+            }
+        }.map { $0.id })
+    }
+}
 // 2. MainActor Search Engine Queue Manager
 @MainActor
 class LifeListSearchManager: ObservableObject {
@@ -86,25 +112,14 @@ class LifeListSearchManager: ObservableObject {
                 return
             }
             
-            let searchableData = allScans.map { (id: $0.id, textData: [
-                $0.commonName.lowercased(),
-                $0.scientificName.lowercased(),
-                $0.ecologyType.lowercased(),
-                $0.insightDescription.lowercased()
-            ] + $0.semanticTags.map { $0.lowercased() }) }
+            if allScans.isEmpty {
+                self.filteredScans = []
+                return
+            }
             
-            // Push the semantic filtering loop strictly to a background detached thread to ensure the UI scroll never stutters
-            let matchingIds = await Task.detached(priority: .userInitiated) {
-                let tokens = text.components(separatedBy: .whitespaces)
-                let ids = Set(searchableData.filter { item in
-                    
-                    // Ensure all independent user query tokens resolve true against the compiled index bounds
-                    return tokens.allSatisfy { token in
-                        item.textData.contains { $0.contains(token) }
-                    }
-                }.map { $0.id })
-                return ids
-            }.value
+            guard let container = allScans.first?.modelContext?.container else { return }
+            let backgroundActor = BackgroundSearchActor(modelContainer: container)
+            let matchingIds = await backgroundActor.performSemanticSearch(query: text)
             
             if Task.isCancelled { return }
             self.filteredScans = self.allScans.filter { matchingIds.contains($0.id) }

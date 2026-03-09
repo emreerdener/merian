@@ -14,6 +14,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
 serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -33,10 +37,6 @@ serve(async (req: Request) => {
     if (!r2ObjectKey) {
       throw new Error("Missing r2ObjectKey.");
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
     if (!authHeader) {
@@ -290,99 +290,88 @@ Crucial instructions:
           "[5] Upserting Dictionary with: ",
           parsedData.scientific_name,
         );
-        const { data: existingSpecies, error: _selectError } =
-          await supabaseAdmin
-            .from("species_dictionary")
-            .select("id, wikipedia_url, reference_image_url")
-            .eq("scientific_name", parsedData.scientific_name)
-            .single();
+        console.log("[5.1] Enriching data for:", parsedData.scientific_name);
+        let wikiUrl: string | null = null;
+        let gbifKey: number | null = null;
+        let combinedImageUrls: string | null = null;
 
-        if (existingSpecies) {
-          speciesId = existingSpecies.id;
-          parsedData.wikipedia_url = existingSpecies.wikipedia_url;
-          parsedData.reference_image_url = existingSpecies.reference_image_url;
-        } else {
-          console.log("[5.1] Enriching data for:", parsedData.scientific_name);
-          let wikiUrl: string | null = null;
-          let gbifKey: number | null = null;
-          let combinedImageUrls: string | null = null;
+        try {
+          const fetchedUrls: string[] = [];
 
-          try {
-            const fetchedUrls: string[] = [];
+          const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
+            // Unauthenticated taxonomy fetch to global GBIF registry
+            (async () => {
+              let key: number | null = null;
+              let urls: string[] = [];
+              const gbifRes = await fetch(
+                `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(parsedData.scientific_name)}`,
+                { signal: AbortSignal.timeout(2500) },
+              );
+              if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
+              const gbifJson = await gbifRes.json();
+              key = gbifJson.usageKey || null;
 
-            const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
-              // Unauthenticated taxonomy fetch to global GBIF registry
-              (async () => {
-                let key: number | null = null;
-                let urls: string[] = [];
-                const gbifRes = await fetch(
-                  `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(parsedData.scientific_name)}`,
+              if (key) {
+                const mediaRes = await fetch(
+                  `https://api.gbif.org/v1/species/${key}/media`,
                   { signal: AbortSignal.timeout(2500) },
                 );
-                if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
-                const gbifJson = await gbifRes.json();
-                key = gbifJson.usageKey || null;
-
-                if (key) {
-                  const mediaRes = await fetch(
-                    `https://api.gbif.org/v1/species/${key}/media`,
-                    { signal: AbortSignal.timeout(2500) },
-                  );
-                  if (mediaRes.ok) {
-                    const mediaJson = await mediaRes.json();
-                    if (mediaJson.results && mediaJson.results.length > 0) {
-                      urls = mediaJson.results
-                        .filter(
-                          (m: Record<string, string>) =>
-                            m.type === "StillImage" && m.identifier,
-                        )
-                        .map((m: Record<string, string>) => m.identifier)
-                        .slice(0, 5);
-                    }
+                if (mediaRes.ok) {
+                  const mediaJson = await mediaRes.json();
+                  if (mediaJson.results && mediaJson.results.length > 0) {
+                    urls = mediaJson.results
+                      .filter(
+                        (m: Record<string, string>) =>
+                          m.type === "StillImage" && m.identifier,
+                      )
+                      .map((m: Record<string, string>) => m.identifier)
+                      .slice(0, 5);
                   }
                 }
-                return { key, urls };
-              })(),
-
-              // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
-              (async () => {
-                const wikiRes = await fetch(
-                  `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsedData.scientific_name.replace(/ /g, "_"))}`,
-                  { signal: AbortSignal.timeout(2500) },
-                );
-                if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
-                const wikiJson = await wikiRes.json();
-                const url = wikiJson.content_urls?.desktop?.page || null;
-                const img =
-                  wikiJson.originalimage?.source ||
-                  wikiJson.thumbnail?.source ||
-                  null;
-                return { url, img };
-              })(),
-            ]);
-
-            if (gbifOutcome.status === "fulfilled") {
-              gbifKey = gbifOutcome.value.key;
-              fetchedUrls.push(...gbifOutcome.value.urls);
-            }
-            if (wikiOutcome.status === "fulfilled") {
-              wikiUrl = wikiOutcome.value.url;
-              if (wikiOutcome.value.img) {
-                fetchedUrls.unshift(wikiOutcome.value.img);
               }
-            }
+              return { key, urls };
+            })(),
 
-            if (fetchedUrls.length > 0) {
-              // Deduplicate explicitly and serialize
-              combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
+            // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
+            (async () => {
+              const wikiRes = await fetch(
+                `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsedData.scientific_name.replace(/ /g, "_"))}`,
+                { signal: AbortSignal.timeout(2500) },
+              );
+              if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
+              const wikiJson = await wikiRes.json();
+              const url = wikiJson.content_urls?.desktop?.page || null;
+              const img =
+                wikiJson.originalimage?.source ||
+                wikiJson.thumbnail?.source ||
+                null;
+              return { url, img };
+            })(),
+          ]);
+
+          if (gbifOutcome.status === "fulfilled") {
+            gbifKey = gbifOutcome.value.key;
+            fetchedUrls.push(...gbifOutcome.value.urls);
+          }
+          if (wikiOutcome.status === "fulfilled") {
+            wikiUrl = wikiOutcome.value.url;
+            if (wikiOutcome.value.img) {
+              fetchedUrls.unshift(wikiOutcome.value.img);
             }
-          } catch (e) {
-            console.log("Data enrichment failed silently: ", e);
           }
 
-          const { data: newSpecies, error: _insertError } = await supabaseAdmin
-            .from("species_dictionary")
-            .insert({
+          if (fetchedUrls.length > 0) {
+            // Deduplicate explicitly and serialize
+            combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
+          }
+        } catch (e) {
+          console.log("Data enrichment failed silently: ", e);
+        }
+
+        const { data: unifiedSpecies, error: upsertError } = await supabaseAdmin
+          .from("species_dictionary")
+          .upsert(
+            {
               scientific_name: parsedData.scientific_name,
               common_names: { default: parsedData.common_name },
               kingdom: parsedData.taxonomy.kingdom,
@@ -397,14 +386,20 @@ Crucial instructions:
               gbif_taxon_key: gbifKey,
               reference_image_url: combinedImageUrls,
               native_region: "Unknown",
-            })
-            .select("id")
-            .single();
-          if (newSpecies) {
-            speciesId = newSpecies.id;
-          }
-          parsedData.wikipedia_url = wikiUrl;
-          parsedData.reference_image_url = combinedImageUrls;
+            },
+            { onConflict: "scientific_name", ignoreDuplicates: true },
+          )
+          .select("id, wikipedia_url, reference_image_url")
+          .single();
+
+        if (upsertError) {
+          console.error("Upsert failed: ", upsertError);
+        }
+
+        if (unifiedSpecies) {
+          speciesId = unifiedSpecies.id;
+          parsedData.wikipedia_url = unifiedSpecies.wikipedia_url;
+          parsedData.reference_image_url = unifiedSpecies.reference_image_url;
         }
       }
 

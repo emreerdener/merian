@@ -15,7 +15,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 
 **Responsibility:** AI Pre-Qualification & Hint Engine.
 
-- Drops out the `AVCaptureVideoDataOutput` pixel buffers onto a `.userInitiated` CPU dispatch queue instantly evaluating the physical brightness of a scene via `CIAreaAverage`.
+- Drops out the `AVCaptureVideoDataOutput` pixel buffers onto a `.userInitiated` CPU dispatch queue instantly evaluating the physical brightness of a scene natively by locking the `CVPixelBuffer` and recursively mapping the hardware Luma channel (Plane 0) over raw CPU arrays.
 - Evaluates LiDAR distances checking whether the explicit `distance: Float?` exceeds thresholds iteratively (e.g. `> 2.5`), instantly triggering "Move Closer" or "Too Dark" UI hint banners natively without hallucinating on base-model iPhones without depth arrays.
 - Prevents expensive cloud payload calls when an unidentifiable blurry photo is actively detected physically.
 
@@ -25,6 +25,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 
 - Intercepts physical instantiation natively requesting `UIDevice.current.identifierForVendor` (iOS) or `WKInterfaceDevice.current().identifierForVendor` (watchOS) as a persistent anonymous tracking identifier.
 - Writes exclusively into the iOS Security `Keychain` framework bypassing `UserDefaults` preventing silent UUID recreation.
+- Actively protects explicitly against background data-loss natively: During deep-background `URLSession` awakening events where the user hasn't unlocked their iPhone, `SecItemCopyMatching` natively returns `errSecInteractionNotAllowed`. The manager explicitly intercepts this locking state securely returning the active OS token (`identifierForVendor`) completely preventing the system from incorrectly assuming a missing ID and wiping the Keychain.
 - Binds hardware strictly via the `user_id` parameter directly into every Supabase Edge Function `/identify` call completely bypassing local token expirations.
 
 ## 4. `SupabaseManager.swift`

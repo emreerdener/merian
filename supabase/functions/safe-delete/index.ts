@@ -7,17 +7,17 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+// Use SERVICE_ROLE_KEY to bypass RLS and delete the core user profile
+const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    // Use SERVICE_ROLE_KEY to bypass RLS and delete the core user profile
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
     // 1. Extract userId from authenticated token in the header
     const token = req.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) {
@@ -77,8 +77,8 @@ serve(async (req: Request) => {
         status: 200,
       },
     );
-  } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (error) {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

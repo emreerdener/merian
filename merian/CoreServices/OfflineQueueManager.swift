@@ -261,8 +261,15 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     gpsLongitude: scan.gpsLongitude,
                     weatherCondition: scan.weatherCondition
                 )
-                InferenceEngine.handleSuccessfulOfflineScan(resultData: resultData, originalImagePaths: scan.localImagePaths, modelContext: modelContext)
-                OfflineQueueManager.shared.finalizeScanCleanup(scanId: scanId)
+                let backgroundActor = BackgroundDatabaseActor(modelContainer: modelContext.container)
+                await backgroundActor.processAndCleanupOfflineScan(
+                    resultData: resultData,
+                    originalImagePaths: scan.localImagePaths,
+                    scanId: scanId
+                )
+                
+                OfflineQueueManager.shared.updateUnsyncedItemCount()
+                CircuitBreakerManager.shared.recordSuccess()
             } catch {
                 print("Failed downstream inference on offline queued scan: \(error)")
             }
@@ -281,27 +288,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
     }
     
-    private func finalizeScanCleanup(scanId: String) {
-        guard let modelContext = modelContext else { return }
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-        
-        do {
-            let matches = try modelContext.fetch(descriptor)
-            for scan in matches {
-                let documentsDirectory = URL.documentsDirectory
-                for path in scan.localImagePaths {
-                    let fileURL = documentsDirectory.appendingPathComponent(path)
-                    try? FileManager.default.removeItem(at: fileURL)
-                }
-                modelContext.delete(scan)
-            }
-            try modelContext.save()
-            updateUnsyncedItemCount()
-            CircuitBreakerManager.shared.recordSuccess()
-        } catch {
-            print("Cleanup of Sync \(scanId) completely failed natively: \(error)")
-        }
-    }
+
     
     func purgeSoftDeletedRecords() {
         guard let modelContext = modelContext else { return }
@@ -348,5 +335,117 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         
         let thumbnail = UIImage(cgImage: cgImage)
         return thumbnail.jpegData(compressionQuality: 0.7)
+    }
+}
+
+@ModelActor
+actor BackgroundDatabaseActor {
+    /// Called by the Offline Queue explicitly to ensure deferred scans are processed mathematically back down into the User's biological index natively.
+    func processAndCleanupOfflineScan(resultData: Data, originalImagePaths: [String], scanId: String) {
+        let decoder = JSONDecoder()
+        if let parsedWrapper = try? decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData) {
+            let edgeRes = parsedWrapper.data
+            
+            let insight = InsightData(
+                description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
+                isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
+                regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
+            )
+            
+            let taxonomyData = TaxonomyData(
+                kingdom: edgeRes.taxonomy?.kingdom,
+                phylum: edgeRes.taxonomy?.phylum,
+                className: edgeRes.taxonomy?.class,
+                order: edgeRes.taxonomy?.order,
+                family: edgeRes.taxonomy?.family,
+                genus: edgeRes.taxonomy?.genus
+            )
+            
+            let mappedData = SpeciesData(
+                commonName: edgeRes.common_name ?? "Unknown Subject",
+                scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
+                insightData: insight,
+                confidenceScore: edgeRes.confidence_score ?? 0.0,
+                diagnosticComparison: nil,
+                wikipediaUrl: edgeRes.wikipedia_url,
+                referenceImageUrl: edgeRes.reference_image_url,
+                isBiological: edgeRes.is_biological_subject ?? true,
+                isLiveCapture: edgeRes.is_live_capture ?? true,
+                isInvasive: edgeRes.is_invasive ?? false,
+                ecologyType: edgeRes.ecology_type ?? "unknown",
+                taxonomy: taxonomyData
+            )
+            
+            if mappedData.confidenceScore > 0.0 {
+                // Pre-process and securely duplicate offline image paths explicitly preventing aggressive FileManager cleanup deletions
+                var newlyCopiedPaths: [String] = []
+                for originalPath in originalImagePaths {
+                    let sourceURL = URL.documentsDirectory.appendingPathComponent(originalPath)
+                    let newFilename = "\(UUID().uuidString)_lifelist.jpg"
+                    let destinationURL = URL.documentsDirectory.appendingPathComponent(newFilename)
+                    
+                    do {
+                        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                        newlyCopiedPaths.append(newFilename)
+                    } catch {
+                        print("Failed to physically bridge offline queue image to persistent Life List: \(error)")
+                    }
+                }
+
+                let targetName = mappedData.scientificName
+                let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+                    predicate: #Predicate { $0.scientificName == targetName }
+                )
+                
+                if let existingRecord = try? modelContext.fetch(fetchDescriptor).first {
+                    if existingRecord.additionalImagePaths == nil {
+                        existingRecord.additionalImagePaths = []
+                    }
+                    existingRecord.additionalImagePaths?.append(contentsOf: newlyCopiedPaths)
+                    existingRecord.timestamp = Date()
+                    
+                    existingRecord.insightDescription = mappedData.insightData.description
+                    existingRecord.isPoisonous = mappedData.insightData.isPoisonous
+                    existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
+                    existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
+                    existingRecord.confidenceScore = mappedData.confidenceScore
+                } else {
+                    let record = LocalScanRecord(
+                        speciesId: UUID().uuidString,
+                        scientificName: mappedData.scientificName,
+                        commonName: mappedData.commonName,
+                        insightDescription: mappedData.insightData.description,
+                        timestamp: Date(),
+                        localImagePath: newlyCopiedPaths.first,
+                        semanticTags: [mappedData.commonName, mappedData.scientificName],
+                        isPoisonous: mappedData.insightData.isPoisonous,
+                        wikipediaUrl: mappedData.wikipediaUrl,
+                        referenceImageUrl: mappedData.referenceImageUrl,
+                        additionalImagePaths: newlyCopiedPaths.count > 1 ? Array(newlyCopiedPaths.dropFirst()) : nil,
+                        confidenceScore: mappedData.confidenceScore
+                    )
+                    modelContext.insert(record)
+                }
+                try? modelContext.save()
+            }
+        }
+        
+        // Finalize cleanup explicitly ensuring UI views never hang off disk buffer purges natively
+        do {
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            let matches = try modelContext.fetch(descriptor)
+            
+            for scan in matches {
+                let documentsDirectory = URL.documentsDirectory
+                for path in scan.localImagePaths {
+                    let fileURL = documentsDirectory.appendingPathComponent(path)
+                    try? FileManager.default.removeItem(at: fileURL)
+                }
+                modelContext.delete(scan)
+            }
+            try modelContext.save()
+        } catch {
+            print("Background cleanup logic explicitly failed out of process offline trace natively: \(error)")
+        }
     }
 }

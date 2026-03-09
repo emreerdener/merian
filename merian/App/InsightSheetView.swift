@@ -121,20 +121,24 @@ struct InsightSheetView: View {
                 // 0. The Image Carousel (Active Capture + Wikipedia Reference)
                 let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
                 let hasReferenceImage = !refUrls.isEmpty
-                let hasUserImage = !inferenceEngine.activePayloads.isEmpty
+                let hasUserImage = inferenceEngine.activePayload != nil || !inferenceEngine.activePayloads.isEmpty
                 
                 if hasUserImage || hasReferenceImage {
                     TabView {
-                        // User's Uploaded Images (Historic Pipeline)
-                        ForEach(Array(inferenceEngine.activePayloads.enumerated()), id: \.offset) { index, payload in
-                            if let uiImage = UIImage(data: payload) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .aspectRatio(1.0, contentMode: .fill)
-                                    .clipped()
-                                    .tag("user_image_\(index)")
-                            }
+                        // Priority: Live Capture actively evaluated (Data payload)
+                        if let livePayload = inferenceEngine.activePayload, let uiImage = UIImage(data: livePayload) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .aspectRatio(1.0, contentMode: .fill)
+                                .clipped()
+                                .tag("user_image_live")
+                        }
+                        
+                        // User's Uploaded Images (Historic Pipeline deferred by path cleanly preventing OOMs natively)
+                        ForEach(Array(inferenceEngine.activePayloads.enumerated()), id: \.offset) { index, path in
+                            AsyncLocalImageView(imagePath: path)
+                                .tag("user_image_\(index)")
                         }
                         
                         // Tab 1+: Wikipedia / GBIF Reference Images
@@ -428,5 +432,49 @@ struct TaxonomyNode: View {
             Capsule()
                 .stroke(Color.white.opacity(0.3), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Lazy Loading Detached Image Renderer 
+struct AsyncLocalImageView: View {
+    let imagePath: String
+    @State private var loadedImage: UIImage?
+    
+    var body: some View {
+        Group {
+            if let img = loadedImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .aspectRatio(1.0, contentMode: .fill)
+                    .clipped()
+            } else {
+                ProgressView()
+                    .aspectRatio(1.0, contentMode: .fill)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white.opacity(0.1))
+            }
+        }
+        .onAppear {
+            loadThumbnail()
+        }
+    }
+    
+    private func loadThumbnail() {
+        guard loadedImage == nil else { return }
+        let url = URL.documentsDirectory.appendingPathComponent(imagePath)
+        Task {
+            if let decoded = await Task.detached(priority: .userInitiated, operation: {
+                guard let rawData = try? Data(contentsOf: url),
+                      let fullImage = UIImage(data: rawData) else { return nil as UIImage? }
+                
+                // Target generic 1024x1024 geometric footprint dynamically preventing OOM memory bounds on 12MP files seamlessly
+                return fullImage.preparingThumbnail(of: CGSize(width: 1024, height: 1024)) ?? fullImage
+            }).value {
+                await MainActor.run {
+                    self.loadedImage = decoded
+                }
+            }
+        }
     }
 }
