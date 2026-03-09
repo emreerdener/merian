@@ -23,7 +23,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 
 **Responsibility:** Keychain IDFV Identity & Secure Device Tracking.
 
-- Intercepts physical instantiation natively requesting `UIDevice.current.identifierForVendor` as a persistent anonymous tracking identifier.
+- Intercepts physical instantiation natively requesting `UIDevice.current.identifierForVendor` (iOS) or `WKInterfaceDevice.current().identifierForVendor` (watchOS) as a persistent anonymous tracking identifier.
 - Writes exclusively into the iOS Security `Keychain` framework bypassing `UserDefaults` preventing silent UUID recreation.
 - Binds hardware strictly via the `user_id` parameter directly into every Supabase Edge Function `/identify` call completely bypassing local token expirations.
 
@@ -32,6 +32,7 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 **Responsibility:** Authenticated State & Vault Networking.
 
 - Listens to PostgreSQL `authStateChanges` loop securely mapping to the native UI React layer for future authenticated accounts.
+- Enforces explicitly unified split-brain identity pipelines by completely disregarding the generated Supabase Ghost `user.id` upon authentication mapping. Instead, it maps `DeviceIdentityManager.shared.deviceId` directly to `RevenueCatManager` and `PostHogManager`.
 
 ## 5. `HardwareOrchestrator.swift`
 
@@ -69,3 +70,12 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 - Tracks usage bounds directly against `DeviceIdentityManager.shared.deviceId`.
 - Grants 3 free scans per 24 hours UTC, actively resetting local quotas daily.
 - Triggers the application paywall if physically exhausted before completing further backend Edge executions over the Cloudflare grid.
+
+## 10. `InferenceEngine.swift`
+
+**Responsibility:** AI Execution & State Management.
+
+- Coordinates all physical cloud validations (`MerianNetworkClient`) natively with UI interaction.
+- Extracts `gpsLatitude` and `weatherCondition` context natively transferring it to the `/identify` API.
+- Acts as the explicit gatekeeper for `GamificationManager` and `UsageManager`; it ONLY triggers a successful scan statistic and gamification badge if the Gemini Edge infrastructure returns a confidence score `> 0.0`.
+- Catches network drops and cancellation states (`URLError`), intelligently deferring captures explicitly back to the `OfflineQueueManager` for physical local caching rather than updating usage limits.

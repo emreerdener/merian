@@ -56,47 +56,49 @@ struct CameraRootView: View {
             // Action Overlay Context
             if !isAnalyzingFullscreen {
                 VStack {
-                    // Top Toolbar (Photos & Gamification)
-                    HStack {
-                        PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
-                            ZStack {
-                                if hardwareOrchestrator.isGlassmorphismEnabled {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .environment(\.colorScheme, .dark)
-                                        .frame(width: 50, height: 50)
-                                } else {
-                                    Circle()
-                                        .fill(Color.black.opacity(0.7))
-                                        .frame(width: 50, height: 50)
-                                }
-                                
-                                Image(systemName: "photo.on.rectangle")
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        
+                    // Top Toolbar (Flash & Photos)
+                    HStack(alignment: .top) {
                         Spacer()
                         
-                        Button(action: {
-                            cameraManager.toggleFlash()
-                        }) {
-                            ZStack {
-                                if hardwareOrchestrator.isGlassmorphismEnabled {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .environment(\.colorScheme, .dark)
-                                        .frame(width: 50, height: 50)
-                                } else {
-                                    Circle()
-                                        .fill(Color.black.opacity(0.7))
-                                        .frame(width: 50, height: 50)
+                        VStack(spacing: 16) {
+                            Button(action: {
+                                cameraManager.toggleFlash()
+                            }) {
+                                ZStack {
+                                    if hardwareOrchestrator.isGlassmorphismEnabled {
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .environment(\.colorScheme, .dark)
+                                            .frame(width: 50, height: 50)
+                                    } else {
+                                        Circle()
+                                            .fill(Color.black.opacity(0.7))
+                                            .frame(width: 50, height: 50)
+                                    }
+                                    
+                                    Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                                        .font(.system(size: 20, weight: .medium))
+                                        .foregroundColor(cameraManager.isFlashEnabled ? .yellow : .white)
                                 }
-                                
-                                Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundColor(cameraManager.isFlashEnabled ? .yellow : .white)
+                            }
+                            
+                            PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                                ZStack {
+                                    if hardwareOrchestrator.isGlassmorphismEnabled {
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .environment(\.colorScheme, .dark)
+                                            .frame(width: 50, height: 50)
+                                    } else {
+                                        Circle()
+                                            .fill(Color.black.opacity(0.7))
+                                            .frame(width: 50, height: 50)
+                                    }
+                                    
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.system(size: 20, weight: .medium))
+                                        .foregroundColor(.white)
+                                }
                             }
                         }
                     }
@@ -211,9 +213,6 @@ struct CameraRootView: View {
                 if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
                     await MainActor.run {
                         inferenceEngine.analyze(imageData: data, modelContext: modelContext)
-                        usageManager.recordSuccessfulScan()
-                        gamificationManager.recordNewSpeciesDiscovered()
-                        AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
                         isAnalyzingFullscreen = true
                         selectedPhotoItem = nil
                     }
@@ -334,11 +333,19 @@ class VideoPreviewView: UIView {
 // UIVisualEffectView SwiftUI Wrapper
 struct VisualEffectBlur: UIViewRepresentable {
     var blurStyle: UIBlurEffect.Style
+    var cornerRadius: CGFloat = 0
+    
     func makeUIView(context: Context) -> UIVisualEffectView {
-        return UIVisualEffectView(effect: UIBlurEffect(style: blurStyle))
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: blurStyle))
+        view.layer.cornerRadius = cornerRadius
+        view.clipsToBounds = true
+        return view
     }
+    
     func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
         uiView.effect = UIBlurEffect(style: blurStyle)
+        uiView.layer.cornerRadius = cornerRadius
+        uiView.clipsToBounds = true
     }
 }
 

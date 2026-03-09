@@ -114,6 +114,7 @@ struct LifeListSearchView: View {
     @Binding var isInsightSheetOpen: Bool
     
     @State private var navPath = NavigationPath()
+    @FocusState private var isSearchFocused: Bool
     
     let columns = [
         GridItem(.flexible()),
@@ -128,7 +129,7 @@ struct LifeListSearchView: View {
                     ForEach(searchManager.filteredScans) { scan in
                         VStack(alignment: .leading) {
                             if let imagePath = scan.localImagePath,
-                               let uiImage = UIImage(contentsOfFile: imagePath) {
+                               let uiImage = UIImage(contentsOfFile: URL.documentsDirectory.appendingPathComponent(imagePath).path) {
                                 Image(uiImage: uiImage)
                                     .resizable()
                                     .scaledToFill()
@@ -167,35 +168,47 @@ struct LifeListSearchView: View {
                 }
                 .padding()
             }
-            
-            // Bottom Search Bar mimicking native iOS search styling
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                
-                TextField("Search tags, habitats, colors...", text: $searchManager.searchQuery)
-                    .onChange(of: searchManager.searchQuery) { _, newValue in
-                        searchManager.performSearch(query: newValue)
-                    }
-                
-                if !searchManager.searchQuery.isEmpty {
-                    Button(action: {
-                        searchManager.searchQuery = ""
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .transition(.opacity)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.secondary)
                 }
             }
-            .padding(10)
-            .background(.ultraThinMaterial)
-            .cornerRadius(10)
-            .padding(.horizontal)
-            .padding(.bottom, 16)
-            .padding(.top, 8)
-            .animation(.easeInOut(duration: 0.2), value: searchManager.searchQuery.isEmpty)
+            
+            ToolbarItem(placement: .bottomBar) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                    
+                    TextField("Search tags, habitats, colors...", text: $searchManager.searchQuery)
+                        .focused($isSearchFocused)
+                        .textFieldStyle(.plain)
+                        .onChange(of: searchManager.searchQuery) { _, newValue in
+                            searchManager.performSearch(query: newValue)
+                        }
+                    
+                    if !searchManager.searchQuery.isEmpty {
+                        Button(action: {
+                            searchManager.searchQuery = ""
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .transition(.opacity)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(UIColor.tertiarySystemFill))
+                .cornerRadius(10)
+                .animation(.easeInOut(duration: 0.2), value: searchManager.searchQuery.isEmpty)
+            }
         }
         .navigationTitle("Life List")
         .navigationBarTitleDisplayMode(.inline)

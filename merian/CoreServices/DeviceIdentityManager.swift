@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(WatchKit)
+import WatchKit
+#endif
 import Security
 
 @MainActor
@@ -19,7 +23,13 @@ final class DeviceIdentityManager: ObservableObject {
             return existingID
         }
         
+        #if canImport(UIKit)
         let newID = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        #elseif canImport(WatchKit)
+        let newID = WKInterfaceDevice.current().identifierForVendor?.uuidString ?? UUID().uuidString
+        #else
+        let newID = UUID().uuidString
+        #endif
         saveToKeychain(value: newID)
         return newID
     }

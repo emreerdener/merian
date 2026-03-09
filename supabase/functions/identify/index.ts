@@ -59,7 +59,7 @@ serve(async (req: Request) => {
 
     // Server-side robust encoded stream to prevent OOM
     const arrayBuffer = await r2Response.arrayBuffer();
-    const base64Image = encode(arrayBuffer);
+    const base64Image = encode(new Uint8Array(arrayBuffer));
 
     const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!);
 
@@ -320,7 +320,7 @@ Crucial instructions:
         .from("users")
         .upsert(
           { id: userId, subscription_tier: "free" },
-          { onConflict: "id" },
+          { onConflict: "id", ignoreDuplicates: true },
         );
       console.log("[6] Inserting Scan");
       // Finally natively bind the architectural map directly down to the Ghost User UUID

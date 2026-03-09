@@ -6,8 +6,8 @@ Merian's core differentiator is treating Off-grid nature encounters as a first-c
 
 The `OfflineQueueManager` handles the persistence explicitly with no risk.
 
-1. **Shutter Execution (`OfflineQueueManager.shared.enqueueCapture`)**
-   When a hiker takes a picture miles away from a cell tower, the High-Res JPEG is locally written to the iOS `URL.documentsDirectory`. A new `OfflineQueuedScan` database object is written securely into the physical `.modelContainer()` using Apple `SwiftData` and instantly updates the UI badge without touching `URLSession`.
+1. **Inference Failure & Queueing (`OfflineQueueManager.shared.enqueueCapture`)**
+   When a hiker takes a picture miles away from a cell tower, the UI passes the raw capture and active context (like `gpsLatitude` and `weatherCondition`) to the `InferenceEngine`. If `InferenceEngine` encounters a `URLError` or network timeout natively interacting with the backend, it securely catches the failure and delegates the payload instantly to `OfflineQueueManager.shared.enqueueCapture`. The High-Res JPEG is locally written to the iOS `URL.documentsDirectory` and a new `OfflineQueuedScan` database object is written securely into the physical `.modelContainer()` using Apple `SwiftData`.
 
 2. **Network Awakening (`NWPathMonitor`)**
    The `NWPathMonitor` instance listens natively to the internal cellular stack continuously. When a connection flips `.satisfied`, the manager debounces for 1,000 milliseconds to guarantee the pipeline has completely stabilized without thrashing before starting processing.

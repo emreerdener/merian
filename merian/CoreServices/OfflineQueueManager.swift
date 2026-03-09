@@ -216,7 +216,26 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         guard let scanId = task.taskDescription else { return }
         
         Task { @MainActor in
-            OfflineQueueManager.shared.finalizeScanCleanup(scanId: scanId)
+            guard let modelContext = OfflineQueueManager.shared.modelContext else { return }
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            
+            guard let scan = try? modelContext.fetch(descriptor).first else { return }
+            
+            guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else { return }
+            let r2ObjectKey = String(urlPath[range.lowerBound...])
+            
+            do {
+                _ = try await MerianNetworkClient.shared.analyzeSubject(
+                    r2ObjectKey: r2ObjectKey,
+                    depthScaleText: nil,
+                    gpsLatitude: scan.gpsLatitude,
+                    gpsLongitude: scan.gpsLongitude,
+                    weatherCondition: scan.weatherCondition
+                )
+                OfflineQueueManager.shared.finalizeScanCleanup(scanId: scanId)
+            } catch {
+                print("Failed downstream inference on offline queued scan: \(error)")
+            }
         }
     }
     

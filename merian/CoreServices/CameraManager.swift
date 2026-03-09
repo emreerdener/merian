@@ -79,13 +79,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
-            if #available(iOS 16.0, *) {
-                if let maxDim = captureDevice.activeFormat.supportedMaxPhotoDimensions.last {
-                    photoOutput.maxPhotoDimensions = maxDim
-                }
-            } else {
-                photoOutput.isHighResolutionCaptureEnabled = true
-            }
+            photoOutput.isHighResolutionCaptureEnabled = true
             if photoOutput.isDepthDataDeliverySupported {
                 photoOutput.isDepthDataDeliveryEnabled = true
             }
@@ -311,11 +305,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                     settings.flashMode = self.isFlashEnabled ? .on : .off
                 }
                 
-                if #available(iOS 16.0, *) {
-                    settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
-                } else {
-                    settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
-                }
+                settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
                 if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
                     settings.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliveryEnabled
                 }

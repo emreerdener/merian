@@ -6,9 +6,9 @@ Merian implements a seamless onboarding funnel by marrying Supabase Anonymous Au
 
 To maximize user conversion, Merian demands zero upfront onboarding friction:
 
-- Boots physically on app launch, silently pulling `UIDevice.current.identifierForVendor` via the iOS Keychain natively.
-- This creates persistent tracking tied exclusively to the `.uuidString` securely across the iOS lifecycle without volatile cookie dependencies.
-- It strictly acts as the new `DeviceIdentityManager` IDFV Apple Keychain fallback, permanently replacing legacy `Apple DeviceCheck` or `DCDevice` logic to track identities safely natively.
+- Boots physically on app launch, silently pulling `UIDevice.current.identifierForVendor` (or `WKInterfaceDevice.current().identifierForVendor` natively compiled for watchOS) via the Apple Keychain natively.
+- This creates persistent tracking tied exclusively to the `.uuidString` securely across the ecosystem lifecycle without volatile session cookie dependencies.
+- It strictly acts as the unified Apple Keychain fallback permanently solving "split-brain" tracking between databases. `SupabaseManager` intercepts Anonymous sign-ins and unconditionally enforces `DeviceIdentityManager.shared.deviceId` directly into both RevenueCat and PostHog, explicitly abandoning the Supabase ghost session UUID to ensure identity remains contiguous.
 - Automatically pushes this IDFV tracking string into PostHog for telemetry mappings and RevenueCat for correct entitlement tracking seamlessly.
 
 ## Paywalls and Entitlements (`RevenueCatManager`)

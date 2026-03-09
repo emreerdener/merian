@@ -50,15 +50,15 @@ final class SupabaseManager: ObservableObject {
             // Check if they are already actively signed in (either as a Ghost or an Authenticated Apple user)
             if let session = try? await client.auth.session, !session.isExpired {
                 print("👻 Active Merian User Identity already resolved natively on device.")
-                await RevenueCatManager.shared.linkWithSupabase(userId: session.user.id.uuidString)
-                PostHogManager.shared.identifyUser(userId: session.user.id.uuidString)
+                await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
+                PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
                 return
             }
             
             let authResponse = try await client.auth.signInAnonymously()
             print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
-            await RevenueCatManager.shared.linkWithSupabase(userId: authResponse.user.id.uuidString)
-            PostHogManager.shared.identifyUser(userId: authResponse.user.id.uuidString)
+            await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
+            PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
         } catch {
             print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
             // Future gracefully degraded UI triggers can be queued here natively

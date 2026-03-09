@@ -55,13 +55,9 @@ struct MerianActionBar: View {
                     Task {
                         do {
                             let captureData = try await cameraManager.captureImage()
-                            OfflineQueueManager.shared.enqueueCapture(imageData: captureData)
                             
                             await MainActor.run {
                                 inferenceEngine.analyze(imageData: captureData, modelContext: modelContext)
-                                usageManager.recordSuccessfulScan()
-                                gamificationManager.recordNewSpeciesDiscovered()
-                                AppTelemetry.trackScan(isPro: revenueCatManager.isProActive)
                                 isAnalyzingFullscreen = true
                             }
                         } catch {
@@ -196,11 +192,14 @@ struct UserProfileView: View {
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
                         dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.secondary)
                     }
-                    .fontWeight(.semibold)
                 }
             }
         }

@@ -49,7 +49,7 @@ final class InferenceEngine: ObservableObject {
         let reference_image_url: String?
     }
     
-    func analyze(imageData: Data, modelContext: ModelContext? = nil) {
+    func analyze(imageData: Data, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, weatherCondition: String? = nil, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
@@ -78,9 +78,9 @@ final class InferenceEngine: ObservableObject {
                 let resultData = try await client.analyzeSubject(
                     r2ObjectKey: target.objectKey,
                     depthScaleText: nil, // Extrapolating later if depth hardware demands it
-                    gpsLatitude: nil,
-                    gpsLongitude: nil,
-                    weatherCondition: nil
+                    gpsLatitude: gpsLatitude,
+                    gpsLongitude: gpsLongitude,
+                    weatherCondition: weatherCondition
                 )
                 
                 // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely
@@ -135,7 +135,7 @@ final class InferenceEngine: ObservableObject {
                                 if existingRecord.additionalImagePaths == nil {
                                     existingRecord.additionalImagePaths = []
                                 }
-                                existingRecord.additionalImagePaths?.append(url.path)
+                                existingRecord.additionalImagePaths?.append(filename)
                                 
                                 existingRecord.timestamp = Date()
                                 // Note: intentionally leaving the primary localImagePath alone so the thumbnail remains the first chronological capture
@@ -152,7 +152,7 @@ final class InferenceEngine: ObservableObject {
                                     commonName: mappedData.commonName,
                                     insightDescription: mappedData.insightData.description,
                                     timestamp: Date(),
-                                    localImagePath: url.path,
+                                    localImagePath: filename,
                                     semanticTags: [mappedData.commonName, mappedData.scientificName],
                                     isPoisonous: mappedData.insightData.isPoisonous,
                                     wikipediaUrl: mappedData.wikipediaUrl,
@@ -165,6 +165,9 @@ final class InferenceEngine: ObservableObject {
                         }
                         
                         CircuitBreakerManager.shared.recordSuccess()
+                        UsageManager.shared.recordSuccessfulScan()
+                        GamificationManager.shared.recordNewSpeciesDiscovered()
+                        AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                         self.speciesData = mappedData
                     } else {
                         print("⚠️ Inference Engine: Failed to structure Gemini JSON properly")
@@ -184,8 +187,18 @@ final class InferenceEngine: ObservableObject {
                         )
                     }
             } catch {
+                if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    self.isProcessing = false
+                    return
+                }
+                
                 CircuitBreakerManager.shared.recordFailure()
-                OfflineQueueManager.shared.enqueueCapture(imageData: imageData)
+                OfflineQueueManager.shared.enqueueCapture(
+                    imageData: imageData,
+                    gpsLatitude: gpsLatitude,
+                    gpsLongitude: gpsLongitude,
+                    weatherCondition: weatherCondition
+                )
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
                 self.speciesData = SpeciesData(
                     commonName: "Network Timeout",
@@ -221,13 +234,13 @@ final class InferenceEngine: ObservableObject {
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
         
-        if let path = record.localImagePath, let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+        if let path = record.localImagePath, let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(path)) {
             self.activePayload = data
             var payloads: [Data] = [data]
             
             if let extraPaths = record.additionalImagePaths {
                 for extra in extraPaths {
-                    if let extraData = try? Data(contentsOf: URL(fileURLWithPath: extra)) {
+                    if let extraData = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(extra)) {
                         payloads.append(extraData)
                     }
                 }
