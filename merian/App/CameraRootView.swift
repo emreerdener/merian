@@ -22,6 +22,7 @@ struct CameraRootView: View {
     @State private var isUserProfileOpen: Bool = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var flashOpacity: Double = 0.0
+    @State private var imageToCrop: IdentifiableImage? = nil
     
     @State private var isAnalyzingFullscreen: Bool = false
     @State private var scanningPhaseText: String = "Scanning..."
@@ -130,6 +131,7 @@ struct CameraRootView: View {
                         isInsightSheetOpen: $isInsightSheetOpen,
                         isAnalyzingFullscreen: $isAnalyzingFullscreen,
                         isUserProfileOpen: $isUserProfileOpen,
+                        imageToCrop: $imageToCrop,
                         onCaptureTriggered: triggerFlash
                     )
                 }
@@ -216,10 +218,11 @@ struct CameraRootView: View {
                       let data = try? await newItem.loadTransferable(type: Data.self) else { return }
                 
                 if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
-                    await MainActor.run {
-                        inferenceEngine.analyze(imageData: data, modelContext: modelContext)
-                        isAnalyzingFullscreen = true
-                        selectedPhotoItem = nil
+                    if let rawImage = UIImage(data: data) {
+                        await MainActor.run {
+                            imageToCrop = IdentifiableImage(image: rawImage)
+                            selectedPhotoItem = nil
+                        }
                     }
                 } else {
                     await MainActor.run {
@@ -255,6 +258,19 @@ struct CameraRootView: View {
                 .onAppear {
                     handleSheetAppear()
                 }
+        }
+        .fullScreenCover(item: $imageToCrop) { identItem in
+            ImageCropperView(
+                image: identItem.image,
+                onCrop: { croppedData in
+                    imageToCrop = nil
+                    inferenceEngine.analyze(imageData: croppedData, modelContext: modelContext)
+                    isAnalyzingFullscreen = true
+                },
+                onCancel: {
+                    imageToCrop = nil
+                }
+            )
         }
         .sheet(isPresented: $gamificationManager.showTerrariumSheet, onDismiss: {
             handleSheetDismiss()

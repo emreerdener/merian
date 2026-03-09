@@ -130,9 +130,8 @@ struct InsightSheetView: View {
                             if let uiImage = UIImage(data: payload) {
                                 Image(uiImage: uiImage)
                                     .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(height: 250)
-                                    .frame(maxWidth: .infinity)
+                                    .scaledToFill()
+                                    .aspectRatio(1.0, contentMode: .fill)
                                     .clipped()
                                     .tag("user_image_\(index)")
                             }
@@ -145,21 +144,20 @@ struct InsightSheetView: View {
                                     switch phase {
                                     case .empty:
                                         ProgressView()
-                                            .frame(height: 250)
+                                            .aspectRatio(1.0, contentMode: .fill)
                                             .frame(maxWidth: .infinity)
                                             .background(Color.white.opacity(0.1))
                                     case .success(let image):
                                         image
                                             .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(height: 250)
-                                            .frame(maxWidth: .infinity)
+                                            .scaledToFill()
+                                            .aspectRatio(1.0, contentMode: .fill)
                                             .clipped()
                                     case .failure:
                                         Image(systemName: "photo")
                                             .font(.largeTitle)
                                             .foregroundColor(.gray.opacity(0.5))
-                                            .frame(height: 250)
+                                            .aspectRatio(1.0, contentMode: .fill)
                                             .frame(maxWidth: .infinity)
                                             .background(Color.white.opacity(0.1))
                                     @unknown default:
@@ -171,8 +169,8 @@ struct InsightSheetView: View {
                         }
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
-                    .frame(height: 250)
-                    .cornerRadius(12)
+                    .aspectRatio(1.0, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     .padding(.horizontal)
                 }
 

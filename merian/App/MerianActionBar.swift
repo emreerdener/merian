@@ -8,6 +8,7 @@ struct MerianActionBar: View {
     @Binding var isInsightSheetOpen: Bool
     @Binding var isAnalyzingFullscreen: Bool
     @Binding var isUserProfileOpen: Bool
+    @Binding var imageToCrop: IdentifiableImage?
     
     var onCaptureTriggered: () -> Void
     
@@ -42,9 +43,10 @@ struct MerianActionBar: View {
                             // Actively push the original 12MP buffer down natively into the user's Camera Roll securely
                             await PhotoLibraryManager.shared.saveImageToLibrary(imageData: captureData)
                             
-                            await MainActor.run {
-                                inferenceEngine.analyze(imageData: captureData, modelContext: modelContext)
-                                isAnalyzingFullscreen = true
+                            if let rawImage = UIImage(data: captureData) {
+                                await MainActor.run {
+                                    imageToCrop = IdentifiableImage(image: rawImage)
+                                }
                             }
                         } catch {
                             print("⚠️ Shutter failure: \(error.localizedDescription)")

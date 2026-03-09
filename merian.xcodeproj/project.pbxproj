@@ -44,6 +44,7 @@
 		C8AEC07E1DD57A9896A7F90F /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F8E1A22BF57BF9A60DB3D6 /* HapticManager.swift */; };
 		CE394152F5071221586CE196 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = A0635D9DFE936BD480B327EA /* PostHog */; };
 		D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D57A8D01CDAF8E994655620 /* MerianApp.swift */; };
+		D56FCF019F46B3D2086E3FAA /* ImageCropperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F846A699FD3A8B52168EBFDB /* ImageCropperView.swift */; };
 		D8914F42F1667394F72C0C63 /* SyncStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F441743E545E21D4B647A5E /* SyncStateManager.swift */; };
 		DC5976B3161BF677189AC001 /* OfflineQueuedScan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF2E6642104DA1CAA60F1BE /* OfflineQueuedScan.swift */; };
 		DFE28B3E2FF7EB68E490A68F /* TerrariumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E7465969D5DCB9E7F4B88D /* TerrariumView.swift */; };
@@ -117,6 +118,7 @@
 		DAF1FE0041FD12C6CBBB1E2F /* InferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEngine.swift; sourceTree = "<group>"; };
 		DBF7029A6B9A3F780291DCDC /* CameraZoomControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraZoomControl.swift; sourceTree = "<group>"; };
 		EF836BCE5722B41748153F02 /* AppTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetry.swift; sourceTree = "<group>"; };
+		F846A699FD3A8B52168EBFDB /* ImageCropperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCropperView.swift; sourceTree = "<group>"; };
 		FAAB63EDC61FA78DAB2927F3 /* GlassCircularButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCircularButton.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -143,6 +145,7 @@
 				DBF7029A6B9A3F780291DCDC /* CameraZoomControl.swift */,
 				CB9E27E92C07B1A6540ECA75 /* DiagnosticComparisonView.swift */,
 				FAAB63EDC61FA78DAB2927F3 /* GlassCircularButton.swift */,
+				F846A699FD3A8B52168EBFDB /* ImageCropperView.swift */,
 				2E18F67259D39B16B3B1FE1D /* InsightSheetView.swift */,
 				B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */,
 				98F6EC72296A8F0873BCBB4F /* LifeListSearchManager.swift */,
@@ -377,6 +380,7 @@
 				4CDB0BC78597A0EDEE47912F /* GlassCircularButton.swift in Sources */,
 				C8AEC07E1DD57A9896A7F90F /* HapticManager.swift in Sources */,
 				1AF3C8456601927E288B1890 /* HardwareOrchestrator.swift in Sources */,
+				D56FCF019F46B3D2086E3FAA /* ImageCropperView.swift in Sources */,
 				8D1DA35F1965114EDBD64702 /* InferenceEngine.swift in Sources */,
 				A75F38D210D42BDC6EAC0FD6 /* InsightSheetView.swift in Sources */,
 				8D28D290FD319AF4DFE6056C /* LifeListSearchManager.swift in Sources */,

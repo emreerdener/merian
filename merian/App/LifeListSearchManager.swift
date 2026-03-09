@@ -118,52 +118,34 @@ struct LifeListSearchView: View {
     @FocusState private var isSearchFocused: Bool
     
     let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible())
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2)
     ]
     
     var body: some View {
         NavigationStack(path: $navPath) {
             VStack(spacing: 0) {
                 ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(searchManager.filteredScans) { scan in
-                        VStack(alignment: .leading) {
-                            if let imagePath = scan.localImagePath {
-                                LifeListThumbnailView(imagePath: imagePath)
-                            } else {
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(height: 120)
-                                    .cornerRadius(8)
+                    LazyVGrid(columns: columns, spacing: 2) {
+                        ForEach(searchManager.filteredScans) { scan in
+                            Group {
+                                if let imagePath = scan.localImagePath {
+                                    LifeListThumbnailView(imagePath: imagePath)
+                                } else {
+                                    Rectangle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .aspectRatio(1.0, contentMode: .fill)
+                                }
                             }
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(scan.commonName)
-                                    .font(.headline)
-                                    .lineLimit(1)
-                                
-                                Text(scan.scientificName)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .italic()
-                                    .lineLimit(1)
+                            .onTapGesture {
+                                inferenceEngine.load(from: scan)
+                                navPath.append(scan)
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.bottom, 8)
-                            .padding(.top, 4)
-                        }
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(12)
-                        .onTapGesture {
-                            inferenceEngine.load(from: scan)
-                            navPath.append(scan)
                         }
                     }
                 }
-                .padding()
             }
-        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: {
@@ -232,14 +214,12 @@ struct LifeListThumbnailView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(height: 120)
+                    .aspectRatio(1.0, contentMode: .fill)
                     .clipped()
-                    .cornerRadius(8)
             } else {
                 Rectangle()
                     .fill(Color.gray.opacity(0.3))
-                    .frame(height: 120)
-                    .cornerRadius(8)
+                    .aspectRatio(1.0, contentMode: .fill)
             }
         }
         .task {
