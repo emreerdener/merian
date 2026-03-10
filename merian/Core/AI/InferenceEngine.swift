@@ -72,7 +72,9 @@ final class InferenceEngine: ObservableObject {
         self.activeWeatherCondition = weatherCondition
         self.activeTemperatureF = weatherTemperatureF
         
-        self.inferenceTask = Task {
+        self.inferenceTask = Task { [weak self] in
+            guard let self = self else { return }
+            
             // 1. Instantly compress the payload off the main thread before attempting any network boundaries to prevent Sandbox bloat on offline paths
             let compressedData = await Task.detached(priority: .userInitiated) {
                 return self.downsampleLocalPayload(data: imageData) ?? imageData

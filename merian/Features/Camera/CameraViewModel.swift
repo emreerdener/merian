@@ -24,11 +24,12 @@ final class CameraViewModel: ObservableObject {
     private let diContainer = AppDIContainer.shared
     
     func handlePhotoPickerSelection(newItem: PhotosPickerItem?, modelContext: ModelContext) {
-        Task {
-            guard let newItem = newItem,
+        Task { [weak self] in
+            guard let self = self,
+                  let newItem = newItem,
                   let data = try? await newItem.loadTransferable(type: Data.self) else { return }
             
-            if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
+            if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
                 if let rawImage = UIImage(data: data) {
                     await MainActor.run {
                         self.imageToCrop = IdentifiableImage(image: rawImage)
@@ -47,10 +48,11 @@ final class CameraViewModel: ObservableObject {
     func handleCropCompletion(croppedData: Data, modelContext: ModelContext) {
         imageToCrop = nil
         
-        Task { @MainActor in
-            let context = await diContainer.environmentContextManager.fetchDeferredContext()
+        Task { [weak self] in
+            guard let self = self else { return }
+            let context = await self.diContainer.environmentContextManager.fetchDeferredContext()
             
-            diContainer.inferenceEngine.analyze(
+            self.diContainer.inferenceEngine.analyze(
                 imageData: croppedData,
                 gpsLatitude: context.location?.coordinate.latitude,
                 gpsLongitude: context.location?.coordinate.longitude,
@@ -59,7 +61,10 @@ final class CameraViewModel: ObservableObject {
                 weatherTemperatureF: context.weatherTemperature,
                 modelContext: modelContext
             )
-            isAnalyzingFullscreen = true
+            
+            await MainActor.run {
+                self.isAnalyzingFullscreen = true
+            }
         }
     }
     

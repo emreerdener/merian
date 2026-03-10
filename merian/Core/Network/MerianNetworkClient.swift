@@ -46,6 +46,7 @@ class MerianNetworkClient {
                 throw NetworkError.invalidResponse
             }
             request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
+            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
         } catch {
             print("⚠️ MerianNetworkClient: Critical Auth Failure: \(error.localizedDescription)")
             throw NetworkError.invalidResponse
@@ -100,6 +101,7 @@ class MerianNetworkClient {
                 throw NetworkError.invalidResponse
             }
             request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
+            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
         } catch {
             throw NetworkError.invalidResponse
         }
