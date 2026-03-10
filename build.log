@@ -1,0 +1,67 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild build -project Merian.xcodeproj -scheme Merian -destination "platform=iOS Simulator,name=iPhone 16,OS=latest"
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  TelemetryClient: https://github.com/TelemetryDeck/SwiftClient.git @ 1.5.1
+  PLCrashReporter: https://github.com/microsoft/plcrashreporter.git @ 1.12.2
+  GoogleSignIn: https://github.com/google/GoogleSignIn-iOS.git @ 7.1.0
+  PostHog: https://github.com/PostHog/posthog-ios.git @ 3.45.0
+  AppAuth: https://github.com/openid/AppAuth-iOS.git @ 1.7.6
+  swift-concurrency-extras: https://github.com/pointfreeco/swift-concurrency-extras @ 1.3.2
+  GTMSessionFetcher: https://github.com/google/gtm-session-fetcher.git @ 3.5.0
+  Supabase: https://github.com/supabase-community/supabase-swift.git @ 2.41.1
+  swift-asn1: https://github.com/apple/swift-asn1.git @ 1.5.1
+  swift-clocks: https://github.com/pointfreeco/swift-clocks @ 1.0.6
+  GTMAppAuth: https://github.com/google/GTMAppAuth.git @ 4.1.1
+  RiveRuntime: https://github.com/rive-app/rive-ios.git @ 5.16.0
+  swift-crypto: https://github.com/apple/swift-crypto.git @ 4.2.0
+  xctest-dynamic-overlay: https://github.com/pointfreeco/xctest-dynamic-overlay @ 1.9.0
+  swift-http-types: https://github.com/apple/swift-http-types.git @ 1.5.1
+  RevenueCat: https://github.com/RevenueCat/purchases-ios.git @ 4.44.2
+
+2026-03-10 18:07:08.986 xcodebuild[7644:18715532] Writing error result bundle to /var/folders/ht/zysy4q_d2pz2bvqq0ss02jz40000gn/T/ResultBundle_2026-10-03_18-07-0008.xcresult
+xcodebuild: error: Unable to find a device matching the provided destination specifier:
+		{ platform:iOS Simulator, OS:latest, name:iPhone 16 }
+
+	The requested device could not be found because no available devices matched the request.
+
+	Available destinations for the "Merian" scheme:
+		{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00006000-001209A00E23801E, name:My Mac }
+		{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+		{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+		{ platform:iOS Simulator, arch:arm64, id:49B7014C-C954-45B5-A470-E5E0AB625FCD, OS:18.0, name:iPad (10th generation) }
+		{ platform:iOS Simulator, arch:x86_64, id:49B7014C-C954-45B5-A470-E5E0AB625FCD, OS:18.0, name:iPad (10th generation) }
+		{ platform:iOS Simulator, arch:arm64, id:C775AAC2-9466-41A8-9D6B-C3F50D6FB362, OS:26.3.1, name:iPad (A16) }
+		{ platform:iOS Simulator, arch:arm64, id:E75CEB75-D4AF-4A6E-BC6C-E31E8E9440CA, OS:18.0, name:iPad Air 11-inch (M2) }
+		{ platform:iOS Simulator, arch:x86_64, id:E75CEB75-D4AF-4A6E-BC6C-E31E8E9440CA, OS:18.0, name:iPad Air 11-inch (M2) }
+		{ platform:iOS Simulator, arch:arm64, id:6C9ADA00-A96B-4E52-BFFD-CFC2CB869346, OS:26.3.1, name:iPad Air 11-inch (M3) }
+		{ platform:iOS Simulator, arch:arm64, id:461CF486-0954-4420-85A5-6D0747DE19B5, OS:18.0, name:iPad Air 13-inch (M2) }
+		{ platform:iOS Simulator, arch:x86_64, id:461CF486-0954-4420-85A5-6D0747DE19B5, OS:18.0, name:iPad Air 13-inch (M2) }
+		{ platform:iOS Simulator, arch:arm64, id:283284DC-C65A-4054-9BF7-DEE051095CD5, OS:26.3.1, name:iPad Air 13-inch (M3) }
+		{ platform:iOS Simulator, arch:arm64, id:65EAA311-DCDA-4DF0-BC52-4F5C2ED351CD, OS:18.0, name:iPad Pro 11-inch (M4) }
+		{ platform:iOS Simulator, arch:x86_64, id:65EAA311-DCDA-4DF0-BC52-4F5C2ED351CD, OS:18.0, name:iPad Pro 11-inch (M4) }
+		{ platform:iOS Simulator, arch:arm64, id:569BAC10-BBAF-474C-861E-FB54D8C9BFF1, OS:26.3.1, name:iPad Pro 11-inch (M5) }
+		{ platform:iOS Simulator, arch:arm64, id:595BA229-1AF5-488A-A53C-1F23A3CD615A, OS:18.0, name:iPad Pro 13-inch (M4) }
+		{ platform:iOS Simulator, arch:x86_64, id:595BA229-1AF5-488A-A53C-1F23A3CD615A, OS:18.0, name:iPad Pro 13-inch (M4) }
+		{ platform:iOS Simulator, arch:arm64, id:3738516A-77BB-4237-9EE1-52C93A379228, OS:26.3.1, name:iPad Pro 13-inch (M5) }
+		{ platform:iOS Simulator, arch:arm64, id:643F82D9-216E-4FE3-82BC-6BDFE662AE11, OS:18.0, name:iPad mini (6th generation) }
+		{ platform:iOS Simulator, arch:x86_64, id:643F82D9-216E-4FE3-82BC-6BDFE662AE11, OS:18.0, name:iPad mini (6th generation) }
+		{ platform:iOS Simulator, arch:arm64, id:38BABE1F-85C8-4579-970D-AD7107DAEACE, OS:26.3.1, name:iPad mini (A17 Pro) }
+		{ platform:iOS Simulator, arch:arm64, id:B4BCC00D-FE8E-4442-B557-7811345D4FCF, OS:18.0, name:iPhone 16 }
+		{ platform:iOS Simulator, arch:x86_64, id:B4BCC00D-FE8E-4442-B557-7811345D4FCF, OS:18.0, name:iPhone 16 }
+		{ platform:iOS Simulator, arch:arm64, id:2D66779D-E5D3-4130-922B-34AB88CE208E, OS:18.0, name:iPhone 16 Plus }
+		{ platform:iOS Simulator, arch:x86_64, id:2D66779D-E5D3-4130-922B-34AB88CE208E, OS:18.0, name:iPhone 16 Plus }
+		{ platform:iOS Simulator, arch:arm64, id:A143B5DF-1D01-4256-A5AA-CF7B7C318834, OS:18.0, name:iPhone 16 Pro }
+		{ platform:iOS Simulator, arch:x86_64, id:A143B5DF-1D01-4256-A5AA-CF7B7C318834, OS:18.0, name:iPhone 16 Pro }
+		{ platform:iOS Simulator, arch:arm64, id:2030FB1D-9824-4D83-9EDD-872CC3B6B0B2, OS:18.0, name:iPhone 16 Pro Max }
+		{ platform:iOS Simulator, arch:x86_64, id:2030FB1D-9824-4D83-9EDD-872CC3B6B0B2, OS:18.0, name:iPhone 16 Pro Max }
+		{ platform:iOS Simulator, arch:arm64, id:73DE22AB-A2BD-49EA-B626-D54FA535311D, OS:26.3.1, name:iPhone 16e }
+		{ platform:iOS Simulator, arch:arm64, id:49F3FEC1-A132-434A-A2B2-0472FCF7E1BC, OS:26.3.1, name:iPhone 17 }
+		{ platform:iOS Simulator, arch:arm64, id:4A9C54E4-9EB5-4AA2-A81E-41171B4EE652, OS:26.3.1, name:iPhone 17 Pro }
+		{ platform:iOS Simulator, arch:arm64, id:D3D65856-832F-4038-860B-259DB0AC59F6, OS:26.3.1, name:iPhone 17 Pro Max }
+		{ platform:iOS Simulator, arch:arm64, id:59FF77B0-6DE1-42FE-ADD5-A10A269681F3, OS:26.3.1, name:iPhone Air }
+		{ platform:iOS Simulator, arch:arm64, id:40D8227F-21EA-4165-9722-75BBAB652F55, OS:18.0, name:iPhone SE (3rd generation) }
+		{ platform:iOS Simulator, arch:x86_64, id:40D8227F-21EA-4165-9722-75BBAB652F55, OS:18.0, name:iPhone SE (3rd generation) }

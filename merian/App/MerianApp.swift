@@ -11,20 +11,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct MerianApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
-    
-    @StateObject private var hardwareOrchestrator = HardwareOrchestrator.shared
-    @StateObject private var cameraManager = CameraManager.shared
-    @StateObject private var offlineQueueManager = OfflineQueueManager.shared
-    @StateObject private var inferenceEngine = InferenceEngine()
-    @StateObject private var syncStateManager = SyncStateManager.shared
-    @StateObject private var supabaseManager = SupabaseManager.shared
-    @StateObject private var revenueCatManager = RevenueCatManager.shared
-    @StateObject private var usageManager = UsageManager.shared
-    @StateObject private var gamificationManager = GamificationManager.shared
-    @StateObject private var circuitBreakerManager = CircuitBreakerManager.shared
-    @StateObject private var archiveManager = ArchiveManager.shared
-    @StateObject private var vui = ViewfinderIntelligence.shared
-    @StateObject private var photoLibraryManager = PhotoLibraryManager.shared
+    @StateObject private var diContainer = AppDIContainer.shared
 
     let container: ModelContainer
     
@@ -41,7 +28,7 @@ struct MerianApp: App {
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
             container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            OfflineQueueManager.shared.modelContext = container.mainContext
+            diContainer.scanRepository.configure(with: container.mainContext)
         } catch {
             // Fatal error protects against wiping data when encountering production schema migrations
             fatalError("Could not create ModelContainer: \(error)")
@@ -51,27 +38,15 @@ struct MerianApp: App {
     var body: some Scene {
         WindowGroup {
             CameraRootView()
-                .environmentObject(hardwareOrchestrator)
-                .environmentObject(cameraManager)
-                .environmentObject(offlineQueueManager)
-                .environmentObject(inferenceEngine)
-                .environmentObject(syncStateManager)
-                .environmentObject(supabaseManager)
-                .environmentObject(revenueCatManager)
-                .environmentObject(usageManager)
-                .environmentObject(gamificationManager)
-                .environmentObject(circuitBreakerManager)
-                .environmentObject(archiveManager)
-                .environmentObject(vui)
-                .environmentObject(photoLibraryManager)
+                .injectAppDependencies(container: diContainer)
                 .modelContainer(container)
                 .onAppear {
-                    revenueCatManager.configure()
+                    diContainer.revenueCatManager.configure()
                 }
                 .onOpenURL { url in
                     Task {
                         do {
-                            try await supabaseManager.client.auth.session(from: url)
+                            try await diContainer.supabaseManager.client.auth.session(from: url)
                         } catch {
                             print("Supabase auth session URL handler failed: \(error)")
                         }
@@ -81,29 +56,11 @@ struct MerianApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background:
-                // Safely intercept mid-flight networks limits rescuing images asynchronously before standard app suspension
-                if inferenceEngine.isProcessing, let payload = inferenceEngine.activeCompressedPayload ?? inferenceEngine.activePayload {
-                    offlineQueueManager.enqueueCapture(
-                        imageData: payload,
-                        gpsLatitude: inferenceEngine.activeLatitude,
-                        gpsLongitude: inferenceEngine.activeLongitude,
-                        weatherCondition: inferenceEngine.activeWeatherCondition
-                    )
-                    inferenceEngine.cancelActiveRequest()
-                }
+                diContainer.handleBackgroundPhase()
             case .inactive:
-                // Kill camera hardware to drastically preserve total battery draw in states like App Switcher or Notification Center Pulls
-                cameraManager.stopSession()
+                diContainer.handleInactivePhase()
             case .active:
-                // Restore thermal feeds dynamically safely
-                cameraManager.startSession()
-                
-                // Initialize the anonymous session natively if they haven't authenticated
-                // Then check edge databases implicitly for ghost uploads
-                Task {
-                    await supabaseManager.initializeGhostSession()
-                    offlineQueueManager.syncPendingScans()
-                }
+                diContainer.handleActivePhase()
             @unknown default:
                 break
             }

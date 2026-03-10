@@ -32,7 +32,7 @@ targets:
     deploymentTarget: "17.0"
     sources: [Merian]
     entitlements:
-      path: Merian/Merian.entitlements
+      path: Merian/Configuration/Merian.entitlements
       properties:
         com.apple.developer.applesignin: ["Default"]
     configFiles:
@@ -40,7 +40,7 @@ targets:
       Release: Config.xcconfig
     settings:
       base:
-        INFOPLIST_FILE: Merian/Info.plist
+        INFOPLIST_FILE: Merian/Configuration/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1" # iPhone Only to bypass iPad Multitasking requirements
         DEVELOPMENT_TEAM: LDL96V2WT5

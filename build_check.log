@@ -1,0 +1,257 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild build -project Merian.xcodeproj -scheme Merian -destination generic/platform=iOS
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  swift-asn1: https://github.com/apple/swift-asn1.git @ 1.5.1
+  RiveRuntime: https://github.com/rive-app/rive-ios.git @ 5.16.0
+  swift-clocks: https://github.com/pointfreeco/swift-clocks @ 1.0.6
+  GoogleSignIn: https://github.com/google/GoogleSignIn-iOS.git @ 7.1.0
+  PostHog: https://github.com/PostHog/posthog-ios.git @ 3.45.0
+  swift-concurrency-extras: https://github.com/pointfreeco/swift-concurrency-extras @ 1.3.2
+  GTMSessionFetcher: https://github.com/google/gtm-session-fetcher.git @ 3.5.0
+  Supabase: https://github.com/supabase-community/supabase-swift.git @ 2.41.1
+  TelemetryClient: https://github.com/TelemetryDeck/SwiftClient.git @ 1.5.1
+  xctest-dynamic-overlay: https://github.com/pointfreeco/xctest-dynamic-overlay @ 1.9.0
+  PLCrashReporter: https://github.com/microsoft/plcrashreporter.git @ 1.12.2
+  AppAuth: https://github.com/openid/AppAuth-iOS.git @ 1.7.6
+  GTMAppAuth: https://github.com/google/GTMAppAuth.git @ 4.1.1
+  RevenueCat: https://github.com/RevenueCat/purchases-ios.git @ 4.44.2
+  swift-crypto: https://github.com/apple/swift-crypto.git @ 4.2.0
+  swift-http-types: https://github.com/apple/swift-http-types.git @ 1.5.1
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (53 targets)
+    Target 'Merian' in project 'Merian'
+        ➜ Explicit dependency on target 'MerianWatch' in project 'Merian'
+        ➜ Explicit dependency on target 'RevenueCat' in project 'RevenueCat'
+        ➜ Explicit dependency on target 'PostHog' in project 'PostHog'
+        ➜ Explicit dependency on target 'Supabase' in project 'Supabase'
+        ➜ Explicit dependency on target 'TelemetryClient' in project 'TelemetryClient'
+        ➜ Explicit dependency on target 'RiveRuntime' in project 'RiveRuntime'
+        ➜ Explicit dependency on target 'GoogleSignIn' in project 'GoogleSignIn'
+    Target 'GoogleSignIn' in project 'GoogleSignIn'
+        ➜ Explicit dependency on target 'GoogleSignIn' in project 'GoogleSignIn'
+        ➜ Explicit dependency on target 'GoogleSignIn_GoogleSignIn' in project 'GoogleSignIn'
+        ➜ Explicit dependency on target 'AppAuth' in project 'AppAuth'
+        ➜ Explicit dependency on target 'GTMAppAuth' in project 'GTMAppAuth'
+        ➜ Explicit dependency on target 'GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+    Target 'GoogleSignIn' in project 'GoogleSignIn'
+        ➜ Explicit dependency on target 'GoogleSignIn_GoogleSignIn' in project 'GoogleSignIn'
+        ➜ Explicit dependency on target 'AppAuth' in project 'AppAuth'
+        ➜ Explicit dependency on target 'GTMAppAuth' in project 'GTMAppAuth'
+        ➜ Explicit dependency on target 'GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+    Target 'GTMAppAuth' in project 'GTMAppAuth'
+        ➜ Explicit dependency on target 'GTMAppAuth' in project 'GTMAppAuth'
+        ➜ Explicit dependency on target 'GTMAppAuth_GTMAppAuth' in project 'GTMAppAuth'
+        ➜ Explicit dependency on target 'GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+        ➜ Explicit dependency on target 'AppAuthCore' in project 'AppAuth'
+    Target 'GTMAppAuth' in project 'GTMAppAuth'
+        ➜ Explicit dependency on target 'GTMAppAuth_GTMAppAuth' in project 'GTMAppAuth'
+        ➜ Explicit dependency on target 'GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+        ➜ Explicit dependency on target 'AppAuthCore' in project 'AppAuth'
+    Target 'AppAuthCore' in project 'AppAuth'
+        ➜ Explicit dependency on target 'AppAuthCore' in project 'AppAuth'
+        ➜ Explicit dependency on target 'AppAuth_AppAuthCore' in project 'AppAuth'
+    Target 'GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+        ➜ Explicit dependency on target 'GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+        ➜ Explicit dependency on target 'GTMSessionFetcher_GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+    Target 'GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+        ➜ Explicit dependency on target 'GTMSessionFetcher_GTMSessionFetcherCore' in project 'GTMSessionFetcher'
+    Target 'GTMSessionFetcher_GTMSessionFetcherCore' in project 'GTMSessionFetcher' (no dependencies)
+    Target 'GTMAppAuth_GTMAppAuth' in project 'GTMAppAuth' (no dependencies)
+    Target 'AppAuth' in project 'AppAuth'
+        ➜ Explicit dependency on target 'AppAuth' in project 'AppAuth'
+        ➜ Explicit dependency on target 'AppAuth_AppAuth' in project 'AppAuth'
+        ➜ Explicit dependency on target 'AppAuthCore' in project 'AppAuth'
+    Target 'AppAuth' in project 'AppAuth'
+        ➜ Explicit dependency on target 'AppAuth_AppAuth' in project 'AppAuth'
+        ➜ Explicit dependency on target 'AppAuthCore' in project 'AppAuth'
+    Target 'AppAuthCore' in project 'AppAuth'
+        ➜ Explicit dependency on target 'AppAuth_AppAuthCore' in project 'AppAuth'
+    Target 'AppAuth_AppAuthCore' in project 'AppAuth' (no dependencies)
+    Target 'AppAuth_AppAuth' in project 'AppAuth' (no dependencies)
+    Target 'GoogleSignIn_GoogleSignIn' in project 'GoogleSignIn' (no dependencies)
+    Target 'RiveRuntime' in project 'RiveRuntime' (no dependencies)
+    Target 'TelemetryClient' in project 'TelemetryClient'
+        ➜ Explicit dependency on target 'TelemetryClient' in project 'TelemetryClient'
+        ➜ Explicit dependency on target 'TelemetryClient_TelemetryClient' in project 'TelemetryClient'
+    Target 'TelemetryClient' in project 'TelemetryClient'
+        ➜ Explicit dependency on target 'TelemetryClient_TelemetryClient' in project 'TelemetryClient'
+    Target 'TelemetryClient_TelemetryClient' in project 'TelemetryClient' (no dependencies)
+    Target 'Supabase' in project 'Supabase'
+        ➜ Explicit dependency on target 'Supabase' in project 'Supabase'
+        ➜ Explicit dependency on target 'Functions' in project 'Supabase'
+        ➜ Explicit dependency on target 'PostgREST' in project 'Supabase'
+        ➜ Explicit dependency on target 'Auth' in project 'Supabase'
+        ➜ Explicit dependency on target 'Realtime' in project 'Supabase'
+        ➜ Explicit dependency on target 'Storage' in project 'Supabase'
+        ➜ Explicit dependency on target 'Helpers' in project 'Supabase'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'IssueReporting' in project 'xctest-dynamic-overlay'
+    Target 'Supabase' in project 'Supabase'
+        ➜ Explicit dependency on target 'Helpers' in project 'Supabase'
+        ➜ Explicit dependency on target 'Auth' in project 'Supabase'
+        ➜ Explicit dependency on target 'Functions' in project 'Supabase'
+        ➜ Explicit dependency on target 'PostgREST' in project 'Supabase'
+        ➜ Explicit dependency on target 'Realtime' in project 'Supabase'
+        ➜ Explicit dependency on target 'Storage' in project 'Supabase'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'IssueReporting' in project 'xctest-dynamic-overlay'
+    Target 'Storage' in project 'Supabase'
+        ➜ Explicit dependency on target 'Helpers' in project 'Supabase'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+    Target 'Realtime' in project 'Supabase'
+        ➜ Explicit dependency on target 'Helpers' in project 'Supabase'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'IssueReporting' in project 'xctest-dynamic-overlay'
+    Target 'PostgREST' in project 'Supabase'
+        ➜ Explicit dependency on target 'Helpers' in project 'Supabase'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+    Target 'Functions' in project 'Supabase'
+        ➜ Explicit dependency on target 'Helpers' in project 'Supabase'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+    Target 'Auth' in project 'Supabase'
+        ➜ Explicit dependency on target 'Helpers' in project 'Supabase'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+    Target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'swift-crypto_Crypto' in project 'swift-crypto'
+    Target 'Crypto' in project 'swift-crypto'
+        ➜ Explicit dependency on target 'swift-crypto_Crypto' in project 'swift-crypto'
+    Target 'swift-crypto_Crypto' in project 'swift-crypto' (no dependencies)
+    Target 'Helpers' in project 'Supabase'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+    Target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'IssueReportingPackageSupport' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'IssueReporting' in project 'xctest-dynamic-overlay'
+    Target 'XCTestDynamicOverlay' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'IssueReportingPackageSupport' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'IssueReporting' in project 'xctest-dynamic-overlay'
+    Target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'IssueReporting' in project 'xctest-dynamic-overlay'
+    Target 'Clocks' in project 'swift-clocks'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'IssueReporting' in project 'xctest-dynamic-overlay'
+    Target 'IssueReporting' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'IssueReporting' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'IssueReportingPackageSupport' in project 'xctest-dynamic-overlay'
+    Target 'IssueReporting' in project 'xctest-dynamic-overlay'
+        ➜ Explicit dependency on target 'IssueReportingPackageSupport' in project 'xctest-dynamic-overlay'
+    Target 'IssueReportingPackageSupport' in project 'xctest-dynamic-overlay' (no dependencies)
+    Target 'HTTPTypes' in project 'swift-http-types'
+        ➜ Explicit dependency on target 'HTTPTypes' in project 'swift-http-types'
+    Target 'HTTPTypes' in project 'swift-http-types' (no dependencies)
+    Target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+        ➜ Explicit dependency on target 'ConcurrencyExtras' in project 'swift-concurrency-extras'
+    Target 'ConcurrencyExtras' in project 'swift-concurrency-extras' (no dependencies)
+    Target 'PostHog' in project 'PostHog'
+        ➜ Explicit dependency on target 'PostHog' in project 'PostHog'
+        ➜ Explicit dependency on target 'PostHog_PostHog' in project 'PostHog'
+        ➜ Explicit dependency on target 'phlibwebp' in project 'PostHog'
+        ➜ Explicit dependency on target 'CrashReporter' in project 'PLCrashReporter'
+    Target 'PostHog' in project 'PostHog'
+        ➜ Explicit dependency on target 'PostHog_PostHog' in project 'PostHog'
+        ➜ Explicit dependency on target 'phlibwebp' in project 'PostHog'
+        ➜ Explicit dependency on target 'CrashReporter' in project 'PLCrashReporter'
+    Target 'CrashReporter' in project 'PLCrashReporter'
+        ➜ Explicit dependency on target 'CrashReporter' in project 'PLCrashReporter'
+        ➜ Explicit dependency on target 'PLCrashReporter_CrashReporter' in project 'PLCrashReporter'
+    Target 'CrashReporter' in project 'PLCrashReporter'
+        ➜ Explicit dependency on target 'PLCrashReporter_CrashReporter' in project 'PLCrashReporter'
+    Target 'PLCrashReporter_CrashReporter' in project 'PLCrashReporter' (no dependencies)
+    Target 'phlibwebp' in project 'PostHog' (no dependencies)
+    Target 'PostHog_PostHog' in project 'PostHog' (no dependencies)
+    Target 'RevenueCat' in project 'RevenueCat'
+        ➜ Explicit dependency on target 'RevenueCat' in project 'RevenueCat'
+        ➜ Explicit dependency on target 'RevenueCat_RevenueCat' in project 'RevenueCat'
+    Target 'RevenueCat' in project 'RevenueCat'
+        ➜ Explicit dependency on target 'RevenueCat_RevenueCat' in project 'RevenueCat'
+    Target 'RevenueCat_RevenueCat' in project 'RevenueCat' (no dependencies)
+    Target 'MerianWatch' in project 'Merian' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/emreerdener/Developer/merian/MerianWatch/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x objective-c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/WatchOS.platform/Developer/SDKs/WatchOS26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/ibtool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/emreerdener/Developer/merian/Merian/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x c++ -c /dev/null
+
+ReadFileContents /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/share/docc/features.json
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x objective-c++ -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x assembler-with-cpp -c /dev/null
+
+Build description signature: c55505375f0522a13441ae8c2b425443
+Build description path: /Users/emreerdener/Library/Developer/Xcode/DerivedData/Merian-bsmebnfnhwnbdncricvwvveooidw/Build/Intermediates.noindex/XCBuildData/c55505375f0522a13441ae8c2b425443.xcbuilddata
+/Users/emreerdener/Developer/merian/Merian.xcodeproj: error: No profiles for 'app.merian.Merian' were found: Xcode couldn't find any iOS App Development provisioning profiles matching 'app.merian.Merian'. Automatic signing is disabled and unable to generate a profile. To enable automatic signing, pass -allowProvisioningUpdates to xcodebuild. (in target 'Merian' from project 'Merian')
+/Users/emreerdener/Developer/merian/Merian.xcodeproj: error: No profiles for 'app.merian.Merian.watchkitapp' were found: Xcode couldn't find any iOS App Development provisioning profiles matching 'app.merian.Merian.watchkitapp'. Automatic signing is disabled and unable to generate a profile. To enable automatic signing, pass -allowProvisioningUpdates to xcodebuild. (in target 'MerianWatch' from project 'Merian')
+** BUILD FAILED **
+
+
+The following build commands failed:
+	Building project Merian with scheme Merian
+(1 failure)

@@ -8,27 +8,12 @@ struct CameraRootView: View {
     @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
     @EnvironmentObject var vui: ViewfinderIntelligence
     @EnvironmentObject var photoLibraryManager: PhotoLibraryManager
-    
-    @EnvironmentObject var revenueCatManager: RevenueCatManager
-    @EnvironmentObject var usageManager: UsageManager
     @EnvironmentObject var gamificationManager: GamificationManager
     @EnvironmentObject var inferenceEngine: InferenceEngine
     
     @Environment(\.modelContext) private var modelContext
     
-    @State private var isInsightSheetOpen: Bool = false
-    @State private var isPaywallOpen: Bool = false
-    @State private var isLifeListOpen: Bool = false
-    @State private var isUserProfileOpen: Bool = false
-    @State private var selectedPhotoItem: PhotosPickerItem? = nil
-    @State private var flashOpacity: Double = 0.0
-    @State private var imageToCrop: IdentifiableImage? = nil
-    
-    @State private var isAnalyzingFullscreen: Bool = false
-    @State private var scanningPhaseText: String = "Analyzing Subject..."
-    @State private var analysisImage: UIImage? = nil
-    
-
+    @StateObject private var viewModel = CameraViewModel()
     
     var body: some View {
         ZStack {
@@ -39,7 +24,7 @@ struct CameraRootView: View {
             // Shutter Snap Animation
             Color.black
                 .ignoresSafeArea()
-                .opacity(flashOpacity)
+                .opacity(viewModel.flashOpacity)
             
             // Thermal Warning Indicator overlay
             if hardwareOrchestrator.isCriticalHeatWarningActive {
@@ -58,7 +43,7 @@ struct CameraRootView: View {
             }
             
             // Action Overlay Context
-            if !isAnalyzingFullscreen {
+            if !viewModel.isAnalyzingFullscreen {
                 VStack {
                     // Top Toolbar (Flash & Photos)
                     HStack(alignment: .top) {
@@ -72,7 +57,7 @@ struct CameraRootView: View {
                                 cameraManager.toggleFlash()
                             }
                             
-                            PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                            PhotosPicker(selection: $viewModel.selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
                                 ZStack {
                                     if hardwareOrchestrator.isGlassmorphismEnabled {
                                         Circle()
@@ -118,21 +103,22 @@ struct CameraRootView: View {
                             .clipShape(Capsule())
                             .padding(.bottom, 16)
                     }
+                    
                     // Floating Action Bar Interface
                     MerianActionBar(
-                        isLifeListOpen: $isLifeListOpen,
-                        isPaywallOpen: $isPaywallOpen,
-                        isInsightSheetOpen: $isInsightSheetOpen,
-                        isAnalyzingFullscreen: $isAnalyzingFullscreen,
-                        isUserProfileOpen: $isUserProfileOpen,
-                        imageToCrop: $imageToCrop,
-                        onCaptureTriggered: triggerFlash
+                        isLifeListOpen: $viewModel.isLifeListOpen,
+                        isPaywallOpen: $viewModel.isPaywallOpen,
+                        isInsightSheetOpen: $viewModel.isInsightSheetOpen,
+                        isAnalyzingFullscreen: $viewModel.isAnalyzingFullscreen,
+                        isUserProfileOpen: $viewModel.isUserProfileOpen,
+                        imageToCrop: $viewModel.imageToCrop,
+                        onCaptureTriggered: viewModel.triggerFlash
                     )
                 }
             }
             
             // Full-Screen Scanning Overlay
-            if isAnalyzingFullscreen, let uiImage = analysisImage {
+            if viewModel.isAnalyzingFullscreen, let uiImage = viewModel.analysisImage {
                 ZStack {
                     // Base darkening layer
                     Color.black.opacity(0.8)
@@ -145,9 +131,10 @@ struct CameraRootView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .shadow(color: .black.opacity(0.5), radius: 20, y: 10)
                         .padding(.horizontal, 32)
+                    
                     VStack {
                         Spacer()
-                        Text(scanningPhaseText)
+                        Text(viewModel.scanningPhaseText)
                             .font(.title2)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
@@ -164,13 +151,13 @@ struct CameraRootView: View {
             }
         }
         // Insight Data View overlay 
-        .sheet(isPresented: $isInsightSheetOpen, onDismiss: {
-            handleSheetDismiss()
+        .sheet(isPresented: $viewModel.isInsightSheetOpen, onDismiss: {
+            viewModel.handleSheetDismiss()
         }) {
-            InsightSheetView(isPresented: $isInsightSheetOpen)
+            InsightSheetView(isPresented: $viewModel.isInsightSheetOpen)
                 .presentationDragIndicator(.visible)
                 .onAppear {
-                    handleSheetAppear()
+                    viewModel.handleSheetAppear()
                 }
         }
         .onAppear {
@@ -180,169 +167,61 @@ struct CameraRootView: View {
         .onDisappear {
             cameraManager.stopSession()
         }
-        .onChange(of: selectedPhotoItem) { _, newItem in
-            Task {
-                guard let newItem = newItem,
-                      let data = try? await newItem.loadTransferable(type: Data.self) else { return }
-                
-                if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
-                    if let rawImage = UIImage(data: data) {
-                        await MainActor.run {
-                            imageToCrop = IdentifiableImage(image: rawImage)
-                            selectedPhotoItem = nil
-                        }
-                    }
-                } else {
-                    await MainActor.run {
-                        AppTelemetry.trackPaywallImpression()
-                        isPaywallOpen = true
-                    }
-                }
-            }
+        .onChange(of: viewModel.selectedPhotoItem) { _, newItem in
+            viewModel.handlePhotoPickerSelection(newItem: newItem, modelContext: modelContext)
         }
-        .onChange(of: isAnalyzingFullscreen) { _, isFullscreen in
-            if isFullscreen {
-                if let payload = inferenceEngine.activePayload {
-                    analysisImage = UIImage(data: payload)
-                }
-            } else {
-                analysisImage = nil
-            }
-        }
-        .sheet(isPresented: $isPaywallOpen, onDismiss: {
-            handleSheetDismiss()
+        .sheet(isPresented: $viewModel.isPaywallOpen, onDismiss: {
+            viewModel.handleSheetDismiss()
         }) {
             PaywallView()
                 .presentationDragIndicator(.visible)
                 .onAppear {
-                    handleSheetAppear()
+                    viewModel.handleSheetAppear()
                 }
         }
-        .sheet(isPresented: $isUserProfileOpen, onDismiss: {
-            handleSheetDismiss()
+        .sheet(isPresented: $viewModel.isUserProfileOpen, onDismiss: {
+            viewModel.handleSheetDismiss()
         }) {
             UserProfileView()
                 .presentationDragIndicator(.visible)
                 .onAppear {
-                    handleSheetAppear()
+                    viewModel.handleSheetAppear()
                 }
         }
-        .fullScreenCover(item: $imageToCrop) { identItem in
+        .fullScreenCover(item: $viewModel.imageToCrop) { identItem in
             ImageCropperView(
                 image: identItem.image,
                 onCrop: { croppedData in
-                    imageToCrop = nil
-                    inferenceEngine.analyze(imageData: croppedData, modelContext: modelContext)
-                    isAnalyzingFullscreen = true
+                    viewModel.handleCropCompletion(croppedData: croppedData, modelContext: modelContext)
                 },
                 onCancel: {
-                    imageToCrop = nil
+                    viewModel.imageToCrop = nil
                 }
             )
         }
         .sheet(isPresented: $gamificationManager.showTerrariumSheet, onDismiss: {
-            handleSheetDismiss()
+            viewModel.handleSheetDismiss()
         }) {
             TerrariumView()
                 .presentationDragIndicator(.visible)
                 .onAppear {
-                    handleSheetAppear()
+                    viewModel.handleSheetAppear()
                 }
         }
-        .sheet(isPresented: $isLifeListOpen, onDismiss: {
-            handleSheetDismiss()
+        .sheet(isPresented: $viewModel.isLifeListOpen, onDismiss: {
+            viewModel.handleSheetDismiss()
         }) {
-            LifeListSearchView(isInsightSheetOpen: $isInsightSheetOpen)
+            LifeListSearchView(isInsightSheetOpen: $viewModel.isInsightSheetOpen)
                 .presentationDragIndicator(.visible)
                 .onAppear {
-                    handleSheetAppear()
+                    viewModel.handleSheetAppear()
                 }
         }
-        .onChange(of: isAnalyzingFullscreen) { _, isFullscreen in
-            if isFullscreen {
-                cameraManager.stopSession() // Revert viewport to off while analyzing over it
-                scanningPhaseText = "Scanning..."
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    if isAnalyzingFullscreen {
-                        withAnimation {
-                            scanningPhaseText = "Identifying..."
-                        }
-                    }
-                }
-            } else {
-                if !isInsightSheetOpen {
-                    cameraManager.startSession()
-                }
-            }
+        .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
+            viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
         }
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
-            if !isStillProcessing && isAnalyzingFullscreen {
-                withAnimation {
-                    isAnalyzingFullscreen = false
-                }
-                isInsightSheetOpen = true
-            }
+            viewModel.handleInferenceProcessingChange(isStillProcessing: isStillProcessing)
         }
-    }
-    
-    private func handleSheetAppear() {
-        cameraManager.stopSession()
-    }
-    
-    private func handleSheetDismiss() {
-        cameraManager.startSession()
-    }
-    
-    private func triggerFlash() {
-        flashOpacity = 1.0
-        withAnimation(.easeOut(duration: 0.15)) {
-            flashOpacity = 0.0
-        }
-    }
-}
-
-// SwiftUI bridging of AVCaptureVideoPreviewLayer
-struct CameraPreviewView: UIViewRepresentable {
-    let session: AVCaptureSession
-    
-    func makeUIView(context: Context) -> VideoPreviewView {
-        let view = VideoPreviewView()
-        view.videoPreviewLayer.session = session
-        view.videoPreviewLayer.videoGravity = .resizeAspectFill
-        return view
-    }
-    
-    func updateUIView(_ uiView: VideoPreviewView, context: Context) {
-        uiView.videoPreviewLayer.session = session
-    }
-}
-
-class VideoPreviewView: UIView {
-    override class var layerClass: AnyClass {
-        return AVCaptureVideoPreviewLayer.self
-    }
-    
-    var videoPreviewLayer: AVCaptureVideoPreviewLayer {
-        return layer as! AVCaptureVideoPreviewLayer
-    }
-}
-
-// UIVisualEffectView SwiftUI Wrapper
-struct VisualEffectBlur: UIViewRepresentable {
-    var blurStyle: UIBlurEffect.Style
-    var cornerRadius: CGFloat = 0
-    
-    func makeUIView(context: Context) -> UIVisualEffectView {
-        let view = UIVisualEffectView(effect: UIBlurEffect(style: blurStyle))
-        view.layer.cornerRadius = cornerRadius
-        view.clipsToBounds = true
-        return view
-    }
-    
-    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
-        uiView.effect = UIBlurEffect(style: blurStyle)
-        uiView.layer.cornerRadius = cornerRadius
-        uiView.clipsToBounds = true
     }
 }
