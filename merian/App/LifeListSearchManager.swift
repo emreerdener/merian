@@ -146,45 +146,57 @@ struct LifeListSearchView: View {
     ]
     
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Custom Header mapping exactly to prevent layout shifts on iOS Nav Transitions
+                ZStack {
+                    HStack {
+                        GlassCircularButton(iconName: "xmark") {
+                            dismiss()
+                        }
+                        Spacer()
+                    }
+                    
+                    Text("Life List")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                }
+                .padding(.horizontal)
+                .padding(.top, 24)
+                .padding(.bottom, 12)
+                .background(Color(UIColor.systemBackground))
+                
+                ScrollView {
                     LazyVGrid(columns: columns, spacing: 2) {
                         ForEach(searchManager.filteredScans) { scan in
-                            Group {
-                                if let imagePath = scan.localImagePath {
-                                    LifeListThumbnailView(imagePath: imagePath)
-                                } else {
-                                    Color.clear
-                                        .aspectRatio(1.0, contentMode: .fit)
-                                        .overlay(
-                                            Rectangle().fill(Color.gray.opacity(0.3))
-                                        )
-                                        .clipped()
+                            NavigationLink(value: scan) {
+                                Group {
+                                    if let imagePath = scan.localImagePath {
+                                        LifeListThumbnailView(imagePath: imagePath)
+                                    } else {
+                                        Color.clear
+                                            .aspectRatio(1.0, contentMode: .fit)
+                                            .overlay(
+                                                Rectangle().fill(Color.gray.opacity(0.3))
+                                            )
+                                            .clipped()
+                                    }
                                 }
                             }
-                            .onTapGesture {
+                            .simultaneousGesture(TapGesture().onEnded {
                                 inferenceEngine.load(from: scan)
-                                selectedScanForInsight = scan
-                            }
+                            })
                         }
                     }
                 }
-                .sheet(item: $selectedScanForInsight) { scan in
-                    InsightSheetView(isPresented: .constant(true), showCloseButton: true)
+                .navigationDestination(for: LocalScanRecord.self) { scan in
+                    InsightSheetView(isPresented: .constant(true), showCloseButton: false)
+                        .navigationBarBackButtonHidden(true)
+                        .toolbar(.hidden, for: .navigationBar)
                 }
             }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: {
-                    dismiss()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            ToolbarItem(placement: .bottomBar) {
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
@@ -209,8 +221,11 @@ struct LifeListSearchView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(UIColor.tertiarySystemFill))
+                .background(Color(UIColor.tertiarySystemFill).opacity(0.9))
+                .background(.ultraThinMaterial)
                 .cornerRadius(10)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
                 .animation(.easeInOut(duration: 0.2), value: searchManager.searchQuery.isEmpty)
             }
         }

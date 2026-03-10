@@ -1,9 +1,12 @@
 import Foundation
+import AuthenticationServices
+import CryptoKit
 import Supabase
+import GoogleSignIn
 
 /// Manages the global Supabase connection and core Authentication states for Ghost Users
 @MainActor
-final class SupabaseManager: ObservableObject {
+final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
     static let shared = SupabaseManager()
     
     let client: SupabaseClient
@@ -11,7 +14,9 @@ final class SupabaseManager: ObservableObject {
     @Published var currentUser: User?
     @Published var isAuthenticated: Bool = false
     
-    private init() {
+    private var currentNonce: String?
+    
+    private override init() {
         guard let url = URL(string: MerianEnvironment.supabaseUrl) else {
             fatalError("CRITICAL EXCEPTION: Invalid Supabase URL in environment configuration")
         }
@@ -23,6 +28,8 @@ final class SupabaseManager: ObservableObject {
                 auth: .init(emitLocalSessionAsInitialSession: true)
             )
         )
+        
+        super.init()
         
         Task {
             await self.setupAuthStateListener()
@@ -96,5 +103,128 @@ final class SupabaseManager: ObservableObject {
     func getActiveJWT() async throws -> String {
         let session = try await client.auth.session
         return session.accessToken
+    }
+    
+    // MARK: - OAuth & Apple Sign In
+    
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        return UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+    }
+    private func getRootViewController() -> UIViewController? {
+        guard let screen = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return nil }
+        return screen.windows.first(where: { $0.isKeyWindow })?.rootViewController
+    }
+    
+    func signInWithGoogle() async {
+        guard let rootVC = getRootViewController() else {
+            print("Failed to find root view controller for Google Sign In")
+            return
+        }
+
+        do {
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)
+            guard let idToken = result.user.idToken?.tokenString else {
+                print("No idToken found.")
+                return
+            }
+            let accessToken = result.user.accessToken.tokenString
+            
+            let _ = try await client.auth.signInWithIdToken(
+                credentials: .init(
+                    provider: .google,
+                    idToken: idToken,
+                    accessToken: accessToken
+                )
+            )
+            print("Google Sign In complete!")
+        } catch {
+            print("Google Sign In Cancelled or Error: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Native Apple Sign In Helpers
+    func startAppleSignIn() {
+        let nonce = randomNonceString()
+        currentNonce = nonce
+        let appleIDProvider = ASAuthorizationAppleIDProvider()
+        let request = appleIDProvider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = sha256(nonce)
+
+        let authorizationController = ASAuthorizationController(authorizationRequests: [request])
+        authorizationController.delegate = self
+        authorizationController.presentationContextProvider = self
+        authorizationController.performRequests()
+    }
+
+    private func randomNonceString(length: Int = 32) -> String {
+        precondition(length > 0)
+        var randomBytes = [UInt8](repeating: 0, count: length)
+        let errorCode = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
+        if errorCode != errSecSuccess {
+            fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+        }
+
+        let charset: [Character] =
+            Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        let nonce = randomBytes.map { byte in
+            // Pick a random character from the set, wrapping around if needed.
+            charset[Int(byte) % charset.count]
+        }
+        return String(nonce)
+    }
+
+    private func sha256(_ input: String) -> String {
+        let inputData = Data(input.utf8)
+        let hashedData = SHA256.hash(data: inputData)
+        let hashString = hashedData.compactMap {
+            String(format: "%02x", $0)
+        }.joined()
+        return hashString
+    }
+}
+
+// MARK: - ASAuthorizationControllerDelegate
+extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        return UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
+            guard let nonce = currentNonce else {
+                fatalError("Invalid state: A login callback was received, but no login request was sent.")
+            }
+            guard let appleIDToken = appleIDCredential.identityToken else {
+                print("Unable to fetch identity token")
+                return
+            }
+            guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+                print("Unable to serialize token string from data: \(appleIDToken.debugDescription)")
+                return
+            }
+            
+            Task {
+                do {
+                    let _ = try await client.auth.signInWithIdToken(
+                        credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
+                    )
+                    print("Apple Sign In complete!")
+                } catch {
+                    print("Failed to authenticate Apple token with Supabase: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        print("Apple Sign In error: \(error.localizedDescription)")
     }
 }

@@ -109,38 +109,64 @@ struct UserProfileView: View {
                     .padding(.top, 32)
                     
                     // Authentication Layer
-                    VStack(spacing: 16) {
-                        Button(action: {
-                            // Explicit Action binding for Apple Sign-In
-                        }) {
-                            HStack {
-                                Image(systemName: "applelogo")
-                                Text("Sign in with Apple")
-                                    .fontWeight(.semibold)
+                    if !SupabaseManager.shared.isAuthenticated {
+                        VStack(spacing: 16) {
+                            Button(action: {
+                                SupabaseManager.shared.startAppleSignIn()
+                            }) {
+                                HStack {
+                                    Image(systemName: "applelogo")
+                                    Text("Sign in with Apple")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.primary)
+                                .foregroundColor(Color(UIColor.systemBackground))
+                                .cornerRadius(14)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.primary)
-                            .foregroundColor(Color(UIColor.systemBackground))
-                            .cornerRadius(14)
-                        }
-                        
-                        Button(action: {
-                            // Explicit Action binding for Google Sign-In
-                        }) {
-                            HStack {
-                                Image(systemName: "g.circle.fill")
-                                Text("Sign in with Google")
-                                    .fontWeight(.semibold)
+                            
+                            Button(action: {
+                                Task {
+                                    await SupabaseManager.shared.signInWithGoogle()
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "g.circle.fill")
+                                    Text("Sign in with Google")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(UIColor.secondarySystemBackground))
+                                .foregroundColor(.primary)
+                                .cornerRadius(14)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .foregroundColor(.primary)
-                            .cornerRadius(14)
                         }
+                        .padding(.horizontal, 24)
+                    } else {
+                        VStack(spacing: 16) {
+                            Button(action: {
+                                Task {
+                                    await SupabaseManager.shared.signOut()
+                                    // Make sure User is sent anonymously again securely
+                                    await SupabaseManager.shared.initializeGhostSession()
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                                    Text("Sign Out")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red.opacity(0.1))
+                                .foregroundColor(.red)
+                                .cornerRadius(14)
+                            }
+                        }
+                        .padding(.horizontal, 24)
                     }
-                    .padding(.horizontal, 24)
                     
                     // Lifetime Explorer Aggregates
                     VStack(alignment: .leading, spacing: 16) {

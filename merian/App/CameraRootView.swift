@@ -25,8 +25,7 @@ struct CameraRootView: View {
     @State private var imageToCrop: IdentifiableImage? = nil
     
     @State private var isAnalyzingFullscreen: Bool = false
-    @State private var scanningPhaseText: String = "Scanning..."
-    @State private var isPulseAnimating: Bool = false
+    @State private var scanningPhaseText: String = "Analyzing Subject..."
     @State private var analysisImage: UIImage? = nil
     
 
@@ -136,44 +135,16 @@ struct CameraRootView: View {
             if isAnalyzingFullscreen, let uiImage = analysisImage {
                 ZStack {
                     // Base darkening layer
-                    Color.black.opacity(isPulseAnimating ? 0.7 : 0.8)
+                    Color.black.opacity(0.8)
                         .ignoresSafeArea()
                     
-                    ZStack {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .aspectRatio(1.0, contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .shadow(color: .black.opacity(0.5), radius: 20, y: 10)
-                        
-                        // AI Data Scanning Pulse Overlay
-                        LinearGradient(
-                            colors: [
-                                Color.teal,
-                                Color.blue,
-                                Color.purple,
-                                Color.pink
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .blendMode(.colorDodge) // Melds into the captured image pixel buffer natively
-                        .opacity(isPulseAnimating ? 0.6 : 0.2)
-                        .hueRotation(.degrees(isPulseAnimating ? 45 : 0))
-                        .scaleEffect(isPulseAnimating ? 1.1 : 1.0)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
                         .aspectRatio(1.0, contentMode: .fit)
-                    }
-                    .padding(.horizontal, 32)
-                    .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isPulseAnimating)
-                    .onAppear {
-                        isPulseAnimating = true
-                    }
-                    .onDisappear {
-                        isPulseAnimating = false
-                    }
-                    
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: .black.opacity(0.5), radius: 20, y: 10)
+                        .padding(.horizontal, 32)
                     VStack {
                         Spacer()
                         Text(scanningPhaseText)
@@ -375,5 +346,3 @@ struct VisualEffectBlur: UIViewRepresentable {
         uiView.clipsToBounds = true
     }
 }
-
-

@@ -91,28 +91,30 @@ struct InsightSheetView: View {
                     
                     Spacer()
                     
-                    let shareUrl = URL(string: "https://merian.app")!
-                    ShareLink(
-                        item: shareUrl,
-                        subject: Text("I found a \(commonName)!"),
-                        message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
-                    ) {
-                        ZStack {
-                            if hardwareOrchestrator.isGlassmorphismEnabled {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .environment(\.colorScheme, .dark)
-                                    .frame(width: 50, height: 50)
-                            } else {
-                                Circle()
-                                    .fill(Color.black.opacity(0.7))
-                                    .frame(width: 50, height: 50)
+                    if inferenceEngine.speciesData?.isBiological == true {
+                        let shareUrl = URL(string: "https://merian.app")!
+                        ShareLink(
+                            item: shareUrl,
+                            subject: Text("I found a \(commonName)!"),
+                            message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
+                        ) {
+                            ZStack {
+                                if hardwareOrchestrator.isGlassmorphismEnabled {
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .environment(\.colorScheme, .dark)
+                                        .frame(width: 50, height: 50)
+                                } else {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.7))
+                                        .frame(width: 50, height: 50)
+                                }
+                                
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .offset(y: -2) // Optical bounding box nudging natively 
+                                    .foregroundColor(.white)
                             }
-                            
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 20, weight: .semibold))
-                                .offset(y: -2) // Optical bounding box nudging natively 
-                                .foregroundColor(.white)
                         }
                     }
                 }
@@ -144,7 +146,7 @@ struct InsightSheetView: View {
                         // Tab 1+: Wikipedia / GBIF Reference Images
                         ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
                             if let refUrl = URL(string: urlString) {
-                                AsyncImage(url: refUrl) { phase in
+                                AsyncImage(url: refUrl, transaction: Transaction(animation: .easeInOut(duration: 0.3))) { phase in
                                     switch phase {
                                     case .empty:
                                         ProgressView()
@@ -157,6 +159,7 @@ struct InsightSheetView: View {
                                             .scaledToFill()
                                             .aspectRatio(1.0, contentMode: .fill)
                                             .clipped()
+                                            .transition(.opacity)
                                     case .failure:
                                         Image(systemName: "photo")
                                             .font(.largeTitle)
@@ -164,6 +167,7 @@ struct InsightSheetView: View {
                                             .aspectRatio(1.0, contentMode: .fill)
                                             .frame(maxWidth: .infinity)
                                             .background(Color.white.opacity(0.1))
+                                            .transition(.opacity)
                                     @unknown default:
                                         EmptyView()
                                     }
@@ -261,14 +265,14 @@ struct InsightSheetView: View {
                                 }
                                 
                                 if !species.isLiveCapture {
-                                    BadgeView(text: "Not a Live Capture", color: .gray, icon: "photo.badge.exclamationmark.fill")
+                                    BadgeView(text: "Not a live capture", color: .gray, icon: "photo.badge.exclamationmark.fill")
                                 }
                                 
                                 if !species.isBiological {
-                                    BadgeView(text: "Not Biological", color: .gray, icon: "xmark.seal.fill")
-                                }
+                                    BadgeView(text: "Not biological", color: .gray, icon: "xmark.seal.fill")
+                                }   
                                 
-                                if species.ecologyType != "unknown" {
+                                if species.ecologyType != "Unknown" {
                                     BadgeView(text: species.ecologyType.capitalized, color: .blue, icon: "leaf.fill")
                                 }
                             }
@@ -286,7 +290,7 @@ struct InsightSheetView: View {
                         
                     if let rationale = inferenceEngine.speciesData?.insightData.regionalStatusRationale {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Regional Context")
+                            Text("Regional context")
                                 .font(.subheadline)
                                 .fontWeight(.bold)
                                 .foregroundColor(.secondary)

@@ -21,6 +21,9 @@ packages:
   RiveRuntime:
     url: https://github.com/rive-app/rive-ios.git
     from: 5.8.0
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS.git
+    from: 7.1.0
 
 targets:
   Merian:
@@ -28,6 +31,10 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources: [Merian]
+    entitlements:
+      path: Merian/Merian.entitlements
+      properties:
+        com.apple.developer.applesignin: ["Default"]
     configFiles:
       Debug: Config.xcconfig
       Release: Config.xcconfig
@@ -45,6 +52,7 @@ targets:
       - product: TelemetryClient
         package: TelemetryDeck
       - package: RiveRuntime
+      - package: GoogleSignIn
 
   MerianWatch:
     type: application

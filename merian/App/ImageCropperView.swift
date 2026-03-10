@@ -41,7 +41,7 @@ struct ImageCropperView: View {
                     .clipShape(Rectangle())
                     .overlay(
                         Rectangle()
-                            .stroke(Color.white.opacity(0.8), lineWidth: 2)
+                            .stroke(Color.white.opacity(0.8), lineWidth: 1)
                     )
                     .contentShape(Rectangle())
                     .gesture(

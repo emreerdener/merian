@@ -68,6 +68,15 @@ struct MerianApp: App {
                 .onAppear {
                     revenueCatManager.configure()
                 }
+                .onOpenURL { url in
+                    Task {
+                        do {
+                            try await supabaseManager.client.auth.session(from: url)
+                        } catch {
+                            print("Supabase auth session URL handler failed: \(error)")
+                        }
+                    }
+                }
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
