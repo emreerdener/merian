@@ -46,8 +46,21 @@ final class CameraViewModel: ObservableObject {
     
     func handleCropCompletion(croppedData: Data, modelContext: ModelContext) {
         imageToCrop = nil
-        diContainer.inferenceEngine.analyze(imageData: croppedData, modelContext: modelContext)
-        isAnalyzingFullscreen = true
+        
+        Task { @MainActor in
+            let context = await diContainer.environmentContextManager.fetchDeferredContext()
+            
+            diContainer.inferenceEngine.analyze(
+                imageData: croppedData,
+                gpsLatitude: context.location?.coordinate.latitude,
+                gpsLongitude: context.location?.coordinate.longitude,
+                gpsElevation: context.location?.altitude,
+                weatherCondition: context.weatherCondition,
+                weatherTemperatureF: context.weatherTemperature,
+                modelContext: modelContext
+            )
+            isAnalyzingFullscreen = true
+        }
     }
     
     func synchronizeAnalysisState(isFullscreen: Bool) {

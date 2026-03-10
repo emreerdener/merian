@@ -30,8 +30,10 @@ serve(async (req: Request) => {
       r2ObjectKey,
       gpsLatitude,
       gpsLongitude,
+      gpsElevation,
       depthScaleText,
       weatherCondition,
+      weatherTemperatureF,
     } = await req.json();
 
     if (!r2ObjectKey) {
@@ -130,8 +132,10 @@ Crucial instructions:
     const dynamicContext = `
       Environmental Context:
       - GPS Coordinates: Lat ${gpsLatitude ?? "Unknown"}, Long ${gpsLongitude ?? "Unknown"}
+      - Elevation: ${gpsElevation != null ? `${gpsElevation} meters` : "Unknown"}
       - Depth Scale (Lidar): ${depthScaleText ?? "Unknown"}
       - Weather Condition: ${weatherCondition ?? "Unknown"}
+      - Temperature: ${weatherTemperatureF != null ? `${weatherTemperatureF}°F` : "Unknown"}
     `;
 
     const merianResponseSchema = {
@@ -410,6 +414,7 @@ Crucial instructions:
         species_id: speciesId,
         gps_lat_exact: gpsLatitude,
         gps_long_exact: gpsLongitude,
+        gps_elevation: gpsElevation,
         ai_confidence_score: parsedData.confidence_score,
         ecology_type: parsedData.ecology_type,
         is_invasive: parsedData.is_invasive,
@@ -417,6 +422,7 @@ Crucial instructions:
           parsedData.insight_data.regional_status_rationale,
         is_live_capture: parsedData.is_live_capture,
         weather_condition: weatherCondition,
+        weather_temperature_f: weatherTemperatureF,
         image_storage_urls: modResult.publicUrl ? [modResult.publicUrl] : [],
       });
     } else {

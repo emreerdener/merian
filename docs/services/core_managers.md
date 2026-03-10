@@ -11,6 +11,28 @@ Merian uses a robust, globally accessible singleton architecture for core servic
 - Writes captures straight to `URL.documentsDirectory` inside a SwiftData `OfflineQueuedScan` wrapper when iOS hits Zero-Service.
 - _Background Sync:_ Wrapped within a strict 30-second `UIBackgroundTaskIdentifier` iOS limit to generate presigned staging URLs, the module actively immediately terminates execution loops on timeouts gracefully without corrupting local records. It natively interfaces directly with `URLSessionConfiguration.background`, handing the physical R2 `.jpeg` uploads securely over to the host OS. Before queueing, it downscales the exact 1024x1024 `ImageCropperView` 1:1 footprint down to a lightweight 1024px payload inside the temporary `URL.cachesDirectory`, enabling massive bandwidth reduction over 3G. The pipeline explicitly intercepts the app lifecycle using `AppDelegate` to safely execute the `backgroundCompletionHandler` exclusively on the main thread, satisfying iOS watchdog timers upon completion and purging the cache. Furthermore, the final `analyzeSubject` downstream edge inference is also heavily protected inside the URLSession callback natively utilizing a dedicated `UIBackgroundTaskIdentifier` boundary preventing iOS execution drops during slow connections. During block map loops mapping 50+ cached files securely into URLRequests, the loop uniquely hoists explicit `@MainActor` property captures (like `backgroundSession`) explicitly _outside_ the `for` loop iteration entirely natively bypassing OS-level context switching stutter during high-volume sync sequences.
 
+## 1.5 `AppDIContainer.swift`
+
+**Responsibility:** Centralized Dependency Injection.
+
+- Cleans up `MerianApp.swift` completely by instantiating every singleton manager in one unified file.
+- Exposes a `.injectAppDependencies()` modifier securely allowing SwiftUI components to safely receive environment objects without implicit initialization overhead on root views.
+- Handles standard lifecycle events (Background, Inactive, Active) gracefully mapping tasks such as queuing ongoing inferences automatically into the background sync process when the user closes the app mid-scan.
+
+## 1.6 `EnvironmentContextManager.swift`
+
+**Responsibility:** Deferred Location & Weather Payload Generator.
+
+- Implements a precise "Deferred Context Fetch" pattern natively to drastically conserve device battery life. It refuses to initialize continuous or `startUpdatingLocation` loops asynchronously.
+- Instantly extracts the `CLLocation` coordinates alongside `altitude` directly upon shutter press using a dynamically checked continuation callback on `CLLocationManager.requestLocation()`.
+- Fetches real-time localized contexts via `WeatherKit` gracefully returning the active condition alongside degree readings (`weatherTemperatureF`) exclusively bounding the current scene into a rich API envelope passed towards the inference layer.
+
+## 1.7 `ScanRepository.swift`
+
+**Responsibility:** Model Abstraction Layer.
+
+- Securely bounds logic retrieving or modifying the physical `SwiftData` LocalScanRecord model containers avoiding scattered `@Query` operations and explicit persistence rules natively leaking into view controllers.
+
 ## 2. `ViewfinderIntelligence.swift` (VUI)
 
 **Responsibility:** AI Pre-Qualification & Hint Engine.

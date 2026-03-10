@@ -259,7 +259,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     depthScaleText: nil,
                     gpsLatitude: scan.gpsLatitude,
                     gpsLongitude: scan.gpsLongitude,
-                    weatherCondition: scan.weatherCondition
+                    gpsElevation: scan.gpsElevation,
+                    weatherCondition: scan.weatherCondition,
+                    weatherTemperatureF: scan.weatherTemperatureF
                 )
                 let backgroundActor = BackgroundDatabaseActor(modelContainer: modelContext.container)
                 await backgroundActor.processAndCleanupOfflineScan(

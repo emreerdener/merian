@@ -14,10 +14,14 @@
    To fulfill Apple App Store mandates on zero-friction entry:
    - New downloads generate an immediate persistent hardware session explicitly via `DeviceIdentityManager`. This bridges to `UIDevice.current.identifierForVendor` securely locked exclusively inside the Keychain, completely circumventing unstable cookie-based anonymous database constraints.
    - No accounts are required. Limits are securely physically checked leveraging these Keychain strings to bypass any potential data-loss.
-4. **Hardware Constraints (Heat & Battery)**
+4. **Dependency Injection & Data Repositories**
+   - **`AppDIContainer`**: A centralized singleton holding all core service managers rather than relying on `@StateObject` bloat at the `App` root. This ensures that views only pull exactly what dependencies they need.
+   - **`ScanRepository`**: A robust abstraction mapping native logic securely connecting `SwiftData` containers without exposing generic context rules into views or ViewModels explicitly.
+5. **Hardware Constraints (Heat & Battery)**
    - Managed by `HardwareOrchestrator`. Automatically downgrades physical sensor FPS matrices (`60 -> 45 -> 30 -> 15`) during extended thermal exposure.
    - Dynamic blinding: If the hardware runs dangerously hot, blur effects (`.ultraThinMaterial`) are natively stripped out and replaced with opaque black matrices to reduce GPU drawing.
+   - Environmental Context: By using `EnvironmentContextManager`, Merian fetches GPS coordinates, altitude, and live Weather dynamically exclusively when the shutter is pressed (Deferred Context Fetch) minimizing background polling.
 
-5. **"Any Ecology" Evaluation**
+6. **"Any Ecology" Evaluation**
    - Merian evaluates the user's subject regardless of biological status. It strictly categorizes results into: _Wild_, _Urban_, or _Domesticated_.
    - Coordinates are heavily obscured for _Wild_ hits to prevent poaching (IUCN constraints) naturally inside the Supabase DWC-A Export pipeline.

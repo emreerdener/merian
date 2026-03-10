@@ -37,3 +37,9 @@ Acts as a dedicated `PHPhotoLibrary` handler intercepting the hardware buffers s
 
 - Binds `.opportunistic` `PHImageRequestOptions` gracefully extracting the most recently added native iOS Asset asynchronously to act as the Camera Gallery icon.
 - Safely wraps `PHAssetCreationRequest.forAsset()` strictly bypassing the UI actor dynamically cleanly saving the unadulterated `12MP` sensor data buffer straight into the native camera roll natively. Refusing to cast these payloads to explicit visual `UIImage` boundaries ensures physical persistence of exact EXIF, GPS tracking fields, proprietary physical 3D LiDAR boundaries, and Apple Deep Fusion algorithms safely inside the users Camera Roll prior to any external cloud inference.
+
+### `EnvironmentContextManager`
+
+Adheres to a "Deferred Context Fetch" philosophy.
+- Instead of passively tracking location continuously which impacts thermal performance and battery, it initializes an asynchronous `withCheckedContinuation` mapping purely triggered during `CameraViewModel.handleCropCompletion`.
+- Resolves the absolute pinpoint `CLLocation` lock and binds directly to Apple's `WeatherKit` `WeatherService.shared`, capturing live `weatherCondition` and `weatherTemperatureF` alongside `gpsElevation`. This precise snapshot of the environment strictly empowers the Gemini AI with profound context for regional tracking and invasive logic dynamically.

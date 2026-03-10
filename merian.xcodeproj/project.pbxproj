@@ -48,6 +48,7 @@
 		B6500747C7FB0F4C686C7B5F /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E516841C0206ED7F97CB1EA0 /* ScanRepository.swift */; };
 		BA29DD18B10689C6317D266A /* AppDIContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FD2D0B0B8D49842926B1FC /* AppDIContainer.swift */; };
 		BA78C2C67BF6607B3B020F2B /* PostHogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490F6B0A61D227C143DAF028 /* PostHogManager.swift */; };
+		C68E1DEEF4B031DA0C9F3E8C /* EnvironmentContextManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */; };
 		C7AA31ECCE527E151CF6C39C /* TelemetryClient in Frameworks */ = {isa = PBXBuildFile; productRef = B41D79C304B7AE7C8A98F7A4 /* TelemetryClient */; };
 		C8D09F59DF4D7AA09EBBF241 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7BE125AC1D8A0E00C907B7A /* CameraPreviewView.swift */; };
 		CD5E67E9F522CCD9A29A1AAF /* VisualEffectBlur.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06F78C2B5A5EBE711F7F338 /* VisualEffectBlur.swift */; };
@@ -124,6 +125,7 @@
 		BB0AE39969F0604490ECB159 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		BB91015F13F05435F222B92A /* OfflineQueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManager.swift; sourceTree = "<group>"; };
 		BF6016D928A11551039654D0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContextManager.swift; sourceTree = "<group>"; };
 		C6942FAAEF2C4B5722DC4CE3 /* MerianActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianActionBar.swift; sourceTree = "<group>"; };
 		C899083064B4AD64E50A8999 /* DiagnosticComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticComparisonView.swift; sourceTree = "<group>"; };
 		D2E5C836927FEDB08630D2CC /* Merian.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Merian.entitlements; sourceTree = "<group>"; };
@@ -294,6 +296,7 @@
 			isa = PBXGroup;
 			children = (
 				E4B3DD5F49376139EA14458E /* CameraManager.swift */,
+				C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */,
 				BB0AE39969F0604490ECB159 /* HapticManager.swift */,
 				F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */,
 			);
@@ -511,6 +514,7 @@
 				3BB9F3674C81A2A5B7F49823 /* CircuitBreakerManager.swift in Sources */,
 				653576165C2B6ACE190F811B /* DeviceIdentityManager.swift in Sources */,
 				097CCC9936E501E8078390A8 /* DiagnosticComparisonView.swift in Sources */,
+				C68E1DEEF4B031DA0C9F3E8C /* EnvironmentContextManager.swift in Sources */,
 				36450C5D27A7DD284BCCF8D6 /* GamificationManager.swift in Sources */,
 				902259B948C4459876BA2BA8 /* GlassCircularButton.swift in Sources */,
 				A00270831093276EA08B0747 /* HapticManager.swift in Sources */,

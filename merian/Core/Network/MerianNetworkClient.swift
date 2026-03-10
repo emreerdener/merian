@@ -29,7 +29,7 @@ class MerianNetworkClient {
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
     // Step 2: Supabase Inference
-    func analyzeSubject(r2ObjectKey: String, depthScaleText: String?, gpsLatitude: Double?, gpsLongitude: Double?, weatherCondition: String?) async throws -> Data {
+    func analyzeSubject(r2ObjectKey: String, depthScaleText: String?, gpsLatitude: Double?, gpsLongitude: Double?, gpsElevation: Double?, weatherCondition: String?, weatherTemperatureF: Double?) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
         
         var request = URLRequest(url: functionUrl)
@@ -59,7 +59,9 @@ class MerianNetworkClient {
             "depthScaleText": depthScaleText,
             "gpsLatitude": gpsLatitude,
             "gpsLongitude": gpsLongitude,
-            "weatherCondition": weatherCondition
+            "gpsElevation": gpsElevation,
+            "weatherCondition": weatherCondition,
+            "weatherTemperatureF": weatherTemperatureF
         ]
         
         // Remove nils

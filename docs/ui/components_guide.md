@@ -13,6 +13,14 @@ The massive full-bleed base architecture.
 - Throws `.ultraThinMaterial` dynamic SwiftUI hints ("Move Closer", "Too Dark") instantly without `alert` blockers.
 - Orchestrates dynamic `.black` bounding boxes removing transparent elements completely when `HardwareOrchestrator` triggers thermal throttling states.
 
+## 1.2 `CameraViewModel.swift`
+
+Extracts all state management explicitly away from `CameraRootView`.
+
+- Owns presentation states (`isInsightSheetOpen`, `isPaywallOpen`, `isLifeListOpen`).
+- Manages strict logic wrapping `handleCropCompletion` safely inside Task closures and delegates context retrieval seamlessly downwards to `AppDIContainer.shared.environmentContextManager` preventing the View layer from touching CoreLocation rules natively.
+- Evaluates async processing synchronizations and explicitly pauses `CameraManager` viewport sensors when the Insight sheet is dynamically expanded securely saving thermal capacity.
+
 ## 1.5 `GlassCircularButton.swift`
 
 A highly reusable UI primitive resolving Glassmorphism thermal state bounds across the application.

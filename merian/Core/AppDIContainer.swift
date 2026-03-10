@@ -15,6 +15,9 @@ final class AppDIContainer: ObservableObject {
     // AI & Intelligence
     let inferenceEngine = InferenceEngine()
     let vui = ViewfinderIntelligence.shared
+    
+    // Core Services
+    let environmentContextManager = EnvironmentContextManager.shared
 
     // Data & Sync
     let scanRepository = ScanRepository.shared
@@ -85,6 +88,7 @@ struct DIContainerModifier: ViewModifier {
             .environmentObject(container.usageManager)
             .environmentObject(container.gamificationManager)
             .environmentObject(container.circuitBreakerManager)
+            .environmentObject(container.environmentContextManager)
     }
 }
 

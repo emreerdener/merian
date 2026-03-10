@@ -6,7 +6,7 @@ Merian utilizes Supabase's hosted PostgreSQL engine alongside globally distribut
 
 - **[`identify`](/supabase/functions/identify/)**: The AI Processing Core.
   - Accepts an `r2ObjectKey` (an image already directly uploaded from the physical iPhone to a Cloudflare `staging/` bucket to bypass the Edge payload RAM limit of 15MB).
-  - Appends explicit physical weather constraints (WeatherKit), season tags, and LiDAR offsets.
+  - Appends explicit physical weather constraints (WeatherKit temperature and condition), exact GPS coordinates, altitude (`gpsElevation`), and LiDAR offsets.
   - Maps directly natively back to a validated JSON biological schema natively conforming to iOS `SpeciesData` rendering expectations.
 - **[`generate-upload-urls`](/supabase/functions/generate-upload-urls/)**: Security Abstraction.
   - Takes raw Cloudflare R2 Access Keys from the Supabase Secure Secret Vault and compiles transient AWS S3 v4 "Pre-Signed URLs" (PUT/GET).

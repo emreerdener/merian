@@ -34,9 +34,11 @@ The transaction log for every identification ever successfully passed.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0 boundary.
 - `gps_lat_exact` / `gps_long_exact` (Float)
+- `gps_elevation` (Float): Altitude exactly at capture.
 - `is_live_capture` (Boolean): AI flags whether this was a real photo vs a screen/book capture.
 - `ecology_type` (ENUM): `'wild'` | `'urban'` | `'domesticated'` | `'unknown'`
 - `weather_condition`, `regional_status_rationale` (Text)
+- `weather_temperature_f` (Float): Local degrees fahrenheit.
 - `image_storage_urls` (Text Array): Stores safe public Cloudflare links generated explicitly off the Moderation engine safely resolving explicit abuses natively.
 
 ## SwiftData Schema (Local Offline Queue)

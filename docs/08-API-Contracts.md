@@ -43,8 +43,10 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
   "user_id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
+  "gpsElevation": 42.5,
   "depthScaleText": "1.2 meters",
-  "weatherCondition": "Sunny"
+  "weatherCondition": "Sunny",
+  "weatherTemperatureF": 72.5
 }
 ```
 

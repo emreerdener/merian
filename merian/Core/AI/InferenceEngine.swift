@@ -12,10 +12,11 @@ final class InferenceEngine: ObservableObject {
     @Published var activeCompressedPayload: Data? = nil
     @Published var activePayloads: [String] = []
     @Published var speciesData: SpeciesData? = nil
-    
     private(set) var activeLatitude: Double? = nil
     private(set) var activeLongitude: Double? = nil
+    private(set) var activeElevation: Double? = nil
     private(set) var activeWeatherCondition: String? = nil
+    private(set) var activeTemperatureF: Double? = nil
     
     private var inferenceTask: Task<Void, Never>?
     
@@ -57,7 +58,7 @@ final class InferenceEngine: ObservableObject {
     
 
     
-    func analyze(imageData: Data, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, weatherCondition: String? = nil, modelContext: ModelContext? = nil) {
+    func analyze(imageData: Data, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
@@ -67,7 +68,9 @@ final class InferenceEngine: ObservableObject {
         
         self.activeLatitude = gpsLatitude
         self.activeLongitude = gpsLongitude
+        self.activeElevation = gpsElevation
         self.activeWeatherCondition = weatherCondition
+        self.activeTemperatureF = weatherTemperatureF
         
         self.inferenceTask = Task {
             // 1. Instantly compress the payload off the main thread before attempting any network boundaries to prevent Sandbox bloat on offline paths
@@ -100,7 +103,9 @@ final class InferenceEngine: ObservableObject {
                     depthScaleText: nil, // Extrapolating later if depth hardware demands it
                     gpsLatitude: gpsLatitude,
                     gpsLongitude: gpsLongitude,
-                    weatherCondition: weatherCondition
+                    gpsElevation: gpsElevation,
+                    weatherCondition: weatherCondition,
+                    weatherTemperatureF: weatherTemperatureF
                 )
                 
                 // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely
@@ -218,7 +223,9 @@ final class InferenceEngine: ObservableObject {
                     imageData: compressedData,
                     gpsLatitude: gpsLatitude,
                     gpsLongitude: gpsLongitude,
-                    weatherCondition: weatherCondition
+                    gpsElevation: gpsElevation,
+                    weatherCondition: weatherCondition,
+                    weatherTemperatureF: weatherTemperatureF
                 )
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
                 self.speciesData = SpeciesData(
@@ -254,7 +261,9 @@ final class InferenceEngine: ObservableObject {
         activePayloads.removeAll()
         activeLatitude = nil
         activeLongitude = nil
+        activeElevation = nil
         activeWeatherCondition = nil
+        activeTemperatureF = nil
     }
     
     /// Rehydrates the SpeciesData and UI payloads natively from an offline Life List record

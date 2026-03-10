@@ -23,11 +23,16 @@ flowchart TD
 
 ## Core Architectural Pillars
 
-### 1. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`)
+### 1. Dependency Injection (`AppDIContainer`)
+
+- To prevent Massive Environment Object pollution and ensure strict separation of concerns, Merian employs a centralized `AppDIContainer`. This singleton physically holds and exposes all core orchestration services natively to view modifiers (like `CameraManager`, `InferenceEngine`, `EnvironmentContextManager`) avoiding scattered `@StateObject` initializations across the app.
+
+### 2. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`, `EnvironmentContextManager`)
 
 - Direct bindings into `AVCaptureSession`, dynamically negotiating `isHighResolutionPhotoEnabled` buffers using native ISP (Image Signal Processor) and Deep Fusion. Prioritizes `.builtInLiDARDepthCamera` hardware intelligently before falling back to Wide-Angle models seamlessly.
 - Active Thermal monitoring manipulating OS frames (`targetFPS`), dynamically rendering the Glassmorphism `.ultraThinMaterial` on-the-fly to prevent critical heat loads in extreme outdoor wilderness environments.
 - **Native Camera Roll Integration (`PhotoLibraryManager`):** Safely persists unmodified `12MP` high-quality output bounds securely into the user's local iOS `PHPhotoLibrary` instantaneously avoiding iCloud sync delays entirely natively on capture.
+- **Deferred Context Fetch (`EnvironmentContextManager`):** Efficiently manages `CoreLocation` and `WeatherKit` by fetching exact coordinates, altitude (`gpsElevation`), and live condition/temperature (`weatherTemperatureF`) exclusively locked at the exact millisecond of the shutter press, preventing continuous battery drain while providing rich pipeline context.
 
 ### 2. Ephemeral Offline-First Sync (`OfflineQueueManager`, `SwiftData`)
 
