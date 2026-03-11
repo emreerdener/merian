@@ -20,36 +20,29 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { blocked_id } = await req.json();
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
+    }
+
+    // Explicitly strip the 'Bearer ' prefix to prevent "Bearer Bearer <token>" extraction bugs
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+    // Validate the ES256 token directly against GoTrue natively bypassing the Edge Runtime
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) {
+      console.error("Manual Auth Rejection:", authError);
+      return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const body = await req.json();
+    const { blocked_id } = body;
 
     if (!blocked_id) {
       throw new Error("Missing blocked_id.");
-    }
-
-    const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: Missing token" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        },
-      );
-    }
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser(authHeader);
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid token" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        },
-      );
     }
 
     const blocker_id = user.id;

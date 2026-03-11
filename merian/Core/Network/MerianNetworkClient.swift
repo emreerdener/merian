@@ -32,7 +32,8 @@ class MerianNetworkClient {
     func analyzeSubject(r2ObjectKey: String, depthScaleText: String?, gpsLatitude: Double?, gpsLongitude: Double?, gpsElevation: Double?, weatherCondition: String?, weatherTemperatureF: Double?, isRetry: Bool = false) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
         
-        var request = URLRequest(url: functionUrl)
+        // CRITICAL: Prevent iOS from returning cached 401s during the self-healing retry loop
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30.0)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
@@ -100,7 +101,8 @@ class MerianNetworkClient {
     func generateUploadURLs(fileNames: [String], isRetry: Bool = false) async throws -> [PreSignedURL] {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/generate-upload-urls")!
         
-        var request = URLRequest(url: functionUrl)
+        // CRITICAL: Prevent iOS from returning cached 401s during the self-healing retry loop
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30.0)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         

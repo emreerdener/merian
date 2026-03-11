@@ -9,7 +9,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Admin client not needed here.
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req: Request) => {
   // Handle CORS preflight requests
@@ -18,8 +20,6 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { fileNames, user_id } = await req.json();
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -28,25 +28,18 @@ serve(async (req: Request) => {
       );
     }
 
-    // 1. Validate the JWT utilizing the Anon Key + Injected Auth Header natively
-    const supabaseAuthClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    // Explicitly strip the 'Bearer ' prefix to prevent "Bearer Bearer <token>" extraction bugs
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim()
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuthClient.auth.getUser();
-
+    // Validate the ES256 token directly against GoTrue natively bypassing the Edge Runtime
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
     if (authError || !user) {
-      console.error("Auth Rejection:", authError);
-      return new Response(
-        JSON.stringify({ error: "Invalid or expired Session" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
-      );
+      console.error("Manual Auth Rejection:", authError)
+      return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } })
     }
+
+    const body = await req.json();
+    const { fileNames, user_id } = body;
 
     if (!user_id) {
        return new Response(

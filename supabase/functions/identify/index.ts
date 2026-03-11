@@ -27,6 +27,25 @@ serve(async (req: Request) => {
   try {
     console.log("[1] Request received");
 
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
+    }
+
+    // Explicitly strip the 'Bearer ' prefix to prevent "Bearer Bearer <token>" extraction bugs
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+    // Validate the ES256 token directly against GoTrue natively bypassing the Edge Runtime
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) {
+      console.error("Manual Auth Rejection:", authError);
+      return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const body = await req.json();
     const {
       r2ObjectKey,
       user_id,
@@ -36,38 +55,10 @@ serve(async (req: Request) => {
       depthScaleText,
       weatherCondition,
       weatherTemperatureF,
-    } = await req.json();
+    } = body;
 
     if (!r2ObjectKey) {
       throw new Error("Missing r2ObjectKey.");
-    }
-
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing Authorization header" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
-      );
-    }
-
-    // 1. Validate the JWT utilizing the Anon Key + Injected Auth Header natively
-    const supabaseAuthClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuthClient.auth.getUser();
-
-    if (authError || !user) {
-      console.error("Auth Rejection:", authError);
-      return new Response(
-        JSON.stringify({ error: "Invalid or expired Session" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
-      );
     }
 
     if (!user_id) {
