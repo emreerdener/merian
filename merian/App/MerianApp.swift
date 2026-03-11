@@ -11,7 +11,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct MerianApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var diContainer = AppDIContainer.shared
+    let diContainer = AppDIContainer.shared
 
     let container: ModelContainer
     

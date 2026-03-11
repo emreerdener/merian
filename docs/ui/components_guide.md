@@ -11,6 +11,7 @@ The massive full-bleed base architecture.
 - Integrates iOS native `PhotosPicker` natively within a floating Top Toolbar to scan legacy captures directly from the camera roll.
 - Renders contextual `VisualEffectBlur(blurStyle: .systemUltraThinMaterialDark)` liquid-glass nodes replacing bulky UI overlays, rendering floating interaction points (Flash/Torch top-right, Life List bottom-left, User Profile bottom-right, Shutter bottom-center).
 - Throws `.ultraThinMaterial` dynamic SwiftUI hints ("Move Closer", "Too Dark") instantly without `alert` blockers.
+- Binds `AVCaptureEventInteraction` natively mapping the hardware volume buttons, the Action Button, and the physical iPhone 16 Camera Control strictly onto the `.began` state allowing hardware closures to immediately trigger Shutter captures mirroring the system Camera app implicitly.
 - Orchestrates dynamic `.black` bounding boxes removing transparent elements completely when `HardwareOrchestrator` triggers thermal throttling states.
 
 ## 1.2 `CameraViewModel.swift`
@@ -19,6 +20,7 @@ Extracts all state management explicitly away from `CameraRootView`.
 
 - Owns presentation states (`isInsightSheetOpen`, `isPaywallOpen`, `isLifeListOpen`).
 - Manages strict logic wrapping `handleCropCompletion` safely inside Task closures and delegates context retrieval seamlessly downwards to `AppDIContainer.shared.environmentContextManager` preventing the View layer from touching CoreLocation rules natively.
+- Immediately forces an Optimistic State Execution (`isAnalyzingFullscreen = true`) updating the view bindings natively *before* deferring off to the heavy `EnvironmentContextManager` mapping dynamically, guaranteeing the UI never deadlocks on a 2-second viewfinder freeze during terrible satellite acquisitions in the wilderness.
 - Evaluates async processing synchronizations and explicitly pauses `CameraManager` viewport sensors when the Insight sheet is dynamically expanded securely saving thermal capacity.
 
 ## 1.5 `GlassCircularButton.swift`
@@ -52,7 +54,7 @@ The physical analytical response boundary natively wrapping the `SpeciesData` sc
 
 - Always renders up in the "Natural Thumb Zone" from the bottom. Defaults exclusively to a full-screen `.large` presentation detent explicitly obscuring the background viewfinder cleanly.
 - To allow flexible integration across both state-driven flows and standalone item bindings (as deployed inside the Life List historical feed), all closing and dismissing events exclusively leverage the native SwiftUI `@Environment(\.dismiss)` hooks rather than rigidly mutating parent `@Binding var isPresented` states natively.
-- Implements a horizontal `TabView` carousel displaying all historical encounters natively mapping to `activePayloads` file path strings dynamically via `AsyncLocalImageView`. This rigidly detaches heavy 12-Megapixel file I/O loading strictly off the `@MainActor` onto a CPU pool. It securely decodes raw bytes dynamically using `preparingThumbnail(of:)` inside a `Task.detached` hook, aggressively blocking iOS Out-Of-Memory (OOM) crashes or UI stuttering when users scroll large identical biological boundaries natively.
+- Implements a horizontal `TabView` carousel displaying all historical encounters natively mapping to `activePayloads` file path strings dynamically via `AsyncLocalImageView`. This rigidly detaches heavy 12-Megapixel file I/O loading strictly off the `@MainActor` onto a CPU pool. It securely decodes raw byte bounding boxes directly from the physical disk dynamically utilizing strict `ImageIO` bounds explicitly invoking `CGImageSourceCreateThumbnailAtIndex` implicitly guaranteeing absolute UI fluidity. This explicitly drops memory payloads implicitly blocking iOS Out-Of-Memory (OOM) crashes or UI stuttering when users scroll large identical biological boundaries natively.
 - Renders dynamic metadata badges natively evaluating `isInvasive`, `ecologyType`, `isBiological`, and `isLiveCapture` flags beneath the primary confidence score UI.
 - Displays dynamic Taxonomy (Kingdom, Phylum) trees visually expanding the Deno metadata inputs explicitly using horizontal glassmorphic capsules natively.
 - Evaluates strict liability rules dictating `isPoisonous` renderings accurately: Merian strictly bounds a red warning badge if poisonous, otherwise defaults exclusively to "Edibility Unknown. Merian is an educational tool. Never ingest wild flora." securely protecting users from hallucinations natively.

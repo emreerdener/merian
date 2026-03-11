@@ -92,8 +92,12 @@ final class InferenceEngine: ObservableObject {
                     throw URLError(.badServerResponse)
                 }
                 
+                try Task.checkCancellation() // <-- ADD THIS
+                
                 // 3. Upload bytes to R2 (compressed)
                 try await client.uploadToR2(url: target.signedUrl, data: compressedData)
+                
+                try Task.checkCancellation() // <-- ADD THIS
                 
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification

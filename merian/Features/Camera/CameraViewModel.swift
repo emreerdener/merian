@@ -50,7 +50,21 @@ final class CameraViewModel: ObservableObject {
         
         Task { [weak self] in
             guard let self = self else { return }
+            
+            // FIX: Instantly trigger scanning UI so the user doesn't see a frozen camera feed
+            await MainActor.run {
+                if let rawImage = UIImage(data: croppedData) {
+                    self.analysisImage = rawImage
+                }
+                self.scanningPhaseText = "Acquiring coordinates..."
+                self.isAnalyzingFullscreen = true
+            }
+            
             let context = await self.diContainer.environmentContextManager.fetchDeferredContext()
+            
+            await MainActor.run {
+                self.scanningPhaseText = "Analyzing Subject..."
+            }
             
             self.diContainer.inferenceEngine.analyze(
                 imageData: croppedData,
@@ -61,10 +75,6 @@ final class CameraViewModel: ObservableObject {
                 weatherTemperatureF: context.weatherTemperature,
                 modelContext: modelContext
             )
-            
-            await MainActor.run {
-                self.isAnalyzingFullscreen = true
-            }
         }
     }
     

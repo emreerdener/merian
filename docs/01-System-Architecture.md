@@ -25,11 +25,11 @@ flowchart TD
 
 ### 1. Dependency Injection (`AppDIContainer`)
 
-- To prevent Massive Environment Object pollution and ensure strict separation of concerns, Merian employs a centralized `AppDIContainer`. This singleton physically holds and exposes all core orchestration services natively to view modifiers (like `CameraManager`, `InferenceEngine`, `EnvironmentContextManager`) avoiding scattered `@StateObject` initializations across the app.
+- To prevent Massive Environment Object pollution and ensure strict separation of concerns, Merian employs a centralized `AppDIContainer`. This singleton physically holds and exposes all core orchestration services natively to view modifiers (like `CameraManager`, `InferenceEngine`, `EnvironmentContextManager`) avoiding scattered initializations across the app. In `MerianApp.swift`, it is mapped securely as an immutable `let diContainer = AppDIContainer.shared` property to resolve dynamic boot-loop frame evaluation constraints natively.
 
 ### 2. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`, `EnvironmentContextManager`)
 
-- Direct bindings into `AVCaptureSession`, dynamically negotiating `isHighResolutionPhotoEnabled` buffers using native ISP (Image Signal Processor) and Deep Fusion. Prioritizes `.builtInLiDARDepthCamera` hardware intelligently before falling back to Wide-Angle models seamlessly.
+- Direct bindings into `AVCaptureSession`, dynamically negotiating `isHighResolutionPhotoEnabled` buffers using native ISP (Image Signal Processor) and Deep Fusion. The `DiscoverySession` strictly prioritizes extracting the native `.builtInLiDARDepthCamera` locking down the optical hardware mapping completely to guarantee accurate physical telemetry.
 - Active Thermal monitoring manipulating OS frames (`targetFPS`), dynamically rendering the Glassmorphism `.ultraThinMaterial` on-the-fly to prevent critical heat loads in extreme outdoor wilderness environments.
 - **Native Camera Roll Integration (`PhotoLibraryManager`):** Safely persists unmodified `12MP` high-quality output bounds securely into the user's local iOS `PHPhotoLibrary` instantaneously avoiding iCloud sync delays entirely natively on capture.
 - **Deferred Context Fetch (`EnvironmentContextManager`):** Efficiently manages `CoreLocation` and `WeatherKit` by fetching exact coordinates, altitude (`gpsElevation`), and live condition/temperature (`weatherTemperatureF`) exclusively locked at the exact millisecond of the shutter press, preventing continuous battery drain while providing rich pipeline context.
@@ -43,6 +43,7 @@ flowchart TD
 
 - A strict Cloud-native workflow entirely decoupling Apple users from raw API logic.
 - The `identify` Deno Edge node securely accepts pre-signed iOS uploads natively, validates the taxonomy heavily relying explicitly on context variables directly mapped from native Apple `CLLocation` bounding boxes and pushes taxonomies physically straight back into the database synchronously via secure server-side execution.
+- Extensively optimized cellular payload architectures physically inject strict `Task.checkCancellation()` boundaries internally inside the `InferenceEngine` explicitly before transferring `URLSession` data payloads to Cloudflare R2 bounds dynamically. If the iOS Watchdog or the user explicitly cancels a processing scan, it instantaneously aborts execution to prevent cellular bandwidth leakage.
 
 ### 4. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)
 
@@ -57,4 +58,4 @@ flowchart TD
 ### 6. UI Initialization & Memory Operations
 
 - **Instant Cold Boot:** SDK injections (`AppTelemetry`, `PostHog`) are rigidly deferred onto a `Task.detached(priority: .background)` executor cleanly preventing the Main Actor from locking, ensuring a strict sub-1-second boot for the Camera pipeline.
-- **Asynchronous Grid Downsampling:** Displays mapping heavy physical Local File caches (`LifeListSearchView`) offload physical image decoding strictly to iOS 15's native `preparingThumbnail(of:)` via `.userInitiated` CPU blocks ensuring RAM strictly stays completely flat and scrolling remains flawlessly linked at 60fps locking OOM (Out-of-Memory) crashes completely out.
+- **Asynchronous Grid Downsampling:** Displays mapping heavy physical Local File caches (`LifeListSearchView` and `InsightSheetView`) offload physical image decoding strictly onto a CPU pool prioritizing `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex` logic dynamically bounds-checking 12-Megapixel file memory dynamically. Streaming explicit byte headers recursively without allocating generic structural `.Data()` blocks strictly locks iOS OOM (Out-of-Memory) bounds dynamically ensuring scrolling remains seamlessly locked to 60fps on edge devices.

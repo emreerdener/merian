@@ -58,7 +58,9 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         
         imageManager.requestImage(for: latestAsset, targetSize: targetSize, contentMode: .aspectFill, options: requestOptions) { [weak self] image, _ in
             guard let image = image else { return }
-            self?.latestThumbnail = image
+            Task { @MainActor in
+                self?.latestThumbnail = image
+            }
         }
     }
     

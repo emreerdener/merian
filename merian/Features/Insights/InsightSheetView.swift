@@ -469,11 +469,19 @@ struct AsyncLocalImageView: View {
         let url = URL.documentsDirectory.appendingPathComponent(imagePath)
         Task {
             if let decoded = await Task.detached(priority: .userInitiated, operation: {
-                guard let rawData = try? Data(contentsOf: url),
-                      let fullImage = UIImage(data: rawData) else { return nil as UIImage? }
+                let options: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 1024
+                ]
                 
-                // Target generic 1024x1024 geometric footprint dynamically preventing OOM memory bounds on 12MP files seamlessly
-                return fullImage.preparingThumbnail(of: CGSize(width: 1024, height: 1024)) ?? fullImage
+                // Read straight from disk using ImageIO to prevent massive 12MP RAM spikes
+                guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+                      let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+                    return nil as UIImage?
+                }
+                
+                return UIImage(cgImage: cgImage)
             }).value {
                 await MainActor.run {
                     self.loadedImage = decoded
