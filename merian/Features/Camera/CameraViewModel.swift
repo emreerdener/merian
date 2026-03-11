@@ -114,4 +114,43 @@ final class CameraViewModel: ObservableObject {
             flashOpacity = 0.0
         }
     }
+    
+    func executeCapture() {
+        // Prevent accidental hardware captures while a modal, sheet, or crop view is actively presented
+        guard !isInsightSheetOpen, 
+              !isLifeListOpen, 
+              !isPaywallOpen, 
+              !isUserProfileOpen, 
+              !isAnalyzingFullscreen, 
+              imageToCrop == nil else { return }
+              
+        if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
+            // Instant tactile UI response mirroring the Apple Camera app
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.prepare()
+            generator.impactOccurred()
+            
+            triggerFlash()
+            
+            Task {
+                do {
+                    let captureData = try await diContainer.cameraManager.captureImage()
+                    
+                    // Actively push the original 12MP buffer down natively into the user's Camera Roll securely
+                    await diContainer.photoLibraryManager.saveImageToLibrary(imageData: captureData)
+                    
+                    if let rawImage = UIImage(data: captureData) {
+                        await MainActor.run {
+                            self.imageToCrop = IdentifiableImage(image: rawImage)
+                        }
+                    }
+                } catch {
+                    print("⚠️ Hardware Shutter failure: \(error.localizedDescription)")
+                }
+            }
+        } else {
+            AppTelemetry.trackPaywallImpression()
+            self.isPaywallOpen = true
+        }
+    }
 }

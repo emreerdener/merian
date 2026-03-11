@@ -12,16 +12,6 @@ struct MerianActionBar: View {
     
     var onCaptureTriggered: () -> Void
     
-    @EnvironmentObject var revenueCatManager: RevenueCatManager
-    @EnvironmentObject var usageManager: UsageManager
-    @EnvironmentObject var gamificationManager: GamificationManager
-    @EnvironmentObject var inferenceEngine: InferenceEngine
-    
-    @Environment(\.modelContext) private var modelContext
-    
-    @EnvironmentObject var cameraManager: CameraManager
-    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
-    
     var body: some View {
         HStack {
             // Life List
@@ -32,31 +22,7 @@ struct MerianActionBar: View {
             Spacer()
             
             // The Shutter / Analyze Button
-            Button(action: {
-                if usageManager.canPerformScan(isProActive: revenueCatManager.isProActive) {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    onCaptureTriggered()
-                    Task {
-                        do {
-                            let captureData = try await cameraManager.captureImage()
-                            
-                            // Actively push the original 12MP buffer down natively into the user's Camera Roll securely
-                            await PhotoLibraryManager.shared.saveImageToLibrary(imageData: captureData)
-                            
-                            if let rawImage = UIImage(data: captureData) {
-                                await MainActor.run {
-                                    imageToCrop = IdentifiableImage(image: rawImage)
-                                }
-                            }
-                        } catch {
-                            print("⚠️ Shutter failure: \(error.localizedDescription)")
-                        }
-                    }
-                } else {
-                    AppTelemetry.trackPaywallImpression()
-                    isPaywallOpen = true
-                }
-            }) {
+            Button(action: onCaptureTriggered) {
                 ZStack {
                     Circle()
                         .stroke(Color.white, lineWidth: 3)
