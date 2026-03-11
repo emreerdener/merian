@@ -109,7 +109,10 @@ struct LifeListSearchView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 2) {
                         ForEach(searchManager.filteredScans) { scan in
-                            NavigationLink(value: scan) {
+                            Button(action: {
+                                selectedScanForInsight = scan
+                                inferenceEngine.load(from: scan)
+                            }) {
                                 Group {
                                     if let imagePath = scan.localImagePath {
                                         LifeListThumbnailView(imagePath: imagePath)
@@ -123,16 +126,14 @@ struct LifeListSearchView: View {
                                     }
                                 }
                             }
-                            .simultaneousGesture(TapGesture().onEnded {
-                                inferenceEngine.load(from: scan)
-                            })
                         }
                     }
                 }
-                .navigationDestination(for: LocalScanRecord.self) { scan in
-                    InsightSheetView(isPresented: .constant(true), showCloseButton: false)
-                        .navigationBarBackButtonHidden(true)
-                        .toolbar(.hidden, for: .navigationBar)
+                .sheet(item: $selectedScanForInsight) { scan in
+                    InsightSheetView(isPresented: Binding(
+                        get: { selectedScanForInsight != nil },
+                        set: { if !$0 { selectedScanForInsight = nil } }
+                    ), showCloseButton: true)
                 }
             }
             .toolbar(.hidden, for: .navigationBar)

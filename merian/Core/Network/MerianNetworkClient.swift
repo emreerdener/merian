@@ -37,12 +37,14 @@ class MerianNetworkClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {
-            let activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
-                print("⚠️ MerianNetworkClient: Active JWT missing or expired. Throwing NetworkError to prevent Ghost overwrite.")
-                throw NetworkError.invalidResponse
+                print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
+                await SupabaseManager.shared.initializeGhostSession()
+                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             }
             guard let finalJWT = activeJWT else {
+                print("⚠️ MerianNetworkClient: Active JWT missing or expired after retry. Throwing NetworkError.")
                 throw NetworkError.invalidResponse
             }
             request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
@@ -92,12 +94,14 @@ class MerianNetworkClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {
-            let activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
-                print("⚠️ MerianNetworkClient: Active JWT missing or expired. Throwing NetworkError to prevent Ghost overwrite.")
-                throw NetworkError.invalidResponse
+                print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
+                await SupabaseManager.shared.initializeGhostSession()
+                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             }
             guard let finalJWT = activeJWT else {
+                print("⚠️ MerianNetworkClient: Active JWT missing or expired after retry. Throwing NetworkError.")
                 throw NetworkError.invalidResponse
             }
             request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")

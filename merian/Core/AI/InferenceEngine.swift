@@ -75,11 +75,8 @@ final class InferenceEngine: ObservableObject {
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
             
-            // 1. Instantly compress the payload off the main thread before attempting any network boundaries to prevent Sandbox bloat on offline paths
-            let compressedData = await Task.detached(priority: .userInitiated) {
-                return self.downsampleLocalPayload(data: imageData) ?? imageData
-            }.value
-            
+            // 1. Data is already safely compressed from camera cropper directly
+            let compressedData = imageData
             self.activeCompressedPayload = compressedData
             
             do {

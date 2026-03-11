@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-// createClient removed as native Fetch API securely resolves JWTs around GoTrue bug.
+// createClient included to instantiate Admin client for DB connections
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.17";
 
 const corsHeaders = {
@@ -8,7 +9,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Removed unused URLs
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req: Request) => {
   // Handle CORS preflight requests
@@ -17,7 +20,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { fileNames } = await req.json();
+    const { fileNames, user_id } = await req.json();
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -26,26 +29,19 @@ serve(async (req: Request) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
+    const token = authHeader.replace("Bearer ", "");
 
-    const userRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/auth/v1/user`, {
-      method: "GET",
-      headers: {
-        Authorization: authHeader,
-        apikey: Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      },
-    });
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(token);
 
-    if (!userRes.ok) {
-      const errText = await userRes.text();
+    if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid token", details: errText }),
+        JSON.stringify({ error: "Unauthorized: Invalid token", details: authError }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
-
-    const user = await userRes.json();
-
-    const user_id = user.id;
 
     if (
       !Array.isArray(fileNames) ||

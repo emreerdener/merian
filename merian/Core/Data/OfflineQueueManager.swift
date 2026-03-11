@@ -34,6 +34,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     private override init() {
         super.init()
+        _ = backgroundSession // Force initialization so iOS can re-attach background tasks on wake
         startMonitoring()
     }
     
@@ -126,8 +127,10 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
                 // Strict expirationHandler that safely suspends the queue without corrupting the data if the OS runs out of time.
                 self.syncTask?.cancel()
-                self.isSyncing = false
-                SyncStateManager.shared.completeSync()
+                Task { @MainActor in
+                    self.isSyncing = false
+                    SyncStateManager.shared.completeSync()
+                }
                 if backgroundTaskID != .invalid {
                     UIApplication.shared.endBackgroundTask(backgroundTaskID)
                 }
@@ -183,13 +186,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         let originalFileURL = fileURLs[index]
                         let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
                         
-                        if let downsampledData = self.downsampleLocalPayload(fileURL: originalFileURL) {
-                            try? downsampledData.write(to: tempFileURL)
-                        } else {
-                            try? FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
-                        }
+                        try? FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
                         
-                        // Enqueue to the iOS Background URLSession cleanly using the downsampled physical file
+                        // Enqueue to the iOS Background URLSession cleanly using the physical file
                         let uploadTask = backgroundSession.uploadTask(with: request, fromFile: tempFileURL)
                         uploadTask.taskDescription = scanId
                         uploadTask.resume()

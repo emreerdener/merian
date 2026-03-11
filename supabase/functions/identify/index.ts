@@ -26,8 +26,10 @@ serve(async (req: Request) => {
 
   try {
     console.log("[1] Request received");
+
     const {
       r2ObjectKey,
+      user_id,
       gpsLatitude,
       gpsLongitude,
       gpsElevation,
@@ -47,26 +49,19 @@ serve(async (req: Request) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
+    const token = authHeader.replace("Bearer ", "");
 
-    const userRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/auth/v1/user`, {
-      method: "GET",
-      headers: {
-        Authorization: authHeader,
-        apikey: Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      },
-    });
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(token);
 
-    if (!userRes.ok) {
-      const errText = await userRes.text();
+    if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid token", details: errText }),
+        JSON.stringify({ error: "Unauthorized: Invalid token", details: authError }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
-
-    const user = await userRes.json();
-
-    const user_id = user.id;
 
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
     const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;

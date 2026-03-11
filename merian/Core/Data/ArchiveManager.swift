@@ -66,28 +66,23 @@ class ArchiveManager: ObservableObject {
     }
     
     private func downloadToLocalLibrary(url: URL) async throws {
-        // If the URL is already a local file, we can save it directly.
-        // If it's a remote URL, we'd need to download the data first.
-        let data: Data
-        if url.isFileURL {
-            data = try await Task.detached(priority: .userInitiated) {
-                try Data(contentsOf: url)
-            }.value
-        } else {
+        var remoteData: Data? = nil
+        if !url.isFileURL {
             let (downloadedData, response) = try await URLSession.shared.data(from: url)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 throw URLError(.badServerResponse)
             }
-            data = downloadedData
+            remoteData = downloadedData
         }
         
         try await PHPhotoLibrary.shared().performChanges {
-            // Because creating an album and fetching collections is complex and often requires full .readWrite permission,
-            // we will simply use the creation request to add the image to the general library to satisfy the MVP.
-            // In the future, with full .readWrite permission, we can create the "Merian" album and add assets to it.
             let creationRequest = PHAssetCreationRequest.forAsset()
-            creationRequest.addResource(with: .photo, data: data, options: nil)
+            if url.isFileURL {
+                creationRequest.addResource(with: .photo, fileURL: url, options: nil)
+            } else if let data = remoteData {
+                creationRequest.addResource(with: .photo, data: data, options: nil)
+            }
         }
         
         print("ArchiveManager: Successfully archived image to device Photos.")
