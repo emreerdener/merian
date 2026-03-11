@@ -20,6 +20,13 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     @Published var subjectDistanceInMeters: Float? = nil
     @Published var isFlashEnabled = false
     
+    @Published var videoZoomFactor: CGFloat = 1.0
+    @Published var availableZoomFactors: [CGFloat] = [1.0]
+    @Published var displayZoomMultiplier: CGFloat = 1.0
+    
+    private var minZoom: CGFloat = 1.0
+    private var maxZoom: CGFloat = 5.0
+    
     // CoreML inferred state
     var isLiveInferencePaused: Bool = false
     
@@ -86,6 +93,34 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             if photoOutput.isDepthDataDeliverySupported {
                 photoOutput.isDepthDataDeliveryEnabled = true
             }
+        }
+        
+        // Extract optical switchover points for the active physical camera
+        let minZ = captureDevice.minAvailableVideoZoomFactor
+        // Cap max digital zoom to 10.0 to prevent severe pixelation destroying AI inference
+        let maxZ = min(captureDevice.maxAvailableVideoZoomFactor, 10.0)
+        
+        var factors: [CGFloat] = [minZ]
+        if captureDevice.isVirtualDevice {
+            factors.append(contentsOf: captureDevice.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.floatValue) })
+        }
+        
+        // If the base lens is an Ultra-Wide, iOS maps the physical 1.0 hardware factor to "0.5x" in the UI.
+        let multiplier: CGFloat = (captureDevice.deviceType == .builtInTripleCamera || captureDevice.deviceType == .builtInDualWideCamera) ? 0.5 : 1.0
+        
+        var uniqueFactors = Array(Set(factors)).sorted()
+        
+        // Fallback UX: If it's a single-lens iPhone, explicitly provide a 2.0x digital zoom stop to emulate Pro devices
+        if uniqueFactors.count == 1 && maxZ >= 2.0 {
+            uniqueFactors.append(2.0)
+        }
+        
+        Task { @MainActor in
+            self.minZoom = minZ
+            self.maxZoom = maxZ
+            self.videoZoomFactor = captureDevice.videoZoomFactor
+            self.availableZoomFactors = uniqueFactors
+            self.displayZoomMultiplier = multiplier
         }
         
         session.commitConfiguration()
@@ -342,6 +377,32 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             }
             
             activePhotoContinuation = nil
+        }
+    }
+    
+    /// Safely orchestrates zoom interactions across the physical hardware without blocking the Main Thread
+    func setZoomFactor(_ factor: CGFloat, animated: Bool = false) {
+        let clamped = min(max(factor, minZoom), maxZoom)
+        self.videoZoomFactor = clamped // Optimistic UI update instantly ensures 120Hz gesture fluidity
+        
+        queue.async { [weak self] in
+            guard let self = self,
+                  let deviceInput = self.session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else { return }
+            
+            let device = deviceInput.device
+            do {
+                try device.lockForConfiguration()
+                if animated {
+                    // Smooth motorized transition (Ideal for tapping UI pills)
+                    device.ramp(toVideoZoomFactor: clamped, withRate: 5.0) 
+                } else {
+                    // Instant linear snap (Ideal for Pinch/Drag scrubbing)
+                    device.videoZoomFactor = clamped
+                }
+                device.unlockForConfiguration()
+            } catch {
+                print("⚠️ Failed to lock AV device for zoom: \(error.localizedDescription)")
+            }
         }
     }
 }

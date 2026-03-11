@@ -15,12 +15,25 @@ struct CameraRootView: View {
     @Environment(\.modelContext) private var modelContext
     
     @StateObject private var viewModel = CameraViewModel()
+    @State private var pinchStartZoom: CGFloat? = nil
     
     var body: some View {
         ZStack {
             // Full-bleed camera feed
             CameraPreviewView(session: cameraManager.session)
                 .ignoresSafeArea()
+                .gesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            guard !viewModel.isAnalyzingFullscreen else { return }
+                            if pinchStartZoom == nil { pinchStartZoom = cameraManager.videoZoomFactor }
+                            let target = pinchStartZoom! * value
+                            cameraManager.setZoomFactor(target, animated: false)
+                        }
+                        .onEnded { _ in
+                            pinchStartZoom = nil
+                        }
+                )
             
             // Shutter Snap Animation
             Color.black
@@ -103,6 +116,13 @@ struct CameraRootView: View {
                             .environment(\.colorScheme, .dark)
                             .clipShape(Capsule())
                             .padding(.bottom, 16)
+                    }
+                    
+                    // Hardware Optical Zoom Controls
+                    if cameraManager.availableZoomFactors.count > 1 {
+                        CameraZoomControl()
+                            .padding(.bottom, 8)
+                            .transition(.opacity)
                     }
                     
                     // Floating Action Bar Interface
@@ -284,6 +304,83 @@ extension View {
         } else {
             // iOS 17.0 and 17.1 gracefully fallback to the on-screen UI button safely
             self
+        }
+    }
+}
+
+struct CameraZoomControl: View {
+    @EnvironmentObject var cameraManager: CameraManager
+    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
+    
+    @State private var dragStartZoom: CGFloat? = nil
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            ForEach(cameraManager.availableZoomFactors, id: \.self) { factor in
+                Button(action: {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    cameraManager.setZoomFactor(factor, animated: true)
+                }) {
+                    Text(formatZoom(factor))
+                        .font(.system(size: 14, weight: isLensActive(factor) ? .bold : .medium, design: .rounded))
+                        .foregroundColor(isLensActive(factor) ? .black : .white)
+                        .frame(width: 42, height: 42)
+                        .background(
+                            Circle()
+                                .fill(isLensActive(factor) ? Color.yellow : Color.black.opacity(0.3))
+                        )
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Group {
+                if hardwareOrchestrator.isGlassmorphismEnabled {
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark)
+                } else {
+                    Capsule()
+                        .fill(Color.black.opacity(0.7))
+                }
+            }
+        )
+        // Horizontal Drag Scrubber Logic
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if dragStartZoom == nil { dragStartZoom = cameraManager.videoZoomFactor }
+                    // Scale exponentially so horizontal scrubbing feels natural across wide focal lengths
+                    let delta = value.translation.width / 150.0
+                    let target = dragStartZoom! * exp(delta)
+                    cameraManager.setZoomFactor(target, animated: false)
+                }
+                .onEnded { _ in
+                    dragStartZoom = nil
+                }
+        )
+    }
+    
+    // Mathematically calculates which physical lens is currently engaged based on switchover boundaries
+    private func isLensActive(_ targetFactor: CGFloat) -> Bool {
+        let factors = cameraManager.availableZoomFactors
+        let current = cameraManager.videoZoomFactor
+        var activeFactor = factors.first ?? 1.0
+        
+        for factor in factors {
+            if current >= factor - 0.05 { activeFactor = factor }
+        }
+        return targetFactor == activeFactor
+    }
+    
+    // Beautifully formats multipliers (e.g. 0.5x, 1x, 2x) mapped to actual hardware models
+    private func formatZoom(_ factor: CGFloat) -> String {
+        let displayValue = factor * cameraManager.displayZoomMultiplier
+        if displayValue.truncatingRemainder(dividingBy: 1) == 0 {
+            return "\(Int(displayValue))x"
+        } else {
+            return String(format: "%gx", displayValue)
         }
     }
 }
