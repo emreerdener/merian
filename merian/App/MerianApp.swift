@@ -28,7 +28,10 @@ struct MerianApp: App {
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
             container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            diContainer.scanRepository.configure(with: container.mainContext)
+            
+            // CRITICAL FIX: Access the singleton directly via .shared to prevent SwiftUI from 
+            // prematurely evaluating the @StateObject property wrapper and throwing memory warnings.
+            AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
         } catch {
             // Fatal error protects against wiping data when encountering production schema migrations
             fatalError("Could not create ModelContainer: \(error)")

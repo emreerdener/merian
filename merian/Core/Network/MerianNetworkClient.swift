@@ -87,6 +87,10 @@ class MerianNetworkClient {
                 try? await SupabaseManager.shared.signOut()
                 await SupabaseManager.shared.initializeGhostSession()
                 
+                // CRITICAL: Await JWT JWKS global propagation on the Supabase Edge Gateway
+                print("⏳ Waiting 1.5s for Kong API Gateway to sync new ES256 signature...")
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                
                 // Recursively retry exactly once with the fresh token
                 return try await analyzeSubject(r2ObjectKey: r2ObjectKey, depthScaleText: depthScaleText, gpsLatitude: gpsLatitude, gpsLongitude: gpsLongitude, gpsElevation: gpsElevation, weatherCondition: weatherCondition, weatherTemperatureF: weatherTemperatureF, isRetry: true)
             }
@@ -141,6 +145,10 @@ class MerianNetworkClient {
                 print("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")
                 try? await SupabaseManager.shared.signOut()
                 await SupabaseManager.shared.initializeGhostSession()
+                
+                // CRITICAL: Await JWT JWKS global propagation on the Supabase Edge Gateway
+                print("⏳ Waiting 1.5s for Kong API Gateway to sync new ES256 signature...")
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
                 
                 // Recursively retry exactly once with the fresh token
                 return try await generateUploadURLs(fileNames: fileNames, isRetry: true)
