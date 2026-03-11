@@ -40,31 +40,31 @@ serve(async (req: Request) => {
       throw new Error("Missing r2ObjectKey.");
     }
 
-    const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Unauthorized: Missing token" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        },
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser(authHeader);
+    const userRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/auth/v1/user`, {
+      method: "GET",
+      headers: {
+        Authorization: authHeader,
+        apikey: Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      },
+    });
 
-    if (authError || !user) {
+    if (!userRes.ok) {
+      const errText = await userRes.text();
       return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid token" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        },
+        JSON.stringify({ error: "Unauthorized: Invalid token", details: errText }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
+
+    const user = await userRes.json();
 
     const user_id = user.id;
 

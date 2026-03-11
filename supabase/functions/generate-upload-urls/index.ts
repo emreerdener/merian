@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+// createClient removed as native Fetch API securely resolves JWTs around GoTrue bug.
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.17";
 
 const corsHeaders = {
@@ -8,9 +8,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// Removed unused URLs
 
 serve(async (req: Request) => {
   // Handle CORS preflight requests
@@ -21,31 +19,31 @@ serve(async (req: Request) => {
   try {
     const { fileNames } = await req.json();
 
-    const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Unauthorized: Missing token" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        },
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser(authHeader);
+    const userRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/auth/v1/user`, {
+      method: "GET",
+      headers: {
+        Authorization: authHeader,
+        apikey: Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      },
+    });
 
-    if (authError || !user) {
+    if (!userRes.ok) {
+      const errText = await userRes.text();
       return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid token" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        },
+        JSON.stringify({ error: "Unauthorized: Invalid token", details: errText }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
+
+    const user = await userRes.json();
 
     const user_id = user.id;
 
