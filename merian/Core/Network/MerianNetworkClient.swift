@@ -29,7 +29,7 @@ class MerianNetworkClient {
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
     // Step 2: Supabase Inference
-    func analyzeSubject(r2ObjectKey: String, depthScaleText: String?, gpsLatitude: Double?, gpsLongitude: Double?, gpsElevation: Double?, weatherCondition: String?, weatherTemperatureF: Double?) async throws -> Data {
+    func analyzeSubject(r2ObjectKey: String, depthScaleText: String?, gpsLatitude: Double?, gpsLongitude: Double?, gpsElevation: Double?, weatherCondition: String?, weatherTemperatureF: Double?, isRetry: Bool = false) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
         
         var request = URLRequest(url: functionUrl)
@@ -79,6 +79,17 @@ class MerianNetworkClient {
         if httpResponse.statusCode != 200 {
             let errString = String(data: data, encoding: .utf8) ?? "Unknown"
             print("🚨 SUPABASE EDGE FAILED [\(httpResponse.statusCode)]: \(errString)")
+            
+            // Self-Healing Zombie Session Trap
+            if httpResponse.statusCode == 401 && !isRetry {
+                print("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")
+                try? await SupabaseManager.shared.signOut()
+                await SupabaseManager.shared.initializeGhostSession()
+                
+                // Recursively retry exactly once with the fresh token
+                return try await analyzeSubject(r2ObjectKey: r2ObjectKey, depthScaleText: depthScaleText, gpsLatitude: gpsLatitude, gpsLongitude: gpsLongitude, gpsElevation: gpsElevation, weatherCondition: weatherCondition, weatherTemperatureF: weatherTemperatureF, isRetry: true)
+            }
+            
             throw NetworkError.invalidResponse
         }
         
@@ -86,7 +97,7 @@ class MerianNetworkClient {
     }
     
     // Step 3: Pre-Signed URLs
-    func generateUploadURLs(fileNames: [String]) async throws -> [PreSignedURL] {
+    func generateUploadURLs(fileNames: [String], isRetry: Bool = false) async throws -> [PreSignedURL] {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/generate-upload-urls")!
         
         var request = URLRequest(url: functionUrl)
@@ -122,6 +133,17 @@ class MerianNetworkClient {
         if httpResponse.statusCode != 200 {
             let errString = String(data: data, encoding: .utf8) ?? "Unknown"
             print("🚨 GENERATE URLS FAILED [\(httpResponse.statusCode)]: \(errString)")
+            
+            // Self-Healing Zombie Session Trap
+            if httpResponse.statusCode == 401 && !isRetry {
+                print("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")
+                try? await SupabaseManager.shared.signOut()
+                await SupabaseManager.shared.initializeGhostSession()
+                
+                // Recursively retry exactly once with the fresh token
+                return try await generateUploadURLs(fileNames: fileNames, isRetry: true)
+            }
+            
             throw NetworkError.invalidResponse
         }
         

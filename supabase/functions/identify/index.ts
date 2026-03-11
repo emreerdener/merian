@@ -45,22 +45,36 @@ serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized: Missing token" }),
+        JSON.stringify({ error: "Missing Authorization header" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
-    const token = authHeader.replace("Bearer ", "");
+
+    // 1. Validate the JWT utilizing the Anon Key + Injected Auth Header natively
+    const supabaseAuthClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
 
     const {
       data: { user },
       error: authError,
-    } = await supabaseAdmin.auth.getUser(token);
+    } = await supabaseAuthClient.auth.getUser();
 
     if (authError || !user) {
+      console.error("Auth Rejection:", authError);
       return new Response(
-        JSON.stringify({ error: "Unauthorized: Invalid token", details: authError }),
+        JSON.stringify({ error: "Invalid or expired Session" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
+    }
+
+    if (!user_id) {
+       return new Response(
+           JSON.stringify({ error: "Missing user_id parameter in body" }), 
+           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+       );
     }
 
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;

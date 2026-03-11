@@ -186,6 +186,8 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         let originalFileURL = fileURLs[index]
                         let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
                         
+                        // CRITICAL FIX: Explicitly remove orphaned files to prevent copyItem from silently failing
+                        try? FileManager.default.removeItem(at: tempFileURL)
                         try? FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
                         
                         // Enqueue to the iOS Background URLSession cleanly using the physical file
