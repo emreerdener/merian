@@ -106,65 +106,63 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     func syncPendingScans() {
         guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }
-        guard !isSyncing else { return } // Prevent parallel overlap attacks
-        guard let modelContext = modelContext else { return }
+        guard !isSyncing else { return } 
+        guard let container = modelContext?.container else { return }
         
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { !$0.isDeleted })
-        descriptor.sortBy = [SortDescriptor(\.timestamp)]
-        descriptor.fetchLimit = 5 // Strictly limit background upload chunks to prevent Edge Function timeout execution limits
+        isSyncing = true
         
+        #if os(iOS)
+        var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
+            self.syncTask?.cancel()
+            Task { @MainActor in
+                self.isSyncing = false
+                SyncStateManager.shared.completeSync()
+            }
+            if backgroundTaskID != .invalid {
+                UIApplication.shared.endBackgroundTask(backgroundTaskID)
+            }
+        }
+        #endif
         
-        do {
-            let pendingScans = try modelContext.fetch(descriptor)
-            guard !pendingScans.isEmpty else { return }
+        syncTask = Task.detached(priority: .background) {
+            let dbActor = BackgroundDatabaseActor(modelContainer: container)
+            let scanData = await dbActor.fetchPendingScans(limit: 5)
             
-            isSyncing = true
-            SyncStateManager.shared.beginSync(itemCount: pendingScans.count)
+            guard !scanData.isEmpty else {
+                await MainActor.run {
+                    self.isSyncing = false
+                    SyncStateManager.shared.completeSync()
+                    #if os(iOS)
+                    if backgroundTaskID != .invalid { UIApplication.shared.endBackgroundTask(backgroundTaskID) }
+                    #endif
+                }
+                return
+            }
             
-            #if os(iOS)
-            // Critical: Request explicit background execution time from iOS to wrap up field uploads while the device is in the user's pocket
-            var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
-            backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
-                // Strict expirationHandler that safely suspends the queue without corrupting the data if the OS runs out of time.
-                self.syncTask?.cancel()
-                Task { @MainActor in
+            await MainActor.run { SyncStateManager.shared.beginSync(itemCount: scanData.count) }
+            
+            let documentsDirectory = URL.documentsDirectory
+            var fileNames: [String] = []
+            var fileURLs: [URL] = []
+            var scanIDs: [String] = []
+            
+            for scan in scanData {
+                for path in scan.localImagePaths {
+                    let fileURL = documentsDirectory.appendingPathComponent(path)
+                    fileNames.append("\(scan.id)_\(path)")
+                    fileURLs.append(fileURL)
+                    scanIDs.append(scan.id)
+                }
+            }
+            
+            guard !fileNames.isEmpty else {
+                await MainActor.run {
                     self.isSyncing = false
                     SyncStateManager.shared.completeSync()
                 }
-                if backgroundTaskID != .invalid {
-                    UIApplication.shared.endBackgroundTask(backgroundTaskID)
-                }
+                return
             }
-            #endif
-            
-            // Map the `PersistentModel` variables securely outside the detached block natively avoiding MainActor concurrency crashes
-            let scanData = pendingScans.map { (id: $0.id, localImagePaths: $0.localImagePaths) }
-            
-            syncTask = Task.detached(priority: .background) {
-                let documentsDirectory = URL.documentsDirectory
-                
-                var fileNames: [String] = []
-                var fileURLs: [URL] = []
-                var scanIDs: [String] = []
-                
-                // Aggregating all files to get Pre-Signed URLs in one batch
-                for scan in scanData {
-                    for path in scan.localImagePaths {
-                        let fileURL = documentsDirectory.appendingPathComponent(path)
-                        let rawName = "\(scan.id)_\(path)"
-                        fileNames.append(rawName)
-                        fileURLs.append(fileURL)
-                        scanIDs.append(scan.id)
-                    }
-                }
-                
-                guard !fileNames.isEmpty else {
-                    await MainActor.run {
-                        self.isSyncing = false
-                        SyncStateManager.shared.completeSync()
-                    }
-                    return
-                }
                 
                 do {
                     // Fetch Cloudflare R2 staging URLs (not chaining the Inference analyze API afterwards)
@@ -214,11 +212,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 }
             }
             
-        } catch {
-            print("Failed to fetch pending scans: \(error)")
-            isSyncing = false
-            SyncStateManager.shared.completeSync()
-        }
+        SyncStateManager.shared.completeSync()
     }
     
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
@@ -343,6 +337,20 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
 
 @ModelActor
 actor BackgroundDatabaseActor {
+    struct PendingScanPayload: Sendable {
+        let id: String
+        let localImagePaths: [String]
+    }
+
+    func fetchPendingScans(limit: Int) -> [PendingScanPayload] {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { !$0.isDeleted })
+        descriptor.sortBy = [SortDescriptor(\.timestamp)]
+        descriptor.fetchLimit = limit
+        
+        let pending = (try? modelContext.fetch(descriptor)) ?? []
+        return pending.map { PendingScanPayload(id: $0.id, localImagePaths: $0.localImagePaths) }
+    }
+    
     /// Called by the Offline Queue explicitly to ensure deferred scans are processed mathematically back down into the User's biological index natively.
     func processAndCleanupOfflineScan(resultData: Data, originalImagePaths: [String], scanId: String) {
         let decoder = JSONDecoder()

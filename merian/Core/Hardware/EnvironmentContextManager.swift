@@ -79,17 +79,24 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     }
     
     private func requestSingleLocation() async -> CLLocation? {
-        // If an explicit continuation is still running, clear it gracefully
         if let active = activeContinuationWrapper {
             active.resume(returning: nil)
             activeContinuationWrapper = nil
         }
         
         return await withCheckedContinuation { continuation in
-            // Because Swift concurrency with delegate callbacks is tricky, we can use a temporary wrapper 
-            // but for simplicity, we trigger the one-off request
             self.activeContinuationWrapper = continuation
             self.locationManager.requestLocation()
+            
+            // Anti-Deadlock timeout: Force-resume after 2.0s if hardware fails to lock satellites
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if let active = self.activeContinuationWrapper {
+                    print("⚠️ GPS Hardware lock timed out. Proceeding dynamically with cached/nil context.")
+                    active.resume(returning: self.cachedLocation)
+                    self.activeContinuationWrapper = nil
+                }
+            }
         }
     }
     

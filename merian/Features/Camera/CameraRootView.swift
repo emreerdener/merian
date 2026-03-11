@@ -132,13 +132,8 @@ struct CameraRootView: View {
                         .resizable()
                         .scaledToFill()
                         .aspectRatio(1.0, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(ScanningEffectOverlay()) // Injects the animated AI scanner
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.cyan.opacity(0.5), lineWidth: 2)
-                        )
-                        .shadow(color: .cyan.opacity(0.3), radius: 20, y: 10)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(RainbowScanningOverlay()) // Injects the premium AI scanner
                         .padding(.horizontal, 32)
                     
                     VStack {
@@ -297,31 +292,56 @@ extension View {
 }
 
 
-struct ScanningEffectOverlay: View {
-    @State private var offset: CGFloat = -0.2
+struct RainbowScanningOverlay: View {
+    @State private var scanOffset: CGFloat = -0.1
+    @State private var gradientRotation: Double = 0.0
+    @State private var isPulsing: Bool = false
     
     var body: some View {
         GeometryReader { geometry in
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.0),
-                    Color.cyan.opacity(0.3),
-                    Color.cyan.opacity(0.8), // Holographic scan line
-                    Color.cyan.opacity(0.3),
-                    Color.white.opacity(0.0)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 80)
-            .offset(y: offset * geometry.size.height)
+            ZStack {
+                // Holographic Sweeping Beam
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.clear,
+                        Color.cyan.opacity(0.2),
+                        Color.white.opacity(0.8), // Hot core
+                        Color.cyan.opacity(0.2),
+                        Color.clear
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 100)
+                .offset(y: scanOffset * geometry.size.height)
+                .shadow(color: .cyan, radius: 10)
+            }
             .onAppear {
                 withAnimation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                    offset = 1.0
+                    scanOffset = 1.1
+                }
+                withAnimation(Animation.linear(duration: 3.0).repeatForever(autoreverses: false)) {
+                    gradientRotation = 360.0
+                }
+                withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                    isPulsing = true
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    AngularGradient(
+                        gradient: Gradient(colors: [.red, .orange, .yellow, .green, .blue, .purple, .red]),
+                        center: .center,
+                        angle: .degrees(gradientRotation)
+                    ),
+                    lineWidth: 4
+                )
+                .opacity(isPulsing ? 1.0 : 0.6)
+                .shadow(color: .purple.opacity(0.5), radius: isPulsing ? 15 : 5)
+        )
         .allowsHitTesting(false)
     }
 }

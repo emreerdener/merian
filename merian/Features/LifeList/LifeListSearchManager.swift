@@ -4,46 +4,36 @@ import SwiftUI
 import ImageIO
 
 
-// Background Detached Actor natively mapping Semantic Index loops exclusively to prevent MainActor SQLite faulting freezes
-@ModelActor
-actor BackgroundSearchActor {
-    func performSemanticSearch(query: String) -> Set<String> {
-        let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty { return [] }
-        let tokens = text.components(separatedBy: .whitespaces)
-        
-        let descriptor = FetchDescriptor<LocalScanRecord>()
-        let records = (try? modelContext.fetch(descriptor)) ?? []
-        
-        return Set(records.filter { record in
-            let tags = record.semanticTags
-            let searchSpace = [
-                record.commonName.lowercased(),
-                record.scientificName.lowercased(),
-                record.ecologyType.lowercased(),
-                record.insightDescription.lowercased()
-            ] + tags.map { $0.lowercased() }
-            
-            return tokens.allSatisfy { token in
-                searchSpace.contains { $0.contains(token) }
-            }
-        }.map { $0.id })
-    }
+struct SearchableScan: Sendable {
+    let id: String
+    let searchString: String
 }
-// 2. MainActor Search Engine Queue Manager
+
 @MainActor
 class LifeListSearchManager: ObservableObject {
     @Published var searchQuery: String = ""
     @Published var filteredScans: [LocalScanRecord] = []
     
-    var allScans: [LocalScanRecord] = []
+    var allScans: [LocalScanRecord] = [] {
+        didSet { updateSearchableData() }
+    }
+    
+    private var searchableData: [SearchableScan] = []
     private var searchTask: Task<Void, Never>?
+    
+    private func updateSearchableData() {
+        self.searchableData = allScans.map { record in
+            let tags = record.semanticTags.joined(separator: " ")
+            let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
+            return SearchableScan(id: record.id, searchString: rawString)
+        }
+    }
     
     func performSearch(query: String) {
         searchTask?.cancel()
         
         searchTask = Task {
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: 150_000_000) // Debounce typing
             if Task.isCancelled { return }
             
             let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -52,14 +42,21 @@ class LifeListSearchManager: ObservableObject {
                 return
             }
             
-            if allScans.isEmpty {
+            if searchableData.isEmpty {
                 self.filteredScans = []
                 return
             }
             
-            guard let container = allScans.first?.modelContext?.container else { return }
-            let backgroundActor = BackgroundSearchActor(modelContainer: container)
-            let matchingIds = await backgroundActor.performSemanticSearch(query: text)
+            // Offload heavy multi-token String matching entirely off the UI thread
+            let searchData = self.searchableData
+            let matchingIds = await Task.detached(priority: .userInitiated) {
+                let tokens = text.components(separatedBy: .whitespaces)
+                return Set(searchData.filter { scan in
+                    tokens.allSatisfy { token in
+                        scan.searchString.contains(token)
+                    }
+                }.map { $0.id })
+            }.value
             
             if Task.isCancelled { return }
             self.filteredScans = self.allScans.filter { matchingIds.contains($0.id) }
@@ -203,18 +200,22 @@ struct LifeListThumbnailView: View {
             .clipped()
         .task {
             if thumbnail == nil {
+                let cacheKey = imagePath
+                if let cached = ImageCache.shared.get(forKey: cacheKey) {
+                    self.thumbnail = cached
+                    return
+                }
+                
                 let fullPathURL = URL.documentsDirectory.appendingPathComponent(imagePath)
-                if let generatedThumb = await generateThumbnail(for: fullPathURL) {
-                    await MainActor.run {
-                        self.thumbnail = generatedThumb
-                    }
+                if let generatedThumb = await generateThumbnail(for: fullPathURL, cacheKey: cacheKey) {
+                    await MainActor.run { self.thumbnail = generatedThumb }
                 }
             }
         }
     }
 }
 
-nonisolated func generateThumbnail(for url: URL) async -> UIImage? {
+nonisolated func generateThumbnail(for url: URL, cacheKey: String) async -> UIImage? {
     if Task.isCancelled { return nil }
     
     let options: [CFString: Any] = [
@@ -227,8 +228,12 @@ nonisolated func generateThumbnail(for url: URL) async -> UIImage? {
     
     guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
           let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-        return UIImage(contentsOfFile: url.path)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
+        let fallback = UIImage(contentsOfFile: url.path)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
+        if let fb = fallback { ImageCache.shared.set(fb, forKey: cacheKey) }
+        return fallback
     }
     
-    return UIImage(cgImage: cgImage)
+    let img = UIImage(cgImage: cgImage)
+    ImageCache.shared.set(img, forKey: cacheKey)
+    return img
 }

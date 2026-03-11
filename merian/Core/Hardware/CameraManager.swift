@@ -32,7 +32,6 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     private override init() {
         super.init()
-        setupSession()
         
         HardwareOrchestrator.shared.$targetFPS
             .dropFirst()
@@ -41,6 +40,11 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 self?.applyTargetFPS(fps)
             }
             .store(in: &cancellables)
+            
+        // CRITICAL FIX: Offload heavy hardware locks off the Main Thread for instant UI booting
+        queue.async { [weak self] in
+            self?.setupSession()
+        }
     }
     
     private func setupSession() {
@@ -190,6 +194,22 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     }
     
     nonisolated func depthDataOutput(_ output: AVCaptureDepthDataOutput, didOutput depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection) {
+        
+        // CPU FLOOD FIX: Throttle the heavy Depth Map calculation natively before locking the CPU
+        struct DepthThrottler {
+            static var lastTime: CFAbsoluteTime = 0
+            static let lock = NSLock()
+        }
+        
+        let now = CFAbsoluteTimeGetCurrent()
+        DepthThrottler.lock.lock()
+        if now - DepthThrottler.lastTime < 0.3 {
+            DepthThrottler.lock.unlock()
+            return
+        }
+        DepthThrottler.lastTime = now
+        DepthThrottler.lock.unlock()
+
         let depthPixelBuffer = depthData.depthDataMap
         CVPixelBufferLockBaseAddress(depthPixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(depthPixelBuffer, .readOnly) }

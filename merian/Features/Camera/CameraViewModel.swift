@@ -136,9 +136,7 @@ final class CameraViewModel: ObservableObject {
               
         if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
             // Instant tactile UI response mirroring the Apple Camera app
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.prepare()
-            generator.impactOccurred()
+            AppDIContainer.shared.hapticManager.triggerMediumPulse()
             
             triggerFlash()
             

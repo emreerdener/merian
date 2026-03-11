@@ -39,6 +39,7 @@
 		89143DCFA1EF1A9D5B72F894 /* SocialGuardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E53EEAA4B495EBA59F7F561 /* SocialGuardManager.swift */; };
 		8F655442A6D196335FD58F8B /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B4F36BE3B0243F44D0C1A93C /* RevenueCat */; };
 		902259B948C4459876BA2BA8 /* GlassCircularButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A3959975290EB1FA78459D1 /* GlassCircularButton.swift */; };
+		933C41D05D4D8C6767E12373 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6B4B5BDE999C36DDC3B7EF /* ImageCache.swift */; };
 		9664363BC59C58EF6717049F /* RiveRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 8AF45E48D940462F64FF38E6 /* RiveRuntime */; };
 		A00270831093276EA08B0747 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0AE39969F0604490ECB159 /* HapticManager.swift */; };
 		A0B8B0996BA36D9EB98E38DE /* PhotoLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B0365792BC618A4C26EC9B /* PhotoLibraryManager.swift */; };
@@ -131,6 +132,7 @@
 		D2E5C836927FEDB08630D2CC /* Merian.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Merian.entitlements; sourceTree = "<group>"; };
 		E4B3DD5F49376139EA14458E /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		E516841C0206ED7F97CB1EA0 /* ScanRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRepository.swift; sourceTree = "<group>"; };
+		EA6B4B5BDE999C36DDC3B7EF /* ImageCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
 		F06F78C2B5A5EBE711F7F338 /* VisualEffectBlur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualEffectBlur.swift; sourceTree = "<group>"; };
 		F340CAB78931C951CAD0AF0F /* GamificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationManager.swift; sourceTree = "<group>"; };
 		F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
@@ -354,6 +356,7 @@
 				27B0365792BC618A4C26EC9B /* PhotoLibraryManager.swift */,
 				E516841C0206ED7F97CB1EA0 /* ScanRepository.swift */,
 				A8A3A30B7A77C26B982B5CDA /* SyncStateManager.swift */,
+				EA6B4B5BDE999C36DDC3B7EF /* ImageCache.swift */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -419,8 +422,6 @@
 			dependencies = (
 			);
 			name = MerianWatch;
-			packageProductDependencies = (
-			);
 			productName = MerianWatch;
 			productReference = 0481771C41C383D2737DDEC7 /* MerianWatch.app */;
 			productType = "com.apple.product-type.application";
@@ -451,7 +452,6 @@
 				A68D7B2C0AC3928BB3164D73 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				51EB52F78E5BB0AF6B928C7A /* XCRemoteSwiftPackageReference "SwiftClient" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = F420A3E8A335E1F061C6E39C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -535,6 +535,7 @@
 				842E825C495021C3FA1D0511 /* UsageManager.swift in Sources */,
 				3B0B4417F90F2CEAEE75E0FC /* ViewfinderIntelligence.swift in Sources */,
 				CD5E67E9F522CCD9A29A1AAF /* VisualEffectBlur.swift in Sources */,
+				933C41D05D4D8C6767E12373 /* ImageCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

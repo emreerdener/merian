@@ -466,6 +466,13 @@ struct AsyncLocalImageView: View {
     
     private func loadThumbnail() {
         guard loadedImage == nil else { return }
+        
+        // 1. RAM Cache Hit (Instant 0ms load)
+        if let cached = ImageCache.shared.get(forKey: imagePath) {
+            self.loadedImage = cached
+            return
+        }
+        
         let url = URL.documentsDirectory.appendingPathComponent(imagePath)
         Task {
             if let decoded = await Task.detached(priority: .userInitiated, operation: {
@@ -475,7 +482,6 @@ struct AsyncLocalImageView: View {
                     kCGImageSourceThumbnailMaxPixelSize: 1024
                 ]
                 
-                // Read straight from disk using ImageIO to prevent massive 12MP RAM spikes
                 guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
                       let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
                     return nil as UIImage?
@@ -483,6 +489,9 @@ struct AsyncLocalImageView: View {
                 
                 return UIImage(cgImage: cgImage)
             }).value {
+                // 2. Save to RAM Cache
+                ImageCache.shared.set(decoded, forKey: imagePath)
+                
                 await MainActor.run {
                     self.loadedImage = decoded
                 }
