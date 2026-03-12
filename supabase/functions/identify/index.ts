@@ -128,7 +128,7 @@ Crucial instructions:
 4. You must write all 'insight_data' fields and the 'common_name' strictly in the target Locale provided in the context.`;
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-flash-lite",
       systemInstruction: systemInstruction,
     });
 

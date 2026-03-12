@@ -22,7 +22,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 ### `InferenceEngine`
 - The core processing unit inside `merian/Core/AI/`.
 - Dispatches exactly formatted `depthScaleText`, `deviceLocale`, `currentMonth`, and physical coordinate states natively out to the Supabase Node (`MerianNetworkClient.analyzeSubject`).
-- Automatically filters natively against `gemini-2.5-flash` payloads binding the structural taxonomy strings mapped specifically right back down to native local properties.
+- Automatically filters natively against `gemini-2.5-flash-lite` payloads binding the structural taxonomy strings mapped specifically right back down to native local properties.
 - Responsible for mutating and triggering the "Graceful Degradation" UI bounds when network calls fail natively by dumping the payload explicitly down to `OfflineQueueManager`.
 
 ### `OfflineQueueManager`
