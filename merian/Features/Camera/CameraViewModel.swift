@@ -86,9 +86,6 @@ final class CameraViewModel: ObservableObject {
     
     func synchronizeAnalysisState(isFullscreen: Bool) {
         if isFullscreen {
-            if let payload = diContainer.inferenceEngine.activePayload {
-                analysisImage = UIImage(data: payload)
-            }
             diContainer.cameraManager.stopSession() // Revert viewport to off while analyzing over it
             scanningPhaseText = "Scanning..."
             
