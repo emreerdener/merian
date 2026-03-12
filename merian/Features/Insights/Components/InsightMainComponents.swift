@@ -8,7 +8,9 @@ struct InsightCarouselView: View {
         let hasReferenceImage = !refUrls.isEmpty
         let hasUserImage = inferenceEngine.activePayload != nil || !inferenceEngine.activePayloads.isEmpty
         
-        if hasUserImage || hasReferenceImage {
+        let totalImages = (inferenceEngine.activePayload != nil ? 1 : 0) + inferenceEngine.activePayloads.count + refUrls.count
+        
+        if totalImages > 0 {
             TabView {
                 // Priority: Live Capture actively evaluated (Data payload)
                 if let livePayload = inferenceEngine.activePayload, let uiImage = UIImage(data: livePayload) {
@@ -59,7 +61,7 @@ struct InsightCarouselView: View {
                     }
                 }
             }
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: totalImages > 1 ? .always : .never))
             .aspectRatio(1.0, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)

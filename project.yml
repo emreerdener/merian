@@ -46,6 +46,7 @@ targets:
         DEVELOPMENT_TEAM: LDL96V2WT5
     dependencies:
       - target: MerianWatch # Natively bundles the companion watchApp binary directly into the parent iPhone executable
+        embed: true
       - package: RevenueCat
       - package: PostHog
       - package: Supabase
@@ -61,6 +62,7 @@ targets:
     sources: [MerianWatch]
     settings:
       base:
+        SUPPORTED_PLATFORMS: "watchsimulator watchos"
         PRODUCT_BUNDLE_IDENTIFIER: app.merian.Merian.watchkitapp
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: app.merian.Merian
