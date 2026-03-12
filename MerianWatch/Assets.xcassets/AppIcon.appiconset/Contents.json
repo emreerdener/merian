@@ -9,6 +9,30 @@
       "subtype": "38mm"
     },
     {
+      "filename": "icon_86x86.png",
+      "idiom": "watch",
+      "role": "quickLook",
+      "scale": "2x",
+      "size": "43x43",
+      "subtype": "38mm"
+    },
+    {
+      "filename": "icon_98x98.png",
+      "idiom": "watch",
+      "role": "quickLook",
+      "scale": "2x",
+      "size": "49x49",
+      "subtype": "42mm"
+    },
+    {
+      "filename": "icon_108x108.png",
+      "idiom": "watch",
+      "role": "quickLook",
+      "scale": "2x",
+      "size": "54x54",
+      "subtype": "44mm"
+    },
+    {
       "filename": "icon_27.5pt_2x.png",
       "idiom": "watch",
       "role": "notificationCenter",
