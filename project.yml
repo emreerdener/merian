@@ -72,6 +72,28 @@ targets:
         INFOPLIST_KEY_CFBundleIconFiles: AppIcon
         DEVELOPMENT_TEAM: LDL96V2WT5
 
+  merianTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [merianTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Merian
+
+  merianUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [merianUITests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Merian
+
 schemes:
   Merian:
     build:
@@ -81,6 +103,9 @@ schemes:
       config: Debug
     test:
       config: Debug
+      targets:
+        - merianTests
+        - merianUITests
     profile:
       config: Release
     analyze:

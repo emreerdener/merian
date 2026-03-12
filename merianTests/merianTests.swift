@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import merian
+@testable import Merian
 
 struct merianTests {
 

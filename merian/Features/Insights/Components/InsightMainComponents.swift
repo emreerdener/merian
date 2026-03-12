@@ -20,16 +20,17 @@ struct InsightCarouselView: View {
                         .aspectRatio(1.0, contentMode: .fill)
                         .clipped()
                         .tag("user_image_live")
+                        .id(livePayload.hashValue)
                 }
                 
                 // User's Uploaded Images (Historic Pipeline deferred by path cleanly preventing OOMs natively)
-                ForEach(Array(inferenceEngine.activePayloads.enumerated()), id: \.offset) { index, path in
+                ForEach(Array(inferenceEngine.activePayloads.enumerated()), id: \.element) { index, path in
                     AsyncLocalImageView(imagePath: path)
                         .tag("user_image_\(index)")
                 }
                 
                 // Tab 1+: Wikipedia / GBIF Reference Images
-                ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
+                ForEach(Array(refUrls.enumerated()), id: \.element) { index, urlString in
                     if let refUrl = URL(string: urlString) {
                         AsyncImage(url: refUrl, transaction: Transaction(animation: .easeInOut(duration: 0.3))) { phase in
                             switch phase {
