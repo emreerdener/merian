@@ -2,6 +2,8 @@
 
 You are an AI assistant working on the Merian project. Merian is an offline-first, biological classification and gamification platform built natively for iOS and watchOS, backed by Supabase PostgreSQL and Deno Edge Functions.
 
+**IMPORTANT:** Before doing PRs or making systemic changes, please strictly read `docs/09-AI-Agent-Guidelines.md` along with `07-Database-Schema.md` and `08-API-Contracts.md` for current constraints.
+
 ## 1. Core Architectural Rules (STRICT TRUTH)
 - **Offline-First Resilience**: All physical native captures MUST be enqueued into `OfflineQueueManager` (via SwiftData) before attempting a network boundary. Do not make raw `URLSession` calls from the UI layer. 
 - **Privacy & Zero-PII**: Merian is strictly Zero-PII. Telemetry (TelemetryDeck/PostHog) must NEVER log plain-text GPS, names, or emails. We use Supabase Anonymous UUIDs exclusively for identification until a user explicitly converts their account.
@@ -9,8 +11,10 @@ You are an AI assistant working on the Merian project. Merian is an offline-firs
 - **Backend Isolation**: The iOS app MUST NOT contact Gemini directly. The iOS app talks to the Deno `/identify` Edge function. The Edge function securely holds the `GEMINI_API_KEY`, executes the LLM reasoning, updates the PostgreSQL `scans` table natively, and returns the strictly typed Codable JSON mapping to Swift.
 
 ## 2. iOS Frontend Stack (SwiftUI)
-- Use standard SwiftUI declarative syntax.
-- State Management relies completely on `ObservableObject` and `@EnvironmentObject` bound at the root `MerianApp.swift` level. Avoid prop drilling.
+- **XcodeGen**: DO NOT modify `Merian.xcodeproj`. Modify `project.yml` and run `xcodegen generate`.
+- Directory Structure: `Features/`, `Core/`, `UIComponents/`, `Models/`, `Configuration/`.
+- Use standard SwiftUI declarative syntax with glassmorphic (`.ultraThinMaterial`) elements to wow the user.
+- **State Management**: Merian **rejects** `@EnvironmentObject` for heavy singletons. Use `AppDIContainer.shared` for dependency injection to prevent memory redraw loops (e.g. `let cameraManager: CameraManager`).
 - Dependencies: `SwiftData` for local persistence. `RiveRuntime` for Gamification (.riv files). `RevenueCat` for entitlements.
 
 ## 3. Backend Stack (Supabase Edge & Deno)

@@ -14,11 +14,11 @@ Welcome to the Merian ecosystem documentation. This directory serves as the tech
 - **[`06-Gamification-and-Telemetry.md`](./06-Gamification-and-Telemetry.md)** - PostHog anonymous telemetry mappings and Rive `.riv` interactive logic.
 - **[`07-Database-Schema.md`](./07-Database-Schema.md)** - The physical table maps for PostgreSQL and the SwiftData persistent schemas.
 - **[`08-API-Contracts.md`](./08-API-Contracts.md)** - Raw JSON mapping contracts bridging the iOS client and Edge Deno engines.
+- **[`09-AI-Agent-Guidelines.md`](./09-AI-Agent-Guidelines.md)** - Master rules, architecture constraints, and explicit prompt boundaries for AI dev agents.
 
 ### Concept Spotlights
 
 - **[`/architecture/system_overview.md`](./architecture/system_overview.md)** - High-level structural decoupling overview.
-- **[`/backend/edge_infrastructure.md`](./backend/edge_infrastructure.md)** - In-depth breakdown of the Deno `/identify`, `/generate-upload-urls`, and `/safe-delete` functions natively.
 - **[`/services/core_managers.md`](./services/core_managers.md)** - Deep dive into singleton active instances across Merian (e.g. `HardwareOrchestrator`).
 - **[`/ui/components_guide.md`](./ui/components_guide.md)** - Native SwiftUI rendering logics, `CameraRootView`, and the DWC-A insights sheet mechanics.
 
