@@ -13,11 +13,18 @@ Merian embraces the `WindowGroup` logic seamlessly across `SwiftUI` avoiding `.x
 ### `CameraRootView`
 - The monolithic foundation mapping the complete UI hierarchy seamlessly across standard layout bindings globally natively across iPhones cleanly.
 - Responsible for presenting `MerianActionBar`, rendering `AsyncImage` carousels from the active `Discovery Feed`, and calling into `LocationManager` seamlessly requesting permissions seamlessly gracefully falling back cleanly.
+- Delegates user profile interactions cleanly out to `UserProfileView.swift` preventing monolithic Main Actor View bloat by isolating `StatCardView` modules securely into their own feature domains.
 
 ### `InsightSheetView` (The AI Resolution Context)
-- Displays the successfully parsed ML taxonomy arrays correctly natively via dynamic ScrollViews cleanly mapped out across dynamic headers seamlessly globally safely across locales dynamically.
+- Displays the successfully parsed ML taxonomy arrays natively mapped out across a declarative, componentized layout (`InsightMainComponents` and `InsightComponents`).
+- The entire view is wrapped in a native `NavigationStack`, heavily utilizing a native toolbar for actions (e.g. `isBiological` driven native share/export buttons and native close actions), permanently discarding bespoke rigid header bars.
+- Its localized parsing abstractions block logic purely via abstracted domain models located cleanly in `Models/SpeciesData.swift` decoupling data bounds from structural view logic flawlessly.
+- Key logical container boundaries:
+  - `InsightCarouselView`: Handles rendering legacy uploaded archives seamlessly alongside aggressively prioritized local `.userInitiated` `Task.detached` ML evaluation data loops.
+  - `InsightToxicityBanner`: High-priority `.isHeader` accessibility mapped warning boundaries gracefully prioritizing user safety actively.
+  - `InsightTaxonomyHeader` & `InsightTaxonomyTree`: Strictly parses the taxonomy objects perfectly dynamically routing to `BadgeView` grids and `TaxonomyNode` capsules across interactive horizontal scroll bounds natively.
+  - `InsightDescriptionSection`: Dynamically populates AI rationale securely opening direct pipelines into local `SafariServices` bounds (`WKWebView`).
 - Gracefully binds ML hallucination correction tools naturally (`FlagIssueView`), executing POST payload drops securely bypassing native UI blocks inherently.
-- Extensively handles Wikipedia `WKWebView` natively via `SafariServices` smoothly preventing context switching boundaries natively.
 
 ### `LifeListSearchManager` & Discovery Grids
 - Maps `LifeListThumbnailView` securely binding to `SwiftData` persistently tracking local users cleanly globally safely across device sessions.

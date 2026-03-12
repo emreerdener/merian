@@ -140,24 +140,6 @@ struct LifeListSearchView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Custom Header mapping exactly to prevent layout shifts on iOS Nav Transitions
-                ZStack {
-                    HStack {
-                        GlassCircularButton(iconName: "xmark") {
-                            dismiss()
-                        }
-                        Spacer()
-                    }
-                    
-                    Text("Life List")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                }
-                .padding(.horizontal)
-                .padding(.top, 24)
-                .padding(.bottom, 12)
-                .background(Color(UIColor.systemBackground))
-                
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(filterCategories, id: \.self) { category in
@@ -254,10 +236,22 @@ struct LifeListSearchView: View {
                     InsightSheetView(isPresented: Binding(
                         get: { selectedScanForInsight != nil },
                         set: { if !$0 { selectedScanForInsight = nil } }
-                    ), showCloseButton: true)
+                    ))
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("Life List")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 if isSearchExpanded {
                     HStack(spacing: 8) {

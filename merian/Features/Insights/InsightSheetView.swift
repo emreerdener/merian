@@ -2,51 +2,7 @@ import SwiftUI
 
 import SafariServices
 
-// MARK: - Primary Domain Models (Data received from InferenceEngine/Gemini Edge JSON)
-struct SpeciesData {
-    let scanId: String?
-    let commonName: String
-    let scientificName: String
-    let insightData: InsightData
-    let confidenceScore: Double
-    let diagnosticComparison: DiagnosticComparison?
-    let wikipediaUrl: String?
-    let referenceImageUrl: String?
-    
-    let isBiological: Bool
-    let isLiveCapture: Bool
-    let isInvasive: Bool
-    let ecologyType: String
-    let taxonomy: TaxonomyData?
-}
 
-struct TaxonomyData {
-    let kingdom: String?
-    let phylum: String?
-    let className: String?
-    let order: String?
-    let family: String?
-    let genus: String?
-}
-
-struct InsightData {
-    let description: String
-    let isPoisonous: Bool
-    let regionalStatusRationale: String?
-}
-
-struct DiagnosticComparison {
-    let primaryMatchRationale: String
-    let confusingLookalikeName: String
-    let keyDifferentiators: [KeyDifferentiator]
-}
-
-struct KeyDifferentiator: Identifiable {
-    let id = UUID()
-    let trait: String
-    let subjectValue: String
-    let lookalikeValue: String
-}
 
 // MARK: - Insight Sheet View
 struct InsightSheetView: View {
@@ -54,7 +10,6 @@ struct InsightSheetView: View {
     @Environment(\.dismiss) var dismiss
 
     @Binding var isPresented: Bool
-    var showCloseButton: Bool = true
     
     @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
     
@@ -76,275 +31,25 @@ struct InsightSheetView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                
-                // Header Actions (Close/Back & Share)
-                HStack {
-                    if showCloseButton {
-                        GlassCircularButton(iconName: "xmark") {
-                            dismiss()
-                        }
-                    } else {
-                        GlassCircularButton(iconName: "chevron.left") {
-                            dismiss()
-                        }
-                    }
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
                     
-                    Spacer()
+                    // 0. The Image Carousel
+                    InsightCarouselView()
                     
-                    if inferenceEngine.speciesData?.isBiological == true {
-                        let shareUrl = URL(string: "https://merian.app")!
-                        ShareLink(
-                            item: shareUrl,
-                            subject: Text("I found a \(commonName)!"),
-                            message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
-                        ) {
-                            ZStack {
-                                if hardwareOrchestrator.isGlassmorphismEnabled {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .environment(\.colorScheme, .dark)
-                                        .frame(width: 50, height: 50)
-                                } else {
-                                    Circle()
-                                        .fill(Color.black.opacity(0.7))
-                                        .frame(width: 50, height: 50)
-                                }
-                                
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .offset(y: -2) // Optical bounding box nudging natively 
-                                    .foregroundColor(.white)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                
-                // 0. The Image Carousel (Active Capture + Wikipedia Reference)
-                let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
-                let hasReferenceImage = !refUrls.isEmpty
-                let hasUserImage = inferenceEngine.activePayload != nil || !inferenceEngine.activePayloads.isEmpty
-                
-                if hasUserImage || hasReferenceImage {
-                    TabView {
-                        // Priority: Live Capture actively evaluated (Data payload)
-                        if let livePayload = inferenceEngine.activePayload, let uiImage = UIImage(data: livePayload) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .aspectRatio(1.0, contentMode: .fill)
-                                .clipped()
-                                .tag("user_image_live")
-                        }
-                        
-                        // User's Uploaded Images (Historic Pipeline deferred by path cleanly preventing OOMs natively)
-                        ForEach(Array(inferenceEngine.activePayloads.enumerated()), id: \.offset) { index, path in
-                            AsyncLocalImageView(imagePath: path)
-                                .tag("user_image_\(index)")
-                        }
-                        
-                        // Tab 1+: Wikipedia / GBIF Reference Images
-                        ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
-                            if let refUrl = URL(string: urlString) {
-                                AsyncImage(url: refUrl, transaction: Transaction(animation: .easeInOut(duration: 0.3))) { phase in
-                                    switch phase {
-                                    case .empty:
-                                        ProgressView()
-                                            .aspectRatio(1.0, contentMode: .fill)
-                                            .frame(maxWidth: .infinity)
-                                            .background(Color.white.opacity(0.1))
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .scaledToFill()
-                                            .aspectRatio(1.0, contentMode: .fill)
-                                            .clipped()
-                                            .transition(.opacity)
-                                    case .failure:
-                                        Image(systemName: "photo")
-                                            .font(.largeTitle)
-                                            .foregroundColor(.gray.opacity(0.5))
-                                            .aspectRatio(1.0, contentMode: .fill)
-                                            .frame(maxWidth: .infinity)
-                                            .background(Color.white.opacity(0.1))
-                                            .transition(.opacity)
-                                    @unknown default:
-                                        EmptyView()
-                                    }
-                                }
-                                .tag("ref_\(index)")
-                            }
-                        }
-                    }
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
-                    .aspectRatio(1.0, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .padding(.horizontal)
-                }
-
-                // 1. The Toxicity Banner (Safety Critical)
-                if isPoisonous {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.title)
-                        VStack(alignment: .leading) {
-                            Text("DANGER: TOXIC")
-                                .font(.headline)
-                            Text("This subject is known to be poisonous.")
-                                .font(.subheadline)
-                        }
-                        Spacer()
-                        
-                        Button(action: {
-                            print("Contact Local Experts Triggered")
-                        }) {
-                            Text("Contact")
-                                .fontWeight(.bold)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.white)
-                                .foregroundColor(.red)
-                                .cornerRadius(8)
-                        }
-                        // Accessibility: Clear interactive routing
-                        .accessibilityHint("Double tap to contact local poison control experts.")
-                    }
-                    .padding()
-                    .background(Color.red.opacity(0.9))
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
-                    // Accessibility: Explicitly anchor screen readers to the threat first
-                    .accessibilityAddTraits(.isHeader)
-                } else {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "info.circle.fill")
-                            .foregroundColor(.gray)
-                            .padding(.top, 2)
-                        Text("Edibility Unknown. Merian is an educational tool. Never ingest wild flora.")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                            .multilineTextAlignment(.leading)
-                        Spacer()
-                    }
-                    .padding()
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(12)
-                }
-                
-                // 2. Core Taxonomy Block
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(commonName)
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        // Tie header routing to the name if there's no active poison banner
-                        .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
-                    
-                    HStack {
-                        Text(scientificName)
-                            .font(.title3)
-                            .italic()
-                            .foregroundColor(.secondary)
-                            
-                        if let score = inferenceEngine.speciesData?.confidenceScore, score > 0.0 {
-                            Text("\(Int(score * 100))% Match")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(score >= 0.85 ? .green : .orange)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(score >= 0.85 ? Color.green.opacity(0.2) : Color.orange.opacity(0.2))
-                                .cornerRadius(8)
-                        }
-                    }
-                    
-                    if let species = inferenceEngine.speciesData {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                if species.isInvasive {
-                                    BadgeView(text: "Invasive", color: .purple, icon: "exclamationmark.shield.fill")
-                                }
-                                
-                                if !species.isLiveCapture {
-                                    BadgeView(text: "Not a live capture", color: .gray, icon: "photo.badge.exclamationmark.fill")
-                                }
-                                
-                                if !species.isBiological {
-                                    BadgeView(text: "Not biological", color: .gray, icon: "xmark.seal.fill")
-                                }   
-                                
-                                if species.ecologyType != "Unknown" {
-                                    BadgeView(text: species.ecologyType.capitalized, color: .blue, icon: "leaf.fill")
-                                }
-                            }
-                        }
-                        .padding(.top, 4)
-                    }
-                }
-                .padding(.horizontal)
-                
-                // 3. Ecological Descriptive Insight
-                if let description = inferenceEngine.speciesData?.insightData.description {
-                    Text(description)
-                        .font(.body)
+                    // 1. The Toxicity Banner (Safety Critical)
+                    InsightToxicityBanner()
                         .padding(.horizontal)
-                        
-                    if let rationale = inferenceEngine.speciesData?.insightData.regionalStatusRationale {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Regional context")
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundColor(.secondary)
-                            Text(rationale)
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal)
-                    }
-                        
-                    if let wikiString = inferenceEngine.speciesData?.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
-                        Button(action: {
-                            selectedWikiURL = wikiUrl
-                            isSafariPresented = true
-                        }) {
-                            HStack {
-                                Image(systemName: "safari.fill")
-                                Text("Read more on Wikipedia")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                            }
-                            .padding()
-                            .background(Color.white.opacity(0.1))
-                            .cornerRadius(10)
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 4)
-                        .foregroundColor(.primary)
-                    }
+                    
+                    // 2. Core Taxonomy Block
+                    InsightTaxonomyHeader()
+                    
+                    // 3. Ecological Descriptive Insight
+                    InsightDescriptionSection(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
                     
                     // 3.5 Taxonomy Tree
-                    if let taxonomy = inferenceEngine.speciesData?.taxonomy {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Taxonomy")
-                                .font(.headline)
-                                .padding(.horizontal)
-                                
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    if let kingdom = taxonomy.kingdom { TaxonomyNode(level: "Kingdom", name: kingdom) }
-                                    if let phylum = taxonomy.phylum { TaxonomyNode(level: "Phylum", name: phylum) }
-                                    if let cls = taxonomy.className { TaxonomyNode(level: "Class", name: cls) }
-                                    if let order = taxonomy.order { TaxonomyNode(level: "Order", name: order) }
-                                    if let family = taxonomy.family { TaxonomyNode(level: "Family", name: family) }
-                                    if let genus = taxonomy.genus { TaxonomyNode(level: "Genus", name: genus) }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                        .padding(.top, 8)
-                    }
-                }
+                    InsightTaxonomyTree()
                 
                 // 4. Fallback Validation Block
                 if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.85, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
@@ -387,7 +92,33 @@ struct InsightSheetView: View {
                 FlagIssueView(scanId: scanId)
             }
         }
-        .navigationBarHidden(true)
+        .navigationTitle(commonName)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: {
+                    dismiss()
+                }) {
+                   Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.secondary)
+                }
+            }
+            
+            if inferenceEngine.speciesData?.isBiological == true {
+                ToolbarItem(placement: .topBarTrailing) {
+                    let shareUrl = URL(string: "https://merian.app")!
+                    ShareLink(
+                        item: shareUrl,
+                        subject: Text("I found a \(commonName)!"),
+                        message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
+                    ) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+            }
+        }
         // Force glassmorphism bounds gracefully above the underlying camera UI
         .presentationBackground(.ultraThinMaterial)
         .presentationDetents([.large])
@@ -406,143 +137,5 @@ struct InsightSheetView: View {
         }
     }
 }
-// MARK: - Safari View Wrapper
-struct SafariView: UIViewControllerRepresentable {
-    let url: URL
-
-    func makeUIViewController(context: UIViewControllerRepresentableContext<SafariView>) -> SFSafariViewController {
-        return SFSafariViewController(url: url)
-    }
-
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: UIViewControllerRepresentableContext<SafariView>) {}
 }
 
-// MARK: - Helper Views
-struct BadgeView: View {
-    let text: String
-    let color: Color
-    let icon: String
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-            Text(text)
-        }
-        .font(.caption)
-        .fontWeight(.semibold)
-        .foregroundColor(color)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.15))
-        .cornerRadius(12)
-    }
-}
-
-struct TaxonomyNode: View {
-    let level: String
-    let name: String
-    
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(level)
-                .font(.caption2)
-                .bold()
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
-            Text(name)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-        )
-    }
-}
-
-// MARK: - Lazy Loading Detached Image Renderer 
-struct AsyncLocalImageView: View {
-    let imagePath: String
-    @State private var loadedImage: UIImage?
-    @State private var hasFailedToLoad: Bool = false
-    
-    var body: some View {
-        Group {
-            if let img = loadedImage {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-                    .aspectRatio(1.0, contentMode: .fill)
-                    .clipped()
-            } else if hasFailedToLoad {
-                ZStack {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark)
-                    
-                    VStack(spacing: 4) {
-                        Image(systemName: "archivebox.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.white.opacity(0.7))
-                        Text("Visuals Archived")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                }
-                .aspectRatio(1.0, contentMode: .fill)
-                .frame(maxWidth: .infinity)
-                .clipped()
-            } else {
-                ProgressView()
-                    .aspectRatio(1.0, contentMode: .fill)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.white.opacity(0.1))
-            }
-        }
-        .onAppear {
-            loadThumbnail()
-        }
-    }
-    
-    private func loadThumbnail() {
-        guard loadedImage == nil else { return }
-        
-        // 1. RAM Cache Hit (Instant 0ms load)
-        if let cached = ImageCache.shared.get(forKey: imagePath) {
-            self.loadedImage = cached
-            return
-        }
-        
-        let url = URL.documentsDirectory.appendingPathComponent(imagePath)
-        Task {
-            if let decoded = await Task.detached(priority: .userInitiated, operation: {
-                let options: [CFString: Any] = [
-                    kCGImageSourceCreateThumbnailFromImageAlways: true,
-                    kCGImageSourceCreateThumbnailWithTransform: true,
-                    kCGImageSourceThumbnailMaxPixelSize: 1024
-                ]
-                
-                guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-                      let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-                    return nil as UIImage?
-                }
-                
-                return UIImage(cgImage: cgImage)
-            }).value {
-                // 2. Save to RAM Cache
-                ImageCache.shared.set(decoded, forKey: imagePath)
-                
-                await MainActor.run {
-                    self.loadedImage = decoded
-                }
-            } else {
-                await MainActor.run { self.hasFailedToLoad = true }
-            }
-        }
-    }
-}
