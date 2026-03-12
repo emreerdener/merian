@@ -15,7 +15,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { includePreciseCoordinates = false } = await req.json();
+    const { includePreciseCoordinates = false, exportScope = "user" } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -50,11 +50,12 @@ serve(async (req: Request) => {
     const userId = user.id;
 
     // 1. Query verified academic captures
-    const { data: scans, error } = await supabase
+    let query = supabase
       .from("scans")
       .select(
         `
         id,
+        user_id,
         timestamp,
         gps_lat_exact,
         gps_long_exact,
@@ -69,13 +70,23 @@ serve(async (req: Request) => {
           class,
           "order",
           family,
-          genus
+          genus,
+          iucn_red_list_status
         )
       `,
       )
-      .eq("user_id", userId)
       .eq("is_live_capture", true)
       .neq("ecology_type", "domesticated");
+
+    if (exportScope === "global") {
+      // For global exports, we do not filter by user_id
+      // but we may want to only include scans that are 'open' geoprivacy
+      query = query.eq("geoprivacy", "open");
+    } else {
+      query = query.eq("user_id", userId);
+    }
+
+    const { data: scans, error } = await query;
 
     if (error) {
       throw new Error(`Failed to fetch academic records: ${error.message}`);
@@ -83,32 +94,49 @@ serve(async (req: Request) => {
 
     // 2. Build occurrence.csv
     const occurrenceHeader =
-      "coreid,basisOfRecord,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters\n";
+      "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters\n";
     const occurrenceRows = scans.map((scan: any) => {
       const species = scan.species_dictionary || {};
       const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
+      
+      const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
+      const recordedBy = isTombstoned ? "Merian Citizen Scientist" : scan.user_id;
 
-      let lat = includePreciseCoordinates
+      // IUCN Anti-Poaching Lock
+      const isProtected = species.iucn_red_list_status === "vulnerable" || 
+                          species.iucn_red_list_status === "endangered" || 
+                          species.iucn_red_list_status === "critically_endangered" || 
+                          species.iucn_red_list_status === "near_threatened";
+
+      let lat = includePreciseCoordinates && !isProtected
         ? scan.gps_lat_exact
         : scan.gps_lat_public;
-      let lon = includePreciseCoordinates
+      let lon = includePreciseCoordinates && !isProtected
         ? scan.gps_long_exact
         : scan.gps_long_public;
-      let uncertainty = includePreciseCoordinates
+      let uncertainty = includePreciseCoordinates && !isProtected
         ? scan.coordinate_uncertainty_in_meters || ""
-        : "5000";
+        : "50000";
+
+      // If protected or intentionally obscured, explicitly round the exact coordinates mathematically
+      if (isProtected && lat !== null && lon !== null) {
+        lat = Math.round(lat * 10) / 10;
+        lon = Math.round(lon * 10) / 10;
+      }
 
       if (lat === null || lat === undefined) lat = "";
       if (lon === null || lon === undefined) lon = "";
 
-      return `${scan.id},HumanObservation,${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
+      return `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
     });
     const occurrenceCsv = occurrenceHeader + occurrenceRows.join("\n");
 
-    // 3. Build multimedia.csv
+    // 3. Build multimedia.csv (Applying Dead Link Prevention)
     const multimediaHeader = "coreid,identifier,format\n";
     const multimediaRows = scans.flatMap((scan: any) => {
       const urls = scan.image_storage_urls || [];
+      if (urls.length === 0) return []; // Skip scans where the URLs were purged
+      
       return urls.map((url: string) => `${scan.id},${url},image/jpeg`);
     });
     const multimediaCsv = multimediaHeader + multimediaRows.join("\n");
@@ -120,17 +148,18 @@ serve(async (req: Request) => {
     <files><location>occurrence.csv</location></files>
     <id index="0" />
     <field index="1" term="http://rs.tdwg.org/dwc/terms/basisOfRecord" />
-    <field index="2" term="http://rs.tdwg.org/dwc/terms/eventDate" />
-    <field index="3" term="http://rs.tdwg.org/dwc/terms/scientificName" />
-    <field index="4" term="http://rs.tdwg.org/dwc/terms/kingdom" />
-    <field index="5" term="http://rs.tdwg.org/dwc/terms/phylum" />
-    <field index="6" term="http://rs.tdwg.org/dwc/terms/class" />
-    <field index="7" term="http://rs.tdwg.org/dwc/terms/order" />
-    <field index="8" term="http://rs.tdwg.org/dwc/terms/family" />
-    <field index="9" term="http://rs.tdwg.org/dwc/terms/genus" />
-    <field index="10" term="http://rs.tdwg.org/dwc/terms/decimalLatitude" />
-    <field index="11" term="http://rs.tdwg.org/dwc/terms/decimalLongitude" />
-    <field index="12" term="http://rs.tdwg.org/dwc/terms/coordinateUncertaintyInMeters" />
+    <field index="2" term="http://rs.tdwg.org/dwc/terms/recordedBy" />
+    <field index="3" term="http://rs.tdwg.org/dwc/terms/eventDate" />
+    <field index="4" term="http://rs.tdwg.org/dwc/terms/scientificName" />
+    <field index="5" term="http://rs.tdwg.org/dwc/terms/kingdom" />
+    <field index="6" term="http://rs.tdwg.org/dwc/terms/phylum" />
+    <field index="7" term="http://rs.tdwg.org/dwc/terms/class" />
+    <field index="8" term="http://rs.tdwg.org/dwc/terms/order" />
+    <field index="9" term="http://rs.tdwg.org/dwc/terms/family" />
+    <field index="10" term="http://rs.tdwg.org/dwc/terms/genus" />
+    <field index="11" term="http://rs.tdwg.org/dwc/terms/decimalLatitude" />
+    <field index="12" term="http://rs.tdwg.org/dwc/terms/decimalLongitude" />
+    <field index="13" term="http://rs.tdwg.org/dwc/terms/coordinateUncertaintyInMeters" />
   </core>
   <extension encoding="UTF-8" linesTerminatedBy="\\n" fieldsTerminatedBy="," fieldsEnclosedBy="" ignoreHeaderLines="1" rowType="http://rs.gbif.org/terms/1.0/Multimedia">
     <files><location>multimedia.csv</location></files>
@@ -167,9 +196,9 @@ serve(async (req: Request) => {
 
     // PUT the archive
     const putUrl = new URL(urlString);
-    const signedPut = await aws.sign(putUrl, {
+    const signedPut = await aws.sign(putUrl.toString(), {
       method: "PUT",
-      body: zipBuffer,
+      body: zipBuffer as BodyInit,
     });
     const putRes = await fetch(signedPut);
     if (!putRes.ok) {
@@ -179,7 +208,7 @@ serve(async (req: Request) => {
     // Generate GET URL expiring in 86400 seconds (24 hours)
     const getUrl = new URL(urlString);
     getUrl.searchParams.set("X-Amz-Expires", "86400");
-    const signedGet = await aws.sign(getUrl, {
+    const signedGet = await aws.sign(getUrl.toString(), {
       method: "GET",
       aws: { signQuery: true },
     });

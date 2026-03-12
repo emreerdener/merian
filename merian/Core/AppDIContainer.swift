@@ -65,6 +65,16 @@ final class AppDIContainer: ObservableObject {
         Task {
             await supabaseManager.initializeGhostSession()
             offlineQueueManager.syncPendingScans()
+            
+            // Trigger Archive Safety Protocol natively once per 24 hours
+            let now = Date()
+            let lastRescueDate = UserDefaults.standard.object(forKey: "lastArchiveRescueDate") as? Date ?? Date.distantPast
+            if now.timeIntervalSince(lastRescueDate) >= 86400 {
+                if let context = offlineQueueManager.modelContext {
+                    archiveManager.evaluateAndRescueAgingScans(modelContext: context)
+                    UserDefaults.standard.set(now, forKey: "lastArchiveRescueDate")
+                }
+            }
         }
     }
 }

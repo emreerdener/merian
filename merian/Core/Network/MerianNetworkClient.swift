@@ -56,6 +56,9 @@ class MerianNetworkClient {
         }
         
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
+        let currentMonth = Calendar.current.component(.month, from: Date())
+        
         let payload: [String: Any?] = [
             "r2ObjectKey": r2ObjectKey,
             "user_id": deviceId,
@@ -65,7 +68,9 @@ class MerianNetworkClient {
             "gpsLongitude": gpsLongitude,
             "gpsElevation": gpsElevation,
             "weatherCondition": weatherCondition,
-            "weatherTemperatureF": weatherTemperatureF
+            "weatherTemperatureF": weatherTemperatureF,
+            "deviceLocale": deviceLocale,
+            "currentMonth": currentMonth
         ]
         
         // Remove nils

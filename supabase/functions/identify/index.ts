@@ -55,6 +55,8 @@ serve(async (req: Request) => {
       depthScaleText,
       weatherCondition,
       weatherTemperatureF,
+      deviceLocale,
+      currentMonth,
     } = body;
 
     if (!r2ObjectKey) {
@@ -122,7 +124,8 @@ Your task is to accurately identify biological subjects.
 Crucial instructions:
 1. Always check for liveness. If the subject is on a screen, in a book, or otherwise artificial, it is not a live capture.
 2. Evaluate the 'is_invasive' flag strictly based on the provided GPS coordinates and ecological literature.
-3. If your confidence_score is below 0.85 (85%), you MUST fill out the 'diagnostic_comparison' object.`;
+3. If your confidence_score is below 0.85 (85%), you MUST fill out the 'diagnostic_comparison' object.
+4. You must write all 'insight_data' fields and the 'common_name' strictly in the target Locale provided in the context.`;
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
@@ -136,6 +139,8 @@ Crucial instructions:
       - Depth Scale (Lidar): ${depthScaleText ?? "Unknown"}
       - Weather Condition: ${weatherCondition ?? "Unknown"}
       - Temperature: ${weatherTemperatureF != null ? `${weatherTemperatureF}°F` : "Unknown"}
+      - Device Locale: ${deviceLocale ?? "en"}
+      - Current Month: ${currentMonth ?? "Unknown"}
     `;
 
     const merianResponseSchema = {
@@ -409,7 +414,7 @@ Crucial instructions:
 
       console.log("[6] Inserting Scan");
       // Finally natively bind the architectural map directly down to the Ghost User UUID
-      await supabaseAdmin.from("scans").insert({
+      const { data: scanData, error: scanInsertError } = await supabaseAdmin.from("scans").insert({
         user_id: userId,
         species_id: speciesId,
         gps_lat_exact: gpsLatitude,
@@ -424,7 +429,15 @@ Crucial instructions:
         weather_condition: weatherCondition,
         weather_temperature_f: weatherTemperatureF,
         image_storage_urls: modResult.publicUrl ? [modResult.publicUrl] : [],
-      });
+      }).select("id").single();
+      
+      if (scanInsertError) {
+          console.error("Failed to insert scan:", scanInsertError);
+      }
+      
+      if (scanData) {
+          parsedData.scan_id = scanData.id;
+      }
     } else {
       throw new Error(
         "Unauthorized: Invalid or missing User IDFV. Scans cannot be saved without a physical Device ID.",

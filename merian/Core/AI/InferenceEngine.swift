@@ -28,6 +28,7 @@ final class InferenceEngine: ObservableObject {
     
     /// Struct defining the exact expected JSON schema from the Gemini Edge Function
     struct EdgeResponse: Codable {
+        let scan_id: String?
         let is_biological_subject: Bool?
         let is_live_capture: Bool?
         let ecology_type: String?
@@ -58,7 +59,7 @@ final class InferenceEngine: ObservableObject {
     
 
     
-    func analyze(imageData: Data, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, modelContext: ModelContext? = nil) {
+    func analyze(imageData: Data, subjectDistanceInMeters: Float? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
@@ -101,9 +102,10 @@ final class InferenceEngine: ObservableObject {
                 
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification
+                let depthScaleText = subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
                 let resultData = try await client.analyzeSubject(
                     r2ObjectKey: target.objectKey,
-                    depthScaleText: nil, // Extrapolating later if depth hardware demands it
+                    depthScaleText: depthScaleText,
                     gpsLatitude: gpsLatitude,
                     gpsLongitude: gpsLongitude,
                     gpsElevation: gpsElevation,
@@ -133,6 +135,7 @@ final class InferenceEngine: ObservableObject {
                         )
                         
                         let mappedData = SpeciesData(
+                            scanId: edgeRes.scan_id,
                             commonName: edgeRes.common_name ?? "Unknown Subject",
                             scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
                             insightData: insight,
@@ -202,6 +205,7 @@ final class InferenceEngine: ObservableObject {
                     } else {
                         print("⚠️ Inference Engine: Failed to structure Gemini JSON properly")
                         self.speciesData = SpeciesData(
+                            scanId: nil,
                             commonName: "Analysis Failed",
                             scientificName: "Data Unreadable",
                             insightData: InsightData(description: "Cannot process the server taxonomy schema.", isPoisonous: false, regionalStatusRationale: nil),
@@ -232,6 +236,7 @@ final class InferenceEngine: ObservableObject {
                 )
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
                 self.speciesData = SpeciesData(
+                    scanId: nil,
                     commonName: "Network Timeout",
                     scientificName: "Offline Mode",
                     insightData: InsightData(description: "Please check your network boundary connection. The scan has been safely queued offline.", isPoisonous: false, regionalStatusRationale: nil),
@@ -292,6 +297,7 @@ final class InferenceEngine: ObservableObject {
         let referenceImageUrl = record.referenceImageUrl
         
         self.speciesData = SpeciesData(
+            scanId: record.id,
             commonName: commonName,
             scientificName: scientificName,
             insightData: InsightData(description: insightDescription, isPoisonous: isPoisonous, regionalStatusRationale: nil),

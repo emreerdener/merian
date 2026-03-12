@@ -24,10 +24,10 @@ struct MerianApp: App {
             }
         }
         
-        let schema = Schema([LocalScanRecord.self, OfflineQueuedScan.self])
+        let schema = Schema(versionedSchema: MerianSchemaV2.self)
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
-            container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [modelConfiguration])
             
             // CRITICAL FIX: Access the singleton directly via .shared to prevent SwiftUI from 
             // prematurely evaluating the @StateObject property wrapper and throwing memory warnings.

@@ -36,16 +36,25 @@ export async function evaluateAndProcessPayload(
       region: "auto",
     });
 
-    const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-    const publicUploadKey = r2ObjectKey.replace("staging/", "public_uploads/");
-
-    const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
-    const publicUrl = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     // Service role key is required to patch user abuse_strikes reliably
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data: userTierData } = await supabase
+      .from("users")
+      .select("subscription_tier")
+      .eq("id", userId)
+      .single();
+
+    const tier = userTierData?.subscription_tier === "pro" ? "pro" : "free";
+
+    const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+    const fileName = r2ObjectKey.split("/").pop();
+    const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
+
+    const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
+    const publicUrl = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
 
     // 3. Unsafe Flow Pipeline
     if (isUnsafe) {

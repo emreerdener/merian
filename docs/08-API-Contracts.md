@@ -46,7 +46,9 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
   "gpsElevation": 42.5,
   "depthScaleText": "1.2 meters",
   "weatherCondition": "Sunny",
-  "weatherTemperatureF": 72.5
+  "weatherTemperatureF": 72.5,
+  "deviceLocale": "en",
+  "currentMonth": 3
 }
 ```
 

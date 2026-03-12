@@ -4,6 +4,7 @@ import SafariServices
 
 // MARK: - Primary Domain Models (Data received from InferenceEngine/Gemini Edge JSON)
 struct SpeciesData {
+    let scanId: String?
     let commonName: String
     let scientificName: String
     let insightData: InsightData
@@ -59,6 +60,7 @@ struct InsightSheetView: View {
     
     @State private var isSafariPresented = false
     @State private var selectedWikiURL: URL?
+    @State private var isFlagIssuePresented = false
     
     // Safety Bounds
     private var isPoisonous: Bool {
@@ -351,6 +353,25 @@ struct InsightSheetView: View {
                         .padding(.top, 16)
                 }
                 
+                // 5. Flag Issue Action
+                if let scanId = inferenceEngine.speciesData?.scanId {
+                    Divider()
+                        .padding(.vertical, 8)
+                    
+                    Button(action: {
+                        isFlagIssuePresented = true
+                    }) {
+                        HStack {
+                            Image(systemName: "flag.fill")
+                            Text("Report Incorrect ID")
+                        }
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                
                 Spacer(minLength: 40)
             }
             .padding(.top, 24)
@@ -359,6 +380,11 @@ struct InsightSheetView: View {
             if let safeUrl = selectedWikiURL {
                 SafariView(url: safeUrl)
                     .ignoresSafeArea()
+            }
+        }
+        .sheet(isPresented: $isFlagIssuePresented) {
+            if let scanId = inferenceEngine.speciesData?.scanId {
+                FlagIssueView(scanId: scanId)
             }
         }
         .navigationBarHidden(true)
@@ -443,6 +469,7 @@ struct TaxonomyNode: View {
 struct AsyncLocalImageView: View {
     let imagePath: String
     @State private var loadedImage: UIImage?
+    @State private var hasFailedToLoad: Bool = false
     
     var body: some View {
         Group {
@@ -452,6 +479,24 @@ struct AsyncLocalImageView: View {
                     .scaledToFill()
                     .aspectRatio(1.0, contentMode: .fill)
                     .clipped()
+            } else if hasFailedToLoad {
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark)
+                    
+                    VStack(spacing: 4) {
+                        Image(systemName: "archivebox.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white.opacity(0.7))
+                        Text("Visuals Archived")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+                .aspectRatio(1.0, contentMode: .fill)
+                .frame(maxWidth: .infinity)
+                .clipped()
             } else {
                 ProgressView()
                     .aspectRatio(1.0, contentMode: .fill)
@@ -495,6 +540,8 @@ struct AsyncLocalImageView: View {
                 await MainActor.run {
                     self.loadedImage = decoded
                 }
+            } else {
+                await MainActor.run { self.hasFailedToLoad = true }
             }
         }
     }

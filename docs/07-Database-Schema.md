@@ -43,7 +43,7 @@ The transaction log for every identification ever successfully passed.
 
 ## SwiftData Schema (Local Offline Queue)
 
-_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. This explicit boundary guarantees users will never permanently lose their locally cached Life List or pending offline captures due to a missing App Store CoreData migration plan._
+_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian employs `MerianMigrationPlan` globally mapping `SchemaVersions.swift` configurations dynamically allowing lightweight and custom `.migrationStage` closures to safely transpose old structures (e.g. `MerianSchemaV1`) to new iterations (e.g. `MerianSchemaV2`) keeping Local Life Lists perfectly intact._
 
 ### `OfflineQueuedScan`
 
@@ -78,3 +78,4 @@ Tracks locally synchronized and unique species scans natively for the Life List.
 - `semanticTags`: [String] (AI-generated hidden array of contextual tags to power local, offline semantic search routing without requiring an internet connection).
 - `wikipediaUrl`: String?
 - `referenceImageUrl`: String?
+- `isLocallyArchived`: Bool (Managed internally by the Archive Safety Protocol to track R2 payloads downloaded before the 90-day free tier expiration limit).

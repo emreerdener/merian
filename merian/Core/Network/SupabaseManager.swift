@@ -139,6 +139,12 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
                     accessToken: accessToken
                 )
             )
+            
+            let session = try await client.auth.session
+            let newUserId = session.user.id.uuidString
+            await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
+            PostHogManager.shared.identifyUser(userId: newUserId)
+            
             print("Google Sign In complete!")
         } catch {
             print("Google Sign In Cancelled or Error: \(error.localizedDescription)")
@@ -216,6 +222,12 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                     let _ = try await client.auth.signInWithIdToken(
                         credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
                     )
+                    
+                    let session = try await client.auth.session
+                    let newUserId = session.user.id.uuidString
+                    await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
+                    PostHogManager.shared.identifyUser(userId: newUserId)
+                    
                     print("Apple Sign In complete!")
                 } catch {
                     print("Failed to authenticate Apple token with Supabase: \(error.localizedDescription)")

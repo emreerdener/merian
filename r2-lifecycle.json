@@ -1,0 +1,34 @@
+{
+  "Rules": [
+    {
+      "ID": "Purge quarantine objects after 1 day",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "quarantine/"
+      },
+      "Expiration": {
+        "Days": 1
+      }
+    },
+    {
+      "ID": "Purge export objects after 1 day",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "exports/"
+      },
+      "Expiration": {
+        "Days": 1
+      }
+    },
+    {
+      "ID": "Expire free tier uploads after 90 days",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "public_uploads/free/"
+      },
+      "Expiration": {
+        "Days": 90
+      }
+    }
+  ]
+}

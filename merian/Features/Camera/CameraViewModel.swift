@@ -68,6 +68,7 @@ final class CameraViewModel: ObservableObject {
             
             self.diContainer.inferenceEngine.analyze(
                 imageData: croppedData,
+                subjectDistanceInMeters: self.diContainer.cameraManager.subjectDistanceInMeters,
                 gpsLatitude: context.location?.coordinate.latitude,
                 gpsLongitude: context.location?.coordinate.longitude,
                 gpsElevation: context.location?.altitude,
