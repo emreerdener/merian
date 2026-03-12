@@ -7,12 +7,14 @@ import ImageIO
 struct SearchableScan: Sendable {
     let id: String
     let searchString: String
+    let ecologyType: String
 }
 
 @MainActor
 class LifeListSearchManager: ObservableObject {
     @Published var searchQuery: String = ""
     @Published var filteredScans: [LocalScanRecord] = []
+    @Published var activeCategoryFilter: String = "All"
     
     var allScans: [LocalScanRecord] = [] {
         didSet { updateSearchableData() }
@@ -25,19 +27,27 @@ class LifeListSearchManager: ObservableObject {
         self.searchableData = allScans.map { record in
             let tags = record.semanticTags.joined(separator: " ")
             let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
-            return SearchableScan(id: record.id, searchString: rawString)
+            return SearchableScan(id: record.id, searchString: rawString, ecologyType: record.ecologyType.lowercased())
         }
     }
     
-    func performSearch(query: String) {
+    func performSearch(query: String, category: String? = nil) {
         searchTask?.cancel()
+        
+        if let category = category {
+            self.activeCategoryFilter = category
+        }
+        
+        let currentCategory = self.activeCategoryFilter
         
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 150_000_000) // Debounce typing
             if Task.isCancelled { return }
             
             let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.isEmpty {
+            let catMatch = currentCategory.lowercased()
+            
+            if text.isEmpty && catMatch == "all" {
                 self.filteredScans = allScans
                 return
             }
@@ -50,9 +60,21 @@ class LifeListSearchManager: ObservableObject {
             // Offload heavy multi-token String matching entirely off the UI thread
             let searchData = self.searchableData
             let matchingIds = await Task.detached(priority: .userInitiated) {
-                let tokens = text.components(separatedBy: .whitespaces)
+                let tokens = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
                 return Set(searchData.filter { scan in
-                    tokens.allSatisfy { token in
+                    let matchesCategory: Bool
+                    if catMatch == "all" {
+                        matchesCategory = true
+                    } else if catMatch == "animals" {
+                        matchesCategory = scan.ecologyType.contains("animal") || scan.searchString.contains("animal")
+                    } else {
+                        matchesCategory = scan.ecologyType.contains(catMatch) || scan.searchString.contains(catMatch)
+                    }
+                    
+                    if !matchesCategory { return false }
+                    if tokens.isEmpty { return true }
+                    
+                    return tokens.allSatisfy { token in
                         scan.searchString.contains(token)
                     }
                 }.map { $0.id })
@@ -82,6 +104,8 @@ struct LifeListSearchView: View {
         GridItem(.flexible(), spacing: 2)
     ]
     
+    private let filterCategories = ["All", "Animals", "Plants", "Fungi", "Insects", "Birds", "Reptiles", "Mammals"]
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -100,6 +124,30 @@ struct LifeListSearchView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top, 24)
+                .padding(.bottom, 12)
+                .background(Color(UIColor.systemBackground))
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(filterCategories, id: \.self) { category in
+                            Button(action: {
+                                withAnimation {
+                                    searchManager.performSearch(query: searchManager.searchQuery, category: category)
+                                }
+                            }) {
+                                Text(category)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(searchManager.activeCategoryFilter == category ? Color.primary : Color.secondary.opacity(0.15))
+                                    .foregroundColor(searchManager.activeCategoryFilter == category ? Color(UIColor.systemBackground) : .primary)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
                 .padding(.bottom, 12)
                 .background(Color(UIColor.systemBackground))
                 
