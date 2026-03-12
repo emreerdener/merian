@@ -34,8 +34,12 @@ class LifeListSearchManager: ObservableObject {
     func performSearch(query: String, category: String? = nil) {
         searchTask?.cancel()
         
+        let trimmedText = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        
         if let category = category {
             self.activeCategoryFilter = category
+        } else if !trimmedText.isEmpty {
+            self.activeCategoryFilter = "All"
         }
         
         let currentCategory = self.activeCategoryFilter
@@ -62,6 +66,7 @@ class LifeListSearchManager: ObservableObject {
             let matchingIds = await Task.detached(priority: .userInitiated) {
                 let tokens = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
                 return Set(searchData.filter { scan in
+                    // The filter now strictly applies since activeCategory takes explicit precedence when typed
                     let matchesCategory: Bool
                     if catMatch == "all" {
                         matchesCategory = true
@@ -87,6 +92,11 @@ class LifeListSearchManager: ObservableObject {
 }
 
 // 3. LifeList Semantic View Interface
+enum LifeListTab {
+    case library
+    case collections
+}
+
 struct LifeListSearchView: View {
     @StateObject private var searchManager = LifeListSearchManager()
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
@@ -97,6 +107,9 @@ struct LifeListSearchView: View {
     
     @State private var selectedScanForInsight: LocalScanRecord? = nil
     @FocusState private var isSearchFocused: Bool
+    
+    @State private var isSearchExpanded: Bool = false
+    @State private var activeTab: LifeListTab = .library
     
     let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -132,7 +145,10 @@ struct LifeListSearchView: View {
                         ForEach(filterCategories, id: \.self) { category in
                             Button(action: {
                                 withAnimation {
-                                    searchManager.performSearch(query: searchManager.searchQuery, category: category)
+                                    if !searchManager.searchQuery.isEmpty {
+                                        searchManager.searchQuery = "" // Clear the search so the filter works!
+                                    }
+                                    searchManager.performSearch(query: "", category: category)
                                 }
                             }) {
                                 Text(category)
@@ -152,22 +168,64 @@ struct LifeListSearchView: View {
                 .background(Color(UIColor.systemBackground))
                 
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 2) {
-                        ForEach(searchManager.filteredScans) { scan in
-                            Button(action: {
-                                selectedScanForInsight = scan
-                                inferenceEngine.load(from: scan)
-                            }) {
-                                Group {
-                                    if let imagePath = scan.localImagePath {
-                                        LifeListThumbnailView(imagePath: imagePath)
-                                    } else {
-                                        Color.clear
-                                            .aspectRatio(1.0, contentMode: .fit)
-                                            .overlay(
-                                                Rectangle().fill(Color.gray.opacity(0.3))
-                                            )
-                                            .clipped()
+                    if searchManager.filteredScans.isEmpty {
+                        VStack(spacing: 16) {
+                            Spacer().frame(height: 80)
+                            
+                            ZStack {
+                                Circle()
+                                    .fill(searchManager.activeCategoryFilter == "All" ? Color.secondary.opacity(0.1) : Color.primary.opacity(0.1))
+                                    .frame(width: 80, height: 80)
+                                
+                                Image(systemName: "camera.macro")
+                                    .font(.system(size: 32, weight: .light))
+                                    .foregroundColor(searchManager.activeCategoryFilter == "All" ? .secondary : .primary)
+                            }
+                            
+                            Text("No Scans Found")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            
+                            if !searchManager.searchQuery.isEmpty {
+                                Text("No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter).")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 40)
+                            } else if searchManager.activeCategoryFilter != "All" {
+                                Text("You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 40)
+                            } else {
+                                Text("Start exploring and capture your first scan!")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 40)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 2) {
+                            ForEach(searchManager.filteredScans) { scan in
+                                Button(action: {
+                                    selectedScanForInsight = scan
+                                    inferenceEngine.load(from: scan)
+                                }) {
+                                    Group {
+                                        if let imagePath = scan.localImagePath {
+                                            LifeListThumbnailView(imagePath: imagePath)
+                                        } else {
+                                            Color.clear
+                                                .aspectRatio(1.0, contentMode: .fit)
+                                                .overlay(
+                                                    Rectangle().fill(Color.gray.opacity(0.3))
+                                                )
+                                                .clipped()
+                                        }
                                     }
                                 }
                             }
@@ -183,36 +241,115 @@ struct LifeListSearchView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .bottom) {
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    
-                    TextField("Search tags, habitats, colors...", text: $searchManager.searchQuery)
-                        .focused($isSearchFocused)
-                        .textFieldStyle(.plain)
-                        .onChange(of: searchManager.searchQuery) { _, newValue in
-                            searchManager.performSearch(query: newValue)
-                        }
-                    
-                    if !searchManager.searchQuery.isEmpty {
+                if isSearchExpanded {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        
+                        TextField("Search tags, habitats, colors...", text: $searchManager.searchQuery)
+                            .focused($isSearchFocused)
+                            .textFieldStyle(.plain)
+                            .onChange(of: searchManager.searchQuery) { _, newValue in
+                                searchManager.performSearch(query: newValue)
+                            }
+                        
                         Button(action: {
-                            searchManager.searchQuery = ""
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                if searchManager.searchQuery.isEmpty {
+                                    isSearchExpanded = false
+                                    isSearchFocused = false
+                                } else {
+                                    searchManager.searchQuery = ""
+                                }
+                            }
                         }) {
-                            Image(systemName: "xmark.circle.fill")
+                            Image(systemName: searchManager.searchQuery.isEmpty ? "xmark" : "xmark.circle.fill")
                                 .foregroundColor(.secondary)
+                                .padding(8)
                         }
                         .buttonStyle(PlainButtonStyle())
                         .transition(.opacity)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.3)) // Darker fallback
+                    .background(.ultraThinMaterial)
+                    .environment(\.colorScheme, .dark) // Force elegant dark glass
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    HStack {
+                        // Left section: Library / Collections Segmented Glass Pill
+                        HStack(spacing: 0) {
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    activeTab = .library
+                                }
+                            }) {
+                                VStack(spacing: 4) {
+                                    Image(systemName: activeTab == .library ? "photo.on.rectangle.fill" : "photo.on.rectangle")
+                                        .font(.system(size: 20, weight: .regular))
+                                    Text("Library")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .foregroundColor(activeTab == .library ? .blue : .white)
+                                .frame(width: 80, height: 50)
+                                .background(
+                                    activeTab == .library ? Color.black.opacity(0.4) : Color.clear
+                                )
+                                .clipShape(Capsule())
+                            }
+                            
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    activeTab = .collections
+                                }
+                            }) {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "rectangle.stack")
+                                        .font(.system(size: 20, weight: .regular))
+                                    Text("Collections")
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .foregroundColor(activeTab == .collections ? .blue : .white)
+                                .frame(width: 80, height: 50)
+                                .background(
+                                    activeTab == .collections ? Color.black.opacity(0.4) : Color.clear
+                                )
+                                .clipShape(Capsule())
+                            }
+                        }
+                        .padding(4)
+                        .background(Color.black.opacity(0.3)) // Dark base for glass
+                        .background(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark) // Force sleek dark glass look
+                        .clipShape(Capsule())
+                        
+                        Spacer()
+                        
+                        // Right Section: Floating Glass Search Button
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isSearchExpanded = true
+                                isSearchFocused = true
+                            }
+                        }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 22, weight: .regular))
+                                .foregroundColor(.white)
+                                .frame(width: 58, height: 58)
+                                .background(Color.black.opacity(0.3))
+                                .background(.ultraThinMaterial)
+                                .environment(\.colorScheme, .dark) // Force sleek dark glass look
+                                .clipShape(Circle())
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(UIColor.tertiarySystemFill).opacity(0.9))
-                .background(.ultraThinMaterial)
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-                .animation(.easeInOut(duration: 0.2), value: searchManager.searchQuery.isEmpty)
             }
         }
         .onAppear {
