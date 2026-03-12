@@ -177,6 +177,16 @@ final class InferenceEngine: ObservableObject {
                                 existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
                                 existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
                                 existingRecord.confidenceScore = mappedData.confidenceScore
+                                existingRecord.isBiological = mappedData.isBiological
+                                existingRecord.isLiveCapture = mappedData.isLiveCapture
+                                existingRecord.isInvasive = mappedData.isInvasive
+                                existingRecord.ecologyType = mappedData.ecologyType
+                                existingRecord.taxonomyKingdom = mappedData.taxonomy?.kingdom
+                                existingRecord.taxonomyPhylum = mappedData.taxonomy?.phylum
+                                existingRecord.taxonomyClass = mappedData.taxonomy?.className
+                                existingRecord.taxonomyOrder = mappedData.taxonomy?.order
+                                existingRecord.taxonomyFamily = mappedData.taxonomy?.family
+                                existingRecord.taxonomyGenus = mappedData.taxonomy?.genus
                             } else {
                                 // First time encountering this species; insert new record natively
                                 let record = LocalScanRecord(
@@ -188,9 +198,19 @@ final class InferenceEngine: ObservableObject {
                                     localImagePath: filename,
                                     semanticTags: [mappedData.commonName, mappedData.scientificName],
                                     isPoisonous: mappedData.insightData.isPoisonous,
+                                    isBiological: mappedData.isBiological,
+                                    isLiveCapture: mappedData.isLiveCapture,
+                                    isInvasive: mappedData.isInvasive,
+                                    ecologyType: mappedData.ecologyType,
                                     wikipediaUrl: mappedData.wikipediaUrl,
                                     referenceImageUrl: mappedData.referenceImageUrl,
-                                    confidenceScore: mappedData.confidenceScore
+                                    confidenceScore: mappedData.confidenceScore,
+                                    taxonomyKingdom: mappedData.taxonomy?.kingdom,
+                                    taxonomyPhylum: mappedData.taxonomy?.phylum,
+                                    taxonomyClass: mappedData.taxonomy?.className,
+                                    taxonomyOrder: mappedData.taxonomy?.order,
+                                    taxonomyFamily: mappedData.taxonomy?.family,
+                                    taxonomyGenus: mappedData.taxonomy?.genus
                                 )
                                 context.insert(record)
                             }
@@ -305,11 +325,18 @@ final class InferenceEngine: ObservableObject {
             diagnosticComparison: nil,
             wikipediaUrl: wikipediaUrl,
             referenceImageUrl: referenceImageUrl,
-            isBiological: true,
-            isLiveCapture: true,
-            isInvasive: false,
-            ecologyType: "unknown",
-            taxonomy: nil
+            isBiological: record.isBiological,
+            isLiveCapture: record.isLiveCapture,
+            isInvasive: record.isInvasive,
+            ecologyType: record.ecologyType,
+            taxonomy: TaxonomyData(
+                kingdom: record.taxonomyKingdom,
+                phylum: record.taxonomyPhylum,
+                className: record.taxonomyClass,
+                order: record.taxonomyOrder,
+                family: record.taxonomyFamily,
+                genus: record.taxonomyGenus
+            )
         )
         self.isProcessing = false
     }

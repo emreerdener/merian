@@ -1,4 +1,4 @@
 import SwiftData
 
-typealias LocalScanRecord = MerianSchemaV2.LocalScanRecord
+typealias LocalScanRecord = MerianSchemaV3.LocalScanRecord
 typealias OfflineQueuedScan = MerianSchemaV1.OfflineQueuedScan

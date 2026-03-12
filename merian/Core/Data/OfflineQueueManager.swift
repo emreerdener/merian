@@ -373,6 +373,7 @@ actor BackgroundDatabaseActor {
             )
             
             let mappedData = SpeciesData(
+                scanId: edgeRes.scan_id,
                 commonName: edgeRes.common_name ?? "Unknown Subject",
                 scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
                 insightData: insight,
@@ -405,7 +406,7 @@ actor BackgroundDatabaseActor {
 
                 let targetName = mappedData.scientificName
                 let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
-                    predicate: #Predicate { $0.scientificName == targetName }
+                    predicate: #Predicate<LocalScanRecord> { $0.scientificName == targetName }
                 )
                 
                 if let existingRecord = try? modelContext.fetch(fetchDescriptor).first {
@@ -420,6 +421,16 @@ actor BackgroundDatabaseActor {
                     existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
                     existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
                     existingRecord.confidenceScore = mappedData.confidenceScore
+                    existingRecord.isBiological = mappedData.isBiological
+                    existingRecord.isLiveCapture = mappedData.isLiveCapture
+                    existingRecord.isInvasive = mappedData.isInvasive
+                    existingRecord.ecologyType = mappedData.ecologyType
+                    existingRecord.taxonomyKingdom = mappedData.taxonomy?.kingdom
+                    existingRecord.taxonomyPhylum = mappedData.taxonomy?.phylum
+                    existingRecord.taxonomyClass = mappedData.taxonomy?.className
+                    existingRecord.taxonomyOrder = mappedData.taxonomy?.order
+                    existingRecord.taxonomyFamily = mappedData.taxonomy?.family
+                    existingRecord.taxonomyGenus = mappedData.taxonomy?.genus
                 } else {
                     let record = LocalScanRecord(
                         speciesId: UUID().uuidString,
@@ -430,10 +441,20 @@ actor BackgroundDatabaseActor {
                         localImagePath: newlyCopiedPaths.first,
                         semanticTags: [mappedData.commonName, mappedData.scientificName],
                         isPoisonous: mappedData.insightData.isPoisonous,
+                        isBiological: mappedData.isBiological,
+                        isLiveCapture: mappedData.isLiveCapture,
+                        isInvasive: mappedData.isInvasive,
+                        ecologyType: mappedData.ecologyType,
                         wikipediaUrl: mappedData.wikipediaUrl,
                         referenceImageUrl: mappedData.referenceImageUrl,
                         additionalImagePaths: newlyCopiedPaths.count > 1 ? Array(newlyCopiedPaths.dropFirst()) : nil,
-                        confidenceScore: mappedData.confidenceScore
+                        confidenceScore: mappedData.confidenceScore,
+                        taxonomyKingdom: mappedData.taxonomy?.kingdom,
+                        taxonomyPhylum: mappedData.taxonomy?.phylum,
+                        taxonomyClass: mappedData.taxonomy?.className,
+                        taxonomyOrder: mappedData.taxonomy?.order,
+                        taxonomyFamily: mappedData.taxonomy?.family,
+                        taxonomyGenus: mappedData.taxonomy?.genus
                     )
                     modelContext.insert(record)
                 }

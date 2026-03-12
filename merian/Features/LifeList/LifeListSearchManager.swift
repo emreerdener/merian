@@ -8,6 +8,8 @@ struct SearchableScan: Sendable {
     let id: String
     let searchString: String
     let ecologyType: String
+    let kingdom: String
+    let className: String
 }
 
 @MainActor
@@ -27,7 +29,13 @@ class LifeListSearchManager: ObservableObject {
         self.searchableData = allScans.map { record in
             let tags = record.semanticTags.joined(separator: " ")
             let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
-            return SearchableScan(id: record.id, searchString: rawString, ecologyType: record.ecologyType.lowercased())
+            return SearchableScan(
+                id: record.id,
+                searchString: rawString,
+                ecologyType: record.ecologyType.lowercased(),
+                kingdom: record.taxonomyKingdom?.lowercased() ?? "",
+                className: record.taxonomyClass?.lowercased() ?? ""
+            )
         }
     }
     
@@ -66,14 +74,24 @@ class LifeListSearchManager: ObservableObject {
             let matchingIds = await Task.detached(priority: .userInitiated) {
                 let tokens = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
                 return Set(searchData.filter { scan in
-                    // The filter now strictly applies since activeCategory takes explicit precedence when typed
                     let matchesCategory: Bool
-                    if catMatch == "all" {
-                        matchesCategory = true
-                    } else if catMatch == "animals" {
-                        matchesCategory = scan.ecologyType.contains("animal") || scan.searchString.contains("animal")
-                    } else {
-                        matchesCategory = scan.ecologyType.contains(catMatch) || scan.searchString.contains(catMatch)
+                    switch catMatch {
+                        case "all": 
+                            matchesCategory = true
+                        case "plants": 
+                            matchesCategory = scan.kingdom == "plantae" || scan.searchString.contains("plant")
+                        case "fungi": 
+                            matchesCategory = scan.kingdom == "fungi" || scan.searchString.contains("fungi") || scan.searchString.contains("mushroom")
+                        case "insects": 
+                            matchesCategory = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida" || scan.searchString.contains("insect") || scan.searchString.contains("bug") || scan.searchString.contains("spider")
+                        case "birds": 
+                            matchesCategory = scan.className == "aves" || scan.searchString.contains("bird")
+                        case "mammals": 
+                            matchesCategory = scan.className == "mammalia" || scan.searchString.contains("mammal")
+                        case "reptiles": 
+                            matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia" || scan.searchString.contains("reptile") || scan.searchString.contains("amphibian")
+                        default: 
+                            matchesCategory = scan.searchString.contains(catMatch)
                     }
                     
                     if !matchesCategory { return false }
@@ -117,7 +135,7 @@ struct LifeListSearchView: View {
         GridItem(.flexible(), spacing: 2)
     ]
     
-    private let filterCategories = ["All", "Animals", "Plants", "Fungi", "Insects", "Birds", "Reptiles", "Mammals"]
+    private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles"]
     
     var body: some View {
         NavigationStack {

@@ -21,8 +21,8 @@ Merian embraces the `WindowGroup` logic seamlessly across `SwiftUI` avoiding `.x
 
 ### `LifeListSearchManager` & Discovery Grids
 - Maps `LifeListThumbnailView` securely binding to `SwiftData` persistently tracking local users cleanly globally safely across device sessions.
+- **Linnaean Taxonomic Filtering**: The grid utilizes an advanced decoupled mapping algorithm pushing logic explicitly off the Main Actor bounds natively out to `Task.detached`. When a user toggles an environment tab (e.g. "Insects" or "Reptiles"), it strictly evaluates the active `taxonomyClass` string directly on the `SearchableScan` object explicitly natively generating clean boundaries (e.g. `arachnida` and `entognatha` merge securely under the `insects` grid) rather than checking against fragile legacy `ecologyType` strings or user-side string filters natively rendering perfect local scientific models flawlessly!
 - Automatically handles physical R2 storage expirations actively: If a taxonomy scan `image_storage_urls` array physically vanishes because of the Rolling Cloud Window 90-day GC process (`00004_storage_lifecycle_sync.sql`), the `AsyncLocalImageView` elegantly captures the 404 error explicitly rendering an interactive "Visuals Archived" state leveraging the `archivebox.fill` icon. This permanently mitigates UI crashing grids while embracing Radical Transparency formatting natively securely.
-
 ## Helper Modifiers
 
 ### `VisualEffectBlur`
