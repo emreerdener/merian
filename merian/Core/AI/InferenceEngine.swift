@@ -134,7 +134,7 @@ final class InferenceEngine: ObservableObject {
                             genus: edgeRes.taxonomy?.genus
                         )
                         
-                        let mappedData = SpeciesData(
+                        var mappedData = SpeciesData(
                             scanId: edgeRes.scan_id,
                             commonName: edgeRes.common_name ?? "Unknown Subject",
                             scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
@@ -213,13 +213,14 @@ final class InferenceEngine: ObservableObject {
                                     taxonomyGenus: mappedData.taxonomy?.genus
                                 )
                                 context.insert(record)
+                                mappedData.isNewDiscovery = true
+                                GamificationManager.shared.recordNewSpeciesDiscovered()
                             }
                             try? context.save()
                         }
                         
                         CircuitBreakerManager.shared.recordSuccess()
                         UsageManager.shared.recordSuccessfulScan()
-                        GamificationManager.shared.recordNewSpeciesDiscovered()
                         AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                         self.speciesData = mappedData
                     } else {

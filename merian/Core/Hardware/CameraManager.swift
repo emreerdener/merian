@@ -45,6 +45,12 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         queue.async { [weak self] in
             self?.setupSession()
         }
+        
+        NotificationCenter.default.publisher(for: NSNotification.Name.AVCaptureDeviceSubjectAreaDidChange)
+            .sink { [weak self] _ in
+                self?.resetFocusAndExposure()
+            }
+            .store(in: &cancellables)
     }
     
     private func setupSession() {
@@ -292,6 +298,62 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 }
             } catch {
                 print("Failed to lock device for torch: \(error)")
+            }
+        }
+    }
+    
+    func setFocusPoint(_ devicePoint: CGPoint) {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            guard let deviceInput = self.session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
+                return
+            }
+            let device = deviceInput.device
+            do {
+                try device.lockForConfiguration()
+                
+                if device.isFocusPointOfInterestSupported && device.isFocusModeSupported(.autoFocus) {
+                    device.focusPointOfInterest = devicePoint
+                    device.focusMode = .autoFocus
+                }
+                
+                if device.isExposurePointOfInterestSupported && device.isExposureModeSupported(.autoExpose) {
+                    device.exposurePointOfInterest = devicePoint
+                    device.exposureMode = .autoExpose
+                }
+                
+                device.isSubjectAreaChangeMonitoringEnabled = true
+                
+                device.unlockForConfiguration()
+            } catch {
+                print("Failed to lock device for focus: \(error)")
+            }
+        }
+    }
+    
+    private func resetFocusAndExposure() {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            guard let deviceInput = self.session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
+                return
+            }
+            let device = deviceInput.device
+            do {
+                try device.lockForConfiguration()
+                
+                if device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusMode = .continuousAutoFocus
+                }
+                
+                if device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposureMode = .continuousAutoExposure
+                }
+                
+                device.isSubjectAreaChangeMonitoringEnabled = false
+                
+                device.unlockForConfiguration()
+            } catch {
+                print("Failed to lock device for resetting focus: \(error)")
             }
         }
     }

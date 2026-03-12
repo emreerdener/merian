@@ -7,6 +7,8 @@ Merian gamifies exploration natively while respecting user privacy intrinsically
 Powers the interactive `.riv` Rive model rendered by `TerrariumView`.
 
 - Logs globally passing taxonomy boundaries into `$unlockedSpeciesCount`, persistently updating `.set(unlocked, forKey:)` natively.
+- Evaluates novel biological insertions natively intercepting `LocalScanRecord` writes; if a species has never been cached locally, routes a strict `isNewDiscovery = true` payload mapping directly to `InsightSheetView`.
+- Instantiates `NewDiscoveryCelebrationView.swift`, enforcing premium floating glassmorphic visual overlays natively scaling and tearing down automatically via `Task.sleep` without blocking user touches. Generates `HapticManager.shared.triggerSuccessPulse()` callbacks and tracks Apple-native `TelemetryManager.send("NewSpeciesDiscovered")` strictly observing Zero-PII offline rules.
 - Executes Apple native hardware `HapticManager.shared.triggerSelectionPulse()` the second an achievement (`hasFireflyBadge`) natively triggers over 5 taxonomic finds natively.
 - Injects natively via `.environmentObject` into `TerrariumView` passively reacting `.setInput("TotalSpeciesCount")` animating 3D model foliage, fireflies, and natural artifacts instantaneously using `RiveViewModel` states seamlessly.
 

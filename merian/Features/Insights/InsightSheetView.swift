@@ -16,6 +16,7 @@ struct InsightSheetView: View {
     @State private var isSafariPresented = false
     @State private var selectedWikiURL: URL?
     @State private var isFlagIssuePresented = false
+    @State private var showCelebration = false
     
     // Safety Bounds
     private var isPoisonous: Bool {
@@ -31,8 +32,9 @@ struct InsightSheetView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        ZStack {
+            NavigationStack {
+                ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     
                     // 0. The Image Carousel
@@ -119,8 +121,22 @@ struct InsightSheetView: View {
                 }
             }
         }
-        // Force glassmorphism bounds gracefully above the underlying camera UI
-        .presentationBackground(.ultraThinMaterial)
+        
+        if showCelebration {
+            NewDiscoveryCelebrationView(
+                commonName: commonName,
+                onDismiss: {
+                    withAnimation(.easeOut(duration: 0.5)) {
+                        showCelebration = false
+                    }
+                }
+            )
+            .transition(AnyTransition.opacity.combined(with: AnyTransition.scale(scale: 0.95)))
+            .zIndex(100)
+        }
+    }
+    // Force solid background fill above the underlying camera UI
+        .presentationBackground(Color(uiColor: .systemBackground))
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         // Ensure VoiceOver properly sequences the primary components autonomously upon render
@@ -129,10 +145,15 @@ struct InsightSheetView: View {
                 let announcement = isPoisonous ? "\(commonName). Warning: This subject is Poisonous." : commonName
                 UIAccessibility.post(notification: .announcement, argument: announcement)
             }
+            if inferenceEngine.speciesData?.isNewDiscovery == true {
+                showCelebration = true
+            }
         }
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             if !isStillProcessing {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                if inferenceEngine.speciesData?.isNewDiscovery != true {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
             }
         }
     }

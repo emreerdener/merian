@@ -25,6 +25,13 @@ enum AppTelemetry {
         ])
     }
     
+    /// Tracks globally mapping back to when a user captures an entirely new species
+    static func trackNewDiscovery(isPro: Bool) {
+        TelemetryManager.send("NewSpeciesDiscovered", with: [
+            "tier": isPro ? "Pro" : "Free"
+        ])
+    }
+    
     /// Tracks when a user hits the physical 3-scan bounds and the Paywall springs dynamically
     static func trackPaywallImpression() {
         TelemetryManager.send("PaywallViewed")

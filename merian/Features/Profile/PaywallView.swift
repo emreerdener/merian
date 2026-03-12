@@ -66,7 +66,7 @@ struct PaywallView: View {
                 .padding(.bottom, 30)
             }
         }
-        .presentationBackground(.thinMaterial)
+        .presentationBackground(Color(uiColor: .systemBackground))
         .environment(\.colorScheme, .dark)
     }
     

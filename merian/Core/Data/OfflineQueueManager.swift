@@ -372,7 +372,7 @@ actor BackgroundDatabaseActor {
                 genus: edgeRes.taxonomy?.genus
             )
             
-            let mappedData = SpeciesData(
+            var mappedData = SpeciesData(
                 scanId: edgeRes.scan_id,
                 commonName: edgeRes.common_name ?? "Unknown Subject",
                 scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
@@ -457,6 +457,12 @@ actor BackgroundDatabaseActor {
                         taxonomyGenus: mappedData.taxonomy?.genus
                     )
                     modelContext.insert(record)
+                    mappedData.isNewDiscovery = true
+                    
+                    // Offline updates to Gamification are safely recorded once synced securely
+                    Task { @MainActor in
+                        GamificationManager.shared.recordNewSpeciesDiscovered()
+                    }
                 }
                 try? modelContext.save()
             }

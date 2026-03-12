@@ -16,6 +16,7 @@ struct SpeciesData {
     let isInvasive: Bool
     let ecologyType: String
     let taxonomy: TaxonomyData?
+    var isNewDiscovery: Bool = false
 }
 
 struct TaxonomyData {

@@ -17,8 +17,13 @@ final class CameraViewModel: ObservableObject {
     
     // Analysis State
     @Published var isAnalyzingFullscreen: Bool = false
-    @Published var scanningPhaseText: String = "Analyzing Subject..."
+    @Published var scanningPhaseText: String = "Analyzing subject..."
     @Published var analysisImage: UIImage? = nil
+    
+    // Focus State
+    @Published var focusLocation: CGPoint? = nil
+    @Published var showFocusIndicator: Bool = false
+    private var focusTask: Task<Void, Never>?
     
     // Dependencies
     private let diContainer = AppDIContainer.shared
@@ -63,7 +68,7 @@ final class CameraViewModel: ObservableObject {
             let context = await self.diContainer.environmentContextManager.fetchDeferredContext()
             
             await MainActor.run {
-                self.scanningPhaseText = "Analyzing Subject..."
+                self.scanningPhaseText = "Analyzing subject..."
             }
             
             self.diContainer.inferenceEngine.analyze(
@@ -123,6 +128,24 @@ final class CameraViewModel: ObservableObject {
         flashOpacity = 1.0
         withAnimation(.easeOut(duration: 0.15)) {
             flashOpacity = 0.0
+        }
+    }
+    
+    func handleFocusTap(layerPoint: CGPoint, devicePoint: CGPoint) {
+        diContainer.cameraManager.setFocusPoint(devicePoint)
+        diContainer.hapticManager.triggerSelectionPulse()
+        
+        focusLocation = layerPoint
+        showFocusIndicator = true
+        
+        focusTask?.cancel()
+        focusTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if !Task.isCancelled {
+                withAnimation(.easeOut) {
+                    showFocusIndicator = false
+                }
+            }
         }
     }
     

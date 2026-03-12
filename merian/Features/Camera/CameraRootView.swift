@@ -20,8 +20,20 @@ struct CameraRootView: View {
     var body: some View {
         ZStack {
             // Full-bleed camera feed
-            CameraPreviewView(session: cameraManager.session)
-                .ignoresSafeArea()
+            CameraPreviewView(session: cameraManager.session, onTap: { layerPoint, devicePoint in
+                viewModel.handleFocusTap(layerPoint: layerPoint, devicePoint: devicePoint)
+            })
+            .ignoresSafeArea()
+            
+            if viewModel.showFocusIndicator, let location = viewModel.focusLocation {
+                Rectangle()
+                    .stroke(Color.yellow, lineWidth: 1.5)
+                    .frame(width: 72, height: 72)
+                    .position(x: location.x, y: location.y)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: location)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
             
             // Shutter Snap Animation
             Color.black
