@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import GoogleSignIn
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
@@ -47,6 +48,9 @@ struct MerianApp: App {
                     diContainer.revenueCatManager.configure()
                 }
                 .onOpenURL { url in
+                    if GIDSignIn.sharedInstance.handle(url) {
+                        return
+                    }
                     Task {
                         do {
                             try await diContainer.supabaseManager.client.auth.session(from: url)
