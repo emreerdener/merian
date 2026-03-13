@@ -9,6 +9,7 @@ The `00001_initial_schema.sql` database file defines the backend architecture. A
 - **`species_dictionary`**: Tracks every scientifically discovered taxon uniquely mapping directly to native biological descriptors.
 - **`scans`**: Logs physical GPS bounds, LLM generated `ai_confidence_score` matrices, UUID bindings, and the corresponding `ecology_type_enum` permanently to the users' streaks.
 - **`users`**: Binds the IDFV (or future authenticated UUID) to strict product schemas natively tracking usage limits.
+- **`species_count_trigger` (`recalculate_and_trigger_species_count.sql`)**: Handles the asynchronous data aggregation of unique biological models actively bound to a distinct user. Automatically increments the `total_species_discovered` count in the `users` table via an invisible Postgres `AFTER INSERT OR UPDATE OR DELETE` trigger firing on `scans` table mutations. Completely isolates the biological count from the client to prevent sync errors.
 
 ## The Edge Inference Node (`identify`)
 
