@@ -71,20 +71,31 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         }
     }
     
-    func saveImageToLibrary(imageData: Data) {
-        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        // Need explicit permission physically verified before writing bounds natively to prevent crashes
-        guard status == .authorized || status == .limited else { return }
+    func saveImageToLibrary(imageData: Data) async {
+        let currentStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        let status: PHAuthorizationStatus
         
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetCreationRequest.forAsset()
-            request.addResource(with: .photo, data: imageData, options: nil)
-        }) { success, error in
-            if let error = error {
-                print("⚠️ Failed to save image to photo library bounds natively: \(error)")
-            } else if success {
-                print("📸 Captured image efficiently pushed down into native Camera Roll.")
+        if currentStatus == .notDetermined {
+            status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+        } else {
+            status = currentStatus
+        }
+        
+        // Need explicit permission physically verified before writing bounds natively to prevent crashes
+        guard status == .authorized || status == .limited else {
+            print("⚠️ Insufficient permissions to securely persist array into Camera Roll.")
+            return 
+        }
+        
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                // Directly pass the raw physics buffers seamlessly natively maintaining EXIF data dynamically.
+                request.addResource(with: .photo, data: imageData, options: nil)
             }
+            print("📸 Captured image efficiently pushed down into native Camera Roll.")
+        } catch {
+            print("⚠️ Failed to save image to photo library bounds natively: \(error)")
         }
     }
 }
