@@ -58,6 +58,23 @@ To prevent R2 bucket expirations from natively corrupting Postgres payloads thro
 - **`get-filtered-discovery-feed`**: Contains a strict filter constraint `.not("image_storage_urls", "eq", "{}")`. This explicitly protects the global iOS public feeds from accidentally crashing or rendering ugly blank components by shielding expired payloads natively out of the Discovery pipeline altogether.
 - **Graceful Degradation Hook**: Scans whose visual media payloads have permanently rolled out of the R2 tier fall back into a Stage 3 Metadata-Only state internally on `LifeListThumbnailView` and `AsyncLocalImageView`. Rather than thrashing empty `ProgressView()` loops, the API replaces the image natively with an interactive `.ultraThinMaterial` glass pane rendering the `archivebox.fill` icon. This completely eradicates 404 caching errors and embraces Radical Transparency formatting for legacy offline discovery histories safely!
 
+### Cloudflare R2 Object Lifecycle Rules
+
+To physically align the buckets with our Postgres `pg_cron` jobs and safely delete payload data natively to prevent storage bloat, Merian requires the following 4 Object Lifecycle Rules configured natively in the Cloudflare R2 Dashboard under **Settings -> Object Lifecycle**:
+
+1. **Default Multipart Abort Rule**
+   - **Prefix:** `--`
+   - **Action:** Abort incomplete multipart uploads after `7` days
+2. **Free Tier Expiration**
+   - **Prefix:** `public_uploads/free/`
+   - **Action:** Delete objects after `90` days
+3. **Purge staging objects after 1 day**
+   - **Prefix:** `staging/`
+   - **Action:** Delete objects after `1` day
+4. **Quarantine Cleanup**
+   - **Prefix:** `quarantine/`
+   - **Action:** Delete objects after `1` day
+
 ## Customer Support & ML Feedback Loop (`flag-issue`)
 
 To continuously refine the AI models and build a high-quality human-verified dataset ("Golden Dataset"), Merian allows users to flag incorrect taxonomy outputs directly from the `InsightSheetView`:
