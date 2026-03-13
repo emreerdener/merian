@@ -29,12 +29,20 @@ final class CameraViewModel: ObservableObject {
     }
     
     private func resetModalsForBackground() {
+        // Reset sheet boundaries so the user always returns to a clean camera view
+        isInsightSheetOpen = false
+        isPaywallOpen = false
+        isLifeListOpen = false
+        isUserProfileOpen = false
+        imageToCrop = nil
+        diContainer.gamificationManager.showTerrariumSheet = false
+        
         // Let the InferenceEngine know it must stop updating the active scanning loop on our view.
         if isAnalyzingFullscreen {
             isAnalyzingFullscreen = false
             scanningPhaseText = "Analyzing subject..."
             analysisImage = nil
-            AppDIContainer.shared.inferenceEngine.cancelActiveRequest()
+            diContainer.inferenceEngine.cancelActiveRequest()
         }
     }
     
