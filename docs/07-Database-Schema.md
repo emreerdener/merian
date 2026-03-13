@@ -23,7 +23,7 @@ The global source-of-truth mapping exact biological models natively.
 - `common_names` (JSONB): e.g., `{"default": "Monarch Butterfly"}`
 - `kingdom`, `phylum`, `class`, `order`, `family`, `genus` (Text): Standard architectural Linnaean taxonomy.
 - `descriptions`, `is_poisonous` (Boolean): Stores liability protections natively.
-- `wikipedia_url`, `gbif_taxon_key`, `reference_image_url`: Extended biological context integrations.
+- `wikipedia_url`, `wikipedia_extract`, `gbif_taxon_key`, `reference_image_url`: Extended biological context integrations.
 - `native_region` (Text): Origin markers.
 
 ### `scans`
@@ -45,7 +45,7 @@ The transaction log for every identification ever successfully passed.
 
 ## SwiftData Schema (Local Offline Queue)
 
-_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian employs `MerianMigrationPlan` globally mapping `SchemaVersions.swift` configurations dynamically allowing lightweight and custom `.migrationStage` closures to safely transpose old structures (e.g. `MerianSchemaV1` mapping to `MerianSchemaV2`, and `MerianSchemaV2` jumping to `MerianSchemaV3`) keeping Local Life Lists perfectly intact without corrupting biological caches._
+_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian employs `MerianMigrationPlan` globally mapping `SchemaVersions.swift` configurations dynamically allowing lightweight and custom `.migrationStage` closures to safely transpose old structures (e.g. `MerianSchemaV3` jumping to `MerianSchemaV4`) keeping Local Life Lists perfectly intact without corrupting biological caches._
 
 ### `OfflineQueuedScan`
 
@@ -79,6 +79,7 @@ Tracks locally synchronized and unique species scans natively for the Life List.
 - `ecologyType`: String (from Edge)
 - `semanticTags`: [String] (AI-generated hidden array of contextual tags to power local, offline semantic search routing without requiring an internet connection).
 - `wikipediaUrl`: String?
+- `wikipediaExtract`: String? (Explicit text payload from REST API mapped into `MerianSchemaV4` for native offline UI caching).
 - `referenceImageUrl`: String?
 - `isLocallyArchived`: Bool (Managed internally by the Archive Safety Protocol to track R2 payloads downloaded before the 90-day free tier expiration limit).
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`, `taxonomyFamily`, `taxonomyGenus`: String? (Explicitly stored Linnaean taxonomy fields mapped into `MerianSchemaV3` enabling rigid detached background semantic discovery loops natively bypassing arbitrary UI `ecology_type` bounds safely.)

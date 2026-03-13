@@ -23,7 +23,7 @@ Merian embraces the `WindowGroup` logic seamlessly across `SwiftUI` avoiding `.x
   - `InsightCarouselView`: Handles rendering legacy uploaded archives seamlessly alongside aggressively prioritized local `.userInitiated` `Task.detached` ML evaluation data loops.
   - `InsightToxicityBanner`: High-priority `.isHeader` accessibility mapped warning boundaries gracefully prioritizing user safety actively.
   - `InsightTaxonomyHeader` & `InsightTaxonomyTree`: Strictly parses the taxonomy objects perfectly dynamically routing to `BadgeView` grids and `TaxonomyNode` capsules across interactive horizontal scroll bounds natively.
-  - `InsightDescriptionSection`: Dynamically populates AI rationale securely opening direct pipelines into local `SafariServices` bounds (`WKWebView`).
+  - `InsightDescriptionSection`: Dynamically populates AI rationale securely and natively renders extracted Wikipedia paragraphs directly within the app bounds, gracefully wrapping fallback buttons that open direct pipelines into local `SafariServices` bounds (`WKWebView`).
 - Gracefully binds ML hallucination correction tools naturally (`FlagIssueView`), executing POST payload drops securely bypassing native UI blocks inherently.
 
 ### `ScanningOverlayView` (The Analysis Transition State)
