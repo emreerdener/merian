@@ -25,8 +25,11 @@ struct InsightCarouselView: View {
                 
                 // User's Uploaded Images (Historic Pipeline deferred by path cleanly preventing OOMs natively)
                 ForEach(Array(inferenceEngine.activePayloads.enumerated()), id: \.element) { index, path in
-                    AsyncLocalImageView(imagePath: path)
-                        .tag("user_image_\(index)")
+                    AsyncLocalImageView(
+                        imagePath: path,
+                        fallbackImageUrl: inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").first
+                    )
+                    .tag("user_image_\(index)")
                 }
                 
                 // Tab 1+: Wikipedia / GBIF Reference Images

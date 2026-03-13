@@ -217,7 +217,7 @@ struct LifeListSearchView: View {
                                 }) {
                                     Group {
                                         if let imagePath = scan.localImagePath {
-                                            LifeListThumbnailView(imagePath: imagePath)
+                                            LifeListThumbnailView(imagePath: imagePath, fallbackImageUrl: scan.referenceImageUrl)
                                         } else {
                                             Color.clear
                                                 .aspectRatio(1.0, contentMode: .fit)
@@ -377,6 +377,8 @@ struct LifeListSearchView: View {
 
 struct LifeListThumbnailView: View {
     let imagePath: String
+    var fallbackImageUrl: String? = nil
+    
     @State private var thumbnail: UIImage? = nil
     @State private var hasFailedToLoad: Bool = false
     
@@ -414,6 +416,7 @@ struct LifeListThumbnailView: View {
         .task {
             if thumbnail == nil {
                 let cacheKey = imagePath
+                // 1. Check RAM immediately for existing decoded array bytes
                 if let cached = ImageCache.shared.get(forKey: cacheKey) {
                     self.thumbnail = cached
                     return
@@ -422,6 +425,13 @@ struct LifeListThumbnailView: View {
                 let fullPathURL = URL.documentsDirectory.appendingPathComponent(imagePath)
                 if let generatedThumb = await generateThumbnail(for: fullPathURL, cacheKey: cacheKey) {
                     await MainActor.run { self.thumbnail = generatedThumb }
+                } else if let fallbackUrlString = fallbackImageUrl, let fallbackUrl = URL(string: fallbackUrlString) {
+                    // 2. Local File is Missing/Archived off R2 -> trigger robust network fallback
+                    if let networkImage = await fetchNetworkFallback(url: fallbackUrl, cacheKey: cacheKey) {
+                        await MainActor.run { self.thumbnail = networkImage }
+                    } else {
+                        await MainActor.run { self.hasFailedToLoad = true }
+                    }
                 } else {
                     await MainActor.run { self.hasFailedToLoad = true }
                 }
@@ -451,4 +461,38 @@ nonisolated func generateThumbnail(for url: URL, cacheKey: String) async -> UIIm
     let img = UIImage(cgImage: cgImage)
     ImageCache.shared.set(img, forKey: cacheKey)
     return img
+}
+
+nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIImage? {
+    if Task.isCancelled { return nil }
+    
+    do {
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            return nil
+        }
+        
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 500
+        ]
+        
+        if Task.isCancelled { return nil }
+        
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+            // Memory Fallback
+            let fallback = UIImage(data: data)?.preparingThumbnail(of: CGSize(width: 500, height: 500))
+            if let fb = fallback { ImageCache.shared.set(fb, forKey: cacheKey) }
+            return fallback
+        }
+        
+        let img = UIImage(cgImage: cgImage)
+        ImageCache.shared.set(img, forKey: cacheKey) 
+        return img
+    } catch {
+        return nil
+    }
 }
