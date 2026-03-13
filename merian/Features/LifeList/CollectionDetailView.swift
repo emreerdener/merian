@@ -88,6 +88,7 @@ struct CollectionDetailView: View {
                 }) {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.blue)
                 }
             }
         }
