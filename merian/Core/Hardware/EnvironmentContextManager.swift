@@ -6,8 +6,9 @@ import Combine
 /// A data model representing the unified environmental payload extracted at the exact moment of a scan.
 struct EnvironmentContext {
     let location: CLLocation?
-    let weatherCondition: String?
-    let weatherTemperature: Double?
+    var locationName: String? = nil
+    var weatherCondition: String? = nil
+    var weatherTemperature: Double? = nil
 }
 
 /// A centralized singleton that lazily retrieves GPS locations and WeatherKit payloads only when explicitly triggered.
@@ -50,16 +51,18 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     func fetchDeferredContext() async -> EnvironmentContext {
         // If not authorized, gracefully degrade and return empty context
         guard isAuthorized else {
-            return EnvironmentContext(location: nil, weatherCondition: nil, weatherTemperature: nil)
+            return EnvironmentContext(location: nil)
         }
         
         let location = await requestSingleLocation()
         
         guard let validLocation = location else {
-            return EnvironmentContext(location: cachedLocation, weatherCondition: nil, weatherTemperature: nil)
+            return EnvironmentContext(location: cachedLocation)
         }
         
         self.cachedLocation = validLocation
+        
+        let locationName = await reverseGeocode(location: validLocation)
         
         // Attempt WeatherKit data if a location is returned
         do {
@@ -69,17 +72,20 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
             
             return EnvironmentContext(
                 location: validLocation,
+                locationName: locationName,
                 weatherCondition: condition,
                 weatherTemperature: tempF
             )
         } catch {
             print("WeatherKit context dropped: \(error.localizedDescription)")
-            return EnvironmentContext(location: validLocation, weatherCondition: nil, weatherTemperature: nil)
+            return EnvironmentContext(location: validLocation, locationName: locationName)
         }
     }
     
     /// Executes a clean historical environment fetch for library imports explicitly pinned to the creation date.
     func fetchHistoricalContext(location: CLLocation, date: Date) async -> EnvironmentContext {
+        let locationName = await reverseGeocode(location: location)
+        
         do {
             // WeatherKit supports historical dates implicitly via standard queries by passing temporal ranges
             let weatherData = try await weatherService.weather(for: location, including: .hourly(startDate: date, endDate: date.addingTimeInterval(3600)))
@@ -87,16 +93,35 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
             if let targetHour = weatherData.first {
                 return EnvironmentContext(
                     location: location,
+                    locationName: locationName,
                     weatherCondition: targetHour.condition.description,
                     weatherTemperature: targetHour.temperature.converted(to: .fahrenheit).value
                 )
             } else {
-                return EnvironmentContext(location: location, weatherCondition: nil, weatherTemperature: nil)
+                return EnvironmentContext(location: location, locationName: locationName)
             }
         } catch {
             print("WeatherKit historical context dropped: \(error.localizedDescription)")
-            return EnvironmentContext(location: location, weatherCondition: nil, weatherTemperature: nil)
+            return EnvironmentContext(location: location, locationName: locationName)
         }
+    }
+    
+    private func reverseGeocode(location: CLLocation) async -> String? {
+        do {
+            let placemarks = try await CLGeocoder().reverseGeocodeLocation(location)
+            if let target = placemarks.first {
+                if let locality = target.locality, let administrativeArea = target.administrativeArea {
+                    return "\(locality), \(administrativeArea)"
+                } else if let locality = target.locality {
+                    return locality
+                } else if let name = target.name {
+                    return name
+                }
+            }
+        } catch {
+            print("Reverse geocode explicitly dropped: \(error.localizedDescription)")
+        }
+        return nil
     }
     
     private func requestSingleLocation() async -> CLLocation? {

@@ -120,6 +120,7 @@ final class CameraViewModel: ObservableObject {
                 gpsLatitude: context.location?.coordinate.latitude,
                 gpsLongitude: context.location?.coordinate.longitude,
                 gpsElevation: context.location?.altitude,
+                locationName: context.locationName,
                 weatherCondition: context.weatherCondition,
                 weatherTemperatureF: context.weatherTemperature,
                 modelContext: modelContext

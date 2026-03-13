@@ -15,6 +15,7 @@ final class InferenceEngine: ObservableObject {
     private(set) var activeLatitude: Double? = nil
     private(set) var activeLongitude: Double? = nil
     private(set) var activeElevation: Double? = nil
+    private(set) var activeLocationName: String? = nil
     private(set) var activeWeatherCondition: String? = nil
     private(set) var activeTemperatureF: Double? = nil
     
@@ -59,7 +60,7 @@ final class InferenceEngine: ObservableObject {
     }    
 
     
-    func analyze(imageData: Data, subjectDistanceInMeters: Float? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, modelContext: ModelContext? = nil) {
+    func analyze(imageData: Data, subjectDistanceInMeters: Float? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, locationName: String? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
@@ -70,6 +71,7 @@ final class InferenceEngine: ObservableObject {
         self.activeLatitude = gpsLatitude
         self.activeLongitude = gpsLongitude
         self.activeElevation = gpsElevation
+        self.activeLocationName = locationName
         self.activeWeatherCondition = weatherCondition
         self.activeTemperatureF = weatherTemperatureF
         
@@ -148,7 +150,10 @@ final class InferenceEngine: ObservableObject {
                             isLiveCapture: edgeRes.is_live_capture ?? true,
                             isInvasive: edgeRes.is_invasive ?? false,
                             ecologyType: edgeRes.ecology_type ?? "unknown",
-                            taxonomy: taxonomyData
+                            taxonomy: taxonomyData,
+                            locationName: locationName,
+                            weatherCondition: weatherCondition,
+                            weatherTemperatureF: weatherTemperatureF
                         )
                         
                         // Persist to SwiftData Life List if analysis was valid
@@ -211,7 +216,10 @@ final class InferenceEngine: ObservableObject {
                                     taxonomyClass: mappedData.taxonomy?.className,
                                     taxonomyOrder: mappedData.taxonomy?.order,
                                     taxonomyFamily: mappedData.taxonomy?.family,
-                                    taxonomyGenus: mappedData.taxonomy?.genus
+                                    taxonomyGenus: mappedData.taxonomy?.genus,
+                                    locationName: locationName,
+                                    weatherCondition: weatherCondition,
+                                    weatherTemperatureF: weatherTemperatureF
                                 )
                                 context.insert(record)
                                 mappedData.isNewDiscovery = true
@@ -240,7 +248,10 @@ final class InferenceEngine: ObservableObject {
                             isLiveCapture: true,
                             isInvasive: false,
                             ecologyType: "unknown",
-                            taxonomy: nil
+                            taxonomy: nil,
+                            locationName: locationName,
+                            weatherCondition: weatherCondition,
+                            weatherTemperatureF: weatherTemperatureF
                         )
                     }
             } catch {
@@ -272,7 +283,10 @@ final class InferenceEngine: ObservableObject {
                     isLiveCapture: true,
                     isInvasive: false,
                     ecologyType: "unknown",
-                    taxonomy: nil
+                    taxonomy: nil,
+                    locationName: locationName,
+                    weatherCondition: weatherCondition,
+                    weatherTemperatureF: weatherTemperatureF
                 )
             }
             
@@ -294,6 +308,7 @@ final class InferenceEngine: ObservableObject {
         activeLatitude = nil
         activeLongitude = nil
         activeElevation = nil
+        activeLocationName = nil
         activeWeatherCondition = nil
         activeTemperatureF = nil
     }
@@ -342,7 +357,10 @@ final class InferenceEngine: ObservableObject {
                 order: record.taxonomyOrder,
                 family: record.taxonomyFamily,
                 genus: record.taxonomyGenus
-            )
+            ),
+            locationName: record.locationName,
+            weatherCondition: record.weatherCondition,
+            weatherTemperatureF: record.weatherTemperatureF
         )
         self.isProcessing = false
     }

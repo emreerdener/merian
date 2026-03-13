@@ -24,7 +24,7 @@ struct MerianApp: App {
             }
         }
         
-        let schema = Schema(versionedSchema: MerianSchemaV4.self)
+        let schema = Schema(versionedSchema: MerianSchemaV5.self)
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
             container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [modelConfiguration])

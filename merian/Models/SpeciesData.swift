@@ -18,6 +18,11 @@ struct SpeciesData {
     let ecologyType: String
     let taxonomy: TaxonomyData?
     var isNewDiscovery: Bool = false
+    
+    // UI Metadata for Historical Insight Sheet contextual binding
+    var locationName: String?
+    var weatherCondition: String?
+    var weatherTemperatureF: Double?
 }
 
 struct TaxonomyData {

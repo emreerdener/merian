@@ -173,6 +173,29 @@ struct InsightTaxonomyHeader: View {
             }
             
             if let species = inferenceEngine.speciesData {
+                if species.locationName != nil || species.weatherCondition != nil {
+                    HStack(spacing: 12) {
+                        if let name = species.locationName {
+                            HStack(spacing: 4) {
+                                Image(systemName: "mappin.and.ellipse")
+                                Text(name)
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        }
+                        
+                        if let temp = species.weatherTemperatureF, let condition = species.weatherCondition {
+                            HStack(spacing: 4) {
+                                Image(systemName: "cloud.sun.fill")
+                                Text("\(Int(temp))°F • \(condition)")
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         if species.isInvasive {
