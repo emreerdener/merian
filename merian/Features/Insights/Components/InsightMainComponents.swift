@@ -5,10 +5,15 @@ struct InsightCarouselView: View {
     
     var body: some View {
         let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
-        let hasReferenceImage = !refUrls.isEmpty
-        let hasUserImage = inferenceEngine.activePayload != nil || !inferenceEngine.activePayloads.isEmpty
+        // Pre-filter securely to eliminate 404 images from rendering redundant placeholder pages in the carousel
+        let validHistoricPayloads = inferenceEngine.activePayloads.filter { path in
+            FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
+        }
         
-        let totalImages = (inferenceEngine.activePayload != nil ? 1 : 0) + inferenceEngine.activePayloads.count + refUrls.count
+        let hasReferenceImage = !refUrls.isEmpty
+        let hasUserImage = inferenceEngine.activePayload != nil || !validHistoricPayloads.isEmpty
+        
+        let totalImages = (inferenceEngine.activePayload != nil ? 1 : 0) + validHistoricPayloads.count + refUrls.count
         
         if totalImages > 0 {
             TabView {
@@ -24,11 +29,8 @@ struct InsightCarouselView: View {
                 }
                 
                 // User's Uploaded Images (Historic Pipeline deferred by path cleanly preventing OOMs natively)
-                ForEach(Array(inferenceEngine.activePayloads.enumerated()), id: \.element) { index, path in
-                    AsyncLocalImageView(
-                        imagePath: path,
-                        fallbackImageUrl: inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").first
-                    )
+                ForEach(Array(validHistoricPayloads.enumerated()), id: \.element) { index, path in
+                    AsyncLocalImageView(imagePath: path)
                     .tag("user_image_\(index)")
                 }
                 
