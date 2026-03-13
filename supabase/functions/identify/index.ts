@@ -107,30 +107,18 @@ serve(async (req: Request) => {
       );
     }
 
-    // Server-side robust encoded stream to prevent OOM
-    const geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
-    const uploadRes = await fetch(
-      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${geminiApiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "X-Goog-Upload-Command": "start, upload, finalize",
-          "X-Goog-Upload-Header-Content-Type": "image/jpeg",
-          "X-Goog-Upload-Header-Content-Length":
-            r2Response.headers.get("content-length") || "",
-          "Content-Type": "image/jpeg",
-        },
-        body: r2Response.body,
-        duplex: "half",
-      },
-    );
-
-    if (!uploadRes.ok) {
-      throw new Error(`Gemini File Upload Failed: ${uploadRes.statusText}`);
+    // Natively Stream Bytes directly into Memory bypassing File API entirely
+    const arrayBuffer = await r2Response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Fast native Base64 encoding cleanly supported within Deno Edge Runtimes
+    let binaryString = "";
+    for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
     }
+    const base64Image = btoa(binaryString);
 
-    const uploadData = await uploadRes.json();
-    const googleFileUri = uploadData.file.uri;
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
 
@@ -231,9 +219,9 @@ Crucial instructions:
 
     const parts = [
       {
-        fileData: {
+        inlineData: {
           mimeType: "image/jpeg",
-          fileUri: googleFileUri,
+          data: base64Image,
         },
       },
       { text: dynamicContext },
@@ -245,27 +233,14 @@ Crucial instructions:
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.length,
     );
 
-    let result;
-    try {
-      result = await model.generateContent({
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          // deno-lint-ignore no-explicit-any
-          responseSchema: merianResponseSchema as any,
-        },
-      });
-    } finally {
-      try {
-        const fileName = uploadData.file.name.replace("files/", "");
-        await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/files/${fileName}?key=${geminiApiKey}`,
-          { method: "DELETE" },
-        );
-      } catch (e) {
-        console.error("Failed to delete temporary Google file", e);
-      }
-    }
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        // deno-lint-ignore no-explicit-any
+        responseSchema: merianResponseSchema as any,
+      },
+    });
 
     const candidate = result.response.candidates?.[0];
     const finishReason = candidate?.finishReason;
