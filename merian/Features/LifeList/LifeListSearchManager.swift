@@ -118,13 +118,18 @@ enum LifeListTab {
 struct LifeListSearchView: View {
     @StateObject private var searchManager = LifeListSearchManager()
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
+    @Query(sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
     
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var inferenceEngine: InferenceEngine
     @Environment(\.dismiss) var dismiss
     @Binding var isInsightSheetOpen: Bool
     
     @State private var selectedScanForInsight: LocalScanRecord? = nil
     @State private var activeTab: LifeListTab = .library
+    
+    @State private var showNewCollectionAlert = false
+    @State private var newCollectionName = ""
     
     let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -137,95 +142,168 @@ struct LifeListSearchView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(filterCategories, id: \.self) { category in
-                            Button(action: {
-                                withAnimation {
-                                    if !searchManager.searchQuery.isEmpty {
-                                        searchManager.searchQuery = "" // Clear the search so the filter works!
+                if activeTab == .library {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(filterCategories, id: \.self) { category in
+                                Button(action: {
+                                    withAnimation {
+                                        if !searchManager.searchQuery.isEmpty {
+                                            searchManager.searchQuery = "" // Clear the search so the filter works!
+                                        }
+                                        searchManager.performSearch(query: "", category: category)
                                     }
-                                    searchManager.performSearch(query: "", category: category)
+                                }) {
+                                    Text(category)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(searchManager.activeCategoryFilter == category ? Color.primary : Color.secondary.opacity(0.15))
+                                        .foregroundColor(searchManager.activeCategoryFilter == category ? Color(UIColor.systemBackground) : .primary)
+                                        .clipShape(Capsule())
                                 }
-                            }) {
-                                Text(category)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(searchManager.activeCategoryFilter == category ? Color.primary : Color.secondary.opacity(0.15))
-                                    .foregroundColor(searchManager.activeCategoryFilter == category ? Color(UIColor.systemBackground) : .primary)
-                                    .clipShape(Capsule())
                             }
                         }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
+                    .padding(.bottom, 12)
+                    .background(Color(UIColor.systemBackground))
                 }
-                .padding(.bottom, 12)
-                .background(Color(UIColor.systemBackground))
                 
                 ScrollView {
-                    if searchManager.filteredScans.isEmpty {
-                        VStack(spacing: 16) {
-                            Spacer().frame(height: 80)
-                            
-                            ZStack {
-                                Circle()
-                                    .fill(searchManager.activeCategoryFilter == "All" ? Color.secondary.opacity(0.1) : Color.primary.opacity(0.1))
-                                    .frame(width: 80, height: 80)
+                    if activeTab == .library {
+                        if searchManager.filteredScans.isEmpty {
+                            VStack(spacing: 16) {
+                                Spacer().frame(height: 80)
                                 
-                                Image(systemName: "camera.macro")
-                                    .font(.system(size: 32, weight: .light))
-                                    .foregroundColor(searchManager.activeCategoryFilter == "All" ? .secondary : .primary)
+                                ZStack {
+                                    Circle()
+                                        .fill(searchManager.activeCategoryFilter == "All" ? Color.secondary.opacity(0.1) : Color.primary.opacity(0.1))
+                                        .frame(width: 80, height: 80)
+                                    
+                                    Image(systemName: "camera.macro")
+                                        .font(.system(size: 32, weight: .light))
+                                        .foregroundColor(searchManager.activeCategoryFilter == "All" ? .secondary : .primary)
+                                }
+                                
+                                Text("No Scans Found")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                
+                                if !searchManager.searchQuery.isEmpty {
+                                    Text("No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter).")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                } else if searchManager.activeCategoryFilter != "All" {
+                                    Text("You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                } else {
+                                    Text("Start exploring and capture your first scan!")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                }
                             }
-                            
-                            Text("No Scans Found")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-                            
-                            if !searchManager.searchQuery.isEmpty {
-                                Text("No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter).")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 40)
-                            } else if searchManager.activeCategoryFilter != "All" {
-                                Text("You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 40)
-                            } else {
-                                Text("Start exploring and capture your first scan!")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 40)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        LazyVGrid(columns: columns, spacing: 2) {
-                            ForEach(searchManager.filteredScans) { scan in
-                                Button(action: {
-                                    selectedScanForInsight = scan
-                                    inferenceEngine.load(from: scan)
-                                }) {
-                                    Group {
-                                        if let imagePath = scan.localImagePath {
-                                            LifeListThumbnailView(imagePath: imagePath, fallbackImageUrl: scan.referenceImageUrl)
-                                        } else {
-                                            Color.clear
-                                                .aspectRatio(1.0, contentMode: .fit)
-                                                .overlay(
-                                                    Rectangle().fill(Color.gray.opacity(0.3))
-                                                )
-                                                .clipped()
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            LazyVGrid(columns: columns, spacing: 2) {
+                                ForEach(searchManager.filteredScans) { scan in
+                                    Button(action: {
+                                        selectedScanForInsight = scan
+                                        inferenceEngine.load(from: scan)
+                                    }) {
+                                        Group {
+                                            if let imagePath = scan.localImagePath {
+                                                LifeListThumbnailView(imagePath: imagePath, fallbackImageUrl: scan.referenceImageUrl)
+                                            } else {
+                                                Color.clear
+                                                    .aspectRatio(1.0, contentMode: .fit)
+                                                    .overlay(
+                                                        Rectangle().fill(Color.gray.opacity(0.3))
+                                                    )
+                                                    .clipped()
+                                            }
                                         }
                                     }
                                 }
                             }
+                        }
+                    } else if activeTab == .collections {
+                        if collections.isEmpty {
+                            VStack(spacing: 16) {
+                                Spacer().frame(height: 80)
+                                Image(systemName: "folder")
+                                    .font(.system(size: 32, weight: .light))
+                                    .foregroundColor(.secondary)
+                                Text("No Collections")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                Text("Create your first collection to start organizing your scans.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 40)
+                            }
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
+                                ForEach(collections) { collection in
+                                    NavigationLink {
+                                        CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
+                                    } label: {
+                                        ZStack {
+                                            if let firstScan = collection.scans?.first, let imagePath = firstScan.localImagePath {
+                                                GeometryReader { geo in
+                                                    LifeListThumbnailView(imagePath: imagePath, fallbackImageUrl: firstScan.referenceImageUrl)
+                                                        .frame(width: geo.size.width, height: geo.size.width)
+                                                        .clipped()
+                                                }
+                                                .aspectRatio(1.0, contentMode: .fill)
+                                            } else {
+                                                Rectangle()
+                                                    .fill(Color.gray.opacity(0.3))
+                                                    .aspectRatio(1.0, contentMode: .fill)
+                                                    .overlay(
+                                                        Image(systemName: "photo.on.rectangle")
+                                                            .font(.system(size: 24))
+                                                            .foregroundColor(.secondary)
+                                                    )
+                                            }
+                                            
+                                            VStack {
+                                                Spacer()
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(collection.name)
+                                                        .font(.subheadline)
+                                                        .fontWeight(.bold)
+                                                        .foregroundColor(.white)
+                                                        .lineLimit(1)
+                                                    Text("\(collection.scans?.count ?? 0) Scans")
+                                                        .font(.caption)
+                                                        .foregroundColor(.white.opacity(0.8))
+                                                }
+                                                .padding(8)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .background(.ultraThinMaterial)
+                                                .environment(\.colorScheme, .dark)
+                                            }
+                                        }
+                                        .cornerRadius(12)
+                                        .clipped()
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 16)
                         }
                     }
                 }
@@ -253,6 +331,17 @@ struct LifeListSearchView: View {
                     }
                 }
                 
+                ToolbarItem(placement: .topBarTrailing) {
+                    if activeTab == .collections {
+                        Button(action: {
+                            showNewCollectionAlert = true
+                        }) {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.system(size: 16, weight: .bold))
+                        }
+                    }
+                }
+                
                 ToolbarItem(placement: .bottomBar) {
                     Spacer()
                 }
@@ -269,6 +358,18 @@ struct LifeListSearchView: View {
                 ToolbarItem(placement: .bottomBar) {
                     Spacer()
                 }
+            }
+            .alert("New Collection", isPresented: $showNewCollectionAlert) {
+                TextField("Collection Name", text: $newCollectionName)
+                Button("Cancel", role: .cancel) { newCollectionName = "" }
+                Button("Create") {
+                    let collection = ScanCollection(name: newCollectionName.isEmpty ? "Untitled" : newCollectionName)
+                    modelContext.insert(collection)
+                    try? modelContext.save()
+                    newCollectionName = ""
+                }
+            } message: {
+                Text("Enter a name for this new collection.")
             }
         }
         .onAppear {

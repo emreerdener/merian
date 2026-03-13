@@ -17,6 +17,7 @@ struct InsightSheetView: View {
     @State private var selectedWikiURL: URL?
     @State private var isFlagIssuePresented = false
     @State private var showCelebration = false
+    @State private var showCollectionPicker = false
     
     // Safety Bounds
     private var isPoisonous: Bool {
@@ -120,6 +121,22 @@ struct InsightSheetView: View {
                             .font(.system(size: 16, weight: .semibold))
                     }
                 }
+            }
+            
+            if let _ = inferenceEngine.speciesData?.scanId {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        showCollectionPicker = true
+                    }) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showCollectionPicker) {
+            if let scanId = inferenceEngine.speciesData?.scanId {
+                SaveToCollectionSheetView(scanId: scanId)
             }
         }
         
