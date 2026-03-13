@@ -35,6 +35,7 @@ targets:
       path: Merian/Configuration/Merian.entitlements
       properties:
         com.apple.developer.applesignin: ["Default"]
+        com.apple.developer.weatherkit: true
     configFiles:
       Debug: Config.xcconfig
       Release: Config.xcconfig
