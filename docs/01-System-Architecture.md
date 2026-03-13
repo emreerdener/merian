@@ -61,3 +61,10 @@ flowchart TD
 - **Instant Cold Boot:** SDK injections (`AppTelemetry`, `PostHog`) and heavy `CameraManager` hardware initializations (`AVCaptureSession.beginConfiguration`) are rigidly deferred onto a `Task.detached(priority: .background)` executor cleanly preventing the Main Actor from locking, ensuring a strict sub-1-second boot for the Camera pipeline.
 - **RAM Image Cache (`ImageCache`):** A strictly typed `@unchecked Sendable` thread-safe `NSCache` bounds downsampled Life List thumbnails in RAM instantly avoiding massive disk I/O thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM (Out-of-Memory) crashes and micro-stutters by limiting to ~100 thumbnail chunks natively controlled by iOS memory pressure limits.
 - **Asynchronous Grid Downsampling:** Displays mapping heavy physical Local File caches (`LifeListSearchView`, `InsightSheetView`, and `InsightCarouselView`) offload physical image decoding strictly onto a CPU pool prioritizing `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex` logic dynamically bounds-checking 12-Megapixel file memory dynamically. Streaming explicit byte headers recursively without allocating generic structural `.Data()` blocks strictly locks iOS OOM (Out-of-Memory) bounds dynamically ensuring scrolling remains seamlessly locked to 60fps on edge devices.
+
+### 7. watchOS Extension (`MerianWatch`)
+
+Merian functions natively bounded as a standalone watchOS executable mapping completely offline capabilities decoupled from the host iPhone:
+- **`WKInterfaceDevice.current().identifierForVendor` Execution**: Safely mimics iOS bindings syncing the Anonymous user UUID securely via `WatchConnectivity.WCSession` back to iOS Core boundaries.
+- Uses `Network.framework` hooks and `URLSession` actively hitting Supabase Edge from the wrist bridging independent inferences if the iPhone is dead.
+- Shares the core UI `InsightSheetView` logic natively bridging data models to provide biological readouts natively without the parent app in range.

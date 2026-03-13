@@ -130,3 +130,25 @@ Unlike legacy edge structures which trusted unverified `userId` variables inside
 Because we use `URLSession` inside `MerianNetworkClient` instead of the Supabase Swift Edge Function SDK, all HTTP requests strictly POSTing to Deno **MUST** include both the `Authorization: Bearer <JWT>` header AND the `apikey: <SUPABASE_ANON_KEY>` header. If the `apikey` header is omitted, the Supabase Kong API Gateway will intercept and strip the `Authorization` header before it reaches the Edge Function, resulting in unhandled `401 Unauthorized: Missing token` crashes.
 
 Any request attempting to fake a user session via a manipulated JSON body without passing a valid structural JWT signature in the header natively fails with a `401 Unauthorized` token boundary. This guarantees actors can only physically query Discovery Feeds mapping dynamically to their own authenticated blocklists natively.
+
+---
+
+## Deno `/safe-delete` Edge Node
+
+Fetches and deletes orphaned/inactive physical payload bytes isolated within the Cloudflare R2 bucket specifically resolving local edge caching bugs and ensuring compliance with Data Deletion policies. 
+
+### Request Payload
+
+```json
+{
+  "r2ObjectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename.jpg"
+}
+```
+
+### Authentication Enforcement
+
+To prevent arbitrary deletion vectors from hostile actors targeting the R2 storage limits natively, this system explicitly enforces Server-Side JWT Validation natively.
+1. Natively maps `supabaseAdmin.auth.getUser()` to isolate the internal UUID binding securely.
+2. Extracts the `uuid` subset strictly from the `r2ObjectKey` path string (e.g. mapping `/staging/<uuid>/...`).
+3. Rigidly compares the parsed `uuid` mapped in the `r2ObjectKey` exactly against the authenticated JWT session `user.id`. 
+4. If the explicit string bounds do not physically match securely, the Deno node actively throws a `403 Forbidden` response preventing structural access and drops execution immediately to protect the ecosystem passively.
