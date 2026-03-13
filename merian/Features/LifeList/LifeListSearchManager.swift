@@ -319,6 +319,9 @@ struct LifeListSearchView: View {
             .searchable(text: $searchManager.searchQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search tags, habitats, colors...")
             .onChange(of: searchManager.searchQuery) { _, newValue in
                 searchManager.performSearch(query: newValue)
+                if !newValue.isEmpty && activeTab != .library {
+                    activeTab = .library
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -341,22 +344,23 @@ struct LifeListSearchView: View {
                         }
                     }
                 }
-                
-                ToolbarItem(placement: .bottomBar) {
-                    Spacer()
-                }
-                
-                ToolbarItem(placement: .bottomBar) {
-                    Picker("View", selection: $activeTab) {
-                        Text("Library").tag(LifeListTab.library)
-                        Text("Collections").tag(LifeListTab.collections)
+                if searchManager.searchQuery.isEmpty {
+                    ToolbarItem(placement: .bottomBar) {
+                        Spacer()
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 240)
-                }
-                
-                ToolbarItem(placement: .bottomBar) {
-                    Spacer()
+                    
+                    ToolbarItem(placement: .bottomBar) {
+                        Picker("View", selection: $activeTab) {
+                            Text("Library").tag(LifeListTab.library)
+                            Text("Collections").tag(LifeListTab.collections)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 240)
+                    }
+                    
+                    ToolbarItem(placement: .bottomBar) {
+                        Spacer()
+                    }
                 }
             }
             .alert("New Collection", isPresented: $showNewCollectionAlert) {
