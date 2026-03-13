@@ -64,3 +64,8 @@ To continuously refine the `gemini-2.5-flash-lite` model and build a high-qualit
 - **`flag-issue`**: This serverless Edge Node securely ingests authenticated POST requests containing `scanId`, `flagReason`, and `userSuggestion`.
 - **`flagged_reviews` SQL Table**: `00005_flagged_reviews.sql` generates this schema, seamlessly mapping flagged scans natively back to the reporting `user_id`. It defaults to a `PENDING_REVIEW` state.
 - **`scans` Table Cascade**: The Edge Function immediately updates the parent scan's boolean `is_flagged` state to `true` and appends debugging data straight into the `human_intervention_notes` column to isolate the failure logic.
+
+## Account Deletion & Data Preservation (`safe-delete`)
+
+To balance user privacy (GDPR/CCPA compliance) with scientific data fidelity, account deletions utilize a specialized RPC:
+- **`00006_apply_user_tombstone.sql`**: Generates a `public.apply_user_tombstone(target_user_id UUID)` PL/pgSQL function. Instead of cascading deletions that would wipe thousands of biological insights off the global map, it reassigns the user's `scans` to a permanent anonymous `00000000-0000-0000-0000-000000000000` tombstone user and flags them as `is_tombstoned = true`. Afterward, it safely cascades and destroys the original user schema and telemetry without breaking the structural biological maps.

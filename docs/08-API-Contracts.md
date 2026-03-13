@@ -8,8 +8,6 @@ To fetch cryptographic keys for direct-to-Cloudflare uploads safely bridging DDO
 
 ### Request Payload
 
-### Request Payload
-
 ```json
 {
   "user_id": "Legacy device UUID strictly included for backward compatibility in Swift maps",

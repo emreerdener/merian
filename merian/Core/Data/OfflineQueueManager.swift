@@ -317,22 +317,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
     }
     
-    // Internal generic mapping to shrink original 12MP arrays securely before uploading
-    private nonisolated func downsampleLocalPayload(fileURL: URL, maxDimension: CGFloat = 1024.0) -> Data? {
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxDimension
-        ]
-        
-        guard let imageSource = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-            return nil
-        }
-        
-        let thumbnail = UIImage(cgImage: cgImage)
-        return thumbnail.jpegData(compressionQuality: 0.7)
-    }
 }
 
 @ModelActor
