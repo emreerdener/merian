@@ -125,8 +125,11 @@ Crucial instructions:
 5. You must format the 'common_name' so that each word is capitalized in standard title case (e.g. "Bearded Iris" instead of "bearded iris").`;
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-2.5-flash",
       systemInstruction: systemInstruction,
+      generationConfig: {
+        temperature: 0.1 // Strict logical routing, preventing biological hallucination
+      }
     });
 
     const dynamicContext = `
