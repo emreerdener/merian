@@ -9,7 +9,7 @@ We rigorously prevent test suites from polluting physical local iOS file system 
 ```swift
 @MainActor
 private func createInMemoryContext() throws -> ModelContext {
-    let schema = Schema(MerianSchemaV3.models)
+    let schema = Schema(MerianSchemaV6.models)
     let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
     return ModelContext(container)
