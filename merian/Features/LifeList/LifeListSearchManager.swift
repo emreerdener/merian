@@ -284,9 +284,7 @@ struct LifeListSearchView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.black.opacity(0.3)) // Darker fallback
                     .background(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark) // Force elegant dark glass
                     .cornerRadius(10)
                     .padding(.horizontal)
                     .padding(.bottom, 8)
@@ -306,11 +304,8 @@ struct LifeListSearchView: View {
                                     Text("Library")
                                         .font(.system(size: 11, weight: .medium))
                                 }
-                                .foregroundColor(activeTab == .library ? .blue : .white)
+                                .foregroundColor(activeTab == .library ? .blue : .primary)
                                 .frame(width: 80, height: 50)
-                                .background(
-                                    activeTab == .library ? Color.black.opacity(0.4) : Color.clear
-                                )
                                 .clipShape(Capsule())
                             }
                             
@@ -325,18 +320,13 @@ struct LifeListSearchView: View {
                                     Text("Collections")
                                         .font(.system(size: 11, weight: .medium))
                                 }
-                                .foregroundColor(activeTab == .collections ? .blue : .white)
+                                .foregroundColor(activeTab == .collections ? .blue : .primary)
                                 .frame(width: 80, height: 50)
-                                .background(
-                                    activeTab == .collections ? Color.black.opacity(0.4) : Color.clear
-                                )
                                 .clipShape(Capsule())
                             }
                         }
                         .padding(4)
-                        .background(Color.black.opacity(0.3)) // Dark base for glass
                         .background(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark) // Force sleek dark glass look
                         .clipShape(Capsule())
                         
                         Spacer()
@@ -350,11 +340,9 @@ struct LifeListSearchView: View {
                         }) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 22, weight: .regular))
-                                .foregroundColor(.white)
+                                .foregroundColor(.primary)
                                 .frame(width: 58, height: 58)
-                                .background(Color.black.opacity(0.3))
                                 .background(.ultraThinMaterial)
-                                .environment(\.colorScheme, .dark) // Force sleek dark glass look
                                 .clipShape(Circle())
                         }
                     }
