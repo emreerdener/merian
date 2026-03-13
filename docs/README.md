@@ -25,4 +25,4 @@ Welcome to the Merian ecosystem documentation. This directory serves as the tech
 
 ## About Merian
 
-Merian is a zero-friction, native iOS and iPadOS application designed as an homage to the flawless user experience of Sky Guide. It identifies plants, animals, insects, fungi, and indoor ecology with scientific-grade accuracy in under 3 seconds using the Gemini 2.5 Flash Lite API.
+Merian is a zero-friction, native iOS and iPadOS application designed as an homage to the flawless user experience of Sky Guide. It identifies plants, animals, insects, fungi, and indoor ecology with scientific-grade accuracy in under 3 seconds using dynamic routing between the Gemini 2.5 Flash and Pro APIs.
