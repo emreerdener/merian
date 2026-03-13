@@ -14,6 +14,10 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
     @Published var currentUser: User?
     @Published var isAuthenticated: Bool = false
     
+    var isGuestUser: Bool {
+        currentUser?.isAnonymous ?? true
+    }
+    
     private var currentNonce: String?
     
     private override init() {

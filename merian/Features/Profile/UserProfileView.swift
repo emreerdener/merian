@@ -75,7 +75,7 @@ struct UserProfileView: View {
                     .padding(.top, 32)
                     
                     // Authentication Layer
-                    if !SupabaseManager.shared.isAuthenticated {
+                    if SupabaseManager.shared.isGuestUser {
                         VStack(spacing: 16) {
                             Button(action: {
                                 SupabaseManager.shared.startAppleSignIn()
