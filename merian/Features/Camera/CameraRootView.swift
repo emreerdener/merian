@@ -20,9 +20,12 @@ struct CameraRootView: View {
     var body: some View {
         ZStack {
             // Full-bleed camera feed
-            CameraPreviewView(session: cameraManager.session, onTap: { layerPoint, devicePoint in
-                viewModel.handleFocusTap(layerPoint: layerPoint, devicePoint: devicePoint)
-            })
+            CameraPreviewView(
+                session: cameraManager.session,
+                onTap: { layerPoint, devicePoint in
+                    viewModel.handleFocusTap(layerPoint: layerPoint, devicePoint: devicePoint)
+                }
+            )
             .ignoresSafeArea()
             
             if viewModel.showFocusIndicator, let location = viewModel.focusLocation {
@@ -90,9 +93,11 @@ struct CameraRootView: View {
             cameraManager.startSession()
             photoLibraryManager.startObservingAndFetch()
             AppDIContainer.shared.environmentContextManager.validatePermissions()
+            AppDIContainer.shared.environmentContextManager.startLiveLocationTracking()
         }
         .onDisappear {
             cameraManager.stopSession()
+            AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()
         }
         .onChange(of: viewModel.selectedPhotoItem) { _, newItem in
             viewModel.handlePhotoPickerSelection(newItem: newItem, modelContext: modelContext)

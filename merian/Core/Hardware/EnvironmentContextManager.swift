@@ -23,7 +23,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     @Published var isAuthorized: Bool = false
     
     private var activeContinuationWrapper: CheckedContinuation<CLLocation?, Never>?
-    private var cachedLocation: CLLocation?
+    private(set) var cachedLocation: CLLocation?
     
     private override init() {
         super.init()
@@ -47,20 +47,33 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         }
     }
     
+    func startLiveLocationTracking() {
+        guard isAuthorized else { return }
+        locationManager.startUpdatingLocation()
+    }
+    
+    func stopLiveLocationTracking() {
+        locationManager.stopUpdatingLocation()
+    }
+    
     /// Executes the "Deferred Context Fetch", locking the location pinpoint to the exact time of the shutter press
-    func fetchDeferredContext() async -> EnvironmentContext {
+    func fetchDeferredContext(preLockedLocation: CLLocation? = nil) async -> EnvironmentContext {
         // If not authorized, gracefully degrade and return empty context
         guard isAuthorized else {
+            return EnvironmentContext(location: preLockedLocation)
+        }
+        
+        let validLocation: CLLocation
+        if let pre = preLockedLocation {
+            validLocation = pre
+        } else if let dynamicLocation = await requestSingleLocation() {
+            validLocation = dynamicLocation
+            self.cachedLocation = validLocation
+        } else if let cached = self.cachedLocation {
+            validLocation = cached
+        } else {
             return EnvironmentContext(location: nil)
         }
-        
-        let location = await requestSingleLocation()
-        
-        guard let validLocation = location else {
-            return EnvironmentContext(location: cachedLocation)
-        }
-        
-        self.cachedLocation = validLocation
         
         let locationName = await reverseGeocode(location: validLocation)
         

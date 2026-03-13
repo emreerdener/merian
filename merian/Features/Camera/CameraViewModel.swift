@@ -109,13 +109,14 @@ final class CameraViewModel: ObservableObject {
             }
             
             let context: EnvironmentContext
-            if let historical = historicalContext {
+            if let historical = historicalContext, isFromGallery {
                 context = historical
             } else if isFromGallery {
                 // Prevent current GPS from overwriting a gallery photo lacking EXIF data
                 context = EnvironmentContext(location: nil, weatherCondition: nil, weatherTemperature: nil)
             } else {
-                context = await self.diContainer.environmentContextManager.fetchDeferredContext()
+                let lockedLocation = historicalContext?.location
+                context = await self.diContainer.environmentContextManager.fetchDeferredContext(preLockedLocation: lockedLocation)
             }
             
             await MainActor.run {
@@ -215,14 +216,18 @@ final class CameraViewModel: ObservableObject {
             
             Task {
                 do {
+                    let instantLocation = diContainer.environmentContextManager.cachedLocation
                     let captureData = try await diContainer.cameraManager.captureImage()
                     
                     // Actively push the original 12MP buffer down natively into the user's Camera Roll securely
-                    await diContainer.photoLibraryManager.saveImageToLibrary(imageData: captureData)
+                    await diContainer.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
                     
                     if let rawImage = UIImage(data: captureData) {
                         await MainActor.run {
-                            self.imageToCrop = IdentifiableImage(image: rawImage)
+                            self.imageToCrop = IdentifiableImage(
+                                image: rawImage,
+                                environmentContext: instantLocation != nil ? EnvironmentContext(location: instantLocation) : nil
+                            )
                         }
                     }
                 } catch {

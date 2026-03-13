@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import CoreImage
 import Combine
+import CoreLocation
 
 /// Manages AVFoundation stack and depth mapping memory-safely
 @MainActor

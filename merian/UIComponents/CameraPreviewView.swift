@@ -1,13 +1,24 @@
 import SwiftUI
 import AVFoundation
+import AVKit
 
 // SwiftUI bridging of AVCaptureVideoPreviewLayer
 struct CameraPreviewView: UIViewRepresentable {
-    let session: AVCaptureSession
-    var onTap: ((_ layerPoint: CGPoint, _ devicePoint: CGPoint) -> Void)? = nil
+    var session: AVCaptureSession
+    var onTap: (CGPoint, CGPoint) -> Void
     
-    func makeUIView(context: Context) -> VideoPreviewView {
-        let view = VideoPreviewView()
+    class PreviewView: UIView {
+        override class var layerClass: AnyClass {
+            return AVCaptureVideoPreviewLayer.self
+        }
+        
+        var videoPreviewLayer: AVCaptureVideoPreviewLayer {
+            return layer as! AVCaptureVideoPreviewLayer
+        }
+    }
+    
+    func makeUIView(context: Context) -> PreviewView {
+        let view = PreviewView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
         
@@ -17,7 +28,7 @@ struct CameraPreviewView: UIViewRepresentable {
         return view
     }
     
-    func updateUIView(_ uiView: VideoPreviewView, context: Context) {
+    func updateUIView(_ uiView: PreviewView, context: Context) {
         uiView.videoPreviewLayer.session = session
         context.coordinator.parent = self
     }
@@ -34,20 +45,10 @@ struct CameraPreviewView: UIViewRepresentable {
         }
         
         @objc func handleTap(_ sender: UITapGestureRecognizer) {
-            guard let view = sender.view as? VideoPreviewView else { return }
+            guard let view = sender.view as? PreviewView else { return }
             let layerPoint = sender.location(in: view)
             let devicePoint = view.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: layerPoint)
-            parent.onTap?(layerPoint, devicePoint)
+            parent.onTap(layerPoint, devicePoint)
         }
-    }
-}
-
-class VideoPreviewView: UIView {
-    override class var layerClass: AnyClass {
-        return AVCaptureVideoPreviewLayer.self
-    }
-    
-    var videoPreviewLayer: AVCaptureVideoPreviewLayer {
-        return layer as! AVCaptureVideoPreviewLayer
     }
 }

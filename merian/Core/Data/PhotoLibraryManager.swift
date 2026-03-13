@@ -71,7 +71,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         }
     }
     
-    func saveImageToLibrary(imageData: Data) async {
+    func saveImageToLibrary(imageData: Data, location: CLLocation? = nil) async {
         let currentStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         let status: PHAuthorizationStatus
         
@@ -92,6 +92,10 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
                 let request = PHAssetCreationRequest.forAsset()
                 // Directly pass the raw physics buffers seamlessly natively maintaining EXIF data dynamically.
                 request.addResource(with: .photo, data: imageData, options: nil)
+                
+                if let validLocation = location {
+                    request.location = validLocation
+                }
             }
             print("📸 Captured image efficiently pushed down into native Camera Roll.")
         } catch {
