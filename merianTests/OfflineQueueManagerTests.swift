@@ -9,7 +9,7 @@ struct OfflineQueueManagerTests {
     // Helper to create an isolated in-memory SwiftData container for testing
     @MainActor
     private func createInMemoryContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV3.models)
+        let schema = Schema(MerianSchemaV4.models)
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         return ModelContext(container)
@@ -38,7 +38,7 @@ struct OfflineQueueManagerTests {
         
         // Assert
         // OfflineQueueManager performs context.save() synchronously here
-        let descriptor = FetchDescriptor<MerianSchemaV3.OfflineQueuedScan>()
+        let descriptor = FetchDescriptor<MerianSchemaV4.OfflineQueuedScan>()
         let records = try context.fetch(descriptor)
         
         #expect(records.count == 1, "There should be exactly 1 OfflineQueuedScan in the database")
@@ -64,15 +64,15 @@ struct OfflineQueueManagerTests {
         let manager = OfflineQueueManager.shared
         manager.modelContext = context
         
-        let scan1 = MerianSchemaV3.OfflineQueuedScan(id: "1", isDeleted: true)
-        let scan2 = MerianSchemaV3.OfflineQueuedScan(id: "2", isDeleted: false)
+        let scan1 = MerianSchemaV4.OfflineQueuedScan(id: "1", isDeleted: true)
+        let scan2 = MerianSchemaV4.OfflineQueuedScan(id: "2", isDeleted: false)
         
         context.insert(scan1)
         context.insert(scan2)
         try context.save()
         
         // Verify initial state
-        let allScansDescriptor = FetchDescriptor<MerianSchemaV3.OfflineQueuedScan>()
+        let allScansDescriptor = FetchDescriptor<MerianSchemaV4.OfflineQueuedScan>()
         let initialScans = try context.fetch(allScansDescriptor)
         #expect(initialScans.count == 2)
         

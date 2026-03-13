@@ -322,6 +322,7 @@ Crucial instructions:
         );
         console.log("[5.1] Enriching data for:", parsedData.scientific_name);
         let wikiUrl: string | null = null;
+        let wikiExtract: string | null = null;
         let gbifKey: number | null = null;
         let combinedImageUrls: string | null = null;
 
@@ -371,11 +372,12 @@ Crucial instructions:
               if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
               const wikiJson = await wikiRes.json();
               const url = wikiJson.content_urls?.desktop?.page || null;
+              const extract = wikiJson.extract || null;
               const img =
                 wikiJson.originalimage?.source ||
                 wikiJson.thumbnail?.source ||
                 null;
-              return { url, img };
+              return { url, extract, img };
             })(),
           ]);
 
@@ -385,6 +387,7 @@ Crucial instructions:
           }
           if (wikiOutcome.status === "fulfilled") {
             wikiUrl = wikiOutcome.value.url;
+            wikiExtract = wikiOutcome.value.extract;
             if (wikiOutcome.value.img) {
               fetchedUrls.unshift(wikiOutcome.value.img);
             }
@@ -410,7 +413,10 @@ Crucial instructions:
               order: parsedData.taxonomy.order,
               family: parsedData.taxonomy.family,
               genus: parsedData.taxonomy.genus,
-              descriptions: { insight: parsedData.insight_data.description },
+              descriptions: {
+                  insight: parsedData.insight_data.description,
+                  wikipedia: wikiExtract
+              },
               is_poisonous: parsedData.insight_data.is_poisonous,
               wikipedia_url: wikiUrl,
               gbif_taxon_key: gbifKey,
@@ -419,7 +425,7 @@ Crucial instructions:
             },
             { onConflict: "scientific_name", ignoreDuplicates: true },
           )
-          .select("id, wikipedia_url, reference_image_url")
+          .select("id, wikipedia_url, reference_image_url, descriptions")
           .single();
 
         if (upsertError) {
@@ -429,6 +435,7 @@ Crucial instructions:
         if (unifiedSpecies) {
           speciesId = unifiedSpecies.id;
           parsedData.wikipedia_url = unifiedSpecies.wikipedia_url;
+          parsedData.wikipedia_extract = unifiedSpecies.descriptions?.wikipedia || wikiExtract;
           parsedData.reference_image_url = unifiedSpecies.reference_image_url;
         }
       }
