@@ -111,6 +111,25 @@ serve(async (req: Request) => {
     const arrayBuffer = await r2Response.arrayBuffer();
     const base64Image = encodeBase64(new Uint8Array(arrayBuffer));
 
+    let userTier = "free";
+    const { data: existingUser } = await supabaseAdmin
+      .from("users")
+      .select("subscription_tier")
+      .eq("id", user.id)
+      .single();
+
+    if (existingUser) {
+      userTier = existingUser.subscription_tier;
+    } else {
+      // Ensure the Ghost User exists before proceeding
+      await supabaseAdmin
+        .from("users")
+        .upsert(
+          { id: user.id, subscription_tier: "free" },
+          { onConflict: "id", ignoreDuplicates: true }
+        );
+    }
+
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
@@ -124,8 +143,11 @@ Crucial instructions:
 4. You must write all 'insight_data' fields and the 'common_name' strictly in the target Locale provided in the context.
 5. You must format the 'common_name' so that each word is capitalized in standard title case (e.g. "Bearded Iris" instead of "bearded iris").`;
 
+    const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
+    console.log(`[2] Routing user ${user.id} (${userTier}) to ${targetModel}`);
+
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: targetModel,
       systemInstruction: systemInstruction,
       generationConfig: {
         temperature: 0.1 // Strict logical routing, preventing biological hallucination
@@ -244,19 +266,12 @@ Crucial instructions:
 
     // supabaseAdmin already instantiated above
 
-    // Ensure the Ghost User exists before potentially issuing an abuse strike in moderation
-    await supabaseAdmin
-      .from("users")
-      .upsert(
-        { id: user.id, subscription_tier: "free" },
-        { onConflict: "id", ignoreDuplicates: true },
-      );
-
     const modResult = await evaluateAndProcessPayload(
       user.id,
       r2ObjectKey,
       finishReason,
       safetyRatings,
+      userTier,
     );
     if (
       modResult.status === "SHADOWBANNED" ||

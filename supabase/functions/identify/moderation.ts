@@ -7,6 +7,7 @@ export async function evaluateAndProcessPayload(
   geminiFinishReason: string | undefined,
   // deno-lint-ignore no-explicit-any
   safetyRatings: any[] | undefined,
+  userTier: string,
 ): Promise<{ status: string; publicUrl?: string }> {
   try {
     // 1. Evaluate Gemini Safety Ratings and Finish Reason
@@ -41,13 +42,7 @@ export async function evaluateAndProcessPayload(
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { data: userTierData } = await supabase
-      .from("users")
-      .select("subscription_tier")
-      .eq("id", userId)
-      .single();
-
-    const tier = userTierData?.subscription_tier === "pro" ? "pro" : "free";
+    const tier = userTier === "pro" ? "pro" : "free";
 
     const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
     const fileName = r2ObjectKey.split("/").pop();
