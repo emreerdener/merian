@@ -418,11 +418,30 @@ Crucial instructions:
           console.error("Upsert failed: ", upsertError);
         }
 
-        if (unifiedSpecies) {
-          speciesId = unifiedSpecies.id;
-          parsedData.wikipedia_url = unifiedSpecies.wikipedia_url;
-          parsedData.wikipedia_extract = unifiedSpecies.descriptions?.wikipedia || wikiExtract;
-          parsedData.reference_image_url = unifiedSpecies.reference_image_url;
+        let resolvedSpecies = unifiedSpecies;
+
+        // If 'ignoreDuplicates' kicks in during concurrent scans, Postgres returns NULL data.
+        // We gracefully catch this here and execute a native read explicitly fetching the physical dictionary UUID.
+        if (!resolvedSpecies && !upsertError) {
+          console.log("[5.2] Duplicate Ignored. Fetching existing species natively...");
+          const { data: existingSpecies, error: selectError } = await supabaseAdmin
+            .from("species_dictionary")
+            .select("id, wikipedia_url, reference_image_url, descriptions")
+            .eq("scientific_name", parsedData.scientific_name)
+            .single();
+
+          if (selectError) {
+             console.error("Failed to fetch existing species cleanly: ", selectError);
+          } else {
+             resolvedSpecies = existingSpecies;
+          }
+        }
+
+        if (resolvedSpecies) {
+          speciesId = resolvedSpecies.id;
+          parsedData.wikipedia_url = resolvedSpecies.wikipedia_url;
+          parsedData.wikipedia_extract = resolvedSpecies.descriptions?.wikipedia || wikiExtract;
+          parsedData.reference_image_url = resolvedSpecies.reference_image_url;
         }
       }
 
