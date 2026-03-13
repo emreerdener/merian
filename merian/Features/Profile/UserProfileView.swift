@@ -1,7 +1,13 @@
 import SwiftUI
+import SwiftData
 
 struct UserProfileView: View {
     @Environment(\.dismiss) private var dismiss
+    @Query private var allRecords: [LocalScanRecord]
+    
+    private var uniqueSpeciesCount: Int {
+        Set(allRecords.map { $0.scientificName }).count
+    }
     
     var body: some View {
         NavigationStack {
@@ -95,7 +101,7 @@ struct UserProfileView: View {
                             .padding(.horizontal, 24)
                         
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                            StatCardView(title: "Species", value: "4", icon: "leaf.fill", color: .green)
+                            StatCardView(title: "Species", value: "\(uniqueSpeciesCount)", icon: "leaf.fill", color: .green)
                             StatCardView(title: "Current Streak", value: "3 Days", icon: "flame.fill", color: .orange)
                             StatCardView(title: "Rare Finds", value: "1", icon: "sparkles", color: .purple)
                             StatCardView(title: "Persona", value: "Novice Botanist", icon: "tree.fill", color: .teal)
