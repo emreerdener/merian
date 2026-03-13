@@ -101,8 +101,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     
     private func requestSingleLocation() async -> CLLocation? {
         if let active = activeContinuationWrapper {
-            active.resume(returning: nil)
             activeContinuationWrapper = nil
+            active.resume(returning: nil)
         }
         
         return await withCheckedContinuation { continuation in
@@ -114,8 +114,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if let active = self.activeContinuationWrapper {
                     print("⚠️ GPS Hardware lock timed out. Proceeding dynamically with cached/nil context.")
-                    active.resume(returning: self.cachedLocation)
                     self.activeContinuationWrapper = nil
+                    active.resume(returning: self.cachedLocation)
                 }
             }
         }
@@ -131,8 +131,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         guard let location = locations.last else { return }
         Task { @MainActor in
             if let continuation = self.activeContinuationWrapper {
-                continuation.resume(returning: location)
                 self.activeContinuationWrapper = nil
+                continuation.resume(returning: location)
             } else {
                  self.cachedLocation = location
             }
@@ -143,8 +143,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         Task { @MainActor in
             print("Deferred Context Fetch completely failed hardware lock: \(error.localizedDescription)")
             if let continuation = self.activeContinuationWrapper {
-                continuation.resume(returning: nil)
                 self.activeContinuationWrapper = nil
+                continuation.resume(returning: nil)
             }
         }
     }

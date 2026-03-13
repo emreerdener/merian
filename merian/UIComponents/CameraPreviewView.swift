@@ -19,6 +19,7 @@ struct CameraPreviewView: UIViewRepresentable {
     
     func updateUIView(_ uiView: VideoPreviewView, context: Context) {
         uiView.videoPreviewLayer.session = session
+        context.coordinator.parent = self
     }
     
     func makeCoordinator() -> Coordinator {

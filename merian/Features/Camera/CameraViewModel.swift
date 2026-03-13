@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import SwiftData
 import Photos
+import Combine
 
 @MainActor
 final class CameraViewModel: ObservableObject {
@@ -16,25 +17,18 @@ final class CameraViewModel: ObservableObject {
     @Published var selectedPhotoItem: PhotosPickerItem? = nil
     @Published var flashOpacity: Double = 0.0
     
+    private var cancellables = Set<AnyCancellable>()
+    
     init() {
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("AppDidEnterInactivePhase"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.resetModalsForBackground()
-        }
+        NotificationCenter.default.publisher(for: NSNotification.Name("AppDidEnterInactivePhase"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.resetModalsForBackground()
+            }
+            .store(in: &cancellables)
     }
     
     private func resetModalsForBackground() {
-        // Drop any presented sheets or camera modals immediately
-        // so that returning to the app defaults specifically onto the Camera hardware.
-        isInsightSheetOpen = false
-        isPaywallOpen = false
-        isLifeListOpen = false
-        isUserProfileOpen = false
-        imageToCrop = nil
-        
         // Let the InferenceEngine know it must stop updating the active scanning loop on our view.
         if isAnalyzingFullscreen {
             isAnalyzingFullscreen = false
@@ -76,7 +70,7 @@ final class CameraViewModel: ObservableObject {
             if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
                 if let rawImage = UIImage(data: data) {
                     await MainActor.run {
-                        self.imageToCrop = IdentifiableImage(image: rawImage, environmentContext: historicalContext)
+                        self.imageToCrop = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)
                         self.selectedPhotoItem = nil
                     }
                 }
@@ -91,6 +85,7 @@ final class CameraViewModel: ObservableObject {
     
     func handleCropCompletion(croppedData: Data, modelContext: ModelContext) {
         let historicalContext = imageToCrop?.environmentContext
+        let isFromGallery = imageToCrop?.isFromGallery == true
         imageToCrop = nil
         
         Task { [weak self] in
@@ -108,6 +103,9 @@ final class CameraViewModel: ObservableObject {
             let context: EnvironmentContext
             if let historical = historicalContext {
                 context = historical
+            } else if isFromGallery {
+                // Prevent current GPS from overwriting a gallery photo lacking EXIF data
+                context = EnvironmentContext(location: nil, weatherCondition: nil, weatherTemperature: nil)
             } else {
                 context = await self.diContainer.environmentContextManager.fetchDeferredContext()
             }

@@ -4,6 +4,7 @@ struct IdentifiableImage: Identifiable {
     let id = UUID()
     let image: UIImage
     var environmentContext: EnvironmentContext? = nil
+    var isFromGallery: Bool = false
 }
 
 struct ImageCropperView: View {

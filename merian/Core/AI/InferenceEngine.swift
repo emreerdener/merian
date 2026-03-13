@@ -347,19 +347,5 @@ final class InferenceEngine: ObservableObject {
         self.isProcessing = false
     }
     
-    nonisolated private func downsampleLocalPayload(data: Data, maxDimension: CGFloat = 768.0) -> Data? {
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxDimension
-        ]
-        
-        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-            return nil
-        }
-        
-        let thumbnail = UIImage(cgImage: cgImage)
-        return thumbnail.jpegData(compressionQuality: 0.7)
-    }
+
 }

@@ -29,6 +29,16 @@
       "Expiration": {
         "Days": 90
       }
+    },
+    {
+      "ID": "Purge staging objects after 1 day",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "staging/"
+      },
+      "Expiration": {
+        "Days": 1
+      }
     }
   ]
 }

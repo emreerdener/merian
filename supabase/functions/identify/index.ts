@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { encodeBase64 } from "jsr:@std/encoding/base64";
 
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.17";
 import {
@@ -107,16 +108,8 @@ serve(async (req: Request) => {
       );
     }
 
-    // Natively Stream Bytes directly into Memory bypassing File API entirely
     const arrayBuffer = await r2Response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    
-    // Fast native Base64 encoding cleanly supported within Deno Edge Runtimes
-    let binaryString = "";
-    for (let i = 0; i < uint8Array.length; i++) {
-        binaryString += String.fromCharCode(uint8Array[i]);
-    }
-    const base64Image = btoa(binaryString);
+    const base64Image = encodeBase64(new Uint8Array(arrayBuffer));
 
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
 

@@ -398,7 +398,7 @@ actor BackgroundDatabaseActor {
                     let destinationURL = URL.documentsDirectory.appendingPathComponent(newFilename)
                     
                     do {
-                        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                        try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
                         newlyCopiedPaths.append(newFilename)
                     } catch {
                         print("Failed to physically bridge offline queue image to persistent Life List: \(error)")
@@ -475,11 +475,6 @@ actor BackgroundDatabaseActor {
             let matches = try modelContext.fetch(descriptor)
             
             for scan in matches {
-                let documentsDirectory = URL.documentsDirectory
-                for path in scan.localImagePaths {
-                    let fileURL = documentsDirectory.appendingPathComponent(path)
-                    try? FileManager.default.removeItem(at: fileURL)
-                }
                 modelContext.delete(scan)
             }
             try modelContext.save()
