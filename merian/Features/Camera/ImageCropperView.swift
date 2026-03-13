@@ -190,7 +190,7 @@ struct ImageCropperView: View {
                     let croppedUIImage = UIImage(cgImage: croppedCG, scale: targetImage.scale, orientation: targetImage.imageOrientation)
                     
                     // Render cleanly out exactly to Gemini limits off the UI thread
-                    let renderSize = CGSize(width: 1024, height: 1024)
+                    let renderSize = CGSize(width: 768, height: 768)
                     let format = UIGraphicsImageRendererFormat()
                     format.scale = 1.0
                     let renderer = UIGraphicsImageRenderer(size: renderSize, format: format)
