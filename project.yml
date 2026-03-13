@@ -8,22 +8,22 @@ options:
 packages:
   RevenueCat:
     url: https://github.com/RevenueCat/purchases-ios.git
-    from: 4.41.0
+    from: 5.64.0
   PostHog:
     url: https://github.com/PostHog/posthog-ios.git
-    from: 3.1.2
+    from: 3.47.0
   Supabase:
     url: https://github.com/supabase-community/supabase-swift.git
-    from: 2.3.0
+    from: 2.41.1
   TelemetryDeck:
     url: https://github.com/TelemetryDeck/SwiftClient.git
-    from: 1.5.0
+    from: 1.5.1
   RiveRuntime:
     url: https://github.com/rive-app/rive-ios.git
-    from: 5.8.0
+    from: 6.16.0
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS.git
-    from: 7.1.0
+    from: 9.1.0
 
 targets:
   Merian:

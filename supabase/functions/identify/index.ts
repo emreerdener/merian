@@ -1,12 +1,12 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
 
-import { AwsClient } from "https://esm.sh/aws4fetch@1.0.17";
+import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
 import {
   GoogleGenerativeAI,
   SchemaType,
 } from "https://esm.sh/@google/generative-ai@0.24.1";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 
 const corsHeaders = {
