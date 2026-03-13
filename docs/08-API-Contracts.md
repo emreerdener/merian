@@ -8,14 +8,16 @@ To fetch cryptographic keys for direct-to-Cloudflare uploads safely bridging DDO
 
 ### Request Payload
 
+### Request Payload
+
 ```json
 {
-  "user_id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+  "user_id": "Legacy device UUID strictly included for backward compatibility in Swift maps",
   "fileNames": ["photo_1.jpg", "photo_2.jpg"]
 }
 ```
 
-Yields securely locked Cloudflare R2 bounds explicitly tied to the original `user_id` preventing path traversal. These pre-signed `PUT` URLs dynamically generate an explicit `X-Amz-Expires=86400` query parameter (24 Hours). This extensive validation window explicitly decouples strict network connections, granting native Apple iOS `BackgroundTasks` total flexibility to execute data bursts overnight purely dictated by internal OS memory profiles, thermal bounds, and active Wi-Fi availability without inducing 403 Forbidden AWS errors.
+The server automatically extracts the genuine user identity cryptographically mapped off the `Authorization` Header JWT (`supabaseAdmin.auth.getUser()`) overriding any untrusted parameters structurally. Yields securely locked Cloudflare R2 bounds natively tied to the genuine user preventing path traversal vulnerabilities completely. These pre-signed `PUT` URLs dynamically generate an explicit `X-Amz-Expires=86400` query parameter (24 Hours). This extensive validation window explicitly decouples strict network connections, granting native Apple iOS `BackgroundTasks` total flexibility to execute data bursts overnight purely dictated by internal OS memory profiles, thermal bounds, and active Wi-Fi availability without inducing 403 Forbidden AWS errors.
 
 ```json
 {
@@ -39,8 +41,8 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
 
 ```json
 {
-  "r2ObjectKey": "staging/uuid_filename.jpg",
-  "user_id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+  "r2ObjectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename.jpg",
+  "user_id": "Legacy Client String (Overridden securely by GoTrue Token)",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
   "gpsElevation": 42.5,
@@ -55,6 +57,8 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
 ### The JSON Response Schema (From Gemini Back to Swift)
 
 The `merianResponseSchema` within Deno forces Gemini structurally into this exact format. If an AI Agent mutates any key here, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to prevent silent Swift failures during decoding.
+
+**Critical Formatting Rule**: The Edge Function explicitly constraints Gemini to output the `common_name` tightly formatted in standard Title Case capitalization (e.g. "Monarch Butterfly"). However, for robust safety, the Swift decoding layer aggressively applies `.capitalized` properties downstream on rendering to guarantee older SQLite cache results physically display uniformly without requiring DB migrations natively.
 
 **Critical Edge Limitation (Gemini 2.5 Flash Lite):** The model natively errors with `400 Bad Request` if developers strictly supply descriptive strings for enum checks. The `ecology_type` must be explicitly formatted as a structural JSON `enum: ["wild", "urban", "domesticated", "unknown"]` constraint within Deno to map cleanly.
 
@@ -109,7 +113,7 @@ struct IdentifyResponse: Codable {
 }
 ```
 
-**Client Authentication Caveat**: `MerianNetworkClient` explicitly enforces device-level hardware tokens natively. The `user_id` mapped inside the request body payload is extracted natively from `DeviceIdentityManager.shared.deviceId` (Apple IDFV) ensuring persistent identity mapping across sessions cleanly bypassing brittle Supabase authenticated cookie states.
+**Client Authentication Caveat**: `MerianNetworkClient` explicitly abstracts GoTrue anonymous hardware tokens structurally. The backend **strictly extracts cryptographic JWT Identity** from the Supabase `Authorization: Bearer` Header utilizing `supabaseAdmin.auth.getUser()`, entirely disregarding untrusted `user_id` values passed into request body payloads. The payloads generated natively from Swift use `DeviceIdentityManager.shared.deviceId` strictly as a proxy binding string to sync RevenueCat identifiers but true API validation bridges dynamically exclusively over GoTrue JWT verification securely preventing API spoofing and session ghosting.
 
 ---
 

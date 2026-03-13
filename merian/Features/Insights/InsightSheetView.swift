@@ -24,7 +24,7 @@ struct InsightSheetView: View {
     }
     
     private var commonName: String {
-        inferenceEngine.speciesData?.commonName ?? "Scanning Subject..."
+        inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning Subject..."
     }
     
     private var scientificName: String {

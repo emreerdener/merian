@@ -132,7 +132,7 @@ struct InsightTaxonomyHeader: View {
     @EnvironmentObject var inferenceEngine: InferenceEngine
     
     private var commonName: String {
-        inferenceEngine.speciesData?.commonName ?? "Scanning Subject..."
+        inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning Subject..."
     }
     private var scientificName: String {
         inferenceEngine.speciesData?.scientificName ?? "Awaiting Taxonomy"

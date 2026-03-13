@@ -15,6 +15,7 @@ Welcome to the Merian ecosystem documentation. This directory serves as the tech
 - **[`07-Database-Schema.md`](./07-Database-Schema.md)** - The physical table maps for PostgreSQL and the SwiftData persistent schemas.
 - **[`08-API-Contracts.md`](./08-API-Contracts.md)** - Raw JSON mapping contracts bridging the iOS client and Edge Deno engines.
 - **[`09-AI-Agent-Guidelines.md`](./09-AI-Agent-Guidelines.md)** - Master rules, architecture constraints, and explicit prompt boundaries for AI dev agents.
+- **[`10-Testing-Strategy.md`](./10-Testing-Strategy.md)** - Swift testing isolation via in-memory SwiftData constraints and local context mocks offline.
 
 ### Concept Spotlights
 

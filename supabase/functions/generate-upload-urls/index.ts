@@ -39,11 +39,12 @@ serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { fileNames, user_id } = body;
+    const { fileNames } = body;
+    const userId = user.id;
 
-    if (!user_id) {
+    if (!userId) {
        return new Response(
-           JSON.stringify({ error: "Missing user_id parameter in body" }), 
+           JSON.stringify({ error: "Missing identity token" }), 
            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
        );
     }
@@ -74,7 +75,7 @@ serve(async (req: Request) => {
 
     for (const fileName of fileNames) {
       const imageId = crypto.randomUUID();
-      const key = `staging/${user_id}/${imageId}.jpg`;
+      const key = `staging/${userId}/${imageId}.jpg`;
       const urlString = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
 
       const putUrl = new URL(urlString);

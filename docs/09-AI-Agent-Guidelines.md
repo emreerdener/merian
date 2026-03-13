@@ -42,6 +42,7 @@ The workspace enforces this layout inside `merian/`:
 - The `identify` Edge node abstracts all `generativelanguage` (Google) calls natively.
 - Never write direct Gemini inference code directly inside iOS Swift controllers, this leaks API keys and bypasses edge limits.
 - Keep the Deno Edge `index.ts` files perfectly synchronized with the Swift `IdentifyResponse` API Contract mapped in `08-API-Contracts.md`.
+- Ensure all unstructured display text (e.g. `common_name`) is locked via `systemInstruction` rigid rules to format cleanly as Title Case natively to prevent messy frontend lowercase UI outputs before it ever caches physically into the database.
 
 ## 7. Database Safeties
 - Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) act as the universal User Primary Key (`id` = IDFV). Do not blindly use Supabase `.uuidStr` ghost sessions for analytics, keep them cleanly chained.

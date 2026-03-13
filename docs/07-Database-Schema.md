@@ -8,7 +8,7 @@ This document directly maps the expected shape of our persistence layers. AI Age
 
 Tracks the global state of the anonymous/authenticated user.
 
-- `id` (UUID): Maps natively to PostHog/RevenueCat IDs. Explicitly decoupled from `auth.users` Foreign Keys to prevent Edge Upsert deadlocks.
+- `id` (UUID): Maps natively to the `auth.users` GoTrue unique identifiers, automatically generated via standard Supabase Ghost Sessions overriding generic IDFV fallback flows. Seamlessly mapped into PostHog/RevenueCat telemetry logic to ensure cohesive ecosystem-wide session persistence natively.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `scans_remaining_today` (Int): Decoupled fallback. Managed physically via iOS `UsageManager` natively.
 - `current_streak_count` (Int): Gamification metric.

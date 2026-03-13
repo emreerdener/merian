@@ -31,18 +31,30 @@ serve(async (req: Request) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Missing Authorization header" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        },
       );
     }
 
     // Explicitly strip the 'Bearer ' prefix to prevent "Bearer Bearer <token>" extraction bugs
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     // Validate the ES256 token directly against GoTrue natively bypassing the Edge Runtime
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) {
       console.error("Manual Auth Rejection:", authError);
-      return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired Session" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const body = await req.json();
@@ -64,10 +76,13 @@ serve(async (req: Request) => {
     }
 
     if (!user_id) {
-       return new Response(
-           JSON.stringify({ error: "Missing user_id parameter in body" }), 
-           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-       );
+      return new Response(
+        JSON.stringify({ error: "Missing user_id parameter in body" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
@@ -125,7 +140,8 @@ Crucial instructions:
 1. Always check for liveness. If the subject is on a screen, in a book, or otherwise artificial, it is not a live capture.
 2. Evaluate the 'is_invasive' flag strictly based on the provided GPS coordinates and ecological literature.
 3. If your confidence_score is below 0.85 (85%), you MUST fill out the 'diagnostic_comparison' object.
-4. You must write all 'insight_data' fields and the 'common_name' strictly in the target Locale provided in the context.`;
+4. You must write all 'insight_data' fields and the 'common_name' strictly in the target Locale provided in the context.
+5. You must format the 'common_name' so that each word is capitalized in standard title case (e.g. "Bearded Iris" instead of "bearded iris").`;
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash-lite",
@@ -256,12 +272,12 @@ Crucial instructions:
     await supabaseAdmin
       .from("users")
       .upsert(
-        { id: user_id, subscription_tier: "free" },
+        { id: user.id, subscription_tier: "free" },
         { onConflict: "id", ignoreDuplicates: true },
       );
 
     const modResult = await evaluateAndProcessPayload(
-      user_id,
+      user.id,
       r2ObjectKey,
       finishReason,
       safetyRatings,
@@ -285,7 +301,7 @@ Crucial instructions:
     // Parse Gemini response to persist securely into the physical DB
     const parsedData = JSON.parse(cleanJsonString);
 
-    const userId = user_id;
+    const userId = user.id;
     if (userId) {
       let speciesId = null;
 
@@ -414,29 +430,33 @@ Crucial instructions:
 
       console.log("[6] Inserting Scan");
       // Finally natively bind the architectural map directly down to the Ghost User UUID
-      const { data: scanData, error: scanInsertError } = await supabaseAdmin.from("scans").insert({
-        user_id: userId,
-        species_id: speciesId,
-        gps_lat_exact: gpsLatitude,
-        gps_long_exact: gpsLongitude,
-        gps_elevation: gpsElevation,
-        ai_confidence_score: parsedData.confidence_score,
-        ecology_type: parsedData.ecology_type,
-        is_invasive: parsedData.is_invasive,
-        regional_status_rationale:
-          parsedData.insight_data.regional_status_rationale,
-        is_live_capture: parsedData.is_live_capture,
-        weather_condition: weatherCondition,
-        weather_temperature_f: weatherTemperatureF,
-        image_storage_urls: modResult.publicUrl ? [modResult.publicUrl] : [],
-      }).select("id").single();
-      
+      const { data: scanData, error: scanInsertError } = await supabaseAdmin
+        .from("scans")
+        .insert({
+          user_id: userId,
+          species_id: speciesId,
+          gps_lat_exact: gpsLatitude,
+          gps_long_exact: gpsLongitude,
+          gps_elevation: gpsElevation,
+          ai_confidence_score: parsedData.confidence_score,
+          ecology_type: parsedData.ecology_type,
+          is_invasive: parsedData.is_invasive,
+          regional_status_rationale:
+            parsedData.insight_data.regional_status_rationale,
+          is_live_capture: parsedData.is_live_capture,
+          weather_condition: weatherCondition,
+          weather_temperature_f: weatherTemperatureF,
+          image_storage_urls: modResult.publicUrl ? [modResult.publicUrl] : [],
+        })
+        .select("id")
+        .single();
+
       if (scanInsertError) {
-          console.error("Failed to insert scan:", scanInsertError);
+        console.error("Failed to insert scan:", scanInsertError);
       }
-      
+
       if (scanData) {
-          parsedData.scan_id = scanData.id;
+        parsedData.scan_id = scanData.id;
       }
     } else {
       throw new Error(
