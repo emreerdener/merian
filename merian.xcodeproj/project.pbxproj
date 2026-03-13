@@ -11,6 +11,7 @@
 		153C2C3CD5D14CAF114DE7BF /* InsightSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AACE13704334DE8F9427412 /* InsightSheetView.swift */; };
 		16A4A1616BDF122FB688FEB9 /* GamificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82DB8871186D3CC7B514A795 /* GamificationManagerTests.swift */; };
 		179FB07166D261C260BC36F2 /* InsightMainComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 980A28F9BCD4FB5BE921FC36 /* InsightMainComponents.swift */; };
+		182CB4369B6047AF2015A0F0 /* OfflineQueueManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D1954EC06DE235C9BDF39AA /* OfflineQueueManagerTests.swift */; };
 		1AF43A34D958F0AD5B596EC8 /* InferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1044C34325AE2EFB4EC21358 /* InferenceEngine.swift */; };
 		1C5709A83A147B30524F24AE /* FlagIssueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4314F53DEDFEA506237AA41B /* FlagIssueView.swift */; };
 		1FA6191F65E8440EB467E825 /* MerianEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A49C9ED18B1015B36EB9C2F /* MerianEnvironment.swift */; };
@@ -53,6 +54,7 @@
 		A00270831093276EA08B0747 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0AE39969F0604490ECB159 /* HapticManager.swift */; };
 		A0B8B0996BA36D9EB98E38DE /* PhotoLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B0365792BC618A4C26EC9B /* PhotoLibraryManager.swift */; };
 		A14AC8A8A3FB144C37B28259 /* CameraViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E36D699AA84FE7B1A328C2 /* CameraViewModel.swift */; };
+		A37DDDA420440FAB625AA908 /* InferenceEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5844E997841B8520FA8013DD /* InferenceEngineTests.swift */; };
 		A5781EA76CB470B8ED7D5A68 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 02945D0A38D824A984B84430 /* GoogleSignIn */; };
 		B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */; };
 		B6500747C7FB0F4C686C7B5F /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E516841C0206ED7F97CB1EA0 /* ScanRepository.swift */; };
@@ -136,13 +138,15 @@
 		4E53EEAA4B495EBA59F7F561 /* SocialGuardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialGuardManager.swift; sourceTree = "<group>"; };
 		56646D3809FACA0E32E3BE2D /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		579A83D78DD01FBCE04DB724 /* LifeListSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeListSearchManager.swift; sourceTree = "<group>"; };
-		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5844E997841B8520FA8013DD /* InferenceEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEngineTests.swift; sourceTree = "<group>"; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5BA68CD91E356116156D2061 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5C776ECF75438F0BFF28C60D /* SpeciesData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesData.swift; sourceTree = "<group>"; };
 		5D57A8D01CDAF8E994655620 /* MerianApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianApp.swift; sourceTree = "<group>"; };
 		6AACE13704334DE8F9427412 /* InsightSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetView.swift; sourceTree = "<group>"; };
 		6ABCAC703C268BC9E527281D /* TerrariumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerrariumView.swift; sourceTree = "<group>"; };
 		6B82BC3E7C3818F306100CE3 /* merianUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = merianUITests.swift; sourceTree = "<group>"; };
+		6D1954EC06DE235C9BDF39AA /* OfflineQueueManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManagerTests.swift; sourceTree = "<group>"; };
 		7A49C9ED18B1015B36EB9C2F /* MerianEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianEnvironment.swift; sourceTree = "<group>"; };
 		7B43669DE64C6C9CE86BA20D /* CircuitBreakerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircuitBreakerManager.swift; sourceTree = "<group>"; };
 		80F281073FFACBE7A882E81D /* InsightComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightComponents.swift; sourceTree = "<group>"; };
@@ -201,7 +205,9 @@
 			isa = PBXGroup;
 			children = (
 				82DB8871186D3CC7B514A795 /* GamificationManagerTests.swift */,
+				5844E997841B8520FA8013DD /* InferenceEngineTests.swift */,
 				A33781A4087102CB18738303 /* merianTests.swift */,
+				6D1954EC06DE235C9BDF39AA /* OfflineQueueManagerTests.swift */,
 				03CB2586DC088984CB39C760 /* SpeciesDataTests.swift */,
 			);
 			path = merianTests;
@@ -557,6 +563,12 @@
 					0B94C342D2F7F49D11202598 = {
 						TestTargetID = D06FD3E9CDCF533A0C2D2843;
 					};
+					D06FD3E9CDCF533A0C2D2843 = {
+						DevelopmentTeam = LDL96V2WT5;
+					};
+					E59BC2C6A28D64E9B810676B = {
+						DevelopmentTeam = LDL96V2WT5;
+					};
 				};
 			};
 			buildConfigurationList = 972FBC3FD9777422C0AAC783 /* Build configuration list for PBXProject "Merian" */;
@@ -615,6 +627,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				16A4A1616BDF122FB688FEB9 /* GamificationManagerTests.swift in Sources */,
+				A37DDDA420440FAB625AA908 /* InferenceEngineTests.swift in Sources */,
+				182CB4369B6047AF2015A0F0 /* OfflineQueueManagerTests.swift in Sources */,
 				F427A4505F7A487DB34BB3D2 /* SpeciesDataTests.swift in Sources */,
 				50C0EB20117C47318FB5CA76 /* merianTests.swift in Sources */,
 			);
@@ -718,7 +732,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -740,7 +754,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -875,7 +889,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -971,7 +985,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

@@ -56,6 +56,12 @@ final class AppDIContainer: ObservableObject {
     /// Handles application transition to inactive (like app switcher)
     func handleInactivePhase() {
         cameraManager.stopSession()
+        
+        // Ensure the UI gracefully defaults back to the ready-to-scan state
+        // if the user drops out of the app while viewing a sheet natively.
+        // It's imperative that this is dispatched globally because we do not want
+        // to directly couple `AppDIContainer` tightly to `CameraViewModel`.
+        NotificationCenter.default.post(name: NSNotification.Name("AppDidEnterInactivePhase"), object: nil)
     }
     
     /// Handles application transition to active foreground

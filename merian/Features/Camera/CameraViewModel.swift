@@ -15,6 +15,34 @@ final class CameraViewModel: ObservableObject {
     @Published var selectedPhotoItem: PhotosPickerItem? = nil
     @Published var flashOpacity: Double = 0.0
     
+    init() {
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("AppDidEnterInactivePhase"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.resetModalsForBackground()
+        }
+    }
+    
+    private func resetModalsForBackground() {
+        // Drop any presented sheets or camera modals immediately
+        // so that returning to the app defaults specifically onto the Camera hardware.
+        isInsightSheetOpen = false
+        isPaywallOpen = false
+        isLifeListOpen = false
+        isUserProfileOpen = false
+        imageToCrop = nil
+        
+        // Let the InferenceEngine know it must stop updating the active scanning loop on our view.
+        if isAnalyzingFullscreen {
+            isAnalyzingFullscreen = false
+            scanningPhaseText = "Analyzing subject..."
+            analysisImage = nil
+            AppDIContainer.shared.inferenceEngine.cancelActiveRequest()
+        }
+    }
+    
     // Analysis State
     @Published var isAnalyzingFullscreen: Bool = false
     @Published var scanningPhaseText: String = "Analyzing subject..."

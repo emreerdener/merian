@@ -83,6 +83,7 @@ struct InsightSheetView: View {
             }
             .padding(.top, 24)
         }
+        .textSelection(.enabled)
         .sheet(isPresented: $isSafariPresented) {
             if let safeUrl = selectedWikiURL {
                 SafariView(url: safeUrl)
