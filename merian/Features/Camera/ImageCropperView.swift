@@ -3,6 +3,7 @@ import SwiftUI
 struct IdentifiableImage: Identifiable {
     let id = UUID()
     let image: UIImage
+    var environmentContext: EnvironmentContext? = nil
 }
 
 struct ImageCropperView: View {

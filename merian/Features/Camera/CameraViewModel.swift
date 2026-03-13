@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import SwiftData
+import Photos
 
 @MainActor
 final class CameraViewModel: ObservableObject {
@@ -62,10 +63,20 @@ final class CameraViewModel: ObservableObject {
                   let newItem = newItem,
                   let data = try? await newItem.loadTransferable(type: Data.self) else { return }
             
+            // Attempt to retrieve native PHAsset context to map historical GPS / Weather
+            var historicalContext: EnvironmentContext? = nil
+            if let localId = newItem.itemIdentifier {
+                let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
+                if let asset = fetchResult.firstObject, let location = asset.location, let creationDate = asset.creationDate {
+                    print("📸 Embedded Historical Data Hit: \(location.coordinate), Date: \(creationDate)")
+                    historicalContext = await self.diContainer.environmentContextManager.fetchHistoricalContext(location: location, date: creationDate)
+                }
+            }
+            
             if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
                 if let rawImage = UIImage(data: data) {
                     await MainActor.run {
-                        self.imageToCrop = IdentifiableImage(image: rawImage)
+                        self.imageToCrop = IdentifiableImage(image: rawImage, environmentContext: historicalContext)
                         self.selectedPhotoItem = nil
                     }
                 }
@@ -79,6 +90,7 @@ final class CameraViewModel: ObservableObject {
     }
     
     func handleCropCompletion(croppedData: Data, modelContext: ModelContext) {
+        let historicalContext = imageToCrop?.environmentContext
         imageToCrop = nil
         
         Task { [weak self] in
@@ -93,7 +105,12 @@ final class CameraViewModel: ObservableObject {
                 self.isAnalyzingFullscreen = true
             }
             
-            let context = await self.diContainer.environmentContextManager.fetchDeferredContext()
+            let context: EnvironmentContext
+            if let historical = historicalContext {
+                context = historical
+            } else {
+                context = await self.diContainer.environmentContextManager.fetchDeferredContext()
+            }
             
             await MainActor.run {
                 self.scanningPhaseText = "Analyzing subject..."

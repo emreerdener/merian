@@ -78,6 +78,27 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         }
     }
     
+    /// Executes a clean historical environment fetch for library imports explicitly pinned to the creation date.
+    func fetchHistoricalContext(location: CLLocation, date: Date) async -> EnvironmentContext {
+        do {
+            // WeatherKit supports historical dates implicitly via standard queries by passing temporal ranges
+            let weatherData = try await weatherService.weather(for: location, including: .hourly(startDate: date, endDate: date.addingTimeInterval(3600)))
+            
+            if let targetHour = weatherData.first {
+                return EnvironmentContext(
+                    location: location,
+                    weatherCondition: targetHour.condition.description,
+                    weatherTemperature: targetHour.temperature.converted(to: .fahrenheit).value
+                )
+            } else {
+                return EnvironmentContext(location: location, weatherCondition: nil, weatherTemperature: nil)
+            }
+        } catch {
+            print("WeatherKit historical context dropped: \(error.localizedDescription)")
+            return EnvironmentContext(location: location, weatherCondition: nil, weatherTemperature: nil)
+        }
+    }
+    
     private func requestSingleLocation() async -> CLLocation? {
         if let active = activeContinuationWrapper {
             active.resume(returning: nil)
