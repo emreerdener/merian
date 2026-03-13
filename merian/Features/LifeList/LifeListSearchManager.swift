@@ -326,7 +326,11 @@ struct LifeListSearchView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
-                        dismiss()
+                        if !searchManager.searchQuery.isEmpty {
+                            searchManager.searchQuery = ""
+                        } else {
+                            dismiss()
+                        }
                     }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
@@ -379,6 +383,7 @@ struct LifeListSearchView: View {
         .onAppear {
             searchManager.allScans = allRecords
             searchManager.performSearch(query: searchManager.searchQuery)
+            UITextField.appearance(whenContainedInInstancesOf: [UISearchBar.self]).clearButtonMode = .never
         }
         .onChange(of: allRecords) { _, newRecords in
             searchManager.allScans = newRecords
