@@ -9,6 +9,7 @@ struct SpeciesData {
     let confidenceScore: Double
     let diagnosticComparison: DiagnosticComparison?
     let wikipediaUrl: String?
+    let wikipediaExtract: String?
     let referenceImageUrl: String?
     
     let isBiological: Bool

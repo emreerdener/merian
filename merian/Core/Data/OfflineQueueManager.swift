@@ -380,6 +380,7 @@ actor BackgroundDatabaseActor {
                 confidenceScore: edgeRes.confidence_score ?? 0.0,
                 diagnosticComparison: nil,
                 wikipediaUrl: edgeRes.wikipedia_url,
+                wikipediaExtract: edgeRes.wikipedia_extract,
                 referenceImageUrl: edgeRes.reference_image_url,
                 isBiological: edgeRes.is_biological_subject ?? true,
                 isLiveCapture: edgeRes.is_live_capture ?? true,

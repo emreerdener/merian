@@ -54,9 +54,9 @@ final class InferenceEngine: ObservableObject {
         }
         let insight_data: Insight?
         let wikipedia_url: String?
+        let wikipedia_extract: String?
         let reference_image_url: String?
-    }
-    
+    }    
 
     
     func analyze(imageData: Data, subjectDistanceInMeters: Float? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, modelContext: ModelContext? = nil) {
@@ -142,6 +142,7 @@ final class InferenceEngine: ObservableObject {
                             confidenceScore: edgeRes.confidence_score ?? 0.0,
                             diagnosticComparison: nil,
                             wikipediaUrl: edgeRes.wikipedia_url,
+                            wikipediaExtract: edgeRes.wikipedia_extract,
                             referenceImageUrl: edgeRes.reference_image_url,
                             isBiological: edgeRes.is_biological_subject ?? true,
                             isLiveCapture: edgeRes.is_live_capture ?? true,
@@ -233,6 +234,7 @@ final class InferenceEngine: ObservableObject {
                             confidenceScore: 0,
                             diagnosticComparison: nil,
                             wikipediaUrl: nil,
+                            wikipediaExtract: nil,
                             referenceImageUrl: nil,
                             isBiological: true,
                             isLiveCapture: true,
@@ -264,6 +266,7 @@ final class InferenceEngine: ObservableObject {
                     confidenceScore: 0,
                     diagnosticComparison: nil,
                     wikipediaUrl: nil,
+                    wikipediaExtract: nil,
                     referenceImageUrl: nil,
                     isBiological: true,
                     isLiveCapture: true,
@@ -315,6 +318,7 @@ final class InferenceEngine: ObservableObject {
         let isPoisonous = record.isPoisonous
         let confidenceScore = record.confidenceScore ?? 1.0
         let wikipediaUrl = record.wikipediaUrl
+        let wikipediaExtract = record.wikipediaExtract
         let referenceImageUrl = record.referenceImageUrl
         
         self.speciesData = SpeciesData(
@@ -325,6 +329,7 @@ final class InferenceEngine: ObservableObject {
             confidenceScore: confidenceScore, 
             diagnosticComparison: nil,
             wikipediaUrl: wikipediaUrl,
+            wikipediaExtract: wikipediaExtract,
             referenceImageUrl: referenceImageUrl,
             isBiological: record.isBiological,
             isLiveCapture: record.isLiveCapture,

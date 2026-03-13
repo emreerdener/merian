@@ -219,6 +219,20 @@ struct InsightDescriptionSection: View {
                 .padding(.horizontal)
             }
                 
+            if let wikiExtract = inferenceEngine.speciesData?.wikipediaExtract {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Wikipedia snippet")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.secondary)
+                    Text(wikiExtract)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                .padding(.top, 4)
+            }
+                
             if let wikiString = inferenceEngine.speciesData?.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
                 Button(action: {
                     selectedWikiURL = wikiUrl
@@ -226,7 +240,7 @@ struct InsightDescriptionSection: View {
                 }) {
                     HStack {
                         Image(systemName: "safari.fill")
-                        Text("Read more on Wikipedia")
+                        Text("Read article on Wikipedia")
                         Spacer()
                         Image(systemName: "chevron.right")
                     }
