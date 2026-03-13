@@ -86,9 +86,8 @@ struct CollectionDetailView: View {
                 Button(action: {
                     showScanSelection = true
                 }) {
-                    Text("Add Scans")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
                 }
             }
         }
