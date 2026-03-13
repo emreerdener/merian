@@ -124,9 +124,6 @@ struct LifeListSearchView: View {
     @Binding var isInsightSheetOpen: Bool
     
     @State private var selectedScanForInsight: LocalScanRecord? = nil
-    @FocusState private var isSearchFocused: Bool
-    
-    @State private var isSearchExpanded: Bool = false
     @State private var activeTab: LifeListTab = .library
     
     let columns = [
@@ -241,6 +238,10 @@ struct LifeListSearchView: View {
             }
             .navigationTitle("Life List")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchManager.searchQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search tags, habitats, colors...")
+            .onChange(of: searchManager.searchQuery) { _, newValue in
+                searchManager.performSearch(query: newValue)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
@@ -251,104 +252,22 @@ struct LifeListSearchView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-            }
-            .safeAreaInset(edge: .bottom) {
-                if isSearchExpanded {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.secondary)
-                        
-                        TextField("Search tags, habitats, colors...", text: $searchManager.searchQuery)
-                            .focused($isSearchFocused)
-                            .textFieldStyle(.plain)
-                            .onChange(of: searchManager.searchQuery) { _, newValue in
-                                searchManager.performSearch(query: newValue)
-                            }
-                        
-                        Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                if searchManager.searchQuery.isEmpty {
-                                    isSearchExpanded = false
-                                    isSearchFocused = false
-                                } else {
-                                    searchManager.searchQuery = ""
-                                }
-                            }
-                        }) {
-                            Image(systemName: searchManager.searchQuery.isEmpty ? "xmark" : "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                                .padding(8)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .transition(.opacity)
+                
+                ToolbarItem(placement: .bottomBar) {
+                    Spacer()
+                }
+                
+                ToolbarItem(placement: .bottomBar) {
+                    Picker("View", selection: $activeTab) {
+                        Text("Library").tag(LifeListTab.library)
+                        Text("Collections").tag(LifeListTab.collections)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(10)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    HStack {
-                        // Left section: Library / Collections Segmented Glass Pill
-                        HStack(spacing: 0) {
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    activeTab = .library
-                                }
-                            }) {
-                                VStack(spacing: 4) {
-                                    Image(systemName: activeTab == .library ? "photo.on.rectangle.fill" : "photo.on.rectangle")
-                                        .font(.system(size: 20, weight: .regular))
-                                    Text("Library")
-                                        .font(.system(size: 11, weight: .medium))
-                                }
-                                .foregroundColor(activeTab == .library ? .blue : .primary)
-                                .frame(width: 80, height: 50)
-                                .clipShape(Capsule())
-                            }
-                            
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    activeTab = .collections
-                                }
-                            }) {
-                                VStack(spacing: 4) {
-                                    Image(systemName: "rectangle.stack")
-                                        .font(.system(size: 20, weight: .regular))
-                                    Text("Collections")
-                                        .font(.system(size: 11, weight: .medium))
-                                }
-                                .foregroundColor(activeTab == .collections ? .blue : .primary)
-                                .frame(width: 80, height: 50)
-                                .clipShape(Capsule())
-                            }
-                        }
-                        .padding(4)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        
-                        Spacer()
-                        
-                        // Right Section: Floating Glass Search Button
-                        Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                isSearchExpanded = true
-                                isSearchFocused = true
-                            }
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 22, weight: .regular))
-                                .foregroundColor(.primary)
-                                .frame(width: 58, height: 58)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Circle())
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .pickerStyle(.segmented)
+                    .frame(width: 240)
+                }
+                
+                ToolbarItem(placement: .bottomBar) {
+                    Spacer()
                 }
             }
         }
