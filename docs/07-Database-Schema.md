@@ -12,6 +12,7 @@ Tracks the global state of the anonymous/authenticated user.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `scans_remaining_today` (Int): Decoupled fallback. Managed physically via iOS `UsageManager` natively.
 - `current_streak_count` (Int): Gamification metric.
+- `total_species_discovered` (Int): Auto-incremented strictly at the database level via a Postgres `AFTER INSERT` trigger (`update_user_species_count()`) evaluating unique `species_id` transactions on the `scans` table. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS.
 
 ### `species_dictionary`
 
@@ -33,6 +34,7 @@ The transaction log for every identification ever successfully passed.
 - `user_id` (UUID - Foreign Key)
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0 boundary.
+- `blur_score` (Float): 0.0 to 1.0 boundary evaluating the optical sharpness of the captured image directly from Gemini 2.5 context logic.
 - `gps_lat_exact` / `gps_long_exact` (Float)
 - `gps_elevation` (Float): Altitude exactly at capture.
 - `is_live_capture` (Boolean): AI flags whether this was a real photo vs a screen/book capture.

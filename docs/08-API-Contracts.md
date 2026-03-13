@@ -70,6 +70,7 @@ The `merianResponseSchema` within Deno forces Gemini structurally into this exac
   "scientific_name": "Danaus plexippus",
   "common_name": "Monarch Butterfly",
   "confidence_score": 0.98,
+  "blur_score": 0.1,
   "is_invasive": false,
   "taxonomy": {
     "kingdom": "Animalia",

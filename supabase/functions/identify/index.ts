@@ -175,6 +175,10 @@ Crucial instructions:
           type: SchemaType.NUMBER,
           description: "Float between 0.0 and 1.0",
         },
+        blur_score: {
+          type: SchemaType.NUMBER,
+          description: "Float between 0.0 and 1.0 mapping the optical blur of the image, where 0.0 is perfectly sharp and 1.0 is extremely blurry/unusable.",
+        },
         is_invasive: { type: SchemaType.BOOLEAN },
         taxonomy: {
           type: SchemaType.OBJECT,
@@ -218,6 +222,7 @@ Crucial instructions:
         "scientific_name",
         "common_name",
         "confidence_score",
+        "blur_score",
         "is_invasive",
         "taxonomy",
         "insight_data",
@@ -439,6 +444,7 @@ Crucial instructions:
           gps_long_exact: gpsLongitude,
           gps_elevation: gpsElevation,
           ai_confidence_score: parsedData.confidence_score,
+          blur_score: parsedData.blur_score,
           ecology_type: parsedData.ecology_type,
           is_invasive: parsedData.is_invasive,
           regional_status_rationale:

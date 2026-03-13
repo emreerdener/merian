@@ -89,6 +89,7 @@ struct CameraRootView: View {
         .onAppear {
             cameraManager.startSession()
             photoLibraryManager.startObservingAndFetch()
+            AppDIContainer.shared.environmentContextManager.validatePermissions()
         }
         .onDisappear {
             cameraManager.stopSession()

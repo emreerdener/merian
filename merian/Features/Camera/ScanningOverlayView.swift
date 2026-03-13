@@ -26,7 +26,7 @@ struct ScanningOverlayView: View {
                 // Refined Text Pill
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles")
-                        .foregroundColor(.cyan)
+                        .foregroundColor(.yellow)
                         .symbolEffect(.variableColor) 
                     
                     Text(scanningPhaseText)
