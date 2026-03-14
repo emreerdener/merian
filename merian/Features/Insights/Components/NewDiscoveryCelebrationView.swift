@@ -21,10 +21,16 @@ struct NewDiscoveryCelebrationView: View {
                         
                         // Fallback gracefully on heavy thermal conditions natively
                         if !hardwareOrchestrator.isCriticalHeatWarningActive {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 60))
-                                .foregroundStyle(.yellow, .cyan)
-                                .symbolEffect(.bounce.up, options: .nonRepeating)
+                            if #available(iOS 17.0, *) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(.yellow, .cyan)
+                                    .symbolEffect(.bounce, options: .nonRepeating)
+                            } else {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(.yellow, .cyan)
+                            }
                         } else {
                             Image(systemName: "star.fill")
                                 .font(.system(size: 60))

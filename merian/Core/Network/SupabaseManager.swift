@@ -69,7 +69,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             
             // If the user's session merely timed out offline or threw a Network Error, NEVER sign in anonymously.
             // This prevents permanently erasing their Apple Sign-In and RevenueCat Pro Subscription boundaries natively.
-            if let authError = error as? AuthError, case .sessionNotFound = authError {
+            if let authError = error as? AuthError, case .sessionMissing = authError {
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
                     print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")

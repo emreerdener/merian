@@ -51,7 +51,7 @@ struct FlagIssueView: View {
         isSubmitting = true
         
         Task {
-            let userId = await DeviceIdentityManager.shared.deviceId
+            let userId = DeviceIdentityManager.shared.deviceId
             let payload: [String: Any] = [
                 "scanId": scanId,
                 "userId": userId,
@@ -73,7 +73,7 @@ struct FlagIssueView: View {
                 request.setValue(MerianEnvironment.supabaseAnonKey, forHTTPHeaderField: "apikey")
                 request.httpBody = try JSONSerialization.data(withJSONObject: payload)
                 
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (_, response) = try await URLSession.shared.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                     throw URLError(.badServerResponse)
                 }

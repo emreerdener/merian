@@ -1,5 +1,5 @@
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreImage
 import Combine
 import CoreLocation
@@ -46,8 +46,8 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             .store(in: &cancellables)
             
         // CRITICAL FIX: Offload heavy hardware locks off the Main Thread for instant UI booting
-        queue.async { [weak self] in
-            self?.setupSession()
+        queue.async {
+            self.setupSession()
         }
         
         NotificationCenter.default.publisher(for: NSNotification.Name.AVCaptureDeviceSubjectAreaDidChange)
@@ -57,7 +57,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             .store(in: &cancellables)
     }
     
-    private func setupSession() {
+    nonisolated private func setupSession() {
         session.beginConfiguration()
         session.sessionPreset = .photo
         
@@ -96,7 +96,11 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             session.addOutput(photoOutput)
             
             // Revert back to OS-managed resolution handling to prevent SIGABRT bounds
-            photoOutput.isHighResolutionCaptureEnabled = true
+            if #available(iOS 16.0, *) {
+                // maxPhotoDimensions defaults to the maximum supported by the active format natively in iOS 16+
+            } else {
+                photoOutput.isHighResolutionCaptureEnabled = true
+            }
             
             if photoOutput.isDepthDataDeliverySupported {
                 photoOutput.isDepthDataDeliveryEnabled = true
@@ -401,11 +405,21 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 }
                 
                 // Align the physical hardware ISP explicitly to native Portrait bounds to eliminate EXIF geometry offsets 
-                if connection.isVideoOrientationSupported {
-                    connection.videoOrientation = .portrait
+                if #available(iOS 17.0, *) {
+                    if connection.isVideoRotationAngleSupported(90.0) {
+                        connection.videoRotationAngle = 90.0
+                    }
+                } else {
+                    if connection.isVideoOrientationSupported {
+                        connection.videoOrientation = .portrait
+                    }
                 }
                 
-                settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
+                if #available(iOS 16.0, *) {
+                    settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
+                } else {
+                    settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
+                }
                 
                 if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
                     settings.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliveryEnabled

@@ -84,7 +84,6 @@
 		EC41AF6017872C5A3172EB72 /* merianUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466CB07B954EACA10D496F15 /* merianUITestsLaunchTests.swift */; };
 		F15750F8E84D7F19C8DCC6A0 /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83502938D4E198368D26B749 /* UserProfileView.swift */; };
 		F366496097CBC48873E991A4 /* MerianNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C6607CB16EDD46A55A81A3F /* MerianNetworkClient.swift */; };
-		F3F6060C88CFB31C6898F0FD /* SchemaVersions.swift.rej in Resources */ = {isa = PBXBuildFile; fileRef = 128BFAD1BE31A844DDBFDD88 /* SchemaVersions.swift.rej */; };
 		F427A4505F7A487DB34BB3D2 /* SpeciesDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03CB2586DC088984CB39C760 /* SpeciesDataTests.swift */; };
 		F918A5E972A56EB2DE826415 /* CameraViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9BAD3544E728388163148D /* CameraViewModelTests.swift */; };
 /* End PBXBuildFile section */
@@ -137,7 +136,6 @@
 		1044C34325AE2EFB4EC21358 /* InferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEngine.swift; sourceTree = "<group>"; };
 		119B433DC21B3CBB5FBEBDA4 /* ViewfinderIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligence.swift; sourceTree = "<group>"; };
 		126BD303A6C9253435264DEA /* ArchiveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveManager.swift; sourceTree = "<group>"; };
-		128BFAD1BE31A844DDBFDD88 /* SchemaVersions.swift.rej */ = {isa = PBXFileReference; lastKnownFileType = text; path = SchemaVersions.swift.rej; sourceTree = "<group>"; };
 		1F10E455F38CFB57D5351A3A /* CameraRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraRootView.swift; sourceTree = "<group>"; };
 		21F87DC06ADD940406F7EE95 /* DeviceIdentityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentityManager.swift; sourceTree = "<group>"; };
 		27B0365792BC618A4C26EC9B /* PhotoLibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryManager.swift; sourceTree = "<group>"; };
@@ -374,7 +372,6 @@
 			children = (
 				FE003E7C60B8D9CA8F55C02E /* Aliases.swift */,
 				2BDE7C1E0144DC475CB8DDF5 /* SchemaVersions.swift */,
-				128BFAD1BE31A844DDBFDD88 /* SchemaVersions.swift.rej */,
 				5C776ECF75438F0BFF28C60D /* SpeciesData.swift */,
 			);
 			path = Models;
@@ -657,7 +654,6 @@
 			files = (
 				2EA34DB4680CC269E0767805 /* Assets.xcassets in Resources */,
 				B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */,
-				F3F6060C88CFB31C6898F0FD /* SchemaVersions.swift.rej in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

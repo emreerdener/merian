@@ -64,22 +64,20 @@ struct InsightSheetView: View {
                 }
                 
                 // 5. Flag Issue Action
-                if let scanId = inferenceEngine.speciesData?.scanId {
-                    Divider()
-                        .padding(.vertical, 8)
-                    
-                    Button(action: {
-                        isFlagIssuePresented = true
-                    }) {
-                        HStack {
-                            Image(systemName: "flag.fill")
-                            Text("Report Incorrect ID")
-                        }
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity)
+                Divider()
+                    .padding(.vertical, 8)
+                
+                Button(action: {
+                    isFlagIssuePresented = true
+                }) {
+                    HStack {
+                        Image(systemName: "flag.fill")
+                        Text("Report Incorrect ID")
                     }
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
                 }
                 
                 Spacer(minLength: 40)
@@ -111,41 +109,27 @@ struct InsightSheetView: View {
                 }
             }
             
-            if let targetScanId = inferenceEngine.speciesData?.scanId {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        let shareUrl = URL(string: "https://merian.app")!
-                        ShareLink(
-                            item: shareUrl,
-                            subject: Text("I found a \(commonName)!"),
-                            message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
-                        ) {
-                            Label("Share Discovery", systemImage: "square.and.arrow.up")
-                        }
-                        
-                        Button(action: { showCollectionPicker = true }) {
-                            Label("Save to Collection", systemImage: "folder.badge.plus")
-                        }
-                        
-                        Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                            Label("Delete Scan", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                }
-            } else if inferenceEngine.speciesData?.isBiological == true {
-                ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
                     let shareUrl = URL(string: "https://merian.app")!
                     ShareLink(
                         item: shareUrl,
                         subject: Text("I found a \(commonName)!"),
                         message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
                     ) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 16, weight: .semibold))
+                        Label("Share Discovery", systemImage: "square.and.arrow.up")
                     }
+                    
+                    Button(action: { showCollectionPicker = true }) {
+                        Label("Save to Collection", systemImage: "folder.badge.plus")
+                    }
+                    
+                    Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+                        Label("Delete Scan", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .semibold))
                 }
             }
         }

@@ -91,7 +91,7 @@ class MerianNetworkClient {
                 let isGuest = await SupabaseManager.shared.isGuestUser
                 if isGuest {
                     print("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")
-                    try? await SupabaseManager.shared.signOut()
+                    await SupabaseManager.shared.signOut()
                     await SupabaseManager.shared.initializeGhostSession()
                     
                     // CRITICAL: Await JWT JWKS global propagation on the Supabase Edge Gateway
@@ -156,7 +156,7 @@ class MerianNetworkClient {
                 let isGuest = await SupabaseManager.shared.isGuestUser
                 if isGuest {
                     print("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")
-                    try? await SupabaseManager.shared.signOut()
+                    await SupabaseManager.shared.signOut()
                     await SupabaseManager.shared.initializeGhostSession()
                     
                     // CRITICAL: Await JWT JWKS global propagation on the Supabase Edge Gateway

@@ -41,6 +41,7 @@ struct ViewfinderHintBanner: View {
     }
 }
 
+@MainActor
 struct TopToolbarView: View {
     @EnvironmentObject var cameraManager: CameraManager
     @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
@@ -60,7 +61,7 @@ struct TopToolbarView: View {
                     cameraManager.toggleFlash()
                 }
                 
-                PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) { @MainActor in
                     ZStack {
                         if hardwareOrchestrator.isGlassmorphismEnabled {
                             Circle()

@@ -10,9 +10,6 @@ struct InsightCarouselView: View {
             FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
         }
         
-        let hasReferenceImage = !refUrls.isEmpty
-        let hasUserImage = inferenceEngine.activePayload != nil || !validHistoricPayloads.isEmpty
-        
         let totalImages = (inferenceEngine.activePayload != nil ? 1 : 0) + validHistoricPayloads.count + refUrls.count
         
         if totalImages > 0 {

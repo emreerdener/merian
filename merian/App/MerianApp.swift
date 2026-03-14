@@ -20,9 +20,7 @@ struct MerianApp: App {
         // Initialize Zero-PII Crash & Anonymous Usage Metrics safely on the main thread after the camera UI loads
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             AppTelemetry.initialize()
-            Task {
-                await PostHogManager.shared.configure()
-            }
+            PostHogManager.shared.configure()
         }
         
         let schema = Schema(versionedSchema: MerianSchemaV7.self)
