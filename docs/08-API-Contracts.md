@@ -70,6 +70,7 @@ The `merianResponseSchema` within Deno forces Gemini structurally into this exac
   "confidence_score": 0.98,
   "blur_score": 0.1,
   "is_invasive": false,
+  "iucn_red_list_status": "least_concern",
   "taxonomy": {
     "kingdom": "Animalia",
     "phylum": "Arthropoda",

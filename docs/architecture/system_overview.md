@@ -18,7 +18,7 @@ Merian actively rejects standard `@EnvironmentObject` propagation for complex bu
 Everything is statically bound within `AppDIContainer.swift`:
 
 - A global singleton providing structured `protocol`-free dependency injection precisely.
-- Centralizes `.handleActivePhase()`, `.handleBackgroundPhase()`, and `.handleInactivePhase()` application lifecycle handlers to instantly pause expensive components (like AVCaptureSession) and execute `archiveManager.evaluateAndRescueAgingScans()` background tasks silently once a day natively.
+- Centralizes `.handleActivePhase()`, `.handleInactivePhase()`, and `.handleBackgroundPhase()` application lifecycle handlers to manage hardware physics and background tasks (like `archiveManager.evaluateAndRescueAgingScans()`). Crucially, it manages the offline rescue race condition: native UI closures like `CameraViewModel` observe the inactive phase to cleanly reset view bounds but strictly refrain from aggressively nilling out active ML payloads natively. This explicitly allows `AppDIContainer.handleBackgroundPhase()` to safely intercept and gracefully rescue mid-flight native inference captures directly into the `OfflineQueueManager` before securely triggering `inferenceEngine.cancelActiveRequest()`, permanently guaranteeing zero-data loss for off-grid users navigating away from the app constraints.
 
 ## SwiftData & Data Layer
 

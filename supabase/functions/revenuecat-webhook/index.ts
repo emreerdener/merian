@@ -66,50 +66,59 @@ serve(async (req: Request) => {
         region: "auto",
       });
 
-      for (const scan of scans || []) {
-        const urls: string[] = scan.image_storage_urls || [];
-        let updated = false;
-        const newUrls: string[] = [];
+      const scansList = scans || [];
+      const CHUNK_SIZE = 25;
 
-        for (const url of urls) {
-          if (url.includes(`/public_uploads/free/`)) {
-            const urlObj = new URL(url);
-            const sourcePath = urlObj.pathname; // format: /BUCKET/public_uploads/free/...
-            const destPath = sourcePath.replace("/public_uploads/free/", "/public_uploads/pro/");
-            const newUrlStr = urlObj.protocol + "//" + urlObj.host + destPath;
+      for (let i = 0; i < scansList.length; i += CHUNK_SIZE) {
+        const chunk = scansList.slice(i, i + CHUNK_SIZE);
+        
+        await Promise.allSettled(
+          chunk.map(async (scan) => {
+            const urls: string[] = scan.image_storage_urls || [];
+            let updated = false;
+            const newUrls: string[] = [];
 
-            // Step A: PUT Copy payload to Pro prefix
-            const signedCopy = await aws.sign(newUrlStr, {
-              method: "PUT",
-              headers: {
-                "x-amz-copy-source": encodeURI(sourcePath),
-              },
-            });
-            const copyRes = await fetch(signedCopy);
+            for (const url of urls) {
+              if (url.includes(`/public_uploads/free/`)) {
+                const urlObj = new URL(url);
+                const sourcePath = urlObj.pathname; // format: /BUCKET/public_uploads/free/...
+                const destPath = sourcePath.replace("/public_uploads/free/", "/public_uploads/pro/");
+                const newUrlStr = urlObj.protocol + "//" + urlObj.host + destPath;
 
-            if (copyRes.ok) {
-              // Step B: DELETE original object from Free prefix
-              const signedDelete = await aws.sign(url, { method: "DELETE" });
-              await fetch(signedDelete);
+                // Step A: PUT Copy payload to Pro prefix
+                const signedCopy = await aws.sign(newUrlStr, {
+                  method: "PUT",
+                  headers: {
+                    "x-amz-copy-source": encodeURI(sourcePath),
+                  },
+                });
+                const copyRes = await fetch(signedCopy);
 
-              newUrls.push(newUrlStr);
-              updated = true;
-            } else {
-              console.error(`Failed to copy R2 object ${sourcePath} -> ${destPath}: ${copyRes.statusText}`);
-              newUrls.push(url); // Keep legacy URL if we natively failed to copy
+                if (copyRes.ok) {
+                  // Step B: DELETE original object from Free prefix
+                  const signedDelete = await aws.sign(url, { method: "DELETE" });
+                  await fetch(signedDelete);
+
+                  newUrls.push(newUrlStr);
+                  updated = true;
+                } else {
+                  console.error(`Failed to copy R2 object ${sourcePath} -> ${destPath}: ${copyRes.statusText}`);
+                  newUrls.push(url); // Keep legacy URL if we natively failed to copy
+                }
+              } else {
+                newUrls.push(url); // Unaffected payload
+              }
             }
-          } else {
-            newUrls.push(url); // Unaffected payload
-          }
-        }
 
-        // 3. Update the scan's storage URLs array
-        if (updated) {
-          await supabaseAdmin
-            .from("scans")
-            .update({ image_storage_urls: newUrls })
-            .eq("id", scan.id);
-        }
+            // 3. Update the scan's storage URLs array
+            if (updated) {
+              await supabaseAdmin
+                .from("scans")
+                .update({ image_storage_urls: newUrls })
+                .eq("id", scan.id);
+            }
+          })
+        );
       }
     } else if (["CANCELLATION", "EXPIRATION"].includes(eventType)) {
       // Revert user tier strictly back to 'free'

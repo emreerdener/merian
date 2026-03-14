@@ -35,7 +35,7 @@ To ensure the Supabase PostgreSQL backend perfectly mirrors the iOS RevenueCat e
 
 A tightly coupled boundary enforcing the Paywall visually in frontend boundaries securely.
 
-- Connects logically to `.canPerformScan(isProActive:)`.
+- Connects logically to `.canPerformScan(isProActive:)`, successfully enforcing the exact mathematical bound `return isProActive || freeScansRemaining > 0` natively, ensuring the hard paywall drops when expected limits are hit.
 - Grants 3 free daily validations intrinsically via `UserDefaults` keyed explicitly against `DeviceIdentityManager.shared.deviceId`.
 - Resets limits predictably across calendar bounds, actively triggering `$isPaywallOpen` sheets on strict bounds.
 

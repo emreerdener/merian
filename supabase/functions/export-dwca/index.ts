@@ -86,7 +86,9 @@ serve(async (req: Request) => {
       query = query.eq("user_id", userId);
     }
 
-    const { data: scans, error } = await query;
+    // To prevent Fatal OOM crash boundaries evaluating millions of global rows into the 256MB Deno heap buffer, we place a strict ceiling.
+    // Future scale handling 100k+ exports seamlessly requires a multipart streaming upload approach straight to S3 bypassing Deno RAM.
+    const { data: scans, error } = await query.limit(5000);
 
     if (error) {
       throw new Error(`Failed to fetch academic records: ${error.message}`);

@@ -17,6 +17,9 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     private let queue = DispatchQueue(label: "com.merian.camera")
     private var cancellables = Set<AnyCancellable>()
     
+    nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
+    nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
+    
     @Published var isSessionRunning = false
     @Published var subjectDistanceInMeters: Float? = nil
     @Published var isFlashEnabled = false
@@ -205,19 +208,11 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     nonisolated func depthDataOutput(_ output: AVCaptureDepthDataOutput, didOutput depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection) {
         
         // CPU FLOOD FIX: Throttle the heavy Depth Map calculation natively before locking the CPU
-        struct DepthThrottler {
-            static var lastTime: CFAbsoluteTime = 0
-            static let lock = NSLock()
-        }
-        
         let now = CFAbsoluteTimeGetCurrent()
-        DepthThrottler.lock.lock()
-        if now - DepthThrottler.lastTime < 0.3 {
-            DepthThrottler.lock.unlock()
+        if now - lastDepthTime < 0.3 {
             return
         }
-        DepthThrottler.lastTime = now
-        DepthThrottler.lock.unlock()
+        lastDepthTime = now
 
         let depthPixelBuffer = depthData.depthDataMap
         CVPixelBufferLockBaseAddress(depthPixelBuffer, .readOnly)
@@ -366,19 +361,11 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         
         // Optimize: Throttle natively on the background queue BEFORE jumping to the Main Thread
         // This drops main thread context switches from 60fps to 3fps, drastically saving battery
-        struct Throttler {
-            static var lastTime: CFAbsoluteTime = 0
-            static let lock = NSLock()
-        }
-        
         let now = CFAbsoluteTimeGetCurrent()
-        Throttler.lock.lock()
-        if now - Throttler.lastTime < 0.3 {
-            Throttler.lock.unlock()
+        if now - lastCaptureTime < 0.3 {
             return
         }
-        Throttler.lastTime = now
-        Throttler.lock.unlock()
+        lastCaptureTime = now
         
         Task { @MainActor in
             guard !self.isLiveInferencePaused else { return }

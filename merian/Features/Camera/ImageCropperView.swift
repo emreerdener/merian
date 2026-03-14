@@ -133,12 +133,12 @@ struct ImageCropperView: View {
         
         Task {
             let processedData = await Task.detached(priority: .userInitiated) {
-                return autoreleasepool {
+                let rehydratedImage: UIImage? = autoreleasepool {
                     let W = targetImage.size.width
                     let H = targetImage.size.height
                     
                     guard let cgImg = targetImage.cgImage else {
-                        return targetImage.jpegData(compressionQuality: 0.7) ?? Data()
+                        return nil
                     }
                     
                     let imageRatio = W / H
@@ -184,13 +184,19 @@ struct ImageCropperView: View {
                     
                     // Isolate memory extraction cleanly in the background CPU pool natively
                     guard let croppedCG = cgImg.cropping(to: cropRect) else {
-                        return targetImage.jpegData(compressionQuality: 0.7) ?? Data()
+                        return nil
                     }
                     
                     // Rehydrate the image with native rotation
-                    let croppedUIImage = UIImage(cgImage: croppedCG, scale: targetImage.scale, orientation: targetImage.imageOrientation)
-                    
-                    // Render cleanly out exactly to Gemini limits off the UI thread
+                    return UIImage(cgImage: croppedCG, scale: targetImage.scale, orientation: targetImage.imageOrientation)
+                }
+                
+                guard let croppedUIImage = rehydratedImage else {
+                    return targetImage.jpegData(compressionQuality: 0.7) ?? Data()
+                }
+                
+                return await MainActor.run {
+                    // Render cleanly out exactly to Gemini limits natively protecting UIKit on the Main thread
                     let renderSize = CGSize(width: 768, height: 768)
                     let format = UIGraphicsImageRendererFormat()
                     format.scale = 1.0

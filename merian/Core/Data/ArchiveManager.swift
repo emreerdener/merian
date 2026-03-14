@@ -128,17 +128,39 @@ class ArchiveManager: ObservableObject {
                 for modelID in resourceIDs {
                     guard let record = backgroundContext.model(for: modelID) as? LocalScanRecord else { continue }
                     
-                    // Natively grab the legacy URL from standard string constraints
-                    guard let urlString = record.localImagePath,
-                          urlString.hasPrefix("http"),
-                          let remoteUrl = URL(string: urlString) else {
-                        // Mark structurally synced if it's already a native partition directory
-                        record.isLocallyArchived = true
+                    // Natively query the Supabase edge to extract the physical R2 url
+                    struct ScanUrlResponse: Decodable {
+                        let image_storage_urls: [String]
+                    }
+                    
+                    let remoteUrl: URL
+                    do {
+                        let postgrestResponse = try await SupabaseManager.shared.client
+                            .from("scans")
+                            .select("image_storage_urls")
+                            .eq("id", value: record.id)
+                            .single()
+                            .execute()
+                        
+                        let decoder = JSONDecoder()
+                        let parsed = try decoder.decode(ScanUrlResponse.self, from: postgrestResponse.data)
+                        
+                        guard let firstString = parsed.image_storage_urls.first,
+                              let parsedUrl = URL(string: firstString) else {
+                            // Mark structurally synced if no cloud URLs remain bounds-wise
+                            record.isLocallyArchived = true
+                            continue
+                        }
+                        
+                        remoteUrl = parsedUrl
+                    } catch {
+                        print("ArchiveManager: Failed to fetch remote URL for scan \(record.id)")
                         continue
                     }
                     
                     do {
-                        let (data, response) = try await URLSession.shared.data(from: remoteUrl)
+                        // Crucially stream the binary directly to a local disk tempURL entirely bypassing RAM
+                        let (tempURL, response) = try await URLSession.shared.download(from: remoteUrl)
                         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
                             continue
                         }
@@ -146,7 +168,7 @@ class ArchiveManager: ObservableObject {
                         let filename = UUID().uuidString + ".jpg"
                         let fileURL = documentsDirectory.appendingPathComponent(filename)
                         
-                        try data.write(to: fileURL)
+                        try FileManager.default.moveItem(at: tempURL, to: fileURL)
                         
                         record.localImagePath = filename
                         record.isLocallyArchived = true

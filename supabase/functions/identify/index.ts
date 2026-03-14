@@ -186,6 +186,11 @@ Crucial instructions:
           description: "Float between 0.0 and 1.0 mapping the optical blur of the image, where 0.0 is perfectly sharp and 1.0 is extremely blurry/unusable.",
         },
         is_invasive: { type: SchemaType.BOOLEAN },
+        iucn_red_list_status: {
+          type: SchemaType.STRING,
+          enum: ["not_evaluated", "data_deficient", "least_concern", "near_threatened", "vulnerable", "endangered", "critically_endangered", "extinct_in_the_wild", "extinct"],
+          description: "Assess the IUCN Red List conservation status. Must exactly match one of the predefined enums.",
+        },
         taxonomy: {
           type: SchemaType.OBJECT,
           properties: {
@@ -230,6 +235,7 @@ Crucial instructions:
         "confidence_score",
         "blur_score",
         "is_invasive",
+        "iucn_red_list_status",
         "taxonomy",
         "insight_data",
       ],
@@ -408,11 +414,12 @@ Crucial instructions:
               gbif_taxon_key: gbifKey,
               reference_image_url: combinedImageUrls,
               native_region: "Unknown",
+              iucn_red_list_status: parsedData.iucn_red_list_status,
             },
             { onConflict: "scientific_name", ignoreDuplicates: true },
           )
           .select("id, wikipedia_url, reference_image_url, descriptions")
-          .single();
+          .maybeSingle();
 
         if (upsertError) {
           console.error("Upsert failed: ", upsertError);

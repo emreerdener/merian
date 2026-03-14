@@ -40,7 +40,7 @@ final class UsageManager: ObservableObject {
     /// Explicitly called the exact moment the user triggers an iOS Camera Shutter capture sequence natively.
     /// Returns true if the architecture legally allows the AI payload to jump up to Supabase.
     func canPerformScan(isProActive: Bool) -> Bool {
-        return true // TEMPORARILY DISABLED FOR TESTING
+        return isProActive || freeScansRemaining > 0
     }
     
     /// Deducts a scan perfectly from the physical vault constraints. 

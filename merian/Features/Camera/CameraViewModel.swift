@@ -42,7 +42,9 @@ final class CameraViewModel: ObservableObject {
             isAnalyzingFullscreen = false
             scanningPhaseText = "Analyzing subject..."
             analysisImage = nil
-            diContainer.inferenceEngine.cancelActiveRequest()
+            // Note: We deliberately DO NOT call `diContainer.inferenceEngine.cancelActiveRequest()` here.
+            // If we did, it would nil out the active payload before `AppDIContainer.handleBackgroundPhase`
+            // could actually securely rescue the payload into the OfflineQueueManager natively.
         }
     }
     
@@ -223,7 +225,8 @@ final class CameraViewModel: ObservableObject {
                     // Actively push the original 12MP buffer down natively into the user's Camera Roll securely
                     await diContainer.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
                     
-                    if let rawImage = UIImage(data: captureData) {
+                    if let cgImage = ImageDownsampler.downsample(data: captureData, maxSize: 4000) {
+                        let rawImage = UIImage(cgImage: cgImage)
                         await MainActor.run {
                             self.imageToCrop = IdentifiableImage(
                                 image: rawImage,

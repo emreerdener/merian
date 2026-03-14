@@ -145,24 +145,38 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         isSyncing = true
         
         #if os(iOS)
-        let backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
+        final class SyncBox: @unchecked Sendable { var id: UIBackgroundTaskIdentifier = .invalid }
+        let syncBox = SyncBox()
+        syncBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
             // This expiration handler is called if we run out of time
             self.syncTask?.cancel()
             Task { @MainActor in
                 self.isSyncing = false
                 SyncStateManager.shared.completeSync()
             }
+            if syncBox.id != .invalid {
+                UIApplication.shared.endBackgroundTask(syncBox.id)
+                syncBox.id = .invalid
+            }
         }
+        let backgroundTaskID = syncBox.id
         #endif
         
         syncTask = Task.detached(priority: .background) { [backgroundTaskID] in
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let scanData = await dbActor.fetchPendingScans(limit: 5)
+            let backgroundSession = await MainActor.run { self.backgroundSession }
+            let activeTasks = await backgroundSession.allTasks
+            let activeScanIDs = Set(activeTasks.compactMap { $0.taskDescription })
             
-            guard !scanData.isEmpty else {
+            let filteredScans = scanData.filter { !activeScanIDs.contains($0.id) }
+            
+            guard !filteredScans.isEmpty else {
                 await MainActor.run {
                     self.isSyncing = false
-                    SyncStateManager.shared.completeSync()
+                    if scanData.isEmpty {
+                        SyncStateManager.shared.completeSync()
+                    }
                     #if os(iOS)
                     if backgroundTaskID != .invalid { UIApplication.shared.endBackgroundTask(backgroundTaskID) }
                     #endif
@@ -170,14 +184,14 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 return
             }
             
-            await MainActor.run { SyncStateManager.shared.beginSync(itemCount: scanData.count) }
+            await MainActor.run { SyncStateManager.shared.beginSync(itemCount: filteredScans.count) }
             
             let documentsDirectory = URL.documentsDirectory
             var fileNames: [String] = []
             var fileURLs: [URL] = []
             var scanIDs: [String] = []
             
-            for scan in scanData {
+            for scan in filteredScans {
                 for path in scan.localImagePaths {
                     let fileURL = documentsDirectory.appendingPathComponent(path)
                     fileNames.append("\(scan.id)_\(path)")
@@ -197,8 +211,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 do {
                     // Fetch Cloudflare R2 staging URLs (not chaining the Inference analyze API afterwards)
                     let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(fileNames: fileNames)
-                    
-                    let backgroundSession = await MainActor.run { self.backgroundSession }
                     
                     for (index, presignedURL) in presignedUrls.enumerated() {
                         if Task.isCancelled { break } // Block loop execution instantly upon strict OS-level thread suspension
@@ -272,10 +284,17 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             let r2ObjectKey = String(urlPath[range.lowerBound...])
             
             #if os(iOS)
-            let inferenceTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
+            final class InferenceBox: @unchecked Sendable { var id: UIBackgroundTaskIdentifier = .invalid }
+            let inferenceBox = InferenceBox()
+            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
                 // Should we timeout natively before we can handle inference
                 print("Offline inference background task expired")
+                if inferenceBox.id != .invalid {
+                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
+                    inferenceBox.id = .invalid
+                }
             }
+            let inferenceTaskID = inferenceBox.id
             #endif
             
             do {
