@@ -38,7 +38,7 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 - Implements purely native Swift `SignInWithAppleButton` and `GoogleSignInButton` SDK boundaries securely retrieving external `.idTokens`.
 - Reassigns initial Anonymous IDFV GoTrue Sessions natively merging user arrays into persistent Cloud records.
 - Immediately pulls explicit `RevenueCatManager.shared.isProActive` booleans conditionally hiding or throwing the `SubscriptionPaywallView` dynamically if they hit their daily 3-scan limit.
-- Renders their global `currentStreakCount` and total discovered species securely fetched from Postgres limits safely.
+- Renders global gamification statistics including `uniqueSpeciesCount`, `currentStreak`, `rareFinds` and `persona` morphs dynamically entirely offline. Instead of blocking the UI on remote PostgreSQL network requests, it utilizes heavily optimized `SwiftData` `@Query` property wrappers mapping array statistics natively preventing UI lag and dropping network errors cleanly for a flawless "Digital Terrarium" profile reflection.
 
 ### Aesthetic Customizations
 - Contains the `AppIconManager` allowing `Pro` users to natively swap their iOS Springboard Icon using `UIApplication.shared.setAlternateIconName` natively. This natively updates both the app boundary and the underlying `Config.xcconfig` bounds safely without requiring a restart.
