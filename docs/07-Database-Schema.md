@@ -12,7 +12,7 @@ Tracks the global state of the anonymous/authenticated user.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `scans_remaining_today` (Int): Decoupled fallback. Managed physically via iOS `UsageManager` natively.
 - `current_streak_count` (Int): Gamification metric.
-- `total_species_discovered` (Int): Auto-incremented strictly at the database level via a Postgres `AFTER INSERT` trigger (`update_user_species_count()`) evaluating unique `species_id` transactions on the `scans` table. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS.
+- `total_species_discovered` (Int): Auto-incremented strictly at the database level via a Postgres `AFTER INSERT` trigger (`update_user_species_count()`) evaluating unique `species_id` transactions on the `scans` table. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS. This metric is also cleanly handled via an `AFTER DELETE` trigger (`decrement_user_species_count()`) automatically deducting the unified sum securely when a user deletes their absolute last scan of an entity.
 
 ### `species_dictionary`
 
@@ -45,7 +45,7 @@ The transaction log for every identification ever successfully passed.
 
 ## SwiftData Schema (Local Offline Queue)
 
-_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian employs `MerianMigrationPlan` globally mapping `SchemaVersions.swift` configurations dynamically allowing lightweight and custom `.migrationStage` closures to safely transpose old structures (e.g. `MerianSchemaV5` jumping to `MerianSchemaV6`) keeping Local Life Lists perfectly intact without corrupting biological caches._
+_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian employs `MerianMigrationPlan` globally mapping `SchemaVersions.swift` configurations dynamically allowing lightweight and custom `.migrationStage` closures to safely transpose old structures (e.g. `MerianSchemaV6` jumping to `MerianSchemaV7`) keeping Local Life Lists perfectly intact without corrupting biological caches._
 
 ### `OfflineQueuedScan`
 
@@ -94,3 +94,10 @@ A top-level album paradigm mapped logically against `LocalScanRecord` nodes safe
 - `name`: String
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (An inverse `@Relationship` mapped to dynamically aggregate global references directly passing raw IDs rather than encoding memory, mitigating standard OOM faults directly).
+
+### `PendingCloudDeletionTask`
+
+Locally queues offline physical erasures mapped safely inside `MerianSchemaV7`.
+
+- `scanId`: String (UUID mapping directly directly tracking the remote identifier locally)
+- `timestamp`: Date

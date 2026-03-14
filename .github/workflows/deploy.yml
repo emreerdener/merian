@@ -49,3 +49,6 @@ jobs:
 
       - name: Deploy Edge Function - Get Filtered Discovery Feed
         run: supabase functions deploy get-filtered-discovery-feed --project-ref $PROJECT_ID
+
+      - name: Deploy Edge Function - Delete Scan
+        run: supabase functions deploy delete-scan --project-ref $PROJECT_ID --no-verify-jwt

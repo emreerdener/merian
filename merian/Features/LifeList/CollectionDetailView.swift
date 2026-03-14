@@ -8,8 +8,10 @@ struct CollectionDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var inferenceEngine: InferenceEngine
     
+    @State private var scanToDelete: LocalScanRecord? = nil
     @State private var selectedScanForInsight: LocalScanRecord? = nil
     @State private var showScanSelection = false
+    @State private var showDeleteConfirmation = false
     
     let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -46,7 +48,14 @@ struct CollectionDetailView: View {
                             Button(role: .destructive) {
                                 removeFromCollection(scan: scan)
                             } label: {
-                                Label("Remove from Collection", systemImage: "trash")
+                                Label("Remove from Collection", systemImage: "minus.circle")
+                            }
+                            
+                            Button(role: .destructive) {
+                                scanToDelete = scan
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("Delete Scan Permanently", systemImage: "trash")
                             }
                         }
                     }
@@ -100,6 +109,23 @@ struct CollectionDetailView: View {
         }
         .sheet(isPresented: $showScanSelection) {
             ScanSelectionSheetView(collection: collection)
+        }
+        .confirmationDialog(
+            "Delete Scan",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible,
+            presenting: scanToDelete
+        ) { scan in
+            Button("Delete Scan Permanently", role: .destructive) {
+                HapticManager.shared.triggerErrorThump()
+                ScanRepository.shared.eradicateScan(record: scan, modelContext: modelContext)
+                scanToDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                scanToDelete = nil
+            }
+        } message: { _ in
+            Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
     }
     

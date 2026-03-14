@@ -153,3 +153,27 @@ To prevent arbitrary deletion vectors from hostile actors targeting the R2 stora
 2. Extracts the `uuid` subset strictly from the `r2ObjectKey` path string (e.g. mapping `/staging/<uuid>/...`).
 3. Rigidly compares the parsed `uuid` mapped in the `r2ObjectKey` exactly against the authenticated JWT session `user.id`. 
 4. If the explicit string bounds do not physically match securely, the Deno node actively throws a `403 Forbidden` response preventing structural access and drops execution immediately to protect the ecosystem passively.
+
+---
+
+## Deno `/delete-scan` Edge Node
+
+Permanently deletes a fully cataloged biological scan from both the physical Supabase PostgreSQL database and the Cloudflare R2 bucket synchronously.
+
+### Request Payload
+
+```json
+{
+  "scanId": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
+}
+```
+
+### Authentication Enforcement
+
+Because this completely destroys a structural memory, validation is absolute:
+1. Extracts `scanId` from the payload and queries `public.scans` using the Service Role.
+2. If the scan natively doesn't exist (e.g. deleted while offline but already purged serverside), it safely returns a HTTP 200 payload telling the Swift queue system to drop the offline payload cleanly.
+3. Retrieves the active GoTrue verification natively bridging the JWT boundary mapped by `supabaseAdmin.auth.getUser()`.
+4. Statically equates `scan.owner_id === user.id`. A mismatch throws a `403 Forbidden` IDOR termination.
+5. Recursively deletes bytes natively mapped to the `AwsClient` bucket array based upon `image_storage_urls`.
+6. Issues native `DELETE` commands wiping the Postgres row cleanly.

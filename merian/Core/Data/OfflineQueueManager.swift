@@ -52,6 +52,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         // Debounce slightly to allow the OS network stack to fully resolve
                         try? await Task.sleep(nanoseconds: 1_000_000_000)
                         self?.syncPendingScans()
+                        await self?.syncPendingDeletions()
                     } else {
                         // Immediately circuit-break any active uploads if we drop off-grid
                         self?.syncTask?.cancel()
@@ -62,6 +63,33 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             }
         }
         monitor.start(queue: queue)
+    }
+    
+    func syncPendingDeletions() async {
+        guard isOnline, let context = modelContext else { return }
+        
+        do {
+            let descriptor = FetchDescriptor<PendingCloudDeletionTask>(sortBy: [SortDescriptor(\.timestamp)])
+            let pendingTasks = try context.fetch(descriptor)
+            
+            for task in pendingTasks {
+                do {
+                    try await MerianNetworkClient.shared.deleteScan(scanId: task.scanId)
+                    context.delete(task)
+                    try context.save()
+                    print("✅ Successfully erased \(task.scanId) securely in Edge background")
+                } catch {
+                    // Let it fail silently, either network jitter or it naturally succeeded already.
+                    // We'll retry on next connectivity cycle naturally.
+                    if case NetworkError.invalidResponse = error {
+                        context.delete(task)
+                        try? context.save()
+                    }
+                }
+            }
+        } catch {
+            print("Failed fetching cloud deletion tasks: \(error)")
+        }
     }
     
     func enqueueCapture(imageData: Data,
@@ -287,6 +315,25 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
 
     
+    func updateUnsyncedItemCount() {
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { !$0.isDeleted })
+        let count = (try? context.fetchCount(descriptor)) ?? 0
+        Task { @MainActor in
+            self.unsyncedItemsCount = count
+        }
+    }
+    
+    func softDeleteQueuedScan(scanId: String) {
+        guard let modelContext = modelContext else { return }
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate<OfflineQueuedScan> { $0.id == scanId })
+        if let match = (try? modelContext.fetch(descriptor))?.first {
+            match.isDeleted = true
+            try? modelContext.save()
+            updateUnsyncedItemCount()
+        }
+    }
+    
     func purgeSoftDeletedRecords() {
         guard let modelContext = modelContext else { return }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted })
@@ -306,14 +353,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             updateUnsyncedItemCount()
         } catch {
             print("Failed to purge soft deleted records: \(error)")
-        }
-    }
-    
-    private func updateUnsyncedItemCount() {
-        guard let modelContext = modelContext else { return }
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { !$0.isDeleted })
-        if let count = try? modelContext.fetchCount(descriptor) {
-            self.unsyncedItemsCount = count
         }
     }
     

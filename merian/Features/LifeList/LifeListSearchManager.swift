@@ -131,6 +131,9 @@ struct LifeListSearchView: View {
     @State private var showNewCollectionAlert = false
     @State private var newCollectionName = ""
     
+    @State private var scanToDelete: LocalScanRecord? = nil
+    @State private var showDeleteConfirmation = false
+    
     let columns = [
         GridItem(.flexible(), spacing: 2),
         GridItem(.flexible(), spacing: 2),
@@ -230,6 +233,14 @@ struct LifeListSearchView: View {
                                                         Rectangle().fill(Color.gray.opacity(0.3))
                                                     )
                                                     .clipped()
+                                            }
+                                        }
+                                        .contextMenu {
+                                            Button(role: .destructive) {
+                                                scanToDelete = scan
+                                                showDeleteConfirmation = true
+                                            } label: {
+                                                Label("Delete Scan Permanently", systemImage: "trash")
                                             }
                                         }
                                     }
@@ -388,6 +399,23 @@ struct LifeListSearchView: View {
         .onChange(of: allRecords) { _, newRecords in
             searchManager.allScans = newRecords
             searchManager.performSearch(query: searchManager.searchQuery)
+        }
+        .confirmationDialog(
+            "Delete Scan",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible,
+            presenting: scanToDelete
+        ) { scan in
+            Button("Delete Scan Permanently", role: .destructive) {
+                HapticManager.shared.triggerErrorThump()
+                ScanRepository.shared.eradicateScan(record: scan, modelContext: modelContext)
+                scanToDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                scanToDelete = nil
+            }
+        } message: { _ in
+            Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
     }
 }

@@ -26,6 +26,7 @@ The `InsightSheetView` is Merian's central contextual readout, triggered immedia
 - **Safety Critical Block**: `InsightToxicityBanner` parses `speciesData?.insightData.isPoisonous` instantly displaying red alert ribbons above the fold to guarantee hiker safety natively.
 - **Ecological Validations**: Binds fallback indicators for "Not biological" or "Not a live capture" gracefully routing edge failure cases into a clean UI without hard-crashing. If an item scores `<85%` confidence, it triggers the `DiagnosticComparisonView`.
 - **Bookmark & Share System**: Generates standard `ShareLink` protocols referencing the `merian.app` website explicitly pulling the active `commonName` seamlessly into the native iOS Share Sheet constraints. It also enables explicit "Save to Collection" integration natively via the `.folder.badge.plus` toolbar component.
+- **Optimistic UX (Deletions)**: Users can permanently obliterate local and global data securely via `.contextMenu` bounds (Library, Collections) or the Toolbar `Menu` inside Insight bounds. Instantly bounding a `.destructive` `confirmationDialog`, pressing "Delete" executes an immediate zero-latency removal from the local UI matrix, triggering a heavy `HapticManager.shared.triggerErrorThump()` drop, while securely routing physical R2 bytes and PostgreSQL rows to the `PendingCloudDeletionTask` detached background queue invisibly to not block the UI thread.
 
 ### External API Enrichment
 - Spawns parallel external lookups fetching the full taxonomic classification into the visual `InsightTaxonomyTree`.

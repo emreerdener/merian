@@ -84,5 +84,12 @@ To continuously refine the AI models and build a high-quality human-verified dat
 
 ## Account Deletion & Data Preservation (`safe-delete`)
 
-To balance user privacy (GDPR/CCPA compliance) with scientific data fidelity, account deletions utilize a specialized RPC:
-- **`00006_apply_user_tombstone.sql`**: Generates a `public.apply_user_tombstone(target_user_id UUID)` PL/pgSQL function. Instead of cascading deletions that would wipe thousands of biological insights off the global map, it reassigns the user's `scans` to a permanent anonymous `00000000-0000-0000-0000-000000000000` tombstone user and flags them as `is_tombstoned = true`. Afterward, it safely cascades and destroys the original user schema and telemetry without breaking the structural biological maps.
+To balance user privacy (GDPR/CCPA compliance) with scientific data fidelity, account deletions utilize a specialized RPC: - **`00006_apply_user_tombstone.sql`**: Generates a `public.apply_user_tombstone(target_user_id UUID)` PL/pgSQL function. Instead of cascading deletions that would wipe thousands of biological insights off the global map, it reassigns the user's `scans` to a permanent anonymous `00000000-0000-0000-0000-000000000000` tombstone user and flags them as `is_tombstoned = true`. Afterward, it safely cascades and destroys the original user schema and telemetry without breaking the structural biological maps.
+
+## Scan Erasure & The Deletion Pipeline (`delete-scan`)
+
+To empower absolute privacy controls natively, users can obliterate physical scans globally. This pipeline completely severs the data from Supabase and Cloudflare R2 simultaneously:
+1. **Authentication Override**: The Edge Function explicitly disables GoTrue Middleware globally (`verify_jwt = false` in `config.toml`) and manually extracts and cryptographically verifies the header JWT. This fully protects against IDOR boundary leaks locking deletion exclusively to the `scan.owner_id`.
+2. **R2 Integration**: The Deno edge node extracts the `image_storage_urls` array natively from Supabase securely via `.select()`. It processes the string keys backwards natively instantiating `AwsClient` (via `aws4fetch`) executing a physical `DELETE` payload natively erasing bytes off Cloudflare R2 permanently.
+3. **Database Erasure**: A simple `.delete()` sweeps the `scans` tuple entirely off the maps.
+4. **Gamification Integrity Trigger**: A strict Postgres PL/pgSQL function (`decrement_user_species_count()`) fires automatically upon `AFTER DELETE ON public.scans`. If the user just explicitly deleted their absolute *last* known physical scan of a specific `species_id`, the function automatically drops their unified `users.total_species_discovered` index seamlessly by `1` without negative integers natively maintaining streak telemetry perfectly regardless of offline delays seamlessly!

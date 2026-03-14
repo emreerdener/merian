@@ -186,4 +186,44 @@ class MerianNetworkClient {
             throw NetworkError.uploadFailed
         }
     }
+    
+    // Step 5: Data Deletion
+    func deleteScan(scanId: String) async throws {
+        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/delete-scan")!
+        
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30.0)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            if activeJWT == nil {
+                print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
+                await SupabaseManager.shared.initializeGhostSession()
+                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            }
+            guard let finalJWT = activeJWT else {
+                print("⚠️ MerianNetworkClient: Active JWT missing or expired after retry. Throwing NetworkError.")
+                throw NetworkError.invalidResponse
+            }
+            request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
+            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
+        } catch {
+            throw NetworkError.invalidResponse
+        }
+        
+        let payload: [String: Any] = ["scanId": scanId]
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse
+        }
+        
+        if httpResponse.statusCode != 200 {
+            print("🚨 DELETE SCAN FAILED [\(httpResponse.statusCode)]")
+            throw NetworkError.invalidResponse
+        }
+        print("✅ Scan deleted sequentially successfully from Cloud Edge")
+    }
 }

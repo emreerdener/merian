@@ -68,4 +68,35 @@ final class ScanRepository {
     func purgeSoftDeletedRecords() {
         offlineQueue.purgeSoftDeletedRecords()
     }
+    
+    /// Brutally obliterates a physical scan entirely from the local disk, Local Life List, and guarantees eventual execution against Cloudflare and Postgres instances natively.
+    func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) {
+        // 1. Wipe local image bytes physically from DocumentDirectory
+        let docs = URL.documentsDirectory
+        var imagesToErase: [String] = []
+        if let primaryPath = record.localImagePath { imagesToErase.append(primaryPath) }
+        if let extras = record.additionalImagePaths { imagesToErase.append(contentsOf: extras) }
+        
+        for p in imagesToErase {
+            let fp = docs.appendingPathComponent(p)
+            try? FileManager.default.removeItem(at: fp)
+        }
+        
+        // 2. Halt an upload if it's unfortunately caught midway in the upload buffer queue
+        offlineQueue.softDeleteQueuedScan(scanId: record.id)
+        
+        // 3. Queue a Task bound for the `delete-scan` Edge function securely purging Postgres/R2 bytes natively
+        let backgroundErasure = PendingCloudDeletionTask(scanId: record.id)
+        modelContext.insert(backgroundErasure)
+        
+        // 4. Destroy the immediate core SwiftData record for an optimistic-UI instantaneous disappear
+        modelContext.delete(record)
+        
+        try? modelContext.save()
+        
+        // Push the delete-scan execution immediately
+        Task {
+            await offlineQueue.syncPendingDeletions()
+        }
+    }
 }

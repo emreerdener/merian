@@ -23,3 +23,16 @@ The `OfflineQueueManager` handles the persistence explicitly with no risk.
    - **Step B:** Once bytes finish landing securely, SwiftUI invokes the `@UIApplicationDelegateAdaptor` inside `AppDelegate`, transferring the `handleEventsForBackgroundURLSession` handler straight to `OfflineQueueManager`.
    - **Step C:** Native constraints fire `.urlSession(_:task:didCompleteWithError:)` triggering locally. The queue manager explicitly fetches the uploaded file via edge bounds (`MerianNetworkClient.shared.analyzeSubject`), retrieving the fully resolved JSON payload securely natively.
    - **Step D:** The returned taxonomy is passed securely to a dedicated `BackgroundDatabaseActor` where it decodes the payload, executes a strict `FileManager.default.moveItem()` hook migrating the offline image boundaries exclusively preventing sandbox destruction natively entirely off the Main Thread. It then safely persists the fully identified creature explicitly into the user's `SwiftData` Life List. Finally, `processAndCleanupOfflineScan(scanId:)` automatically cleans up the old explicit queue references purely on its own background thread, completely insulating the 60FPS UI from stuttering during batch updates.
+
+## Deletions in Offline Environments
+
+Scan permanence and user privacy dictates that explicitly deleted datasets are permanently erased. Merian ensures these erasures map natively even fully offline:
+
+1. **Optimistic Destruction (`ScanRepository.eradicateScan`)**
+   When a user destroys a scan natively via the `.contextMenu`, the underlying filesystem `FileManager` aggressively detaches the image cache bytes off the physical disk payload immediately mapping a strict 0-byte destruction locally. 
+2. **Cloud Deletion Tasking (`PendingCloudDeletionTask`)**
+   To bypass connectivity dropping randomly during erasures, SwiftData natively persists a schema-scaled `@Model final class PendingCloudDeletionTask` which queues up the raw `scanId` locally safely bounding the target. The UI aggressively executes `.delete` physically dropping the UX bounding out of sight instantly for the user, executing a fully synchronous optimistic UI drop.
+3. **Deletion Interception (`softDeleteQueuedScan`)**
+   If the scan being destroyed is actively queueing for its native initial upload stream inside the offline boundary natively, `OfflineQueueManager.shared.softDeleteQueuedScan` explicitly intercepts the background worker terminating the native upload path bounding permanently isolating upload destruction cleanly.
+4. **Network Polling Sync (`syncPendingDeletions`)**
+   As `NWPathMonitor` wakes the application on cellular bounds mapping, it explicitly runs `syncPendingDeletions()` triggering backend Cloudflare R2 object erasures alongside PostgreSQL tuple obliterations securely executing via a mapped JWT `MerianNetworkClient.shared.deleteScan()` edge payload. The SwiftData queue cleans up the tasks natively inside the `.background` task context mapping.

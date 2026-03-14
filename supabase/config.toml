@@ -389,3 +389,6 @@ verify_jwt = false
 
 [functions.block-user]
 verify_jwt = false
+
+[functions.delete-scan]
+verify_jwt = false

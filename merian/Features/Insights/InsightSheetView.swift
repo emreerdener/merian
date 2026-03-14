@@ -1,5 +1,5 @@
 import SwiftUI
-
+import SwiftData
 import SafariServices
 
 
@@ -18,6 +18,8 @@ struct InsightSheetView: View {
     @State private var isFlagIssuePresented = false
     @State private var showCelebration = false
     @State private var showCollectionPicker = false
+    @State private var showDeleteConfirmation = false
+    @Environment(\.modelContext) private var modelContext
     
     // Safety Bounds
     private var isPoisonous: Bool {
@@ -109,7 +111,31 @@ struct InsightSheetView: View {
                 }
             }
             
-            if inferenceEngine.speciesData?.isBiological == true {
+            if let targetScanId = inferenceEngine.speciesData?.scanId {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        let shareUrl = URL(string: "https://merian.app")!
+                        ShareLink(
+                            item: shareUrl,
+                            subject: Text("I found a \(commonName)!"),
+                            message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
+                        ) {
+                            Label("Share Discovery", systemImage: "square.and.arrow.up")
+                        }
+                        
+                        Button(action: { showCollectionPicker = true }) {
+                            Label("Save to Collection", systemImage: "folder.badge.plus")
+                        }
+                        
+                        Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+                            Label("Delete Scan", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+            } else if inferenceEngine.speciesData?.isBiological == true {
                 ToolbarItem(placement: .topBarTrailing) {
                     let shareUrl = URL(string: "https://merian.app")!
                     ShareLink(
@@ -122,22 +148,23 @@ struct InsightSheetView: View {
                     }
                 }
             }
-            
-            if let _ = inferenceEngine.speciesData?.scanId {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {
-                        showCollectionPicker = true
-                    }) {
-                        Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                }
-            }
         }
         .sheet(isPresented: $showCollectionPicker) {
             if let scanId = inferenceEngine.speciesData?.scanId {
                 SaveToCollectionSheetView(scanId: scanId)
             }
+        }
+        .confirmationDialog(
+            "Delete Scan",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Scan Permanently", role: .destructive) {
+                eradicateCurrentScan()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
         
         if showCelebration {
@@ -175,6 +202,18 @@ struct InsightSheetView: View {
             }
         }
     }
+    }
+    
+    private func eradicateCurrentScan() {
+        guard let targetId = inferenceEngine.speciesData?.scanId else { return }
+        
+        let descriptor = FetchDescriptor<LocalScanRecord>()
+        let records = (try? modelContext.fetch(descriptor)) ?? []
+        
+        if let record = records.first(where: { $0.id == targetId }) {
+            HapticManager.shared.triggerErrorThump()
+            ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
+            dismiss()
+        }
+    }
 }
-}
-
