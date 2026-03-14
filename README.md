@@ -12,8 +12,8 @@ Built completely with strict architectural constraints in mind, it utilizes the 
 
 - 📸 **Instant-On Camera UI**: Drops straight into an `AVCaptureSession` in under 1 second. It utilizes a custom `.builtInLiDARDepthCamera` module, quietly harvesting absolute physical scale up to 5.0m max to prevent vision model hallucinations.
 - 🌡️ **Hardware Orchestrator**: Dynamically throttles active iOS framerates via `ProcessInfo` down to as low as `1fps` behind UI Sheets or `24fps` dynamically inside Low Power Modes. This aggressively protects the hardware against heavy thermal rendering bottlenecks without the latency of a cold restart.
-- 📡 **Zero-OOM Edge Architecture**: To protect Edge Function memory limits, the app posts pure `Data` securely to the Gemini File API, generating a lightweight `fileUri`. This completely bypasses the 20MB Base64 stringification payloads that reliably crash Edge functions worldwide.
-- 🗄️ **Zero-Data Loss Offline Queue**: Powered by `NWPathMonitor` and SwiftData, it natively persists timestamps and networks attempts securely. Users never lose captures taken off-grid; payloads sync seamlessly in the background upon network restoration.
+- 📡 **Zero-OOM Edge Architecture**: To protect Edge Function memory limits and eradicate Google File API timeouts, the app encodes highly-compressed `140KB` Cloudflare R2 Edge streams securely directly into Gemini `inlineData` payloads. Furthermore, the iOS client prevents JetSam memory crashes entirely by routing 48MP ProRAW library imports explicitly through `ImageIO` bounds explicitly blocking RAM caching natively.
+- 🗄️ **Zero-Data Loss Offline Queue**: Powered by `NWPathMonitor` and SwiftData, it natively persists timestamps and networks attempts securely. Users never lose captures taken off-grid; detached background Swift tasks sync seamlessly without violating strict Swift 6 Data-Race or OS Watchdog execution limits.
 - 🛡️ **Isolation-First Social Guard**: Employs real-time Discovery Feeds explicitly blocking a user's specific uploads out globally, while tracking blocklists locally to organically prevent adversarial toxicity without administrative bloat.
 - 📊 **Darwin Core Archives (DwC-A)**: Natively exports localized user data strictly formatted to the academic DwC-A standard. It maps fully GDPR-compliant data architectures securely, using explicit PostgreSQL procedures to enforce _Ghost User Tombstones_ that permanently anonymize geographical behaviors while preserving taxonomy bounds.
 - ⌚️ **Apple Ecosystem Extensions**: Powered fully by native **Siri App Intents** (Apple Intelligence ready). Integrated directly onto watchOS, utilizing background `.record` boundaries to convert field acoustics effortlessly across Wi-Fi.
@@ -27,7 +27,7 @@ Built completely with strict architectural constraints in mind, it utilizes the 
 - **Kinetic UX**: RiveRuntime (`.riv`), UIVisualEffectView
 - **Backend Ecosystem**: Supabase (PostgreSQL, Deno Edge Functions)
 - **Cloud Storage**: Cloudflare R2 Edge Storage Arrays (S3-Compatible)
-- **AI Engine**: Google Gemini 1.5 Flash (`generativelanguage.googleapis.com`)
+- **AI Engine**: Google Gemini 2.5 Flash / Pro (`generativelanguage.googleapis.com`)
 - **DevOps/CI-CD**: GitHub Actions
 
 ---
