@@ -43,10 +43,11 @@ final class HardwareOrchestrator: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func evaluateConstraints() {
+    // Default parameters accept nil to map dynamically to native boundaries, or accept explicitly injected test values
+    func evaluateConstraints(isLowPowerModeEnabled: Bool? = nil, thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
         
-        isExpeditionModeActive = processInfo.isLowPowerModeEnabled
+        isExpeditionModeActive = isLowPowerModeEnabled ?? processInfo.isLowPowerModeEnabled
         // Note: ExpeditionModeActive disabling cellular uploads is handled by network/queue logic elsewhere reading this flag.
         
         // If locked in 1fps idle state, we must NOT overwrite settings
@@ -60,7 +61,8 @@ final class HardwareOrchestrator: ObservableObject {
             return
         }
         
-        switch processInfo.thermalState {
+        let currentState = thermalState ?? processInfo.thermalState
+        switch currentState {
         case .nominal:
             targetFPS = 60
             isGlassmorphismEnabled = true
