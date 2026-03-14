@@ -19,6 +19,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
     }
     
     private var currentNonce: String?
+    private var activeAppleAuth: ASAuthorizationController?
     
     private override init() {
         guard let url = URL(string: MerianEnvironment.supabaseUrl) else {
@@ -167,6 +168,9 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
         let authorizationController = ASAuthorizationController(authorizationRequests: [request])
         authorizationController.delegate = self
         authorizationController.presentationContextProvider = self
+        
+        // Retain strongly to avoid premature deallocation during the sign-in flow
+        self.activeAppleAuth = authorizationController 
         authorizationController.performRequests()
     }
 
@@ -208,6 +212,8 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        self.activeAppleAuth = nil
+        
         if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
             guard let nonce = currentNonce else {
                 fatalError("Invalid state: A login callback was received, but no login request was sent.")
@@ -241,6 +247,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        self.activeAppleAuth = nil
         print("Apple Sign In error: \(error.localizedDescription)")
     }
 }

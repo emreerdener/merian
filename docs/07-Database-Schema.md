@@ -12,7 +12,7 @@ Tracks the global state of the anonymous/authenticated user.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `scans_remaining_today` (Int): Decoupled fallback. Managed physically via iOS `UsageManager` natively.
 - `current_streak_count` (Int): Gamification metric.
-- `total_species_discovered` (Int): Auto-incremented strictly at the database level via a Postgres `AFTER INSERT` trigger (`update_user_species_count()`) evaluating unique `species_id` transactions on the `scans` table. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS. This metric is also cleanly handled via an `AFTER DELETE` trigger (`decrement_user_species_count()`) automatically deducting the unified sum securely when a user deletes their absolute last scan of an entity.
+- `total_species_discovered` (Int): Calculated strictly at the database level via a Postgres `AFTER INSERT` trigger (`update_user_species_count()`). To securely avoid concurrent TOCTOU race conditions during bulk offline uploads, it explicitly recalculates the sum mathematically via a subquery (`COUNT(DISTINCT species_id)`) rather than generically auto-incrementing. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS. This metric is also cleanly handled via an `AFTER DELETE` trigger (`decrement_user_species_count()`) automatically deducting the unified sum securely when a user deletes their absolute last scan of an entity.
 
 ### `species_dictionary`
 

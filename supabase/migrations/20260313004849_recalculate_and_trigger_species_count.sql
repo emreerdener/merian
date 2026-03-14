@@ -2,17 +2,13 @@
 CREATE OR REPLACE FUNCTION public.update_user_species_count()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Only increment if this is the first time the user has ever safely uploaded this species_id
-    IF NOT EXISTS (
-        SELECT 1 FROM public.scans
-        WHERE user_id = NEW.user_id
-          AND species_id = NEW.species_id
-          AND id != NEW.id
-    ) THEN
-        UPDATE public.users
-        SET total_species_discovered = total_species_discovered + 1
-        WHERE id = NEW.user_id;
-    END IF;
+    UPDATE public.users 
+    SET total_species_discovered = (
+        SELECT COUNT(DISTINCT species_id) 
+        FROM public.scans 
+        WHERE user_id = NEW.user_id AND species_id IS NOT NULL
+    ) 
+    WHERE id = NEW.user_id;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

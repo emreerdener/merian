@@ -175,7 +175,7 @@ Because this completely destroys a structural memory, validation is absolute:
 2. If the scan natively doesn't exist (e.g. deleted while offline but already purged serverside), it safely returns a HTTP 200 payload telling the Swift queue system to drop the offline payload cleanly.
 3. Retrieves the active GoTrue verification natively bridging the JWT boundary mapped by `supabaseAdmin.auth.getUser()`.
 4. Statically equates `scan.owner_id === user.id`. A mismatch throws a `403 Forbidden` IDOR termination.
-5. Recursively deletes bytes natively mapped to the `AwsClient` bucket array based upon `image_storage_urls`.
+5. Recursively deletes bytes natively mapped to the `AwsClient` bucket array based upon exactly the `image_storage_urls` array payloads without manually rebuilding Cloudflare endpoints. This natively prevents 404 stranded images caused by accidental namespace duplication bounds.
 6. Issues native `DELETE` commands wiping the Postgres row cleanly.
 
 ---
@@ -220,3 +220,23 @@ Generates an ecosystem report against AI inferences mapped aggressively within t
 - Validates JWT signature to ensure a genuine authenticated identity mapping against `scan_id`. 
 - Natively inserts a row mapped strictly into `public.flagged_reviews`.
 - Triggers `HTTP 200` upon success securely decoupling the user's report without hanging the SwiftUI interface dynamically.
+
+---
+
+## Deno `/export-dwca` Edge Node
+
+Generates a Darwin Core Archive (DwC-A) containing the user's biological captures or a global dataset, zipping the occurrence and multimedia data, then uploading it directly to Cloudflare R2 before generating an expiring download URL.
+
+### Request Payload
+
+```json
+{
+  "includePreciseCoordinates": true,
+  "exportScope": "global" // or "user"
+}
+```
+
+### Authentication Enforcement
+
+- Strictly pulls `supabaseAdmin.auth.getUser(jwt)` mapped from the GoTrue header.
+- **DwC-A Global Geoprivacy Leak Prevention**: Cryptographically enforces ownership gating for exact coordinate access. Evaluates `canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId)`. If a user requests a global dataset (`exportScope = "global"`), they will only receive perturbed/public coordinates (`50km` obfuscated matrix) for scans they do not physically own, completely patching the global location scraping vulnerability. Exact coordinates (`gps_lat_exact`, `gps_long_exact`) are strictly included only when the authenticated JWT `user.id` cryptographically matches the specific `scan.user_id`.

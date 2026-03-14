@@ -109,25 +109,30 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         let documentsDirectory = URL.documentsDirectory
         let fileURL = documentsDirectory.appendingPathComponent(fileName)
         
-        do {
-            try imageData.write(to: fileURL)
-            let scan = OfflineQueuedScan(
-                id: UUID().uuidString,
-                timestamp: Date(),
-                localImagePaths: [fileName],
-                gpsLatitude: gpsLatitude,
-                gpsLongitude: gpsLongitude,
-                gpsElevation: gpsElevation,
-                weatherCondition: weatherCondition,
-                weatherTemperatureF: weatherTemperatureF,
-                blurScore: blurScore,
-                isDeleted: false
-            )
-            modelContext.insert(scan)
-            try modelContext.save()
-            updateUnsyncedItemCount()
-        } catch {
-            print("Failed to enqueue capture: \(error)")
+        Task.detached(priority: .userInitiated) {
+            do {
+                try imageData.write(to: fileURL)
+                
+                await MainActor.run {
+                    let scan = OfflineQueuedScan(
+                        id: UUID().uuidString,
+                        timestamp: Date(),
+                        localImagePaths: [fileName],
+                        gpsLatitude: gpsLatitude,
+                        gpsLongitude: gpsLongitude,
+                        gpsElevation: gpsElevation,
+                        weatherCondition: weatherCondition,
+                        weatherTemperatureF: weatherTemperatureF,
+                        blurScore: blurScore,
+                        isDeleted: false
+                    )
+                    modelContext.insert(scan)
+                    try? modelContext.save()
+                    OfflineQueueManager.shared.updateUnsyncedItemCount()
+                }
+            } catch {
+                print("Failed to enqueue capture: \(error)")
+            }
         }
     }
     
@@ -140,20 +145,17 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         isSyncing = true
         
         #if os(iOS)
-        var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
-        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
+        let backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
+            // This expiration handler is called if we run out of time
             self.syncTask?.cancel()
             Task { @MainActor in
                 self.isSyncing = false
                 SyncStateManager.shared.completeSync()
             }
-            if backgroundTaskID != .invalid {
-                UIApplication.shared.endBackgroundTask(backgroundTaskID)
-            }
         }
         #endif
         
-        syncTask = Task.detached(priority: .background) {
+        syncTask = Task.detached(priority: .background) { [backgroundTaskID] in
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let scanData = await dbActor.fetchPendingScans(limit: 5)
             
@@ -270,9 +272,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             let r2ObjectKey = String(urlPath[range.lowerBound...])
             
             #if os(iOS)
-            var inferenceTaskID: UIBackgroundTaskIdentifier = .invalid
-            inferenceTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
-                UIApplication.shared.endBackgroundTask(inferenceTaskID)
+            let inferenceTaskID = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
+                // Should we timeout natively before we can handle inference
+                print("Offline inference background task expired")
             }
             #endif
             

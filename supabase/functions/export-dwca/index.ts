@@ -108,13 +108,15 @@ serve(async (req: Request) => {
                           species.iucn_red_list_status === "critically_endangered" || 
                           species.iucn_red_list_status === "near_threatened";
 
-      let lat = includePreciseCoordinates && !isProtected
+      const canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId);
+
+      let lat = canAccessPrecise && !isProtected
         ? scan.gps_lat_exact
         : scan.gps_lat_public;
-      let lon = includePreciseCoordinates && !isProtected
+      let lon = canAccessPrecise && !isProtected
         ? scan.gps_long_exact
         : scan.gps_long_public;
-      let uncertainty = includePreciseCoordinates && !isProtected
+      const uncertainty = canAccessPrecise && !isProtected
         ? scan.coordinate_uncertainty_in_meters || ""
         : "50000";
 

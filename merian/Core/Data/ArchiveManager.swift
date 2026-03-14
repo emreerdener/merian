@@ -148,7 +148,7 @@ class ArchiveManager: ObservableObject {
                         
                         try data.write(to: fileURL)
                         
-                        record.localImagePath = fileURL.path
+                        record.localImagePath = filename
                         record.isLocallyArchived = true
                         
                         print("ArchiveManager: Successfully rescued scan \(record.id) off the R2 edge.")

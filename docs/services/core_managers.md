@@ -32,7 +32,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 ### `ArchiveManager` (Archive Safety Protocol)
 - Explicit background worker strictly mapped to protect the data of Free tier users against the Cloudflare R2 90-day global purge logic (`00004_storage_lifecycle_sync.sql`).
 - Polls locally via `getAvailableDiskSpace()`.
-- Dynamically `evaluateAndRescueAgingScans` queries SwiftData logs looking for `.isLocallyArchived == false` records older than 80 days strictly executed locally via `.handleActivePhase()` native UI lifecycle hooks once per day saving images directly into explicit bounds.
+- Dynamically `evaluateAndRescueAgingScans` queries SwiftData logs looking for `.isLocallyArchived == false` records older than 80 days strictly executed locally via `.handleActivePhase()` native UI lifecycle hooks once per day saving images directly into explicit bounds. Crucially, the system structurally writes only the relative `filename` string into SwiftData rather than the `fileURL.path`. This correctly prevents Absolute Sandbox Path map breakages caused by iOS dynamically altering and randomizing container UUIDs on device reboots and physical app updates seamlessly avoiding broken image renders natively completely.
 
 ## Networking
 
@@ -40,6 +40,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Isolates physical Deno function endpoints mapping directly via `MerianEnvironment.supabaseUrl`.
 - Actively forces exact asynchronous REST calls (`/identify`, `/generate-upload-urls`, `/flag-issue`).
 - Automatically extracts the `DeviceIdentityManager.shared.deviceId` strictly bypassing arbitrary session state dependencies smoothly executing Supabase payload pushes correctly mapped directly to the active iOS `ProcessInfo` environment.
+- Safely traps `.401 Unauthorized` responses during API calls. Crucially checks `await SupabaseManager.shared.isGuestUser` before initializing self-healing fallback states. If the identity is an anonymous Ghost User, it explicitly purges the local session and regenerates a fresh Ghost UUID securely. However, if the identity is a native authenticated Apple/Google user, it deliberately skips the purge and gracefully throws a native `.invalidResponse` error to allow the parent SwiftUI structure to safely re-authenticate the user without destroying their Pro User identity or forcefully writing over their account records.
 
 ### `SupabaseManager`
 - Completely delegates the secure API boundary parsing natively wrapped into GoTrue bindings.

@@ -13,7 +13,8 @@ public struct ImageDownsampler {
             kCGImageSourceThumbnailMaxPixelSize: maxSize
         ]
         
-        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, sourceOptions as CFDictionary),
               let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
             return nil
         }
@@ -29,7 +30,8 @@ public struct ImageDownsampler {
             kCGImageSourceThumbnailMaxPixelSize: maxSize
         ]
         
-        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary),
               let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
             return nil
         }

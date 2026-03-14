@@ -7,7 +7,7 @@ SECURITY DEFINER
 AS $$
 BEGIN
     -- 1. Ensure the tombstone user account exists to avoid entirely deleting historical biological insights
-    INSERT INTO public.users (id, active_streak_days, total_species_discovered, subscription_tier)
+    INSERT INTO public.users (id, current_streak_count, total_species_discovered, subscription_tier)
     VALUES ('00000000-0000-0000-0000-000000000000', 0, 0, 'free')
     ON CONFLICT (id) DO NOTHING;
 

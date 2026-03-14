@@ -76,7 +76,8 @@ final class CameraViewModel: ObservableObject {
             }
             
             if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
-                if let rawImage = UIImage(data: data) {
+                if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 4000) {
+                    let rawImage = UIImage(cgImage: cgImage)
                     await MainActor.run {
                         self.imageToCrop = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)
                         self.selectedPhotoItem = nil

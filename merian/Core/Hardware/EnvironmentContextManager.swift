@@ -23,6 +23,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     @Published var isAuthorized: Bool = false
     
     private var activeContinuationWrapper: CheckedContinuation<CLLocation?, Never>?
+    private var timeoutTask: Task<Void, Never>?
     private(set) var cachedLocation: CLLocation?
     
     private override init() {
@@ -138,6 +139,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     }
     
     private func requestSingleLocation() async -> CLLocation? {
+        timeoutTask?.cancel()
+        
         if let active = activeContinuationWrapper {
             activeContinuationWrapper = nil
             active.resume(returning: nil)
@@ -148,8 +151,11 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
             self.locationManager.requestLocation()
             
             // Anti-Deadlock timeout: Force-resume after 2.0s if hardware fails to lock satellites
-            Task { @MainActor in
+            self.timeoutTask = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
+                
+                guard !Task.isCancelled else { return }
+                
                 if let active = self.activeContinuationWrapper {
                     print("⚠️ GPS Hardware lock timed out. Proceeding dynamically with cached/nil context.")
                     self.activeContinuationWrapper = nil
@@ -168,6 +174,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         Task { @MainActor in
+            self.timeoutTask?.cancel()
+            
             if let continuation = self.activeContinuationWrapper {
                 self.activeContinuationWrapper = nil
                 continuation.resume(returning: location)
@@ -179,6 +187,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
+            self.timeoutTask?.cancel()
+            
             print("Deferred Context Fetch completely failed hardware lock: \(error.localizedDescription)")
             if let continuation = self.activeContinuationWrapper {
                 self.activeContinuationWrapper = nil

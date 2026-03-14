@@ -82,22 +82,12 @@ serve(async (req: Request) => {
         region: "auto",
       });
 
-      const r2Endpoint = "https://e124fcaacaed0ba06c27fcbd89e24806.r2.cloudflarestorage.com/merian";
-
       for (const url of scan.image_storage_urls) {
         try {
-          // URLs are like: https://assets.merian.app/public_uploads/free/...
-          // We need to extract the path after the domain
-          const parsedUrl = new URL(url);
-          // e.g., /public_uploads/free/...
-          const pathname = parsedUrl.pathname.startsWith("/") ? parsedUrl.pathname.substring(1) : parsedUrl.pathname;
-          
-          if (pathname) {
-            console.log(`Deleting from R2: ${pathname}`);
-            await aws.fetch(`${r2Endpoint}/${pathname}`, {
-              method: "DELETE",
-            });
-          }
+          console.log(`Deleting from R2: ${url}`);
+          await aws.fetch(url, {
+            method: "DELETE",
+          });
         } catch (e) {
           console.error(`Failed to delete image at ${url} from R2:`, e);
           // We don't throw here, best-effort cleanup
