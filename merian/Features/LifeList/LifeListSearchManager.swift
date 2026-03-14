@@ -79,19 +79,19 @@ class LifeListSearchManager: ObservableObject {
                         case "all": 
                             matchesCategory = true
                         case "plants": 
-                            matchesCategory = scan.kingdom == "plantae" || scan.searchString.contains("plant")
+                            matchesCategory = scan.kingdom == "plantae"
                         case "fungi": 
-                            matchesCategory = scan.kingdom == "fungi" || scan.searchString.contains("fungi") || scan.searchString.contains("mushroom")
+                            matchesCategory = scan.kingdom == "fungi"
                         case "insects": 
-                            matchesCategory = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida" || scan.searchString.contains("insect") || scan.searchString.contains("bug") || scan.searchString.contains("spider")
+                            matchesCategory = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
                         case "birds": 
-                            matchesCategory = scan.className == "aves" || scan.searchString.contains("bird")
+                            matchesCategory = scan.className == "aves"
                         case "mammals": 
-                            matchesCategory = scan.className == "mammalia" || scan.searchString.contains("mammal")
+                            matchesCategory = scan.className == "mammalia"
                         case "reptiles": 
-                            matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia" || scan.searchString.contains("reptile") || scan.searchString.contains("amphibian")
+                            matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
                         default: 
-                            matchesCategory = scan.searchString.contains(catMatch)
+                            matchesCategory = false
                     }
                     
                     if !matchesCategory { return false }
