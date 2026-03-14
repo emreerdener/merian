@@ -61,9 +61,12 @@ struct TopToolbarView: View {
                     cameraManager.toggleFlash()
                 }
                 
-                PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) { @MainActor in
+                let isGlass = hardwareOrchestrator.isGlassmorphismEnabled
+                let thumb = photoLibraryManager.latestThumbnail
+                
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
                     ZStack {
-                        if hardwareOrchestrator.isGlassmorphismEnabled {
+                        if isGlass {
                             Circle()
                                 .fill(.ultraThinMaterial)
                                 .environment(\.colorScheme, .dark)
@@ -74,7 +77,7 @@ struct TopToolbarView: View {
                                 .frame(width: 50, height: 50)
                         }
                         
-                        if let thumbnail = photoLibraryManager.latestThumbnail {
+                        if let thumbnail = thumb {
                             Image(uiImage: thumbnail)
                                 .resizable()
                                 .scaledToFill()

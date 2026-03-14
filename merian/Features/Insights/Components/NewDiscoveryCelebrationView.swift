@@ -25,7 +25,7 @@ struct NewDiscoveryCelebrationView: View {
                                 Image(systemName: "sparkles")
                                     .font(.system(size: 60))
                                     .foregroundStyle(.yellow, .cyan)
-                                    .symbolEffect(.bounce, options: .nonRepeating)
+                                    .symbolEffect(.bounce, value: showIcon)
                             } else {
                                 Image(systemName: "sparkles")
                                     .font(.system(size: 60))
