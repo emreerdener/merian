@@ -42,6 +42,26 @@ The transaction log for every identification ever successfully passed.
 - `weather_condition`, `regional_status_rationale` (Text)
 - `weather_temperature_f` (Float): Local degrees fahrenheit.
 - `image_storage_urls` (Text Array): Stores safe public Cloudflare links generated explicitly off the Moderation engine safely resolving explicit abuses natively.
+- `is_flagged` (Boolean): Managed asynchronously via `00005_flagged_reviews.sql` indicating human-reported moderation flags natively mapped.
+- `is_tombstoned` (Boolean): Handled locally via `00006_apply_user_tombstone.sql` anonymizing historical AI data for GDPR-compliant account deletions gracefully mapping offline cache continuity.
+
+### `flagged_reviews`
+
+Captures user feedback reporting improper or harmful inferences directly.
+
+- `id` (UUID): Primary key.
+- `scan_id` (UUID - Foreign Key): Natively binds to `scans`.
+- `user_id` (UUID - Foreign Key): Natively binds to the `auth.users` GoTrue unique identifiers of the reporting identity.
+- `flag_reason` (Text): e.g. "Incorrect Species" or "Inappropriate Content".
+- `user_suggestion` (Text): Optional custom text feedback.
+- `status` (Text): Enum state natively defaulting to `PENDING_REVIEW`.
+
+### `user_blocks`
+
+Registers blocked actors so they vanish securely completely detached natively from Discovery feeds. 
+
+- `blocker_id` (UUID - Foreign Key): The actor executing the block.
+- `blocked_id` (UUID - Foreign Key): The UUID of the offender mapping seamlessly inside the array boundary logically safely blocking them directly mapping.
 
 ## SwiftData Schema (Local Offline Queue)
 

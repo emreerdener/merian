@@ -16,8 +16,8 @@ The Life List acts as the user's primary offline biological journal.
 - Leverages SwiftData `@Relationship` mapping dynamically natively inside a nested 3-column `LazyVGrid`, providing an "Explore Library" modal inside `CollectionDetailView` natively to link IDs safely without duplicating exact 12MP local images.
 - Instantly navigates scans from the user's library into explicit folders dynamically, protecting original creation timestamps safely.
 
-### Memory Integrity (`LifeListThumbnailView`)
-- Natively guards the iOS lifecycle against "Out of Memory" (OOM) crashes by strictly leveraging Core Graphics interpolations downsampling massive 12MP files into RAM sequentially rather than instantiating memory-heavy `UIImage(contentsOfFile:)` chunks across grid loads. 
+### Memory Integrity (`ImageDownsampler`)
+- Natively guards the iOS lifecycle against "Out of Memory" (OOM) crashes by strictly decoupling explicit `Data` buffer conversions out of SwiftUI into an isolated `ImageDownsampler` static abstraction, leveraging Core Graphics interpolations dropping massive 12MP files seamlessly into RAM sequentially rather than instantiating memory-heavy `UIImage(contentsOfFile:)` chunks across grid loads.
 
 ## 2. Inferences & Telemetry (`InsightSheetView`)
 The `InsightSheetView` is Merian's central contextual readout, triggered immediately after an Edge API loop or seamlessly opened offline via the Life List.

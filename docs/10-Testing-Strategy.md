@@ -24,10 +24,14 @@ This guarantees that:
 
 The testing bounds are mapped physically within `merianTests`:
 
+- **`MerianNetworkClientTests.swift`**: Thoroughly maps API routing bounds testing explicit self-healing `.401` execution cycles for Ghost User retries and JSON body payload serialization natively.
+- **`ImageDownsamplerTests.swift`**: Directly tests pure Core Graphics memory constraint barriers mapping 4000x4000 physical payloads cleanly under safe metric limits natively to prevent Out-Of-Memory JetSam OS crashes structurally.
+- **`CameraViewModelTests.swift`**: Validates cross-app UI state routing logic including deep physical Apple lifecycle events like `NSNotification.Name("AppDidEnterInactivePhase")` dropping active testing limits physically avoiding lockouts explicitly.
 - **`InferenceEngineTests.swift`**: Securely asserts logical bounds surrounding decoding the `EdgeResponseWrapper` AI payloads structurally, mapping specific physical metadata like `is_poisonous`, raw numeric `ai_confidence_score` indices and deep structural `TaxonomyData` logic seamlessly across `JSONDecoder`.
 - **`OfflineQueueManagerTests.swift`**: Dynamically mocks native payload insertions safely. Rigorously exercises `.enqueueCapture` and native `.purgeSoftDeletedRecords()`, strictly asserting local counts inside the testing execution loops and explicitly confirming the `URL.documentsDirectory` physical teardowns resolve successfully.
 - **`GamificationManagerTests.swift`**: Validates native persistence bounds asserting proper math updates against user local scores ensuring UI progression trackers never skew bounds unexpectedly.
 - **`SpeciesDataTests.swift`**: Ensures native semantic `Tag` array extraction architectures behave structurally identically inside testing arrays.
+- **`ScanRepositoryTests.swift`**, **`BackgroundDatabaseActorTests.swift`**: Verifies dynamic bi-directional relationship bounds appending dynamically and structurally inside the isolated local RAM footprint properly without causing SwiftData loop issues safely.
 
 ## Mocking Physical Apple Ecosystem Limits natively (`DeviceIdentityManager`)
 

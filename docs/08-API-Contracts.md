@@ -177,3 +177,46 @@ Because this completely destroys a structural memory, validation is absolute:
 4. Statically equates `scan.owner_id === user.id`. A mismatch throws a `403 Forbidden` IDOR termination.
 5. Recursively deletes bytes natively mapped to the `AwsClient` bucket array based upon `image_storage_urls`.
 6. Issues native `DELETE` commands wiping the Postgres row cleanly.
+
+---
+
+## Deno `/block-user` Edge Node
+
+Executes a rigid moderation block, instantly dropping the specified offender from the authenticated identity's Discovery Feed ecosystem securely natively via `SocialGuardManager`.
+
+### Request Payload
+
+```json
+{
+  "blocked_id": "Target UUID to block"
+}
+```
+
+### Authentication Enforcement
+
+- Strictly pulls `supabaseAdmin.auth.getUser(jwt)` mapped from the GoTrue header.
+- Physically writes the structural boundary into the `public.user_blocks` Table natively (schema migrated via `00001_initial_schema.sql`).
+- Generates a `400 Bad Request` if `blocked_id` matches the calling identity's UUID safely.
+
+---
+
+## Deno `/flag-issue` Edge Node
+
+Generates an ecosystem report against AI inferences mapped aggressively within the native UI (`FlagIssueView`), injecting raw data safely into `00005_flagged_reviews.sql`.
+
+### Request Payload
+
+```json
+{
+  "scanId": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+  "userId": "Legacy device ID strictly included for analytical parsing locally",
+  "flagReason": "Incorrect Species",
+  "userSuggestion": "Optional taxonomy string provided by the user manually"
+}
+```
+
+### Authentication Enforcement
+
+- Validates JWT signature to ensure a genuine authenticated identity mapping against `scan_id`. 
+- Natively inserts a row mapped strictly into `public.flagged_reviews`.
+- Triggers `HTTP 200` upon success securely decoupling the user's report without hanging the SwiftUI interface dynamically.

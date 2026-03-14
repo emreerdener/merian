@@ -38,3 +38,11 @@ A tightly coupled boundary enforcing the Paywall visually in frontend boundaries
 - Connects logically to `.canPerformScan(isProActive:)`.
 - Grants 3 free daily validations intrinsically via `UserDefaults` keyed explicitly against `DeviceIdentityManager.shared.deviceId`.
 - Resets limits predictably across calendar bounds, actively triggering `$isPaywallOpen` sheets on strict bounds.
+
+## Trust & Safety (`SocialGuardManager`)
+
+Operates entirely decoupled from Revenue boundaries but maps fundamentally to Identity.
+
+- Securely manages a persistent local SwiftUI `Set<String>` of blocked User UUIDs (`blockedUserIds`).
+- Optimistically updates UI blocking state across Discovery feeds instantly while asynchronously flushing the UUID to the `/block-user` Edge node. 
+- Automatically drops the block natively if the Edge API returns an error, self-healing the state matrix.
