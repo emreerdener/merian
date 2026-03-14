@@ -518,25 +518,16 @@ nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIIma
             return nil
         }
         
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 500
-        ]
-        
-        if Task.isCancelled { return nil }
-        
-        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+        if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 500) {
+            let thumbnail = UIImage(cgImage: cgImage)
+            ImageCache.shared.set(thumbnail, forKey: cacheKey)
+            return thumbnail
+        } else {
             // Memory Fallback
             let fallback = UIImage(data: data)?.preparingThumbnail(of: CGSize(width: 500, height: 500))
             if let fb = fallback { ImageCache.shared.set(fb, forKey: cacheKey) }
             return fallback
         }
-        
-        let img = UIImage(cgImage: cgImage)
-        ImageCache.shared.set(img, forKey: cacheKey) 
-        return img
     } catch {
         return nil
     }

@@ -131,6 +131,7 @@ struct MerianNetworkClientTests {
                     "access_token": "mock-jwt-token",
                     "token_type": "bearer",
                     "expires_in": 3600,
+                    "expires_at": 1672535000,
                     "refresh_token": "mock-refresh",
                     "user": {
                         "id": "12345678-1234-1234-1234-123456789012",
@@ -140,6 +141,7 @@ struct MerianNetworkClientTests {
                         "phone": "",
                         "app_metadata": {},
                         "user_metadata": {},
+                        "identities": [],
                         "created_at": "2023-01-01T00:00:00Z",
                         "updated_at": "2023-01-01T00:00:00Z"
                     }
@@ -188,6 +190,7 @@ struct MerianNetworkClientTests {
                     "access_token": "mock-jwt-token",
                     "token_type": "bearer",
                     "expires_in": 3600,
+                    "expires_at": 1672535000,
                     "refresh_token": "mock-refresh",
                     "user": {
                         "id": "12345678-1234-1234-1234-123456789012",
@@ -197,6 +200,7 @@ struct MerianNetworkClientTests {
                         "phone": "",
                         "app_metadata": {},
                         "user_metadata": {},
+                        "identities": [],
                         "created_at": "2023-01-01T00:00:00Z",
                         "updated_at": "2023-01-01T00:00:00Z"
                     }

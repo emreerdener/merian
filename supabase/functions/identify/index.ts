@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { encodeBase64 } from "jsr:@std/encoding/base64";
+import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
 import {
