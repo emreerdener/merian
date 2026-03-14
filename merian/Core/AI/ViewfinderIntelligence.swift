@@ -20,10 +20,18 @@ final class ViewfinderIntelligence: ObservableObject {
     @Published var isOptimal: Bool = true
     
     private var isAnalyzing = false
+    private var pauseUntil: Date = .distantPast
     
     private init() {}
     
+    func pauseAnalysis(for duration: TimeInterval) {
+        pauseUntil = Date().addingTimeInterval(duration)
+        Task { await updateHint(.optimal) }
+    }
+    
     func analyze(pixelBuffer: CVPixelBuffer, distance: Float?) {
+        guard Date() > pauseUntil else { return }
+        
         // Drop frames instantly if we're currently processing one to maintain zero latency in the viewfinder
         guard !isAnalyzing else { return }
         isAnalyzing = true

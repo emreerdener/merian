@@ -112,6 +112,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             Task { @MainActor in
                 self.isSessionRunning = true
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
+                ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
             }
         }
     }
@@ -198,6 +199,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         HardwareOrchestrator.shared.isIdleLocked = false
         isLiveInferencePaused = false
         applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
+        ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
     }
     
     nonisolated func depthDataOutput(_ output: AVCaptureDepthDataOutput, didOutput depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection) {
