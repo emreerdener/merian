@@ -11,6 +11,7 @@ final class InferenceEngine: ObservableObject {
     @Published var activePayload: Data? = nil
     @Published var activeCompressedPayload: Data? = nil
     @Published var activePayloads: [String] = []
+    @Published var validHistoricPayloads: [String] = []
     @Published var speciesData: SpeciesData? = nil
     private(set) var activeLatitude: Double? = nil
     private(set) var activeLongitude: Double? = nil
@@ -73,6 +74,7 @@ final class InferenceEngine: ObservableObject {
         self.activePayload = imageData
         self.activeCompressedPayload = nil
         self.activePayloads = []
+        self.validHistoricPayloads = []
         self.speciesData = nil
         self.isBackgroundRescued = false
         
@@ -344,6 +346,7 @@ final class InferenceEngine: ObservableObject {
         activePayload = nil
         activeCompressedPayload = nil
         activePayloads.removeAll()
+        validHistoricPayloads.removeAll()
         activeLatitude = nil
         activeLongitude = nil
         activeElevation = nil
@@ -365,6 +368,18 @@ final class InferenceEngine: ObservableObject {
             paths.append(contentsOf: extras)
         }
         self.activePayloads = paths
+        
+        Task {
+            let validPaths = await Task.detached(priority: .userInitiated) {
+                paths.filter { path in
+                    FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
+                }
+            }.value
+            
+            await MainActor.run {
+                self.validHistoricPayloads = validPaths
+            }
+        }
         
         let commonName = record.commonName
         let scientificName = record.scientificName

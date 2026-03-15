@@ -3,10 +3,9 @@ import SwiftUI
 struct InsightCarouselView: View {
     @EnvironmentObject var inferenceEngine: InferenceEngine
     
-    @State private var validHistoricPayloads: [String] = []
-    
     var body: some View {
         let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
+        let validHistoricPayloads = inferenceEngine.validHistoricPayloads
         let totalImages = (inferenceEngine.activePayload != nil ? 1 : 0) + validHistoricPayloads.count + refUrls.count
         
         if totalImages > 0 {
@@ -63,22 +62,8 @@ struct InsightCarouselView: View {
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: totalImages > 1 ? .always : .never))
             .aspectRatio(1.0, contentMode: .fit)
-            .task { await loadValidHistoricPayloads() }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)
-        }
-    }
-    
-    private func loadValidHistoricPayloads() async {
-        let paths = inferenceEngine.activePayloads
-        let validPaths = await Task.detached(priority: .userInitiated) {
-            paths.filter { path in
-                FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
-            }
-        }.value
-        
-        await MainActor.run {
-            self.validHistoricPayloads = validPaths
         }
     }
 }

@@ -64,37 +64,11 @@ struct CameraRootView: View {
                         Spacer()
                     }
                 }
-                .toolbar {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        if !viewModel.isAnalyzingFullscreen {
-                            Button(action: {
-                                viewModel.isLifeListOpen = true
-                            }) {
-                                VStack(spacing: 4) {
-                                    Image(systemName: "book")
-                                    Text("Scans")
-                                        .font(.system(size: 8, weight: .medium))
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 24)
-                            }
-                            Spacer()
-                            
-                            Button(action: {
-                                viewModel.isUserProfileOpen = true
-                            }) {
-                                VStack(spacing: 4) {
-                                    Image(systemName: "person")
-                                    Text("Profile")
-                                        .font(.system(size: 8, weight: .medium))
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 24)
-                            }
-                        }
-                    }
-                }
-                .toolbarBackground(.hidden, for: .bottomBar)
+                .cameraNavigationToolbar(
+                    isLifeListOpen: $viewModel.isLifeListOpen,
+                    isUserProfileOpen: $viewModel.isUserProfileOpen,
+                    isAnalyzingFullscreen: viewModel.isAnalyzingFullscreen
+                )
                 
                 // Extracted Shutter Button Overlay
                 VStack {
