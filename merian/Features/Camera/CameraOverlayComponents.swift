@@ -54,34 +54,27 @@ struct TopToolbarView: View {
             Spacer()
             
             VStack(spacing: 16) {
-                GlassCircularButton(
-                    iconName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill",
-                    iconColor: cameraManager.isFlashEnabled ? .yellow : .white
-                ) {
+                Button(action: {
                     cameraManager.toggleFlash()
+                }) {
+                    Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(cameraManager.isFlashEnabled ? .yellow : .white)
+                        .frame(width: 50, height: 50)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .environment(\.colorScheme, .dark)
                 }
+                .buttonStyle(.plain)
                 
-                let isGlass = hardwareOrchestrator.isGlassmorphismEnabled
                 let thumb = photoLibraryManager.latestThumbnail
                 
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
                     ZStack {
-                        if isGlass {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .environment(\.colorScheme, .dark)
-                                .frame(width: 50, height: 50)
-                        } else {
-                            Circle()
-                                .fill(Color.black.opacity(0.7))
-                                .frame(width: 50, height: 50)
-                        }
-                        
                         if let thumbnail = thumb {
                             Image(uiImage: thumbnail)
                                 .resizable()
                                 .scaledToFill()
-                                .frame(width: 46, height: 46)
+                                .frame(width: 48, height: 48)
                                 .clipShape(Circle())
                         } else {
                             Image(systemName: "photo.on.rectangle")
@@ -89,7 +82,11 @@ struct TopToolbarView: View {
                                 .foregroundColor(.white)
                         }
                     }
+                    .frame(width: 50, height: 50)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .environment(\.colorScheme, .dark)
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 24)
