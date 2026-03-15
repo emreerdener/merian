@@ -106,7 +106,7 @@ Tracks locally synchronized and unique species scans natively for the Life List.
 - `referenceImageUrl`: String?
 - `isLocallyArchived`: Bool (Managed internally by the Archive Safety Protocol to track R2 payloads downloaded before the 90-day free tier expiration limit).
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`, `taxonomyFamily`, `taxonomyGenus`: String? (Explicitly stored Linnaean taxonomy fields mapped into `MerianSchemaV3` enabling rigid detached background semantic discovery loops natively bypassing arbitrary UI `ecology_type` bounds safely.)
-- `locationName`, `weatherCondition`, `weatherTemperatureF`: String/Double? (Mapped in `MerianSchemaV5` wrapping historical environmental context via Apple's native CoreLocation CLGeocoder natively powering localized UI inside the `InsightSheetView`.)
+- `locationName`, `weatherCondition`, `weatherTemperatureF`: String/Double? (Mapped in `MerianSchemaV5` wrapping historical environmental context via Apple's native MapKit MKReverseGeocodingRequest natively powering localized UI inside the `InsightSheetView`.)
 - `collections`: [ScanCollection]? (Mapped natively in `MerianSchemaV6` establishing referential boundaries into top-level custom user galleries, dynamically adding native iOS photo-album features without duplicating any raw data payloads directly.)
 
 ### `ScanCollection` (User Albums)

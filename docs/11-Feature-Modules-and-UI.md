@@ -53,7 +53,7 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 - Safely hooks the `HapticsToggle` physically pausing the `AppDIContainer.shared.hapticManager` directly from user preferences.
 
 ## 4. Hardware Integrations (`AVCaptureEventInteraction`)
-- Directly hooks into iOS 17.2 tactile hardware boundaries ensuring that depressing physical hardware configurations natively triggers the exact same `EnvironmentContextManager` background `CLGeocoder()` and `WeatherService` hooks seamlessly as the screen UI.
+- Directly hooks into iOS 17.2 tactile hardware boundaries ensuring that depressing physical hardware configurations natively triggers the exact same `EnvironmentContextManager` background `MKReverseGeocodingRequest` and `WeatherService` hooks seamlessly as the screen UI.
 - All points of access guarantee zero-latency capturing and GPS binding natively mapped straight into EXIF metadata directly inside the user's core iPhone Photo Roll.
 
 ## 5. UI Abstract Modularization
