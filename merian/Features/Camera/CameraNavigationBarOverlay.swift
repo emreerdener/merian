@@ -15,11 +15,21 @@ struct CameraNavigationBarOverlay: ViewModifier {
                         }) {
                             VStack(spacing: 4) {
                                 Image(systemName: "book")
+                                    .font(.system(size: 24, weight: .light))
                                 Text("Scans")
-                                    .font(.system(size: 8, weight: .medium))
+                                    .font(.system(size: 10, weight: .medium))
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 16)
+                            .foregroundColor(.white)
+                            .frame(width: 72, height: 72)
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .environment(\.colorScheme, .dark)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                            )
                         }
                         
                         Spacer()
@@ -29,14 +39,25 @@ struct CameraNavigationBarOverlay: ViewModifier {
                         }) {
                             VStack(spacing: 4) {
                                 Image(systemName: "person")
+                                    .font(.system(size: 24, weight: .light))
                                 Text("Profile")
-                                    .font(.system(size: 8, weight: .medium))
+                                    .font(.system(size: 10, weight: .medium))
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 16)
+                            .foregroundColor(.white)
+                            .frame(width: 72, height: 72)
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .environment(\.colorScheme, .dark)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                            )
                         }
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 10)
                     .background(Color.clear)
                 }
             }
