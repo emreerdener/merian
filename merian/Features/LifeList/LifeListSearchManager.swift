@@ -170,6 +170,7 @@ struct LifeListSearchView: View {
                         }
                         .padding(.horizontal)
                     }
+                    .padding(.top, 8)
                     .padding(.bottom, 12)
                     .background(Color(UIColor.systemBackground))
                 }
