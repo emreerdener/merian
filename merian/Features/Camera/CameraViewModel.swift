@@ -139,6 +139,11 @@ final class CameraViewModel: ObservableObject {
                 locationName: context.locationName,
                 weatherCondition: context.weatherCondition,
                 weatherTemperatureF: context.weatherTemperature,
+                cameraPitchDegrees: context.cameraPitchDegrees,
+                compassHeading: context.compassHeading,
+                relativeHumidity: context.relativeHumidity,
+                uvIndex: context.uvIndex,
+                isFlashFired: self.imageToCrop?.isFlashFired,
                 modelContext: modelContext
             )
         }
@@ -232,12 +237,15 @@ final class CameraViewModel: ObservableObject {
                     // Actively push the original 12MP buffer down natively into the user's Camera Roll securely
                     await diContainer.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
                     
+                    let flashFired = diContainer.cameraManager.isFlashEnabled
+                    
                     if let cgImage = ImageDownsampler.downsample(data: captureData, maxSize: 4000) {
                         let rawImage = UIImage(cgImage: cgImage)
                         await MainActor.run {
                             self.imageToCrop = IdentifiableImage(
                                 image: rawImage,
-                                environmentContext: instantLocation != nil ? EnvironmentContext(location: instantLocation) : nil
+                                environmentContext: instantLocation != nil ? EnvironmentContext(location: instantLocation) : nil,
+                                isFlashFired: flashFired
                             )
                         }
                     }

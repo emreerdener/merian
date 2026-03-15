@@ -9,7 +9,7 @@ struct CameraViewModelTests {
     // Setup a volatile structural context to isolate testing safely natively.
     @MainActor
     private func createIsolatedContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV7.models)
+        let schema = Schema(MerianSchemaV8.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])

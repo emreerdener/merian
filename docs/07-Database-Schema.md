@@ -38,8 +38,10 @@ The transaction log for every identification ever successfully passed.
 - `gps_elevation` (Float): Altitude exactly at capture.
 - `is_live_capture` (Boolean): AI flags whether this was a real photo vs a screen/book capture.
 - `ecology_type` (ENUM): `'wild'` | `'urban'` | `'domesticated'` | `'unknown'`
-- `weather_condition`, `regional_status_rationale` (Text)
-- `weather_temperature_f` (Float): Local degrees fahrenheit.
+- `weather_condition`, `regional_status_rationale`, `semantic_location`, `device_locale`, `time_of_day`, `depth_scale_text` (Text)
+- `weather_temperature_f`, `camera_pitch_degrees`, `compass_heading`, `relative_humidity` (Float)
+- `current_month`, `uv_index` (Int)
+- `is_flash_fired` (Boolean)
 - `image_storage_urls` (Text Array): Stores safe public Cloudflare links generated explicitly off the Moderation engine safely resolving explicit abuses natively.
 - `is_flagged` (Boolean): Managed asynchronously via `00005_flagged_reviews.sql` indicating human-reported moderation flags natively mapped.
 - `is_tombstoned` (Boolean): Handled locally via `00006_apply_user_tombstone.sql` anonymizing historical AI data for GDPR-compliant account deletions gracefully mapping offline cache continuity.
@@ -74,9 +76,11 @@ Locally captures state when cell towers drop.
 - `timestamp`: Date
 - `localImagePaths`: [String] (References to High-Res JPEGs written inside `URL.documentsDirectory`)
 - `gpsLatitude`, `gpsLongitude`, `gpsElevation`: Double?
-- `weatherCondition`: String?
-- `weatherTemperatureF`: Double?
-- `blurScore`: Double?
+- `weatherCondition`, `locationName`: String?
+- `weatherTemperatureF`, `blurScore`, `cameraPitchDegrees`, `compassHeading`, `relativeHumidity`: Double?
+- `subjectDistanceInMeters`: Float?
+- `isFlashFired`: Bool?
+- `uvIndex`: Int?
 - `isDeleted`: Bool (Soft-delete boundary once 200 OK receives back from Edge)
 
 ### `LocalScanRecord` (Life List)

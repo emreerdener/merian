@@ -45,10 +45,17 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
   "gpsLongitude": -122.4194,
   "gpsElevation": 42.5,
   "depthScaleText": "1.2 meters",
+  "semanticLocation": "Zilker Park",
   "weatherCondition": "Sunny",
   "weatherTemperatureF": 72.5,
   "deviceLocale": "en",
-  "currentMonth": 3
+  "currentMonth": 3,
+  "timeOfDay": "2:00 PM",
+  "isFlashFired": true,
+  "cameraPitchDegrees": -85.2,
+  "compassHeading": 12.5,
+  "relativeHumidity": 0.85,
+  "uvIndex": 6
 }
 ```
 

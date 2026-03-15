@@ -98,7 +98,12 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         gpsElevation: Double? = nil,
                         weatherCondition: String? = nil,
                         weatherTemperatureF: Double? = nil,
-                        blurScore: Double? = nil) {
+                        blurScore: Double? = nil,
+                        isFlashFired: Bool? = nil,
+                        cameraPitchDegrees: Double? = nil,
+                        compassHeading: Double? = nil,
+                        relativeHumidity: Double? = nil,
+                        uvIndex: Int? = nil) {
         
         guard let modelContext = modelContext else {
             print("ModelContext not set on OfflineQueueManager")
@@ -124,6 +129,11 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         weatherCondition: weatherCondition,
                         weatherTemperatureF: weatherTemperatureF,
                         blurScore: blurScore,
+                        isFlashFired: isFlashFired,
+                        cameraPitchDegrees: cameraPitchDegrees,
+                        compassHeading: compassHeading,
+                        relativeHumidity: relativeHumidity,
+                        uvIndex: uvIndex,
                         isDeleted: false
                     )
                     modelContext.insert(scan)
@@ -304,8 +314,14 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     gpsLatitude: scan.gpsLatitude,
                     gpsLongitude: scan.gpsLongitude,
                     gpsElevation: scan.gpsElevation,
+                    semanticLocation: nil,
                     weatherCondition: scan.weatherCondition,
-                    weatherTemperatureF: scan.weatherTemperatureF
+                    weatherTemperatureF: scan.weatherTemperatureF,
+                    cameraPitchDegrees: scan.cameraPitchDegrees,
+                    compassHeading: scan.compassHeading,
+                    relativeHumidity: scan.relativeHumidity,
+                    uvIndex: scan.uvIndex,
+                    isFlashFired: scan.isFlashFired
                 )
                 let backgroundActor = BackgroundDatabaseActor(modelContainer: modelContext.container)
                 await backgroundActor.processAndCleanupOfflineScan(

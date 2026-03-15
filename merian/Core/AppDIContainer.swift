@@ -47,7 +47,12 @@ final class AppDIContainer: ObservableObject {
                 imageData: payload,
                 gpsLatitude: inferenceEngine.activeLatitude,
                 gpsLongitude: inferenceEngine.activeLongitude,
-                weatherCondition: inferenceEngine.activeWeatherCondition
+                weatherCondition: inferenceEngine.activeWeatherCondition,
+                isFlashFired: inferenceEngine.activeFlashFired,
+                cameraPitchDegrees: inferenceEngine.activePitchDegrees,
+                compassHeading: inferenceEngine.activeCompassHeading,
+                relativeHumidity: inferenceEngine.activeRelativeHumidity,
+                uvIndex: inferenceEngine.activeUvIndex
             )
             inferenceEngine.cancelActiveRequest()
         }

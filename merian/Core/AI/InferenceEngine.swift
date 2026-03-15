@@ -18,6 +18,11 @@ final class InferenceEngine: ObservableObject {
     private(set) var activeLocationName: String? = nil
     private(set) var activeWeatherCondition: String? = nil
     private(set) var activeTemperatureF: Double? = nil
+    private(set) var activePitchDegrees: Double? = nil
+    private(set) var activeCompassHeading: Double? = nil
+    private(set) var activeRelativeHumidity: Double? = nil
+    private(set) var activeUvIndex: Int? = nil
+    private(set) var activeFlashFired: Bool? = nil
     
     private var inferenceTask: Task<Void, Never>?
     
@@ -60,7 +65,7 @@ final class InferenceEngine: ObservableObject {
     }    
 
     
-    func analyze(imageData: Data, subjectDistanceInMeters: Float? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, locationName: String? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, modelContext: ModelContext? = nil) {
+    func analyze(imageData: Data, subjectDistanceInMeters: Float? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, locationName: String? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, cameraPitchDegrees: Double? = nil, compassHeading: Double? = nil, relativeHumidity: Double? = nil, uvIndex: Int? = nil, isFlashFired: Bool? = nil, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activePayload = imageData
@@ -74,6 +79,11 @@ final class InferenceEngine: ObservableObject {
         self.activeLocationName = locationName
         self.activeWeatherCondition = weatherCondition
         self.activeTemperatureF = weatherTemperatureF
+        self.activePitchDegrees = cameraPitchDegrees
+        self.activeCompassHeading = compassHeading
+        self.activeRelativeHumidity = relativeHumidity
+        self.activeUvIndex = uvIndex
+        self.activeFlashFired = isFlashFired
         
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
@@ -111,8 +121,14 @@ final class InferenceEngine: ObservableObject {
                     gpsLatitude: gpsLatitude,
                     gpsLongitude: gpsLongitude,
                     gpsElevation: gpsElevation,
+                    semanticLocation: locationName,
                     weatherCondition: weatherCondition,
-                    weatherTemperatureF: weatherTemperatureF
+                    weatherTemperatureF: weatherTemperatureF,
+                    cameraPitchDegrees: cameraPitchDegrees,
+                    compassHeading: compassHeading,
+                    relativeHumidity: relativeHumidity,
+                    uvIndex: uvIndex,
+                    isFlashFired: isFlashFired
                 )
                 
                 // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely

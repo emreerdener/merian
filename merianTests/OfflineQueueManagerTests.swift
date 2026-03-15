@@ -9,7 +9,7 @@ struct OfflineQueueManagerTests {
     // Helper to create an isolated in-memory SwiftData container for testing
     @MainActor
     private func createInMemoryContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV7.models)
+        let schema = Schema(MerianSchemaV8.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -38,8 +38,9 @@ struct OfflineQueueManagerTests {
         )
         
         // Assert
-        // OfflineQueueManager performs context.save() synchronously here
-        let descriptor = FetchDescriptor<MerianSchemaV7.OfflineQueuedScan>()
+        // Wait for detached task to complete
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let descriptor = FetchDescriptor<MerianSchemaV8.OfflineQueuedScan>()
         let records = try context.fetch(descriptor)
         
         #expect(records.count == 1, "There should be exactly 1 OfflineQueuedScan in the database")
@@ -65,15 +66,15 @@ struct OfflineQueueManagerTests {
         let manager = OfflineQueueManager.shared
         manager.modelContext = context
         
-        let scan1 = MerianSchemaV7.OfflineQueuedScan(id: "1", isDeleted: true)
-        let scan2 = MerianSchemaV7.OfflineQueuedScan(id: "2", isDeleted: false)
+        let scan1 = MerianSchemaV8.OfflineQueuedScan(id: "1", isDeleted: true)
+        let scan2 = MerianSchemaV8.OfflineQueuedScan(id: "2", isDeleted: false)
         
         context.insert(scan1)
         context.insert(scan2)
         try context.save()
         
         // Verify initial state
-        let allScansDescriptor = FetchDescriptor<MerianSchemaV7.OfflineQueuedScan>()
+        let allScansDescriptor = FetchDescriptor<MerianSchemaV8.OfflineQueuedScan>()
         let initialScans = try context.fetch(allScansDescriptor)
         #expect(initialScans.count == 2)
         
@@ -92,7 +93,7 @@ struct OfflineQueueManagerTests {
         
         // 1. Arrange: Create a LocalScanRecord
         let scanId = UUID().uuidString
-        let record = MerianSchemaV7.LocalScanRecord(
+        let record = MerianSchemaV8.LocalScanRecord(
             id: scanId,
             speciesId: UUID().uuidString,
             scientificName: "Test Species",
@@ -107,12 +108,12 @@ struct OfflineQueueManagerTests {
         ScanRepository.shared.eradicateScan(record: record, modelContext: context)
         
         // 3. Assert: Verify LocalScanRecord is deleted
-        let afterFetch = FetchDescriptor<MerianSchemaV7.LocalScanRecord>()
+        let afterFetch = FetchDescriptor<MerianSchemaV8.LocalScanRecord>()
         let afterRecords = try context.fetch(afterFetch)
         #expect(afterRecords.isEmpty, "LocalScanRecord should be completely deleted from SwiftData.")
         
         // 4. Assert: Verify PendingCloudDeletionTask is scheduled
-        let taskFetch = FetchDescriptor<MerianSchemaV7.PendingCloudDeletionTask>()
+        let taskFetch = FetchDescriptor<MerianSchemaV8.PendingCloudDeletionTask>()
         let tasks = try context.fetch(taskFetch)
         #expect(tasks.count == 1, "Exactly one PendingCloudDeletionTask should be queued.")
         #expect(tasks.first?.scanId == scanId, "The scheduled task must refer to the correct scanId.")

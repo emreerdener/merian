@@ -5,6 +5,7 @@ struct IdentifiableImage: Identifiable {
     let image: UIImage
     var environmentContext: EnvironmentContext? = nil
     var isFromGallery: Bool = false
+    var isFlashFired: Bool = false
 }
 
 struct ImageCropperView: View {

@@ -70,6 +70,13 @@ serve(async (req: Request) => {
       weatherTemperatureF,
       deviceLocale,
       currentMonth,
+      semanticLocation,
+      timeOfDay,
+      isFlashFired,
+      cameraPitchDegrees,
+      compassHeading,
+      relativeHumidity,
+      uvIndex,
     } = body;
 
     if (!r2ObjectKey) {
@@ -159,10 +166,17 @@ Crucial instructions:
       - GPS Coordinates: Lat ${gpsLatitude ?? "Unknown"}, Long ${gpsLongitude ?? "Unknown"}
       - Elevation: ${gpsElevation != null ? `${gpsElevation} meters` : "Unknown"}
       - Depth Scale (Lidar): ${depthScaleText ?? "Unknown"}
+      - Semantic Location: ${semanticLocation ?? "Unknown"}
       - Weather Condition: ${weatherCondition ?? "Unknown"}
       - Temperature: ${weatherTemperatureF != null ? `${weatherTemperatureF}°F` : "Unknown"}
       - Device Locale: ${deviceLocale ?? "en"}
       - Current Month: ${currentMonth ?? "Unknown"}
+      - Time of Day: ${timeOfDay ?? "Unknown"}
+      - Hardware Flash Fired: ${isFlashFired ? "Yes (Colors may be washed out or overexposed)" : "No"}
+      - Camera Angle (Pitch): ${cameraPitchDegrees != null ? `${cameraPitchDegrees}° (Negative = looking down, Positive = looking up)` : "Unknown"}
+      - Compass Heading: ${compassHeading != null ? `${compassHeading}°` : "Unknown"}
+      - Relative Humidity: ${relativeHumidity != null ? (relativeHumidity * 100).toFixed(0) + '%' : 'Unknown'}
+      - UV Index: ${uvIndex ?? 'Unknown'}
     `;
 
     const merianResponseSchema = {
@@ -471,6 +485,16 @@ Crucial instructions:
           is_live_capture: parsedData.is_live_capture,
           weather_condition: weatherCondition,
           weather_temperature_f: weatherTemperatureF,
+          semantic_location: semanticLocation,
+          device_locale: deviceLocale,
+          current_month: currentMonth,
+          time_of_day: timeOfDay,
+          is_flash_fired: isFlashFired,
+          camera_pitch_degrees: cameraPitchDegrees,
+          compass_heading: compassHeading,
+          relative_humidity: relativeHumidity,
+          uv_index: uvIndex,
+          depth_scale_text: depthScaleText,
           image_storage_urls: modResult.publicUrl ? [modResult.publicUrl] : [],
         })
         .select("id")
