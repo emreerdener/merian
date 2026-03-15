@@ -8,6 +8,7 @@ To fundamentally prevent UI hangs, memory leaks, and OS-level Watchdog terminati
 
 ### Background Suspension Limits (`OfflineQueueManager`)
 When evaluating inference payloads in the wilderness disconnected from cell service, the system natively requires `UIBackgroundTaskIdentifier` hooks to complete URLSession executions. In `Merian`, these handles are explicitly extracted *outside* of generic `@MainActor` task executions to defeat rapid synchronous delegate fire-and-return OS suspension traps natively. We employ `@unchecked Sendable` reference boxes secured with `NSLock` instances to seamlessly bind these background identifiers.
+Furthermore, to safely bridge strict Swift 6 concurrency boundaries without halting the nonisolated `urlSession(_:task:didCompleteWithError:)` execution loop, UI-level terminations natively map securely back inside explicit `Task { @MainActor in }` contexts stopping deadlock crashes.
 
 ### Hanging Continuations (`CameraManager`)
 Apple's ISP (Image Signal Processor) can stall during extreme thermal saturation, failing to return an image frame via `AVCapturePhotoCaptureDelegate`. Rather than silently hanging the `isShutterActive` UI state indefinitely, Merian wraps structural `withCheckedThrowingContinuation` patterns securely inside a `withTaskCancellationHandler`. This is tied dynamically to a deterministic `Task.sleep(5.0)` hardware timeout fallback, resolving any stalled continuations cleanly with standard `CancellationError` triggers.

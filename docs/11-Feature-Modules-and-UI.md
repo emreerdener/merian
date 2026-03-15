@@ -11,14 +11,17 @@ The Life List acts as the user's primary offline biological journal.
 - Driven by `LifeListSearchManager`, which utilizes a debounce boundary (`.onChange`) to filter arrays asynchronously without lagging the visual input.
 - Binds directly to SwiftData's `allRecords` using `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)`. 
 - **Offline Semantic Routing**: Queries filter both explicit user-facing `commonName`/`scientificName` text and invisible `semanticTags` locally embedded by the AI model entirely off-grid.
+- **LazyVGrid Rendering Resilience**: To prevent fatal SwiftUI iOS 17 rendering engine drops when rapidly swapping multi-thousand item text collections, `LifeListSearchManager` strictly enforces explicit `.withAnimation { self.filteredScans = ... }` boundary updates cleanly forcing OS layout calculations natively offline.
 
 ### Collections (Top-Level Photo Albums)
 - In `MerianSchemaV6`, users can organize `LocalScanRecord` entries into distinct `ScanCollection` buckets.
 - Leverages SwiftData `@Relationship` mapping dynamically natively inside a nested 3-column `LazyVGrid`, providing an "Explore Library" modal inside `CollectionDetailView` natively to link IDs safely without duplicating exact 12MP local images.
 - Instantly navigates scans from the user's library into explicit folders dynamically, protecting original creation timestamps safely.
 
-### Memory Integrity (`ImageDownsampler`)
+### Memory Integrity (`ImageDownsampler` & Concurrency)
 - Natively guards the iOS lifecycle against "Out of Memory" (OOM) crashes by strictly decoupling explicit `Data` buffer conversions out of SwiftUI into an isolated `ImageDownsampler` static abstraction, leveraging Core Graphics interpolations dropping massive 12MP files seamlessly into RAM sequentially rather than instantiating memory-heavy `UIImage(contentsOfFile:)` chunks across grid loads.
+- **Thread Starvation Prevention**: Execution arrays natively hitting Apple's `ImageIO` functions (`CGImageSourceCreateWithURL`) are explicitly moved cleanly into `Task.detached(priority: .userInitiated)` structures. This seamlessly protects the Swift 6 global cooperative thread pool from halting the main UI rendering matrix sequentially.
+- **Sandbox Resiliency**: Physical disk file references completely drop absolute path trails prior to parsing (via `.lastPathComponent`). This gracefully secures `LifeListSearchManager` from randomly discarding `Documents/` payload bytes dynamically when the Xcode Simulator uniquely randomizes native app containers per-recompilation.
 
 ## 2. Inferences & Telemetry (`InsightSheetView`)
 The `InsightSheetView` is Merian's central contextual readout, triggered immediately after an Edge API loop or seamlessly opened offline via the Life List.
