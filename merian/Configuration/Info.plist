@@ -33,6 +33,8 @@
 	<string>Merian requires your location to determine regional ecological context and coordinate mapping.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Merian needs microphone access for aviary and insect sound classification.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Merian uses speech recognition to quickly search your Life List using voice dictation.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Merian needs to add files to your Photo Library to securely save your high-resolution taxonomy images.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
