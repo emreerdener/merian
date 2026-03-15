@@ -38,133 +38,134 @@ struct InsightSheetView: View {
         ZStack {
             NavigationStack {
                 ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        
+                        // 0. The Image Carousel
+                        InsightCarouselView()
+                        
+                        // 1. The Toxicity Banner (Safety Critical)
+                        InsightToxicityBanner()
+                            .padding(.horizontal)
+                        
+                        // 2. Core Taxonomy Block
+                        InsightTaxonomyHeader()
+                        
+                        // 3. Ecological Descriptive Insight
+                        InsightDescriptionSection(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
+                        
+                        // 3.5 Taxonomy Tree
+                        InsightTaxonomyTree()
                     
-                    // 0. The Image Carousel
-                    InsightCarouselView()
+                    // 4. Fallback Validation Block
+                    if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.85, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
+                        DiagnosticComparisonView(diagnosticData: diagnosticData)
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+                    }
                     
-                    // 1. The Toxicity Banner (Safety Critical)
-                    InsightToxicityBanner()
-                        .padding(.horizontal)
+                    // 5. Flag Issue Action
+                    Divider()
+                        .padding(.vertical, 8)
                     
-                    // 2. Core Taxonomy Block
-                    InsightTaxonomyHeader()
+                    Button(action: {
+                        isFlagIssuePresented = true
+                    }) {
+                        HStack {
+                            Image(systemName: "flag.fill")
+                            Text("Report Incorrect ID")
+                        }
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                    }
                     
-                    // 3. Ecological Descriptive Insight
-                    InsightDescriptionSection(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
+                    Spacer(minLength: 40)
+                    }
+                    .padding(.top, 24)
+                }
+                .textSelection(.enabled)
+                .sheet(isPresented: $isSafariPresented) {
+                    if let safeUrl = selectedWikiURL {
+                        SafariView(url: safeUrl)
+                            .ignoresSafeArea()
+                    }
+                }
+                .sheet(isPresented: $isFlagIssuePresented) {
+                    if let scanId = inferenceEngine.speciesData?.scanId {
+                        FlagIssueView(scanId: scanId)
+                    }
+                }
+                .navigationTitle(commonName)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                           Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.secondary)
+                        }
+                    }
                     
-                    // 3.5 Taxonomy Tree
-                    InsightTaxonomyTree()
-                
-                // 4. Fallback Validation Block
-                if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.85, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
-                    DiagnosticComparisonView(diagnosticData: diagnosticData)
-                        .padding(.horizontal)
-                        .padding(.top, 16)
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            let shareUrl = URL(string: "https://merian.app")!
+                            ShareLink(
+                                item: shareUrl,
+                                subject: Text("I found a \(commonName)!"),
+                                message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
+                            ) {
+                                Label("Share Discovery", systemImage: "square.and.arrow.up")
+                            }
+                            
+                            Button(action: { showCollectionPicker = true }) {
+                                Label("Save to Collection", systemImage: "folder.badge.plus")
+                            }
+                            
+                            Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+                                Label("Delete Scan", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                    }
+                }
+                .sheet(isPresented: $showCollectionPicker) {
+                    if let scanId = inferenceEngine.speciesData?.scanId {
+                        SaveToCollectionSheetView(scanId: scanId)
+                    }
+                }
+                .confirmationDialog(
+                    "Delete Scan",
+                    isPresented: $showDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Scan Permanently", role: .destructive) {
+                        eradicateCurrentScan()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
                 }
                 
-                // 5. Flag Issue Action
-                Divider()
-                    .padding(.vertical, 8)
-                
-                Button(action: {
-                    isFlagIssuePresented = true
-                }) {
-                    HStack {
-                        Image(systemName: "flag.fill")
-                        Text("Report Incorrect ID")
-                    }
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
+                if showCelebration {
+                    NewDiscoveryCelebrationView(
+                        commonName: commonName,
+                        onDismiss: {
+                            withAnimation(.easeOut(duration: 0.5)) {
+                                showCelebration = false
+                            }
+                        }
+                    )
+                    .transition(AnyTransition.opacity.combined(with: AnyTransition.scale(scale: 0.95)))
+                    .zIndex(100)
                 }
-                
-                Spacer(minLength: 40)
-            }
-            .padding(.top, 24)
-        }
-        .textSelection(.enabled)
-        .sheet(isPresented: $isSafariPresented) {
-            if let safeUrl = selectedWikiURL {
-                SafariView(url: safeUrl)
-                    .ignoresSafeArea()
-            }
-        }
-        .sheet(isPresented: $isFlagIssuePresented) {
-            if let scanId = inferenceEngine.speciesData?.scanId {
-                FlagIssueView(scanId: scanId)
-            }
-        }
-        .navigationTitle(commonName)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: {
-                    dismiss()
-                }) {
-                   Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.secondary)
-                }
-            }
-            
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    let shareUrl = URL(string: "https://merian.app")!
-                    ShareLink(
-                        item: shareUrl,
-                        subject: Text("I found a \(commonName)!"),
-                        message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
-                    ) {
-                        Label("Share Discovery", systemImage: "square.and.arrow.up")
-                    }
-                    
-                    Button(action: { showCollectionPicker = true }) {
-                        Label("Save to Collection", systemImage: "folder.badge.plus")
-                    }
-                    
-                    Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                        Label("Delete Scan", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .semibold))
-                }
-            }
-        }
-        .sheet(isPresented: $showCollectionPicker) {
-            if let scanId = inferenceEngine.speciesData?.scanId {
-                SaveToCollectionSheetView(scanId: scanId)
-            }
-        }
-        .confirmationDialog(
-            "Delete Scan",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Scan Permanently", role: .destructive) {
-                eradicateCurrentScan()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
-        }
-        
-        if showCelebration {
-            NewDiscoveryCelebrationView(
-                commonName: commonName,
-                onDismiss: {
-                    withAnimation(.easeOut(duration: 0.5)) {
-                        showCelebration = false
-                    }
-                }
-            )
-            .transition(AnyTransition.opacity.combined(with: AnyTransition.scale(scale: 0.95)))
-            .zIndex(100)
-        }
-    }
-    // Force solid background fill above the underlying camera UI
+            } // NavigationStack
+        } // ZStack
+        // Force solid background fill above the underlying camera UI
         .presentationBackground(Color(uiColor: .systemBackground))
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)

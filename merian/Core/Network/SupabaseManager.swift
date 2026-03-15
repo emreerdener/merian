@@ -144,7 +144,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             
             if self.isGuestUser {
                 do {
-                    let _ = try await client.auth.linkIdentity(
+                    let _ = try await client.auth.linkIdentityWithIdToken(
                         credentials: .init(
                             provider: .google,
                             idToken: idToken,
@@ -256,8 +256,12 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                 do {
                     if self.isGuestUser {
                         do {
-                            let _ = try await client.auth.linkIdentity(
-                                credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
+                            let _ = try await client.auth.linkIdentityWithIdToken(
+                                credentials: .init(
+                                    provider: .apple, 
+                                    idToken: idTokenString, 
+                                    nonce: nonce
+                                )
                             )
                         } catch {
                             let _ = try await client.auth.signInWithIdToken(
