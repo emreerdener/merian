@@ -58,3 +58,4 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 
 ## 5. UI Abstract Modularization
 - The UI hierarchy strictly avoids massive structural bindings. The bottom navigational routing structure (Scans/Profile) explicitly abstracts completely out of the monolithic `CameraRootView` natively into the ultra-lightweight `CameraNavigationBarOverlay` ViewModifier. This explicitly removes hundreds of geometric recalculations protecting shutter interaction latency strictly dynamically during capture sequences.
+- `UserProfileView` natively abstracts completely. The massive scrolling interface was strictly decoupled into `UserProfileHeaderView` (Avatar metadata), `UserProfileStatsView` (isolated SwiftData queries/calendar aggregations), and `UserProfileAuthSection` (decoupled OAuth networking). This preserves frame fluidity natively when fetching massive profile arrays.
