@@ -18,7 +18,8 @@ struct CameraRootView: View {
 
     
     var body: some View {
-        ZStack {
+        NavigationStack {
+            ZStack {
             // Full-bleed camera feed
             CameraPreviewView(
                 session: cameraManager.session,
@@ -56,19 +57,47 @@ struct CameraRootView: View {
                     
                     // Viewfinder Intelligence Hint Banner
                     ViewfinderHintBanner()
-                    
-
-                    
-                    // Floating Action Bar Interface
-                    MerianActionBar(
-                        isLifeListOpen: $viewModel.isLifeListOpen,
-                        isPaywallOpen: $viewModel.isPaywallOpen,
-                        isInsightSheetOpen: $viewModel.isInsightSheetOpen,
-                        isAnalyzingFullscreen: $viewModel.isAnalyzingFullscreen,
-                        isUserProfileOpen: $viewModel.isUserProfileOpen,
-                        imageToCrop: $viewModel.imageToCrop,
-                        onCaptureTriggered: viewModel.executeCapture
-                    )
+                }
+                .toolbar {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        if !viewModel.isAnalyzingFullscreen {
+                            Button(action: {
+                                viewModel.isLifeListOpen = true
+                            }) {
+                                Image(systemName: "book")
+                               
+                            }
+                            Spacer()
+                            
+                            Button(action: {
+                                viewModel.isUserProfileOpen = true
+                            }) {
+                                Image(systemName: "person")
+                                  
+                            }
+                        }
+                    }
+                }
+                .toolbarBackground(.hidden, for: .bottomBar)
+                
+                // Extracted Shutter Button Overlay
+                VStack {
+                    Spacer()
+                    ZStack {
+                        Circle()
+                            .stroke(Color.white, lineWidth: 3)
+                            .frame(width: 68, height: 68)
+                        
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 54, height: 54)
+                    }
+                    .background(.ultraThinMaterial, in: Circle())
+                    .environment(\.colorScheme, .dark)
+                    .onTapGesture {
+                        viewModel.executeCapture()
+                    }
+                    .padding(.bottom, 10) // Pad natively to perfectly align bottom-edge with Toolbar constraints
                 }
             }
             
@@ -77,6 +106,7 @@ struct CameraRootView: View {
                 ScanningOverlayView(uiImage: uiImage, scanningPhaseText: viewModel.scanningPhaseText)
                     .transition(.opacity)
                     .zIndex(10)
+            }
             }
         }
         // Insight Data View overlay 
