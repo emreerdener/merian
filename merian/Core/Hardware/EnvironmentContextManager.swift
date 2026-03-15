@@ -158,11 +158,11 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
             guard let request = MKReverseGeocodingRequest(location: location) else { return nil }
             let mapItems = try await request.mapItems
             
-            if let target = mapItems.first?.placemark {
-                if let locality = target.locality, let administrativeArea = target.administrativeArea {
-                    return "\(locality), \(administrativeArea)"
-                } else if let locality = target.locality {
-                    return locality
+            if let target = mapItems.first {
+                if let cityContext = target.addressRepresentations?.cityWithContext {
+                    return cityContext
+                } else if let cityName = target.addressRepresentations?.cityName {
+                    return cityName
                 } else if let name = target.name {
                     return name
                 }
