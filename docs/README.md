@@ -16,7 +16,7 @@ Welcome to the Merian ecosystem documentation. This directory serves as the tech
 - **[`08-API-Contracts.md`](./08-API-Contracts.md)** - Raw JSON mapping contracts bridging the iOS client and Edge Deno engines.
 - **[`09-AI-Agent-Guidelines.md`](./09-AI-Agent-Guidelines.md)** - Master rules, architecture constraints, and explicit prompt boundaries for AI dev agents.
 - **[`10-Testing-Strategy.md`](./10-Testing-Strategy.md)** - Swift testing isolation via in-memory SwiftData constraints and local context mocks offline.
-
+- **[`13-Zero-OOM-and-Concurrency.md`](./13-Zero-OOM-and-Concurrency.md)** - Master philosophies mapping all iOS scale limitations and Supabase Edge optimizations.
 ### Concept Spotlights
 
 - **[`/architecture/system_overview.md`](./architecture/system_overview.md)** - High-level structural decoupling overview.

@@ -386,66 +386,84 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         // safely extract the MainActor state natively passing into the sendable closure
         let flashStatus = self.isFlashEnabled
         
-        return try await withCheckedThrowingContinuation { continuation in
-            guard activePhotoContinuation == nil else {
-                continuation.resume(throwing: NSError(domain: "CameraManager", code: -1, userInfo: [NSLocalizedDescriptionKey : "Capture already in progress"]))
-                return
-            }
-            self.activePhotoContinuation = continuation
-            
-            queue.async {
-                guard let connection = self.photoOutput.connection(with: .video), connection.isActive && connection.isEnabled else {
-                    Task { @MainActor in
-                        self.activePhotoContinuation = nil
-                        continuation.resume(throwing: NSError(domain: "CameraManager", code: -3, userInfo: [NSLocalizedDescriptionKey : "Camera hardware is not dynamically ready or powered down."]))
-                    }
+        return try await withTaskCancellationHandler {
+            return try await withCheckedThrowingContinuation { continuation in
+                guard activePhotoContinuation == nil else {
+                    continuation.resume(throwing: NSError(domain: "CameraManager", code: -1, userInfo: [NSLocalizedDescriptionKey : "Capture already in progress"]))
                     return
                 }
-                let settings = AVCapturePhotoSettings()
+                self.activePhotoContinuation = continuation
                 
-                // Set explicitly mapped hardware flash modes when physically firing the shutter 
-                let targetFlashMode: AVCaptureDevice.FlashMode = flashStatus ? .on : .off
-                if self.photoOutput.supportedFlashModes.contains(targetFlashMode) {
-                    settings.flashMode = targetFlashMode
+                // 5-Second Hardware Timeout Fallback
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    guard let self = self, let activeCont = self.activePhotoContinuation else { return }
+                    self.activePhotoContinuation = nil
+                    activeCont.resume(throwing: NSError(domain: "CameraManager", code: -4, userInfo: [NSLocalizedDescriptionKey : "Hardware shutter timed out"]))
                 }
                 
-                // Align the physical hardware ISP explicitly to native Portrait bounds to eliminate EXIF geometry offsets 
-                if #available(iOS 17.0, *) {
-                    if connection.isVideoRotationAngleSupported(90.0) {
-                        connection.videoRotationAngle = 90.0
+                queue.async {
+                    guard let connection = self.photoOutput.connection(with: .video), connection.isActive && connection.isEnabled else {
+                        Task { @MainActor in
+                            guard let cont = self.activePhotoContinuation else { return }
+                            self.activePhotoContinuation = nil
+                            cont.resume(throwing: NSError(domain: "CameraManager", code: -3, userInfo: [NSLocalizedDescriptionKey : "Camera hardware is not dynamically ready or powered down."]))
+                        }
+                        return
                     }
-                } else {
-                    if connection.isVideoOrientationSupported {
-                        connection.videoOrientation = .portrait
+                    let settings = AVCapturePhotoSettings()
+                    
+                    // Set explicitly mapped hardware flash modes when physically firing the shutter 
+                    let targetFlashMode: AVCaptureDevice.FlashMode = flashStatus ? .on : .off
+                    if self.photoOutput.supportedFlashModes.contains(targetFlashMode) {
+                        settings.flashMode = targetFlashMode
                     }
+                    
+                    // Align the physical hardware ISP explicitly to native Portrait bounds to eliminate EXIF geometry offsets 
+                    if #available(iOS 17.0, *) {
+                        if connection.isVideoRotationAngleSupported(90.0) {
+                            connection.videoRotationAngle = 90.0
+                        }
+                    } else {
+                        if connection.isVideoOrientationSupported {
+                            connection.videoOrientation = .portrait
+                        }
+                    }
+                    
+                    if #available(iOS 16.0, *) {
+                        settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
+                    } else {
+                        settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
+                    }
+                    
+                    if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
+                        settings.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliveryEnabled
+                    }
+                    
+                    self.photoOutput.capturePhoto(with: settings, delegate: self)
                 }
-                
-                if #available(iOS 16.0, *) {
-                    settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
-                } else {
-                    settings.isHighResolutionPhotoEnabled = self.photoOutput.isHighResolutionCaptureEnabled
-                }
-                
-                if let depthConnection = self.depthOutput.connection(with: .depthData), depthConnection.isEnabled, self.photoOutput.isDepthDataDeliverySupported {
-                    settings.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliveryEnabled
-                }
-                
-                self.photoOutput.capturePhoto(with: settings, delegate: self)
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard let self = self, let activeCont = self.activePhotoContinuation else { return }
+                self.activePhotoContinuation = nil
+                activeCont.resume(throwing: CancellationError())
             }
         }
     }
     
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         Task { @MainActor in
-            if let error = error {
-                activePhotoContinuation?.resume(throwing: error)
-            } else if let data = photo.fileDataRepresentation() {
-                activePhotoContinuation?.resume(returning: data)
-            } else {
-                activePhotoContinuation?.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))
-            }
+            guard let cont = self.activePhotoContinuation else { return }
+            self.activePhotoContinuation = nil
             
-            activePhotoContinuation = nil
+            if let error = error {
+                cont.resume(throwing: error)
+            } else if let data = photo.fileDataRepresentation() {
+                cont.resume(returning: data)
+            } else {
+                cont.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))
+            }
         }
     }
     

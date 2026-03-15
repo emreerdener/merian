@@ -6,6 +6,7 @@ struct IdentifiableImage: Identifiable {
     var environmentContext: EnvironmentContext? = nil
     var isFromGallery: Bool = false
     var isFlashFired: Bool = false
+    var subjectDistanceInMeters: Float? = nil
 }
 
 struct ImageCropperView: View {

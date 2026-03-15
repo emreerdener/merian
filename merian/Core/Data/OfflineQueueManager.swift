@@ -99,6 +99,8 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         weatherCondition: String? = nil,
                         weatherTemperatureF: Double? = nil,
                         blurScore: Double? = nil,
+                        subjectDistanceInMeters: Float? = nil,
+                        locationName: String? = nil,
                         isFlashFired: Bool? = nil,
                         cameraPitchDegrees: Double? = nil,
                         compassHeading: Double? = nil,
@@ -129,6 +131,8 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         weatherCondition: weatherCondition,
                         weatherTemperatureF: weatherTemperatureF,
                         blurScore: blurScore,
+                        subjectDistanceInMeters: subjectDistanceInMeters,
+                        locationName: locationName,
                         isFlashFired: isFlashFired,
                         cameraPitchDegrees: cameraPitchDegrees,
                         compassHeading: compassHeading,
@@ -155,13 +159,20 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         isSyncing = true
         
         #if os(iOS)
-        final class SyncBox: @unchecked Sendable { var id: UIBackgroundTaskIdentifier = .invalid }
+        final class SyncBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var _id: UIBackgroundTaskIdentifier = .invalid
+            var id: UIBackgroundTaskIdentifier {
+                get { lock.withLock { _id } }
+                set { lock.withLock { _id = newValue } }
+            }
+        }
         let syncBox = SyncBox()
-        syncBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
+        syncBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") { [weak self] in
             // This expiration handler is called if we run out of time
-            self.syncTask?.cancel()
-            Task { @MainActor in
-                self.isSyncing = false
+            self?.syncTask?.cancel()
+            Task { @MainActor [weak self] in
+                self?.isSyncing = false
                 SyncStateManager.shared.completeSync()
             }
             if syncBox.id != .invalid {
@@ -284,6 +295,27 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             return
         }
         
+        #if os(iOS)
+        final class InferenceBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var _id: UIBackgroundTaskIdentifier = .invalid
+            var id: UIBackgroundTaskIdentifier {
+                get { lock.withLock { _id } }
+                set { lock.withLock { _id = newValue } }
+            }
+        }
+        let inferenceBox = InferenceBox()
+        inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [weak inferenceBox] in
+            // Should we timeout natively before we can handle inference
+            print("Offline inference background task expired")
+            if let box = inferenceBox, box.id != .invalid {
+                UIApplication.shared.endBackgroundTask(box.id)
+                box.id = .invalid
+            }
+        }
+        let inferenceTaskID = inferenceBox.id
+        #endif
+        
         Task { @MainActor in
             guard let modelContext = OfflineQueueManager.shared.modelContext else { return }
             let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
@@ -293,28 +325,15 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else { return }
             let r2ObjectKey = String(urlPath[range.lowerBound...])
             
-            #if os(iOS)
-            final class InferenceBox: @unchecked Sendable { var id: UIBackgroundTaskIdentifier = .invalid }
-            let inferenceBox = InferenceBox()
-            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
-                // Should we timeout natively before we can handle inference
-                print("Offline inference background task expired")
-                if inferenceBox.id != .invalid {
-                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
-                    inferenceBox.id = .invalid
-                }
-            }
-            let inferenceTaskID = inferenceBox.id
-            #endif
             
             do {
                 let resultData = try await MerianNetworkClient.shared.analyzeSubject(
                     r2ObjectKey: r2ObjectKey,
-                    depthScaleText: nil,
+                    depthScaleText: scan.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) },
                     gpsLatitude: scan.gpsLatitude,
                     gpsLongitude: scan.gpsLongitude,
                     gpsElevation: scan.gpsElevation,
-                    semanticLocation: nil,
+                    semanticLocation: scan.locationName,
                     weatherCondition: scan.weatherCondition,
                     weatherTemperatureF: scan.weatherTemperatureF,
                     cameraPitchDegrees: scan.cameraPitchDegrees,

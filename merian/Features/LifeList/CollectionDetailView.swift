@@ -48,14 +48,14 @@ struct CollectionDetailView: View {
                             Button(role: .destructive) {
                                 removeFromCollection(scan: scan)
                             } label: {
-                                Label("Remove from Collection", systemImage: "minus.circle")
+                                Label("Remove from collection", systemImage: "minus.circle")
                             }
                             
                             Button(role: .destructive) {
                                 scanToDelete = scan
                                 showDeleteConfirmation = true
                             } label: {
-                                Label("Delete Scan Permanently", systemImage: "trash")
+                                Label("Delete scan permanently", systemImage: "trash")
                             }
                         }
                     }
@@ -66,7 +66,7 @@ struct CollectionDetailView: View {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.system(size: 32, weight: .light))
                         .foregroundColor(.secondary)
-                    Text("Empty Collection")
+                    Text("Empty collection")
                         .font(.headline)
                         .fontWeight(.semibold)
                     Text("Add scans from your library to start building your collection.")
@@ -76,7 +76,7 @@ struct CollectionDetailView: View {
                         .padding(.horizontal, 40)
                     
                     Button(action: { showScanSelection = true }) {
-                        Text("Explore Library")
+                        Text("Explore library")
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 24)
@@ -111,12 +111,12 @@ struct CollectionDetailView: View {
             ScanSelectionSheetView(collection: collection)
         }
         .confirmationDialog(
-            "Delete Scan",
+            "Delete scan",
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible,
             presenting: scanToDelete
         ) { scan in
-            Button("Delete Scan Permanently", role: .destructive) {
+            Button("Delete scan permanently", role: .destructive) {
                 HapticManager.shared.triggerErrorThump()
                 ScanRepository.shared.eradicateScan(record: scan, modelContext: modelContext)
                 scanToDelete = nil

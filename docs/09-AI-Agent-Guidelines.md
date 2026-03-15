@@ -4,9 +4,11 @@ When generating or modifying code for Merian, follow these explicit constraints 
 
 ## 0. The Documentation Directory
 The `docs/` folder contains the master reference for the application:
+- Refer to `docs/01-System-Architecture.md` for overall logic.
+- Refer to `docs/13-Zero-OOM-and-Concurrency.md` for strict P0 iOS and Deno concurrency/memory safety rules.
+- Refer to `docs/02-Camera-and-Hardware.md` for hardware integrations like LiDAR and precise telemetry snapshots.
 - Refer to `docs/07-Database-Schema.md` for PostgreSQL & SwiftData schemas.
 - Refer to `docs/08-API-Contracts.md` for all network request/response shapes.
-- Refer to `docs/01-System-Architecture.md` for overall logic.
 
 ## 1. Project Generation (XcodeGen)
 - **NEVER** directly modify `Merian.xcodeproj`.

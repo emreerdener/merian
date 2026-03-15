@@ -98,6 +98,8 @@ final class CameraViewModel: ObservableObject {
     func handleCropCompletion(croppedData: Data, modelContext: ModelContext) {
         let historicalContext = imageToCrop?.environmentContext
         let isFromGallery = imageToCrop?.isFromGallery == true
+        let flashFired = imageToCrop?.isFlashFired
+        let capturedDistance = imageToCrop?.subjectDistanceInMeters
         imageToCrop = nil
         
         Task { [weak self] in
@@ -132,7 +134,7 @@ final class CameraViewModel: ObservableObject {
             
             self.diContainer.inferenceEngine.analyze(
                 imageData: croppedData,
-                subjectDistanceInMeters: self.diContainer.cameraManager.subjectDistanceInMeters,
+                subjectDistanceInMeters: capturedDistance,
                 gpsLatitude: context.location?.coordinate.latitude,
                 gpsLongitude: context.location?.coordinate.longitude,
                 gpsElevation: context.location?.altitude,
@@ -143,7 +145,7 @@ final class CameraViewModel: ObservableObject {
                 compassHeading: context.compassHeading,
                 relativeHumidity: context.relativeHumidity,
                 uvIndex: context.uvIndex,
-                isFlashFired: self.imageToCrop?.isFlashFired,
+                isFlashFired: flashFired,
                 modelContext: modelContext
             )
         }
@@ -238,6 +240,7 @@ final class CameraViewModel: ObservableObject {
                     await diContainer.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
                     
                     let flashFired = diContainer.cameraManager.isFlashEnabled
+                    let capturedDistance = diContainer.cameraManager.subjectDistanceInMeters
                     
                     if let cgImage = ImageDownsampler.downsample(data: captureData, maxSize: 4000) {
                         let rawImage = UIImage(cgImage: cgImage)
@@ -245,7 +248,9 @@ final class CameraViewModel: ObservableObject {
                             self.imageToCrop = IdentifiableImage(
                                 image: rawImage,
                                 environmentContext: instantLocation != nil ? EnvironmentContext(location: instantLocation) : nil,
-                                isFlashFired: flashFired
+                                isFromGallery: false,
+                                isFlashFired: flashFired,
+                                subjectDistanceInMeters: capturedDistance
                             )
                         }
                     }

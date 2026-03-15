@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
+import * as jose from "https://deno.land/x/jose@v5.2.2/index.ts";
 
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
 import {
@@ -43,12 +44,15 @@ serve(async (req: Request) => {
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     // Validate the ES256 token directly against GoTrue natively bypassing the Edge Runtime
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      console.error("Manual Auth Rejection:", authError);
+    let user: { id: string };
+    try {
+      const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET")!;
+      const secretKey = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jose.jwtVerify(token, secretKey);
+      if (!payload.sub) throw new Error("No subject");
+      user = { id: payload.sub };
+    } catch (e) {
+      console.error("Local Auth Rejection:", e);
       return new Response(
         JSON.stringify({ error: "Invalid or expired Session" }),
         {
@@ -113,6 +117,18 @@ serve(async (req: Request) => {
       throw new Error(
         `Failed to fetch image from R2: ${r2Response.statusText}`,
       );
+    }
+
+    // Phase 2: S3 Object Sizing Attack Protection - Limit to 5MB to prevent OOM
+    const contentLengthStr = r2Response.headers.get("Content-Length");
+    if (contentLengthStr) {
+       const bytes = parseInt(contentLengthStr, 10);
+       if (bytes > 5 * 1024 * 1024) {
+           return new Response(JSON.stringify({ error: "Payload Too Large: Exceeds 5MB boundary." }), {
+               status: 413,
+               headers: { ...corsHeaders, "Content-Type": "application/json" }
+           });
+       }
     }
 
     const arrayBuffer = await r2Response.arrayBuffer();

@@ -1,17 +1,12 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-// createClient included to instantiate Admin client for DB connections
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
+import * as jose from "https://deno.land/x/jose@v5.2.2/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req: Request) => {
   // Handle CORS preflight requests
@@ -31,10 +26,16 @@ serve(async (req: Request) => {
     // Explicitly strip the 'Bearer ' prefix to prevent "Bearer Bearer <token>" extraction bugs
     const token = authHeader.replace(/^Bearer\s+/i, '').trim()
 
-    // Validate the ES256 token directly against GoTrue natively bypassing the Edge Runtime
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-    if (authError || !user) {
-      console.error("Manual Auth Rejection:", authError)
+    // Validate the ES256 token locally to eliminate round-trip latency
+    let user: { id: string };
+    try {
+      const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET")!;
+      const secretKey = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jose.jwtVerify(token, secretKey);
+      if (!payload.sub) throw new Error("No subject");
+      user = { id: payload.sub };
+    } catch (e) {
+      console.error("Local Auth Rejection:", e);
       return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } })
     }
 
@@ -70,29 +71,28 @@ serve(async (req: Request) => {
     });
 
     const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-    const urls: { fileName: string; signedUrl: string; objectKey: string }[] =
-      [];
+    const urls = await Promise.all(
+      fileNames.map(async (fileName: string) => {
+        const imageId = crypto.randomUUID();
+        const key = `staging/${userId}/${imageId}.jpg`;
+        const urlString = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
 
-    for (const fileName of fileNames) {
-      const imageId = crypto.randomUUID();
-      const key = `staging/${userId}/${imageId}.jpg`;
-      const urlString = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
+        const putUrl = new URL(urlString);
+        putUrl.searchParams.set("X-Amz-Expires", "86400");
 
-      const putUrl = new URL(urlString);
-      putUrl.searchParams.set("X-Amz-Expires", "86400");
+        const signedPut = await aws.sign(putUrl.toString(), {
+          method: "PUT",
+          headers: { "Content-Type": "image/jpeg" },
+          aws: { signQuery: true },
+        });
 
-      const signedPut = await aws.sign(putUrl.toString(), {
-        method: "PUT",
-        headers: { "Content-Type": "image/jpeg" },
-        aws: { signQuery: true },
-      });
-
-      urls.push({
-        fileName: fileName,
-        signedUrl: signedPut.url,
-        objectKey: key,
-      });
-    }
+        return {
+          fileName: fileName,
+          signedUrl: signedPut.url,
+          objectKey: key,
+        };
+      })
+    );
 
     return new Response(JSON.stringify({ urls }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

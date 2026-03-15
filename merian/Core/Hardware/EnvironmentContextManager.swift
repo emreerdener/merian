@@ -58,11 +58,19 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         guard isAuthorized else { return }
         locationManager.startUpdatingLocation()
         locationManager.startUpdatingHeading()
+        
+        if motionManager.isDeviceMotionAvailable {
+            motionManager.startDeviceMotionUpdates()
+        }
     }
     
     func stopLiveLocationTracking() {
         locationManager.stopUpdatingLocation()
         locationManager.stopUpdatingHeading()
+        
+        if motionManager.isDeviceMotionAvailable {
+            motionManager.stopDeviceMotionUpdates()
+        }
     }
     
     /// Executes the "Deferred Context Fetch", locking the location pinpoint to the exact time of the shutter press
@@ -87,12 +95,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         let locationName = await reverseGeocode(location: validLocation)
         
         var capturedPitch: Double? = nil
-        if motionManager.isDeviceMotionAvailable {
-            motionManager.startDeviceMotionUpdates()
-            if let pitch = motionManager.deviceMotion?.attitude.pitch {
-                capturedPitch = pitch * 180 / .pi
-            }
-            motionManager.stopDeviceMotionUpdates()
+        if motionManager.isDeviceMotionAvailable, let pitch = motionManager.deviceMotion?.attitude.pitch {
+            capturedPitch = pitch * 180 / .pi
         }
         
         var capturedHeading: Double? = nil

@@ -173,7 +173,7 @@ struct LifeListSearchView: View {
                         .padding(.horizontal)
                     }
                     .padding(.top, 8)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 8)
                     .background(Color(UIColor.systemBackground))
                 }
                 
@@ -193,19 +193,19 @@ struct LifeListSearchView: View {
                                         .foregroundColor(searchManager.activeCategoryFilter == "All" ? .secondary : .primary)
                                 }
                                 
-                                Text("No Scans Found")
+                                Text("No scans found")
                                     .font(.headline)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.primary)
                                 
                                 if !searchManager.searchQuery.isEmpty {
-                                    Text("No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter).")
+                                    Text("No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter)")
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
                                         .multilineTextAlignment(.center)
                                         .padding(.horizontal, 40)
                                 } else if searchManager.activeCategoryFilter != "All" {
-                                    Text("You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet.")
+                                    Text("You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet")
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
                                         .multilineTextAlignment(.center)
@@ -243,7 +243,7 @@ struct LifeListSearchView: View {
                                                 scanToDelete = scan
                                                 showDeleteConfirmation = true
                                             } label: {
-                                                Label("Delete Scan Permanently", systemImage: "trash")
+                                                Label("Delete scan permanently", systemImage: "trash")
                                             }
                                         }
                                     }
@@ -257,7 +257,7 @@ struct LifeListSearchView: View {
                                 Image(systemName: "folder")
                                     .font(.system(size: 32, weight: .light))
                                     .foregroundColor(.secondary)
-                                Text("No Collections")
+                                Text("No collections")
                                     .font(.headline)
                                     .fontWeight(.semibold)
                                 Text("Create your first collection to start organizing your scans.")
@@ -388,8 +388,8 @@ struct LifeListSearchView: View {
                     }
                 }
             }
-            .alert("New Collection", isPresented: $showNewCollectionAlert) {
-                TextField("Collection Name", text: $newCollectionName)
+            .alert("New collection", isPresented: $showNewCollectionAlert) {
+                TextField("Collection name", text: $newCollectionName)
                 Button("Cancel", role: .cancel) { newCollectionName = "" }
                 Button("Create") {
                     let collection = ScanCollection(name: newCollectionName.isEmpty ? "Untitled" : newCollectionName)
@@ -410,12 +410,12 @@ struct LifeListSearchView: View {
             searchManager.performSearch(query: searchManager.searchQuery)
         }
         .confirmationDialog(
-            "Delete Scan",
+            "Delete scan",
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible,
             presenting: scanToDelete
         ) { scan in
-            Button("Delete Scan Permanently", role: .destructive) {
+            Button("Delete scan permanently", role: .destructive) {
                 HapticManager.shared.triggerErrorThump()
                 ScanRepository.shared.eradicateScan(record: scan, modelContext: modelContext)
                 scanToDelete = nil
@@ -455,7 +455,7 @@ struct LifeListThumbnailView: View {
                                 Image(systemName: "archivebox.fill")
                                     .font(.system(size: 24))
                                     .foregroundColor(.white.opacity(0.7))
-                                Text("Visuals Archived")
+                                Text("Visuals archived")
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(.white.opacity(0.7))
                             }

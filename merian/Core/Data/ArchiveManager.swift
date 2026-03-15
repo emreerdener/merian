@@ -189,4 +189,26 @@ class ArchiveManager: ObservableObject {
             print("ArchiveManager: Failed to evaluate offline sweeps bounds: \(error.localizedDescription)")
         }
     }
+    /// Downloads global dataset backups natively protecting cellular bandwidth via strict file caching
+    func downloadArchive(id: String, url: URL) async throws -> URL {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            throw URLError(.cannotCreateFile)
+        }
+        
+        let filename = "dataset_archive_\(id).zip"
+        let fileURL = documentsDirectory.appendingPathComponent(filename)
+        
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            print("ArchiveManager: Cache hit! Bypassing massive network transfer for archive \(id).")
+            return fileURL
+        }
+        
+        let (tempURL, response) = try await URLSession.shared.download(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        
+        try FileManager.default.moveItem(at: tempURL, to: fileURL)
+        return fileURL
+    }
 }

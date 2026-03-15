@@ -23,6 +23,7 @@ final class InferenceEngine: ObservableObject {
     private(set) var activeRelativeHumidity: Double? = nil
     private(set) var activeUvIndex: Int? = nil
     private(set) var activeFlashFired: Bool? = nil
+    private(set) var activeDistanceInMeters: Float? = nil
     
     private var inferenceTask: Task<Void, Never>?
     
@@ -84,6 +85,7 @@ final class InferenceEngine: ObservableObject {
         self.activeRelativeHumidity = relativeHumidity
         self.activeUvIndex = uvIndex
         self.activeFlashFired = isFlashFired
+        self.activeDistanceInMeters = subjectDistanceInMeters
         
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
@@ -132,122 +134,129 @@ final class InferenceEngine: ObservableObject {
                 )
                 
                 // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely
-                let decoder = JSONDecoder()
-                if let parsedWrapper = try? decoder.decode(EdgeResponseWrapper.self, from: resultData) {
+                let container = modelContext?.container
+                let (finalMappedData, isNewDisc) = await Task.detached(priority: .userInitiated) { () -> (SpeciesData?, Bool) in
+                    let decoder = JSONDecoder()
+                    guard let parsedWrapper = try? decoder.decode(EdgeResponseWrapper.self, from: resultData) else { return (nil, false) }
                     let edgeRes = parsedWrapper.data
+                    
+                    let insight = InsightData(
+                        description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
+                        isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
+                        regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
+                    )
+                    
+                    let taxonomyData = TaxonomyData(
+                        kingdom: edgeRes.taxonomy?.kingdom,
+                        phylum: edgeRes.taxonomy?.phylum,
+                        className: edgeRes.taxonomy?.class,
+                        order: edgeRes.taxonomy?.order,
+                        family: edgeRes.taxonomy?.family,
+                        genus: edgeRes.taxonomy?.genus
+                    )
+                    
+                    var mappedData = SpeciesData(
+                        scanId: edgeRes.scan_id,
+                        commonName: edgeRes.common_name ?? "Unknown Subject",
+                        scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
+                        insightData: insight,
+                        confidenceScore: edgeRes.confidence_score ?? 0.0,
+                        diagnosticComparison: nil,
+                        wikipediaUrl: edgeRes.wikipedia_url,
+                        wikipediaExtract: edgeRes.wikipedia_extract,
+                        referenceImageUrl: edgeRes.reference_image_url,
+                        isBiological: edgeRes.is_biological_subject ?? true,
+                        isLiveCapture: edgeRes.is_live_capture ?? true,
+                        isInvasive: edgeRes.is_invasive ?? false,
+                        ecologyType: edgeRes.ecology_type ?? "unknown",
+                        taxonomy: taxonomyData,
+                        locationName: locationName,
+                        weatherCondition: weatherCondition,
+                        weatherTemperatureF: weatherTemperatureF
+                    )
+                    
+                    var newDiscovery = false
+                    
+                    // Persist to SwiftData Life List if analysis was valid
+                    if mappedData.confidenceScore > 0.0, let container = container {
+                        let filename = "\(UUID().uuidString)_lifelist.jpg"
+                        let url = URL.documentsDirectory.appendingPathComponent(filename)
+                        try? compressedData.write(to: url, options: .atomic)
                         
-                        // Map the Edge JSON cleanly into the established SpeciesData structure
-                        let insight = InsightData(
-                            description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
-                            isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
-                            regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
+                        let bgContext = ModelContext(container)
+                        let targetName = mappedData.scientificName
+                        let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+                            predicate: #Predicate { $0.scientificName == targetName }
                         )
                         
-                        let taxonomyData = TaxonomyData(
-                            kingdom: edgeRes.taxonomy?.kingdom,
-                            phylum: edgeRes.taxonomy?.phylum,
-                            className: edgeRes.taxonomy?.class,
-                            order: edgeRes.taxonomy?.order,
-                            family: edgeRes.taxonomy?.family,
-                            genus: edgeRes.taxonomy?.genus
-                        )
-                        
-                        var mappedData = SpeciesData(
-                            scanId: edgeRes.scan_id,
-                            commonName: edgeRes.common_name ?? "Unknown Subject",
-                            scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
-                            insightData: insight,
-                            confidenceScore: edgeRes.confidence_score ?? 0.0,
-                            diagnosticComparison: nil,
-                            wikipediaUrl: edgeRes.wikipedia_url,
-                            wikipediaExtract: edgeRes.wikipedia_extract,
-                            referenceImageUrl: edgeRes.reference_image_url,
-                            isBiological: edgeRes.is_biological_subject ?? true,
-                            isLiveCapture: edgeRes.is_live_capture ?? true,
-                            isInvasive: edgeRes.is_invasive ?? false,
-                            ecologyType: edgeRes.ecology_type ?? "unknown",
-                            taxonomy: taxonomyData,
-                            locationName: locationName,
-                            weatherCondition: weatherCondition,
-                            weatherTemperatureF: weatherTemperatureF
-                        )
-                        
-                        // Persist to SwiftData Life List if analysis was valid
-                        if mappedData.confidenceScore > 0.0, let context = modelContext {
-                            let filename = "\(UUID().uuidString)_lifelist.jpg"
-                            let url = URL.documentsDirectory.appendingPathComponent(filename)
-                            await Task.detached(priority: .userInitiated) {
-                                try? compressedData.write(to: url, options: .atomic)
-                            }.value
-                            
-                            let targetName = mappedData.scientificName
-                            let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
-                                predicate: #Predicate { $0.scientificName == targetName }
-                            )
-                            
-                            if let existingRecord = try? context.fetch(fetchDescriptor).first {
-                                // Update the existing species record rather than inserting a duplicate
-                                if existingRecord.additionalImagePaths == nil {
-                                    existingRecord.additionalImagePaths = []
-                                }
-                                existingRecord.additionalImagePaths?.append(filename)
-                                
-                                existingRecord.timestamp = Date()
-                                // Note: intentionally leaving the primary localImagePath alone so the thumbnail remains the first chronological capture
-                                existingRecord.insightDescription = mappedData.insightData.description
-                                existingRecord.isPoisonous = mappedData.insightData.isPoisonous
-                                existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
-                                existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
-                                existingRecord.confidenceScore = mappedData.confidenceScore
-                                existingRecord.isBiological = mappedData.isBiological
-                                existingRecord.isLiveCapture = mappedData.isLiveCapture
-                                existingRecord.isInvasive = mappedData.isInvasive
-                                existingRecord.ecologyType = mappedData.ecologyType
-                                existingRecord.taxonomyKingdom = mappedData.taxonomy?.kingdom
-                                existingRecord.taxonomyPhylum = mappedData.taxonomy?.phylum
-                                existingRecord.taxonomyClass = mappedData.taxonomy?.className
-                                existingRecord.taxonomyOrder = mappedData.taxonomy?.order
-                                existingRecord.taxonomyFamily = mappedData.taxonomy?.family
-                                existingRecord.taxonomyGenus = mappedData.taxonomy?.genus
-                            } else {
-                                // First time encountering this species; insert new record natively
-                                let record = LocalScanRecord(
-                                    speciesId: UUID().uuidString,
-                                    scientificName: mappedData.scientificName,
-                                    commonName: mappedData.commonName,
-                                    insightDescription: mappedData.insightData.description,
-                                    timestamp: Date(),
-                                    localImagePath: filename,
-                                    semanticTags: [mappedData.commonName, mappedData.scientificName],
-                                    isPoisonous: mappedData.insightData.isPoisonous,
-                                    isBiological: mappedData.isBiological,
-                                    isLiveCapture: mappedData.isLiveCapture,
-                                    isInvasive: mappedData.isInvasive,
-                                    ecologyType: mappedData.ecologyType,
-                                    wikipediaUrl: mappedData.wikipediaUrl,
-                                    referenceImageUrl: mappedData.referenceImageUrl,
-                                    confidenceScore: mappedData.confidenceScore,
-                                    taxonomyKingdom: mappedData.taxonomy?.kingdom,
-                                    taxonomyPhylum: mappedData.taxonomy?.phylum,
-                                    taxonomyClass: mappedData.taxonomy?.className,
-                                    taxonomyOrder: mappedData.taxonomy?.order,
-                                    taxonomyFamily: mappedData.taxonomy?.family,
-                                    taxonomyGenus: mappedData.taxonomy?.genus,
-                                    locationName: locationName,
-                                    weatherCondition: weatherCondition,
-                                    weatherTemperatureF: weatherTemperatureF
-                                )
-                                context.insert(record)
-                                mappedData.isNewDiscovery = true
-                                GamificationManager.shared.recordNewSpeciesDiscovered()
+                        if let existingRecord = try? bgContext.fetch(fetchDescriptor).first {
+                            // Update the existing species record rather than inserting a duplicate
+                            if existingRecord.additionalImagePaths == nil {
+                                existingRecord.additionalImagePaths = []
                             }
-                            try? context.save()
+                            existingRecord.additionalImagePaths?.append(filename)
+                            
+                            existingRecord.timestamp = Date()
+                            existingRecord.insightDescription = mappedData.insightData.description
+                            existingRecord.isPoisonous = mappedData.insightData.isPoisonous
+                            existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
+                            existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
+                            existingRecord.confidenceScore = mappedData.confidenceScore
+                            existingRecord.isBiological = mappedData.isBiological
+                            existingRecord.isLiveCapture = mappedData.isLiveCapture
+                            existingRecord.isInvasive = mappedData.isInvasive
+                            existingRecord.ecologyType = mappedData.ecologyType
+                            existingRecord.taxonomyKingdom = mappedData.taxonomy?.kingdom
+                            existingRecord.taxonomyPhylum = mappedData.taxonomy?.phylum
+                            existingRecord.taxonomyClass = mappedData.taxonomy?.className
+                            existingRecord.taxonomyOrder = mappedData.taxonomy?.order
+                            existingRecord.taxonomyFamily = mappedData.taxonomy?.family
+                            existingRecord.taxonomyGenus = mappedData.taxonomy?.genus
+                        } else {
+                            // First time encountering this species; insert new record natively
+                            let record = LocalScanRecord(
+                                speciesId: UUID().uuidString,
+                                scientificName: mappedData.scientificName,
+                                commonName: mappedData.commonName,
+                                insightDescription: mappedData.insightData.description,
+                                timestamp: Date(),
+                                localImagePath: filename,
+                                semanticTags: [mappedData.commonName, mappedData.scientificName],
+                                isPoisonous: mappedData.insightData.isPoisonous,
+                                isBiological: mappedData.isBiological,
+                                isLiveCapture: mappedData.isLiveCapture,
+                                isInvasive: mappedData.isInvasive,
+                                ecologyType: mappedData.ecologyType,
+                                wikipediaUrl: mappedData.wikipediaUrl,
+                                referenceImageUrl: mappedData.referenceImageUrl,
+                                confidenceScore: mappedData.confidenceScore,
+                                taxonomyKingdom: mappedData.taxonomy?.kingdom,
+                                taxonomyPhylum: mappedData.taxonomy?.phylum,
+                                taxonomyClass: mappedData.taxonomy?.className,
+                                taxonomyOrder: mappedData.taxonomy?.order,
+                                taxonomyFamily: mappedData.taxonomy?.family,
+                                taxonomyGenus: mappedData.taxonomy?.genus,
+                                locationName: locationName,
+                                weatherCondition: weatherCondition,
+                                weatherTemperatureF: weatherTemperatureF
+                            )
+                            bgContext.insert(record)
+                            newDiscovery = true
                         }
-                        
-                        CircuitBreakerManager.shared.recordSuccess()
-                        AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
-                        self.speciesData = mappedData
-                    } else {
+                        try? bgContext.save()
+                    }
+                    return (mappedData, newDiscovery)
+                }
+                
+                if var mappedData = finalMappedData {
+                    if isNewDisc {
+                        mappedData.isNewDiscovery = true
+                        GamificationManager.shared.recordNewSpeciesDiscovered()
+                    }
+                    CircuitBreakerManager.shared.recordSuccess()
+                    AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
+                    self.speciesData = mappedData
+                } else {
                         print("⚠️ Inference Engine: Failed to structure Gemini JSON properly")
                         UsageManager.shared.refundScan()
                         self.speciesData = SpeciesData(
@@ -283,7 +292,15 @@ final class InferenceEngine: ObservableObject {
                     gpsLongitude: gpsLongitude,
                     gpsElevation: gpsElevation,
                     weatherCondition: weatherCondition,
-                    weatherTemperatureF: weatherTemperatureF
+                    weatherTemperatureF: weatherTemperatureF,
+                    blurScore: nil,
+                    subjectDistanceInMeters: subjectDistanceInMeters,
+                    locationName: locationName,
+                    isFlashFired: isFlashFired,
+                    cameraPitchDegrees: cameraPitchDegrees,
+                    compassHeading: compassHeading,
+                    relativeHumidity: relativeHumidity,
+                    uvIndex: uvIndex
                 )
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
                 self.speciesData = SpeciesData(
