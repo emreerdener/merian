@@ -20,7 +20,21 @@ final class RevenueCatManager: ObservableObject {
         // Allow the environment to dictate the exact key used directly. 
         // If a test_ key is provided locally or via Xcode Cloud, RevenueCat will safely initialize in Sandbox mode natively.
         
+        #if !DEBUG
+        if apiKey.hasPrefix("test_") {
+            #warning("TEMPORARY OVERRIDE: Using RevenueCat 'test_' apiKey with uiPreviewMode in Release. Remove before App Store launch!")
+            // RevenueCat intrinsically throws a fatalError if a "test_" API key is used in Release builds.
+            // Bypassing with uiPreviewMode guarantees the app won't crash on boot in TestFlight, but it will
+            // simulate mock products. A real App Store ("appl_") key is required for actual TestFlight interactions.
+            let builder = Configuration.Builder(withAPIKey: apiKey)
+                .with(dangerousSettings: DangerousSettings(uiPreviewMode: true))
+            Purchases.configure(with: builder.build())
+        } else {
+            Purchases.configure(withAPIKey: apiKey)
+        }
+        #else
         Purchases.configure(withAPIKey: apiKey)
+        #endif
         
         Task {
             await refreshCustomerInfo()
