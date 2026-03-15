@@ -14,7 +14,8 @@ Furthermore, to safely bridge strict Swift 6 concurrency boundaries without halt
 Apple's ISP (Image Signal Processor) can stall during extreme thermal saturation, failing to return an image frame via `AVCapturePhotoCaptureDelegate`. Rather than silently hanging the `isShutterActive` UI state indefinitely, Merian wraps structural `withCheckedThrowingContinuation` patterns securely inside a `withTaskCancellationHandler`. This is tied dynamically to a deterministic `Task.sleep(5.0)` hardware timeout fallback, resolving any stalled continuations cleanly with standard `CancellationError` triggers.
 
 ### Thread Starvation & Dropped Frames (`InferenceEngine`)
-To prevent the Main Thread from stuttering during extreme native Swift UI interactions (like 120Hz `ScrollView` dragging), Merian prohibits standard Main Actor `JSONDecoder()` operations against massive scientific dictionary responses. Instead, the structural initialization and SwiftData `.insert()` methodologies are entirely detoured into `Task.detached(priority: .userInitiated)` structures. 
+To prevent the Main Thread from stuttering during extreme native Swift UI interactions (like 120Hz `ScrollView` dragging), Merian prohibits standard Main Actor `JSONDecoder()` operations against massive scientific dictionary responses. Instead, the structural initialization and SwiftData `.insert()` methodologies are entirely detoured into `Task.detached(priority: .userInitiated)` structures.
+Additionally, when checking historic scans natively, local `FileManager` checks determining sandbox paths are strictly prevented from binding into the `InsightCarouselView` rendering engine. They natively evaluate asynchronously within `InferenceEngine` dynamically binding to `@Published` values guaranteeing flawless 60fps Carousel snapping.
 
 ## 2. Deno Edge Scalability & OOM Protection (P1)
 
