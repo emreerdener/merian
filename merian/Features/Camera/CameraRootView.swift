@@ -20,7 +20,9 @@ struct CameraRootView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-            // Full-bleed camera feed
+                Color.black.ignoresSafeArea()
+                
+                // Full-bleed camera feed
             CameraPreviewView(
                 session: cameraManager.session,
                 onTap: { layerPoint, devicePoint in
@@ -49,14 +51,18 @@ struct CameraRootView: View {
             
             // Action Overlay Context
             if !viewModel.isAnalyzingFullscreen {
-                VStack {
-                    // Top Toolbar (Flash & Photos)
-                    TopToolbarView(selectedPhotoItem: $viewModel.selectedPhotoItem)
+                ZStack {
+                    VStack {
+                        // Top Toolbar (Flash & Photos)
+                        TopToolbarView(selectedPhotoItem: $viewModel.selectedPhotoItem)
+                        Spacer()
+                    }
                     
-                    Spacer()
-                    
-                    // Viewfinder Intelligence Hint Banner
-                    ViewfinderHintBanner()
+                    VStack {
+                        // Viewfinder Intelligence Hint Banner
+                        ViewfinderHintBanner()
+                        Spacer()
+                    }
                 }
                 .toolbar {
                     ToolbarItemGroup(placement: .bottomBar) {
@@ -64,16 +70,26 @@ struct CameraRootView: View {
                             Button(action: {
                                 viewModel.isLifeListOpen = true
                             }) {
-                                Image(systemName: "book")
-                               
+                                VStack(spacing: 4) {
+                                    Image(systemName: "book")
+                                    Text("Scans")
+                                        .font(.system(size: 8, weight: .medium))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 24)
                             }
                             Spacer()
                             
                             Button(action: {
                                 viewModel.isUserProfileOpen = true
                             }) {
-                                Image(systemName: "person")
-                                  
+                                VStack(spacing: 4) {
+                                    Image(systemName: "person")
+                                    Text("Profile")
+                                        .font(.system(size: 8, weight: .medium))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 24)
                             }
                         }
                     }
@@ -85,14 +101,14 @@ struct CameraRootView: View {
                     Spacer()
                     ZStack {
                         Circle()
-                            .stroke(Color.white, lineWidth: 3)
-                            .frame(width: 68, height: 68)
+                            .stroke(Color.white, lineWidth: 1)
+                            .frame(width: 72, height: 72)
                         
                         Circle()
                             .fill(Color.white)
-                            .frame(width: 54, height: 54)
+                            .frame(width: 58, height: 58)
                     }
-                    .background(.ultraThinMaterial, in: Circle())
+                    // .background(.ultraThinMaterial, in: Circle())
                     .environment(\.colorScheme, .dark)
                     .onTapGesture {
                         viewModel.executeCapture()

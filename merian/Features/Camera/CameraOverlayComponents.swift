@@ -36,7 +36,7 @@ struct ViewfinderHintBanner: View {
                 .background(.ultraThinMaterial)
                 .environment(\.colorScheme, .dark)
                 .clipShape(Capsule())
-                .padding(.bottom, 16)
+                .padding(.top, 24)
         }
     }
 }
