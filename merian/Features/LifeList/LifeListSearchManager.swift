@@ -335,16 +335,9 @@ struct LifeListSearchView: View {
                     ))
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 0) {
-                    NativeSearchBar(text: $searchManager.searchQuery, placeholder: "Search tags, habitats, colors...")
-                        .frame(height: 52)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                }
-                .padding(.bottom, 16)
-            }
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchManager.searchQuery, placement: .toolbar, prompt: "Search tags, habitats, colors...")
+            .searchDictationBehavior(.inline(activation: .onSelect))
             .onChange(of: searchManager.searchQuery) { _, newValue in
                 searchManager.performSearch(query: newValue)
                 if !newValue.isEmpty && activeTab != .library {
@@ -394,7 +387,12 @@ struct LifeListSearchView: View {
                         }
                     }
                 }
+                
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
             }
+            .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
+            .toolbarBackground(.visible, for: .bottomBar)
+            .toolbarColorScheme(.dark, for: .bottomBar)
             .alert("New collection", isPresented: $showNewCollectionAlert) {
                 TextField("Collection name", text: $newCollectionName)
                 Button("Cancel", role: .cancel) { newCollectionName = "" }
@@ -555,45 +553,4 @@ nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIIma
     }
 }
 
-struct NativeSearchBar: UIViewRepresentable {
-    @Binding var text: String
-    var placeholder: String
-    
-    class Coordinator: NSObject, UISearchBarDelegate {
-        @Binding var text: String
-        
-        init(text: Binding<String>) {
-            _text = text
-        }
-        
-        func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-            text = searchText
-        }
-        
-        func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-            searchBar.resignFirstResponder()
-        }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        return Coordinator(text: $text)
-    }
-    
-    func makeUIView(context: Context) -> UISearchBar {
-        let searchBar = UISearchBar(frame: .zero)
-        searchBar.delegate = context.coordinator
-        searchBar.placeholder = placeholder
-        searchBar.searchBarStyle = .minimal
-        searchBar.autocapitalizationType = .none
-        
-        searchBar.backgroundImage = UIImage()
-        
-        return searchBar
-    }
-    
-    func updateUIView(_ uiView: UISearchBar, context: Context) {
-        if uiView.text != text { 
-            uiView.text = text
-        }
-    }
-}
+

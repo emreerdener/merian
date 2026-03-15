@@ -6,12 +6,12 @@ Merian's UI architecture strictly adheres to a modular, glassmorphic design phil
 The Life List acts as the user's primary offline biological journal. 
 
 ### Search & Filtering
-- **Custom Bottom Anchorage**: Integrates a highly polished, custom native iOS search bar pinned dynamically to the bottom safe area to maximize reachability.
-- **Dictation & Clear Mechanics**: Features natively bound microphone dictation (`.onContinuousHover` / iOS Speech) alongside a custom 'X' clear button seamlessly injected without layout collisions.
+- **Native iOS 18 Bottom Search Bar**: Integrates the native iOS 18 `.searchable` and `.searchDictationBehavior(.inline)` modifiers ripped out of the top drawer and dynamically pinned to the bottom placement via `DefaultToolbarItem(kind: .search, placement: .bottomBar)`.
+- **Dictation & Clear Mechanics**: Relies strictly on native SwiftUI dictated microphone capabilities and standard 'X' overlays, requiring zero custom `UIViewRepresentable` bindings. Applies `.ultraThinMaterial` toolbars natively matching the aesthetic.
 - Driven by `LifeListSearchManager`, which utilizes a debounce boundary (`.onChange`) to filter arrays asynchronously without lagging the visual input.
 - Binds directly to SwiftData's `allRecords` using `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)`. 
 - **Offline Semantic Routing**: Queries filter both explicit user-facing `commonName`/`scientificName` text and invisible `semanticTags` locally embedded by the AI model entirely off-grid.
-- **LazyVGrid Rendering Resilience**: To prevent fatal SwiftUI iOS 17 rendering engine drops when rapidly swapping multi-thousand item text collections, `LifeListSearchManager` strictly enforces explicit `.withAnimation { self.filteredScans = ... }` boundary updates cleanly forcing OS layout calculations natively offline.
+- **LazyVGrid Rendering Resilience**: To prevent fatal SwiftUI rendering engine drops when rapidly swapping multi-thousand item text collections, `LifeListSearchManager` strictly enforces explicit `.withAnimation { self.filteredScans = ... }` boundary updates cleanly forcing OS layout calculations natively offline.
 
 ### Collections (Top-Level Photo Albums)
 - In `MerianSchemaV6`, users can organize `LocalScanRecord` entries into distinct `ScanCollection` buckets.
