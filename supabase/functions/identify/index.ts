@@ -27,8 +27,6 @@ serve(async (req: Request) => {
   }
 
   try {
-
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -122,13 +120,16 @@ serve(async (req: Request) => {
     // Phase 2: S3 Object Sizing Attack Protection - Limit to 5MB to prevent OOM
     const contentLengthStr = r2Response.headers.get("Content-Length");
     if (contentLengthStr) {
-       const bytes = parseInt(contentLengthStr, 10);
-       if (bytes > 5 * 1024 * 1024) {
-           return new Response(JSON.stringify({ error: "Payload Too Large: Exceeds 5MB boundary." }), {
-               status: 413,
-               headers: { ...corsHeaders, "Content-Type": "application/json" }
-           });
-       }
+      const bytes = parseInt(contentLengthStr, 10);
+      if (bytes > 5 * 1024 * 1024) {
+        return new Response(
+          JSON.stringify({ error: "Payload Too Large: Exceeds 5MB boundary." }),
+          {
+            status: 413,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
     }
 
     const arrayBuffer = await r2Response.arrayBuffer();
@@ -149,7 +150,7 @@ serve(async (req: Request) => {
         .from("users")
         .upsert(
           { id: user.id, subscription_tier: "free" },
-          { onConflict: "id", ignoreDuplicates: true }
+          { onConflict: "id", ignoreDuplicates: true },
         );
     }
 
@@ -166,15 +167,15 @@ Crucial instructions:
 4. You must write all 'insight_data' fields and the 'common_name' strictly in the target Locale provided in the context.
 5. You must format the 'common_name' so that each word is capitalized in standard title case (e.g. "Bearded Iris" instead of "bearded iris").`;
 
-    const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
-
+    const targetModel =
+      userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
 
     const model = genAI.getGenerativeModel({
       model: targetModel,
       systemInstruction: systemInstruction,
       generationConfig: {
-        temperature: 0.1 // Strict logical routing, preventing biological hallucination
-      }
+        temperature: 0.1, // Strict logical routing, preventing biological hallucination
+      },
     });
 
     const dynamicContext = `
@@ -191,8 +192,8 @@ Crucial instructions:
       - Hardware Flash Fired: ${isFlashFired ? "Yes (Colors may be washed out or overexposed)" : "No"}
       - Camera Angle (Pitch): ${cameraPitchDegrees != null ? `${cameraPitchDegrees}° (Negative = looking down, Positive = looking up)` : "Unknown"}
       - Compass Heading: ${compassHeading != null ? `${compassHeading}°` : "Unknown"}
-      - Relative Humidity: ${relativeHumidity != null ? (relativeHumidity * 100).toFixed(0) + '%' : 'Unknown'}
-      - UV Index: ${uvIndex ?? 'Unknown'}
+      - Relative Humidity: ${relativeHumidity != null ? (relativeHumidity * 100).toFixed(0) + "%" : "Unknown"}
+      - UV Index: ${uvIndex ?? "Unknown"}
     `;
 
     const merianResponseSchema = {
@@ -213,13 +214,25 @@ Crucial instructions:
         },
         blur_score: {
           type: SchemaType.NUMBER,
-          description: "Float between 0.0 and 1.0 mapping the optical blur of the image, where 0.0 is perfectly sharp and 1.0 is extremely blurry/unusable.",
+          description:
+            "Float between 0.0 and 1.0 mapping the optical blur of the image, where 0.0 is perfectly sharp and 1.0 is extremely blurry/unusable.",
         },
         is_invasive: { type: SchemaType.BOOLEAN },
         iucn_red_list_status: {
           type: SchemaType.STRING,
-          enum: ["not_evaluated", "data_deficient", "least_concern", "near_threatened", "vulnerable", "endangered", "critically_endangered", "extinct_in_the_wild", "extinct"],
-          description: "Assess the IUCN Red List conservation status. Must exactly match one of the predefined enums.",
+          enum: [
+            "not_evaluated",
+            "data_deficient",
+            "least_concern",
+            "near_threatened",
+            "vulnerable",
+            "endangered",
+            "critically_endangered",
+            "extinct_in_the_wild",
+            "extinct",
+          ],
+          description:
+            "Assess the IUCN Red List conservation status. Must exactly match one of the predefined enums.",
         },
         taxonomy: {
           type: SchemaType.OBJECT,
@@ -282,8 +295,6 @@ Crucial instructions:
       { text: "Perform the biological identification." },
     ];
 
-
-
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
       generationConfig: {
@@ -313,7 +324,6 @@ Crucial instructions:
       throw new Error("Media flagged by safety moderation");
     }
 
-
     const responseText = result.response.text();
 
     // Strip markdown formatting if Gemini hallucinates markdown blocks
@@ -335,7 +345,6 @@ Crucial instructions:
         parsedData.scientific_name &&
         parsedData.taxonomy
       ) {
-
         let wikiUrl: string | null = null;
         let wikiExtract: string | null = null;
         let gbifKey: number | null = null;
@@ -429,8 +438,8 @@ Crucial instructions:
               family: parsedData.taxonomy.family,
               genus: parsedData.taxonomy.genus,
               descriptions: {
-                  insight: parsedData.insight_data.description,
-                  wikipedia: wikiExtract
+                insight: parsedData.insight_data.description,
+                wikipedia: wikiExtract,
               },
               is_poisonous: parsedData.insight_data.is_poisonous,
               wikipedia_url: wikiUrl,
@@ -453,28 +462,31 @@ Crucial instructions:
         // If 'ignoreDuplicates' kicks in during concurrent scans, Postgres returns NULL data.
         // We gracefully catch this here and execute a native read explicitly fetching the physical dictionary UUID.
         if (!resolvedSpecies && !upsertError) {
-
-          const { data: existingSpecies, error: selectError } = await supabaseAdmin
-            .from("species_dictionary")
-            .select("id, wikipedia_url, reference_image_url, descriptions")
-            .eq("scientific_name", parsedData.scientific_name)
-            .single();
+          const { data: existingSpecies, error: selectError } =
+            await supabaseAdmin
+              .from("species_dictionary")
+              .select("id, wikipedia_url, reference_image_url, descriptions")
+              .eq("scientific_name", parsedData.scientific_name)
+              .single();
 
           if (selectError) {
-             console.error("Failed to fetch existing species cleanly: ", selectError);
+            console.error(
+              "Failed to fetch existing species cleanly: ",
+              selectError,
+            );
           } else {
-             resolvedSpecies = existingSpecies;
+            resolvedSpecies = existingSpecies;
           }
         }
 
         if (resolvedSpecies) {
           speciesId = resolvedSpecies.id;
           parsedData.wikipedia_url = resolvedSpecies.wikipedia_url;
-          parsedData.wikipedia_extract = resolvedSpecies.descriptions?.wikipedia || wikiExtract;
+          parsedData.wikipedia_extract =
+            resolvedSpecies.descriptions?.wikipedia || wikiExtract;
           parsedData.reference_image_url = resolvedSpecies.reference_image_url;
         }
       }
-
 
       // Finally natively bind the architectural map directly down to the Ghost User UUID
       const { data: scanData, error: scanInsertError } = await supabaseAdmin
