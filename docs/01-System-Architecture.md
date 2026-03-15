@@ -65,6 +65,7 @@ flowchart TD
 ### 7. watchOS Extension (`MerianWatch`)
 
 Merian functions natively bounded as a standalone watchOS executable mapping completely offline capabilities decoupled from the host iPhone:
+- **Build Target Nuance**: Natively relies upon explicit `project.yml` product type declarations (`watch2-app`) and correctly mapped `Contents.json` icon configurations inside `Assets.xcassets` to avoid watchOS Simulator deployment failures gracefully.
 - **`WKInterfaceDevice.current().identifierForVendor` Execution**: Safely mimics iOS bindings syncing the Anonymous user UUID securely via `WatchConnectivity.WCSession` back to iOS Core boundaries.
 - Uses `Network.framework` hooks and `URLSession` actively hitting Supabase Edge from the wrist bridging independent inferences if the iPhone is dead.
 - Shares the core UI `InsightSheetView` logic natively bridging data models to provide biological readouts natively without the parent app in range.

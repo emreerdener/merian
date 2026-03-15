@@ -15,15 +15,10 @@ final class RevenueCatManager: ObservableObject {
     func configure() {
         Purchases.logLevel = .debug
         
-        var apiKey = MerianEnvironment.revenueCatApiKey
+        let apiKey = MerianEnvironment.revenueCatApiKey
         
-        // Anti-SIGTRAP strict bypass for TestFlight when Apple blocks `test_` sandbox keys in Release binaries.
-        #if !DEBUG
-        if apiKey.hasPrefix("test_") || apiKey.hasPrefix("sk_") {
-            print("⚠️ RevenueCat SDK Bypass: Intercepted a test API key in a Release environment. Injecting a dummy production key to securely crash-proof the launch sequence. All network requests will politely fail and default to the Free Tier bounds.")
-            apiKey = "appl_sandbox_bypass_1234567890abcdef"
-        }
-        #endif
+        // Allow the environment to dictate the exact key used directly. 
+        // If a test_ key is provided locally or via Xcode Cloud, RevenueCat will safely initialize in Sandbox mode natively.
         
         Purchases.configure(withAPIKey: apiKey)
         
@@ -57,11 +52,10 @@ final class RevenueCatManager: ObservableObject {
     private func updateEntitlements(with info: CustomerInfo) {
         // Enforcing the Master Protocol tiers
         let isNaturalist = info.entitlements.all["Naturalist Tier"]?.isActive == true
-        let isWeekendWarrior = info.entitlements.all["Weekend Warrior Pass"]?.isActive == true
-        let isProSub = info.entitlements.all["pro_subscription"]?.isActive == true
+        let is7DayPass = info.entitlements.all["7_day_pass"]?.isActive == true
         let isPro = info.entitlements.all["pro"]?.isActive == true
         
-        self.isProActive = isNaturalist || isWeekendWarrior || isProSub || isPro
+        self.isProActive = isNaturalist || is7DayPass || isPro
     }
     
     /// Fetches all active packages available for the Paywall rendering UI

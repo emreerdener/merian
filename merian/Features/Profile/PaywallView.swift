@@ -16,11 +16,11 @@ struct PaywallView: View {
                         .frame(width: 80, height: 80)
                         .foregroundColor(.green)
                     
-                    Text("Unlock the Wilderness")
+                    Text("Unlock the wilderness")
                         .font(.title)
                         .fontWeight(.bold)
                     
-                    Text("You've used your 3 free Daily Scans. Keep exploring without limits by choosing a plan below.")
+                    Text("You've used your 3 free daily scans. Keep exploring without limits by choosing an option below.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -54,12 +54,20 @@ struct PaywallView: View {
                     Button(action: {
                         Task { await tryRestore() }
                     }) {
-                        Text("Restore Purchases")
+                        Text("Restore purchases")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                     
-                    Link("Terms of Service", destination: URL(string: "https://example.com/terms")!)
+                    Button(action: {
+                        Purchases.shared.presentCodeRedemptionSheet()
+                    }) {
+                        Text("Redeem code")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Link("Terms of service", destination: URL(string: "https://example.com/terms")!)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

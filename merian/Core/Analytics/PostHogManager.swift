@@ -14,7 +14,10 @@ final class PostHogManager {
         
         // Auto-track UI boundaries without physical PII stringing
         configuration.captureApplicationLifecycleEvents = true
-        configuration.captureScreenViews = true
+        // Disabled screen swizzling: PostHog aggressively inserts 'UIKitToolbar' into SwiftUI 'UIHostingController' hierarchies causing iOS 18 strict boundary layout warnings.
+        configuration.captureScreenViews = false
+        configuration.captureElementInteractions = false
+        configuration.sessionReplay = false
         
         PostHogSDK.shared.setup(configuration)
         print("🦔 PostHog securely initialized (Anonymous Funnel Tracking)")

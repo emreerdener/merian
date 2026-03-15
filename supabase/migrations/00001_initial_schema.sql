@@ -29,7 +29,6 @@ CREATE TABLE public.users (
     email TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     subscription_tier subscription_tier_enum NOT NULL DEFAULT 'free',
-    scans_remaining_today INTEGER NOT NULL DEFAULT 10,
     last_scan_date DATE NOT NULL DEFAULT CURRENT_DATE,
     current_streak_count INTEGER NOT NULL DEFAULT 0,
     rest_day_tokens INTEGER NOT NULL DEFAULT 0 CHECK (rest_day_tokens <= 3),

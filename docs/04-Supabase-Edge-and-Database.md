@@ -74,6 +74,9 @@ To physically align the buckets with our Postgres `pg_cron` jobs and safely dele
 4. **Quarantine Cleanup**
    - **Prefix:** `quarantine/`
    - **Action:** Delete objects after `1` day
+5. **Inactive Anonymous User Cleanup**
+   - Identifies Ghost Users (`subscription_tier = 'free'`) natively who haven't performed a scan in a designated temporal boundary (e.g. 6+ months).
+   - A secondary Edge Cron Job (`delete-inactive-users`) triggers to safely eradicate their S3/R2 physical objects synchronously with removing their backend PostgreSQL footprints to ensure zero physical bloat remains globally.
 
 ## Customer Support & ML Feedback Loop (`flag-issue`)
 

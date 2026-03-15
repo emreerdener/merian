@@ -20,9 +20,8 @@ To maximize user conversion, Merian demands zero upfront onboarding friction:
 
 - Controls strict Apple ecosystem bounds dictating core app functionalities intuitively.
 - Initializes `.configure(withAPIKey:)` silently pulling the active iOS `ProcessInfo` values physically mapping to `.xcconfig` secure layers.
-- **CRITICAL DEBUG NOTE**: In explicit Release configurations, if a `test_` public key is detected instead of a `pk_`, `RevenueCatManager` intercepts the boot and injects a pseudo key to successfully bypass severe Apple `SIGTRAP` crash events during TestFlight deployments.
 - Uses `logIn(currentAppUserID)` binding the IDFV tracking string natively.
-- Evaluates `isProActive` booleans via `.customerInfo()` natively checking for active entitlements across `Naturalist Tier`, `Weekend Warrior Pass`, `pro_subscription`, and `pro` identifiers seamlessly updating SwiftUI.
+- Evaluates `isProActive` booleans via `.customerInfo()` natively checking for active entitlements across `pro` and `7_day_pass` identifiers seamlessly updating SwiftUI.
 
 ## RevenueCat Webhook (`revenuecat-webhook`)
 

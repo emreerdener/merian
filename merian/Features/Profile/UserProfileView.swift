@@ -5,6 +5,7 @@ struct UserProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var allRecords: [LocalScanRecord]
     @ObservedObject private var supabase = SupabaseManager.shared
+    @State private var showPaywall = false
     
     private var uniqueSpeciesCount: Int {
         Set(allRecords.map { $0.scientificName }).count
@@ -99,7 +100,42 @@ struct UserProfileView: View {
                             .padding(.horizontal)
                     }
                     .padding(.top, 32)
+
+                     // Lifetime Explorer Aggregates
+                    VStack(alignment: .leading, spacing: 16) {
+                        
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                            StatCardView(title: "Species", value: "\(uniqueSpeciesCount)", icon: "leaf.fill", color: .green)
+                            StatCardView(title: "Current Streak", value: "\(currentStreak) Day\(currentStreak == 1 ? "" : "s")", icon: "flame.fill", color: .orange)
+                            StatCardView(title: "Rare Finds", value: "\(rareFindsCount)", icon: "sparkles", color: .purple)
+                            StatCardView(title: "Persona", value: persona, icon: "tree.fill", color: .teal)
+                        }
+                        .padding(.horizontal, 24)
+                    }
                     
+   // Subscription Section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Button(action: {
+                            showPaywall = true
+                        }) {
+                            HStack {
+                                Image(systemName: "star.fill")
+                                Text("Manage plan")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.yellow.opacity(0.15))
+                            .foregroundColor(.yellow)
+                            .cornerRadius(14)
+                        }
+                        .padding(.horizontal, 24)
+                        .sheet(isPresented: $showPaywall) {
+                            PaywallView()
+                                .environmentObject(RevenueCatManager.shared)
+                        }
+                    }
+
                     // Authentication Layer
                     if SupabaseManager.shared.isGuestUser {
                         VStack(spacing: 16) {
@@ -147,7 +183,7 @@ struct UserProfileView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "rectangle.portrait.and.arrow.right")
-                                    Text("Sign Out")
+                                    Text("Sign out")
                                         .fontWeight(.semibold)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -160,55 +196,9 @@ struct UserProfileView: View {
                         .padding(.horizontal, 24)
                     }
                     
-                    }
+                 
                     
-                    // Subscription Layer (Useful for Sandbox syncing & Support)
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Subscription")
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .padding(.horizontal, 24)
-                        
-                        Button(action: {
-                            Task {
-                                do {
-                                    try await RevenueCatManager.shared.restorePurchases()
-                                    // Optionally trigger a haptic or toast here
-                                    print("✅ Successfully forced RevenueCat Restore for Sandbox testing.")
-                                } catch {
-                                    print("⚠️ Failed to restore: \(error.localizedDescription)")
-                                }
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                Text("Restore Purchases")
-                                    .fontWeight(.semibold)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .foregroundColor(.primary)
-                            .cornerRadius(14)
-                        }
-                        .padding(.horizontal, 24)
-                    }
-                    
-                    // Lifetime Explorer Aggregates
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Lifetime Stats")
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .padding(.horizontal, 24)
-                        
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                            StatCardView(title: "Species", value: "\(uniqueSpeciesCount)", icon: "leaf.fill", color: .green)
-                            StatCardView(title: "Current Streak", value: "\(currentStreak) Day\(currentStreak == 1 ? "" : "s")", icon: "flame.fill", color: .orange)
-                            StatCardView(title: "Rare Finds", value: "\(rareFindsCount)", icon: "sparkles", color: .purple)
-                            StatCardView(title: "Persona", value: persona, icon: "tree.fill", color: .teal)
-                        }
-                        .padding(.horizontal, 24)
-                    }
+                   
                 }
                 .padding(.bottom, 40)
             }

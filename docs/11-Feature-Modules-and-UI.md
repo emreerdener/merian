@@ -6,8 +6,9 @@ Merian's UI architecture strictly adheres to a modular, glassmorphic design phil
 The Life List acts as the user's primary offline biological journal. 
 
 ### Search & Filtering
-- Driven by `LifeListSearchManager`, which utilizes a debounce boundary (`.onChange`) to filter arrays asynchronously without lagging the `UISearchBar` input.
-- Automatically strips `UITextField.appearance().clearButtonMode` internally to avoid layout collisions with our custom clear logic gracefully.
+- **Custom Bottom Anchorage**: Integrates a highly polished, custom native iOS search bar pinned dynamically to the bottom safe area to maximize reachability.
+- **Dictation & Clear Mechanics**: Features natively bound microphone dictation (`.onContinuousHover` / iOS Speech) alongside a custom 'X' clear button seamlessly injected without layout collisions.
+- Driven by `LifeListSearchManager`, which utilizes a debounce boundary (`.onChange`) to filter arrays asynchronously without lagging the visual input.
 - Binds directly to SwiftData's `allRecords` using `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)`. 
 - **Offline Semantic Routing**: Queries filter both explicit user-facing `commonName`/`scientificName` text and invisible `semanticTags` locally embedded by the AI model entirely off-grid.
 
@@ -25,6 +26,8 @@ The `InsightSheetView` is Merian's central contextual readout, triggered immedia
 ### Core Rendering Logic
 - **Safety Critical Block**: `InsightToxicityBanner` parses `speciesData?.insightData.isPoisonous` instantly displaying red alert ribbons above the fold to guarantee hiker safety natively.
 - **Ecological Validations**: Binds fallback indicators for "Not biological" or "Not a live capture" gracefully routing edge failure cases into a clean UI without hard-crashing. If an item scores `<85%` confidence, it triggers the `DiagnosticComparisonView`.
+- **Life List Contextual Imagery**: When opened directly from the historical Life List, the system intelligently intercepts the UI routing and physically forces the *user's natively captured local photograph* to dominate the Hero Carousel, rather than defaulting to the Wikipedia/GBIF reference imagery. This builds profound personal connection to the data.
+- **Isolated Animation Engine**: Features a complex, continuously rotating 360-degree `LinearGradient` (rainbow styling) for pending AI states. To guarantee perfect 60fps frame rates without stuttering, the animation logic is rigorously decoupled and strictly bound inside a localized struct/equatable bound, completely isolating it from `CameraViewModel` SwiftUI layout redraw strikes.
 - **Bookmark & Share System**: Generates standard `ShareLink` protocols referencing the `merian.app` website explicitly pulling the active `commonName` seamlessly into the native iOS Share Sheet constraints. It also enables explicit "Save to Collection" integration natively via the `.folder.badge.plus` toolbar component.
 - **Optimistic UX (Deletions)**: Users can permanently obliterate local and global data securely via `.contextMenu` bounds (Library, Collections) or the Toolbar `Menu` inside Insight bounds. Instantly bounding a `.destructive` `confirmationDialog`, pressing "Delete" executes an immediate zero-latency removal from the local UI matrix, triggering a heavy `HapticManager.shared.triggerErrorThump()` drop, while securely routing physical R2 bytes and PostgreSQL rows to the `PendingCloudDeletionTask` detached background queue invisibly to not block the UI thread.
 
@@ -38,7 +41,7 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 ### Native OAuth & Entitlements
 - Implements purely native Swift `SignInWithAppleButton` and `GoogleSignInButton` SDK boundaries securely retrieving external `.idTokens`.
 - Reassigns initial Anonymous IDFV GoTrue Sessions natively merging user arrays into persistent Cloud records.
-- Immediately pulls explicit `RevenueCatManager.shared.isProActive` booleans conditionally hiding or throwing the `SubscriptionPaywallView` dynamically if they hit their daily 3-scan limit.
+- Immediately pulls explicit `RevenueCatManager.shared.isProActive` booleans conditionally hiding or throwing the `PaywallView` dynamically if they hit their daily 3-scan limit.
 - Renders global gamification statistics including `uniqueSpeciesCount`, `currentStreak`, `rareFinds` and `persona` morphs dynamically entirely offline. Instead of blocking the UI on remote PostgreSQL network requests, it utilizes heavily optimized `SwiftData` `@Query` property wrappers mapping array statistics natively preventing UI lag and dropping network errors cleanly for a flawless "Digital Terrarium" profile reflection.
 
 ### Aesthetic Customizations
