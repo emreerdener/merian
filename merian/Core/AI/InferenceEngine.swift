@@ -246,7 +246,7 @@ final class InferenceEngine: ObservableObject {
                         try? bgContext.save()
                     }
                     return (mappedData, newDiscovery)
-                }
+                }.value
                 
                 if var mappedData = finalMappedData {
                     if isNewDisc {
