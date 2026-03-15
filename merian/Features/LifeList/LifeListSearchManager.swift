@@ -140,6 +140,7 @@ struct LifeListSearchView: View {
     
     @State private var scanToDelete: LocalScanRecord? = nil
     @State private var showDeleteConfirmation = false
+    @State private var isSearchFocused = false
     
     let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -152,7 +153,7 @@ struct LifeListSearchView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 8) {
-                if activeTab == .library && searchManager.searchQuery.isEmpty {
+                if activeTab == .library && searchManager.searchQuery.isEmpty && !isSearchFocused {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(filterCategories, id: \.self) { category in
@@ -336,7 +337,7 @@ struct LifeListSearchView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchManager.searchQuery, placement: .toolbar, prompt: "Search tags, habitats, colors...")
+            .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: "Search tags, habitats, colors...")
             .searchDictationBehavior(.inline(activation: .onSelect))
             .onChange(of: searchManager.searchQuery) { _, newValue in
                 searchManager.performSearch(query: newValue)
