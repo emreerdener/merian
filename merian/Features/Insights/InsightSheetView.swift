@@ -186,7 +186,6 @@ struct InsightSheetView: View {
             }
         }
     }
-    }
     
     private func eradicateCurrentScan() {
         guard let targetId = inferenceEngine.speciesData?.scanId else { return }

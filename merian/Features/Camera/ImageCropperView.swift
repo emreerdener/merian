@@ -195,19 +195,17 @@ struct ImageCropperView: View {
                     return targetImage.jpegData(compressionQuality: 0.7) ?? Data()
                 }
                 
-                return await MainActor.run {
-                    // Render cleanly out exactly to Gemini limits natively protecting UIKit on the Main thread
-                    let renderSize = CGSize(width: 768, height: 768)
-                    let format = UIGraphicsImageRendererFormat()
-                    format.scale = 1.0
-                    let renderer = UIGraphicsImageRenderer(size: renderSize, format: format)
-                    
-                    let finalImage = renderer.image { _ in
-                        croppedUIImage.draw(in: CGRect(origin: .zero, size: renderSize))
-                    }
-                    
-                    return finalImage.jpegData(compressionQuality: 0.7) ?? Data()
+                // Render cleanly out exactly to Gemini limits natively without protecting UIKit on the Main thread because UIGraphicsImageRenderer is thread-safe
+                let renderSize = CGSize(width: 768, height: 768)
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1.0
+                let renderer = UIGraphicsImageRenderer(size: renderSize, format: format)
+                
+                let finalImage = renderer.image { _ in
+                    croppedUIImage.draw(in: CGRect(origin: .zero, size: renderSize))
                 }
+                
+                return finalImage.jpegData(compressionQuality: 0.7) ?? Data()
             }.value
             
             onCrop(processedData)

@@ -3,6 +3,7 @@ import AuthenticationServices
 import CryptoKit
 import Supabase
 import GoogleSignIn
+import RevenueCat
 
 /// Manages the global Supabase connection and core Authentication states for Ghost Users
 @MainActor
@@ -101,6 +102,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
         do {
             try await client.auth.signOut()
             PostHogManager.shared.reset()
+            _ = try? await Purchases.shared.logOut()
             print("User actively signed out and token flushed")
         } catch {
             print("⚠️ Failed to purge local Supabase Auth state: \(error.localizedDescription)")
@@ -140,13 +142,33 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             }
             let accessToken = result.user.accessToken.tokenString
             
-            let _ = try await client.auth.signInWithIdToken(
-                credentials: .init(
-                    provider: .google,
-                    idToken: idToken,
-                    accessToken: accessToken
+            if self.isGuestUser {
+                do {
+                    let _ = try await client.auth.linkIdentity(
+                        credentials: .init(
+                            provider: .google,
+                            idToken: idToken,
+                            accessToken: accessToken
+                        )
+                    )
+                } catch {
+                    let _ = try await client.auth.signInWithIdToken(
+                        credentials: .init(
+                            provider: .google,
+                            idToken: idToken,
+                            accessToken: accessToken
+                        )
+                    )
+                }
+            } else {
+                let _ = try await client.auth.signInWithIdToken(
+                    credentials: .init(
+                        provider: .google,
+                        idToken: idToken,
+                        accessToken: accessToken
+                    )
                 )
-            )
+            }
             
             let session = try await client.auth.session
             let newUserId = session.user.id.uuidString
@@ -232,9 +254,21 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
             
             Task {
                 do {
-                    let _ = try await client.auth.signInWithIdToken(
-                        credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
-                    )
+                    if self.isGuestUser {
+                        do {
+                            let _ = try await client.auth.linkIdentity(
+                                credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
+                            )
+                        } catch {
+                            let _ = try await client.auth.signInWithIdToken(
+                                credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
+                            )
+                        }
+                    } else {
+                        let _ = try await client.auth.signInWithIdToken(
+                            credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
+                        )
+                    }
                     
                     let session = try await client.auth.session
                     let newUserId = session.user.id.uuidString

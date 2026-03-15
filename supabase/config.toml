@@ -392,3 +392,6 @@ verify_jwt = false
 
 [functions.delete-scan]
 verify_jwt = false
+
+[functions.revenuecat-webhook]
+verify_jwt = false

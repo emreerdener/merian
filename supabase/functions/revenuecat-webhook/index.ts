@@ -8,6 +8,16 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req: Request) => {
   try {
+    const WEBHOOK_SECRET = Deno.env.get("REVENUECAT_WEBHOOK_SECRET");
+    const authHeader = req.headers.get("Authorization");
+
+    if (!WEBHOOK_SECRET || authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const body = await req.json();
     const event = body.event;
 
@@ -120,7 +130,7 @@ serve(async (req: Request) => {
           })
         );
       }
-    } else if (["CANCELLATION", "EXPIRATION"].includes(eventType)) {
+    } else if (["EXPIRATION"].includes(eventType)) {
       // Revert user tier strictly back to 'free'
       const { error: downgradeError } = await supabaseAdmin
         .from("users")

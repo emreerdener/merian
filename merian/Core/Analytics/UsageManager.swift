@@ -44,13 +44,23 @@ final class UsageManager: ObservableObject {
     }
     
     /// Deducts a scan perfectly from the physical vault constraints. 
-    /// This should ONLY be called once the Supabase API positively returns a species validation.
-    func recordSuccessfulScan() {
+    /// This is now called exactly when the user commits to analyzing an image to prevent airplane-mode hoarding.
+    func consumeScan() {
         let used = defaults.integer(forKey: scansUsedKey) + 1
         defaults.set(used, forKey: scansUsedKey)
         defaults.set(Date(), forKey: lastScanDateKey)
         
         self.freeScansRemaining = max(0, maxFreeScansPerDay - used)
         print("📸 Scan Deducted | Remaining today: \(freeScansRemaining)")
+    }
+    
+    /// Restores a scan if the inference engine natively fails to process the payload (e.g. unreadable image or aborted request), ensuring the user isn't unfairly penalized.
+    func refundScan() {
+        let currentUsed = defaults.integer(forKey: scansUsedKey)
+        if currentUsed > 0 {
+            defaults.set(currentUsed - 1, forKey: scansUsedKey)
+            self.freeScansRemaining = max(0, maxFreeScansPerDay - (currentUsed - 1))
+            print("🔄 Scan Refunded | Remaining today: \(freeScansRemaining)")
+        }
     }
 }

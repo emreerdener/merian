@@ -67,6 +67,7 @@ final class AppDIContainer: ObservableObject {
     /// Handles application transition to active foreground
     func handleActivePhase() {
         cameraManager.startSession()
+        usageManager.evaluateDailyRefresh()
         
         Task {
             await supabaseManager.initializeGhostSession()

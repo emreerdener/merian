@@ -229,11 +229,11 @@ final class InferenceEngine: ObservableObject {
                         }
                         
                         CircuitBreakerManager.shared.recordSuccess()
-                        UsageManager.shared.recordSuccessfulScan()
                         AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                         self.speciesData = mappedData
                     } else {
                         print("⚠️ Inference Engine: Failed to structure Gemini JSON properly")
+                        UsageManager.shared.refundScan()
                         self.speciesData = SpeciesData(
                             scanId: nil,
                             commonName: "Analysis Failed",
@@ -257,6 +257,7 @@ final class InferenceEngine: ObservableObject {
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
                     self.isProcessing = false
+                    UsageManager.shared.refundScan()
                     return
                 }
                 CircuitBreakerManager.shared.recordFailure()

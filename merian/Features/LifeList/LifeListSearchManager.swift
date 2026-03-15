@@ -152,9 +152,11 @@ struct LifeListSearchView: View {
                                 Button(action: {
                                     withAnimation {
                                         if !searchManager.searchQuery.isEmpty {
-                                            searchManager.searchQuery = "" // Clear the search so the filter works!
+                                            searchManager.activeCategoryFilter = category 
+                                            searchManager.searchQuery = "" // This assignment explicitly triggers the .onChange modifier which launches the debounced search
+                                        } else {
+                                            searchManager.performSearch(query: "", category: category)
                                         }
-                                        searchManager.performSearch(query: "", category: category)
                                     }
                                 }) {
                                     Text(category)

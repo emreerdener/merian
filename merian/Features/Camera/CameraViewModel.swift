@@ -16,6 +16,7 @@ final class CameraViewModel: ObservableObject {
     // Camera & Capture State
     @Published var selectedPhotoItem: PhotosPickerItem? = nil
     @Published var flashOpacity: Double = 0.0
+    @Published var isCapturing: Bool = false
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -126,6 +127,9 @@ final class CameraViewModel: ObservableObject {
                 self.scanningPhaseText = "Analyzing subject..."
             }
             
+            // Consume the strict free quota immediately upon commitment to prevent offline hoarding 
+            self.diContainer.usageManager.consumeScan()
+            
             self.diContainer.inferenceEngine.analyze(
                 imageData: croppedData,
                 subjectDistanceInMeters: self.diContainer.cameraManager.subjectDistanceInMeters,
@@ -209,7 +213,10 @@ final class CameraViewModel: ObservableObject {
               !isPaywallOpen, 
               !isUserProfileOpen, 
               !isAnalyzingFullscreen, 
+              !isCapturing,
               imageToCrop == nil else { return }
+              
+        isCapturing = true
               
         if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
             // Instant tactile UI response mirroring the Apple Camera app
@@ -237,10 +244,15 @@ final class CameraViewModel: ObservableObject {
                 } catch {
                     print("⚠️ Hardware Shutter failure: \(error.localizedDescription)")
                 }
+                
+                await MainActor.run {
+                    self.isCapturing = false
+                }
             }
         } else {
             AppTelemetry.trackPaywallImpression()
             self.isPaywallOpen = true
+            self.isCapturing = false
         }
     }
 }
