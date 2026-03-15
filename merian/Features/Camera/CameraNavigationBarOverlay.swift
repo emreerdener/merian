@@ -15,7 +15,6 @@ struct CameraNavigationBarOverlay: ViewModifier {
                         }) {
                             VStack(spacing: 4) {
                                 Image(systemName: "book")
-                                    .font(.system(size: 20, weight: .regular))
                                 Text("Scans")
                                     .font(.system(size: 10, weight: .medium))
                             }
@@ -31,7 +30,6 @@ struct CameraNavigationBarOverlay: ViewModifier {
                         }) {
                             VStack(spacing: 4) {
                                 Image(systemName: "person")
-                                    .font(.system(size: 20, weight: .regular))
                                 Text("Profile")
                                     .font(.system(size: 10, weight: .medium))
                             }
