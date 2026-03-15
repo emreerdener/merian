@@ -60,12 +60,16 @@ class LifeListSearchManager: ObservableObject {
             let catMatch = currentCategory.lowercased()
             
             if text.isEmpty && catMatch == "all" {
-                self.filteredScans = allScans
+                withAnimation {
+                    self.filteredScans = allScans
+                }
                 return
             }
             
             if searchableData.isEmpty {
-                self.filteredScans = []
+                withAnimation {
+                    self.filteredScans = []
+                }
                 return
             }
             
@@ -104,7 +108,10 @@ class LifeListSearchManager: ObservableObject {
             }.value
             
             if Task.isCancelled { return }
-            self.filteredScans = self.allScans.filter { matchingIds.contains($0.id) }
+            let filteredSubset = self.allScans.filter { matchingIds.contains($0.id) }
+            withAnimation {
+                self.filteredScans = filteredSubset
+            }
         }
     }
 }
@@ -467,7 +474,7 @@ struct LifeListThumbnailView: View {
                 }
             )
             .clipped()
-        .task {
+        .task(id: imagePath) {
             if thumbnail == nil {
                 let cacheKey = imagePath
                 // 1. Check RAM immediately for existing decoded array bytes
@@ -476,7 +483,8 @@ struct LifeListThumbnailView: View {
                     return
                 }
                 
-                let fullPathURL = URL.documentsDirectory.appendingPathComponent(imagePath)
+                let filename = (imagePath as NSString).lastPathComponent
+                let fullPathURL = URL.documentsDirectory.appendingPathComponent(filename)
                 if let generatedThumb = await generateThumbnail(for: fullPathURL, cacheKey: cacheKey) {
                     await MainActor.run { self.thumbnail = generatedThumb }
                 } else if let fallbackUrlString = fallbackImageUrl, let fallbackUrl = URL(string: fallbackUrlString) {
@@ -497,24 +505,26 @@ struct LifeListThumbnailView: View {
 nonisolated func generateThumbnail(for url: URL, cacheKey: String) async -> UIImage? {
     if Task.isCancelled { return nil }
     
-    let options: [CFString: Any] = [
-        kCGImageSourceCreateThumbnailFromImageAlways: true,
-        kCGImageSourceCreateThumbnailWithTransform: true,
-        kCGImageSourceThumbnailMaxPixelSize: 300
-    ]
-    
-    if Task.isCancelled { return nil }
-    
-    guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-          let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-        let fallback = UIImage(contentsOfFile: url.path)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
-        if let fb = fallback { ImageCache.shared.set(fb, forKey: cacheKey) }
-        return fallback
-    }
-    
-    let img = UIImage(cgImage: cgImage)
-    ImageCache.shared.set(img, forKey: cacheKey)
-    return img
+    return await Task.detached(priority: .userInitiated) {
+        if Task.isCancelled { return nil }
+        
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 300
+        ]
+        
+        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+            let fallback = UIImage(contentsOfFile: url.path)?.preparingThumbnail(of: CGSize(width: 300, height: 300))
+            if let fb = fallback { ImageCache.shared.set(fb, forKey: cacheKey) }
+            return fallback
+        }
+        
+        let img = UIImage(cgImage: cgImage)
+        ImageCache.shared.set(img, forKey: cacheKey)
+        return img
+    }.value
 }
 
 nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIImage? {
@@ -527,16 +537,19 @@ nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIIma
             return nil
         }
         
-        if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 500) {
-            let thumbnail = UIImage(cgImage: cgImage)
-            ImageCache.shared.set(thumbnail, forKey: cacheKey)
-            return thumbnail
-        } else {
-            // Memory Fallback
-            let fallback = UIImage(data: data)?.preparingThumbnail(of: CGSize(width: 500, height: 500))
-            if let fb = fallback { ImageCache.shared.set(fb, forKey: cacheKey) }
-            return fallback
-        }
+        if Task.isCancelled { return nil }
+        
+        return await Task.detached(priority: .userInitiated) {
+            if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 500) {
+                let thumbnail = UIImage(cgImage: cgImage)
+                ImageCache.shared.set(thumbnail, forKey: cacheKey)
+                return thumbnail
+            } else {
+                let fallback = UIImage(data: data)?.preparingThumbnail(of: CGSize(width: 500, height: 500))
+                if let fb = fallback { ImageCache.shared.set(fb, forKey: cacheKey) }
+                return fallback
+            }
+        }.value
     } catch {
         return nil
     }
