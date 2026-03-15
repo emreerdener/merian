@@ -144,7 +144,7 @@ struct LifeListSearchView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            VStack(spacing: 8) {
                 if activeTab == .library {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -325,9 +325,16 @@ struct LifeListSearchView: View {
                     ))
                 }
             }
-            .navigationTitle("Life List")
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 0) {
+                    NativeSearchBar(text: $searchManager.searchQuery, placeholder: "Search tags, habitats, colors...")
+                        .frame(height: 52)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                }
+                .padding(.bottom, 16)
+            }
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchManager.searchQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search tags, habitats, colors...")
             .onChange(of: searchManager.searchQuery) { _, newValue in
                 searchManager.performSearch(query: newValue)
                 if !newValue.isEmpty && activeTab != .library {
@@ -359,22 +366,22 @@ struct LifeListSearchView: View {
                         }
                     }
                 }
-                if searchManager.searchQuery.isEmpty {
-                    ToolbarItem(placement: .bottomBar) {
-                        Spacer()
+                
+                ToolbarItem(placement: .principal) {
+                    Picker("View", selection: $activeTab) {
+                        Text("Scans").tag(LifeListTab.library)
+                        Text("Collections").tag(LifeListTab.collections)
                     }
-                    
-                    ToolbarItem(placement: .bottomBar) {
-                        Picker("View", selection: $activeTab) {
-                            Text("Library").tag(LifeListTab.library)
-                            Text("Collections").tag(LifeListTab.collections)
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                }
+                
+                ToolbarItem(placement: .keyboard) {
+                    HStack {
+                        Spacer()
+                        Button("Done") {
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 240)
-                    }
-                    
-                    ToolbarItem(placement: .bottomBar) {
-                        Spacer()
                     }
                 }
             }
@@ -394,7 +401,6 @@ struct LifeListSearchView: View {
         .onAppear {
             searchManager.allScans = allRecords
             searchManager.performSearch(query: searchManager.searchQuery)
-            UITextField.appearance(whenContainedInInstancesOf: [UISearchBar.self]).clearButtonMode = .never
         }
         .onChange(of: allRecords) { _, newRecords in
             searchManager.allScans = newRecords
@@ -530,5 +536,48 @@ nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIIma
         }
     } catch {
         return nil
+    }
+}
+
+struct NativeSearchBar: UIViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    
+    class Coordinator: NSObject, UISearchBarDelegate {
+        @Binding var text: String
+        
+        init(text: Binding<String>) {
+            _text = text
+        }
+        
+        func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+            text = searchText
+        }
+        
+        func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+            searchBar.resignFirstResponder()
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        return Coordinator(text: $text)
+    }
+    
+    func makeUIView(context: Context) -> UISearchBar {
+        let searchBar = UISearchBar(frame: .zero)
+        searchBar.delegate = context.coordinator
+        searchBar.placeholder = placeholder
+        searchBar.searchBarStyle = .minimal
+        searchBar.autocapitalizationType = .none
+        
+        searchBar.backgroundImage = UIImage()
+        
+        return searchBar
+    }
+    
+    func updateUIView(_ uiView: UISearchBar, context: Context) {
+        if uiView.text != text { 
+            uiView.text = text
+        }
     }
 }

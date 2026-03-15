@@ -130,7 +130,7 @@ struct CameraRootView: View {
             viewModel.handleSheetDismiss()
         }) {
             InsightSheetView(isPresented: $viewModel.isInsightSheetOpen)
-                .presentationDragIndicator(.visible)
+                .presentationDragIndicator(.hidden)
                 .onAppear {
                     viewModel.handleSheetAppear()
                 }
@@ -152,7 +152,7 @@ struct CameraRootView: View {
             viewModel.handleSheetDismiss()
         }) {
             PaywallView()
-                .presentationDragIndicator(.visible)
+                .presentationDragIndicator(.hidden)
                 .onAppear {
                     viewModel.handleSheetAppear()
                 }
@@ -161,7 +161,7 @@ struct CameraRootView: View {
             viewModel.handleSheetDismiss()
         }) {
             UserProfileView()
-                .presentationDragIndicator(.visible)
+                .presentationDragIndicator(.hidden)
                 .onAppear {
                     viewModel.handleSheetAppear()
                 }
@@ -181,7 +181,7 @@ struct CameraRootView: View {
             viewModel.handleSheetDismiss()
         }) {
             TerrariumView()
-                .presentationDragIndicator(.visible)
+                .presentationDragIndicator(.hidden)
                 .onAppear {
                     viewModel.handleSheetAppear()
                 }
@@ -190,7 +190,7 @@ struct CameraRootView: View {
             viewModel.handleSheetDismiss()
         }) {
             LifeListSearchView(isInsightSheetOpen: $viewModel.isInsightSheetOpen)
-                .presentationDragIndicator(.visible)
+                .presentationDragIndicator(.hidden)
                 .onAppear {
                     viewModel.handleSheetAppear()
                 }

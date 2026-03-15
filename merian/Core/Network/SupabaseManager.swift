@@ -60,10 +60,11 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
     func initializeGhostSession() async {
         do {
             // Check if they are already actively signed in (either as a Ghost or an Authenticated Apple user)
-            _ = try await client.auth.session
+            let session = try await client.auth.session
+            let existingUserId = session.user.id.uuidString
             print("👻 Active Merian User Identity already resolved natively on device.")
-            await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
-            PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
+            await RevenueCatManager.shared.linkWithSupabase(userId: existingUserId)
+            PostHogManager.shared.identifyUser(userId: existingUserId)
         } catch {
             let errString = String(describing: error)
             
@@ -72,18 +73,20 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             if let authError = error as? AuthError, case .sessionMissing = authError {
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
-                    print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
-                    await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
-                    PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
+                    let newUserId = authResponse.user.id.uuidString
+                    print("👻 Successfully established new Ghost User Identity: \(newUserId)")
+                    await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
+                    PostHogManager.shared.identifyUser(userId: newUserId)
                 } catch {
                     print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
                 }
             } else if errString.contains("sessionNotFound") || errString.contains("sessionMissing") {
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
-                    print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
-                    await RevenueCatManager.shared.linkWithSupabase(userId: DeviceIdentityManager.shared.deviceId)
-                    PostHogManager.shared.identifyUser(userId: DeviceIdentityManager.shared.deviceId)
+                    let newUserId = authResponse.user.id.uuidString
+                    print("👻 Successfully established new Ghost User Identity: \(newUserId)")
+                    await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
+                    PostHogManager.shared.identifyUser(userId: newUserId)
                 } catch {
                     print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
                 }

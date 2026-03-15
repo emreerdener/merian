@@ -167,7 +167,7 @@ struct InsightSheetView: View {
     // Force solid background fill above the underlying camera UI
         .presentationBackground(Color(uiColor: .systemBackground))
         .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(.hidden)
         // Ensure VoiceOver properly sequences the primary components autonomously upon render
         .onAppear {
             if UIAccessibility.isVoiceOverRunning {

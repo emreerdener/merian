@@ -10,7 +10,7 @@ To fetch cryptographic keys for direct-to-Cloudflare uploads safely bridging DDO
 
 ```json
 {
-  "user_id": "Legacy device UUID strictly included for backward compatibility in Swift maps",
+  "user_id": "Supabase Auth UUID linking RevenueCat and PostHog",
   "fileNames": ["photo_1.jpg", "photo_2.jpg"]
 }
 ```
@@ -40,7 +40,7 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
 ```json
 {
   "r2ObjectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename.jpg",
-  "user_id": "Legacy Client String (Overridden securely by GoTrue Token)",
+  "user_id": "Supabase Auth UUID explicitly linking natively via GoTrue Session",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
   "gpsElevation": 42.5,
@@ -116,7 +116,7 @@ struct IdentifyResponse: Codable {
 }
 ```
 
-**Client Authentication Caveat**: `MerianNetworkClient` explicitly abstracts GoTrue anonymous hardware tokens structurally. The backend **strictly extracts cryptographic JWT Identity** from the Supabase `Authorization: Bearer` Header utilizing `supabaseAdmin.auth.getUser()`, entirely disregarding untrusted `user_id` values passed into request body payloads. The payloads generated natively from Swift use `DeviceIdentityManager.shared.deviceId` strictly as a proxy binding string to sync RevenueCat identifiers but true API validation bridges dynamically exclusively over GoTrue JWT verification securely preventing API spoofing and session ghosting.
+**Client Authentication Caveat**: `MerianNetworkClient` explicitly abstracts GoTrue anonymous hardware tokens structurally. The backend **strictly extracts cryptographic JWT Identity** from the Supabase `Authorization: Bearer` Header utilizing `supabaseAdmin.auth.getUser()`, entirely disregarding untrusted `user_id` values passed into request body payloads. The payloads generated natively from Swift use the `SupabaseManager`'s active session UUID strictly as a proxy binding string to sync RevenueCat identifiers but true API validation bridges dynamically exclusively over GoTrue JWT verification securely preventing API spoofing and session ghosting.
 
 ---
 
@@ -210,7 +210,7 @@ Generates an ecosystem report against AI inferences mapped aggressively within t
 ```json
 {
   "scanId": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
-  "userId": "Legacy device ID strictly included for analytical parsing locally",
+  "userId": "Supabase Auth UUID explicitly linking for analytical parsing locally",
   "flagReason": "Incorrect Species",
   "userSuggestion": "Optional taxonomy string provided by the user manually"
 }

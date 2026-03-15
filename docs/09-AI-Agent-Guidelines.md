@@ -45,5 +45,5 @@ The workspace enforces this layout inside `merian/`:
 - Ensure all unstructured display text (e.g. `common_name`) is locked via `systemInstruction` rigid rules to format cleanly as Title Case natively to prevent messy frontend lowercase UI outputs before it ever caches physically into the database.
 
 ## 7. Database Safeties
-- Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) act as the universal User Primary Key (`id` = IDFV). Do not blindly use Supabase `.uuidStr` ghost sessions for analytics, keep them cleanly chained.
+- Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to securely persist the `UsageManager` limits locally on iOS against reinstallations. Do not blindly use IDFV (`.deviceId`) for backend user records or analytics identifiers. Keep identity cleanly chained against the active Supabase Auth session `.uuidString` to natively sync RevenueCat.
 - Follow RLS (Row Level Security) schemas logically by explicitly avoiding direct CRUD iOS modifications onto PostgreSQL. Instead, POST heavily via Edge REST points protected by Native JWT verification `supabaseAdmin.auth.getUser()`.
