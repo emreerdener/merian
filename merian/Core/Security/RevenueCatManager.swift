@@ -58,8 +58,10 @@ final class RevenueCatManager: ObservableObject {
         // Enforcing the Master Protocol tiers
         let isNaturalist = info.entitlements.all["Naturalist Tier"]?.isActive == true
         let isWeekendWarrior = info.entitlements.all["Weekend Warrior Pass"]?.isActive == true
+        let isProSub = info.entitlements.all["pro_subscription"]?.isActive == true
+        let isPro = info.entitlements.all["pro"]?.isActive == true
         
-        self.isProActive = isNaturalist || isWeekendWarrior
+        self.isProActive = isNaturalist || isWeekendWarrior || isProSub || isPro
     }
     
     /// Fetches all active packages available for the Paywall rendering UI
