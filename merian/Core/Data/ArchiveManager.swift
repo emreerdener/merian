@@ -199,7 +199,6 @@ class ArchiveManager: ObservableObject {
         let fileURL = documentsDirectory.appendingPathComponent(filename)
         
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            print("ArchiveManager: Cache hit! Bypassing massive network transfer for archive \(id).")
             return fileURL
         }
         

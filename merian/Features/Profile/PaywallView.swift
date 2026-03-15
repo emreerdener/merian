@@ -67,9 +67,11 @@ struct PaywallView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    Link("Terms of service", destination: URL(string: "https://example.com/terms")!)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    if let termsUrl = URL(string: "https://example.com/terms") {
+                        Link("Terms of service", destination: termsUrl)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding(.bottom, 30)
             }

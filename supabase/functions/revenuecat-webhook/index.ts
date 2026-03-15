@@ -55,9 +55,8 @@ serve(async (req: Request) => {
       }
 
       // Phase 2: Decoupled S3 Migration
-      // Deferring bulk R2 bucket copying from /free/ to /pro/ to a dedicated async pg_cron worker
+      // Deferring bulk R2 bucket copying from /free/ to /pro/ physically into EdgeRuntime.waitUntil(promise) 
       // to guarantee webhook completes well within the 10-second Deno Edge limit and avoids 504 RevenueCat Retry loops.
-      console.log(`[Webhook] User ${userId} upgraded to Pro. S3 migration cleanly deferred to background pg_cron worker.`);
     } else if (["EXPIRATION"].includes(eventType)) {
       // Revert user tier strictly back to 'free'
       const { error: downgradeError } = await supabaseAdmin

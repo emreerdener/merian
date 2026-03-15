@@ -30,7 +30,6 @@ final class UsageManager: ObservableObject {
             defaults.set(Date(), forKey: lastScanDateKey)
             defaults.set(0, forKey: scansUsedKey)
             self.freeScansRemaining = maxFreeScansPerDay
-            print("🌅 Explorer Tier: Daily scan limits refreshed globally!")
         } else {
             let used = defaults.integer(forKey: scansUsedKey)
             self.freeScansRemaining = max(0, maxFreeScansPerDay - used)
@@ -52,8 +51,7 @@ final class UsageManager: ObservableObject {
         defaults.set(used, forKey: scansUsedKey)
         defaults.set(Date(), forKey: lastScanDateKey)
         
-        self.freeScansRemaining = max(0, maxFreeScansPerDay - used)
-        print("📸 Scan Deducted | Remaining today: \(freeScansRemaining)")
+        self.freeScansRemaining -= 1
     }
     
     /// Restores a scan if the inference engine natively fails to process the payload (e.g. unreadable image or aborted request), ensuring the user isn't unfairly penalized.
@@ -61,8 +59,7 @@ final class UsageManager: ObservableObject {
         let currentUsed = defaults.integer(forKey: scansUsedKey)
         if currentUsed > 0 {
             defaults.set(currentUsed - 1, forKey: scansUsedKey)
-            self.freeScansRemaining = max(0, maxFreeScansPerDay - (currentUsed - 1))
-            print("🔄 Scan Refunded | Remaining today: \(freeScansRemaining)")
+            self.freeScansRemaining += 1
         }
     }
 }

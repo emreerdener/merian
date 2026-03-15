@@ -27,7 +27,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    console.log("[1] Request received");
+
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -167,7 +167,7 @@ Crucial instructions:
 5. You must format the 'common_name' so that each word is capitalized in standard title case (e.g. "Bearded Iris" instead of "bearded iris").`;
 
     const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
-    console.log(`[2] Routing user ${user.id} (${userTier}) to ${targetModel}`);
+
 
     const model = genAI.getGenerativeModel({
       model: targetModel,
@@ -282,10 +282,7 @@ Crucial instructions:
       { text: "Perform the biological identification." },
     ];
 
-    console.log(
-      "[2] Extracted body, calling Gemini. ServiceKey length:",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.length,
-    );
+
 
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
@@ -316,7 +313,7 @@ Crucial instructions:
       throw new Error("Media flagged by safety moderation");
     }
 
-    console.log("[3] Gemini Finished, Parsing JSON");
+
     const responseText = result.response.text();
 
     // Strip markdown formatting if Gemini hallucinates markdown blocks
@@ -338,11 +335,7 @@ Crucial instructions:
         parsedData.scientific_name &&
         parsedData.taxonomy
       ) {
-        console.log(
-          "[5] Upserting Dictionary with: ",
-          parsedData.scientific_name,
-        );
-        console.log("[5.1] Enriching data for:", parsedData.scientific_name);
+
         let wikiUrl: string | null = null;
         let wikiExtract: string | null = null;
         let gbifKey: number | null = null;
@@ -460,7 +453,7 @@ Crucial instructions:
         // If 'ignoreDuplicates' kicks in during concurrent scans, Postgres returns NULL data.
         // We gracefully catch this here and execute a native read explicitly fetching the physical dictionary UUID.
         if (!resolvedSpecies && !upsertError) {
-          console.log("[5.2] Duplicate Ignored. Fetching existing species natively...");
+
           const { data: existingSpecies, error: selectError } = await supabaseAdmin
             .from("species_dictionary")
             .select("id, wikipedia_url, reference_image_url, descriptions")
@@ -482,7 +475,7 @@ Crucial instructions:
         }
       }
 
-      console.log("[6] Inserting Scan");
+
       // Finally natively bind the architectural map directly down to the Ghost User UUID
       const { data: scanData, error: scanInsertError } = await supabaseAdmin
         .from("scans")

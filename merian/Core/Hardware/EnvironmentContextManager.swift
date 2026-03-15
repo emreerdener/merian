@@ -123,7 +123,6 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
                 uvIndex: uvIndex
             )
         } catch {
-            print("WeatherKit context dropped: \(error.localizedDescription)")
             return EnvironmentContext(location: validLocation, locationName: locationName, cameraPitchDegrees: capturedPitch, compassHeading: capturedHeading)
         }
     }
@@ -149,7 +148,6 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
                 return EnvironmentContext(location: location, locationName: locationName)
             }
         } catch {
-            print("WeatherKit historical context dropped: \(error.localizedDescription)")
             return EnvironmentContext(location: location, locationName: locationName)
         }
     }
@@ -167,7 +165,6 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
                 }
             }
         } catch {
-            print("Reverse geocode explicitly dropped: \(error.localizedDescription)")
         }
         return nil
     }
@@ -191,7 +188,6 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
                 guard !Task.isCancelled else { return }
                 
                 if let active = self.activeContinuationWrapper {
-                    print("⚠️ GPS Hardware lock timed out. Proceeding dynamically with cached/nil context.")
                     self.activeContinuationWrapper = nil
                     active.resume(returning: self.cachedLocation)
                 }
@@ -223,7 +219,6 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         Task { @MainActor in
             self.timeoutTask?.cancel()
             
-            print("Deferred Context Fetch completely failed hardware lock: \(error.localizedDescription)")
             if let continuation = self.activeContinuationWrapper {
                 self.activeContinuationWrapper = nil
                 continuation.resume(returning: nil)

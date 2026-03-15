@@ -111,13 +111,14 @@ struct InsightSheetView: View {
                     
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            let shareUrl = URL(string: "https://merian.app")!
-                            ShareLink(
-                                item: shareUrl,
-                                subject: Text("I found a \(commonName)!"),
-                                message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
-                            ) {
-                                Label("Share Discovery", systemImage: "square.and.arrow.up")
+                            if let shareUrl = URL(string: "https://merian.app") {
+                                ShareLink(
+                                    item: shareUrl,
+                                    subject: Text("I found a \(commonName)!"),
+                                    message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
+                                ) {
+                                    Label("Share Discovery", systemImage: "square.and.arrow.up")
+                                }
                             }
                             
                             Button(action: { showCollectionPicker = true }) {

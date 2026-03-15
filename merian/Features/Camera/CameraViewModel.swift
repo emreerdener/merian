@@ -73,7 +73,6 @@ final class CameraViewModel: ObservableObject {
             if let localId = newItem.itemIdentifier {
                 let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
                 if let asset = fetchResult.firstObject, let location = asset.location, let creationDate = asset.creationDate {
-                    print("📸 Embedded Historical Data Hit: \(location.coordinate), Date: \(creationDate)")
                     historicalContext = await self.diContainer.environmentContextManager.fetchHistoricalContext(location: location, date: creationDate)
                 }
             }
