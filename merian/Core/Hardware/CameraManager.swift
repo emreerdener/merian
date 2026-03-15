@@ -51,7 +51,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             self.setupSession()
         }
         
-        NotificationCenter.default.publisher(for: NSNotification.Name.AVCaptureDeviceSubjectAreaDidChange)
+        NotificationCenter.default.publisher(for: AVCaptureDevice.subjectAreaDidChangeNotification)
             .sink { [weak self] _ in
                 self?.resetFocusAndExposure()
             }

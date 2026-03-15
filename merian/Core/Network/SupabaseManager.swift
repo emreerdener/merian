@@ -118,10 +118,11 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
     // MARK: - OAuth & Apple Sign In
     
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        return UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let windowScene = scenes.first else {
+            fatalError("No valid UIWindowScene available for authentication.")
+        }
+        return scenes.flatMap { $0.windows }.first { $0.isKeyWindow } ?? ASPresentationAnchor(windowScene: windowScene)
     }
     private func getRootViewController() -> UIViewController? {
         guard let screen = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return nil }
@@ -230,10 +231,11 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
 extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
     
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        return UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let windowScene = scenes.first else {
+            fatalError("No valid UIWindowScene available for authentication.")
+        }
+        return scenes.flatMap { $0.windows }.first { $0.isKeyWindow } ?? ASPresentationAnchor(windowScene: windowScene)
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
