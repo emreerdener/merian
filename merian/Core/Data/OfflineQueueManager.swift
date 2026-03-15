@@ -291,40 +291,54 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
         
         guard let response = task.response as? HTTPURLResponse, response.statusCode == 200 else {
-            print("Background upload rejected physically by boundary constraints.")
+            print("Background upload rejected physically by boundary constraints. Server returned an error.")
+            OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
             return
         }
         
-        #if os(iOS)
-        final class InferenceBox: @unchecked Sendable {
-            private let lock = NSLock()
-            private var _id: UIBackgroundTaskIdentifier = .invalid
-            var id: UIBackgroundTaskIdentifier {
-                get { lock.withLock { _id } }
-                set { lock.withLock { _id = newValue } }
-            }
-        }
-        let inferenceBox = InferenceBox()
-        inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [weak inferenceBox] in
-            // Should we timeout natively before we can handle inference
-            print("Offline inference background task expired")
-            if let box = inferenceBox, box.id != .invalid {
-                UIApplication.shared.endBackgroundTask(box.id)
-                box.id = .invalid
-            }
-        }
-        let inferenceTaskID = inferenceBox.id
-        #endif
-        
         Task { @MainActor in
-            guard let modelContext = OfflineQueueManager.shared.modelContext else { return }
+            #if os(iOS)
+            final class InferenceBox: @unchecked Sendable {
+                private let lock = NSLock()
+                private var _id: UIBackgroundTaskIdentifier = .invalid
+                var id: UIBackgroundTaskIdentifier {
+                    get { lock.withLock { _id } }
+                    set { lock.withLock { _id = newValue } }
+                }
+            }
+            let inferenceBox = InferenceBox()
+            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [weak inferenceBox] in
+                print("Offline inference background task expired")
+                if let box = inferenceBox, box.id != .invalid {
+                    UIApplication.shared.endBackgroundTask(box.id)
+                    box.id = .invalid
+                }
+            }
+            let inferenceTaskID = inferenceBox.id
+            #endif
+            
+            guard let modelContext = OfflineQueueManager.shared.modelContext else {
+                #if os(iOS)
+                if inferenceTaskID != .invalid { UIApplication.shared.endBackgroundTask(inferenceTaskID) }
+                #endif
+                return
+            }
             let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
             
-            guard let scan = try? modelContext.fetch(descriptor).first else { return }
+            guard let scan = try? modelContext.fetch(descriptor).first else {
+                #if os(iOS)
+                if inferenceTaskID != .invalid { UIApplication.shared.endBackgroundTask(inferenceTaskID) }
+                #endif
+                return
+            }
             
-            guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else { return }
+            guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else {
+                #if os(iOS)
+                if inferenceTaskID != .invalid { UIApplication.shared.endBackgroundTask(inferenceTaskID) }
+                #endif
+                return
+            }
             let r2ObjectKey = String(urlPath[range.lowerBound...])
-            
             
             do {
                 let resultData = try await MerianNetworkClient.shared.analyzeSubject(
@@ -356,7 +370,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             }
             
             #if os(iOS)
-            UIApplication.shared.endBackgroundTask(inferenceTaskID)
+            if inferenceTaskID != .invalid {
+                UIApplication.shared.endBackgroundTask(inferenceTaskID)
+            }
             #endif
         }
     }

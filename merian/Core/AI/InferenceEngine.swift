@@ -26,6 +26,7 @@ final class InferenceEngine: ObservableObject {
     private(set) var activeDistanceInMeters: Float? = nil
     
     private var inferenceTask: Task<Void, Never>?
+    public var isBackgroundRescued = false
     
     /// Wrapper preventing double string decoding JSON extraction logic
     struct EdgeResponseWrapper: Codable {
@@ -73,6 +74,7 @@ final class InferenceEngine: ObservableObject {
         self.activeCompressedPayload = nil
         self.activePayloads = []
         self.speciesData = nil
+        self.isBackgroundRescued = false
         
         self.activeLatitude = gpsLatitude
         self.activeLongitude = gpsLongitude
@@ -282,7 +284,9 @@ final class InferenceEngine: ObservableObject {
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
                     self.isProcessing = false
-                    UsageManager.shared.refundScan()
+                    if !self.isBackgroundRescued {
+                        UsageManager.shared.refundScan()
+                    }
                     return
                 }
                 CircuitBreakerManager.shared.recordFailure()
@@ -334,6 +338,7 @@ final class InferenceEngine: ObservableObject {
     /// Halts active inferences instantly if the iOS Watchdog forces a termination
     func cancelActiveRequest() {
         print("Cancelled active inference request to prevent watchdog termination.")
+        isBackgroundRescued = true
         inferenceTask?.cancel()
         isProcessing = false
         activePayload = nil

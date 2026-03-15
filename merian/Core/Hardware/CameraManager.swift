@@ -33,6 +33,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     // Photo capture state
     private var activePhotoContinuation: CheckedContinuation<Data, Error>?
+    private var activeTimeoutTask: Task<Void, Error>?
     
     private override init() {
         super.init()
@@ -376,9 +377,37 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
         lastCaptureTime = now
         
+        // Calculate brightness synchronously to prevent CVPixelBuffer memory corruption upon async frame jumps
+        var brightness: Float = 1.0
+        if CVPixelBufferGetPlaneCount(pixelBuffer) > 0 {
+            CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+            if let baseAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0) {
+                let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0)
+                let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
+                let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
+                
+                var totalLuma: UInt64 = 0
+                let sampleStep = 10
+                var sampleCount = 0
+                
+                let buffer = baseAddress.assumingMemoryBound(to: UInt8.self)
+                for y in stride(from: 0, to: height, by: sampleStep) {
+                    let rowOffset = y * bytesPerRow
+                    for x in stride(from: 0, to: width, by: sampleStep) {
+                        totalLuma += UInt64(buffer[rowOffset + x])
+                        sampleCount += 1
+                    }
+                }
+                
+                let averageLuma = sampleCount > 0 ? Float(totalLuma) / Float(sampleCount) : 255.0
+                brightness = averageLuma / 255.0
+            }
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
+        }
+        
         Task { @MainActor in
             guard !self.isLiveInferencePaused else { return }
-            ViewfinderIntelligence.shared.analyze(pixelBuffer: pixelBuffer, distance: self.subjectDistanceInMeters)
+            ViewfinderIntelligence.shared.analyze(brightness: brightness, distance: self.subjectDistanceInMeters)
         }
     }
     
@@ -395,8 +424,8 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 self.activePhotoContinuation = continuation
                 
                 // 5-Second Hardware Timeout Fallback
-                Task { @MainActor [weak self] in
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                self.activeTimeoutTask = Task { @MainActor [weak self] in
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
                     guard let self = self, let activeCont = self.activePhotoContinuation else { return }
                     self.activePhotoContinuation = nil
                     activeCont.resume(throwing: NSError(domain: "CameraManager", code: -4, userInfo: [NSLocalizedDescriptionKey : "Hardware shutter timed out"]))
@@ -454,6 +483,8 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         Task { @MainActor in
+            self.activeTimeoutTask?.cancel()
+            self.activeTimeoutTask = nil
             guard let cont = self.activePhotoContinuation else { return }
             self.activePhotoContinuation = nil
             

@@ -100,7 +100,7 @@ serve(async (req: Request) => {
              // Hash to maintain contributor isolation anonymously
              const data = new TextEncoder().encode(scan.user_id + secretHashSalt);
              const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-             recordedBy = `merian_user_${encodeHex(hashBuffer).substring(0, 16)}`;
+             recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
           } else {
              recordedBy = scan.user_id;
           }

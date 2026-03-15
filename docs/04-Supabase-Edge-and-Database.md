@@ -38,7 +38,7 @@ Researchers deploying global data extractions trigger the `export-dwca` edge fun
 To completely bypass complex Row Level Security (RLS) policies acting upon anonymous Device ID (IDFV) boundaries implicitly, Merian completely routes Toxicity blocking protocols through this specific serverless Deno node:
 
 1. Native iOS extracts the internal UUID inside `DeviceIdentityManager.shared.deviceId` explicitly and securely queries its active JWT. If the session is missing, it intelligently throws a `NetworkError` preventing accidental API identity overwrites during off-grid operations.
-2. The payload `{"blocked_id": "..."}` is pushed securely via `.xcconfig` REST headers natively. The boundary extracts the `blocker_id` exclusively from `supabaseAdmin.auth.getUser()`.
+2. The payload `{"blocked_id": "..."}` is pushed securely via `.xcconfig` REST headers natively. The boundary extracts the `blocker_id` exclusively via a zero-RTT `jose.jwtVerify()` execution natively.
 3. The instance bypasses PostgreSQL Row Level locks by executing `supabaseAdmin.from('user_blocks').insert()` natively using the backend `SUPABASE_SERVICE_ROLE_KEY`, instantly locking off the social data boundary natively without exposing the DB array tables back to the iOS end-user grid.
 
 ## Security & Environment Validation

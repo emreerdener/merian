@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import * as jose from "https://deno.land/x/jose@v5.2.2/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,9 +33,15 @@ serve(async (req: Request) => {
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
     // Validate the ES256 token directly against GoTrue natively bypassing the Edge Runtime
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      console.error("Manual Auth Rejection:", authError);
+    let user: { id: string };
+    try {
+      const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET")!;
+      const secretKey = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jose.jwtVerify(token, secretKey);
+      if (!payload.sub) throw new Error("No subject");
+      user = { id: payload.sub };
+    } catch (e) {
+      console.error("Local Auth Rejection:", e);
       return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

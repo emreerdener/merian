@@ -26,7 +26,7 @@ Global researchers pulling thousands of scientific records previously caused Den
 Merian strictly protects backend endpoints from malformed or malicious multi-gigabyte S3 object structures by natively extracting `r2Response.headers.get("Content-Length")`. Any object exceeding the `5MB` constraint gracefully yields an `HTTP 413 Payload Too Large` immediately before the backend `.arrayBuffer()` parser attempts to evaluate it natively preventing Deno restarts.
 
 ### Native Execution Deferrals (`revenuecat-webhook`)
-S3 bulk-bucket mutations (e.g. migrating 1000s of payloads from `/free/` into `/pro/` prefixes) exceeded Deno's 10-second processing restriction for power users. Merian decouples the webhook execution by logging tier upgrades and issuing `HTTP 200` instantly, natively deferring all structural S3 R2 operations cleanly out to asynchronous `pg_cron` queue workers hosted on Postgres.
+S3 bulk-bucket mutations (e.g. migrating 1000s of payloads from `/free/` into `/pro/` prefixes) exceeded Deno's 10-second processing restriction for power users. Merian decouples the webhook execution by logging tier upgrades and issuing `HTTP 200` instantly, natively deferring all structural S3 R2 operations cleanly out to the background via `EdgeRuntime.waitUntil(promise)`.
 
 ## 3. Infrastructure Latency & Privacy (P2)
 

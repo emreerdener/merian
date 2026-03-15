@@ -29,7 +29,7 @@ final class ViewfinderIntelligence: ObservableObject {
         Task { await updateHint(.optimal) }
     }
     
-    func analyze(pixelBuffer: CVPixelBuffer, distance: Float?) {
+    func analyze(brightness: Float, distance: Float?) {
         guard Date() > pauseUntil else { return }
         
         // Drop frames instantly if we're currently processing one to maintain zero latency in the viewfinder
@@ -50,34 +50,7 @@ final class ViewfinderIntelligence: ObservableObject {
             }
             
             // 2. Brightness Heuristic utilizing direct Luma plane extraction purely on CPU
-            var brightness: Float = 1.0
-            if CVPixelBufferGetPlaneCount(pixelBuffer) > 0 {
-                CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
-                
-                if let baseAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0) {
-                    let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0)
-                    let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
-                    let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
-                    
-                    var totalLuma: UInt64 = 0
-                    let sampleStep = 10 // Subsample explicitly to keep iteration latency ~0ms
-                    var sampleCount = 0
-                    
-                    let buffer = baseAddress.assumingMemoryBound(to: UInt8.self)
-                    for y in stride(from: 0, to: height, by: sampleStep) {
-                        let rowOffset = y * bytesPerRow
-                        for x in stride(from: 0, to: width, by: sampleStep) {
-                            totalLuma += UInt64(buffer[rowOffset + x])
-                            sampleCount += 1
-                        }
-                    }
-                    
-                    let averageLuma = sampleCount > 0 ? Float(totalLuma) / Float(sampleCount) : 255.0
-                    brightness = averageLuma / 255.0
-                }
-                
-                CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
-            }
+            // (Extracted synchronously in CameraManager to prevent asynchronous EXC_BAD_ACCESS CVPixelBuffer memory recycling crashes)
             
             // Strict threshold rejecting lighting boundaries before Gemini processing
             if brightness < 0.20 {

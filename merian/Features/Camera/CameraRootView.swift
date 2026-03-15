@@ -106,7 +106,7 @@ struct CameraRootView: View {
                         
                         Circle()
                             .fill(Color.white)
-                            .frame(width: 58, height: 58)
+                            .frame(width: 64, height: 64)
                     }
                     // .background(.ultraThinMaterial, in: Circle())
                     .environment(\.colorScheme, .dark)
