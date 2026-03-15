@@ -37,7 +37,7 @@ struct CameraNavigationBarOverlay: ViewModifier {
                     }
                 }
             }
-            .toolbarBackground(.hidden, for: .bottomBar)
+            .toolbarBackgroundVisibility(.hidden, for: .bottomBar)
     }
 }
 
