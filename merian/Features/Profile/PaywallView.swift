@@ -77,7 +77,6 @@ struct PaywallView: View {
             }
         }
         .presentationBackground(Color(uiColor: .systemBackground))
-        .environment(\.colorScheme, .dark)
     }
     
     // Safely trigger restore binding securely inside the Paywall
@@ -117,11 +116,11 @@ struct PackageCardButton: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(package.storeProduct.localizedTitle)
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     
                     Text(package.storeProduct.localizedDescription)
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
@@ -136,9 +135,9 @@ struct PackageCardButton: View {
                     .clipShape(Capsule())
             }
             .padding()
-            .background(Color(white: 0.15))
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
             .cornerRadius(16)
-            .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
         }
         .buttonStyle(PlainButtonStyle())
     }
