@@ -7,30 +7,22 @@ struct CameraNavigationBarOverlay: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .safeAreaInset(edge: .bottom) {
-                if !isAnalyzingFullscreen {
-                    HStack {
+            .toolbar {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    if !isAnalyzingFullscreen {
                         Button(action: {
                             isLifeListOpen = true
                         }) {
                             VStack(spacing: 4) {
                                 Image(systemName: "book")
-                                    .font(.system(size: 24, weight: .light))
+                                    .font(.system(size: 20, weight: .regular))
                                 Text("Scans")
                                     .font(.system(size: 10, weight: .medium))
                             }
-                            .foregroundColor(.white)
-                            .frame(width: 72, height: 72)
-                            .background(
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .environment(\.colorScheme, .dark)
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
-                            )
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
                         }
+                        .foregroundColor(.white)
                         
                         Spacer()
                         
@@ -39,28 +31,20 @@ struct CameraNavigationBarOverlay: ViewModifier {
                         }) {
                             VStack(spacing: 4) {
                                 Image(systemName: "person")
-                                    .font(.system(size: 24, weight: .light))
+                                    .font(.system(size: 20, weight: .regular))
                                 Text("Profile")
                                     .font(.system(size: 10, weight: .medium))
                             }
-                            .foregroundColor(.white)
-                            .frame(width: 72, height: 72)
-                            .background(
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .environment(\.colorScheme, .dark)
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
-                            )
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
                         }
+                        .foregroundColor(.white)
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 10)
-                    .background(Color.clear)
                 }
             }
+            .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
+            .toolbarBackgroundVisibility(isAnalyzingFullscreen ? .hidden : .visible, for: .bottomBar)
+            .environment(\.colorScheme, .dark)
     }
 }
 

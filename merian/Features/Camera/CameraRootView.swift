@@ -87,7 +87,7 @@ struct CameraRootView: View {
                     .onTapGesture {
                         viewModel.executeCapture()
                     }
-                    .padding(.bottom, 10) // Pad natively to perfectly align bottom-edge with Toolbar constraints
+                    .padding(.bottom, 32) // Restored original ergonomic height above the native Toolbar
                 }
             }
             
