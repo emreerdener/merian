@@ -7,9 +7,9 @@ struct CameraNavigationBarOverlay: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    if !isAnalyzingFullscreen {
+            .safeAreaInset(edge: .bottom) {
+                if !isAnalyzingFullscreen {
+                    HStack {
                         Button(action: {
                             isLifeListOpen = true
                         }) {
@@ -19,8 +19,9 @@ struct CameraNavigationBarOverlay: ViewModifier {
                                     .font(.system(size: 8, weight: .medium))
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 24)
+                            .padding(.vertical, 16)
                         }
+                        
                         Spacer()
                         
                         Button(action: {
@@ -32,12 +33,13 @@ struct CameraNavigationBarOverlay: ViewModifier {
                                     .font(.system(size: 8, weight: .medium))
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 24)
+                            .padding(.vertical, 16)
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .background(Color.clear)
                 }
             }
-            .toolbarBackgroundVisibility(.hidden, for: .bottomBar)
     }
 }
 
