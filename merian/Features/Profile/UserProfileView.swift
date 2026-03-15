@@ -160,6 +160,40 @@ struct UserProfileView: View {
                         .padding(.horizontal, 24)
                     }
                     
+                    }
+                    
+                    // Subscription Layer (Useful for Sandbox syncing & Support)
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Subscription")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 24)
+                        
+                        Button(action: {
+                            Task {
+                                do {
+                                    try await RevenueCatManager.shared.restorePurchases()
+                                    // Optionally trigger a haptic or toast here
+                                    print("✅ Successfully forced RevenueCat Restore for Sandbox testing.")
+                                } catch {
+                                    print("⚠️ Failed to restore: \(error.localizedDescription)")
+                                }
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                Text("Restore Purchases")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .foregroundColor(.primary)
+                            .cornerRadius(14)
+                        }
+                        .padding(.horizontal, 24)
+                    }
+                    
                     // Lifetime Explorer Aggregates
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Lifetime Stats")
