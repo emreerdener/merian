@@ -155,7 +155,7 @@ final class InferenceEngine: ObservableObject {
                         genus: edgeRes.taxonomy?.genus
                     )
                     
-                    var mappedData = SpeciesData(
+                    let mappedData = SpeciesData(
                         scanId: edgeRes.scan_id,
                         commonName: edgeRes.common_name ?? "Unknown Subject",
                         scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
