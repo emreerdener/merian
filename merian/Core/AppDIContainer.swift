@@ -42,7 +42,7 @@ final class AppDIContainer: ObservableObject {
     /// Handles application transition to background gracefully
     func handleBackgroundPhase() {
         // Safely intercept mid-flight networks limits rescuing images asynchronously before standard app suspension
-        if inferenceEngine.isProcessing, let payload = inferenceEngine.activeCompressedPayload ?? inferenceEngine.activePayload {
+        if inferenceEngine.isProcessing, let payload = inferenceEngine.activeCompressedImageData ?? inferenceEngine.activeImageData {
             offlineQueueManager.enqueueCapture(
                 imageData: payload,
                 gpsLatitude: inferenceEngine.activeLatitude,

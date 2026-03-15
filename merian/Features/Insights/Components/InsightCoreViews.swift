@@ -5,13 +5,13 @@ struct InsightCarouselView: View {
     
     var body: some View {
         let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
-        let validHistoricPayloads = inferenceEngine.validHistoricPayloads
-        let totalImages = (inferenceEngine.activePayload != nil ? 1 : 0) + validHistoricPayloads.count + refUrls.count
+        let validHistoricImagePaths = inferenceEngine.validHistoricImagePaths
+        let totalImages = (inferenceEngine.activeImageData != nil ? 1 : 0) + validHistoricImagePaths.count + refUrls.count
         
         if totalImages > 0 {
             TabView {
                 // Priority: Live Capture actively evaluated (Data payload)
-                if let livePayload = inferenceEngine.activePayload, let uiImage = UIImage(data: livePayload) {
+                if let livePayload = inferenceEngine.activeImageData, let uiImage = UIImage(data: livePayload) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
@@ -22,7 +22,7 @@ struct InsightCarouselView: View {
                 }
                 
                 // User's Uploaded Images (Historic Pipeline deferred by path cleanly preventing OOMs natively)
-                ForEach(Array(validHistoricPayloads.enumerated()), id: \.element) { index, path in
+                ForEach(Array(validHistoricImagePaths.enumerated()), id: \.element) { index, path in
                     AsyncLocalImageView(imagePath: path)
                     .tag("user_image_\(index)")
                 }

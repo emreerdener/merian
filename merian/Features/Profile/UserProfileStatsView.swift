@@ -54,7 +54,7 @@ struct UserProfileStatsView: View {
             StatCardView(title: "Species", value: "\(uniqueSpeciesCount)", icon: "leaf.fill", color: .green)
             StatCardView(title: "Current Streak", value: "\(currentStreak) Day\(currentStreak == 1 ? "" : "s")", icon: "flame.fill", color: .orange)
             StatCardView(title: "Rare Finds", value: "\(rareFindsCount)", icon: "sparkles", color: .purple)
-            StatCardView(title: "Persona", value: persona, icon: "tree.fill", color: .teal)
+            StatCardView(title: "Explorer Rank", value: persona, icon: "tree.fill", color: .teal)
         }
     }
 }

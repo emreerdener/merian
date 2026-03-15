@@ -8,10 +8,10 @@ import ImageIO
 @MainActor
 final class InferenceEngine: ObservableObject {
     @Published var isProcessing: Bool = false
-    @Published var activePayload: Data? = nil
-    @Published var activeCompressedPayload: Data? = nil
-    @Published var activePayloads: [String] = []
-    @Published var validHistoricPayloads: [String] = []
+    @Published var activeImageData: Data? = nil
+    @Published var activeCompressedImageData: Data? = nil
+    @Published var activeImageDatas: [String] = []
+    @Published var validHistoricImagePaths: [String] = []
     @Published var speciesData: SpeciesData? = nil
     private(set) var activeLatitude: Double? = nil
     private(set) var activeLongitude: Double? = nil
@@ -71,10 +71,10 @@ final class InferenceEngine: ObservableObject {
     func analyze(imageData: Data, subjectDistanceInMeters: Float? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, locationName: String? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, cameraPitchDegrees: Double? = nil, compassHeading: Double? = nil, relativeHumidity: Double? = nil, uvIndex: Int? = nil, isFlashFired: Bool? = nil, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
-        self.activePayload = imageData
-        self.activeCompressedPayload = nil
-        self.activePayloads = []
-        self.validHistoricPayloads = []
+        self.activeImageData = imageData
+        self.activeCompressedImageData = nil
+        self.activeImageDatas = []
+        self.validHistoricImagePaths = []
         self.speciesData = nil
         self.isBackgroundRescued = false
         
@@ -96,7 +96,7 @@ final class InferenceEngine: ObservableObject {
             
             // 1. Data is already safely compressed from camera cropper directly
             let compressedData = imageData
-            self.activeCompressedPayload = compressedData
+            self.activeCompressedImageData = compressedData
             
             do {
                 if CircuitBreakerManager.shared.isCircuitTripped {
@@ -343,10 +343,10 @@ final class InferenceEngine: ObservableObject {
         isBackgroundRescued = true
         inferenceTask?.cancel()
         isProcessing = false
-        activePayload = nil
-        activeCompressedPayload = nil
-        activePayloads.removeAll()
-        validHistoricPayloads.removeAll()
+        activeImageData = nil
+        activeCompressedImageData = nil
+        activeImageDatas.removeAll()
+        validHistoricImagePaths.removeAll()
         activeLatitude = nil
         activeLongitude = nil
         activeElevation = nil
@@ -359,7 +359,7 @@ final class InferenceEngine: ObservableObject {
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
         
-        self.activePayload = nil
+        self.activeImageData = nil
         var paths: [String] = []
         if let localPath = record.localImagePath {
             paths.append(localPath)
@@ -367,7 +367,7 @@ final class InferenceEngine: ObservableObject {
         if let extras = record.additionalImagePaths {
             paths.append(contentsOf: extras)
         }
-        self.activePayloads = paths
+        self.activeImageDatas = paths
         
         Task {
             let validPaths = await Task.detached(priority: .userInitiated) {
@@ -377,7 +377,7 @@ final class InferenceEngine: ObservableObject {
             }.value
             
             await MainActor.run {
-                self.validHistoricPayloads = validPaths
+                self.validHistoricImagePaths = validPaths
             }
         }
         
