@@ -154,22 +154,29 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     }
     
     private func reverseGeocode(location: CLLocation) async -> String? {
-        do {
-            guard let request = MKReverseGeocodingRequest(location: location) else { return nil }
-            let mapItems = try await request.mapItems
-            
-            if let target = mapItems.first {
-                if let cityContext = target.addressRepresentations?.cityWithContext {
-                    return cityContext
-                } else if let cityName = target.addressRepresentations?.cityName {
-                    return cityName
-                } else if let name = target.name {
-                    return name
+        let geocoder = CLGeocoder()
+        return await withCheckedContinuation { continuation in
+            geocoder.reverseGeocodeLocation(location) { placemarks, error in
+                if error != nil {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                if let placemark = placemarks?.first {
+                    if let city = placemark.locality, let adminArea = placemark.administrativeArea {
+                        continuation.resume(returning: "\(city), \(adminArea)")
+                    } else if let city = placemark.locality {
+                        continuation.resume(returning: city)
+                    } else if let name = placemark.name {
+                        continuation.resume(returning: name)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                } else {
+                    continuation.resume(returning: nil)
                 }
             }
-        } catch {
         }
-        return nil
     }
     
     private func requestSingleLocation() async -> CLLocation? {

@@ -21,7 +21,7 @@ struct MerianApp: App {
         Task.detached(priority: .background) {
             try? await Task.sleep(nanoseconds: 500_000_000)
             AppTelemetry.initialize()
-            PostHogManager.shared.configure()
+            await PostHogManager.shared.configure()
         }
         
         let schema = Schema(versionedSchema: MerianSchemaV8.self)

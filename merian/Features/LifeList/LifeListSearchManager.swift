@@ -368,7 +368,7 @@ struct LifeListSearchView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: "Search tags, habitats, colors...")
-            .searchDictationBehavior(.inline(activation: .onSelect))
+            //.searchDictationBehavior(.inline(activation: .onSelect))
             .onChange(of: searchManager.searchQuery) { _, newValue in
                 searchManager.performSearch(query: newValue)
                 if !newValue.isEmpty && activeTab != .library {
@@ -419,7 +419,7 @@ struct LifeListSearchView: View {
                     }
                 }
                 
-                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                //DefaultToolbarItem(kind: .search, placement: .bottomBar)
             }
             .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
             .toolbarBackground(.visible, for: .bottomBar)

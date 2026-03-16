@@ -41,7 +41,7 @@ struct CameraNavigationBarOverlay: ViewModifier {
                 }
             }
             .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
-            .toolbarBackgroundVisibility(isAnalyzingFullscreen ? .hidden : .visible, for: .bottomBar)
+            .toolbarBackground(isAnalyzingFullscreen ? .hidden : .visible, for: .bottomBar)
             .environment(\.colorScheme, .dark)
     }
 }

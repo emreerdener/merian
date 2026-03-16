@@ -190,9 +190,7 @@ struct ImageCropperView: View {
                     }
                     
                     // Rehydrate the image with native rotation
-                    guard let rehydratedImage = UIImage(cgImage: croppedCG, scale: targetImage.scale, orientation: targetImage.imageOrientation) else {
-                        return nil
-                    }
+                    let rehydratedImage = UIImage(cgImage: croppedCG, scale: targetImage.scale, orientation: targetImage.imageOrientation)
                     
                     // Render cleanly out exactly to Gemini limits natively without protecting UIKit on the Main thread because UIGraphicsImageRenderer is thread-safe
                     let renderSize = CGSize(width: 768, height: 768)
