@@ -74,8 +74,11 @@ class LifeListSearchManager: ObservableObject {
             
             if Task.isCancelled { return }
             
+            // Create an immutable copy to satisfy Swift 6 Sendable closure isolation bounds
+            let finalProcessed = processed
+            
             await MainActor.run {
-                self.searchableData = processed
+                self.searchableData = finalProcessed
             }
         }
     }
