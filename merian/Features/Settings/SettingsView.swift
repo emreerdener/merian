@@ -57,7 +57,7 @@ struct SettingsView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Expedition Mode", isOn: $isExpeditionModeActive)
-                            .onChange(of: isExpeditionModeActive) { newValue in
+                            .onChange(of: isExpeditionModeActive) { _, newValue in
                                 HardwareOrchestrator.shared.isExpeditionModeActive = newValue
                                 HardwareOrchestrator.shared.evaluateConstraints()
                             }
@@ -69,7 +69,7 @@ struct SettingsView: View {
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Legacy Viewfinder", isOn: $isLiveInferencePaused)
-                            .onChange(of: isLiveInferencePaused) { newValue in
+                            .onChange(of: isLiveInferencePaused) { _, newValue in
                                 CameraManager.shared.isLiveInferencePaused = newValue
                             }
                         Text("Disables live AI scanning hints before capturing. Recommended for devices experiencing high thermal loads or heat warnings.")
@@ -164,7 +164,7 @@ struct SettingsView: View {
                             ImageCache.shared.clearCache()
                             let cachesDir = URL.cachesDirectory
                             if let enumerator = FileManager.default.enumerator(at: cachesDir, includingPropertiesForKeys: nil) {
-                                for case let fileURL as URL in enumerator {
+                                while let fileURL = enumerator.nextObject() as? URL {
                                     if fileURL.pathExtension == "jpg" {
                                         try? FileManager.default.removeItem(at: fileURL)
                                     }
