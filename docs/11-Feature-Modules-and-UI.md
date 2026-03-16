@@ -55,12 +55,12 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 
 ### Field & Hardware Options
 - **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps and disables intensive visual blurs to preserve battery.
-- **Legacy Viewfinder**: Allows users on older iPhone thermal bounds to manually pause the real-time ViewfinderIntelligence hints.
+- **Legacy Viewfinder**: Allows users to manually pause the real-time ViewfinderIntelligence hints. This is set to ON by default on modern devices (iPhone 14+) to prevent excessive thermal loads.
 - **System Haptics & Camera Roll**: UserDefaults bindings to dynamically skip `HapticManager` calls or directly prevent `PhotoLibraryManager` from pushing raw buffer bytes into the iOS Photos ecosystem.
 
-### Privacy & Science (Auth Required)
-- **Geoprivacy Control**: A backend integration where users modify their exact coordinate privacy matrix (`Open`, `Obscured`, `Private`) updating the `users` PostgreSQL table immediately in the background via `SupabaseManager` hooks.
-- **Export Life List (DwC-A)**: Connects to the `/export-dwca` Deno task through a `Task.detached` thread to pull a `.zip` archive URL back efficiently natively rendering a `ShareLink` payload safely out of memory constraints.
+### Privacy & Science
+- **Geoprivacy Control (`SettingsGeoprivacyView`)**: Extracted into a dedicated sub-page providing comprehensive user education on coordinate tracking natively. Contains detailed explanations for `Open` (raw sharing for researchers), `Obscured` (50km radius randomized blurring), and `Private` (completely hidden from discovery feed). Modifying selections elegantly cascades a Supabase edge update to the `users` PostgreSQL table immediately in the background via closures. Completely accessible to Ghost Users mapping natively to their anonymous UUID.
+- **Export Life List (DwC-A)**: *(Auth Required)* Connects to the `/export-dwca` Deno task through a `Task.detached` thread to pull a `.zip` archive URL back efficiently natively rendering a `ShareLink` payload safely out of memory constraints. Fallback "Sign in with Apple" prompt prevents anonymous users from generating payloads before creating an account.
 
 ### Danger Zone & Data Lifecycle
 - **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads directly off the iPhone flash memory.

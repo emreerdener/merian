@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 @preconcurrency import AVFoundation
 import CoreImage
 import Combine
@@ -28,7 +29,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
 
     
     // CoreML inferred state
-    var isLiveInferencePaused: Bool = false
+    var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: "isLiveInferencePaused") as? Bool ?? UIDevice.current.isModernIPhone
     
     // VUI Throttle parameters
     

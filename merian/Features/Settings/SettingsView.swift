@@ -12,7 +12,7 @@ struct SettingsView: View {
     
     // Feature Toggles (AppStorage)
     @AppStorage("isExpeditionModeActive") private var isExpeditionModeActive = false
-    @AppStorage("isLiveInferencePaused") private var isLiveInferencePaused = false
+    @AppStorage("isLiveInferencePaused") private var isLiveInferencePaused = UIDevice.current.isModernIPhone
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
     @AppStorage("saveToCameraRoll") private var saveToCameraRoll = true
     
@@ -67,7 +67,7 @@ struct SettingsView: View {
                             .onChange(of: isLiveInferencePaused) { newValue in
                                 CameraManager.shared.isLiveInferencePaused = newValue
                             }
-                        Text("Disables live AI scanning hints before capturing. Recommended for older devices experiencing heat warnings.")
+                        Text("Disables live AI scanning hints before capturing. Recommended for devices experiencing high thermal loads or heat warnings.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -80,33 +80,32 @@ struct SettingsView: View {
                 }
                 
                 // Section 3: Privacy & Citizen Science
-                if !supabase.isGuestUser {
-                    Section {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Picker("Default Geoprivacy", selection: $defaultGeoprivacy) {
-                                Text("Open").tag("open")
-                                Text("Obscured").tag("obscured")
-                                Text("Private").tag("private")
-                            }
-                            .onChange(of: defaultGeoprivacy) { newValue in
-                                Task {
-                                    guard let userId = supabase.currentUser?.id else { return }
-                                    do {
-                                        try await supabase.client.from("users")
-                                            .update(["default_geoprivacy": newValue])
-                                            .eq("id", value: userId)
-                                            .execute()
-                                    } catch {
-                                        print("Failed to update geoprivacy: \(error)")
-                                    }
+                Section {
+                    NavigationLink {
+                        SettingsGeoprivacyView(defaultGeoprivacy: $defaultGeoprivacy) { newValue in
+                            Task {
+                                guard let userId = supabase.currentUser?.id else { return }
+                                do {
+                                    try await supabase.client.from("users")
+                                        .update(["default_geoprivacy": newValue])
+                                        .eq("id", value: userId)
+                                        .execute()
+                                } catch {
+                                    print("Failed to update geoprivacy: \(error)")
                                 }
                             }
-                            Text("Open shares exact coordinates for science. Obscured rounds to a 50km radius. Private hides locations from the Discovery Feed.")
-                                .font(.caption)
+                        }
+                    } label: {
+                        HStack {
+                            Text("Default Geoprivacy")
+                            Spacer()
+                            Text(defaultGeoprivacy.capitalized)
                                 .foregroundColor(.secondary)
                         }
-                        .padding(.vertical, 4)
-                        
+                    }
+                    .padding(.vertical, 4)
+                    
+                    if !supabase.isGuestUser {
                         // Export Life List
                         if let url = exportUrl {
                             ShareLink(item: url) {
@@ -140,21 +139,17 @@ struct SettingsView: View {
                             }
                             .disabled(isExporting)
                         }
-                    } header: {
-                        Text("Privacy & Science")
-                    } footer: {
-                        Text("Darwin Core Archive (DwC-A) exports package your entire collection into a standardized scientific format.")
-                    }
-                } else {
-                    Section {
-                        Text("Sign in with Apple to unlock cloud settings.")
+                    } else {
+                        Text("Sign in with Apple to export data")
                             .font(.callout)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, 8)
-                    } header: {
-                        Text("Privacy & Science")
                     }
+                } header: {
+                    Text("Privacy & Science")
+                } footer: {
+                    Text("Darwin Core Archive (DwC-A) exports package your entire cloud collection into a standardized scientific format.")
                 }
                 
                 // Section 4: Data Management
@@ -288,5 +283,108 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+    }
+}
+
+struct SettingsGeoprivacyView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var defaultGeoprivacy: String
+    
+    // Required to trigger network updates immediately when selection changes
+    let onGeoprivacyChanged: (String) -> Void
+    
+    var body: some View {
+        List {
+            Section {
+                GeoprivacyOptionRow(
+                    title: "Open",
+                    description: "Shares exact coordinate data. This is crucial for citizen science, researchers, and global biodiversity tracking.",
+                    systemImage: "globe.americas.fill",
+                    iconColor: .green,
+                    isSelected: defaultGeoprivacy == "open"
+                ) {
+                    selectGeoprivacy("open")
+                }
+                
+                GeoprivacyOptionRow(
+                    title: "Obscured",
+                    description: "Randomizes the location to a large 50km radius. Protects exact locations of your property or rare species from poachers.",
+                    systemImage: "viewfinder.circle.fill",
+                    iconColor: .yellow,
+                    isSelected: defaultGeoprivacy == "obscured"
+                ) {
+                    selectGeoprivacy("obscured")
+                }
+                
+                GeoprivacyOptionRow(
+                    title: "Private",
+                    description: "Completely hides coordinates from the public Discovery Feed. Only you can view the mapped locations of these scans.",
+                    systemImage: "lock.shield.fill",
+                    iconColor: .red,
+                    isSelected: defaultGeoprivacy == "private"
+                ) {
+                    selectGeoprivacy("private")
+                }
+            } header: {
+                Text("Default Visibility")
+            } footer: {
+                Text("Your default Geoprivacy will apply to all future scans automatically. You can explicitly override this per-scan dynamically during uploads if needed.")
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Geoprivacy")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func selectGeoprivacy(_ value: String) {
+        // Haptic feedback
+        HapticManager.shared.triggerSelectionPulse()
+        defaultGeoprivacy = value
+        onGeoprivacyChanged(value)
+        dismiss()
+    }
+}
+
+private struct GeoprivacyOptionRow: View {
+    let title: String
+    let description: String
+    let systemImage: String
+    let iconColor: Color
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 16) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 24))
+                    .foregroundColor(iconColor)
+                    .frame(width: 32, alignment: .center)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                
+                Spacer()
+                
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.blue)
+                        .font(.title3)
+                        .padding(.top, 2)
+                }
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }

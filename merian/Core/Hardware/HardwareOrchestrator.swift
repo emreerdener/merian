@@ -1,4 +1,38 @@
 import Foundation
+import UIKit
+
+extension UIDevice {
+    /// Determines whether the device is considered a "modern iPhone" (iPhone 14 series or newer).
+    /// Used globally to default heavy AI features to off on modern bounds due to rapid thermal heat warnings natively.
+    var isModernIPhone: Bool {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        
+        var identifier = withUnsafePointer(to: &systemInfo.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) { ptr in
+                String(cString: ptr)
+            }
+        }
+        
+        #if targetEnvironment(simulator)
+        if let simulatorModel = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] {
+            identifier = simulatorModel
+        }
+        #endif
+        
+        // "iPhone14,x" mapping maps to iPhone 13.
+        // "iPhone15,x" mapping maps to iPhone 14 / iPhone 14 Plus / iPhone 14 Pro, etc.
+        // Thus, we classify >= 15 as a "modern iPhone" which experiences severe thermal load quickly.
+        if identifier.hasPrefix("iPhone") {
+            let numberPart = identifier.dropFirst(6).split(separator: ",").first ?? "0"
+            if let majorVersion = Int(numberPart), majorVersion >= 15 {
+                return true
+            }
+        }
+        
+        return false
+    }
+}
 import Combine
 
 /// HardwareOrchestrator acts as the thermal management and concurrency bridge for hardware elements.
