@@ -131,10 +131,10 @@ struct InferenceEngineTests {
         #expect(resultingData.insightData.description.contains("Nymphalidae"))
         #expect(resultingData.taxonomy?.genus == "Danaus")
         
-        // Assert image paths are stitched properly into activePayloads for the UI Carousel
-        #expect(engine.activePayloads.count == 2, "Expected 2 total images (1 local, 1 extra)")
-        #expect(engine.activePayloads[0] == "monarch.jpg")
-        #expect(engine.activePayloads[1] == "monarch2.jpg")
+        // Assert image paths are stitched properly into activeImageDatas for the UI Carousel
+        #expect(engine.activeImageDatas.count == 2, "Expected 2 total images (1 local, 1 extra)")
+        #expect(engine.activeImageDatas[0] == "monarch.jpg")
+        #expect(engine.activeImageDatas[1] == "monarch2.jpg")
         
         #expect(engine.isProcessing == false, "Processing state should return to false synchronously")
     }
