@@ -74,8 +74,8 @@ final class ScanRepository {
             let wikipedia_url: String?
             let reference_image_url: String?
             let is_poisonous: Bool?
-            let common_names: [String: String]?
-            let descriptions: [String: String]?
+            let common_names: [String: String?]?
+            let descriptions: [String: String?]?
         }
         
         struct HistoricalScanResponse: Decodable, Sendable {
@@ -117,8 +117,8 @@ final class ScanRepository {
                 
                 let dict = scan.species_dictionary
                 let sciName = dict?.scientific_name ?? "Unknown Subject"
-                let cName = dict?.common_names?.values.first ?? sciName
-                let desc = dict?.descriptions?.values.first ?? "No ecological description available for this subject."
+                let cName = dict?.common_names?.compactMap { $0.value }.first ?? sciName
+                let desc = dict?.descriptions?.compactMap { $0.value }.first ?? "No ecological description available for this subject."
                 
                 // If it exists safely mapped in R2, strictly configure Image Storage logic bypasses using the Reference bounds securely
                 let r2Image = scan.image_storage_urls?.first

@@ -27,11 +27,11 @@ struct InsightSheetView: View {
     }
     
     private var commonName: String {
-        inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning Subject..."
+        inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
     }
     
     private var scientificName: String {
-        inferenceEngine.speciesData?.scientificName ?? "Awaiting Taxonomy"
+        inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy"
     }
     
     var body: some View {
@@ -72,7 +72,7 @@ struct InsightSheetView: View {
                     }) {
                         HStack {
                             Image(systemName: "flag.fill")
-                            Text("Report Incorrect ID")
+                            Text("Report incorrect ID")
                         }
                         .font(.footnote)
                         .foregroundColor(.secondary)
@@ -117,16 +117,16 @@ struct InsightSheetView: View {
                                     subject: Text("I found a \(commonName)!"),
                                     message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
                                 ) {
-                                    Label("Share Discovery", systemImage: "square.and.arrow.up")
+                                    Label("Share discovery", systemImage: "square.and.arrow.up")
                                 }
                             }
                             
                             Button(action: { showCollectionPicker = true }) {
-                                Label("Save to Collection", systemImage: "folder.badge.plus")
+                                Label("Add to collection", systemImage: "folder.badge.plus")
                             }
                             
                             Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                                Label("Delete Scan", systemImage: "trash")
+                                Label("Delete scan", systemImage: "trash")
                             }
                         } label: {
                             Image(systemName: "ellipsis")
@@ -140,11 +140,11 @@ struct InsightSheetView: View {
                     }
                 }
                 .confirmationDialog(
-                    "Delete Scan",
+                    "Delete scan",
                     isPresented: $showDeleteConfirmation,
                     titleVisibility: .visible
                 ) {
-                    Button("Delete Scan Permanently", role: .destructive) {
+                    Button("Delete scan permanently", role: .destructive) {
                         eradicateCurrentScan()
                     }
                     Button("Cancel", role: .cancel) {}
@@ -173,7 +173,7 @@ struct InsightSheetView: View {
         // Ensure VoiceOver properly sequences the primary components autonomously upon render
         .onAppear {
             if UIAccessibility.isVoiceOverRunning {
-                let announcement = isPoisonous ? "\(commonName). Warning: This subject is Poisonous." : commonName
+                let announcement = isPoisonous ? "\(commonName). Warning: This subject is poisonous." : commonName
                 UIAccessibility.post(notification: .announcement, argument: announcement)
             }
             if inferenceEngine.speciesData?.isNewDiscovery == true {
