@@ -33,6 +33,10 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     private var timeoutTask: Task<Void, Never>?
     private(set) var cachedLocation: CLLocation?
     
+    private var geocodeCache: [String: String] = [:]
+    private var geocodeKeys: [String] = []
+    private let geocodeCacheLimit = 200
+    
     private override init() {
         super.init()
         locationManager.delegate = self
@@ -154,8 +158,13 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     }
     
     private func reverseGeocode(location: CLLocation) async -> String? {
+        let key = String(format: "%.3f,%.3f", location.coordinate.latitude, location.coordinate.longitude)
+        if let cached = geocodeCache[key] {
+            return cached
+        }
+        
         let geocoder = CLGeocoder()
-        return await withCheckedContinuation { continuation in
+        let generatedString: String? = await withCheckedContinuation { continuation in
             geocoder.reverseGeocodeLocation(location) { placemarks, error in
                 if error != nil {
                     continuation.resume(returning: nil)
@@ -177,6 +186,17 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
                 }
             }
         }
+        
+        if let validString = generatedString {
+            if geocodeKeys.count >= geocodeCacheLimit {
+                let oldest = geocodeKeys.removeFirst()
+                geocodeCache.removeValue(forKey: oldest)
+            }
+            geocodeKeys.append(key)
+            geocodeCache[key] = validString
+        }
+        
+        return generatedString
     }
     
     private func requestSingleLocation() async -> CLLocation? {

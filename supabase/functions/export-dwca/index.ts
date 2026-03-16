@@ -183,14 +183,7 @@ serve(async (req: Request) => {
     zip.file("multimedia.csv", multimediaCsv);
     zip.file("meta.xml", metaXml);
 
-    const zipStream = new ReadableStream({
-      start(controller) {
-        zip.generateInternalStream({ type: "uint8array" })
-          .on('data', (data: Uint8Array) => controller.enqueue(data))
-          .on('error', (err: Error) => controller.error(err))
-          .on('end', () => controller.close());
-      }
-    });
+    const zipBuffer = await zip.generateAsync({ type: "uint8array", compression: "STORE" });
 
     // 6. Upload to R2 and Generate Download URL
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
@@ -210,22 +203,14 @@ serve(async (req: Request) => {
     const exportKey = `exports/${userId}/LifeList_DwC_Archive_${timestamp}.zip`;
     const urlString = `${endpoint}/${R2_BUCKET_NAME}/${exportKey}`;
 
-    // Sign securely with UNSIGNED-PAYLOAD since body length is streaming
-    const putUrl = new URL(urlString);
-    const signedPut = await aws.sign(putUrl.toString(), {
+    // Use statically resolved Uint8Array explicitly with calculated Content-Length to bypass AWS chunked 411/403 crashes natively
+    const putRes = await aws.fetch(urlString, {
       method: "PUT",
       headers: {
-        "x-amz-content-sha256": "UNSIGNED-PAYLOAD"
-      }
-    });
-    
-    // Inject streaming ReadableStream into generated aws4fetch standard signed Request
-    const putRes = await fetch(signedPut.url, {
-      method: "PUT",
-      headers: signedPut.headers,
-      body: zipStream,
-      // @ts-ignore: Required configuration to enable modern standard Duplex Request streaming over Deno edge
-      duplex: 'half'
+        "Content-Length": zipBuffer.length.toString(),
+        "Content-Type": "application/zip"
+      },
+      body: zipBuffer as unknown as BodyInit
     });
 
     if (!putRes.ok) {

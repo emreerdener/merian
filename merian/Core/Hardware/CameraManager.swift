@@ -3,6 +3,7 @@ import Foundation
 import CoreImage
 import Combine
 import CoreLocation
+import Accelerate
 
 /// Manages AVFoundation stack and depth mapping memory-safely
 @MainActor
@@ -377,7 +378,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
         lastCaptureTime = now
         
-        // Calculate brightness synchronously to prevent CVPixelBuffer memory corruption upon async frame jumps
+        // Calculate brightness synchronously via ultra-fast Accelerate vector hardware, bypassing manual CPU byte-stride loops
         var brightness: Float = 1.0
         if CVPixelBufferGetPlaneCount(pixelBuffer) > 0 {
             CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
@@ -386,21 +387,33 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
                 let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
                 
-                var totalLuma: UInt64 = 0
-                let sampleStep = 10
-                var sampleCount = 0
+                var vImageBuffer = vImage_Buffer(
+                    data: baseAddress,
+                    height: vImagePixelCount(height),
+                    width: vImagePixelCount(width),
+                    rowBytes: bytesPerRow
+                )
                 
-                let buffer = baseAddress.assumingMemoryBound(to: UInt8.self)
-                for y in stride(from: 0, to: height, by: sampleStep) {
-                    let rowOffset = y * bytesPerRow
-                    for x in stride(from: 0, to: width, by: sampleStep) {
-                        totalLuma += UInt64(buffer[rowOffset + x])
-                        sampleCount += 1
-                    }
+                var histogram = [vImagePixelCount](repeating: 0, count: 256)
+                var error = kvImageNoError
+                
+                histogram.withUnsafeMutableBufferPointer { histPtr in
+                    error = vImageHistogramCalculation_Planar8(&vImageBuffer, histPtr.baseAddress!, vImage_Flags(kvImageNoFlags))
                 }
                 
-                let averageLuma = sampleCount > 0 ? Float(totalLuma) / Float(sampleCount) : 255.0
-                brightness = averageLuma / 255.0
+                if error == kvImageNoError {
+                    var totalLuma: UInt64 = 0
+                    var totalPixels: UInt64 = 0
+                    for i in 0..<256 {
+                        let count = UInt64(histogram[i])
+                        totalLuma += count * UInt64(i)
+                        totalPixels += count
+                    }
+                    if totalPixels > 0 {
+                        let averageLuma = Float(totalLuma) / Float(totalPixels)
+                        brightness = averageLuma / 255.0
+                    }
+                }
             }
             CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
         }

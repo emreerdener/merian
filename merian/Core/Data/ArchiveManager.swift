@@ -130,69 +130,8 @@ class ArchiveManager: ObservableObject {
             let resourceIDs = agingScans.map { $0.persistentModelID }
             
             Task.detached(priority: .background) {
-                let backgroundContext = ModelContext(container)
-                
-                guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-                
-                for modelID in resourceIDs {
-                    guard let record = backgroundContext.model(for: modelID) as? LocalScanRecord else { continue }
-                    
-                    // Natively query the Supabase edge to extract the physical R2 url
-                    struct ScanUrlResponse: Decodable {
-                        let image_storage_urls: [String]
-                    }
-                    
-                    let remoteUrl: URL
-                    do {
-                        let postgrestResponse = try await SupabaseManager.shared.client
-                            .from("scans")
-                            .select("image_storage_urls")
-                            .eq("id", value: record.id)
-                            .single()
-                            .execute()
-                        
-                        let decoder = JSONDecoder()
-                        let parsed = try decoder.decode(ScanUrlResponse.self, from: postgrestResponse.data)
-                        
-                        guard let firstString = parsed.image_storage_urls.first,
-                              let parsedUrl = URL(string: firstString) else {
-                            // Mark structurally synced if no cloud URLs remain bounds-wise
-                            record.isLocallyArchived = true
-                            continue
-                        }
-                        
-                        remoteUrl = parsedUrl
-                    } catch {
-                        print("ArchiveManager: Failed to fetch remote URL for scan \(record.id)")
-                        continue
-                    }
-                    
-                    do {
-                        // Crucially stream the binary directly to a local disk tempURL entirely bypassing RAM
-                        let (tempURL, response) = try await URLSession.shared.download(from: remoteUrl)
-                        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                            continue
-                        }
-                        
-                        let filename = UUID().uuidString + ".jpg"
-                        let fileURL = documentsDirectory.appendingPathComponent(filename)
-                        
-                        try FileManager.default.moveItem(at: tempURL, to: fileURL)
-                        
-                        record.localImagePath = filename
-                        record.isLocallyArchived = true
-                        
-                        print("ArchiveManager: Successfully rescued scan \(record.id) off the R2 edge.")
-                    } catch {
-                        print("ArchiveManager: Failed to rescue aging boundary payload - \(error.localizedDescription)")
-                    }
-                }
-                
-                do {
-                    try backgroundContext.save()
-                } catch {
-                    print("ArchiveManager: Failed to persist ASP contextual state: \(error.localizedDescription)")
-                }
+                let archiveActor = ArchiveDatabaseActor(modelContainer: container)
+                await archiveActor.rescueTransfers(resourceIDs: resourceIDs)
             }
         } catch {
             print("ArchiveManager: Failed to evaluate offline sweeps bounds: \(error.localizedDescription)")
@@ -218,5 +157,72 @@ class ArchiveManager: ObservableObject {
         
         try FileManager.default.moveItem(at: tempURL, to: fileURL)
         return fileURL
+    }
+}
+
+@ModelActor
+actor ArchiveDatabaseActor {
+    func rescueTransfers(resourceIDs: [PersistentIdentifier]) async {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        
+        for modelID in resourceIDs {
+            guard let record = self.modelContext.model(for: modelID) as? LocalScanRecord else { continue }
+            
+            // Natively query the Supabase edge to extract the physical R2 url
+            struct ScanUrlResponse: Decodable {
+                let image_storage_urls: [String]
+            }
+            
+            let remoteUrl: URL
+            do {
+                let postgrestResponse = try await SupabaseManager.shared.client
+                    .from("scans")
+                    .select("image_storage_urls")
+                    .eq("id", value: record.id)
+                    .single()
+                    .execute()
+                
+                let decoder = JSONDecoder()
+                let parsed = try decoder.decode(ScanUrlResponse.self, from: postgrestResponse.data)
+                
+                guard let firstString = parsed.image_storage_urls.first,
+                      let parsedUrl = URL(string: firstString) else {
+                    // Mark structurally synced if no cloud URLs remain bounds-wise
+                    record.isLocallyArchived = true
+                    continue
+                }
+                
+                remoteUrl = parsedUrl
+            } catch {
+                print("ArchiveManager: Failed to fetch remote URL for scan \(record.id)")
+                continue
+            }
+            
+            do {
+                // Crucially stream the binary directly to a local disk tempURL entirely bypassing RAM
+                let (tempURL, response) = try await URLSession.shared.download(from: remoteUrl)
+                guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                    continue
+                }
+                
+                let filename = UUID().uuidString + ".jpg"
+                let fileURL = documentsDirectory.appendingPathComponent(filename)
+                
+                try FileManager.default.moveItem(at: tempURL, to: fileURL)
+                
+                record.localImagePath = filename
+                record.isLocallyArchived = true
+                
+                print("ArchiveManager: Successfully rescued scan \(record.id) off the R2 edge.")
+            } catch {
+                print("ArchiveManager: Failed to rescue aging boundary payload - \(error.localizedDescription)")
+            }
+        }
+        
+        do {
+            try self.modelContext.save()
+        } catch {
+            print("ArchiveManager: Failed to persist ASP contextual state: \(error.localizedDescription)")
+        }
     }
 }

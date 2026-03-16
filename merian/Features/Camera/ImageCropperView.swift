@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct IdentifiableImage: Identifiable {
     let id = UUID()
@@ -189,20 +190,40 @@ struct ImageCropperView: View {
                         return nil
                     }
                     
-                    // Rehydrate the image with native rotation
-                    let rehydratedImage = UIImage(cgImage: croppedCG, scale: targetImage.scale, orientation: targetImage.imageOrientation)
-                    
-                    // Render cleanly out exactly to Gemini limits natively without protecting UIKit on the Main thread because UIGraphicsImageRenderer is thread-safe
-                    let renderSize = CGSize(width: 768, height: 768)
-                    let format = UIGraphicsImageRendererFormat()
-                    format.scale = 1.0
-                    let renderer = UIGraphicsImageRenderer(size: renderSize, format: format)
-                    
-                    let finalImage = renderer.image { _ in
-                        rehydratedImage.draw(in: CGRect(origin: .zero, size: renderSize))
+                    // Map UIImage.Orientation directly to CGImagePropertyOrientation natively
+                    let cgOrientation: CGImagePropertyOrientation
+                    switch targetImage.imageOrientation {
+                    case .up: cgOrientation = .up
+                    case .down: cgOrientation = .down
+                    case .left: cgOrientation = .left
+                    case .right: cgOrientation = .right
+                    case .upMirrored: cgOrientation = .upMirrored
+                    case .downMirrored: cgOrientation = .downMirrored
+                    case .leftMirrored: cgOrientation = .leftMirrored
+                    case .rightMirrored: cgOrientation = .rightMirrored
+                    @unknown default: cgOrientation = .up
                     }
                     
-                    return finalImage.jpegData(compressionQuality: 0.7)
+                    let renderData = NSMutableData()
+                    
+                    // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
+                    guard let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else {
+                        return nil
+                    }
+                    
+                    let options: [CFString: Any] = [
+                        kCGImageDestinationLossyCompressionQuality: 0.7,
+                        kCGImagePropertyOrientation: cgOrientation.rawValue,
+                        kCGImageDestinationImageMaxPixelSize: 768 // Force maximum gemini down-render dynamically
+                    ]
+                    
+                    CGImageDestinationAddImage(destination, croppedCG, options as CFDictionary)
+                    
+                    guard CGImageDestinationFinalize(destination) else {
+                        return nil
+                    }
+                    
+                    return renderData as Data
                 }
                 
                 return bytes ?? targetImage.jpegData(compressionQuality: 0.7) ?? Data()

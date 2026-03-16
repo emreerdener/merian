@@ -116,6 +116,25 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         let documentsDirectory = URL.documentsDirectory
         let fileURL = documentsDirectory.appendingPathComponent(fileName)
         
+        #if os(iOS)
+        final class WriteBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var _id: UIBackgroundTaskIdentifier = .invalid
+            var id: UIBackgroundTaskIdentifier {
+                get { lock.withLock { _id } }
+                set { lock.withLock { _id = newValue } }
+            }
+        }
+        let writeBox = WriteBox()
+        writeBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueCaptureWrite") {
+            if writeBox.id != .invalid {
+                UIApplication.shared.endBackgroundTask(writeBox.id)
+                writeBox.id = .invalid
+            }
+        }
+        let backgroundTaskID = writeBox.id
+        #endif
+        
         Task.detached(priority: .userInitiated) {
             do {
                 try imageData.write(to: fileURL)
@@ -143,9 +162,22 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     modelContext.insert(scan)
                     try? modelContext.save()
                     OfflineQueueManager.shared.updateUnsyncedItemCount()
+                    
+                    #if os(iOS)
+                    if backgroundTaskID != .invalid {
+                        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                    }
+                    #endif
                 }
             } catch {
                 print("Failed to enqueue capture: \(error)")
+                await MainActor.run {
+                    #if os(iOS)
+                    if backgroundTaskID != .invalid {
+                        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                    }
+                    #endif
+                }
             }
         }
     }

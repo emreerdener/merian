@@ -76,60 +76,78 @@ serve(async (req: Request) => {
 
             const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
-            // Explicitly map all existing free-tier data blobs off PostgreSQL natively
-            const { data: scans, error: scansError } = await supabaseAdmin
-              .from("scans")
-              .select("id, image_storage_urls")
-              .eq("user_id", userId);
-
-            if (scansError) throw scansError;
-
             let totalMigrated = 0;
+            let hasMore = true;
+            let start = 0;
+            const pageSize = 1000;
 
-            for (const scan of scans || []) {
-              if (!scan.image_storage_urls || scan.image_storage_urls.length === 0) continue;
+            while (hasMore) {
+              // Explicitly map all existing free-tier data blobs off PostgreSQL natively utilizing pagination
+              const { data: scans, error: scansError } = await supabaseAdmin
+                .from("scans")
+                .select("id, image_storage_urls")
+                .eq("user_id", userId)
+                .order("id", { ascending: true })
+                .range(start, start + pageSize - 1);
 
-              let migrated = false;
-              const newUrls: string[] = [];
+              if (scansError) throw scansError;
 
-              for (const urlStr of scan.image_storage_urls) {
-                if (urlStr.includes(`public_uploads/free/${userId}/`)) {
-                  const urlParts = urlStr.split("/");
-                  const fileName = urlParts[urlParts.length - 1];
+              if (!scans || scans.length === 0) {
+                hasMore = false;
+                break;
+              }
 
-                  const sourceKey = `public_uploads/free/${userId}/${fileName}`;
-                  const targetKey = `public_uploads/pro/${userId}/${fileName}`;
+              for (const scan of scans) {
+                if (!scan.image_storage_urls || scan.image_storage_urls.length === 0) continue;
 
-                  const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;
-                  const deleteUrl = `${endpoint}/${R2_BUCKET_NAME}/${sourceKey}`;
+                let migrated = false;
+                const newUrls: string[] = [];
 
-                  const copyResponse = await aws.fetch(copyUrl, {
-                    method: "PUT",
-                    headers: {
-                      "x-amz-copy-source": `/${R2_BUCKET_NAME}/${sourceKey}`
+                for (const urlStr of scan.image_storage_urls) {
+                  if (urlStr.includes(`public_uploads/free/${userId}/`)) {
+                    const parsedUrl = new URL(urlStr);
+                    const fileName = parsedUrl.pathname.split("/").pop();
+
+                    const sourceKey = `public_uploads/free/${userId}/${fileName}`;
+                    const targetKey = `public_uploads/pro/${userId}/${fileName}`;
+
+                    const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;
+                    const deleteUrl = `${endpoint}/${R2_BUCKET_NAME}/${sourceKey}`;
+
+                    const copyResponse = await aws.fetch(copyUrl, {
+                      method: "PUT",
+                      headers: {
+                        "x-amz-copy-source": `/${R2_BUCKET_NAME}/${sourceKey}`
+                      }
+                    });
+
+                    if (copyResponse.ok) {
+                      // Physically terminate the free-tier origin bounding
+                      await aws.fetch(deleteUrl, { method: "DELETE" });
+                      newUrls.push(urlStr.replace(`public_uploads/free/${userId}/`, `public_uploads/pro/${userId}/`));
+                      migrated = true;
+                      totalMigrated++;
+                    } else {
+                      console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
+                      newUrls.push(urlStr);
                     }
-                  });
-
-                  if (copyResponse.ok) {
-                    // Physically terminate the free-tier origin bounding
-                    await aws.fetch(deleteUrl, { method: "DELETE" });
-                    newUrls.push(urlStr.replace(`public_uploads/free/${userId}/`, `public_uploads/pro/${userId}/`));
-                    migrated = true;
-                    totalMigrated++;
                   } else {
-                    console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
                     newUrls.push(urlStr);
                   }
-                } else {
-                  newUrls.push(urlStr);
+                }
+
+                if (migrated) {
+                  await supabaseAdmin
+                    .from("scans")
+                    .update({ image_storage_urls: newUrls })
+                    .eq("id", scan.id);
                 }
               }
 
-              if (migrated) {
-                await supabaseAdmin
-                  .from("scans")
-                  .update({ image_storage_urls: newUrls })
-                  .eq("id", scan.id);
+              if (scans.length < pageSize) {
+                hasMore = false;
+              } else {
+                start += pageSize;
               }
             }
             

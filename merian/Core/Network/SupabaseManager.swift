@@ -145,6 +145,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             let accessToken = result.user.accessToken.tokenString
             
             if self.isGuestUser {
+                let ghostId = try? await client.auth.session.user.id.uuidString
                 do {
                     let _ = try await client.auth.linkIdentityWithIdToken(
                         credentials: .init(
@@ -161,6 +162,9 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
                             accessToken: accessToken
                         )
                     )
+                    if let ghostId = ghostId {
+                        await triggerGhostProfileMerge(from: ghostId)
+                    }
                 }
             } else {
                 let _ = try await client.auth.signInWithIdToken(
@@ -182,6 +186,21 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             print("Google Sign In complete!")
         } catch {
             print("Google Sign In Cancelled or Error: \(error.localizedDescription)")
+        }
+    }
+    
+    private func triggerGhostProfileMerge(from ghostId: String) async {
+        struct GhostPayload: Encodable {
+            let ghost_id: String
+        }
+        do {
+            let _ = try await client.functions.invoke(
+                "merge-ghost-profile",
+                options: .init(body: GhostPayload(ghost_id: ghostId))
+            )
+            print("Ghost Profile explicitly merged via Edge natively for \(ghostId)")
+        } catch {
+            print("Ghost profile merge failed over Edge bounds: \(error.localizedDescription)")
         }
     }
     
@@ -260,6 +279,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
             Task {
                 do {
                     if self.isGuestUser {
+                        let ghostId = try? await client.auth.session.user.id.uuidString
                         do {
                             let _ = try await client.auth.linkIdentityWithIdToken(
                                 credentials: .init(
@@ -272,6 +292,9 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                             let _ = try await client.auth.signInWithIdToken(
                                 credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
                             )
+                            if let ghostId = ghostId {
+                                await triggerGhostProfileMerge(from: ghostId)
+                            }
                         }
                     } else {
                         let _ = try await client.auth.signInWithIdToken(

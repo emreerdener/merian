@@ -24,8 +24,11 @@ class LifeListSearchManager: ObservableObject {
     
     private var searchableData: [SearchableScan] = []
     private var searchTask: Task<Void, Never>?
+    private var indexingTask: Task<Void, Never>?
     
     private func updateSearchableData() {
+        indexingTask?.cancel()
+        
         struct ScanPayload: Sendable {
             let id: String
             let semanticTags: [String]
@@ -50,18 +53,26 @@ class LifeListSearchManager: ObservableObject {
             )
         }
         
-        Task.detached(priority: .userInitiated) {
-            let processed = payloads.map { record in
+        indexingTask = Task.detached(priority: .userInitiated) {
+            var processed: [SearchableScan] = []
+            processed.reserveCapacity(payloads.count)
+            
+            for record in payloads {
+                if Task.isCancelled { return }
+                
                 let tags = record.semanticTags.joined(separator: " ")
                 let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
-                return SearchableScan(
+                
+                processed.append(SearchableScan(
                     id: record.id,
                     searchString: rawString,
                     ecologyType: record.ecologyType.lowercased(),
                     kingdom: record.taxonomyKingdom?.lowercased() ?? "",
                     className: record.taxonomyClass?.lowercased() ?? ""
-                )
+                ))
             }
+            
+            if Task.isCancelled { return }
             
             await MainActor.run {
                 self.searchableData = processed
