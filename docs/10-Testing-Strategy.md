@@ -22,19 +22,38 @@ This guarantees that:
 
 ## Core Suites
 
-The testing bounds are mapped physically within `merianTests`:
+The testing bounds are mapped physically within `merianTests/Core` and `merianTests/Features`:
 
-- **`MerianNetworkClientTests.swift`**: Thoroughly maps API routing bounds testing explicit self-healing `.401` execution cycles for Ghost User retries and JSON body payload serialization natively.
-- **`ImageDownsamplerTests.swift`**: Directly tests pure Core Graphics memory constraint barriers mapping 4000x4000 physical payloads cleanly under safe metric limits natively to prevent Out-Of-Memory JetSam OS crashes structurally.
-- **`CameraViewModelTests.swift`**: Validates cross-app UI state routing logic including deep physical Apple lifecycle events like `NSNotification.Name("AppDidEnterInactivePhase")` dropping active testing limits physically avoiding lockouts explicitly.
+### Analytics & Telemetry
+- **`AppTelemetryTests.swift`**: Validates structural tracking arrays natively ensuring telemetry identifiers are PII-free.
+- **`PostHogManagerTests.swift`**: Securely asserts logical bounds surrounding day-7 tracking funnels and user identification natively.
+- **`GamificationManagerTests.swift`**: Validates native persistence bounds asserting proper math updates against user local scores ensuring UI progression trackers never skew bounds unexpectedly.
+- **`UsageManagerTests.swift`**: Securely bounds Apple ecosystem checks triggering daily free quotas and limits without accessing native API constraints permanently.
+
+### AI & Data Architectures
 - **`InferenceEngineTests.swift`**: Securely asserts logical bounds surrounding decoding the `EdgeResponseWrapper` AI payloads structurally, mapping specific physical metadata like `is_poisonous`, raw numeric `ai_confidence_score` indices and deep structural `TaxonomyData` logic seamlessly across `JSONDecoder`.
+- **`ViewfinderIntelligenceTests.swift`**: Validates real-time analysis bounds safely mapping frames before initiating inference triggers.
+- **`ArchiveManagerTests.swift`, `SyncStateManagerTests.swift`, `ScanRepositoryTests.swift`, `BackgroundDatabaseActorTests.swift`**: Verifies dynamic bi-directional relationship bounds appending dynamically and structurally inside the isolated local RAM footprint properly without causing SwiftData loop issues safely.
 - **`OfflineQueueManagerTests.swift`**: Dynamically mocks native payload insertions efficiently. 
   - **In-Memory Isolation**: It spins up an explicit `@MainActor ModelContext` strictly targeting `.isStoredInMemoryOnly = true` to isolate test data entirely from the user's real offline queue.
   - **Core Lifecycles**: Rigorously exercises `.enqueueCapture` (asserting `SwiftData` arrays increment perfectly) and native `.purgeSoftDeletedRecords()` (asserting soft-deleted items vanish while undeleted items persist securely). 
   - **Disk Teardown**: Explicitly confirms that physical sandbox files in `URL.documentsDirectory` are functionally eradicated during purges to prevent storage bloat.
-- **`GamificationManagerTests.swift`**: Validates native persistence bounds asserting proper math updates against user local scores ensuring UI progression trackers never skew bounds unexpectedly.
-- **`SpeciesDataTests.swift`**: Ensures native semantic `Tag` array extraction architectures behave structurally identically inside testing arrays.
-- **`ScanRepositoryTests.swift`**, **`BackgroundDatabaseActorTests.swift`**: Verifies dynamic bi-directional relationship bounds appending dynamically and structurally inside the isolated local RAM footprint properly without causing SwiftData loop issues safely.
+- **`ImageCacheTests.swift`**: Ensures Swift RAM cache bounds do not aggressively override maximum physical system allocations cleanly natively.
+
+### Hardware & Ecosystem Integrations
+- **`CameraManagerTests.swift`, `CameraViewModelTests.swift`**: Validates cross-app UI state routing logic including deep physical Apple lifecycle events like `NSNotification.Name("AppDidEnterInactivePhase")` dropping active testing limits physically avoiding lockouts explicitly.
+- **`HardwareOrchestratorTests.swift`**: Mocks `ProcessInfo.processInfo.thermalState` boundaries securely guaranteeing the camera dynamically throttles `FPS` dynamically without restarting instances natively.
+- **`EnvironmentContextManagerTests.swift`**: Asserts safe async bounding over simulated `CLLocationManager` outputs validating offline contexts.
+- **`HapticManagerTests.swift`**: Confirms safe initialization states bridging `UIImpactFeedbackGenerator` buffers without stalling threads.
+
+### Security, Network & Identity
+- **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Thoroughly maps API routing bounds testing explicit self-healing `.401` execution cycles for Ghost User retries and JSON body payload serialization natively.
+- **`DeviceIdentityManagerTests.swift`, `RevenueCatManagerTests.swift`**: Directly isolates authentication loops binding persistent mock App Store IDs cleanly away from live Production identifiers.
+- **`SocialGuardManagerTests.swift`, `CircuitBreakerManagerTests.swift`**: Asserts offline logic guaranteeing blocked users do not re-populate the feed organically.
+
+### UI & Utilities
+- **`ImageDownsamplerTests.swift`**: Directly tests pure Core Graphics memory constraint barriers mapping 4000x4000 physical payloads cleanly under safe metric limits natively to prevent Out-Of-Memory JetSam OS crashes structurally.
+- **`LifeListSearchManagerTests.swift`**: Verifies debounced string bounds extracting correctly locally via SwiftData `@Query` mechanisms safely.
 
 ## Mocking Physical Apple Ecosystem Limits natively (`DeviceIdentityManager`)
 
