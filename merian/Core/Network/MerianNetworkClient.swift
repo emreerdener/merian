@@ -262,4 +262,90 @@ class MerianNetworkClient {
         }
         print("✅ Scan deleted sequentially successfully from Cloud Edge")
     }
+    
+    // Step 6: Full Account Erasure
+    func safeDeleteAccount() async throws {
+        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/safe-delete")!
+        
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30.0)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            if activeJWT == nil {
+                print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
+                await SupabaseManager.shared.initializeGhostSession()
+                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            }
+            guard let finalJWT = activeJWT else {
+                print("⚠️ MerianNetworkClient: Active JWT missing or expired after retry. Throwing NetworkError.")
+                throw NetworkError.invalidResponse
+            }
+            request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
+            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
+        } catch {
+            throw NetworkError.invalidResponse
+        }
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse
+        }
+        
+        if httpResponse.statusCode != 200 {
+            let errString = String(data: data, encoding: .utf8) ?? "Unknown"
+            print("🚨 FULL ACCOUNT DELETION FAILED [\(httpResponse.statusCode)]: \(errString)")
+            throw NetworkError.invalidResponse
+        }
+        print("✅ Account physically destroyed across PostgreSQL and Cloudflare R2")
+    }
+    
+    // Step 7: Export Darwin Core Archive
+    func exportDwcA(scope: String = "user") async throws -> URL {
+        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/export-dwca")!
+        
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 120.0) // Give it more time for generation
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            if activeJWT == nil {
+                print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
+                await SupabaseManager.shared.initializeGhostSession()
+                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
+            }
+            guard let finalJWT = activeJWT else {
+                throw NetworkError.invalidResponse
+            }
+            request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
+            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
+        } catch {
+            throw NetworkError.invalidResponse
+        }
+        
+        let payload: [String: Any] = ["exportScope": scope, "includePreciseCoordinates": true]
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse
+        }
+        
+        if httpResponse.statusCode != 200 {
+            print("🚨 EXPORT FAILED [\(httpResponse.statusCode)]")
+            throw NetworkError.invalidResponse
+        }
+        
+        struct ExportResponse: Codable {
+            let exportUrl: String
+        }
+        
+        guard let result = try? JSONDecoder().decode(ExportResponse.self, from: data), let url = URL(string: result.exportUrl) else {
+            throw NetworkError.decodingFailed
+        }
+        
+        return url
+    }
 }

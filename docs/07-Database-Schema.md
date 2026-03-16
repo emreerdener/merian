@@ -10,8 +10,10 @@ Tracks the global state of the anonymous/authenticated user.
 
 - `id` (UUID): Maps natively to the `auth.users` GoTrue unique identifiers, automatically generated via standard Supabase Ghost Sessions overriding generic IDFV fallback flows. Seamlessly mapped into PostHog/RevenueCat telemetry logic to ensure cohesive ecosystem-wide session persistence natively.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
+- `default_geoprivacy` (ENUM): `'open'` | `'obscured'` | `'private'`. Dictates the explicit GPS fuzzing boundaries applied dynamically to new scans, empowering citizens to default coordinates strictly into 50km approximations (`obscured`) or completely hidden from global bounds (`private`).
 - `current_streak_count` (Int): Gamification metric.
 - `total_species_discovered` (Int): Calculated strictly at the database level via a Postgres `AFTER INSERT` trigger (`update_user_species_count()`). To securely avoid concurrent TOCTOU race conditions during bulk offline uploads, it explicitly recalculates the sum mathematically via a subquery (`COUNT(DISTINCT species_id)`) rather than generically auto-incrementing. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS. This metric is also cleanly handled via an `AFTER DELETE` trigger (`decrement_user_species_count()`) automatically deducting the unified sum securely when a user deletes their absolute last scan of an entity.
+
 
 ### `species_dictionary`
 

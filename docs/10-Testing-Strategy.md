@@ -41,10 +41,11 @@ The testing bounds are mapped physically within `merianTests/Core` and `merianTe
 - **`ImageCacheTests.swift`**: Ensures Swift RAM cache bounds do not aggressively override maximum physical system allocations cleanly natively.
 
 ### Hardware & Ecosystem Integrations
-- **`CameraManagerTests.swift`, `CameraViewModelTests.swift`**: Validates cross-app UI state routing logic including deep physical Apple lifecycle events like `NSNotification.Name("AppDidEnterInactivePhase")` dropping active testing limits physically avoiding lockouts explicitly.
-- **`HardwareOrchestratorTests.swift`**: Mocks `ProcessInfo.processInfo.thermalState` boundaries securely guaranteeing the camera dynamically throttles `FPS` dynamically without restarting instances natively.
+- **`CameraManagerTests.swift`, `CameraViewModelTests.swift`**: Validates cross-app UI state routing logic including deep physical Apple lifecycle events like `NSNotification.Name("AppDidEnterInactivePhase")` dropping active testing limits physically avoiding lockouts explicitly. Crucially, asserts that the new "Legacy Viewfinder" toggle (`isLiveInferencePaused`) cleanly disables VUI background thread evaluation dynamically upon setting.
+- **`HardwareOrchestratorTests.swift`**: Mocks `ProcessInfo.processInfo.thermalState` boundaries securely guaranteeing the camera dynamically throttles `FPS` dynamically without restarting instances natively. Verifies explicit UserDefaults binding (`isExpeditionModeActive`) securely overriding OS thresholds to aggressively lock to 24fps and remove glass modifiers. To bypass Swift runtime crashes locally across asynchronous CI containers, strictly executes `AppTelemetry.initialize()` at `HardwareOrchestratorTests.init()` utilizing a stub `TEST_MOCK_ID` configuration cleanly.
 - **`EnvironmentContextManagerTests.swift`**: Asserts safe async bounding over simulated `CLLocationManager` outputs validating offline contexts.
-- **`HapticManagerTests.swift`**: Confirms safe initialization states bridging `UIImpactFeedbackGenerator` buffers without stalling threads.
+- **`HapticManagerTests.swift`**: Confirms safe initialization states bridging `UIImpactFeedbackGenerator` buffers without stalling threads. Now structurally asserts that hard-toggling `UserDefaults.standard.set(false, forKey: "isHapticsEnabled")` prevents sequence triggers gracefully avoiding hardware memory faults.
+- **`PhotoLibraryManagerTests.swift`**: Validates that toggling `UserDefaults("saveToCameraRoll")` securely drops the payload without triggering fatal explicit Apple `PHPhotoLibrary` memory allocations seamlessly natively.
 
 ### Security, Network & Identity
 - **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Thoroughly maps API routing bounds testing explicit self-healing `.401` execution cycles for Ghost User retries and JSON body payload serialization natively.

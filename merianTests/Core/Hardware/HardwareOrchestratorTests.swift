@@ -1,9 +1,14 @@
 import Testing
 import Foundation
+import TelemetryClient
 @testable import Merian
 
 @MainActor
 struct HardwareOrchestratorTests {
+    
+    init() {
+        AppTelemetry.initialize()
+    }
     
     @Test func testExpeditionModeDisablesBackgroundSyncs() async throws {
         // Arrange
@@ -81,5 +86,25 @@ struct HardwareOrchestratorTests {
         // Unlock dynamically forces immediate re-evaluation natively ensuring fluid transition bounds
         orchestrator.isIdleLocked = false
         #expect(orchestrator.targetFPS == 60, "Unlocking isIdleLocked must implicitly call evaluateConstraints()")
+    }
+    
+    @Test func testExpeditionModeOverridesSettings() {
+        let orchestrator = HardwareOrchestrator.shared
+        
+        // Assert nominal map
+        UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
+        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        #expect(orchestrator.targetFPS == 60)
+        
+        // Simulate User toggling "Expedition Mode" in SettingsView
+        UserDefaults.standard.set(true, forKey: "isExpeditionModeActive")
+        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        
+        #expect(orchestrator.targetFPS == 24)
+        #expect(orchestrator.isGlassmorphismEnabled == false)
+        
+        // Reset defaults
+        UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
+        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
     }
 }

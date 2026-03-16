@@ -99,4 +99,18 @@ final class ScanRepository {
             await offlineQueue.syncPendingDeletions()
         }
     }
+    
+    /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
+    func purgeAllData(modelContext: ModelContext) {
+        do {
+            try modelContext.delete(model: LocalScanRecord.self)
+            try modelContext.delete(model: ScanCollection.self)
+            try modelContext.delete(model: OfflineQueuedScan.self)
+            try modelContext.delete(model: PendingCloudDeletionTask.self)
+            try modelContext.save()
+            print("✅ Successfully purged all SwiftData records natively.")
+        } catch {
+            print("🚨 Failed to erase local ModelContainer: \(error.localizedDescription)")
+        }
+    }
 }

@@ -47,7 +47,9 @@ final class HardwareOrchestrator: ObservableObject {
     func evaluateConstraints(isLowPowerModeEnabled: Bool? = nil, thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
         
-        isExpeditionModeActive = isLowPowerModeEnabled ?? processInfo.isLowPowerModeEnabled
+        // Respect explicit user Settings bounds OR automatically engage if iOS Low Power Mode is tripped natively
+        let isUserForcedExpedition = UserDefaults.standard.bool(forKey: "isExpeditionModeActive")
+        isExpeditionModeActive = isUserForcedExpedition || (isLowPowerModeEnabled ?? processInfo.isLowPowerModeEnabled)
         // Note: ExpeditionModeActive disabling cellular uploads is handled by network/queue logic elsewhere reading this flag.
         
         // If locked in 1fps idle state, we must NOT overwrite settings

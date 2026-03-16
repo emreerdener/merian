@@ -92,7 +92,9 @@ To continuously refine the AI models and build a high-quality human-verified dat
 
 ## Account Deletion & Data Preservation (`safe-delete`)
 
-To balance user privacy (GDPR/CCPA compliance) with scientific data fidelity, account deletions utilize a specialized RPC: - **`00006_apply_user_tombstone.sql` / `apply_user_tombstone.sql`**: Generates a `public.apply_user_tombstone(target_user_id UUID)` PL/pgSQL function. Instead of cascading deletions that would wipe thousands of biological insights off the global map, it reassigns the user's `scans` to a permanent anonymous `00000000-0000-0000-0000-000000000000` tombstone user and flags them as `is_tombstoned = true`. Afterward, it safely cascades and destroys the original user schema and telemetry without breaking the structural biological maps. Note: The anonymous tombstone user instantiation correctly targets the existing `current_streak_count` schema rather than legacy strings, preventing Postgres syntax violations during account deletion cascades.
+To balance user privacy (GDPR/CCPA compliance) with scientific data fidelity, account deletions utilize a specialized edge node triggering a backend RPC: **`00006_apply_user_tombstone.sql` / `apply_user_tombstone.sql`**. This generates a `public.apply_user_tombstone(target_user_id UUID)` PL/pgSQL function. Instead of cascading deletions that would wipe thousands of biological insights off the global map, it reassigns the user's `scans` to a permanent anonymous `00000000-0000-0000-0000-000000000000` tombstone user and flags them as `is_tombstoned = true`. Afterward, it safely cascades and destroys the original user schema and telemetry without breaking the structural biological maps. Note: The anonymous tombstone user instantiation correctly targets the existing `current_streak_count` schema rather than legacy strings.
+
+Upon returning a `200 OK`, the iOS client natively completes the loop by executing `supabase.signOut()` and tearing down the SQLite database strictly routing through `ScanRepository.shared.purgeAllData()`, obliterating all orphaned imagery caches on device.
 
 ## Scan Erasure & The Deletion Pipeline (`delete-scan`)
 

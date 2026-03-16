@@ -45,4 +45,17 @@ final class CameraManagerTests: XCTestCase {
         XCTAssertFalse(HardwareOrchestrator.shared.isIdleLocked)
         XCTAssertFalse(cameraManager.isLiveInferencePaused)
     }
+    
+    func testLegacyViewfinderToggle() {
+        // Assert base
+        XCTAssertFalse(cameraManager.isLiveInferencePaused)
+        
+        // Assert toggle
+        cameraManager.isLiveInferencePaused = true
+        XCTAssertTrue(cameraManager.isLiveInferencePaused)
+        
+        // Ensure returning bounds to false works
+        cameraManager.isLiveInferencePaused = false
+        XCTAssertFalse(cameraManager.isLiveInferencePaused)
+    }
 }

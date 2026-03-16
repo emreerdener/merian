@@ -100,6 +100,7 @@
 		D99396DC7872BDACB76B1126 /* UserProfileHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2229E20CE3CD530B2133AE34 /* UserProfileHeaderView.swift */; };
 		E003F76626092B2B2E4E947E /* CameraRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F10E455F38CFB57D5351A3A /* CameraRootView.swift */; };
 		E5DE9BAD62A65EE0CA0A500D /* CameraNavigationBarOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3CA0C0E651DB70B36789535 /* CameraNavigationBarOverlay.swift */; };
+		E8C3697BDE8BF44A272739F7 /* PhotoLibraryManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F185F0F653451ECA9FA3BD /* PhotoLibraryManagerTests.swift */; };
 		EC41AF6017872C5A3172EB72 /* merianUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466CB07B954EACA10D496F15 /* merianUITestsLaunchTests.swift */; };
 		EEF864446094E9A6A5D15412 /* GamificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6EEFF7324FFB3D3F9221113 /* GamificationManagerTests.swift */; };
 		F15750F8E84D7F19C8DCC6A0 /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83502938D4E198368D26B749 /* UserProfileView.swift */; };
@@ -212,6 +213,7 @@
 		B03EAD808B1F5D84E75D030C /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		B087E79658BAE6231DCF03D0 /* CircuitBreakerManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircuitBreakerManagerTests.swift; sourceTree = "<group>"; };
 		B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		B6F185F0F653451ECA9FA3BD /* PhotoLibraryManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryManagerTests.swift; sourceTree = "<group>"; };
 		B9045A590B6F5BFF4AC17B29 /* SpeciesDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDataTests.swift; sourceTree = "<group>"; };
 		BB0AE39969F0604490ECB159 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		BB91015F13F05435F222B92A /* OfflineQueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManager.swift; sourceTree = "<group>"; };
@@ -434,6 +436,7 @@
 				E757DE9D38A53D5BFB80435B /* BackgroundDatabaseActorTests.swift */,
 				3A310C2AC0758FEE43F5E7C3 /* ImageCacheTests.swift */,
 				1FCE111F1E884CC36C0F8E3A /* OfflineQueueManagerTests.swift */,
+				B6F185F0F653451ECA9FA3BD /* PhotoLibraryManagerTests.swift */,
 				EB63682C61190F71EFFC9C18 /* ScanRepositoryTests.swift */,
 				E4A40B1F153A7BE2C2E7B2E0 /* SyncStateManagerTests.swift */,
 			);
@@ -839,6 +842,7 @@
 				482EFC90FD03345F158B6FC8 /* LifeListSearchManagerTests.swift in Sources */,
 				3873C8167F961708BCAA9928 /* MerianNetworkClientTests.swift in Sources */,
 				988F5087F8F1A1606364B9EC /* OfflineQueueManagerTests.swift in Sources */,
+				E8C3697BDE8BF44A272739F7 /* PhotoLibraryManagerTests.swift in Sources */,
 				329169F2439B45C14F911359 /* PostHogManagerTests.swift in Sources */,
 				D8B9C4BE62D3BCA14D89C047 /* RevenueCatManagerTests.swift in Sources */,
 				11FDF15A120F27FD55304F12 /* ScanRepositoryTests.swift in Sources */,

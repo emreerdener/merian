@@ -21,7 +21,7 @@ struct CameraNavigationBarOverlay: ViewModifier {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         
                         Spacer()
                         
@@ -36,7 +36,7 @@ struct CameraNavigationBarOverlay: ViewModifier {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     }
                 }
             }

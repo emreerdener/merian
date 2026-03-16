@@ -49,11 +49,9 @@ struct UserProfileView: View {
                     Button(action: {
                         showSettings = true
                     }) {
-                        HStack(spacing: 4) {
-                            Text("Settings")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                        .foregroundColor(.secondary)
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.secondary)
                     }
                 }
             }

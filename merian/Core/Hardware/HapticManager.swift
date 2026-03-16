@@ -20,16 +20,20 @@ final class HapticManager {
         error.prepare()
     }
 
-    func triggerFocusSnap() { heavy.impactOccurred() }
-    func triggerSheetSpring() { light.impactOccurred() }
-    func triggerMediumPulse() { medium.impactOccurred() }
+    func triggerFocusSnap() { if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { heavy.impactOccurred() } }
+    func triggerSheetSpring() { if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { light.impactOccurred() } }
+    func triggerMediumPulse() { if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { medium.impactOccurred() } }
     func triggerErrorThump() {
-        rigid.impactOccurred()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.error.notificationOccurred(.error) }
+        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") {
+            rigid.impactOccurred()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.error.notificationOccurred(.error) }
+        }
     }
-    func triggerSelectionPulse() { selection.selectionChanged() }
+    func triggerSelectionPulse() { if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { selection.selectionChanged() } }
     func triggerSuccessPulse() {
-        let success = UINotificationFeedbackGenerator()
-        success.notificationOccurred(.success)
+        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") {
+            let success = UINotificationFeedbackGenerator()
+            success.notificationOccurred(.success)
+        }
     }
 }

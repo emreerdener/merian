@@ -51,7 +51,20 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 
 ### Aesthetic Customizations
 - Contains the `AppIconManager` allowing `Pro` users to natively swap their iOS Springboard Icon using `UIApplication.shared.setAlternateIconName` natively. This natively updates both the app boundary and the underlying `Config.xcconfig` bounds safely without requiring a restart.
-- Safely hooks the `HapticsToggle` physically pausing the `AppDIContainer.shared.hapticManager` directly from user preferences.
+
+### Field & Hardware Options
+- **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps and disables intensive visual blurs to preserve battery.
+- **Legacy Viewfinder**: Allows users on older iPhone thermal bounds to manually pause the real-time ViewfinderIntelligence hints.
+- **System Haptics & Camera Roll**: UserDefaults bindings to dynamically skip `HapticManager` calls or directly prevent `PhotoLibraryManager` from pushing raw buffer bytes into the iOS Photos ecosystem.
+
+### Privacy & Science (Auth Required)
+- **Geoprivacy Control**: A backend integration where users modify their exact coordinate privacy matrix (`Open`, `Obscured`, `Private`) updating the `users` PostgreSQL table immediately in the background via `SupabaseManager` hooks.
+- **Export Life List (DwC-A)**: Connects to the `/export-dwca` Deno task through a `Task.detached` thread to pull a `.zip` archive URL back efficiently natively rendering a `ShareLink` payload safely out of memory constraints.
+
+### Danger Zone & Data Lifecycle
+- **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads directly off the iPhone flash memory.
+- **Account Eraaaasure**: Features a hardline "Delete Account & Data" action executing a native `.destructive` `.confirmationDialog`. This forces a sequential 4-part wipe: triggering the Deno `/safe-delete` endpoint natively, destroying the GoTrue identity locally (`signOut`), and explicitly dumping the entire device SQLite boundary dynamically (`ScanRepository.shared.purgeAllData`) pushing the user gracefully back into the generic Camera interface smoothly without crashing.
+
 
 ## 4. Hardware Integrations (`AVCaptureEventInteraction`)
 - Directly hooks into iOS 17.2 tactile hardware boundaries ensuring that depressing physical hardware configurations natively triggers the exact same `EnvironmentContextManager` background `MKReverseGeocodingRequest` and `WeatherService` hooks seamlessly as the screen UI.

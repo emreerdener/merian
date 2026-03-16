@@ -144,23 +144,19 @@ Any request attempting to fake a user session via a manipulated JSON body withou
 
 ## Deno `/safe-delete` Edge Node
 
-Fetches and deletes orphaned/inactive physical payload bytes isolated within the Cloudflare R2 bucket specifically resolving local edge caching bugs and ensuring compliance with Data Deletion policies. 
+Permanently tombstones a user's account and initiates the total erasure of all their associated physical payload bytes across both PostgreSQL databases and Cloudflare R2 storage.
 
 ### Request Payload
 
-```json
-{
-  "r2ObjectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename.jpg"
-}
-```
+No JSON body is required. The endpoint operates entirely off of cryptographic identity bindings to prevent IDOR vulnerabilities.
 
 ### Authentication Enforcement
 
-To prevent arbitrary deletion vectors from hostile actors targeting the R2 storage limits natively, this system explicitly enforces Server-Side JWT Validation natively.
-1. Natively maps `supabaseAdmin.auth.getUser()` to isolate the internal UUID binding securely.
-2. Extracts the `uuid` subset strictly from the `r2ObjectKey` path string (e.g. mapping `/staging/<uuid>/...`).
-3. Rigidly compares the parsed `uuid` mapped in the `r2ObjectKey` exactly against the authenticated JWT session `user.id`. 
-4. If the explicit string bounds do not physically match securely, the Deno node actively throws a `403 Forbidden` response preventing structural access and drops execution immediately to protect the ecosystem passively.
+To prevent arbitrary account deletion vectors from hostile actors:
+1. Natively maps `supabaseAdmin.auth.getUser()` to isolate the internal UUID binding securely from the `Authorization: Bearer` header.
+2. Directly executes the `apply_user_tombstone` PostgreSQL RPC strictly mapping against the exact authenticated JWT session `user.id`. 
+3. The RPC securely cascades through the `public.scans`, `public.user_blocks`, and `public.flagged_reviews` tables, wiping the data natively and triggering Cloudflare R2 object purges.
+4. Returns a `200 OK` prompting the iOS client to natively `signOut()`, drop all local SQLite `ModelContext` dependencies (via `ScanRepository.purgeAllData()`), and reset the user boundary to Guest.
 
 ---
 
