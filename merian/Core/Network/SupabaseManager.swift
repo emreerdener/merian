@@ -48,6 +48,11 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             if let session = state.session, !session.isExpired {
                 self.currentUser = session.user
                 self.isAuthenticated = true
+                
+                // Trigger historical profile synchronization inherently capturing Re-installs natively
+                if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
+                    Task { await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context) }
+                }
             } else {
                 self.currentUser = nil
                 self.isAuthenticated = false

@@ -39,3 +39,14 @@ Scan permanence and user privacy dictates that explicitly deleted datasets are p
    If the scan being destroyed is actively queueing for its native initial upload stream inside the offline boundary natively, `OfflineQueueManager.shared.softDeleteQueuedScan` explicitly intercepts the background worker terminating the native upload path bounding permanently isolating upload destruction cleanly.
 4. **Network Polling Sync (`syncPendingDeletions`)**
    As `NWPathMonitor` wakes the application on cellular bounds mapping, it explicitly runs `syncPendingDeletions()` triggering backend Cloudflare R2 object erasures alongside PostgreSQL tuple obliterations securely executing via a mapped JWT `MerianNetworkClient.shared.deleteScan()` edge payload. The SwiftData queue cleans up the tasks natively inside the `.background` task context mapping.
+
+## Restoring Historical Workloads (Rehydration)
+
+To securely support multi-device logic and app reinstalls, Merian implements a physical boundary bypassing standard fetch drops: 
+
+1. **The Rehydration Native Sync (`syncHistoricalScansDown`)**
+   Explicitly embedded in `ScanRepository.shared`, this robust task queries the Supabase Edge natively pulling a joined `scans` + `species_dictionary` PostgreSQL JSON response. It sequentially filters all UUIDs securely comparing the edge payloads directly against the local `SwiftData` context, instantly identifying any missing cloud records natively.
+2. **Lifecycle Execution Hook**
+   This synchronization executes aggressively the pure second a user completely transitions from `Ghost` -> `Authed` inside the `SupabaseManager.setupAuthStateListener` or uniquely whenever the app recovers foreground capabilities out of deep bounds (`AppDIContainer.handleActivePhase`).
+3. **Ghost-Rendering Image Optimization**
+   To entirely avoid destroying device cellular data limits downloading massive multi-gigabyte historical image files physically into iOS, the hydration engine smartly forces the SwiftData payload `.localImagePath = nil` while simultaneously overriding `.referenceImageUrl` to dynamically hold the specific historical Cloudflare R2 URL. This explicitly routes all native frontend components (`LifeListThumbnailView` and `InsightSheetView`) into utilizing Apple's asynchronous cache layers dynamically downloading exactly what the UI needs right exactly when the user views it.

@@ -58,6 +58,111 @@ final class ScanRepository {
             blurScore: blurScore
         )
     }
+
+    /// Re-hydration protocol binding historical Ghost/Pro cloud scans back down onto the iOS SwiftData Life List locally natively
+    func syncHistoricalScansDown(modelContext: ModelContext) async {
+        guard SupabaseManager.shared.isAuthenticated else { return }
+        
+        struct CloudSpeciesDictionary: Decodable, Sendable {
+            let scientific_name: String?
+            let kingdom: String?
+            let phylum: String?
+            let `class`: String?
+            let order: String?
+            let family: String?
+            let genus: String?
+            let wikipedia_url: String?
+            let reference_image_url: String?
+            let is_poisonous: Bool?
+            let common_names: [String: String]?
+            let descriptions: [String: String]?
+        }
+        
+        struct HistoricalScanResponse: Decodable, Sendable {
+            let id: String
+            let image_storage_urls: [String]?
+            let timestamp: String?
+            let weather_condition: String?
+            let weather_temperature_f: Double?
+            let ai_confidence_score: Double?
+            let ecology_type: String?
+            let is_invasive: Bool?
+            let is_live_capture: Bool?
+            let species_dictionary: CloudSpeciesDictionary?
+        }
+        
+        do {
+            let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
+                .from("scans")
+                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, species_dictionary(*)")
+                .execute()
+                .value
+            
+            // Reconcile and buffer diff bounds cleanly out of SwiftData
+            let descriptor = FetchDescriptor<LocalScanRecord>()
+            let existingLocalScans = (try? modelContext.fetch(descriptor)) ?? []
+            let existingIds = Set(existingLocalScans.map { $0.id })
+            
+            let missingScans = response.filter { !existingIds.contains($0.id) }
+            guard !missingScans.isEmpty else { return }
+            
+            print("🔄 Merian Sync: Restoring \(missingScans.count) historical scan payloads natively...")
+            
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let fallbackFormatter = ISO8601DateFormatter()
+            
+            for scan in missingScans {
+                let parsedDate = scan.timestamp.flatMap { isoFormatter.date(from: $0) ?? fallbackFormatter.date(from: $0) } ?? Date()
+                
+                let dict = scan.species_dictionary
+                let sciName = dict?.scientific_name ?? "Unknown Subject"
+                let cName = dict?.common_names?.values.first ?? sciName
+                let desc = dict?.descriptions?.values.first ?? "No ecological description available for this subject."
+                
+                // If it exists safely mapped in R2, strictly configure Image Storage logic bypasses using the Reference bounds securely
+                let r2Image = scan.image_storage_urls?.first
+                
+                let record = LocalScanRecord(
+                    id: scan.id,
+                    speciesId: UUID().uuidString,
+                    scientificName: sciName,
+                    commonName: cName,
+                    insightDescription: desc,
+                    timestamp: parsedDate,
+                    localImagePath: nil, // We enforce physical absence here, dropping cleanly onto the R2 payload URL below natively
+                    semanticTags: [cName, sciName],
+                    isPoisonous: dict?.is_poisonous ?? false,
+                    isBiological: true,
+                    isLiveCapture: scan.is_live_capture ?? true,
+                    isInvasive: scan.is_invasive ?? false,
+                    ecologyType: scan.ecology_type ?? "unknown",
+                    wikipediaUrl: dict?.wikipedia_url,
+                    referenceImageUrl: r2Image ?? dict?.reference_image_url,
+                    additionalImagePaths: nil,
+                    confidenceScore: scan.ai_confidence_score,
+                    isLocallyArchived: false,
+                    taxonomyKingdom: dict?.kingdom,
+                    taxonomyPhylum: dict?.phylum,
+                    taxonomyClass: dict?.class,
+                    taxonomyOrder: dict?.order,
+                    taxonomyFamily: dict?.family,
+                    taxonomyGenus: dict?.genus,
+                    locationName: nil,
+                    weatherCondition: scan.weather_condition,
+                    weatherTemperatureF: scan.weather_temperature_f
+                )
+                
+                modelContext.insert(record)
+            }
+            
+            try? modelContext.save()
+            print("✅ Merian Sync: Restored Historical payload records.")
+            
+        } catch {
+            print("🚨 Failed strictly reconciling Offline Historical Scans from Edge bounds: \(error)")
+        }
+    }
     
     /// Prompts a force flush of any local queues. Typically managed automatically via Network observing limits.
     func syncPendingScans() {

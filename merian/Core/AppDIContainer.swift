@@ -83,6 +83,11 @@ final class AppDIContainer: ObservableObject {
             await supabaseManager.initializeGhostSession()
             offlineQueueManager.syncPendingScans()
             
+            if let context = offlineQueueManager.modelContext {
+                // Restore account history for re-installs or multi-device login seamlessly
+                await scanRepository.syncHistoricalScansDown(modelContext: context)
+            }
+            
             // Trigger Archive Safety Protocol natively once per 24 hours
             let now = Date()
             let lastRescueDate = UserDefaults.standard.object(forKey: "lastArchiveRescueDate") as? Date ?? Date.distantPast

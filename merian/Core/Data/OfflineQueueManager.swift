@@ -570,6 +570,7 @@ actor BackgroundDatabaseActor {
                     existingRecord.taxonomyGenus = mappedData.taxonomy?.genus
                 } else {
                     let record = LocalScanRecord(
+                        id: mappedData.scanId ?? UUID().uuidString,
                         speciesId: UUID().uuidString,
                         scientificName: mappedData.scientificName,
                         commonName: mappedData.commonName,
