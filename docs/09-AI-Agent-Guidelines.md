@@ -49,3 +49,6 @@ The workspace enforces this layout inside `merian/`:
 ## 7. Database Safeties
 - Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to securely persist the `UsageManager` limits locally on iOS against reinstallations. Do not blindly use IDFV (`.deviceId`) for backend user records or analytics identifiers. Keep identity cleanly chained against the active Supabase Auth session `.uuidString` to natively sync RevenueCat.
 - Follow RLS (Row Level Security) schemas logically by explicitly avoiding direct CRUD iOS modifications onto PostgreSQL. Instead, POST heavily via Edge REST points protected by Native JWT verification `supabaseAdmin.auth.getUser()`.
+
+## 8. Documentation Maintenance
+- **ALWAYS create and update documentation accordingly.** Whenever you implement a new feature, modify a system's architecture, or alter an API contract, you MUST update the corresponding markdown file in the `docs/` folder to reflect reality. Do not wait to be asked. Ensure a perfectly synchronized and accurate documentation set that reflects the codebase's reality.

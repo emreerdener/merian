@@ -47,7 +47,7 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 ### Native OAuth & Entitlements
 - Implements purely native Swift `SignInWithAppleButton` and `GoogleSignInButton` SDK boundaries securely retrieving external `.idTokens`.
 - Reassigns initial Anonymous IDFV GoTrue Sessions natively merging user arrays into persistent Cloud records.
-- Instantly pulls explicit `RevenueCatManager.shared.isProActive` booleans conditionally hiding or throwing the `PaywallView` dynamically if they hit their daily 3-scan limit. The `PaywallView` seamlessly inherits physical system color schemes dynamically rendering in stunning Light or Dark mode.
+- Instantly pulls explicit `RevenueCatManager.shared.isProActive` booleans conditionally hiding or throwing the `PaywallView` dynamically if they hit their daily 3-scan limit. The `SettingsView` natively leverages this observed property to dynamically label the user's current subscription tier (e.g. "Merian Pro" or "Free") explicitly inside the Manage Plan row. The `PaywallView` seamlessly inherits physical system color schemes dynamically rendering in stunning Light or Dark mode.
 - Renders global gamification statistics including `uniqueSpeciesCount` and `currentStreak` in the stats grid, while evaluating the user's `persona` (Explorer Rank) dynamically purely offline within the profile header. Instead of blocking the UI on remote PostgreSQL network requests, it utilizes heavily optimized `SwiftData` `@Query` property wrappers mapping array statistics natively preventing UI lag and dropping network errors cleanly for a flawless "Digital Terrarium" profile reflection.
 
 ### Aesthetic Customizations

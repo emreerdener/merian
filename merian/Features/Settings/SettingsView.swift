@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var supabase = SupabaseManager.shared
+    @ObservedObject private var revenueCat = RevenueCatManager.shared
     @State private var showPaywall = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
@@ -31,10 +32,14 @@ struct SettingsView: View {
                     Button(action: { showPaywall = true }) {
                         HStack {
                             Image(systemName: "star.fill")
+                                .foregroundColor(revenueCat.isProActive ? .yellow : .primary)
                             Text("Manage plan")
                                 .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(revenueCat.isProActive ? "Merian Pro" : "Free")
+                                .foregroundColor(.secondary)
                         }
-                        .foregroundColor(.yellow)
                     }
                     .sheet(isPresented: $showPaywall) {
                         PaywallView()

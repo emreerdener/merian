@@ -23,7 +23,7 @@ To maximize user conversion, Merian demands zero upfront onboarding friction:
 - Controls strict Apple ecosystem bounds dictating core app functionalities intuitively.
 - Initializes `.configure(withAPIKey:)` silently pulling the active iOS `ProcessInfo` values physically mapping to `.xcconfig` secure layers.
 - Uses `logIn(currentAppUserID)` binding the IDFV tracking string natively.
-- Evaluates `isProActive` booleans via `.customerInfo()` natively checking for active entitlements across `pro` and `7_day_pass` identifiers seamlessly updating SwiftUI.
+- Evaluates `isProActive` booleans via `.customerInfo()` natively checking for active entitlements across `pro` and `7_day_pass` identifiers seamlessly updating SwiftUI. The `SettingsView` actively observes this property, instantly redrawing the "Manage plan" row to dynamically reflect the current state (e.g. "Merian Pro" vs "Free").
 
 ## RevenueCat Webhook (`revenuecat-webhook`)
 
