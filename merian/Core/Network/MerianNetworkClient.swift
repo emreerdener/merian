@@ -100,6 +100,12 @@ class MerianNetworkClient {
             
             // Self-Healing Zombie Session Trap
             if httpResponse.statusCode == 401 && !isRetry {
+                let hasAuthenticatedOAuth = UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth")
+                if hasAuthenticatedOAuth {
+                    print("🚨 NATIVE SESSION EXPIRED. Blocking Ghost overwrite to force UI re-authentication.")
+                    throw NetworkError.invalidResponse
+                }
+                
                 let isGuest = await SupabaseManager.shared.isGuestUser
                 if isGuest {
                     print("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")
@@ -165,6 +171,12 @@ class MerianNetworkClient {
             
             // Self-Healing Zombie Session Trap
             if httpResponse.statusCode == 401 && !isRetry {
+                let hasAuthenticatedOAuth = UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth")
+                if hasAuthenticatedOAuth {
+                    print("🚨 NATIVE SESSION EXPIRED. Blocking Ghost overwrite to force UI re-authentication.")
+                    throw NetworkError.invalidResponse
+                }
+                
                 let isGuest = await SupabaseManager.shared.isGuestUser
                 if isGuest {
                     print("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")

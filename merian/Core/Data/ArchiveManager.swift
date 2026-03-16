@@ -67,23 +67,32 @@ class ArchiveManager: ObservableObject {
     }
     
     private func downloadToLocalLibrary(url: URL) async throws {
-        var remoteData: Data? = nil
+        var tempFileURL: URL? = nil
+        
         if !url.isFileURL {
-            let (downloadedData, response) = try await URLSession.shared.data(from: url)
+            let (downloadedURL, response) = try await URLSession.shared.download(from: url)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 throw URLError(.badServerResponse)
             }
-            remoteData = downloadedData
+            
+            // Move from ephemeral network cache to a stable temporary boundary to prevent URLSession auto-destruct
+            let stableURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+            try? FileManager.default.removeItem(at: stableURL)
+            try FileManager.default.moveItem(at: downloadedURL, to: stableURL)
+            tempFileURL = stableURL
         }
+        
+        let resourceURL = tempFileURL ?? url
         
         try await PHPhotoLibrary.shared().performChanges {
             let creationRequest = PHAssetCreationRequest.forAsset()
-            if url.isFileURL {
-                creationRequest.addResource(with: .photo, fileURL: url, options: nil)
-            } else if let data = remoteData {
-                creationRequest.addResource(with: .photo, data: data, options: nil)
-            }
+            creationRequest.addResource(with: .photo, fileURL: resourceURL, options: nil)
+        }
+        
+        // Clean up explicit local file buffer footprint natively
+        if let fileToRemove = tempFileURL {
+            try? FileManager.default.removeItem(at: fileToRemove)
         }
         
         print("ArchiveManager: Successfully archived image to device Photos.")

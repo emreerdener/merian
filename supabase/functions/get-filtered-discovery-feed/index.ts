@@ -7,6 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+// Utilize Service Role Key to securely access shadowbanned users + global feeds via edge
+const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -15,11 +20,6 @@ serve(async (req: Request) => {
 
   try {
     const { limit = 20 } = await req.json();
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    // Utilize Service Role Key to securely access shadowbanned users + global feeds via edge
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
     const {

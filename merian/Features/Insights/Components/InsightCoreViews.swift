@@ -4,7 +4,7 @@ struct InsightCarouselView: View {
     @EnvironmentObject var inferenceEngine: InferenceEngine
     
     var body: some View {
-        let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",") ?? []
+        let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
         let validHistoricImagePaths = inferenceEngine.validHistoricImagePaths
         let totalImages = (inferenceEngine.activeImageData != nil ? 1 : 0) + validHistoricImagePaths.count + refUrls.count
         

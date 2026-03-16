@@ -14,6 +14,10 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         super.init()
     }
     
+    deinit {
+        PHPhotoLibrary.shared().unregisterChangeObserver(self)
+    }
+    
     func startObservingAndFetch() {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         

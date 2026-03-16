@@ -103,6 +103,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             try await client.auth.signOut()
             PostHogManager.shared.reset()
             _ = try? await Purchases.shared.logOut()
+            UserDefaults.standard.removeObject(forKey: "Merian_HasAuthenticatedOAuth")
             print("User actively signed out and token flushed")
         } catch {
             print("⚠️ Failed to purge local Supabase Auth state: \(error.localizedDescription)")
@@ -175,6 +176,8 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             let newUserId = session.user.id.uuidString
             await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
             PostHogManager.shared.identifyUser(userId: newUserId)
+            
+            UserDefaults.standard.set(true, forKey: "Merian_HasAuthenticatedOAuth")
             
             print("Google Sign In complete!")
         } catch {
@@ -280,6 +283,8 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                     let newUserId = session.user.id.uuidString
                     await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
                     PostHogManager.shared.identifyUser(userId: newUserId)
+                    
+                    UserDefaults.standard.set(true, forKey: "Merian_HasAuthenticatedOAuth")
                     
                     print("Apple Sign In complete!")
                 } catch {

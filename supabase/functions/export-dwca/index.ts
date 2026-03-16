@@ -10,6 +10,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -17,10 +21,6 @@ serve(async (req: Request) => {
 
   try {
     const { includePreciseCoordinates = false, exportScope = "user" } = await req.json();
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
     if (!authHeader) {
@@ -38,7 +38,7 @@ serve(async (req: Request) => {
       const { payload } = await jose.jwtVerify(authHeader, secretKey);
       if (!payload.sub) throw new Error("No subject in JWT");
       userId = payload.sub;
-    } catch (e) {
+    } catch (_e) {
       return new Response(JSON.stringify({ error: "Unauthorized: Invalid token signature" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 401,
@@ -88,50 +88,60 @@ serve(async (req: Request) => {
     
     // 2. Build occurrence.csv
     const occurrenceHeader = "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters\n";
-    const occurrenceRows = await Promise.all(scans.map(async (scan: any) => {
-      const species = scan.species_dictionary || {};
-      const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
+    const occurrenceRows: string[] = [];
+    const BATCH_SIZE = 250;
+
+    for (let i = 0; i < scans.length; i += BATCH_SIZE) {
+      const batch = scans.slice(i, i + BATCH_SIZE);
+      // deno-lint-ignore no-explicit-any
+      const batchResults = await Promise.all(batch.map(async (scan: any) => {
+        const species = scan.species_dictionary || {};
+        const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
+        
+        const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
+        let recordedBy = "Merian Citizen Scientist";
+        
+        if (!isTombstoned) {
+            if (exportScope === "global") {
+               // Hash to maintain contributor isolation anonymously
+               const data = new TextEncoder().encode(scan.user_id + secretHashSalt);
+               const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+               recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
+            } else {
+               recordedBy = scan.user_id;
+            }
+        }
+
+        const isProtected = species.iucn_red_list_status === "vulnerable" || 
+                            species.iucn_red_list_status === "endangered" || 
+                            species.iucn_red_list_status === "critically_endangered" || 
+                            species.iucn_red_list_status === "near_threatened";
+
+        const canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId);
+
+        let lat = canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
+        let lon = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
+        const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
+
+        if (isProtected && lat !== null && lon !== null) {
+          lat = Math.round(lat * 10) / 10;
+          lon = Math.round(lon * 10) / 10;
+        }
+
+        if (lat === null || lat === undefined) lat = "";
+        if (lon === null || lon === undefined) lon = "";
+
+        return `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
+      }));
       
-      const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
-      let recordedBy = "Merian Citizen Scientist";
-      
-      if (!isTombstoned) {
-          if (exportScope === "global") {
-             // Hash to maintain contributor isolation anonymously
-             const data = new TextEncoder().encode(scan.user_id + secretHashSalt);
-             const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-             recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
-          } else {
-             recordedBy = scan.user_id;
-          }
-      }
-
-      const isProtected = species.iucn_red_list_status === "vulnerable" || 
-                          species.iucn_red_list_status === "endangered" || 
-                          species.iucn_red_list_status === "critically_endangered" || 
-                          species.iucn_red_list_status === "near_threatened";
-
-      const canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId);
-
-      let lat = canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
-      let lon = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
-      const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
-
-      if (isProtected && lat !== null && lon !== null) {
-        lat = Math.round(lat * 10) / 10;
-        lon = Math.round(lon * 10) / 10;
-      }
-
-      if (lat === null || lat === undefined) lat = "";
-      if (lon === null || lon === undefined) lon = "";
-
-      return `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
-    }));
+      occurrenceRows.push(...batchResults);
+    }
     
     const occurrenceCsv = occurrenceHeader + occurrenceRows.join("\n");
 
     // 3. Build multimedia.csv 
     const multimediaHeader = "coreid,identifier,format\n";
+    // deno-lint-ignore no-explicit-any
     const multimediaRows = scans.flatMap((scan: any) => {
       const urls = scan.image_storage_urls || [];
       if (urls.length === 0) return []; 
@@ -233,8 +243,9 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

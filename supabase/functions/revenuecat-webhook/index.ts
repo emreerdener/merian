@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
 serve(async (req: Request) => {
   try {
     const WEBHOOK_SECRET = Deno.env.get("REVENUECAT_WEBHOOK_SECRET");
@@ -57,6 +58,87 @@ serve(async (req: Request) => {
       // Phase 2: Decoupled S3 Migration
       // Deferring bulk R2 bucket copying from /free/ to /pro/ physically into EdgeRuntime.waitUntil(promise) 
       // to guarantee webhook completes well within the 10-second Deno Edge limit and avoids 504 RevenueCat Retry loops.
+      // @ts-ignore: EdgeRuntime is a global context native to Supabase Edge execution
+      EdgeRuntime.waitUntil(
+        (async () => {
+          try {
+            const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
+            const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
+            const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID")!;
+            const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY")!;
+
+            const aws = new AwsClient({
+              accessKeyId: R2_ACCESS_KEY_ID,
+              secretAccessKey: R2_SECRET_ACCESS_KEY,
+              service: "s3",
+              region: "auto",
+            });
+
+            const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+            // Explicitly map all existing free-tier data blobs off PostgreSQL natively
+            const { data: scans, error: scansError } = await supabaseAdmin
+              .from("scans")
+              .select("id, image_storage_urls")
+              .eq("user_id", userId);
+
+            if (scansError) throw scansError;
+
+            let totalMigrated = 0;
+
+            for (const scan of scans || []) {
+              if (!scan.image_storage_urls || scan.image_storage_urls.length === 0) continue;
+
+              let migrated = false;
+              const newUrls: string[] = [];
+
+              for (const urlStr of scan.image_storage_urls) {
+                if (urlStr.includes(`public_uploads/free/${userId}/`)) {
+                  const urlParts = urlStr.split("/");
+                  const fileName = urlParts[urlParts.length - 1];
+
+                  const sourceKey = `public_uploads/free/${userId}/${fileName}`;
+                  const targetKey = `public_uploads/pro/${userId}/${fileName}`;
+
+                  const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;
+                  const deleteUrl = `${endpoint}/${R2_BUCKET_NAME}/${sourceKey}`;
+
+                  const copyResponse = await aws.fetch(copyUrl, {
+                    method: "PUT",
+                    headers: {
+                      "x-amz-copy-source": `/${R2_BUCKET_NAME}/${sourceKey}`
+                    }
+                  });
+
+                  if (copyResponse.ok) {
+                    // Physically terminate the free-tier origin bounding
+                    await aws.fetch(deleteUrl, { method: "DELETE" });
+                    newUrls.push(urlStr.replace(`public_uploads/free/${userId}/`, `public_uploads/pro/${userId}/`));
+                    migrated = true;
+                    totalMigrated++;
+                  } else {
+                    console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
+                    newUrls.push(urlStr);
+                  }
+                } else {
+                  newUrls.push(urlStr);
+                }
+              }
+
+              if (migrated) {
+                await supabaseAdmin
+                  .from("scans")
+                  .update({ image_storage_urls: newUrls })
+                  .eq("id", scan.id);
+              }
+            }
+            
+            console.log(`S3 Background Migration Complete. Relocated ${totalMigrated} blobs physically to Pro architecture for ${userId}.`);
+          } catch (e) {
+            console.error("Background S3 Migration physically aborted natively: ", e);
+          }
+        })()
+      );
     } else if (["EXPIRATION"].includes(eventType)) {
       // Revert user tier strictly back to 'free'
       const { error: downgradeError } = await supabaseAdmin

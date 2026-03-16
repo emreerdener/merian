@@ -9,3 +9,6 @@ CREATE INDEX IF NOT EXISTS idx_scans_user_id ON public.scans (user_id);
 
 -- 3. Accelerate Global Discovery Feed paginations bounding constraints natively
 CREATE INDEX IF NOT EXISTS idx_scans_discovery_feed ON public.scans (geoprivacy, is_live_capture, timestamp DESC);
+
+-- 4. Accelerate Distinct Species Counters for Leaderboards and Profiles triggering updates natively
+CREATE INDEX IF NOT EXISTS idx_scans_user_species ON public.scans (user_id, species_id);

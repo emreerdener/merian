@@ -291,9 +291,16 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
         
         guard let response = task.response as? HTTPURLResponse, response.statusCode == 200 else {
-            print("Background upload rejected physically by boundary constraints. Server returned an error.")
-            Task { @MainActor in
-                OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+            let statusCode = (task.response as? HTTPURLResponse)?.statusCode ?? 0
+            let recoverableCodes = [403, 500, 502, 503, 504]
+            
+            if recoverableCodes.contains(statusCode) {
+                print("Background upload failed with recoverable status (\(statusCode)). Retaining in queue.")
+            } else {
+                print("Background upload rejected physically by boundary constraints. Server returned an error.")
+                Task { @MainActor in
+                    OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+                }
             }
             return
         }

@@ -192,10 +192,10 @@ struct InsightSheetView: View {
     private func eradicateCurrentScan() {
         guard let targetId = inferenceEngine.speciesData?.scanId else { return }
         
-        let descriptor = FetchDescriptor<LocalScanRecord>()
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == targetId })
         let records = (try? modelContext.fetch(descriptor)) ?? []
         
-        if let record = records.first(where: { $0.id == targetId }) {
+        if let record = records.first {
             HapticManager.shared.triggerErrorThump()
             ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
             dismiss()

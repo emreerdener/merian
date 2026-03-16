@@ -26,16 +26,46 @@ class LifeListSearchManager: ObservableObject {
     private var searchTask: Task<Void, Never>?
     
     private func updateSearchableData() {
-        self.searchableData = allScans.map { record in
-            let tags = record.semanticTags.joined(separator: " ")
-            let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
-            return SearchableScan(
+        struct ScanPayload: Sendable {
+            let id: String
+            let semanticTags: [String]
+            let commonName: String
+            let scientificName: String
+            let ecologyType: String
+            let insightDescription: String
+            let taxonomyKingdom: String?
+            let taxonomyClass: String?
+        }
+        
+        let payloads = allScans.map { record in
+            ScanPayload(
                 id: record.id,
-                searchString: rawString,
-                ecologyType: record.ecologyType.lowercased(),
-                kingdom: record.taxonomyKingdom?.lowercased() ?? "",
-                className: record.taxonomyClass?.lowercased() ?? ""
+                semanticTags: record.semanticTags,
+                commonName: record.commonName,
+                scientificName: record.scientificName,
+                ecologyType: record.ecologyType,
+                insightDescription: record.insightDescription,
+                taxonomyKingdom: record.taxonomyKingdom,
+                taxonomyClass: record.taxonomyClass
             )
+        }
+        
+        Task.detached(priority: .userInitiated) {
+            let processed = payloads.map { record in
+                let tags = record.semanticTags.joined(separator: " ")
+                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
+                return SearchableScan(
+                    id: record.id,
+                    searchString: rawString,
+                    ecologyType: record.ecologyType.lowercased(),
+                    kingdom: record.taxonomyKingdom?.lowercased() ?? "",
+                    className: record.taxonomyClass?.lowercased() ?? ""
+                )
+            }
+            
+            await MainActor.run {
+                self.searchableData = processed
+            }
         }
     }
     

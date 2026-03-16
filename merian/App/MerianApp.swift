@@ -17,8 +17,9 @@ struct MerianApp: App {
     let container: ModelContainer
     
     init() {
-        // Initialize Zero-PII Crash & Anonymous Usage Metrics safely on the main thread after the camera UI loads
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        // Initialize Zero-PII Crash & Anonymous Usage Metrics completely off the main thread to prevent camera initialization stutters
+        Task.detached(priority: .background) {
+            try? await Task.sleep(nanoseconds: 500_000_000)
             AppTelemetry.initialize()
             PostHogManager.shared.configure()
         }
