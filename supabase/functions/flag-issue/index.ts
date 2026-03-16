@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import * as jose from "https://deno.land/x/jose@v5.2.2/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,18 +16,18 @@ serve(async (req: Request) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing Authorization header");
+    const authHeader = req.headers.get("Authorization") || "";
+    if (!authHeader.startsWith("Bearer ")) throw new Error("Missing Authorization header");
 
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-    
-    try {
-      const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET")!;
-      const secretKey = new TextEncoder().encode(jwtSecret);
-      const { payload } = await jose.jwtVerify(token, secretKey);
-      if (!payload.sub) throw new Error("No subject");
-    } catch (e) {
-      console.error("Local Auth Rejection:", e);
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+
+    if (authError || !user) {
+      console.error("Auth Rejection:", authError);
       return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

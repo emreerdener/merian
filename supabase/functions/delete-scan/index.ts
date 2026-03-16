@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
-import * as jose from "https://deno.land/x/jose@v5.2.2/index.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -27,19 +26,17 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const token = authHeader.replace("Bearer ", "");
     
-    // Authenticate user via low-latency local JWT signature 
-    let user: { id: string };
-    try {
-      const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET")!;
-      const secretKey = new TextEncoder().encode(jwtSecret);
-      const { payload } = await jose.jwtVerify(token, secretKey);
-      if (!payload.sub) throw new Error("No subject");
-      user = { id: payload.sub };
-    } catch (e) {
-      console.error("Local Auth Rejection:", e);
+    // Validate the session natively against GoTrue to handle ES256 tokens securely
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+
+    if (authError || !user) {
+      console.error("Auth Rejection:", authError);
       return new Response(JSON.stringify({ error: "Invalid token signature" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

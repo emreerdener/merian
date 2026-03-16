@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import * as jose from "https://deno.land/x/jose@v5.2.2/index.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -23,20 +22,19 @@ serve(async (req: Request) => {
       throw new Error("Missing Authorization header");
     }
 
-    const token = authHeader.replace("Bearer ", "");
-    const JWT_SECRET = Deno.env.get("SUPABASE_JWT_SECRET");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
 
-    if (!JWT_SECRET) {
-      throw new Error("Missing JWT secret");
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+
+    if (authError || !user) {
+      console.error("Auth Rejection:", authError);
+      return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const encodedSecret = new TextEncoder().encode(JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, encodedSecret);
-
-    const targetUserId = payload.sub;
-    if (!targetUserId) {
-      throw new Error("Invalid User ID in token");
-    }
+    const targetUserId = user.id;
 
     const body = await req.json();
     const ghost_id = body.ghost_id;

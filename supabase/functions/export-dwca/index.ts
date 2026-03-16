@@ -2,7 +2,6 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import JSZip from "https://esm.sh/jszip@3.10.1";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
-import * as jose from "https://deno.land/x/jose@v5.2.2/index.ts";
 import { encodeHex } from "https://deno.land/std@0.224.0/encoding/hex.ts";
 
 const corsHeaders = {
@@ -30,20 +29,21 @@ serve(async (req: Request) => {
       });
     }
 
-    // Phase 3: Network Round-Trip Latency - Validate JWT signature locally bypassing Auth round-trip
-    let userId: string;
-    try {
-      const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET")!;
-      const secretKey = new TextEncoder().encode(jwtSecret);
-      const { payload } = await jose.jwtVerify(authHeader, secretKey);
-      if (!payload.sub) throw new Error("No subject in JWT");
-      userId = payload.sub;
-    } catch (_e) {
+    // Validate the session natively against GoTrue to handle ES256 tokens securely
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: req.headers.get("Authorization") || "" } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized: Invalid token signature" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 401,
       });
     }
+    const userId = user.id;
 
     // 1. Query verified academic captures
     let query = supabase

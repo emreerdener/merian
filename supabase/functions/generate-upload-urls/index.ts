@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
-import * as jose from "https://deno.land/x/jose@v5.2.2/index.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,19 +23,17 @@ serve(async (req: Request) => {
       );
     }
 
-    // Explicitly strip the 'Bearer ' prefix to prevent "Bearer Bearer <token>" extraction bugs
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+    // Validate the session natively against GoTrue to handle ES256 tokens securely
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
 
-    // Validate the ES256 token locally to eliminate round-trip latency
-    let user: { id: string };
-    try {
-      const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET")!;
-      const secretKey = new TextEncoder().encode(jwtSecret);
-      const { payload } = await jose.jwtVerify(token, secretKey);
-      if (!payload.sub) throw new Error("No subject");
-      user = { id: payload.sub };
-    } catch (e) {
-      console.error("Local Auth Rejection:", e);
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+
+    if (authError || !user) {
+      console.error("Auth Rejection:", authError);
       return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } })
     }
 

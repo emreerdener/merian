@@ -63,8 +63,8 @@ S3 bulk-bucket mutations (e.g. migrating 1000s of payloads from `/free/` into `/
 
 To reduce Round Trip Times (RTT) by milliseconds dynamically and protect researchers structurally:
 
-### Zero-RTT Authentication Mapping (`jose`)
-Validating identities originally cost 50-80ms dynamically querying `supabase.auth.getUser()`. Every edge function (`identify`, `delete-scan`, `generate-upload-urls`, `export-dwca`) has seamlessly migrated to validating standard ES256 signatures natively checking the `Bearer` token physically via `jose.jwtVerify()` using the `SUPABASE_JWT_SECRET`. 
+### Edge Auth Connection Pooling (`@supabase/supabase-js`)
+Validating identities structurally requires checking ES256 signatures dynamically. To handle this securely across every edge function (`identify`, `delete-scan`, `generate-upload-urls`, `export-dwca`, `block-user`), the architecture relies natively on GoTrue's `supabase.auth.getUser()` utilizing the `SUPABASE_ANON_KEY`. To explicitly defeat Round Trip Time (RTT) limits and Postgres Pool Exhaustion natively, the SDK client boundary is instantiated globally explicitly bypassing the Deno initialization boot loop sequence, seamlessly enforcing connection pooling and eliminating 401 Rejections implicitly.
 
 ### Symmetrical Thread Execution (`Promise.all`)
 Traditional Edge Functions sequentially executed R2 bucket transactions iterating array closures globally dynamically at `O(N)` latency scaling. Endpoints natively executing arrays have migrated structurally to `Promise.allSettled()` and `Promise.all()` to fire network requests evenly in parallel reducing aggregate wait latency drastically.
