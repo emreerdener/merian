@@ -56,6 +56,7 @@
 		74FB78DC817FC19EFECE4967 /* OfflineQueueManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB91015F13F05435F222B92A /* OfflineQueueManager.swift */; };
 		7611CA907F614D66A9BF6183 /* UserProfileAuthSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7B25760E20F1E4A2404366 /* UserProfileAuthSection.swift */; };
 		79E5E96B2DFF9D5D8F44D93F /* ScanSelectionSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 656A843C6D2C5E2779BD4DDE /* ScanSelectionSheetView.swift */; };
+		7ABDAAF2DB8AF80C8BF560C6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4CAAF3D4FE46F6BD2B6759 /* SettingsView.swift */; };
 		7AC97E8AB2C2FFDC53E80273 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F84A81FBB58DF8C63D7C16 /* SupabaseManager.swift */; };
 		7BD95B2DD8A3489950F5DE7A /* MerianAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD1CD4175445A49F1FC0C0E /* MerianAppIntents.swift */; };
 		7BDC8F98B39E7A4BCF67E3E1 /* ImageCropperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48550F6FC1645A6E4F98526F /* ImageCropperView.swift */; };
@@ -189,6 +190,7 @@
 		72B6122F2DCEB5D8D727A05E /* ArchiveManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveManagerTests.swift; sourceTree = "<group>"; };
 		7A49C9ED18B1015B36EB9C2F /* MerianEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianEnvironment.swift; sourceTree = "<group>"; };
 		7B43669DE64C6C9CE86BA20D /* CircuitBreakerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircuitBreakerManager.swift; sourceTree = "<group>"; };
+		7D4CAAF3D4FE46F6BD2B6759 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		83502938D4E198368D26B749 /* UserProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfileView.swift; sourceTree = "<group>"; };
 		83F84A81FBB58DF8C63D7C16 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
 		88223EB0D7692EBF3D713611 /* AppTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetry.swift; sourceTree = "<group>"; };
@@ -223,7 +225,7 @@
 		D1D45E7DA9D9A12974FD515C /* HapticManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManagerTests.swift; sourceTree = "<group>"; };
 		D2D1413110BD32486D838B1A /* MerianNetworkClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClientTests.swift; sourceTree = "<group>"; };
 		D2E5C836927FEDB08630D2CC /* Merian.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Merian.entitlements; sourceTree = "<group>"; };
-		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE397C54CDB94A4EFBF5FC92 /* ImageDownsampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownsampler.swift; sourceTree = "<group>"; };
 		E202754BAA0EEFC440DB0945 /* ImageDownsamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownsamplerTests.swift; sourceTree = "<group>"; };
 		E4A40B1F153A7BE2C2E7B2E0 /* SyncStateManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStateManagerTests.swift; sourceTree = "<group>"; };
@@ -237,7 +239,7 @@
 		F340CAB78931C951CAD0AF0F /* GamificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationManager.swift; sourceTree = "<group>"; };
 		F3CA0C0E651DB70B36789535 /* CameraNavigationBarOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraNavigationBarOverlay.swift; sourceTree = "<group>"; };
 		F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
-		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F573214C46F401655D7D7F83 /* UserProfileStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfileStatsView.swift; sourceTree = "<group>"; };
 		FE003E7C60B8D9CA8F55C02E /* Aliases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aliases.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -347,6 +349,14 @@
 			path = Configuration;
 			sourceTree = "<group>";
 		};
+		3654B30A1BB87FCCDFDC1634 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				7D4CAAF3D4FE46F6BD2B6759 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
 		41E4FF470E68C95905CF716D /* Analytics */ = {
 			isa = PBXGroup;
 			children = (
@@ -383,6 +393,7 @@
 				70A70BA03149E4014E07F551 /* Insights */,
 				D52AA644CD1FC738E78E0773 /* LifeList */,
 				077EC84613050955ABAE9F5D /* Profile */,
+				3654B30A1BB87FCCDFDC1634 /* Settings */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -749,7 +760,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0B94C342D2F7F49D11202598 = {
 						TestTargetID = D06FD3E9CDCF533A0C2D2843;
@@ -906,6 +917,7 @@
 				79E5E96B2DFF9D5D8F44D93F /* ScanSelectionSheetView.swift in Sources */,
 				9804BA17196570FD47EA5AAA /* ScanningOverlayView.swift in Sources */,
 				6F8A519B83E72CFFF47B83C5 /* SchemaVersions.swift in Sources */,
+				7ABDAAF2DB8AF80C8BF560C6 /* SettingsView.swift in Sources */,
 				89143DCFA1EF1A9D5B72F894 /* SocialGuardManager.swift in Sources */,
 				448656F1135935AE41FD651A /* SpeciesData.swift in Sources */,
 				7AC97E8AB2C2FFDC53E80273 /* SupabaseManager.swift in Sources */,
@@ -1070,11 +1082,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -1095,7 +1105,6 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -1173,11 +1182,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -1191,7 +1198,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

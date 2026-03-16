@@ -40,14 +40,14 @@ The `InsightSheetView` is Merian's central contextual readout, triggered immedia
 - Spawns parallel external lookups fetching the full taxonomic classification into the visual `InsightTaxonomyTree`.
 - Triggers Safari modals securely fetching Wikipedia data via a secondary decoupled asynchronous `WikipediaService` hook natively embedded in the background to not lock the UI actor during network spin-ups.
 
-## 3. Account and Settings (`UserProfileView`)
+## 3. Account (`UserProfileView`) and Settings (`SettingsView`)
 The primary identity portal bridging local usage limits with the Supabase Ghost Session ecosystem.
 
 ### Native OAuth & Entitlements
 - Implements purely native Swift `SignInWithAppleButton` and `GoogleSignInButton` SDK boundaries securely retrieving external `.idTokens`.
 - Reassigns initial Anonymous IDFV GoTrue Sessions natively merging user arrays into persistent Cloud records.
 - Instantly pulls explicit `RevenueCatManager.shared.isProActive` booleans conditionally hiding or throwing the `PaywallView` dynamically if they hit their daily 3-scan limit. The `PaywallView` seamlessly inherits physical system color schemes dynamically rendering in stunning Light or Dark mode.
-- Renders global gamification statistics including `uniqueSpeciesCount`, `currentStreak`, `rareFinds` and `Explorer Rank` morphs dynamically entirely offline. Instead of blocking the UI on remote PostgreSQL network requests, it utilizes heavily optimized `SwiftData` `@Query` property wrappers mapping array statistics natively preventing UI lag and dropping network errors cleanly for a flawless "Digital Terrarium" profile reflection.
+- Renders global gamification statistics including `uniqueSpeciesCount` and `currentStreak` in the stats grid, while evaluating the user's `persona` (Explorer Rank) dynamically purely offline within the profile header. Instead of blocking the UI on remote PostgreSQL network requests, it utilizes heavily optimized `SwiftData` `@Query` property wrappers mapping array statistics natively preventing UI lag and dropping network errors cleanly for a flawless "Digital Terrarium" profile reflection.
 
 ### Aesthetic Customizations
 - Contains the `AppIconManager` allowing `Pro` users to natively swap their iOS Springboard Icon using `UIApplication.shared.setAlternateIconName` natively. This natively updates both the app boundary and the underlying `Config.xcconfig` bounds safely without requiring a restart.
@@ -59,4 +59,4 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 
 ## 5. UI Abstract Modularization
 - The UI hierarchy strictly avoids massive structural bindings. The bottom navigational routing structure (Scans/Profile) explicitly abstracts completely out of the monolithic `CameraRootView` natively into the ultra-lightweight `CameraNavigationBarOverlay` ViewModifier. To retain perfect iOS visual consistency, it binds safely into a true iOS `ToolbarItemGroup(placement: .bottomBar)` applying Apple's native `.toolbarBackground(.ultraThinMaterial, for: .bottomBar)` logic to inherit flawless liquid glass blurring algorithms natively. The central Shutter is perfectly padded (`.bottom, 32`) above this baseline to prevent layout collision seamlessly.
-- `UserProfileView` natively abstracts completely. The massive scrolling interface was strictly decoupled into `UserProfileHeaderView` (Avatar metadata), `UserProfileStatsView` (isolated SwiftData queries/calendar aggregations), and `UserProfileAuthSection` (decoupled OAuth networking). This preserves frame fluidity natively when fetching massive profile arrays.
+- `UserProfileView` natively abstracts completely. The massive scrolling interface was strictly decoupled into `UserProfileHeaderView` (Avatar metadata, Explorer Persona, Auth Status routing), `UserProfileStatsView` (isolated SwiftData queries/calendar aggregations)...

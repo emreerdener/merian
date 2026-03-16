@@ -40,21 +40,11 @@ struct UserProfileStatsView: View {
         allRecords.filter { $0.ecologyType.lowercased() == "wild" && $0.isBiological }.count
     }
     
-    private var persona: String {
-        let count = uniqueSpeciesCount
-        if count == 0 { return "Observer" }
-        else if count < 10 { return "Novice Naturalist" }
-        else if count < 50 { return "Field Naturalist" }
-        else if count < 100 { return "Avid Naturalist" }
-        else { return "Master Naturalist" }
-    }
-    
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
             StatCardView(title: "Species", value: "\(uniqueSpeciesCount)", icon: "leaf.fill", color: .green)
             StatCardView(title: "Current streak", value: "\(currentStreak) Day\(currentStreak == 1 ? "" : "s")", icon: "flame.fill", color: .orange)
-            StatCardView(title: "Rare finds", value: "\(rareFindsCount)", icon: "sparkles", color: .purple)
-            StatCardView(title: "Explorer rank", value: persona, icon: "tree.fill", color: .teal)
+            // StatCardView(title: "Rare finds", value: "\(rareFindsCount)", icon: "sparkles", color: .purple)
         }
     }
 }

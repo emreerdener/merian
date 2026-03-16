@@ -5,7 +5,7 @@ struct UserProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var allRecords: [LocalScanRecord]
     @ObservedObject private var supabase = SupabaseManager.shared
-    @State private var showPaywall = false
+    @State private var showSettings = false
     
     var body: some View {
         NavigationStack {
@@ -13,8 +13,10 @@ struct UserProfileView: View {
                 VStack(spacing: 32) {
                     
                     // User Header
-                    UserProfileHeaderView(supabase: supabase)
-                        .padding(.top, 32)
+                    UserProfileHeaderView(supabase: supabase) {
+                        showSettings = true
+                    }
+                    .padding(.top, 32)
 
                      // Lifetime Explorer Aggregates
                     VStack(alignment: .leading, spacing: 16) {
@@ -23,32 +25,7 @@ struct UserProfileView: View {
                         .padding(.horizontal, 24)
                     }
                     
-   // Subscription Section
-                    VStack(alignment: .leading, spacing: 16) {
-                        Button(action: {
-                            showPaywall = true
-                        }) {
-                            HStack {
-                                Image(systemName: "star.fill")
-                                Text("Manage plan")
-                                    .fontWeight(.semibold)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.yellow.opacity(0.15))
-                            .foregroundColor(.yellow)
-                            .cornerRadius(14)
-                        }
-                        .padding(.horizontal, 24)
-                        .sheet(isPresented: $showPaywall) {
-                            PaywallView()
-                                .environmentObject(RevenueCatManager.shared)
-                        }
-                    }
 
-                    // Authentication Layer
-                    UserProfileAuthSection(supabase: supabase)
-                        .padding(.horizontal, 24)
                     
                  
                     
@@ -68,6 +45,20 @@ struct UserProfileView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        showSettings = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Text("Settings")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
         }
     }
@@ -100,6 +91,7 @@ struct StatCardView: View {
             }
         }
         .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(16)
     }
