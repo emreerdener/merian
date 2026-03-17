@@ -210,7 +210,7 @@ struct InsightSheetView: View {
             
             // 2. Local historical images securely cached on disk
             for path in inferenceEngine.validHistoricImagePaths {
-                let url = URL(fileURLWithPath: path)
+                let url = URL.documentsDirectory.appendingPathComponent(path)
                 if let data = try? Data(contentsOf: url) {
                     let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
                     if success { photosSaved += 1 }
@@ -267,7 +267,7 @@ struct InsightSheetView: View {
             presentShareSheet(items: items)
             
         } else if let validPath = inferenceEngine.validHistoricImagePaths.first, 
-                  let data = try? Data(contentsOf: URL(fileURLWithPath: validPath)),
+                  let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),
                   let image = UIImage(data: data) {
             items.insert(image, at: 0)
             presentShareSheet(items: items)
