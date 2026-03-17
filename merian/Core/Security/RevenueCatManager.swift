@@ -42,11 +42,23 @@ final class RevenueCatManager: ObservableObject {
         }
     }
     
-    /// Establishes the link between RevenueCat's UUID constraint and the Supabase Ghost User UUID 
-    func linkWithSupabase(userId: String) async {
+    /// Establishes the link between RevenueCat's UUID constraint and the Supabase Identity, synchronizing optional User Metadata 
+    func linkWithSupabase(userId: String, email: String? = nil, displayName: String? = nil, avatarUrl: String? = nil) async {
         do {
             let (customerInfo, _) = try await Purchases.shared.logIn(userId)
             self.updateEntitlements(with: customerInfo)
+            
+            // Push Standardized Auth Metrics directly to RevenueCat profiles
+            if let email = email, !email.isEmpty {
+                Purchases.shared.attribution.setEmail(email)
+            }
+            if let displayName = displayName, !displayName.isEmpty {
+                Purchases.shared.attribution.setDisplayName(displayName)
+            }
+            if let avatarUrl = avatarUrl, !avatarUrl.isEmpty {
+                Purchases.shared.attribution.setAttributes(["avatar_url": avatarUrl])
+            }
+            
             print("🚀 Successfully linked RevenueCat UUID to Supabase Identity: \(userId)")
         } catch {
             print("⚠️ RevenueCat login failed: \(error.localizedDescription)")

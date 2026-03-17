@@ -62,15 +62,28 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
         }
     }
     
+    private func linkExternalTelemetry(user: User) async {
+        let userId = user.id.uuidString
+        let email = user.email
+        let fullName = user.userMetadata["full_name"]?.stringValue ?? user.userMetadata["name"]?.stringValue
+        let avatarUrl = user.userMetadata["avatar_url"]?.stringValue ?? user.userMetadata["picture"]?.stringValue
+        
+        await RevenueCatManager.shared.linkWithSupabase(
+            userId: userId,
+            email: email,
+            displayName: fullName,
+            avatarUrl: avatarUrl
+        )
+        PostHogManager.shared.identifyUser(userId: userId)
+    }
+    
     /// Initializes an Anonymous session for new users prior to any sign-in. Matches the "Ghost User / Explorer Tier" architecture.
     func initializeGhostSession() async {
         do {
             // Check if they are already actively signed in (either as a Ghost or an Authenticated Apple user)
             let session = try await client.auth.session
-            let existingUserId = session.user.id.uuidString
             print("👻 Active Merian User Identity already resolved natively on device.")
-            await RevenueCatManager.shared.linkWithSupabase(userId: existingUserId)
-            PostHogManager.shared.identifyUser(userId: existingUserId)
+            await linkExternalTelemetry(user: session.user)
         } catch {
             let errString = String(describing: error)
             
@@ -79,20 +92,16 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             if let authError = error as? AuthError, case .sessionMissing = authError {
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
-                    let newUserId = authResponse.user.id.uuidString
-                    print("👻 Successfully established new Ghost User Identity: \(newUserId)")
-                    await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
-                    PostHogManager.shared.identifyUser(userId: newUserId)
+                    print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
+                    await linkExternalTelemetry(user: authResponse.user)
                 } catch {
                     print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
                 }
             } else if errString.contains("sessionNotFound") || errString.contains("sessionMissing") {
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
-                    let newUserId = authResponse.user.id.uuidString
-                    print("👻 Successfully established new Ghost User Identity: \(newUserId)")
-                    await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
-                    PostHogManager.shared.identifyUser(userId: newUserId)
+                    print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
+                    await linkExternalTelemetry(user: authResponse.user)
                 } catch {
                     print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
                 }
@@ -182,9 +191,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             }
             
             let session = try await client.auth.session
-            let newUserId = session.user.id.uuidString
-            await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
-            PostHogManager.shared.identifyUser(userId: newUserId)
+            await linkExternalTelemetry(user: session.user)
             
             UserDefaults.standard.set(true, forKey: "Merian_HasAuthenticatedOAuth")
             
@@ -308,9 +315,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                     }
                     
                     let session = try await client.auth.session
-                    let newUserId = session.user.id.uuidString
-                    await RevenueCatManager.shared.linkWithSupabase(userId: newUserId)
-                    PostHogManager.shared.identifyUser(userId: newUserId)
+                    await linkExternalTelemetry(user: session.user)
                     
                     UserDefaults.standard.set(true, forKey: "Merian_HasAuthenticatedOAuth")
                     
