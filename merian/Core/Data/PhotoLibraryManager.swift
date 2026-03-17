@@ -108,4 +108,30 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
             print("⚠️ Failed to save image to photo library bounds natively: \(error)")
         }
     }
+    func saveImageManual(imageData: Data) async -> Bool {
+        let currentStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        let status: PHAuthorizationStatus
+        
+        if currentStatus == .notDetermined {
+            status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        } else {
+            status = currentStatus
+        }
+        
+        guard status == .authorized || status == .limited else {
+            return false
+        }
+        
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                // Directly pass the raw physics buffers seamlessly natively maintaining EXIF data dynamically.
+                request.addResource(with: .photo, data: imageData, options: nil)
+            }
+            return true
+        } catch {
+            print("⚠️ Failed to explicitly save image to photo library: \(error)")
+            return false
+        }
+    }
 }

@@ -96,7 +96,7 @@ serve(async (req: Request) => {
             
             // Reconstruct internal S3 API bounding since the db now stores the safe public web R2 endpoints
             const s3Url = url.replace(
-              "https://pub-fe95d8ff28ea4debbcbdc1f38de77444.r2.dev/",
+              "https://media.merian.app/",
               `https://${r2AccountId}.r2.cloudflarestorage.com/${r2Bucket}/`
             );
             

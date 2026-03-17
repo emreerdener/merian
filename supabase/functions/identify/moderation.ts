@@ -52,7 +52,7 @@ export async function evaluateAndProcessPayload(
     const targetS3Url = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
     
     // The public viewer URL to save in PostgreSQL
-    const publicR2DevUrl = `https://pub-fe95d8ff28ea4debbcbdc1f38de77444.r2.dev/${publicUploadKey}`;
+    const publicR2DevUrl = `https://media.merian.app/${publicUploadKey}`;
 
     // 3. Unsafe Flow Pipeline
     if (isUnsafe) {

@@ -24,6 +24,7 @@ Merian embraces the `WindowGroup` logic seamlessly across `SwiftUI` avoiding `.x
   - `InsightToxicityBanner`: High-priority `.isHeader` accessibility mapped warning boundaries gracefully prioritizing user safety actively.
   - `InsightTaxonomyHeader` & `InsightTaxonomyTree`: Strictly parses the taxonomy objects perfectly dynamically routing to `BadgeView` grids and `TaxonomyNode` capsules across interactive horizontal scroll bounds natively.
   - `InsightDescriptionSection`: Dynamically populates AI rationale securely and natively renders extracted Wikipedia paragraphs directly within the app bounds, gracefully wrapping fallback buttons that open direct pipelines into local `SafariServices` bounds (`WKWebView`).
+  - `Photo Extraction Engine`: Binds explicit toolbar `Menu` commands to `PhotoLibraryManager.saveImageManual(imageData:)`. It safely filters remote URLs and active captures directly dumping to the iOS Camera Roll while hard-ignoring external `.wikipedia.org` reference URIs out of the `URLSession` payload cleanly.
 - Gracefully binds ML hallucination correction tools naturally (`FlagIssueView`), executing POST payload drops securely bypassing native UI blocks inherently.
 
 ### `ScanningOverlayView` (The Analysis Transition State)

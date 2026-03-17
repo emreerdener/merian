@@ -19,6 +19,8 @@ struct InsightSheetView: View {
     @State private var showCelebration = false
     @State private var showCollectionPicker = false
     @State private var showDeleteConfirmation = false
+    @State private var isSavingPhotos = false
+    @State private var showSaveSuccessAlert = false
     @Environment(\.modelContext) private var modelContext
     
     // Safety Bounds
@@ -125,6 +127,11 @@ struct InsightSheetView: View {
                                 Label("Add to collection", systemImage: "folder.badge.plus")
                             }
                             
+                            Button(action: { saveUserPhotos() }) {
+                                Label("Save my photos", systemImage: "arrow.down.circle")
+                            }
+                            .disabled(isSavingPhotos)
+                            
                             Button(role: .destructive, action: { showDeleteConfirmation = true }) {
                                 Label("Delete scan", systemImage: "trash")
                             }
@@ -150,6 +157,11 @@ struct InsightSheetView: View {
                     Button("Cancel", role: .cancel) {}
                 } message: {
                     Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
+                }
+                .alert("Photos Saved", isPresented: $showSaveSuccessAlert) {
+                    Button("OK", role: .cancel) { }
+                } message: {
+                    Text("Your photos have been securely saved to your Camera Roll.")
                 }
                 
                 if showCelebration {
@@ -184,6 +196,52 @@ struct InsightSheetView: View {
             if !isStillProcessing {
                 if inferenceEngine.speciesData?.isNewDiscovery != true {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+            }
+        }
+    }
+    
+    private func saveUserPhotos() {
+        guard !isSavingPhotos else { return }
+        isSavingPhotos = true
+        
+        Task {
+            var photosSaved = 0
+            
+            // 1. Live photo payload
+            if let liveData = inferenceEngine.activeImageData {
+                let success = await PhotoLibraryManager.shared.saveImageManual(imageData: liveData)
+                if success { photosSaved += 1 }
+            }
+            
+            // 2. Local historical images securely cached on disk
+            for path in inferenceEngine.validHistoricImagePaths {
+                let url = URL(fileURLWithPath: path)
+                if let data = try? Data(contentsOf: url) {
+                    let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                    if success { photosSaved += 1 }
+                }
+            }
+            
+            // 3. Remote user uploads explicitly filtering out GBIF/Wiki bounds
+            let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+            for urlStr in refUrls {
+                if urlStr.contains("merian.app"), let url = URL(string: urlStr) {
+                    do {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                        if success { photosSaved += 1 }
+                    } catch {
+                        print("Failed to map R2 cloud payload for UI download: \(error)")
+                    }
+                }
+            }
+            
+            await MainActor.run {
+                isSavingPhotos = false
+                if photosSaved > 0 {
+                    HapticManager.shared.triggerSuccessPulse()
+                    showSaveSuccessAlert = true
                 }
             }
         }
