@@ -24,7 +24,8 @@ Everything is statically bound within `AppDIContainer.swift`:
 
 A rigid standard mapped over native native SwiftData migrations:
 
-- Models natively stored inside `LocalScanRecord` directly map one-to-one with Postgres `/scans` rows natively via UUID bounds.
+- Models natively stored inside `LocalScanRecord` strictly map their UUIDs **1-to-1 with physical Postgres `/scans` rows**. The platform previously attempted to merge multiple scans of the same species into a hidden `additionalImagePaths` array locally, which caused a race condition where the background `ScanRepository` network synchronizer would spawn a duplicate "ghost" tile because the Cloud ID didn't match the Local random UUID. 
+- *Grid Rendering Rule*: Every shutter press now generates a distinct physical tile in the `LifeList` exactly mimicking the iOS Photos app, completely preventing cloud duplication loops. Gamification telemetry uniquely hashes against the `scientificName` to prevent giving users multiple "New Discovery" awards for identical subjects.
 - Schema versioning handles structural modifications cleanly.
 - Implements the "Archive Safety Protocol" via `ArchiveManager.swift`, preserving the physics blobs of Free-tier users logically before Cloudflare's 90-day R2 Lifecycle Deletion Rule executes. This protects the native `LifeList` offline caches against sudden Cloud purges.
 

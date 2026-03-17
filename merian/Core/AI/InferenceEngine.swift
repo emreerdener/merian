@@ -193,60 +193,45 @@ final class InferenceEngine: ObservableObject {
                             predicate: #Predicate { $0.scientificName == targetName }
                         )
                         
-                        if let existingRecord = try? bgContext.fetch(fetchDescriptor).first {
-                            // Update the existing species record rather than inserting a duplicate
-                            if existingRecord.additionalImagePaths == nil {
-                                existingRecord.additionalImagePaths = []
-                            }
-                            existingRecord.additionalImagePaths?.append(filename)
-                            
-                            existingRecord.timestamp = Date()
-                            existingRecord.insightDescription = mappedData.insightData.description
-                            existingRecord.isPoisonous = mappedData.insightData.isPoisonous
-                            existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
-                            existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
-                            existingRecord.confidenceScore = mappedData.confidenceScore
-                            existingRecord.isBiological = mappedData.isBiological
-                            existingRecord.isLiveCapture = mappedData.isLiveCapture
-                            existingRecord.isInvasive = mappedData.isInvasive
-                            existingRecord.ecologyType = mappedData.ecologyType
-                            existingRecord.taxonomyKingdom = mappedData.taxonomy?.kingdom
-                            existingRecord.taxonomyPhylum = mappedData.taxonomy?.phylum
-                            existingRecord.taxonomyClass = mappedData.taxonomy?.className
-                            existingRecord.taxonomyOrder = mappedData.taxonomy?.order
-                            existingRecord.taxonomyFamily = mappedData.taxonomy?.family
-                            existingRecord.taxonomyGenus = mappedData.taxonomy?.genus
-                        } else {
-                            // First time encountering this species; insert new record natively
-                            let record = LocalScanRecord(
-                                speciesId: UUID().uuidString,
-                                scientificName: mappedData.scientificName,
-                                commonName: mappedData.commonName,
-                                insightDescription: mappedData.insightData.description,
-                                timestamp: Date(),
-                                localImagePath: filename,
-                                semanticTags: [mappedData.commonName, mappedData.scientificName],
-                                isPoisonous: mappedData.insightData.isPoisonous,
-                                isBiological: mappedData.isBiological,
-                                isLiveCapture: mappedData.isLiveCapture,
-                                isInvasive: mappedData.isInvasive,
-                                ecologyType: mappedData.ecologyType,
-                                wikipediaUrl: mappedData.wikipediaUrl,
-                                referenceImageUrl: mappedData.referenceImageUrl,
-                                confidenceScore: mappedData.confidenceScore,
-                                taxonomyKingdom: mappedData.taxonomy?.kingdom,
-                                taxonomyPhylum: mappedData.taxonomy?.phylum,
-                                taxonomyClass: mappedData.taxonomy?.className,
-                                taxonomyOrder: mappedData.taxonomy?.order,
-                                taxonomyFamily: mappedData.taxonomy?.family,
-                                taxonomyGenus: mappedData.taxonomy?.genus,
-                                locationName: locationName,
-                                weatherCondition: weatherCondition,
-                                weatherTemperatureF: weatherTemperatureF
-                            )
-                            bgContext.insert(record)
+                        let existingRecords = (try? bgContext.fetch(fetchDescriptor)) ?? []
+                        
+                        // Link the persistent species ID natively if this species has been seen before
+                        let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
+                        
+                        // First time encountering this species; trigger gamification
+                        if existingRecords.isEmpty {
                             newDiscovery = true
                         }
+                        
+                        // Insert a discrete record natively mapping 1-to-1 against global Cloudflare events
+                        let record = LocalScanRecord(
+                            id: mappedData.scanId ?? UUID().uuidString,
+                            speciesId: activeSpeciesId,
+                            scientificName: mappedData.scientificName,
+                            commonName: mappedData.commonName,
+                            insightDescription: mappedData.insightData.description,
+                            timestamp: Date(),
+                            localImagePath: filename,
+                            semanticTags: [mappedData.commonName, mappedData.scientificName],
+                            isPoisonous: mappedData.insightData.isPoisonous,
+                            isBiological: mappedData.isBiological,
+                            isLiveCapture: mappedData.isLiveCapture,
+                            isInvasive: mappedData.isInvasive,
+                            ecologyType: mappedData.ecologyType,
+                            wikipediaUrl: mappedData.wikipediaUrl,
+                            referenceImageUrl: mappedData.referenceImageUrl,
+                            confidenceScore: mappedData.confidenceScore,
+                            taxonomyKingdom: mappedData.taxonomy?.kingdom,
+                            taxonomyPhylum: mappedData.taxonomy?.phylum,
+                            taxonomyClass: mappedData.taxonomy?.className,
+                            taxonomyOrder: mappedData.taxonomy?.order,
+                            taxonomyFamily: mappedData.taxonomy?.family,
+                            taxonomyGenus: mappedData.taxonomy?.genus,
+                            locationName: locationName,
+                            weatherCondition: weatherCondition,
+                            weatherTemperatureF: weatherTemperatureF
+                        )
+                        bgContext.insert(record)
                         try? bgContext.save()
                     }
                     return (mappedData, newDiscovery)

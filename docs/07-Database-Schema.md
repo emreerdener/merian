@@ -89,13 +89,14 @@ Locally captures state when cell towers drop.
 
 Tracks locally synchronized and unique species scans natively for the Life List.
 
-- `id`: String (UUID)
+- `id`: String (UUID natively bound 1-to-1 to the Postgres/Cloudflare explicit `/scans` row ID resolving the Duplicate Tile race condition).
+- `speciesId`: String (UUID linking discrete physical photo tiles of the exact identical `scientificName` natively).
 - `timestamp`: Date
 - `scientificName`: String
 - `commonName`: String
 - `confidenceScore`: Double?
-- `localImagePath`: String? (Thumbnail index)
-- `additionalImagePaths`: [String]? (Multiple historic encounter arrays)
+- `localImagePath`: String? (Thumbnail index pointing directly to the distinct physical capture binary)
+- `additionalImagePaths`: [String]? *(Deprecated: The Inference Engine no longer silently merges distinct photos under a random unified UUID, ensuring each shutter press spawns a clean mapping. Preserved for backwards compatibility with V5 nodes).*
 - `insightDescription`: String
 - `isPoisonous`: Bool
 - `isBiological`: Bool (from Edge)

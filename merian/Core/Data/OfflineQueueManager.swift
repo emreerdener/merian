@@ -546,64 +546,44 @@ actor BackgroundDatabaseActor {
                     predicate: #Predicate<LocalScanRecord> { $0.scientificName == targetName }
                 )
                 
-                if let existingRecord = try? modelContext.fetch(fetchDescriptor).first {
-                    if existingRecord.additionalImagePaths == nil {
-                        existingRecord.additionalImagePaths = []
-                    }
-                    existingRecord.additionalImagePaths?.append(contentsOf: newlyCopiedPaths)
-                    existingRecord.timestamp = Date()
-                    
-                    existingRecord.insightDescription = mappedData.insightData.description
-                    existingRecord.isPoisonous = mappedData.insightData.isPoisonous
-                    existingRecord.wikipediaUrl = mappedData.wikipediaUrl ?? existingRecord.wikipediaUrl
-                    existingRecord.referenceImageUrl = mappedData.referenceImageUrl ?? existingRecord.referenceImageUrl
-                    existingRecord.confidenceScore = mappedData.confidenceScore
-                    existingRecord.isBiological = mappedData.isBiological
-                    existingRecord.isLiveCapture = mappedData.isLiveCapture
-                    existingRecord.isInvasive = mappedData.isInvasive
-                    existingRecord.ecologyType = mappedData.ecologyType
-                    existingRecord.taxonomyKingdom = mappedData.taxonomy?.kingdom
-                    existingRecord.taxonomyPhylum = mappedData.taxonomy?.phylum
-                    existingRecord.taxonomyClass = mappedData.taxonomy?.className
-                    existingRecord.taxonomyOrder = mappedData.taxonomy?.order
-                    existingRecord.taxonomyFamily = mappedData.taxonomy?.family
-                    existingRecord.taxonomyGenus = mappedData.taxonomy?.genus
-                } else {
-                    let record = LocalScanRecord(
-                        id: mappedData.scanId ?? UUID().uuidString,
-                        speciesId: UUID().uuidString,
-                        scientificName: mappedData.scientificName,
-                        commonName: mappedData.commonName,
-                        insightDescription: mappedData.insightData.description,
-                        timestamp: Date(),
-                        localImagePath: newlyCopiedPaths.first,
-                        semanticTags: [mappedData.commonName, mappedData.scientificName],
-                        isPoisonous: mappedData.insightData.isPoisonous,
-                        isBiological: mappedData.isBiological,
-                        isLiveCapture: mappedData.isLiveCapture,
-                        isInvasive: mappedData.isInvasive,
-                        ecologyType: mappedData.ecologyType,
-                        wikipediaUrl: mappedData.wikipediaUrl,
-                        referenceImageUrl: mappedData.referenceImageUrl,
-                        additionalImagePaths: newlyCopiedPaths.count > 1 ? Array(newlyCopiedPaths.dropFirst()) : nil,
-                        confidenceScore: mappedData.confidenceScore,
-                        taxonomyKingdom: mappedData.taxonomy?.kingdom,
-                        taxonomyPhylum: mappedData.taxonomy?.phylum,
-                        taxonomyClass: mappedData.taxonomy?.className,
-                        taxonomyOrder: mappedData.taxonomy?.order,
-                        taxonomyFamily: mappedData.taxonomy?.family,
-                        taxonomyGenus: mappedData.taxonomy?.genus
-                    )
-                    modelContext.insert(record)
+                let existingRecords = (try? modelContext.fetch(fetchDescriptor)) ?? []
+                let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
+                
+                if existingRecords.isEmpty {
                     mappedData.isNewDiscovery = true
-                    
                     // Offline updates to Gamification are safely recorded once synced securely
                     Task { @MainActor in
                         GamificationManager.shared.recordNewSpeciesDiscovered()
                     }
                 }
+                
+                let record = LocalScanRecord(
+                    id: mappedData.scanId ?? UUID().uuidString,
+                    speciesId: activeSpeciesId,
+                    scientificName: mappedData.scientificName,
+                    commonName: mappedData.commonName,
+                    insightDescription: mappedData.insightData.description,
+                    timestamp: Date(),
+                    localImagePath: newlyCopiedPaths.first,
+                    semanticTags: [mappedData.commonName, mappedData.scientificName],
+                    isPoisonous: mappedData.insightData.isPoisonous,
+                    isBiological: mappedData.isBiological,
+                    isLiveCapture: mappedData.isLiveCapture,
+                    isInvasive: mappedData.isInvasive,
+                    ecologyType: mappedData.ecologyType,
+                    wikipediaUrl: mappedData.wikipediaUrl,
+                    referenceImageUrl: mappedData.referenceImageUrl,
+                    additionalImagePaths: newlyCopiedPaths.count > 1 ? Array(newlyCopiedPaths.dropFirst()) : nil,
+                    confidenceScore: mappedData.confidenceScore,
+                    taxonomyKingdom: mappedData.taxonomy?.kingdom,
+                    taxonomyPhylum: mappedData.taxonomy?.phylum,
+                    taxonomyClass: mappedData.taxonomy?.className,
+                    taxonomyOrder: mappedData.taxonomy?.order,
+                    taxonomyFamily: mappedData.taxonomy?.family,
+                    taxonomyGenus: mappedData.taxonomy?.genus
+                )
+                modelContext.insert(record)
                 try? modelContext.save()
-            }
         }
         
         // Finalize cleanup explicitly ensuring UI views never hang off disk buffer purges natively
