@@ -584,6 +584,7 @@ actor BackgroundDatabaseActor {
                 )
                 modelContext.insert(record)
                 try? modelContext.save()
+            }
         }
         
         // Finalize cleanup explicitly ensuring UI views never hang off disk buffer purges natively
