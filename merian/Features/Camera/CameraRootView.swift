@@ -52,19 +52,9 @@ struct CameraRootView: View {
             // Action Overlay Context
             if !viewModel.isAnalyzingFullscreen {
                 ZStack {
-                    VStack {
-                        // Top Toolbar (Flash & Photos)
-                        TopToolbarView(selectedPhotoItem: $viewModel.selectedPhotoItem)
-                        Spacer()
-                    }
-                    
-                    VStack {
-                        // Viewfinder Intelligence Hint Banner
-                        ViewfinderHintBanner()
-                        Spacer()
-                    }
+                    VStack { Spacer() }
                 }
-                .cameraNavigationToolbar(
+                .primaryNavigationToolbar(
                     isLifeListOpen: $viewModel.isLifeListOpen,
                     isUserProfileOpen: $viewModel.isUserProfileOpen,
                     isAnalyzingFullscreen: viewModel.isAnalyzingFullscreen
@@ -73,21 +63,69 @@ struct CameraRootView: View {
                 // Extracted Shutter Button Overlay
                 VStack {
                     Spacer()
-                    ZStack {
-                        Circle()
-                            .stroke(Color.white, lineWidth: 1)
-                            .frame(width: 72, height: 72)
+                    
+                    // Viewfinder Intelligence Hint Banner
+                    ViewfinderHintBanner()
+                    
+                    HStack(alignment: .bottom) {
+                        // Photo Library Button
+                        let thumb = photoLibraryManager.latestThumbnail
+                        PhotosPicker(selection: $viewModel.selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                            ZStack {
+                                if let thumbnail = thumb {
+                                    Image(uiImage: thumbnail)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 48, height: 48)
+                                        .clipShape(Circle())
+                                } else {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.system(size: 20, weight: .medium))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .frame(width: 50, height: 50)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .environment(\.colorScheme, .dark)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 32)
                         
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 64, height: 64)
+                        Spacer()
+                        
+                        // Shutter Button
+                        ZStack {
+                            Circle()
+                                .stroke(Color.white, lineWidth: 1)
+                                .frame(width: 72, height: 72)
+                            
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 64, height: 64)
+                        }
+                        .environment(\.colorScheme, .dark)
+                        .onTapGesture {
+                            viewModel.executeCapture()
+                        }
+                        .padding(.bottom, 32) // Elevates shutter specifically
+                        
+                        Spacer()
+                        
+                        // Flash toggle
+                        Button(action: {
+                            cameraManager.toggleFlash()
+                        }) {
+                            Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(cameraManager.isFlashEnabled ? .yellow : .white)
+                                .frame(width: 50, height: 50)
+                                .background(.ultraThinMaterial, in: Circle())
+                                .environment(\.colorScheme, .dark)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 32)
                     }
-                    // .background(.ultraThinMaterial, in: Circle())
-                    .environment(\.colorScheme, .dark)
-                    .onTapGesture {
-                        viewModel.executeCapture()
-                    }
-                    .padding(.bottom, 32) // Restored original ergonomic height above the native Toolbar
+                    .padding(.bottom, 32) // Baseline bottom padding for the corners
                 }
             }
             
