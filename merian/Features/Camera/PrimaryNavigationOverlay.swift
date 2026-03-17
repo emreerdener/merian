@@ -19,7 +19,6 @@ struct PrimaryNavigationOverlay: ViewModifier {
                                 Text("Scans")
                                     .font(.system(size: 8, weight: .bold))
                             }
-                            .foregroundColor(.white)
                             .frame(width: 50, height: 50)
                         }
                     }
@@ -34,7 +33,6 @@ struct PrimaryNavigationOverlay: ViewModifier {
                                 Text("Profile")
                                     .font(.system(size: 8, weight: .bold))
                             }
-                            .foregroundColor(.white)
                             .frame(width: 50, height: 50)
                         }
                     }

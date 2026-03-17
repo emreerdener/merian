@@ -21,7 +21,7 @@ The Life List acts as the user's primary offline biological journal.
 
 ### Primary Navigation Overlay
 - **Top Bar Alignment**: The `Scans` and `Profile` primary actions are strictly hoisted to the `.topBarLeading` and `.topBarTrailing` native toolbar placements mapped securely inside the `PrimaryNavigationOverlay` modifier. 
-- **Legibility Gradient**: To maintain critical text contrast ("Scans", "Profile") against complex or blown-out real world camera feed lighting conditions, a subtle `.black.opacity(0.4)` to `.clear` `LinearGradient` is dynamically anchored over the safe area via `CameraRootView`. This ensures the white text and SF Symbols remain visible natively without breaking the fullscreen immersive glassmorphism experience.
+- **Legibility Gradient**: To maintain critical text contrast ("Scans", "Profile") against complex or blown-out real world camera feed lighting conditions, a dark gradient mapping `[.black.opacity(0.8), .black.opacity(0.3), .clear]` is dynamically anchored over the safe area via `CameraRootView`. This smoothly darkens the upper bounds by an extra 140pts, ensuring the white text and SF Symbols remain prominently visible natively without breaking the fullscreen immersive glassmorphism experience.
 
 ### Memory Integrity (`ImageDownsampler` & Concurrency)
 - Natively guards the iOS lifecycle against "Out of Memory" (OOM) crashes by strictly decoupling explicit `Data` buffer conversions out of SwiftUI into an isolated `ImageDownsampler` static abstraction, leveraging Core Graphics interpolations dropping massive 12MP files seamlessly into RAM sequentially rather than instantiating memory-heavy `UIImage(contentsOfFile:)` chunks across grid loads.

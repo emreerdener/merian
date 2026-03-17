@@ -49,7 +49,10 @@ export async function evaluateAndProcessPayload(
     const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
 
     const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
-    const publicUrl = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
+    const targetS3Url = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
+    
+    // The public viewer URL to save in PostgreSQL
+    const publicR2DevUrl = `https://pub-fe95d8ff28ea4debbcbdc1f38de77444.r2.dev/${publicUploadKey}`;
 
     // 3. Unsafe Flow Pipeline
     if (isUnsafe) {
@@ -100,7 +103,7 @@ export async function evaluateAndProcessPayload(
     console.log(`Media marked safe. Engaing Safe Flow Pipeline.`);
 
     // Step A: Copy source image structurally within R2
-    const copyReq = new Request(publicUrl, {
+    const copyReq = new Request(targetS3Url, {
       method: "PUT",
       headers: {
         "x-amz-copy-source": `/${R2_BUCKET_NAME}/${r2ObjectKey}`,
@@ -119,7 +122,7 @@ export async function evaluateAndProcessPayload(
       console.error(`Failed to promote payload into R2. Pipeline stopped.`);
     }
 
-    return { status: "PROMOTED", publicUrl };
+    return { status: "PROMOTED", publicUrl: publicR2DevUrl };
   } catch (error) {
     console.error(`Moderation Pipeline Critical Failure:`, error);
     return { status: "ERROR" };

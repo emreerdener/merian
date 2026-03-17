@@ -80,6 +80,9 @@ serve(async (req: Request) => {
 
     // 3. R2 Image Erasure
     if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
+      const r2AccountId = Deno.env.get("R2_ACCOUNT_ID") || "";
+      const r2Bucket = Deno.env.get("R2_BUCKET_NAME") || "";
+      
       const aws = new AwsClient({
         accessKeyId: Deno.env.get("R2_ACCESS_KEY_ID") || "",
         secretAccessKey: Deno.env.get("R2_SECRET_ACCESS_KEY") || "",
@@ -90,7 +93,14 @@ serve(async (req: Request) => {
         scan.image_storage_urls.map(async (url: string) => {
           try {
             console.log(`Deleting from R2: ${url}`);
-            await aws.fetch(url, { method: "DELETE" });
+            
+            // Reconstruct internal S3 API bounding since the db now stores the safe public web R2 endpoints
+            const s3Url = url.replace(
+              "https://pub-fe95d8ff28ea4debbcbdc1f38de77444.r2.dev/",
+              `https://${r2AccountId}.r2.cloudflarestorage.com/${r2Bucket}/`
+            );
+            
+            await aws.fetch(s3Url, { method: "DELETE" });
           } catch (e) {
             console.error(`Failed to delete image at ${url} from R2:`, e);
           }
