@@ -220,7 +220,8 @@ struct InsightSheetView: View {
             // 3. Remote user uploads explicitly filtering out GBIF/Wiki bounds
             let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
             for urlStr in refUrls {
-                if urlStr.contains("merian.app"), let url = URL(string: urlStr) {
+                let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
+                if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
                     do {
                         let (data, _) = try await URLSession.shared.data(from: url)
                         let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
@@ -257,8 +258,7 @@ struct InsightSheetView: View {
     // MARK: - Native Sharing Pipeline
     private func shareDiscovery() {
         var items: [Any] = [
-            "Check out this \(commonName) (\(scientificName)) I discovered using Merian!",
-            URL(string: "https://merian.app")!
+            "Check out this \(commonName) (\(scientificName)) I discovered using Merian! \nhttps://merian.app"
         ]
         
         // Attempt to explicitly attach the physical photograph natively into the iOS Share Sheet payload
@@ -275,7 +275,7 @@ struct InsightSheetView: View {
         } else {
             // Unpack remote Cloudflare R2 string natively dropping any foreign wikipedia resources
             let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
-            if let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") }), let url = URL(string: safeCloudUrl) {
+            if let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") })?.trimmingCharacters(in: .whitespacesAndNewlines), let url = URL(string: safeCloudUrl) {
                 // Execute a decoupled fast background fetch for the remote image to prevent blocking the UI thread abruptly
                 Task {
                     if let (data, _) = try? await URLSession.shared.data(from: url), let image = UIImage(data: data) {
