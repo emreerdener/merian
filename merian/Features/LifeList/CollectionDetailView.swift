@@ -32,16 +32,7 @@ struct CollectionDetailView: View {
                             inferenceEngine.load(from: scan)
                         }) {
                             Group {
-                                if let imagePath = scan.localImagePath {
-                                    LifeListThumbnailView(imagePath: imagePath, fallbackImageUrl: scan.referenceImageUrl)
-                                } else {
-                                    Color.clear
-                                        .aspectRatio(1.0, contentMode: .fit)
-                                        .overlay(
-                                            Rectangle().fill(Color.gray.opacity(0.3))
-                                        )
-                                        .clipped()
-                                }
+                                LifeListThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
                             }
                         }
                         .contextMenu {

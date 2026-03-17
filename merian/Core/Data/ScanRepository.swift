@@ -121,7 +121,13 @@ final class ScanRepository {
                 let desc = dict?.descriptions?.compactMap { $0.value }.first ?? "No ecological description available for this subject."
                 
                 // If it exists safely mapped in R2, strictly configure Image Storage logic bypasses using the Reference bounds securely
-                let r2Image = scan.image_storage_urls?.first
+                let rawR2Image = scan.image_storage_urls?.first
+                let sanitizedR2Image: String? = {
+                    guard let raw = rawR2Image else { return nil }
+                    var parts = URLComponents(string: raw)
+                    parts?.query = nil
+                    return parts?.url?.absoluteString ?? raw
+                }()
                 
                 let record = LocalScanRecord(
                     id: scan.id,
@@ -138,7 +144,7 @@ final class ScanRepository {
                     isInvasive: scan.is_invasive ?? false,
                     ecologyType: scan.ecology_type ?? "unknown",
                     wikipediaUrl: dict?.wikipedia_url,
-                    referenceImageUrl: r2Image ?? dict?.reference_image_url,
+                    referenceImageUrl: sanitizedR2Image ?? dict?.reference_image_url,
                     additionalImagePaths: nil,
                     confidenceScore: scan.ai_confidence_score,
                     isLocallyArchived: false,

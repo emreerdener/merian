@@ -52,7 +52,18 @@ struct CameraRootView: View {
             // Action Overlay Context
             if !viewModel.isAnalyzingFullscreen {
                 ZStack {
-                    VStack { Spacer() }
+                    VStack {
+                        // Subtle gradient behind the top navigation buttons for text contrast
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.black.opacity(0.4), Color.clear]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 120)
+                        .ignoresSafeArea(edges: .top)
+                        
+                        Spacer()
+                    }
                 }
                 .primaryNavigationToolbar(
                     isLifeListOpen: $viewModel.isLifeListOpen,

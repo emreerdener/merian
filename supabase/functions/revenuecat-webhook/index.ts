@@ -124,12 +124,22 @@ serve(async (req: Request) => {
                     if (copyResponse.ok) {
                       // Physically terminate the free-tier origin bounding
                       await aws.fetch(deleteUrl, { method: "DELETE" });
-                      newUrls.push(urlStr.replace(`public_uploads/free/${userId}/`, `public_uploads/pro/${userId}/`));
+                      
+                      // Strip any expired AWS signature query parameters natively protecting the new public Cloudflare route
+                      const cleanMap = new URL(urlStr);
+                      cleanMap.search = "";
+                      cleanMap.pathname = cleanMap.pathname.replace(`public_uploads/free/${userId}/`, `public_uploads/pro/${userId}/`);
+                      
+                      newUrls.push(cleanMap.toString());
                       migrated = true;
                       totalMigrated++;
                     } else {
                       console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
-                      newUrls.push(urlStr);
+                      
+                      // If the copy fails (e.g. 404, already deleted), strip the params from the active string to ensure the frontend doesn't hang on expired auth tokens
+                      const brokenMap = new URL(urlStr);
+                      brokenMap.search = "";
+                      newUrls.push(brokenMap.toString());
                     }
                   } else {
                     newUrls.push(urlStr);

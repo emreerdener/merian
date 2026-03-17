@@ -279,16 +279,7 @@ struct LifeListSearchView: View {
                                         inferenceEngine.load(from: scan)
                                     }) {
                                         Group {
-                                            if let imagePath = scan.localImagePath {
-                                                LifeListThumbnailView(imagePath: imagePath, fallbackImageUrl: scan.referenceImageUrl)
-                                            } else {
-                                                Color.clear
-                                                    .aspectRatio(1.0, contentMode: .fit)
-                                                    .overlay(
-                                                        Rectangle().fill(Color.gray.opacity(0.3))
-                                                    )
-                                                    .clipped()
-                                            }
+                                            LifeListThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
                                         }
                                         .contextMenu {
                                             Button(role: .destructive) {
@@ -326,9 +317,9 @@ struct LifeListSearchView: View {
                                         CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
                                     } label: {
                                         ZStack {
-                                            if let firstScan = collection.scans?.first, let imagePath = firstScan.localImagePath {
+                                            if let firstScan = collection.scans?.first {
                                                 GeometryReader { geo in
-                                                    LifeListThumbnailView(imagePath: imagePath, fallbackImageUrl: firstScan.referenceImageUrl)
+                                                    LifeListThumbnailView(imagePath: firstScan.localImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
                                                         .frame(width: geo.size.width, height: geo.size.width)
                                                         .clipped()
                                                 }
@@ -480,7 +471,7 @@ struct LifeListSearchView: View {
 }
 
 struct LifeListThumbnailView: View {
-    let imagePath: String
+    let imagePath: String?
     var fallbackImageUrl: String? = nil
     
     @State private var thumbnail: UIImage? = nil
@@ -517,21 +508,27 @@ struct LifeListThumbnailView: View {
                 }
             )
             .clipped()
-        .task(id: imagePath) {
+        .task(id: imagePath ?? fallbackImageUrl ?? UUID().uuidString) {
             if thumbnail == nil {
-                let cacheKey = imagePath
+                let cacheKey = imagePath ?? fallbackImageUrl ?? UUID().uuidString
                 // 1. Check RAM immediately for existing decoded array bytes
                 if let cached = ImageCache.shared.get(forKey: cacheKey) {
                     self.thumbnail = cached
                     return
                 }
                 
-                let filename = (imagePath as NSString).lastPathComponent
-                let fullPathURL = URL.documentsDirectory.appendingPathComponent(filename)
-                if let generatedThumb = await generateThumbnail(for: fullPathURL, cacheKey: cacheKey) {
-                    await MainActor.run { self.thumbnail = generatedThumb }
-                } else if let fallbackUrlString = fallbackImageUrl, let fallbackUrl = URL(string: fallbackUrlString) {
-                    // 2. Local File is Missing/Archived off R2 -> trigger robust network fallback
+                // 2. Local File extraction attempting to load natively
+                if let safePath = imagePath {
+                    let filename = (safePath as NSString).lastPathComponent
+                    let fullPathURL = URL.documentsDirectory.appendingPathComponent(filename)
+                    if let generatedThumb = await generateThumbnail(for: fullPathURL, cacheKey: cacheKey) {
+                        await MainActor.run { self.thumbnail = generatedThumb }
+                        return
+                    }
+                }
+                
+                // 3. Local File is Missing/Archived off R2 -> trigger robust network fallback
+                if let fallbackUrlString = fallbackImageUrl, let fallbackUrl = URL(string: fallbackUrlString) {
                     if let networkImage = await fetchNetworkFallback(url: fallbackUrl, cacheKey: cacheKey) {
                         await MainActor.run { self.thumbnail = networkImage }
                     } else {
