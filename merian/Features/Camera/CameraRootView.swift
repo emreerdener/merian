@@ -55,11 +55,11 @@ struct CameraRootView: View {
                     VStack {
                         // Subtle gradient behind the top navigation buttons for text contrast
                         LinearGradient(
-                            gradient: Gradient(colors: [Color.black.opacity(0.8), Color.black.opacity(0.3), Color.clear]),
+                            gradient: Gradient(colors: [Color.black.opacity(0.9), Color.black.opacity(0.4), Color.clear]),
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        .frame(height: 140)
+                        .frame(height: 180)
                         .ignoresSafeArea(edges: .top)
                         
                         Spacer()

@@ -113,14 +113,8 @@ struct InsightSheetView: View {
                     
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            if let shareUrl = URL(string: "https://merian.app") {
-                                ShareLink(
-                                    item: shareUrl,
-                                    subject: Text("I found a \(commonName)!"),
-                                    message: Text("Check out this \(commonName) (\(scientificName)) I discovered using Merian!")
-                                ) {
-                                    Label("Share discovery", systemImage: "square.and.arrow.up")
-                                }
+                            Button(action: { shareDiscovery() }) {
+                                Label("Share discovery", systemImage: "square.and.arrow.up")
                             }
                             
                             Button(action: { showCollectionPicker = true }) {
@@ -258,5 +252,63 @@ struct InsightSheetView: View {
             ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
             dismiss()
         }
+    }
+    
+    // MARK: - Native Sharing Pipeline
+    private func shareDiscovery() {
+        var items: [Any] = [
+            "Check out this \(commonName) (\(scientificName)) I discovered using Merian!",
+            URL(string: "https://merian.app")!
+        ]
+        
+        // Attempt to explicitly attach the physical photograph natively into the iOS Share Sheet payload
+        if let liveData = inferenceEngine.activeImageData, let image = UIImage(data: liveData) {
+            items.insert(image, at: 0)
+            presentShareSheet(items: items)
+            
+        } else if let validPath = inferenceEngine.validHistoricImagePaths.first, 
+                  let data = try? Data(contentsOf: URL(fileURLWithPath: validPath)),
+                  let image = UIImage(data: data) {
+            items.insert(image, at: 0)
+            presentShareSheet(items: items)
+            
+        } else {
+            // Unpack remote Cloudflare R2 string natively dropping any foreign wikipedia resources
+            let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+            if let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") }), let url = URL(string: safeCloudUrl) {
+                // Execute a decoupled fast background fetch for the remote image to prevent blocking the UI thread abruptly
+                Task {
+                    if let (data, _) = try? await URLSession.shared.data(from: url), let image = UIImage(data: data) {
+                        items.insert(image, at: 0)
+                    }
+                    await MainActor.run { presentShareSheet(items: items) }
+                }
+            } else {
+                presentShareSheet(items: items)
+            }
+        }
+    }
+    
+    private func presentShareSheet(items: [Any]) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootVC = window.rootViewController else { return }
+        
+        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        
+        // Traverse safely up the stack to avoid overlapping presentation bounds
+        var topController = rootVC
+        while let presented = topController.presentedViewController {
+            topController = presented
+        }
+        
+        // Gracefully support iPad rendering anchors cleanly
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = topController.view
+            popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        
+        topController.present(activityVC, animated: true)
     }
 }
