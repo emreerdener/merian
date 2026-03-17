@@ -49,6 +49,8 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
                 self.currentUser = session.user
                 self.isAuthenticated = true
                 
+                await self.linkExternalTelemetry(user: session.user)
+                
                 // Trigger historical profile synchronization inherently capturing Re-installs natively
                 if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
                     Task { await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context) }
