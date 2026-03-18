@@ -111,12 +111,12 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                     
                     if !supabase.isGuestUser {
-                        // Export Life List
+                        // Export Scans
                         if let url = exportUrl {
                             ShareLink(item: url) {
                                 HStack {
                                     Image(systemName: "square.and.arrow.up")
-                                    Text("Download Life List (DwC-A)")
+                                    Text("Download Scans (DwC-A)")
                                 }
                             }
                         } else {
@@ -139,7 +139,7 @@ struct SettingsView: View {
                                     if isExporting {
                                         ProgressView().padding(.trailing, 8)
                                     }
-                                    Text("Export Life List (DwC-A)")
+                                    Text("Export Scans (DwC-A)")
                                 }
                             }
                             .disabled(isExporting)

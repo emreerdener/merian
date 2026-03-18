@@ -553,14 +553,14 @@ actor BackgroundDatabaseActor {
                 var newlyCopiedPaths: [String] = []
                 for originalPath in originalImagePaths {
                     let sourceURL = URL.documentsDirectory.appendingPathComponent(originalPath)
-                    let newFilename = "\(UUID().uuidString)_lifelist.jpg"
+                    let newFilename = "\(UUID().uuidString)_scan.jpg"
                     let destinationURL = URL.documentsDirectory.appendingPathComponent(newFilename)
                     
                     do {
                         try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
                         newlyCopiedPaths.append(newFilename)
                     } catch {
-                        print("Failed to physically bridge offline queue image to persistent Life List: \(error)")
+                        print("Failed to physically bridge offline queue image to persistent Scans: \(error)")
                     }
                 }
 
@@ -628,7 +628,7 @@ actor BackgroundDatabaseActor {
     func saveLiveScanRecord(mappedData: SpeciesData, compressedData: Data) -> Bool {
         var newDiscovery = false
         if mappedData.confidenceScore > 0.0 {
-            let filename = "\(UUID().uuidString)_lifelist.jpg"
+            let filename = "\(UUID().uuidString)_scan.jpg"
             let url = URL.documentsDirectory.appendingPathComponent(filename)
             try? compressedData.write(to: url, options: .atomic)
             

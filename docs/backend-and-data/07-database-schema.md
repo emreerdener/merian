@@ -68,7 +68,7 @@ Registers blocked actors so they vanish securely completely detached natively fr
 
 ## SwiftData Schema (Local Offline Queue)
 
-_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian employs `MerianMigrationPlan` globally mapping `SchemaVersions.swift` configurations dynamically allowing lightweight and custom `.migrationStage` closures to safely transpose old structures (e.g. `MerianSchemaV6` jumping to `MerianSchemaV7`) keeping Local Life Lists perfectly intact without corrupting biological caches._
+_Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian employs `MerianMigrationPlan` globally mapping `SchemaVersions.swift` configurations dynamically allowing lightweight and custom `.migrationStage` closures to safely transpose old structures (e.g. `MerianSchemaV6` jumping to `MerianSchemaV7`) keeping Local Scanss perfectly intact without corrupting biological caches._
 
 ### `OfflineQueuedScan`
 
@@ -85,9 +85,9 @@ Locally captures state when cell towers drop. `MerianSchemaV8` significantly exp
 - `uvIndex`: Int?
 - `isDeleted`: Bool (Soft-delete boundary once 200 OK receives back from Edge)
 
-### `LocalScanRecord` (Life List)
+### `LocalScanRecord` (Scans)
 
-Tracks locally synchronized and unique species scans natively for the Life List.
+Tracks locally synchronized and unique species scans natively for the Scans library.
 
 - `id`: String (UUID natively bound 1-to-1 to the Postgres/Cloudflare explicit `/scans` row ID resolving the Duplicate Tile race condition).
 - `speciesId`: String (UUID linking discrete physical photo tiles of the exact identical `scientificName` natively).

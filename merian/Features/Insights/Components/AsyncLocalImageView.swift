@@ -78,7 +78,7 @@ struct AsyncLocalImageView: View {
                     self.loadedImage = decoded
                 }
             } else if let fallbackUrlString = fallbackImageUrl, let fallbackUrl = URL(string: fallbackUrlString) {
-                // 3. Network Fallback hook precisely mirrored from Life List grids
+                // 3. Network Fallback hook precisely mirrored from Scans grids
                 if let networkImage = await fetchNetworkFallback(url: fallbackUrl, cacheKey: imagePath) {
                     await MainActor.run { self.loadedImage = networkImage }
                 } else {

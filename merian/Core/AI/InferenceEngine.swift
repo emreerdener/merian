@@ -181,7 +181,7 @@ final class InferenceEngine: ObservableObject {
                     
                     var newDiscovery = false
                     
-                    // Persist to SwiftData Life List securely isolated via @ModelActor off the main thread bounds natively stopping EXC_BAD_ACCESS
+                    // Persist to SwiftData Scans securely isolated via @ModelActor off the main thread bounds natively stopping EXC_BAD_ACCESS
                     if mappedData.confidenceScore > 0.0, let container = container {
                         let dbActor = BackgroundDatabaseActor(modelContainer: container)
                         newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, compressedData: compressedData)
@@ -292,7 +292,7 @@ final class InferenceEngine: ObservableObject {
         activeTemperatureF = nil
     }
     
-    /// Rehydrates the SpeciesData and UI payloads natively from an offline Life List record
+    /// Rehydrates the SpeciesData and UI payloads natively from an offline Scans record
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
         

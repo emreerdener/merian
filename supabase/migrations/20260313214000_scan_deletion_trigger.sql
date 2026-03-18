@@ -4,7 +4,7 @@ BEGIN
   -- We only care about physical scan deletions, NOT ownership transfers to the 
   -- Anonymous Tombstone user (which is handled by a separate trigger).
   IF OLD.species_id IS NOT NULL AND OLD.user_id != '00000000-0000-0000-0000-000000000000'::uuid THEN
-    -- Check if this was the absolute last instance of this specific species in their Life List
+    -- Check if this was the absolute last instance of this specific species in their Scans
     IF NOT EXISTS (
       SELECT 1 
       FROM public.scans 

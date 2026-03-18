@@ -18,7 +18,7 @@ The `docs/` folder contains the master reference for the application:
 
 ## 2. Directory Structure
 The workspace enforces this layout inside `merian/`:
-- `Features/`: Complete user domains (`Camera`, `Insights`, `LifeList`, `Profile`, `Settings`).
+- `Features/`: Complete user domains (`Camera`, `Insights`, `Scans`, `Profile`, `Settings`).
 - `Core/`: Foundational logic (`AI`, `Network`, `Security`, `Data`, `Hardware`, `Analytics`, `Intents`).
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
 - `Configuration/`: `project.yml`, `Config.xcconfig`, App Intents, and Entrypoint metadata.

@@ -9,7 +9,7 @@ final class CameraViewModel: ObservableObject {
     // UI Navigation & Sheet State
     @Published var isInsightSheetOpen: Bool = false
     @Published var isPaywallOpen: Bool = false
-    @Published var isLifeListOpen: Bool = false
+    @Published var isScansOpen: Bool = false
     @Published var isUserProfileOpen: Bool = false
     @Published var isSettingsOpen: Bool = false
     @Published var imageToCrop: IdentifiableImage? = nil
@@ -34,7 +34,7 @@ final class CameraViewModel: ObservableObject {
         // Reset sheet boundaries so the user always returns to a clean camera view
         isInsightSheetOpen = false
         isPaywallOpen = false
-        isLifeListOpen = false
+        isScansOpen = false
         isUserProfileOpen = false
         isSettingsOpen = false
         imageToCrop = nil
@@ -217,7 +217,7 @@ final class CameraViewModel: ObservableObject {
     func executeCapture() {
         // Prevent accidental hardware captures while a modal, sheet, or crop view is actively presented
         guard !isInsightSheetOpen, 
-              !isLifeListOpen, 
+              !isScansOpen, 
               !isPaywallOpen, 
               !isUserProfileOpen, 
               !isSettingsOpen,

@@ -17,7 +17,7 @@ Built completely with strict architectural constraints in mind, it utilizes the 
 - 🛡️ **Isolation-First Social Guard**: Employs real-time Discovery Feeds explicitly blocking a user's specific uploads out globally, while tracking blocklists locally to organically prevent adversarial toxicity without administrative bloat.
 - 📊 **Darwin Core Archives (DwC-A)**: Natively exports localized user data strictly formatted to the academic DwC-A standard. It maps fully GDPR-compliant data architectures securely, using explicit PostgreSQL procedures to enforce _Ghost User Tombstones_ that permanently anonymize geographical behaviors while preserving taxonomy bounds.
 - ⌚️ **Apple Ecosystem Extensions**: Powered fully by native **Siri App Intents** (Apple Intelligence ready). Integrated directly onto watchOS, utilizing background `.record` boundaries to convert field acoustics effortlessly across Wi-Fi.
-- 🔍 **On-Device Semantic Search**: Enables offline natural language searches through the user's "Life List" utilizing hidden, AI-generated semantic indexing via SwiftData predicates.
+- 🔍 **On-Device Semantic Search**: Enables offline natural language searches through the user's "Scans" utilizing hidden, AI-generated semantic indexing via SwiftData predicates.
 
 ---
 

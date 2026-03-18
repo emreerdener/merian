@@ -32,7 +32,7 @@ struct CollectionDetailView: View {
                             inferenceEngine.load(from: scan)
                         }) {
                             Group {
-                                LifeListThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
+                                ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
                             }
                         }
                         .contextMenu {

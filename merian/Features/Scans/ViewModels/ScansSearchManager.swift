@@ -4,7 +4,7 @@ import SwiftUI
 import ImageIO
 
 @MainActor
-class LifeListSearchManager: ObservableObject {
+class ScansSearchManager: ObservableObject {
     @Published var searchQuery: String = ""
     @Published var filteredScans: [LocalScanRecord] = []
     @Published var activeCategoryFilter: String = "All"

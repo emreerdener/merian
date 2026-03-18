@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MainTabBar: View {
-    @Binding var isLifeListOpen: Bool
+    @Binding var isScansOpen: Bool
     @Binding var isUserProfileOpen: Bool
     @Binding var isSettingsOpen: Bool
     
@@ -10,7 +10,7 @@ struct MainTabBar: View {
             TabBarButton(
                 iconName: "book",
                 title: "Scans",
-                action: { isLifeListOpen = true }
+                action: { isScansOpen = true }
             )
 
             TabBarButton(

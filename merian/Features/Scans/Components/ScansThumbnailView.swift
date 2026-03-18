@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct LifeListThumbnailView: View {
+struct ScansThumbnailView: View {
     let imagePath: String?
     var fallbackImageUrl: String? = nil
     

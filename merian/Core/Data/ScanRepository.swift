@@ -59,7 +59,7 @@ final class ScanRepository {
         )
     }
 
-    /// Re-hydration protocol binding historical Ghost/Pro cloud scans back down onto the iOS SwiftData Life List locally natively
+    /// Re-hydration protocol binding historical Ghost/Pro cloud scans back down onto the iOS SwiftData Scans locally natively
     func syncHistoricalScansDown(modelContext: ModelContext) async {
         guard SupabaseManager.shared.isAuthenticated else { return }
         
@@ -174,7 +174,7 @@ final class ScanRepository {
         offlineQueue.purgeSoftDeletedRecords()
     }
     
-    /// Brutally obliterates a physical scan entirely from the local disk, Local Life List, and guarantees eventual execution against Cloudflare and Postgres instances natively.
+    /// Brutally obliterates a physical scan entirely from the local disk, Local Scans, and guarantees eventual execution against Cloudflare and Postgres instances natively.
     func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) {
         // 1. Wipe local image bytes physically from DocumentDirectory
         let docs = URL.documentsDirectory

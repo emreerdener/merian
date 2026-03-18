@@ -34,7 +34,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Merian needs microphone access for aviary and insect sound classification.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Merian uses speech recognition to quickly search your Life List using voice dictation.</string>
+	<string>Merian uses speech recognition to quickly search your Scans using voice dictation.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Merian needs to add files to your Photo Library to securely save your high-resolution taxonomy images.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

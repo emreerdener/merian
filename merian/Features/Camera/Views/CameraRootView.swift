@@ -121,7 +121,7 @@ struct CameraRootView: View {
                     .padding(.bottom, 24)
                     
                     MainTabBar(
-                        isLifeListOpen: $viewModel.isLifeListOpen,
+                        isScansOpen: $viewModel.isScansOpen,
                         isUserProfileOpen: $viewModel.isUserProfileOpen,
                         isSettingsOpen: $viewModel.isSettingsOpen
                     )
@@ -207,10 +207,10 @@ struct CameraRootView: View {
                     viewModel.handleSheetAppear()
                 }
         }
-        .sheet(isPresented: $viewModel.isLifeListOpen, onDismiss: {
+        .sheet(isPresented: $viewModel.isScansOpen, onDismiss: {
             viewModel.handleSheetDismiss()
         }) {
-            LifeListSearchView(isInsightSheetOpen: $viewModel.isInsightSheetOpen)
+            ScansSearchView(isInsightSheetOpen: $viewModel.isInsightSheetOpen)
                 .presentationDragIndicator(.hidden)
                 .onAppear {
                     viewModel.handleSheetAppear()
@@ -224,7 +224,7 @@ struct CameraRootView: View {
         }
         .onPhysicalCameraShutter(
             isEnabled: !viewModel.isInsightSheetOpen &&
-                       !viewModel.isLifeListOpen &&
+                       !viewModel.isScansOpen &&
                        !viewModel.isPaywallOpen &&
                        !viewModel.isUserProfileOpen &&
                        !viewModel.isSettingsOpen &&

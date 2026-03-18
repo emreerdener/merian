@@ -221,7 +221,7 @@ serve(async (req: Request) => {
 
     const timestamp = Date.now();
     const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-    const exportKey = `exports/${userId}/LifeList_DwC_Archive_${timestamp}.zip`;
+    const exportKey = `exports/${userId}/Scans_DwC_Archive_${timestamp}.zip`;
     const urlString = `${endpoint}/${R2_BUCKET_NAME}/${exportKey}`;
 
     // Use statically resolved Uint8Array explicitly with calculated Content-Length to bypass AWS chunked 411/403 crashes natively

@@ -24,7 +24,7 @@ struct CameraViewModelTests {
         // Simulating the user actively navigating through physical modals
         viewModel.isInsightSheetOpen = true
         viewModel.isPaywallOpen = true
-        viewModel.isLifeListOpen = true
+        viewModel.isScansOpen = true
         viewModel.isAnalyzingFullscreen = true
         
         // Act: Fire the background lifecycle notification that `AppDelegate` pushes natively
@@ -36,7 +36,7 @@ struct CameraViewModelTests {
         // Assert: Ensure strict UI bounds resetting securely closing all views naturally guaranteeing the user starts fresh!
         #expect(viewModel.isInsightSheetOpen == false, "Insight sheet MUST close on app background")
         #expect(viewModel.isPaywallOpen == false, "Paywall MUST close on app background")
-        #expect(viewModel.isLifeListOpen == false, "LifeList MUST close on app background")
+        #expect(viewModel.isScansOpen == false, "Scans MUST close on app background")
         #expect(viewModel.isAnalyzingFullscreen == false, "Fullscreen analysis MUST immediately abort securely mapped")
     }
 }

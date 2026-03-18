@@ -1,14 +1,14 @@
 import SwiftUI
 import SwiftData
 
-// 3. LifeList Semantic View Interface
-enum LifeListTab {
+// 3. Scans Semantic View Interface
+enum ScansTab {
     case library
     case collections
 }
 
-struct LifeListSearchView: View {
-    @StateObject private var searchManager = LifeListSearchManager()
+struct ScansSearchView: View {
+    @StateObject private var searchManager = ScansSearchManager()
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
     @Query(sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
     
@@ -18,7 +18,7 @@ struct LifeListSearchView: View {
     @Binding var isInsightSheetOpen: Bool
     
     @State private var selectedScanForInsight: LocalScanRecord? = nil
-    @State private var activeTab: LifeListTab = .library
+    @State private var activeTab: ScansTab = .library
     
     @State private var showNewCollectionAlert = false
     @State private var newCollectionName = ""
@@ -120,7 +120,7 @@ struct LifeListSearchView: View {
                                         inferenceEngine.load(from: scan)
                                     }) {
                                         Group {
-                                            LifeListThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
+                                            ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
                                         }
                                         .contextMenu {
                                             Button(role: .destructive) {
@@ -160,7 +160,7 @@ struct LifeListSearchView: View {
                                         ZStack {
                                             if let firstScan = collection.scans?.first {
                                                 GeometryReader { geo in
-                                                    LifeListThumbnailView(imagePath: firstScan.localImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
+                                                    ScansThumbnailView(imagePath: firstScan.localImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
                                                         .frame(width: geo.size.width, height: geo.size.width)
                                                         .clipped()
                                                 }
@@ -249,8 +249,8 @@ struct LifeListSearchView: View {
                 
                 ToolbarItem(placement: .principal) {
                     Picker("View", selection: $activeTab) {
-                        Text("Scans").tag(LifeListTab.library)
-                        Text("Collections").tag(LifeListTab.collections)
+                        Text("Scans").tag(ScansTab.library)
+                        Text("Collections").tag(ScansTab.collections)
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 200)

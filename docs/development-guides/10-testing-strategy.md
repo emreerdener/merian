@@ -18,7 +18,7 @@ private func createInMemoryContext() throws -> ModelContext {
 
 This guarantees that:
 1. Operations like `context.save()` happen exclusively in RAM and resolve instantly, bypassing native disk IO waits safely.
-2. The user's genuine `Life List` and native `OfflineQueuedScan` artifacts are rigidly shielded from testing permutations permanently.
+2. The user's genuine `Scans` and native `OfflineQueuedScan` artifacts are rigidly shielded from testing permutations permanently.
 
 ## Core Suites
 
@@ -54,7 +54,7 @@ The testing bounds are mapped physically within `merianTests/Core` and `merianTe
 
 ### UI & Utilities
 - **`ImageDownsamplerTests.swift`**: Directly tests pure Core Graphics memory constraint barriers mapping 4000x4000 physical payloads cleanly under safe metric limits natively to prevent Out-Of-Memory JetSam OS crashes structurally.
-- **`LifeListSearchManagerTests.swift`**: Verifies debounced string bounds extracting correctly locally via SwiftData `@Query` mechanisms safely.
+- **`ScansSearchManagerTests.swift`**: Verifies debounced string bounds extracting correctly locally via SwiftData `@Query` mechanisms safely.
 
 ## Mocking Physical Apple Ecosystem Limits natively (`DeviceIdentityManager`)
 

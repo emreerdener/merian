@@ -40,7 +40,7 @@ struct ScanSelectionSheetView: View {
                                     toggleSelection(scan: scan)
                                 }) {
                                     Group {
-                                        LifeListThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
+                                        ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
                                     }
                                     .overlay(
                                         ZStack {

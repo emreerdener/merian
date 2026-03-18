@@ -3,12 +3,12 @@ import SwiftData
 @testable import Merian
 
 @MainActor
-final class LifeListSearchManagerTests: XCTestCase {
+final class ScansSearchManagerTests: XCTestCase {
     
-    var searchManager: LifeListSearchManager!
+    var searchManager: ScansSearchManager!
     
     override func setUp() async throws {
-        searchManager = LifeListSearchManager()
+        searchManager = ScansSearchManager()
     }
     
     override func tearDown() async throws {
