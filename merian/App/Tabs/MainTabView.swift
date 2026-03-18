@@ -33,7 +33,7 @@ struct MainTabView: View {
                     .tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea()
             
             // Navigation Pill Header
             // Dashboard | Transactions | Categories style
