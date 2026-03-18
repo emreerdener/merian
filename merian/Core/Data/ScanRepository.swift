@@ -61,7 +61,8 @@ final class ScanRepository {
 
     /// Re-hydration protocol binding historical Ghost/Pro cloud scans back down onto the iOS SwiftData Scans locally natively
     func syncHistoricalScansDown(modelContext: ModelContext) async {
-        guard SupabaseManager.shared.isAuthenticated else { return }
+        guard SupabaseManager.shared.isAuthenticated, 
+              let userId = SupabaseManager.shared.currentUser?.id.uuidString else { return }
         
         struct CloudSpeciesDictionary: Decodable, Sendable {
             let scientific_name: String?
@@ -96,6 +97,7 @@ final class ScanRepository {
             let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                 .from("scans")
                 .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, species_dictionary(*)")
+                .eq("user_id", value: userId)
                 .execute()
                 .value
             

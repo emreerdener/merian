@@ -143,6 +143,30 @@ Because we use `URLSession` inside `MerianNetworkClient` instead of the Supabase
 
 Any request attempting to fake a user session via a manipulated JSON body without passing a valid structural JWT signature in the header natively fails with a `401 Unauthorized` token boundary. This guarantees actors can only physically query Discovery Feeds mapping dynamically to their own authenticated blocklists natively.
 
+### Endangered Species Payload Shielding
+To completely prevent poachers from harvesting exact GPS geometries for IUCN Endangered, Vulnerable, or Near-Threatened species, the endpoint executes a stringent post-processing `map` array loop natively before JSON transmission. If the specific Linnaean taxonomy flags the capture as protected, the `.gps_lat_exact` and `.gps_long_exact` numeric boundaries are aggressively deleted completely off the global JSON payload, natively rounding their `gps_lat_public` geometries mathematically to 11km bounds. This completely obscures the data seamlessly regardless of whether the user opted into `Open` geoprivacy natively.
+
+---
+
+## Deno `/merge-ghost-profile` Edge Node
+
+Transfers ownership of physical records originating from an ephemeral Anonymous Ghost Session securely into a fully enrolled, newly authenticated Google/Apple ID natively.
+
+### Request Payload
+
+```json
+{
+  "ghost_id": "Transient Anonymous UUID to merge"
+}
+```
+
+### Authentication Enforcement
+
+Because this completely reassigns thousands of physical PostgreSQL records, validation must tightly prevent IDOR Account Takeover (ATO) exploits natively:
+1. Maps `supabaseAdmin.auth.getUser(jwt)` natively to extract the verified `targetUserId`.
+2. Explicitly triggers `supabaseAdmin.auth.admin.getUserById(ghost_id)` natively validating `is_anonymous === true`. If a malicious actor passes a fully authenticated user's ID blindly attempting to hijack their cloud scans and force a `deleteUser`, the Edge loop instantly faults with a `403 Forbidden` IDOR termination shielding registered identities natively.
+3. Completely transfers `scans` ownership mapping and cleanly drops the native `ghost_id` via `.deleteUser(ghost_id)`.
+
 ---
 
 ## Deno `/safe-delete` Edge Node

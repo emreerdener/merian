@@ -22,6 +22,7 @@ To guarantee a sub-1-second "Instant-On" camera boot experience, **both Apple Te
 Monitors core system stability purely using completely PII-free Apple anonymous strings intelligently.
 
 - Executes `.initialize(config)` explicitly binding the platform key.
+- **Uninitialized State Protection**: To absolutely prevent the 500ms async `.initialize(config)` boot delay from causing a `fatalError` when early-cycle tracking (or Unit Test mocks lacking `XCODE_RUNNING_FOR_PREVIEWS`) prematurely invoke `.send()`, `AppTelemetry` utilizes an internal thread-safe `NSLock` bounds property (`isInitialized`). This shields all external tracking methods and naturally drops events safely until the SDK securely mounts natively.
 - Custom Signals track physical camera bounds (`trackScan`) cleanly.
 - Hardware orchestrator executes `.trackThermalThrottling(fpsLimit:)` natively recording extreme heat warnings cleanly providing data on Apple thermal management performance under the sun logically.
 

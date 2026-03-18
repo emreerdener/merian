@@ -46,7 +46,7 @@ Scan permanence and user privacy dictates that explicitly deleted datasets are p
 To securely support multi-device logic and app reinstalls, Merian implements a physical boundary bypassing standard fetch drops: 
 
 1. **The Rehydration Native Sync (`syncHistoricalScansDown`)**
-   Explicitly embedded in `ScanRepository.shared`, this robust task queries the Supabase Edge natively pulling a joined `scans` + `species_dictionary` PostgreSQL JSON response. It sequentially filters all UUIDs securely comparing the edge payloads directly against the local `SwiftData` context, instantly identifying any missing cloud records natively.
+   Explicitly embedded in `ScanRepository.shared`, this robust task queries the Supabase Edge natively pulling a joined `scans` + `species_dictionary` PostgreSQL JSON response. It sequentially filters all UUIDs securely querying the edge payloads perfectly bounded inside a `.eq("user_id", value: userId)` isolation parameter before mapping them internally inside `SwiftData`, robustly isolating the user's private global payload history explicitly away from cross-tenant data leaks natively.
 2. **Lifecycle Execution Hook**
    This synchronization executes aggressively the pure second a user completely transitions from `Ghost` -> `Authed` inside the `SupabaseManager.setupAuthStateListener` or uniquely whenever the app recovers foreground capabilities out of deep bounds (`AppDIContainer.handleActivePhase`).
 3. **Ghost-Rendering Image Optimization**

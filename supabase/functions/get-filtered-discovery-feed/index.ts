@@ -76,8 +76,28 @@ serve(async (req: Request) => {
       throw new Error(`Failed to map global feeds: ${feedError.message}`);
     }
 
+    // 4. Secure the Payload Coordinates Against Endangered Species Poaching Data Leaks
+    const sanitizedFeedData = feedData.map((scan: any) => {
+      const species = scan.species_dictionary || {};
+      const isProtected = 
+        species.iucn_red_list_status === "vulnerable" || 
+        species.iucn_red_list_status === "endangered" || 
+        species.iucn_red_list_status === "critically_endangered" || 
+        species.iucn_red_list_status === "near_threatened";
+
+      if (isProtected) {
+        // Obliterate exact pinpoint coordinates natively resolving anti-poaching security constraints natively
+        delete scan.gps_lat_exact;
+        delete scan.gps_long_exact;
+        // Obscure public boundaries roughly to approx 11km blocks natively
+        if (scan.gps_lat_public != null) scan.gps_lat_public = Math.round(scan.gps_lat_public * 10) / 10;
+        if (scan.gps_long_public != null) scan.gps_long_public = Math.round(scan.gps_long_public * 10) / 10;
+      }
+      return scan;
+    });
+
     // Return the successful ordered feed block
-    return new Response(JSON.stringify({ data: feedData }), {
+    return new Response(JSON.stringify({ data: sanitizedFeedData }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
