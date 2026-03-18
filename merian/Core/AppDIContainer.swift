@@ -43,22 +43,24 @@ final class AppDIContainer: ObservableObject {
     func handleBackgroundPhase() {
         // Safely intercept mid-flight networks limits rescuing images asynchronously before standard app suspension
         if inferenceEngine.isProcessing, let payload = inferenceEngine.activeCompressedImageData ?? inferenceEngine.activeImageData {
-            offlineQueueManager.enqueueCapture(
-                imageData: payload,
-                gpsLatitude: inferenceEngine.activeLatitude,
-                gpsLongitude: inferenceEngine.activeLongitude,
-                gpsElevation: inferenceEngine.activeElevation,
-                weatherCondition: inferenceEngine.activeWeatherCondition,
-                weatherTemperatureF: inferenceEngine.activeTemperatureF,
-                blurScore: nil,
-                subjectDistanceInMeters: inferenceEngine.activeDistanceInMeters,
-                locationName: inferenceEngine.activeLocationName,
-                isFlashFired: inferenceEngine.activeFlashFired,
-                cameraPitchDegrees: inferenceEngine.activePitchDegrees,
-                compassHeading: inferenceEngine.activeCompassHeading,
-                relativeHumidity: inferenceEngine.activeRelativeHumidity,
-                uvIndex: inferenceEngine.activeUvIndex
-            )
+            if revenueCatManager.isProActive {
+                offlineQueueManager.enqueueCapture(
+                    imageData: payload,
+                    gpsLatitude: inferenceEngine.activeLatitude,
+                    gpsLongitude: inferenceEngine.activeLongitude,
+                    gpsElevation: inferenceEngine.activeElevation,
+                    weatherCondition: inferenceEngine.activeWeatherCondition,
+                    weatherTemperatureF: inferenceEngine.activeTemperatureF,
+                    blurScore: nil,
+                    subjectDistanceInMeters: inferenceEngine.activeDistanceInMeters,
+                    locationName: inferenceEngine.activeLocationName,
+                    isFlashFired: inferenceEngine.activeFlashFired,
+                    cameraPitchDegrees: inferenceEngine.activePitchDegrees,
+                    compassHeading: inferenceEngine.activeCompassHeading,
+                    relativeHumidity: inferenceEngine.activeRelativeHumidity,
+                    uvIndex: inferenceEngine.activeUvIndex
+                )
+            }
             inferenceEngine.cancelActiveRequest()
         }
     }

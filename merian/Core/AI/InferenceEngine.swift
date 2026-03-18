@@ -1,8 +1,13 @@
 import Foundation
+import CoreImage
 import Combine
 import SwiftUI
 import SwiftData
 import ImageIO
+
+enum APIError: Error {
+    case proRequiredForOfflineTracking
+}
 
 /// Manages real-time AI taxonomy processing via Supabase Edge Functions
 @MainActor
@@ -26,7 +31,7 @@ final class InferenceEngine: ObservableObject {
     private(set) var activeFlashFired: Bool? = nil
     private(set) var activeDistanceInMeters: Float? = nil
     
-    private var inferenceTask: Task<Void, Never>?
+    private var inferenceTask: Task<Void, Error>?
     public var isBackgroundRescued = false
     
     /// Wrapper preventing double string decoding JSON extraction logic
@@ -228,6 +233,16 @@ final class InferenceEngine: ObservableObject {
                     }
                     return
                 }
+                
+                if !RevenueCatManager.shared.isProActive {
+                    await MainActor.run {
+                        self.isProcessing = false
+                        UsageManager.shared.refundScan()
+                        NotificationCenter.default.post(name: NSNotification.Name("TriggerPaywall"), object: nil)
+                    }
+                    throw APIError.proRequiredForOfflineTracking
+                }
+                
                 CircuitBreakerManager.shared.recordFailure()
                 OfflineQueueManager.shared.enqueueCapture(
                     imageData: compressedData,

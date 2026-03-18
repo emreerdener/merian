@@ -186,6 +186,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     func syncPendingScans() {
         guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }
+        guard RevenueCatManager.shared.isProActive else { return }
         guard !isSyncing else { return } 
         guard let container = modelContext?.container else { return }
         

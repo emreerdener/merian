@@ -28,6 +28,14 @@ final class CameraViewModel: ObservableObject {
                 self?.resetModalsForBackground()
             }
             .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: NSNotification.Name("TriggerPaywall"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.isPaywallOpen = true
+                self?.isAnalyzingFullscreen = false
+            }
+            .store(in: &cancellables)
     }
     
     private func resetModalsForBackground() {
