@@ -9,7 +9,7 @@ enum ScansTab {
 
 struct ScansSearchView: View {
     @StateObject private var searchManager = ScansSearchManager()
-    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == true }, sort: \.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
+    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == true && $0.commonName != "Unknown Subject" }, sort: \.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
     @Query(sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
     
     @Environment(\.modelContext) private var modelContext
