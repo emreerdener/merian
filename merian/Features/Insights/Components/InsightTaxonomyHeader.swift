@@ -43,6 +43,7 @@ struct InsightTaxonomyHeader: View {
             if let species = inferenceEngine.speciesData {
                 if species.locationName != nil || species.weatherCondition != nil {
                     HStack(spacing: 12) {
+                        //Location
                         if let name = species.locationName {
                             HStack(spacing: 4) {
                                 Image(systemName: "mappin.and.ellipse")
@@ -52,6 +53,7 @@ struct InsightTaxonomyHeader: View {
                             .foregroundColor(.secondary)
                         }
                         
+                        //Weather conditions
                         if let temp = species.weatherTemperatureF, let condition = species.weatherCondition {
                             HStack(spacing: 4) {
                                 Image(systemName: "cloud.sun.fill")
@@ -60,13 +62,9 @@ struct InsightTaxonomyHeader: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         }
-                    }
-                    .padding(.top, 4)
-                }
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        if species.isInvasive {
+
+                        //Badge
+                          if species.isInvasive {
                             BadgeView(text: "Invasive", color: .purple, icon: "exclamationmark.shield.fill")
                         }
                         
@@ -82,8 +80,8 @@ struct InsightTaxonomyHeader: View {
                             BadgeView(text: species.ecologyType.capitalized, color: .blue, icon: "leaf.fill")
                         }
                     }
+                    .padding(.top, 4)
                 }
-                .padding(.top, 4)
             }
         }
         .padding(.horizontal)

@@ -57,11 +57,14 @@ class ArchiveManager: ObservableObject {
     }
     
     func getAvailableDiskSpace() -> Int64 {
-        let fileManager = FileManager.default
-        let path = NSHomeDirectory()
-        if let attributes = try? fileManager.attributesOfFileSystem(forPath: path),
-           let freeSize = attributes[.systemFreeSize] as? Int64 {
-            return freeSize
+        do {
+            let fileURL = URL(fileURLWithPath: NSHomeDirectory())
+            let values = try fileURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            if let available = values.volumeAvailableCapacityForImportantUsage {
+                return available
+            }
+        } catch {
+            print("ArchiveManager: Failed to query true APFS space: \(error)")
         }
         return 0
     }

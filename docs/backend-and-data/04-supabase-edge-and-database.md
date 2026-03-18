@@ -58,6 +58,7 @@ To gracefully handle future database scale natively and prevent Postgres sequent
   - `idx_scans_user_id` on `scans (user_id)` to gracefully render users' streaks without sequential database scans.
   - `idx_scans_discovery_feed` on `scans (geoprivacy, is_live_capture, timestamp DESC)` to index massive global map discovery fetches smoothly.
   - `idx_scans_user_species` on `scans (user_id, species_id)` to gracefully eliminate sequential index latency when evaluating Postgres Triggers aggregating total distinct species metrics `COUNT(DISTINCT species_id)`.
+  - `idx_scans_lifecycle` on `scans (timestamp) WHERE image_storage_urls != '{}'` to explicitly protect the daily storage cleanup cron job from performing sequential table scans across the entire global database just to find 90-day-old Free tier captures.
 
 ## Storage Economics & Lifecycle Syndication
 

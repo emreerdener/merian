@@ -132,10 +132,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 writeBox.id = .invalid
             }
         }
-        let backgroundTaskID = writeBox.id
         #endif
         
-        Task.detached(priority: .userInitiated) {
+        Task.detached(priority: .userInitiated) { [writeBox] in
             do {
                 try imageData.write(to: fileURL)
                 
@@ -164,8 +163,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     OfflineQueueManager.shared.updateUnsyncedItemCount()
                     
                     #if os(iOS)
-                    if backgroundTaskID != .invalid {
-                        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                    if writeBox.id != .invalid {
+                        UIApplication.shared.endBackgroundTask(writeBox.id)
+                        writeBox.id = .invalid
                     }
                     #endif
                 }
@@ -173,8 +173,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 print("Failed to enqueue capture: \(error)")
                 await MainActor.run {
                     #if os(iOS)
-                    if backgroundTaskID != .invalid {
-                        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                    if writeBox.id != .invalid {
+                        UIApplication.shared.endBackgroundTask(writeBox.id)
+                        writeBox.id = .invalid
                     }
                     #endif
                 }
@@ -212,10 +213,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 syncBox.id = .invalid
             }
         }
-        let backgroundTaskID = syncBox.id
         #endif
         
-        syncTask = Task.detached(priority: .background) { [backgroundTaskID] in
+        syncTask = Task.detached(priority: .background) { [syncBox] in
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let scanData = await dbActor.fetchPendingScans(limit: 5)
             let backgroundSession = await MainActor.run { self.backgroundSession }
@@ -231,7 +231,10 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         SyncStateManager.shared.completeSync()
                     }
                     #if os(iOS)
-                    if backgroundTaskID != .invalid { UIApplication.shared.endBackgroundTask(backgroundTaskID) }
+                    if syncBox.id != .invalid { 
+                        UIApplication.shared.endBackgroundTask(syncBox.id)
+                        syncBox.id = .invalid
+                    }
                     #endif
                 }
                 return
@@ -277,6 +280,16 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         
                         let scanId = scanIDs[index]
                         let originalFileURL = fileURLs[index]
+                        
+                        // NEW FIX: Infinite queue race condition protection
+                        if !FileManager.default.fileExists(atPath: originalFileURL.path) {
+                            print("⚠️ Offline Queue: Original file \(originalFileURL.lastPathComponent) went missing! Tombstoning this scan globally.")
+                            Task { @MainActor in
+                                OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+                            }
+                            continue
+                        }
+                        
                         let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
                         
                         // CRITICAL FIX: Explicitly remove orphaned files to prevent copyItem from silently failing
@@ -300,8 +313,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     SyncStateManager.shared.completeSync()
                     
                     #if os(iOS)
-                    if backgroundTaskID != .invalid {
-                        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                    if syncBox.id != .invalid {
+                        UIApplication.shared.endBackgroundTask(syncBox.id)
+                        syncBox.id = .invalid
                     }
                     #endif
                 }
@@ -348,19 +362,21 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 }
             }
             let inferenceBox = InferenceBox()
-            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [weak inferenceBox] in
+            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [inferenceBox] in
                 print("Offline inference background task expired")
-                if let box = inferenceBox, box.id != .invalid {
-                    UIApplication.shared.endBackgroundTask(box.id)
-                    box.id = .invalid
+                if inferenceBox.id != .invalid {
+                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
+                    inferenceBox.id = .invalid
                 }
             }
-            let inferenceTaskID = inferenceBox.id
             #endif
             
             guard let modelContext = OfflineQueueManager.shared.modelContext else {
                 #if os(iOS)
-                if inferenceTaskID != .invalid { UIApplication.shared.endBackgroundTask(inferenceTaskID) }
+                if inferenceBox.id != .invalid { 
+                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
+                    inferenceBox.id = .invalid
+                }
                 #endif
                 return
             }
@@ -368,14 +384,20 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             
             guard let scan = try? modelContext.fetch(descriptor).first else {
                 #if os(iOS)
-                if inferenceTaskID != .invalid { UIApplication.shared.endBackgroundTask(inferenceTaskID) }
+                if inferenceBox.id != .invalid { 
+                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
+                    inferenceBox.id = .invalid
+                }
                 #endif
                 return
             }
             
             guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else {
                 #if os(iOS)
-                if inferenceTaskID != .invalid { UIApplication.shared.endBackgroundTask(inferenceTaskID) }
+                if inferenceBox.id != .invalid { 
+                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
+                    inferenceBox.id = .invalid
+                }
                 #endif
                 return
             }
@@ -411,8 +433,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             }
             
             #if os(iOS)
-            if inferenceTaskID != .invalid {
-                UIApplication.shared.endBackgroundTask(inferenceTaskID)
+            if inferenceBox.id != .invalid {
+                UIApplication.shared.endBackgroundTask(inferenceBox.id)
+                inferenceBox.id = .invalid
             }
             #endif
         }
@@ -599,5 +622,58 @@ actor BackgroundDatabaseActor {
         } catch {
             print("Background cleanup logic explicitly failed out of process offline trace natively: \(error)")
         }
+    }
+    
+    /// Handles native UI ingestions safely inside the Actor Thread isolated entirely away from UI and Detached Task loops
+    func saveLiveScanRecord(mappedData: SpeciesData, compressedData: Data) -> Bool {
+        var newDiscovery = false
+        if mappedData.confidenceScore > 0.0 {
+            let filename = "\(UUID().uuidString)_lifelist.jpg"
+            let url = URL.documentsDirectory.appendingPathComponent(filename)
+            try? compressedData.write(to: url, options: .atomic)
+            
+            let targetName = mappedData.scientificName
+            let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.scientificName == targetName }
+            )
+            
+            let existingRecords = (try? modelContext.fetch(fetchDescriptor)) ?? []
+            let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
+            
+            if existingRecords.isEmpty {
+                newDiscovery = true
+            }
+            
+            let record = LocalScanRecord(
+                id: mappedData.scanId ?? UUID().uuidString,
+                speciesId: activeSpeciesId,
+                scientificName: mappedData.scientificName,
+                commonName: mappedData.commonName,
+                insightDescription: mappedData.insightData.description,
+                timestamp: Date(),
+                localImagePath: filename,
+                semanticTags: [mappedData.commonName, mappedData.scientificName],
+                isPoisonous: mappedData.insightData.isPoisonous,
+                isBiological: mappedData.isBiological,
+                isLiveCapture: mappedData.isLiveCapture,
+                isInvasive: mappedData.isInvasive,
+                ecologyType: mappedData.ecologyType,
+                wikipediaUrl: mappedData.wikipediaUrl,
+                referenceImageUrl: mappedData.referenceImageUrl,
+                confidenceScore: mappedData.confidenceScore,
+                taxonomyKingdom: mappedData.taxonomy?.kingdom,
+                taxonomyPhylum: mappedData.taxonomy?.phylum,
+                taxonomyClass: mappedData.taxonomy?.className,
+                taxonomyOrder: mappedData.taxonomy?.order,
+                taxonomyFamily: mappedData.taxonomy?.family,
+                taxonomyGenus: mappedData.taxonomy?.genus,
+                locationName: mappedData.locationName,
+                weatherCondition: mappedData.weatherCondition,
+                weatherTemperatureF: mappedData.weatherTemperatureF
+            )
+            modelContext.insert(record)
+            try? modelContext.save()
+        }
+        return newDiscovery
     }
 }

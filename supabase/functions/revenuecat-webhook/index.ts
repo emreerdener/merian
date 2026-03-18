@@ -97,57 +97,60 @@ serve(async (req: Request) => {
                 break;
               }
 
-              for (const scan of scans) {
-                if (!scan.image_storage_urls || scan.image_storage_urls.length === 0) continue;
+              const BATCH_SIZE = 50;
+              for (let i = 0; i < scans.length; i += BATCH_SIZE) {
+                const chunk = scans.slice(i, i + BATCH_SIZE);
+                
+                await Promise.allSettled(chunk.map(async (scan) => {
+                  if (!scan.image_storage_urls || scan.image_storage_urls.length === 0) return;
 
-                let migrated = false;
-                const newUrls: string[] = [];
+                  let migrated = false;
 
-                for (const urlStr of scan.image_storage_urls) {
-                  if (urlStr.includes(`public_uploads/free/${userId}/`)) {
-                    const parsedUrl = new URL(urlStr);
-                    const fileName = parsedUrl.pathname.split("/").pop();
+                  const urlPromises = scan.image_storage_urls.map(async (urlStr: string) => {
+                    if (urlStr.includes(`public_uploads/free/${userId}/`)) {
+                      const parsedUrl = new URL(urlStr);
+                      const fileName = parsedUrl.pathname.split("/").pop();
 
-                    const sourceKey = `public_uploads/free/${userId}/${fileName}`;
-                    const targetKey = `public_uploads/pro/${userId}/${fileName}`;
+                      const sourceKey = `public_uploads/free/${userId}/${fileName}`;
+                      const targetKey = `public_uploads/pro/${userId}/${fileName}`;
 
-                    const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;
-                    const deleteUrl = `${endpoint}/${R2_BUCKET_NAME}/${sourceKey}`;
+                      const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;
+                      const deleteUrl = `${endpoint}/${R2_BUCKET_NAME}/${sourceKey}`;
 
-                    const copyResponse = await aws.fetch(copyUrl, {
-                      method: "PUT",
-                      headers: {
-                        "x-amz-copy-source": `/${R2_BUCKET_NAME}/${sourceKey}`
+                      const copyResponse = await aws.fetch(copyUrl, {
+                        method: "PUT",
+                        headers: {
+                          "x-amz-copy-source": encodeURI(`/${R2_BUCKET_NAME}/${sourceKey}`)
+                        }
+                      });
+
+                      if (copyResponse.ok) {
+                        // Physically terminate the free-tier origin bounding
+                        await aws.fetch(deleteUrl, { method: "DELETE" });
+                        
+                        const cleanMapUrl = `https://media.merian.app/${targetKey}`;
+                        migrated = true;
+                        totalMigrated++;
+                        return cleanMapUrl;
+                      } else {
+                        console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
+                        const brokenMapUrl = `https://media.merian.app/${sourceKey}`;
+                        return brokenMapUrl;
                       }
-                    });
-
-                    if (copyResponse.ok) {
-                      // Physically terminate the free-tier origin bounding
-                      await aws.fetch(deleteUrl, { method: "DELETE" });
-                      
-                      // Strip any expired AWS signature query parameters natively protecting the new public Cloudflare route
-                      const cleanMapUrl = `https://media.merian.app/${targetKey}`;
-                      newUrls.push(cleanMapUrl);
-                      migrated = true;
-                      totalMigrated++;
                     } else {
-                      console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
-                      
-                      // If the copy fails (e.g. 404, already deleted), strip the params from the active string to ensure the frontend doesn't hang on expired auth tokens
-                      const brokenMapUrl = `https://media.merian.app/${sourceKey}`;
-                      newUrls.push(brokenMapUrl);
+                      return urlStr;
                     }
-                  } else {
-                    newUrls.push(urlStr);
-                  }
-                }
+                  });
 
-                if (migrated) {
-                  await supabaseAdmin
-                    .from("scans")
-                    .update({ image_storage_urls: newUrls })
-                    .eq("id", scan.id);
-                }
+                  const resolvedUrls = await Promise.all(urlPromises);
+
+                  if (migrated) {
+                    await supabaseAdmin
+                      .from("scans")
+                      .update({ image_storage_urls: resolvedUrls })
+                      .eq("id", scan.id);
+                  }
+                }));
               }
 
               if (scans.length < pageSize) {

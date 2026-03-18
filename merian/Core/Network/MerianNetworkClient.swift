@@ -40,6 +40,10 @@ class MerianNetworkClient {
         do {
             var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
+                if UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth") {
+                    print("🚨 MerianNetworkClient: Disconnected OAuth user. Throwing to force manual UI login.")
+                    throw NetworkError.invalidResponse
+                }
                 print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
                 await SupabaseManager.shared.initializeGhostSession()
                 activeJWT = try? await SupabaseManager.shared.getActiveJWT()
@@ -142,6 +146,10 @@ class MerianNetworkClient {
         do {
             var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
+                if UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth") {
+                    print("🚨 MerianNetworkClient: Disconnected OAuth user. Throwing to force manual UI login.")
+                    throw NetworkError.invalidResponse
+                }
                 print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
                 await SupabaseManager.shared.initializeGhostSession()
                 activeJWT = try? await SupabaseManager.shared.getActiveJWT()
@@ -234,6 +242,10 @@ class MerianNetworkClient {
         do {
             var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
+                if UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth") {
+                    print("🚨 MerianNetworkClient: Disconnected OAuth user. Throwing to force manual UI login.")
+                    throw NetworkError.invalidResponse
+                }
                 print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
                 await SupabaseManager.shared.initializeGhostSession()
                 activeJWT = try? await SupabaseManager.shared.getActiveJWT()
@@ -274,6 +286,10 @@ class MerianNetworkClient {
         do {
             var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
+                if UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth") {
+                    print("🚨 MerianNetworkClient: Disconnected OAuth user. Throwing to force manual UI login.")
+                    throw NetworkError.invalidResponse
+                }
                 print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
                 await SupabaseManager.shared.initializeGhostSession()
                 activeJWT = try? await SupabaseManager.shared.getActiveJWT()
@@ -312,6 +328,10 @@ class MerianNetworkClient {
         do {
             var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
             if activeJWT == nil {
+                if UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth") {
+                    print("🚨 MerianNetworkClient: Disconnected OAuth user. Throwing to force manual UI login.")
+                    throw NetworkError.invalidResponse
+                }
                 print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
                 await SupabaseManager.shared.initializeGhostSession()
                 activeJWT = try? await SupabaseManager.shared.getActiveJWT()

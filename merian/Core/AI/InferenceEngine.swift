@@ -181,58 +181,10 @@ final class InferenceEngine: ObservableObject {
                     
                     var newDiscovery = false
                     
-                    // Persist to SwiftData Life List if analysis was valid
+                    // Persist to SwiftData Life List securely isolated via @ModelActor off the main thread bounds natively stopping EXC_BAD_ACCESS
                     if mappedData.confidenceScore > 0.0, let container = container {
-                        let filename = "\(UUID().uuidString)_lifelist.jpg"
-                        let url = URL.documentsDirectory.appendingPathComponent(filename)
-                        try? compressedData.write(to: url, options: .atomic)
-                        
-                        let bgContext = ModelContext(container)
-                        let targetName = mappedData.scientificName
-                        let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
-                            predicate: #Predicate { $0.scientificName == targetName }
-                        )
-                        
-                        let existingRecords = (try? bgContext.fetch(fetchDescriptor)) ?? []
-                        
-                        // Link the persistent species ID natively if this species has been seen before
-                        let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
-                        
-                        // First time encountering this species; trigger gamification
-                        if existingRecords.isEmpty {
-                            newDiscovery = true
-                        }
-                        
-                        // Insert a discrete record natively mapping 1-to-1 against global Cloudflare events
-                        let record = LocalScanRecord(
-                            id: mappedData.scanId ?? UUID().uuidString,
-                            speciesId: activeSpeciesId,
-                            scientificName: mappedData.scientificName,
-                            commonName: mappedData.commonName,
-                            insightDescription: mappedData.insightData.description,
-                            timestamp: Date(),
-                            localImagePath: filename,
-                            semanticTags: [mappedData.commonName, mappedData.scientificName],
-                            isPoisonous: mappedData.insightData.isPoisonous,
-                            isBiological: mappedData.isBiological,
-                            isLiveCapture: mappedData.isLiveCapture,
-                            isInvasive: mappedData.isInvasive,
-                            ecologyType: mappedData.ecologyType,
-                            wikipediaUrl: mappedData.wikipediaUrl,
-                            referenceImageUrl: mappedData.referenceImageUrl,
-                            confidenceScore: mappedData.confidenceScore,
-                            taxonomyKingdom: mappedData.taxonomy?.kingdom,
-                            taxonomyPhylum: mappedData.taxonomy?.phylum,
-                            taxonomyClass: mappedData.taxonomy?.className,
-                            taxonomyOrder: mappedData.taxonomy?.order,
-                            taxonomyFamily: mappedData.taxonomy?.family,
-                            taxonomyGenus: mappedData.taxonomy?.genus,
-                            locationName: locationName,
-                            weatherCondition: weatherCondition,
-                            weatherTemperatureF: weatherTemperatureF
-                        )
-                        bgContext.insert(record)
-                        try? bgContext.save()
+                        let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                        newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, compressedData: compressedData)
                     }
                     return (mappedData, newDiscovery)
                 }.value

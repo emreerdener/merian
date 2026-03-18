@@ -12,3 +12,9 @@ CREATE INDEX IF NOT EXISTS idx_scans_discovery_feed ON public.scans (geoprivacy,
 
 -- 4. Accelerate Distinct Species Counters for Leaderboards and Profiles triggering updates natively
 CREATE INDEX IF NOT EXISTS idx_scans_user_species ON public.scans (user_id, species_id);
+
+-- 5. Lifecycle Sync Bounding Array
+-- Accelerates the daily cron sweep on 00004_storage_lifecycle_sync to avoid sequential scans across gigabytes of arrays natively.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scans_lifecycle 
+ON public.scans (timestamp) 
+WHERE image_storage_urls != '{}';

@@ -20,56 +20,22 @@ class LifeListSearchManager: ObservableObject {
     private func updateSearchableData() {
         indexingTask?.cancel()
         
-        struct ScanPayload: Sendable {
-            let id: String
-            let semanticTags: [String]
-            let commonName: String
-            let scientificName: String
-            let ecologyType: String
-            let insightDescription: String
-            let taxonomyKingdom: String?
-            let taxonomyClass: String?
+        guard let firstScan = allScans.first, let container = firstScan.modelContext?.container else {
+            self.searchableData = []
+            return
         }
         
-        let payloads = allScans.map { record in
-            ScanPayload(
-                id: record.id,
-                semanticTags: record.semanticTags,
-                commonName: record.commonName,
-                scientificName: record.scientificName,
-                ecologyType: record.ecologyType,
-                insightDescription: record.insightDescription,
-                taxonomyKingdom: record.taxonomyKingdom,
-                taxonomyClass: record.taxonomyClass
-            )
-        }
+        // Critically extract lightweight persistent identifiers natively keeping O(N) evaluations blazingly fast on UI bounds
+        let ids = allScans.map { $0.persistentModelID }
         
         indexingTask = Task.detached(priority: .userInitiated) {
-            var processed: [SearchableScan] = []
-            processed.reserveCapacity(payloads.count)
-            
-            for record in payloads {
-                if Task.isCancelled { return }
-                
-                let tags = record.semanticTags.joined(separator: " ")
-                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
-                
-                processed.append(SearchableScan(
-                    id: record.id,
-                    searchString: rawString,
-                    ecologyType: record.ecologyType.lowercased(),
-                    kingdom: record.taxonomyKingdom?.lowercased() ?? "",
-                    className: record.taxonomyClass?.lowercased() ?? ""
-                ))
-            }
+            let dbActor = SearchDatabaseActor(modelContainer: container)
+            let processed = await dbActor.extractSearchablePayloads(from: ids)
             
             if Task.isCancelled { return }
             
-            // Create an immutable copy to satisfy Swift 6 Sendable closure isolation bounds
-            let finalProcessed = processed
-            
             await MainActor.run {
-                self.searchableData = finalProcessed
+                self.searchableData = processed
             }
         }
     }
@@ -148,5 +114,34 @@ class LifeListSearchManager: ObservableObject {
                 self.filteredScans = filteredSubset
             }
         }
+    }
+}
+
+@ModelActor
+actor SearchDatabaseActor {
+    func extractSearchablePayloads(from ids: [PersistentIdentifier]) -> [SearchableScan] {
+        var processed: [SearchableScan] = []
+        processed.reserveCapacity(ids.count)
+        
+        for id in ids {
+            if Task.isCancelled { break }
+            let registered: LocalScanRecord? = self.modelContext.registeredModel(for: id)
+            let fetched: LocalScanRecord? = self.modelContext.model(for: id) as? LocalScanRecord
+            
+            if let record = registered ?? fetched {
+                let tags = record.semanticTags.joined(separator: " ")
+                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
+                
+                processed.append(SearchableScan(
+                    id: record.id,
+                    searchString: rawString,
+                    ecologyType: record.ecologyType.lowercased(),
+                    kingdom: record.taxonomyKingdom?.lowercased() ?? "",
+                    className: record.taxonomyClass?.lowercased() ?? ""
+                ))
+            }
+        }
+        
+        return processed
     }
 }

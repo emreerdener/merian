@@ -70,7 +70,8 @@ serve(async (req: Request) => {
         )
       `)
       .eq("is_live_capture", true)
-      .neq("ecology_type", "domesticated");
+      .neq("ecology_type", "domesticated")
+      .order("id", { ascending: true });
 
     if (exportScope === "global") {
       query = query.eq("geoprivacy", "open");
@@ -78,9 +79,29 @@ serve(async (req: Request) => {
       query = query.eq("user_id", userId);
     }
 
-    const { data: scans, error } = await query.limit(5000);
-    if (error) {
-      throw new Error(`Failed to fetch academic records: ${error.message}`);
+    // deno-lint-ignore no-explicit-any
+    const scans: any[] = [];
+    let hasMore = true;
+    let start = 0;
+    const PAGE_SIZE = 1000;
+
+    while (hasMore) {
+      const { data, error } = await query.range(start, start + PAGE_SIZE - 1);
+      if (error) {
+        throw new Error(`Failed to fetch academic records: ${error.message}`);
+      }
+      
+      if (!data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+      
+      scans.push(...data);
+      if (data.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        start += PAGE_SIZE;
+      }
     }
 
     // Phase 3: Cryptographic grouping without leaking Supabase identites.
