@@ -51,26 +51,6 @@ struct CameraRootView: View {
             
             // Action Overlay Context
             if !viewModel.isAnalyzingFullscreen {
-                ZStack {
-                    VStack {
-                        // Subtle gradient behind the top navigation buttons for text contrast
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.black.opacity(0.9), Color.black.opacity(0.4), Color.clear]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 180)
-                        .ignoresSafeArea(edges: .top)
-                        
-                        Spacer()
-                    }
-                }
-                .primaryNavigationToolbar(
-                    isLifeListOpen: $viewModel.isLifeListOpen,
-                    isUserProfileOpen: $viewModel.isUserProfileOpen,
-                    isAnalyzingFullscreen: viewModel.isAnalyzingFullscreen
-                )
-                
                 // Extracted Shutter Button Overlay
                 VStack {
                     Spacer()
