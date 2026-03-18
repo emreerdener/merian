@@ -26,6 +26,7 @@ struct MainTabView: View {
                 
                 CameraRootView()
                     .environmentObject(cameraViewModel)
+                    .ignoresSafeArea()
                     .tag(1)
                 
                 UserProfileView(showSettings: $showSettings)
@@ -33,7 +34,7 @@ struct MainTabView: View {
                     .tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: .bottom)
             
             // Navigation Pill Header
             // Dashboard | Transactions | Categories style
