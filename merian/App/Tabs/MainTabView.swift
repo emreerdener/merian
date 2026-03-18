@@ -29,6 +29,7 @@ struct MainTabView: View {
                 CameraRootView()
                     .environmentObject(cameraViewModel)
                     .ignoresSafeArea()
+                    .environment(\.colorScheme, .dark)
                     .tag(1)
                 
                 UserProfileView(showSettings: $showSettings)
@@ -60,8 +61,8 @@ struct MainTabView: View {
             )
             .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
             .padding(.top, 16)
+            .environment(\.colorScheme, .dark) // Retain dark style for the pill itself
         }
-        .environment(\.colorScheme, .dark) // Enforce dark scheme for tabs / gradients over camera
     }
 }
 
