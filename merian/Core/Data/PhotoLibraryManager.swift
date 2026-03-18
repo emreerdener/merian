@@ -76,7 +76,8 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     }
     
     func saveImageToLibrary(imageData: Data, location: CLLocation? = nil) async {
-        guard UserDefaults.standard.bool(forKey: "saveToCameraRoll") else { return }
+        let shouldSave = UserDefaults.standard.object(forKey: "saveToCameraRoll") as? Bool ?? true
+        guard shouldSave else { return }
         
         let currentStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         let status: PHAuthorizationStatus
