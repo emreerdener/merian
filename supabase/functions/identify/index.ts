@@ -264,6 +264,12 @@ Crucial instructions:
           },
           required: ["similar_species", "distinguishing_features"],
         },
+        colors: {
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
+          description:
+            "An array of 1-3 visually dominant colors present on the biological subject natively.",
+        },
       },
       required: [
         "is_biological_subject",
@@ -277,6 +283,7 @@ Crucial instructions:
         "iucn_red_list_status",
         "taxonomy",
         "insight_data",
+        "colors",
       ],
     };
 
@@ -497,6 +504,7 @@ Crucial instructions:
           blur_score: parsedData.blur_score,
           ecology_type: parsedData.ecology_type,
           is_invasive: parsedData.is_invasive,
+          colors: parsedData.colors,
           regional_status_rationale:
             parsedData.insight_data.regional_status_rationale,
           is_live_capture: parsedData.is_live_capture,

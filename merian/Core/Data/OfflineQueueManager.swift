@@ -546,7 +546,8 @@ actor BackgroundDatabaseActor {
                 isLiveCapture: edgeRes.is_live_capture ?? true,
                 isInvasive: edgeRes.is_invasive ?? false,
                 ecologyType: edgeRes.ecology_type ?? "unknown",
-                taxonomy: taxonomyData
+                taxonomy: taxonomyData,
+                colors: edgeRes.colors
             )
             
             if mappedData.confidenceScore > 0.0 {
@@ -589,7 +590,7 @@ actor BackgroundDatabaseActor {
                     insightDescription: mappedData.insightData.description,
                     timestamp: Date(),
                     localImagePath: newlyCopiedPaths.first,
-                    semanticTags: [mappedData.commonName, mappedData.scientificName],
+                    semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
                     isPoisonous: mappedData.insightData.isPoisonous,
                     isBiological: mappedData.isBiological,
                     isLiveCapture: mappedData.isLiveCapture,
@@ -653,7 +654,7 @@ actor BackgroundDatabaseActor {
                 insightDescription: mappedData.insightData.description,
                 timestamp: Date(),
                 localImagePath: filename,
-                semanticTags: [mappedData.commonName, mappedData.scientificName],
+                semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
                 isPoisonous: mappedData.insightData.isPoisonous,
                 isBiological: mappedData.isBiological,
                 isLiveCapture: mappedData.isLiveCapture,

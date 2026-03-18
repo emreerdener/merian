@@ -23,6 +23,7 @@ struct SpeciesData {
     var locationName: String?
     var weatherCondition: String?
     var weatherTemperatureF: Double?
+    var colors: [String]?
 }
 
 struct TaxonomyData {

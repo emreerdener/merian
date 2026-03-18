@@ -50,6 +50,7 @@ final class InferenceEngine: ObservableObject {
         let scientific_name: String?
         let common_name: String?
         let confidence_score: Double?
+        let colors: [String]?
         
         struct Taxonomy: Codable {
             let kingdom: String?
@@ -181,7 +182,8 @@ final class InferenceEngine: ObservableObject {
                         taxonomy: taxonomyData,
                         locationName: locationName,
                         weatherCondition: weatherCondition,
-                        weatherTemperatureF: weatherTemperatureF
+                        weatherTemperatureF: weatherTemperatureF,
+                        colors: edgeRes.colors
                     )
                     
                     var newDiscovery = false
@@ -222,7 +224,8 @@ final class InferenceEngine: ObservableObject {
                             taxonomy: nil,
                             locationName: locationName,
                             weatherCondition: weatherCondition,
-                            weatherTemperatureF: weatherTemperatureF
+                            weatherTemperatureF: weatherTemperatureF,
+                            colors: nil
                         )
                     }
             } catch {

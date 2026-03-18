@@ -88,13 +88,14 @@ final class ScanRepository {
             let ecology_type: String?
             let is_invasive: Bool?
             let is_live_capture: Bool?
+            let colors: [String]?
             let species_dictionary: CloudSpeciesDictionary?
         }
         
         do {
             let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                 .from("scans")
-                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, species_dictionary(*)")
+                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, species_dictionary(*)")
                 .execute()
                 .value
             
@@ -131,7 +132,7 @@ final class ScanRepository {
                     insightDescription: desc,
                     timestamp: parsedDate,
                     localImagePath: nil, // We enforce physical absence here, dropping cleanly onto the R2 payload URL below natively
-                    semanticTags: [cName, sciName],
+                    semanticTags: [cName, sciName] + (scan.colors ?? []),
                     isPoisonous: dict?.is_poisonous ?? false,
                     isBiological: true,
                     isLiveCapture: scan.is_live_capture ?? true,
