@@ -147,9 +147,8 @@ struct CameraRootView: View {
                     .zIndex(10)
             }
             }
-        }
-        // Insight Data View overlay 
-        .sheet(isPresented: $viewModel.isInsightSheetOpen, onDismiss: {
+            // Insight Data View overlay 
+            .sheet(isPresented: $viewModel.isInsightSheetOpen, onDismiss: {
             viewModel.handleSheetDismiss()
         }) {
             InsightSheetView(isPresented: $viewModel.isInsightSheetOpen)
@@ -224,15 +223,16 @@ struct CameraRootView: View {
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             viewModel.handleInferenceProcessingChange(isStillProcessing: isStillProcessing)
         }
-        .onPhysicalCameraShutter(
-            isEnabled: !viewModel.isInsightSheetOpen &&
-                       !viewModel.isLifeListOpen &&
-                       !viewModel.isPaywallOpen &&
-                       !viewModel.isUserProfileOpen &&
-                       !viewModel.isAnalyzingFullscreen &&
-                       viewModel.imageToCrop == nil
-        ) {
-            viewModel.executeCapture()
+            .onPhysicalCameraShutter(
+                isEnabled: !viewModel.isInsightSheetOpen &&
+                           !viewModel.isLifeListOpen &&
+                           !viewModel.isPaywallOpen &&
+                           !viewModel.isUserProfileOpen &&
+                           !viewModel.isAnalyzingFullscreen &&
+                           viewModel.imageToCrop == nil
+            ) {
+                viewModel.executeCapture()
+            }
         }
     }
 }
