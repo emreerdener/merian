@@ -37,41 +37,42 @@ struct ScansSearchView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 8) {
-                if activeTab == .library && searchManager.searchQuery.isEmpty && !isSearchFocused {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(filterCategories, id: \.self) { category in
-                                Button(action: {
-                                    withAnimation {
-                                        if !searchManager.searchQuery.isEmpty {
-                                            searchManager.activeCategoryFilter = category 
-                                            searchManager.searchQuery = "" // This assignment explicitly triggers the .onChange modifier which launches the debounced search
-                                        } else {
-                                            searchManager.performSearch(query: "", category: category)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                VStack(spacing: 8) {
+                    if searchManager.searchQuery.isEmpty && !isSearchFocused {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(filterCategories, id: \.self) { category in
+                                    Button(action: {
+                                        withAnimation {
+                                            if !searchManager.searchQuery.isEmpty {
+                                                searchManager.activeCategoryFilter = category 
+                                                searchManager.searchQuery = "" // This assignment explicitly triggers the .onChange modifier which launches the debounced search
+                                            } else {
+                                                searchManager.performSearch(query: "", category: category)
+                                            }
                                         }
+                                    }) {
+                                        Text(category)
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 8)
+                                            .background(searchManager.activeCategoryFilter == category ? Color.primary : Color.secondary.opacity(0.15))
+                                            .foregroundColor(searchManager.activeCategoryFilter == category ? Color(UIColor.systemBackground) : .primary)
+                                            .clipShape(Capsule())
                                     }
-                                }) {
-                                    Text(category)
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 8)
-                                        .background(searchManager.activeCategoryFilter == category ? Color.primary : Color.secondary.opacity(0.15))
-                                        .foregroundColor(searchManager.activeCategoryFilter == category ? Color(UIColor.systemBackground) : .primary)
-                                        .clipShape(Capsule())
                                 }
                             }
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .padding(.bottom, 8)
+                        .background(Color(UIColor.systemBackground))
                     }
-                    .padding(.top, 8)
-                    .padding(.bottom, 8)
-                    .background(Color(UIColor.systemBackground))
-                }
-                
-                ScrollView {
-                    if activeTab == .library {
+                    
+                    ScrollView {
                         if searchManager.filteredScans.isEmpty {
                             VStack(spacing: 16) {
                                 Spacer().frame(height: 80)
@@ -134,7 +135,12 @@ struct ScansSearchView: View {
                                 }
                             }
                         }
-                    } else if activeTab == .collections {
+                    }
+                }
+                .containerRelativeFrame(.horizontal)
+                .id(ScansTab.library)
+                
+                ScrollView {
                         if collections.isEmpty {
                             VStack(spacing: 16) {
                                 Spacer().frame(height: 80)
@@ -221,36 +227,36 @@ struct ScansSearchView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.vertical, 32)
-                    }
                 }
-                .sheet(item: $selectedScanForInsight) { scan in
-                    InsightSheetView(isPresented: Binding(
-                        get: { selectedScanForInsight != nil },
-                        set: { if !$0 { selectedScanForInsight = nil } }
-                    ))
+                .containerRelativeFrame(.horizontal)
+                .id(ScansTab.collections)
                 }
+                .scrollTargetLayout()
             }
-            .gesture(
-                DragGesture()
-                    .onEnded { value in
-                        if value.translation.width > 50 {
-                            withAnimation {
-                                activeTab = .collections
-                            }
-                        } else if value.translation.width < -50 {
-                            withAnimation {
-                                activeTab = .library
-                            }
-                        }
-                    }
-            )
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: Binding(get: { activeTab }, set: { if let val = $0 { activeTab = val } }))
+            .sheet(item: $selectedScanForInsight) { scan in
+                InsightSheetView(isPresented: Binding(
+                    get: { selectedScanForInsight != nil },
+                    set: { if !$0 { selectedScanForInsight = nil } }
+                ))
+            }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: "Search tags, habitats, colors...")
             //.searchDictationBehavior(.inline(activation: .onSelect))
             .onChange(of: searchManager.searchQuery) { _, newValue in
                 searchManager.performSearch(query: newValue)
                 if !newValue.isEmpty && activeTab != .library {
-                    activeTab = .library
+                    withAnimation {
+                        activeTab = .library
+                    }
+                }
+            }
+            .onChange(of: isSearchFocused) { _, isFocused in
+                if isFocused && activeTab != .library {
+                    withAnimation {
+                        activeTab = .library
+                    }
                 }
             }
             .toolbar {
@@ -299,9 +305,7 @@ struct ScansSearchView: View {
                 
                 //DefaultToolbarItem(kind: .search, placement: .bottomBar)
             }
-            .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
-            .toolbarBackground(.visible, for: .bottomBar)
-            .toolbarColorScheme(.dark, for: .bottomBar)
+            .toolbarBackground(.hidden, for: .bottomBar)
             .alert("New collection", isPresented: $showNewCollectionAlert) {
                 TextField("Collection name", text: $newCollectionName)
                 Button("Cancel", role: .cancel) { newCollectionName = "" }

@@ -5,6 +5,11 @@ Merian's UI architecture strictly adheres to a modular, glassmorphic design phil
 ## 1. The Scans Library (`ScansSearchView`, `ScansSearchManager`)
 The Scans tab acts as the user's primary offline biological journal. 
 
+### Native Paging Navigation
+- **Horizontal Swipe-to-Navigate**: The primary `ScansSearchView` bypasses strict UIKit `UIPageViewController` limits by entirely utilizing a modern iOS 17 pure SwiftUI `ScrollView(.horizontal)` combined with `.scrollTargetBehavior(.paging)`. This strictly binds to `.scrollPosition(id: $activeTab)` enabling a buttery smooth 1:1 interactive swipe between the "Scans" (Library) and "Collections" arrays while explicitly dropping `.containerRelativeFrame(.horizontal)` wrappers without inheriting native `TabView` safe area anomalies natively.
+- **Automatic Search Routing**: The UI leverages `.onChange` modifiers for both the search query and the `isSearchFocused` binding. Initiating a search dynamically forces `activeTab = .library` inside a `.withAnimation` block to smoothly transition back from Collections.
+- **Persistent Bottom Context**: The bottom-anchored, liquid-glass search bar (hosted natively strictly via `.searchable`) floats elegantly above the `ScrollView` content. By aggressively dumping `.toolbarBackground(.hidden, for: .bottomBar)`, the interface explicitly ensures the physical photo grids explicitly flow directly beneath without structural background material clipping the entire rendering tree natively.
+
 ### Search & Filtering
 - **Native iOS 18 Bottom Search Bar**: Integrates the native iOS 18 `.searchable` and `.searchDictationBehavior(.inline)` modifiers ripped out of the top drawer and dynamically pinned to the bottom placement via `DefaultToolbarItem(kind: .search, placement: .bottomBar)`.
 - **Dictation & Clear Mechanics**: Relies strictly on native SwiftUI dictated microphone capabilities and standard 'X' overlays, requiring zero custom `UIViewRepresentable` bindings. Applies `.ultraThinMaterial` toolbars natively matching the aesthetic.
