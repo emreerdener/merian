@@ -177,10 +177,10 @@ struct LifeListSearchView: View {
     @Binding var isInsightSheetOpen: Bool
     
     @State private var selectedScanForInsight: LocalScanRecord? = nil
-    @State private var activeTab: LifeListTab = .library
+    @Binding var activeTab: LifeListTab
     
-    @State private var showNewCollectionAlert = false
-    @State private var newCollectionName = ""
+    @Binding var showNewCollectionAlert: Bool
+    @Binding var newCollectionName: String
     
     @State private var scanToDelete: LocalScanRecord? = nil
     @State private var showDeleteConfirmation = false
@@ -241,50 +241,8 @@ struct LifeListSearchView: View {
                     set: { if !$0 { selectedScanForInsight = nil } }
                 ))
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: "Search tags, habitats, colors...")
-            //.searchDictationBehavior(.inline(activation: .onSelect))
-            .onChange(of: searchManager.searchQuery) { _, newValue in
-                searchManager.performSearch(query: newValue)
-                if !newValue.isEmpty && activeTab != .library {
-                    activeTab = .library
-                }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    if activeTab == .collections {
-                        Button(action: {
-                            showNewCollectionAlert = true
-                        }) {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 16, weight: .bold))
-                        }
-                    }
-                }
-                
-                ToolbarItem(placement: .principal) {
-                    Picker("View", selection: $activeTab) {
-                        Text("Scans").tag(LifeListTab.library)
-                        Text("Collections").tag(LifeListTab.collections)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 200)
-                }
-                
-                ToolbarItem(placement: .keyboard) {
-                    HStack {
-                        Spacer()
-                        Button("Done") {
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        }
-                    }
-                }
-                
-                //DefaultToolbarItem(kind: .search, placement: .bottomBar)
-            }
-            .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
-            .toolbarBackground(.visible, for: .bottomBar)
-            .toolbarColorScheme(.dark, for: .bottomBar)
+            // Extracted toolbar items to MainTabView
             .alert("New collection", isPresented: $showNewCollectionAlert) {
                 TextField("Collection name", text: $newCollectionName)
                 Button("Cancel", role: .cancel) { newCollectionName = "" }
@@ -323,7 +281,6 @@ struct LifeListSearchView: View {
             Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
     }
-}
     
     @ViewBuilder
     private func renderLibraryTab() -> some View {

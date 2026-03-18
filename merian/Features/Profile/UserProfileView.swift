@@ -5,7 +5,7 @@ struct UserProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var allRecords: [LocalScanRecord]
     @ObservedObject private var supabase = SupabaseManager.shared
-    @State private var showSettings = false
+    @Binding var showSettings: Bool
     
     var body: some View {
         ScrollView {
@@ -32,19 +32,7 @@ struct UserProfileView: View {
                 }
                 .padding(.bottom, 40)
             }
-            .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {
-                        showSettings = true
-                    }) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
+            // Toolbars moved to MainTabView
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }

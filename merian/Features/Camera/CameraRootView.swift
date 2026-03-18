@@ -159,15 +159,7 @@ struct CameraRootView: View {
                     viewModel.handleSheetAppear()
                 }
         }
-        .navigationDestination(isPresented: $viewModel.isUserProfileOpen) {
-            UserProfileView()
-                .onAppear {
-                    viewModel.handleSheetAppear()
-                }
-                .onDisappear {
-                    viewModel.handleSheetDismiss()
-                }
-        }
+        // .navigationDestination for profile removed as it is now a tab
         .fullScreenCover(item: $viewModel.imageToCrop) { identItem in
             ImageCropperView(
                 image: identItem.image,
@@ -188,15 +180,7 @@ struct CameraRootView: View {
                     viewModel.handleSheetAppear()
                 }
         }
-        .navigationDestination(isPresented: $viewModel.isLifeListOpen) {
-            LifeListSearchView(isInsightSheetOpen: $viewModel.isInsightSheetOpen)
-                .onAppear {
-                    viewModel.handleSheetAppear()
-                }
-                .onDisappear {
-                    viewModel.handleSheetDismiss()
-                }
-        }
+        // .navigationDestination for scan list removed as it is now a tab
         .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
             viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
         }

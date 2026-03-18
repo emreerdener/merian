@@ -4,42 +4,146 @@ struct MainTabView: View {
     @State private var selectedTab = 1
     @StateObject private var cameraViewModel = CameraViewModel()
     
+    // Hoisted state for Views
+    @State private var activeLifeListTab: LifeListTab = .library
+    @State private var showNewCollectionAlert = false
+    @State private var newCollectionName = ""
+    @State private var showSettings = false
+    
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                LifeListSearchView(isInsightSheetOpen: $cameraViewModel.isInsightSheetOpen)
-                    .environmentObject(cameraViewModel)
-            }
-            .tabItem {
-                Label("Scans", systemImage: "book")
-            }
-            .tag(0)
+        ZStack(alignment: .top) {
             
-            CameraRootView()
+            // Swipeable Pages
+            TabView(selection: $selectedTab) {
+                LifeListSearchView(
+                    isInsightSheetOpen: $cameraViewModel.isInsightSheetOpen,
+                    activeTab: $activeLifeListTab,
+                    showNewCollectionAlert: $showNewCollectionAlert,
+                    newCollectionName: $newCollectionName
+                )
                 .environmentObject(cameraViewModel)
-                .tabItem {
-                    Label("Camera", systemImage: "camera")
-                }
-                .tag(1)
-            
-            NavigationStack {
-                UserProfileView()
+                .tag(0)
+                
+                CameraRootView()
                     .environmentObject(cameraViewModel)
+                    .tag(1)
+                
+                UserProfileView(showSettings: $showSettings)
+                    .environmentObject(cameraViewModel)
+                    .tag(2)
             }
-            .tabItem {
-                Label("Profile", systemImage: "person")
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea(edges: .bottom)
+            
+            // Custom Top Navigation Area
+            VStack(spacing: 12) {
+                HStack(alignment: .center) {
+                    // Left Anchor (Settings Cog in Profile)
+                    if selectedTab == 2 {
+                        Button(action: { showSettings = true }) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.black.opacity(0.3))
+                                .clipShape(Circle())
+                        }
+                    } else {
+                        Color.clear.frame(width: 44, height: 44)
+                    }
+                    
+                    Spacer()
+                    
+                    // Center Dynamic Title/Controls
+                    if selectedTab == 0 {
+                        Picker("View", selection: $activeLifeListTab) {
+                            Text("Scans").tag(LifeListTab.library)
+                            Text("Collections").tag(LifeListTab.collections)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
+                    } else if selectedTab == 1 {
+                        Text("Merian")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .shadow(radius: 4)
+                    } else {
+                        Text("Profile")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .shadow(radius: 4)
+                    }
+                    
+                    Spacer()
+                    
+                    // Right Anchor (Create Collection in Scans -> Collections)
+                    if selectedTab == 0 && activeLifeListTab == .collections {
+                        Button(action: { showNewCollectionAlert = true }) {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.black.opacity(0.3))
+                                .clipShape(Circle())
+                        }
+                    } else {
+                        Color.clear.frame(width: 44, height: 44)
+                    }
+                }
+                .padding(.horizontal)
+                
+                // Navigation Pill
+                // Dashboard | Transactions | Categories style
+                HStack(spacing: 24) {
+                    TabBarButton(title: "Scans", isSelected: selectedTab == 0) {
+                        withAnimation { selectedTab = 0 }
+                    }
+                    TabBarButton(title: "Camera", isSelected: selectedTab == 1) {
+                        withAnimation { selectedTab = 1 }
+                    }
+                    TabBarButton(title: "Profile", isSelected: selectedTab == 2) {
+                        withAnimation { selectedTab = 2 }
+                    }
+                }
+                .padding(.bottom, 8)
             }
-            .tag(2)
+            .padding(.top, 8) // Optional top padding
+            .background(
+                LinearGradient(colors: [Color.black.opacity(0.85), Color.black.opacity(0.5), Color.clear], startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea(edges: .top)
+            )
         }
-        .tint(.white) 
-        .onAppear {
-            let appearance = UITabBarAppearance()
-            appearance.configureWithTransparentBackground()
-            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
-            UITabBar.appearance().standardAppearance = appearance
-            if #available(iOS 15.0, *) {
-                UITabBar.appearance().scrollEdgeAppearance = appearance
-            }
-        }
+        .environment(\.colorScheme, .dark) // Enforce dark scheme for tabs / gradients over camera
     }
+}
+
+struct TabBarButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 17, weight: isSelected ? .bold : .medium, design: .rounded))
+                    .foregroundColor(isSelected ? .white : .white.opacity(0.5))
+                
+                // Optional selection underline instead of pill background (like Copilot Categories selection)
+                if isSelected {
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(height: 3)
+                        .matchedGeometryEffect(id: "TabUnderline", in: namespace)
+                } else {
+                    Capsule()
+                        .fill(Color.clear)
+                        .frame(height: 3)
+                }
+            }
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+    }
+    @Namespace private var namespace
 }
