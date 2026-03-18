@@ -94,7 +94,8 @@ The `merianResponseSchema` within Deno forces Gemini structurally into this exac
   "wikipedia_url": "https://en.wikipedia.org/wiki/Monarch_butterfly",
   "wikipedia_extract": "The monarch butterfly or simply monarch is a milkweed butterfly in the family Nymphalidae. Other common names, depending on region, include milkweed, common tiger...",
   "reference_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Monarch_In_May.jpg/320px-Monarch_In_May.jpg",
-  "diagnostic_comparison": null
+  "diagnostic_comparison": null,
+  "colors": ["orange", "black", "white"]
 }
 ```
 

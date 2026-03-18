@@ -9,7 +9,7 @@ enum ScansTab {
 
 struct ScansSearchView: View {
     @StateObject private var searchManager = ScansSearchManager()
-    @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
+    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological }, sort: \.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
     @Query(sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
     
     @Environment(\.modelContext) private var modelContext
@@ -135,6 +135,24 @@ struct ScansSearchView: View {
                             }
                         }
                     } else if activeTab == .collections {
+                        NavigationLink {
+                            NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
+                        } label: {
+                            HStack {
+                                Text("Non biological")
+                                    .font(.headline)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(12)
+                            .padding(.horizontal)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 16)
+                        
                         if collections.isEmpty {
                             VStack(spacing: 16) {
                                 Spacer().frame(height: 80)

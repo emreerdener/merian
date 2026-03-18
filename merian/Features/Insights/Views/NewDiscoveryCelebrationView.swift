@@ -15,8 +15,7 @@ struct NewDiscoveryCelebrationView: View {
                 if #available(iOS 17.0, *) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 24))
-                        .foregroundStyle(.yellow, .cyan)
-                        .symbolEffect(.bounce, options: .repeating)
+                        .symbolEffect(.pulse)
                 } else {
                     Image(systemName: "sparkles")
                         .font(.system(size: 24))

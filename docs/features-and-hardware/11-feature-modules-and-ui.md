@@ -10,14 +10,15 @@ The Scans tab acts as the user's primary offline biological journal.
 - **Dictation & Clear Mechanics**: Relies strictly on native SwiftUI dictated microphone capabilities and standard 'X' overlays, requiring zero custom `UIViewRepresentable` bindings. Applies `.ultraThinMaterial` toolbars natively matching the aesthetic.
 - Driven by `ScansSearchManager`, which utilizes a debounce boundary (`.onChange`) to filter arrays asynchronously without lagging the visual input.
 - **Dynamic Filter Bar Eradication**: The UI actively tracks the `isSearchFocused` state via the `.searchable(isPresented:)` binding alongside the `searchManager.searchQuery`. The moment a user taps the native iOS search field to bring up the keyboard or inputs a query, the horizontal Category filter pill bar dynamically unmounts to maximize the `LazyVGrid` thumbnail rendering space cleanly.
-- Binds directly to SwiftData's `allRecords` using `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)`. 
-- **Offline Semantic Routing**: Queries filter both explicit user-facing `commonName`/`scientificName` text and invisible `semanticTags` locally embedded by the AI model entirely off-grid.
+- Binds directly to SwiftData's `allRecords` using `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)`. The query explicitly uses a `#Predicate` to filter out non-biological scans (`$0.isBiological == true`), keeping the primary library strictly focused on nature.
+- **Offline Semantic Routing**: Queries filter both explicit user-facing `commonName`/`scientificName` text and invisible `semanticTags` locally embedded by the AI model entirely off-grid (such as 1-3 visually dominant `colors`).
 - **LazyVGrid Rendering Resilience**: To prevent fatal SwiftUI rendering engine drops when rapidly swapping multi-thousand item text collections, `ScansSearchManager` strictly enforces explicit `.withAnimation { self.filteredScans = ... }` boundary updates cleanly forcing OS layout calculations natively offline.
 
 ### Collections (Top-Level Photo Albums)
 - In `MerianSchemaV6`, users can organize `LocalScanRecord` entries into distinct `ScanCollection` buckets.
 - Leverages SwiftData `@Relationship` mapping dynamically natively inside a nested 3-column `LazyVGrid`, providing an "Explore Library" modal inside `CollectionDetailView` natively to link IDs safely without duplicating exact 12MP local images.
 - Instantly navigates scans from the user's library into explicit folders dynamically, protecting original creation timestamps safely.
+- **Non-Biological Scans Isolation**: A dedicated list-item navigation button within the Collections tab ("Non biological >") dynamically routes users to a mirror component `NonBiologicalScansView.swift`, which inversely queries exclusively for `$0.isBiological == false`. This provides a physical vault for random objects without polluting the biological library.
 
 ### Main Tab Bar
 - **Bottom Position Alignment**: The `Scans`, `Profile`, and `Settings` primary actions are strictly hoisted to a custom floating liquid glass capsule component (`MainTabBar`) overlaid at the bottom of the camera feed.
