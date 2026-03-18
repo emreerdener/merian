@@ -24,11 +24,31 @@ struct UserProfileView: View {
                         .padding(.horizontal, 24)
                     }
                     
-
-                    
-                 
-                    
-                   
+                    // Settings List Item
+                    VStack {
+                        Button(action: { showSettings = true }) {
+                            HStack {
+                                Image(systemName: "gearshape")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.white)
+                                    .frame(width: 32)
+                                
+                                Text("Settings")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.3))
+                            }
+                            .padding()
+                            .background(Color(UIColor.secondarySystemBackground).opacity(0.5))
+                            .cornerRadius(16)
+                        }
+                    }
+                    .padding(.horizontal, 24)
                 }
                 .padding(.bottom, 40)
             }

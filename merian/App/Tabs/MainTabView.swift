@@ -35,78 +35,20 @@ struct MainTabView: View {
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea(edges: .bottom)
             
-            // Custom Top Navigation Area
-            VStack(spacing: 12) {
-                HStack(alignment: .center) {
-                    // Left Anchor (Settings Cog in Profile)
-                    if selectedTab == 2 {
-                        Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Color.black.opacity(0.3))
-                                .clipShape(Circle())
-                        }
-                    } else {
-                        Color.clear.frame(width: 44, height: 44)
-                    }
-                    
-                    Spacer()
-                    
-                    // Center Dynamic Title/Controls
-                    if selectedTab == 0 {
-                        Picker("View", selection: $activeLifeListTab) {
-                            Text("Scans").tag(LifeListTab.library)
-                            Text("Collections").tag(LifeListTab.collections)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 200)
-                    } else if selectedTab == 1 {
-                        Text("Merian")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                            .shadow(radius: 4)
-                    } else {
-                        Text("Profile")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                            .shadow(radius: 4)
-                    }
-                    
-                    Spacer()
-                    
-                    // Right Anchor (Create Collection in Scans -> Collections)
-                    if selectedTab == 0 && activeLifeListTab == .collections {
-                        Button(action: { showNewCollectionAlert = true }) {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Color.black.opacity(0.3))
-                                .clipShape(Circle())
-                        }
-                    } else {
-                        Color.clear.frame(width: 44, height: 44)
-                    }
+            // Navigation Pill Header
+            // Dashboard | Transactions | Categories style
+            HStack(spacing: 24) {
+                TabBarButton(title: "Scans", isSelected: selectedTab == 0) {
+                    withAnimation { selectedTab = 0 }
                 }
-                .padding(.horizontal)
-                
-                // Navigation Pill
-                // Dashboard | Transactions | Categories style
-                HStack(spacing: 24) {
-                    TabBarButton(title: "Scans", isSelected: selectedTab == 0) {
-                        withAnimation { selectedTab = 0 }
-                    }
-                    TabBarButton(title: "Camera", isSelected: selectedTab == 1) {
-                        withAnimation { selectedTab = 1 }
-                    }
-                    TabBarButton(title: "Profile", isSelected: selectedTab == 2) {
-                        withAnimation { selectedTab = 2 }
-                    }
+                TabBarButton(title: "Camera", isSelected: selectedTab == 1) {
+                    withAnimation { selectedTab = 1 }
                 }
-                .padding(.bottom, 8)
+                TabBarButton(title: "Profile", isSelected: selectedTab == 2) {
+                    withAnimation { selectedTab = 2 }
+                }
             }
+            .padding(.bottom, 8)
             .padding(.top, 8) // Optional top padding
             .background(
                 LinearGradient(colors: [Color.black.opacity(0.85), Color.black.opacity(0.5), Color.clear], startPoint: .top, endPoint: .bottom)

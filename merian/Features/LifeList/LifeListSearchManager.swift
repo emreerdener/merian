@@ -196,6 +196,37 @@ struct LifeListSearchView: View {
     
     var body: some View {
         VStack(spacing: 8) {
+            
+            // Tab Toggle & Create Button Header
+            HStack {
+                Spacer() // Balance the clear color on the right
+                    .frame(width: 24)
+                    
+                Spacer()
+                
+                Picker("View", selection: $activeTab) {
+                    Text("Scans").tag(LifeListTab.library)
+                    Text("Collections").tag(LifeListTab.collections)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+                
+                Spacer()
+                
+                if activeTab == .collections {
+                    Button(action: { showNewCollectionAlert = true }) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 20))
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: 24)
+                } else {
+                    Color.clear.frame(width: 24)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 16)
+
                 if activeTab == .library && searchManager.searchQuery.isEmpty && !isSearchFocused {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
