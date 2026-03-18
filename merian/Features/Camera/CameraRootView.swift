@@ -180,13 +180,13 @@ struct CameraRootView: View {
                     viewModel.handleSheetAppear()
                 }
         }
-        .sheet(isPresented: $viewModel.isUserProfileOpen, onDismiss: {
-            viewModel.handleSheetDismiss()
-        }) {
+        .navigationDestination(isPresented: $viewModel.isUserProfileOpen) {
             UserProfileView()
-                .presentationDragIndicator(.hidden)
                 .onAppear {
                     viewModel.handleSheetAppear()
+                }
+                .onDisappear {
+                    viewModel.handleSheetDismiss()
                 }
         }
         .fullScreenCover(item: $viewModel.imageToCrop) { identItem in
@@ -209,13 +209,13 @@ struct CameraRootView: View {
                     viewModel.handleSheetAppear()
                 }
         }
-        .sheet(isPresented: $viewModel.isLifeListOpen, onDismiss: {
-            viewModel.handleSheetDismiss()
-        }) {
+        .navigationDestination(isPresented: $viewModel.isLifeListOpen) {
             LifeListSearchView(isInsightSheetOpen: $viewModel.isInsightSheetOpen)
-                .presentationDragIndicator(.hidden)
                 .onAppear {
                     viewModel.handleSheetAppear()
+                }
+                .onDisappear {
+                    viewModel.handleSheetDismiss()
                 }
         }
         .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
