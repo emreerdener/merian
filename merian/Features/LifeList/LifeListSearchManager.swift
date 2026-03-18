@@ -225,7 +225,7 @@ struct LifeListSearchView: View {
                 }
             }
             .padding(.horizontal)
-            .padding(.top, 16)
+            .padding(.bottom, 8)
 
                 if activeTab == .library && searchManager.searchQuery.isEmpty && !isSearchFocused {
                     ScrollView(.horizontal, showsIndicators: false) {

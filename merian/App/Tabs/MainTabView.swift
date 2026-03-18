@@ -13,56 +13,68 @@ struct MainTabView: View {
     @Namespace private var tabNamespace
     
     var body: some View {
-        ZStack(alignment: .top) {
-            
-            // Swipeable Pages
-            TabView(selection: $selectedTab) {
-                LifeListSearchView(
-                    isInsightSheetOpen: $cameraViewModel.isInsightSheetOpen,
-                    activeTab: $activeLifeListTab,
-                    showNewCollectionAlert: $showNewCollectionAlert,
-                    newCollectionName: $newCollectionName
-                )
-                .environmentObject(cameraViewModel)
-                .tag(0)
+        GeometryReader { proxy in
+            ZStack(alignment: .top) {
                 
-                CameraRootView()
-                    .environmentObject(cameraViewModel)
-                    .ignoresSafeArea()
-                    .environment(\.colorScheme, .dark)
-                    .tag(1)
-                
-                UserProfileView(showSettings: $showSettings)
-                    .environmentObject(cameraViewModel)
+                // Swipeable Pages
+                TabView(selection: $selectedTab) {
+                    ZStack(alignment: .top) {
+                        Color(UIColor.systemBackground).ignoresSafeArea()
+                        
+                        LifeListSearchView(
+                            isInsightSheetOpen: $cameraViewModel.isInsightSheetOpen,
+                            activeTab: $activeLifeListTab,
+                            showNewCollectionAlert: $showNewCollectionAlert,
+                            newCollectionName: $newCollectionName
+                        )
+                        .environmentObject(cameraViewModel)
+                        .padding(.top, proxy.safeAreaInsets.top + 72)
+                    }
+                    .tag(0)
+                    
+                    CameraRootView()
+                        .environmentObject(cameraViewModel)
+                        .ignoresSafeArea()
+                        .environment(\.colorScheme, .dark)
+                        .tag(1)
+                    
+                    ZStack(alignment: .top) {
+                        Color(UIColor.systemBackground).ignoresSafeArea()
+                        
+                        UserProfileView(showSettings: $showSettings)
+                            .environmentObject(cameraViewModel)
+                            .padding(.top, proxy.safeAreaInsets.top + 72)
+                    }
                     .tag(2)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                
+                // Navigation Pill Header
+                // Liquid Glass Menu Bar style
+                HStack(spacing: 4) {
+                    TabBarButton(title: "Scans", isSelected: selectedTab == 0, namespace: tabNamespace) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 0 }
+                    }
+                    TabBarButton(title: "Camera", isSelected: selectedTab == 1, namespace: tabNamespace) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 1 }
+                    }
+                    TabBarButton(title: "Profile", isSelected: selectedTab == 2, namespace: tabNamespace) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 2 }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
+                .padding(.top, proxy.safeAreaInsets.top + 16)
+                .environment(\.colorScheme, .dark) // Retain dark style for the pill itself
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .ignoresSafeArea(edges: .bottom)
-            
-            // Navigation Pill Header
-            // Liquid Glass Menu Bar style
-            HStack(spacing: 4) {
-                TabBarButton(title: "Scans", isSelected: selectedTab == 0, namespace: tabNamespace) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 0 }
-                }
-                TabBarButton(title: "Camera", isSelected: selectedTab == 1, namespace: tabNamespace) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 1 }
-                }
-                TabBarButton(title: "Profile", isSelected: selectedTab == 2, namespace: tabNamespace) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 2 }
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
-            .padding(.top, 16)
-            .environment(\.colorScheme, .dark) // Retain dark style for the pill itself
         }
+        .ignoresSafeArea()
     }
 }
 
