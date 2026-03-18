@@ -233,8 +233,6 @@ struct SettingsView: View {
                 }
             }
             .onAppear {
-                CameraManager.shared.throttleToIdleState()
-                
                 // Fetch existing geoprivacy if authenticated
                 if !supabase.isGuestUser, let user = supabase.currentUser {
                     Task {
@@ -257,9 +255,6 @@ struct SettingsView: View {
                 // Ensure toggles map to live state
                 isExpeditionModeActive = HardwareOrchestrator.shared.isExpeditionModeActive
                 isLiveInferencePaused = CameraManager.shared.isLiveInferencePaused
-            }
-            .onDisappear {
-                CameraManager.shared.restoreFromIdleState()
             }
             .sheet(isPresented: $showSafari) {
                 if let url = safariUrl {
