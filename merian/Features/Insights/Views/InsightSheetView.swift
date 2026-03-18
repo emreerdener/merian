@@ -45,16 +45,16 @@ struct InsightSheetView: View {
                         // 0. The Image Carousel
                         InsightCarouselView()
                         
-                        // 1. The Toxicity Banner (Safety Critical)
-                        InsightToxicityBanner()
-                            .padding(.horizontal)
-                        
                         // 2. Core Taxonomy Block
                         InsightTaxonomyHeader()
                         
                         // 3. Ecological Descriptive Insight
                         InsightDescriptionSection(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
                         
+                         // 1. The Toxicity Banner (Safety Critical)
+                        InsightToxicityBanner()
+                            .padding(.horizontal)
+                            
                         // 3.5 Taxonomy Tree
                         InsightTaxonomyTree()
                     
@@ -84,7 +84,6 @@ struct InsightSheetView: View {
                     
                     Spacer(minLength: 40)
                     }
-                    .padding(.top, 24)
                 }
                 .textSelection(.enabled)
                 .sheet(isPresented: $isSafariPresented) {

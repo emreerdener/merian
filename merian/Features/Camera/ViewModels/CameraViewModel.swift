@@ -11,6 +11,7 @@ final class CameraViewModel: ObservableObject {
     @Published var isPaywallOpen: Bool = false
     @Published var isLifeListOpen: Bool = false
     @Published var isUserProfileOpen: Bool = false
+    @Published var isSettingsOpen: Bool = false
     @Published var imageToCrop: IdentifiableImage? = nil
     
     // Camera & Capture State
@@ -35,6 +36,7 @@ final class CameraViewModel: ObservableObject {
         isPaywallOpen = false
         isLifeListOpen = false
         isUserProfileOpen = false
+        isSettingsOpen = false
         imageToCrop = nil
         diContainer.gamificationManager.showTerrariumSheet = false
         
@@ -218,6 +220,7 @@ final class CameraViewModel: ObservableObject {
               !isLifeListOpen, 
               !isPaywallOpen, 
               !isUserProfileOpen, 
+              !isSettingsOpen,
               !isAnalyzingFullscreen, 
               !isCapturing,
               imageToCrop == nil else { return }

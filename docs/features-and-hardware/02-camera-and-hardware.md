@@ -29,6 +29,14 @@ Centralizes UI and structural physical vibrations actively protecting UI Thread 
 - Global pre-warming universally bounds `AppDIContainer.shared.hapticManager` directly into `CameraViewModel` Shutter callbacks and `ImageCropperView` crop confirmations, decisively eliminating the 15+ millisecond stutter natively dropping frames caused by generating uninitialized "cold" taptic engines concurrently to physical input bounds.
 - **System Haptics Toggle (`isHapticsEnabled`)**: All physical motor triggers are strictly guarded by a `UserDefaults.standard.bool(forKey: "isHapticsEnabled")` check. If disabled natively by the user in Settings ("System Haptics"), the `HapticManager` gracefully skips the `.impactOccurred()` hooks entirely.
 
+### `MerianAppIntents` (Siri Shortcuts)
+
+Integrates natively with the iOS App Intents framework to expose zero-latency voice and springboard bounds natively outside the application.
+
+- **Identify Nature (`IdentifyNatureIntent`)**: Exposes parameterized "Identify this with Merian" or "Open Merian camera" voice triggers directly into Siri natively forcing the app into the foreground executing `navigateTo("camera")` safely binding `HapticManager` focus hooks explicitly.
+- **Recall Last Find (`RecallLastFindIntent`)**: Maps "What was the last thing I scanned" queries cleanly immediately routing the OS natively into displaying the user's most recent `LocalScanRecord` natively triggering a sheet spring haptic securely.
+- Bound statically into `AppShortcutsProvider` gracefully presenting the user with explicitly colored `.teal` action tiles natively within the iOS Shortcuts application.
+
 ### `HardwareOrchestrator`
 
 The battery and heat protection protocol monitoring physical usage thresholds gracefully.

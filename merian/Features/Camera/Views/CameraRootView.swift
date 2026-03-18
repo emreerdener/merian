@@ -51,28 +51,10 @@ struct CameraRootView: View {
             
             // Action Overlay Context
             if !viewModel.isAnalyzingFullscreen {
-                ZStack {
-                    VStack {
-                        // Subtle gradient behind the top navigation buttons for text contrast
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.black.opacity(0.9), Color.black.opacity(0.4), Color.clear]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 180)
-                        .ignoresSafeArea(edges: .top)
-                        
-                        Spacer()
-                    }
-                }
-                .primaryNavigationToolbar(
-                    isLifeListOpen: $viewModel.isLifeListOpen,
-                    isUserProfileOpen: $viewModel.isUserProfileOpen,
-                    isAnalyzingFullscreen: viewModel.isAnalyzingFullscreen
-                )
-                
                 // Extracted Shutter Button Overlay
                 VStack {
+
+                    
                     Spacer()
                     
                     // Viewfinder Intelligence Hint Banner
@@ -136,7 +118,14 @@ struct CameraRootView: View {
                         .buttonStyle(.plain)
                         .padding(.trailing, 32)
                     }
-                    .padding(.bottom, 32) // Baseline bottom padding for the corners
+                    .padding(.bottom, 24)
+                    
+                    MainTabBar(
+                        isLifeListOpen: $viewModel.isLifeListOpen,
+                        isUserProfileOpen: $viewModel.isUserProfileOpen,
+                        isSettingsOpen: $viewModel.isSettingsOpen
+                    )
+                    .padding(.bottom, 24)
                 }
             }
             
@@ -189,6 +178,15 @@ struct CameraRootView: View {
                     viewModel.handleSheetAppear()
                 }
         }
+        .sheet(isPresented: $viewModel.isSettingsOpen, onDismiss: {
+            viewModel.handleSheetDismiss()
+        }) {
+            SettingsView()
+                .presentationDragIndicator(.hidden)
+                .onAppear {
+                    viewModel.handleSheetAppear()
+                }
+        }
         .fullScreenCover(item: $viewModel.imageToCrop) { identItem in
             ImageCropperView(
                 image: identItem.image,
@@ -229,6 +227,7 @@ struct CameraRootView: View {
                        !viewModel.isLifeListOpen &&
                        !viewModel.isPaywallOpen &&
                        !viewModel.isUserProfileOpen &&
+                       !viewModel.isSettingsOpen &&
                        !viewModel.isAnalyzingFullscreen &&
                        viewModel.imageToCrop == nil
         ) {

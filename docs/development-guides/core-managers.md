@@ -9,9 +9,11 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Triggers strictly when `.handleActivePhase()` calls within `MerianApp.swift`.
 - Governs `subjectDistanceInMeters`, auto-focus thresholds, thermal bounds, and frame drops safely natively inside a `DispatchQueue(label: "camera.session")`.
 
-### `LocationManager`
-- Explicit mapping for CoreLocation variables (`CLLocationCoordinate2D`, Elevation precision logs).
-- Caches and strictly stops updating immediately upon retrieving an accurate signal lock to protect the native iOS device battery physics.
+### `EnvironmentContextManager`
+- Explicit mapping for configuring dual properties natively inside the `EnvironmentContext` dependency graph without invoking UI rerenders:
+  - **CoreLocation**: Caches and strictly updates precise physics logic (`CLLocationCoordinate2D`, `altitude`, `course`).
+  - **WeatherKit**: Aggregates hyper-local edge metrics like `temperature`, `condition`, `humidity`, and `uvIndex` instantaneously natively to supplement inference payloads.
+- Intelligently locks variables globally to `cacheThreshold` boundaries directly shielding the device battery pool smoothly.
 
 ### `HapticManager`
 - Governs `UIImpactFeedbackGenerator` tactile bumps.

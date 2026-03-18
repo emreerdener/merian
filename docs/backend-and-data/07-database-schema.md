@@ -72,7 +72,7 @@ _Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `M
 
 ### `OfflineQueuedScan`
 
-Locally captures state when cell towers drop.
+Locally captures state when cell towers drop. `MerianSchemaV8` significantly expands the cached telemetry payload securely caching explicit context boundaries locally when off-grid.
 
 - `id`: String (UUID)
 - `timestamp`: Date
