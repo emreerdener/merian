@@ -18,7 +18,7 @@ The Scans tab acts as the user's primary offline biological journal.
 - In `MerianSchemaV6`, users can organize `LocalScanRecord` entries into distinct `ScanCollection` buckets.
 - Leverages SwiftData `@Relationship` mapping dynamically natively inside a nested 3-column `LazyVGrid`, providing an "Explore Library" modal inside `CollectionDetailView` natively to link IDs safely without duplicating exact 12MP local images.
 - Instantly navigates scans from the user's library into explicit folders dynamically, protecting original creation timestamps safely.
-- **Non-Biological Scans Isolation**: A dedicated list-item navigation button within the Collections tab ("Non biological >") dynamically routes users to a mirror component `NonBiologicalScansView.swift`, which inversely queries exclusively for `$0.isBiological == false`. This provides a physical vault for random objects without polluting the biological library.
+- **Non-Biological Scans Isolation**: A dedicated list-item navigation button dynamically routes users to a mirror component `NonBiologicalScansView.swift`, which inversely queries exclusively for `$0.isBiological == false`. This provides a physical vault for random objects without polluting the biological library. Architecturally, this navigation link physically sits at the absolute bottom margin of the `Collections` tab viewport, intentionally anchored below both the empty states and grid layouts to maintain primary focus on organic collections.
 
 ### Main Tab Bar
 - **Bottom Position Alignment**: The `Scans`, `Profile`, and `Settings` primary actions are strictly hoisted to a custom floating liquid glass capsule component (`MainTabBar`) overlaid at the bottom of the camera feed.

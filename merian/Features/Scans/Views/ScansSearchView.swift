@@ -9,7 +9,7 @@ enum ScansTab {
 
 struct ScansSearchView: View {
     @StateObject private var searchManager = ScansSearchManager()
-    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological }, sort: \.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
+    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == true }, sort: \.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
     @Query(sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
     
     @Environment(\.modelContext) private var modelContext
@@ -230,6 +230,20 @@ struct ScansSearchView: View {
                     ))
                 }
             }
+            .gesture(
+                DragGesture()
+                    .onEnded { value in
+                        if value.translation.width > 50 {
+                            withAnimation {
+                                activeTab = .collections
+                            }
+                        } else if value.translation.width < -50 {
+                            withAnimation {
+                                activeTab = .library
+                            }
+                        }
+                    }
+            )
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: "Search tags, habitats, colors...")
             //.searchDictationBehavior(.inline(activation: .onSelect))
