@@ -8,10 +8,10 @@ struct MainTabBar: View {
     var body: some View {
         HStack(spacing: 40) {
             TabBarButton(
-                iconName: "gearshape",
-                title: "Settings",
-                action: { isSettingsOpen = true }
-            )
+                iconName: "person",
+                title: "Profile",
+                action: { isUserProfileOpen = true }
+            )   
 
             TabBarButton(
                 iconName: "book",
@@ -20,10 +20,10 @@ struct MainTabBar: View {
             )
 
             TabBarButton(
-                iconName: "person",
-                title: "Profile",
-                action: { isUserProfileOpen = true }
-            )   
+                iconName: "gearshape",
+                title: "Settings",
+                action: { isSettingsOpen = true }
+            ) 
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 32)
