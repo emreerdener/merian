@@ -135,24 +135,6 @@ struct ScansSearchView: View {
                             }
                         }
                     } else if activeTab == .collections {
-                        NavigationLink {
-                            NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
-                        } label: {
-                            HStack {
-                                Text("Non biological")
-                                    .font(.headline)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding()
-                            .background(Color.secondary.opacity(0.1))
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 16)
-                        
                         if collections.isEmpty {
                             VStack(spacing: 16) {
                                 Spacer().frame(height: 80)
@@ -221,6 +203,24 @@ struct ScansSearchView: View {
                             .padding(.horizontal)
                             .padding(.top, 16)
                         }
+                        
+                        NavigationLink {
+                            NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
+                        } label: {
+                            HStack {
+                                Text("Non biological")
+                                    .font(.headline)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(12)
+                            .padding(.horizontal)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 32)
                     }
                 }
                 .sheet(item: $selectedScanForInsight) { scan in
