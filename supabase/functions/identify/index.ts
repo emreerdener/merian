@@ -259,10 +259,21 @@ Crucial instructions:
           type: SchemaType.OBJECT,
           nullable: true,
           properties: {
-            similar_species: { type: SchemaType.STRING },
-            distinguishing_features: { type: SchemaType.STRING },
+            primary_match_rationale: { type: SchemaType.STRING },
+            confusing_lookalike_name: { type: SchemaType.STRING },
+            key_differentiators: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  trait: { type: SchemaType.STRING },
+                  subject_value: { type: SchemaType.STRING },
+                  lookalike_value: { type: SchemaType.STRING },
+                },
+              },
+            },
           },
-          required: ["similar_species", "distinguishing_features"],
+          required: ["primary_match_rationale", "confusing_lookalike_name", "key_differentiators"],
         },
         colors: {
           type: SchemaType.ARRAY,

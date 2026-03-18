@@ -605,7 +605,13 @@ actor BackgroundDatabaseActor {
                     taxonomyClass: mappedData.taxonomy?.className,
                     taxonomyOrder: mappedData.taxonomy?.order,
                     taxonomyFamily: mappedData.taxonomy?.family,
-                    taxonomyGenus: mappedData.taxonomy?.genus
+                    taxonomyGenus: mappedData.taxonomy?.genus,
+                    diagnosticPrimaryRationale: mappedData.diagnosticComparison?.primaryMatchRationale,
+                    diagnosticLookalikeName: mappedData.diagnosticComparison?.confusingLookalikeName,
+                    diagnosticDifferentiatorsJson: {
+                        guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = try? JSONEncoder().encode(diffs) else { return nil }
+                        return String(data: data, encoding: .utf8)
+                    }()
                 )
                 modelContext.insert(record)
                 try? modelContext.save()
@@ -671,7 +677,13 @@ actor BackgroundDatabaseActor {
                 taxonomyGenus: mappedData.taxonomy?.genus,
                 locationName: mappedData.locationName,
                 weatherCondition: mappedData.weatherCondition,
-                weatherTemperatureF: mappedData.weatherTemperatureF
+                weatherTemperatureF: mappedData.weatherTemperatureF,
+                diagnosticPrimaryRationale: mappedData.diagnosticComparison?.primaryMatchRationale,
+                diagnosticLookalikeName: mappedData.diagnosticComparison?.confusingLookalikeName,
+                diagnosticDifferentiatorsJson: {
+                    guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = try? JSONEncoder().encode(diffs) else { return nil }
+                    return String(data: data, encoding: .utf8)
+                }()
             )
             modelContext.insert(record)
             try? modelContext.save()

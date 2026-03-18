@@ -47,7 +47,7 @@ struct DiagnosticComparison {
     let keyDifferentiators: [KeyDifferentiator]
 }
 
-struct KeyDifferentiator: Identifiable {
+struct KeyDifferentiator: Identifiable, Codable {
     let id = UUID()
     let trait: String
     let subjectValue: String

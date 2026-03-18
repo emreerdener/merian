@@ -68,6 +68,17 @@ final class InferenceEngine: ObservableObject {
             let regional_status_rationale: String?
         }
         let insight_data: Insight?
+        struct Diagnostic: Codable {
+            let primary_match_rationale: String?
+            let confusing_lookalike_name: String?
+            struct Differentiator: Codable {
+                let trait: String?
+                let subject_value: String?
+                let lookalike_value: String?
+            }
+            let key_differentiators: [Differentiator]?
+        }
+        let diagnostic_comparison: Diagnostic?
         let wikipedia_url: String?
         let wikipedia_extract: String?
         let reference_image_url: String?
@@ -165,13 +176,29 @@ final class InferenceEngine: ObservableObject {
                         genus: edgeRes.taxonomy?.genus
                     )
                     
+                    var parsedDiagnostic: DiagnosticComparison? = nil
+                    if let diag = edgeRes.diagnostic_comparison,
+                       let rationale = diag.primary_match_rationale,
+                       let lookalike = diag.confusing_lookalike_name,
+                       let diffs = diag.key_differentiators {
+                        
+                        let mappedDiffs = diffs.compactMap { d -> KeyDifferentiator? in
+                            guard let t = d.trait, let sv = d.subject_value, let lv = d.lookalike_value else { return nil }
+                            return KeyDifferentiator(trait: t, subjectValue: sv, lookalikeValue: lv)
+                        }
+                        
+                        if !mappedDiffs.isEmpty {
+                            parsedDiagnostic = DiagnosticComparison(primaryMatchRationale: rationale, confusingLookalikeName: lookalike, keyDifferentiators: mappedDiffs)
+                        }
+                    }
+
                     let mappedData = SpeciesData(
                         scanId: edgeRes.scan_id,
                         commonName: edgeRes.common_name ?? "Unknown Subject",
                         scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
                         insightData: insight,
                         confidenceScore: edgeRes.confidence_score ?? 0.0,
-                        diagnosticComparison: nil,
+                        diagnosticComparison: parsedDiagnostic,
                         wikipediaUrl: edgeRes.wikipedia_url,
                         wikipediaExtract: edgeRes.wikipedia_extract,
                         referenceImageUrl: edgeRes.reference_image_url,
@@ -345,13 +372,28 @@ final class InferenceEngine: ObservableObject {
         let wikipediaExtract = record.wikipediaExtract
         let referenceImageUrl = record.referenceImageUrl
         
+        var parsedDiagnostic: DiagnosticComparison? = nil
+        if let rationale = record.diagnosticPrimaryRationale,
+           let lookalike = record.diagnosticLookalikeName,
+           let diffJsonStr = record.diagnosticDifferentiatorsJson,
+           let diffData = diffJsonStr.data(using: .utf8),
+           let diffs = try? JSONDecoder().decode([KeyDifferentiator].self, from: diffData),
+           !diffs.isEmpty {
+            
+            parsedDiagnostic = DiagnosticComparison(
+                primaryMatchRationale: rationale,
+                confusingLookalikeName: lookalike,
+                keyDifferentiators: diffs
+            )
+        }
+        
         self.speciesData = SpeciesData(
             scanId: record.id,
             commonName: commonName,
             scientificName: scientificName,
             insightData: InsightData(description: insightDescription, isPoisonous: isPoisonous, regionalStatusRationale: nil),
             confidenceScore: confidenceScore, 
-            diagnosticComparison: nil,
+            diagnosticComparison: parsedDiagnostic,
             wikipediaUrl: wikipediaUrl,
             wikipediaExtract: wikipediaExtract,
             referenceImageUrl: referenceImageUrl,
