@@ -24,7 +24,7 @@ struct MerianApp: App {
             await PostHogManager.shared.configure()
         }
         
-        let schema = Schema(versionedSchema: MerianSchemaV8.self)
+        let schema = Schema(versionedSchema: MerianSchemaV9.self)
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
             container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [modelConfiguration])
