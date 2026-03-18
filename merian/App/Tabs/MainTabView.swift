@@ -10,6 +10,8 @@ struct MainTabView: View {
     @State private var newCollectionName = ""
     @State private var showSettings = false
     
+    @Namespace private var tabNamespace
+    
     var body: some View {
         ZStack(alignment: .top) {
             
@@ -37,20 +39,27 @@ struct MainTabView: View {
             .ignoresSafeArea(edges: .bottom)
             
             // Navigation Pill Header
-            // Dashboard | Transactions | Categories style
-            HStack(spacing: 24) {
-                TabBarButton(title: "Scans", isSelected: selectedTab == 0) {
-                    withAnimation { selectedTab = 0 }
+            // Liquid Glass Menu Bar style
+            HStack(spacing: 4) {
+                TabBarButton(title: "Scans", isSelected: selectedTab == 0, namespace: tabNamespace) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 0 }
                 }
-                TabBarButton(title: "Camera", isSelected: selectedTab == 1) {
-                    withAnimation { selectedTab = 1 }
+                TabBarButton(title: "Camera", isSelected: selectedTab == 1, namespace: tabNamespace) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 1 }
                 }
-                TabBarButton(title: "Profile", isSelected: selectedTab == 2) {
-                    withAnimation { selectedTab = 2 }
+                TabBarButton(title: "Profile", isSelected: selectedTab == 2, namespace: tabNamespace) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { selectedTab = 2 }
                 }
             }
-            .padding(.bottom, 8)
-            .padding(.top, 8) // Optional top padding
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
+            .padding(.top, 16)
         }
         .environment(\.colorScheme, .dark) // Enforce dark scheme for tabs / gradients over camera
     }
@@ -59,30 +68,29 @@ struct MainTabView: View {
 struct TabBarButton: View {
     let title: String
     let isSelected: Bool
+    var namespace: Namespace.ID
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 6) {
-                Text(title)
-                    .font(.system(size: 17, weight: isSelected ? .bold : .medium, design: .rounded))
-                    .foregroundColor(isSelected ? .white : .white.opacity(0.5))
-                
-                // Optional selection underline instead of pill background (like Copilot Categories selection)
-                if isSelected {
-                    Capsule()
-                        .fill(Color.white)
-                        .frame(height: 3)
-                        .matchedGeometryEffect(id: "TabUnderline", in: namespace)
-                } else {
-                    Capsule()
-                        .fill(Color.clear)
-                        .frame(height: 3)
-                }
-            }
-            .fixedSize()
+            Text(title)
+                .font(.system(size: 15, weight: isSelected ? .semibold : .medium, design: .rounded))
+                .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    ZStack {
+                        if isSelected {
+                            Capsule()
+                                .fill(Color.white.opacity(0.25))
+                                .matchedGeometryEffect(id: "TabBackground", in: namespace)
+                        } else {
+                            Capsule().fill(Color.clear)
+                        }
+                    }
+                )
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
-    @Namespace private var namespace
 }
