@@ -15,21 +15,18 @@ struct TerrariumView: View {
             // Glassmorphic interactive circle backdrop
             Circle()
                 .fill(.ultraThinMaterial)
-            
+                .frame(width: 300, height: 300)
             if isRiveFileBundled {
                 ActiveTerrariumRenderer()
             } else {
                 // Graceful fallback placeholder alerting the team
                 VStack(spacing: 12) {
                     Image(systemName: "leaf.circle.fill")
-                        .font(.system(size: 50))
+                        .font(.system(size: 80))
                         .foregroundColor(.green.opacity(0.8))
-                    Text("Digital Terrarium")
+                    Text("Terrarium globe")
                         .font(.headline)
-                    Text("merian_terrarium.riv missing from bundle")
-                        .font(.caption)
                         .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
                 }
             }
         }

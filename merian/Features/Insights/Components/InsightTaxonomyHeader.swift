@@ -15,20 +15,9 @@ struct InsightTaxonomyHeader: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(commonName)
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                // Tie header routing to the name if there's no active poison banner
-                .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
-            
-            HStack {
-                Text(scientificName)
-                    .font(.title3)
-                    .italic()
-                    .foregroundColor(.secondary)
-                    
-                if let score = inferenceEngine.speciesData?.confidenceScore, score > 0.0 {
-                    Text("\(Int(score * 100))% Match")
+
+              if let score = inferenceEngine.speciesData?.confidenceScore, score > 0.0 {
+                    Text("\(Int(score * 100))% match")
                         .font(.caption)
                         .fontWeight(.bold)
                         .foregroundColor(score >= 0.85 ? .green : .orange)
@@ -37,8 +26,20 @@ struct InsightTaxonomyHeader: View {
                         .background(score >= 0.85 ? Color.green.opacity(0.2) : Color.orange.opacity(0.2))
                         .cornerRadius(8)
                 }
-            }
             
+            Text(commonName)
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                // Tie header routing to the name if there's no active poison banner
+                .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
+            
+            
+                Text(scientificName)
+                    .font(.title3)
+                    .italic()
+                    .foregroundColor(.secondary)
+                    
+
             if let species = inferenceEngine.speciesData {
                 if species.locationName != nil || species.weatherCondition != nil {
                     HStack(spacing: 12) {

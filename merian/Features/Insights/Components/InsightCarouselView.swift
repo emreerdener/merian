@@ -33,10 +33,9 @@ struct InsightCarouselView: View {
                         AsyncImage(url: refUrl, transaction: Transaction(animation: .easeInOut(duration: 0.3))) { phase in
                             switch phase {
                             case .empty:
-                                ProgressView()
+                                Color.white.opacity(0.1)
                                     .aspectRatio(1.0, contentMode: .fill)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.white.opacity(0.1))
+                                    .overlay(ProgressView())
                             case .success(let image):
                                 image
                                     .resizable()
@@ -45,12 +44,13 @@ struct InsightCarouselView: View {
                                     .clipped()
                                     .transition(.opacity)
                             case .failure:
-                                Image(systemName: "photo")
-                                    .font(.largeTitle)
-                                    .foregroundColor(.gray.opacity(0.5))
+                                Color.white.opacity(0.1)
                                     .aspectRatio(1.0, contentMode: .fill)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.white.opacity(0.1))
+                                    .overlay(
+                                        Image(systemName: "photo")
+                                            .font(.largeTitle)
+                                            .foregroundColor(.gray.opacity(0.5))
+                                    )
                                     .transition(.opacity)
                             @unknown default:
                                 EmptyView()

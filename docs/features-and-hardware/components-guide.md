@@ -39,8 +39,5 @@ Merian embraces the `WindowGroup` logic seamlessly across `SwiftUI` avoiding `.x
 - Automatically handles physical R2 storage expirations actively: If a taxonomy scan `image_storage_urls` array physically vanishes because of the Rolling Cloud Window 90-day GC process (`00004_storage_lifecycle_sync.sql`), the `AsyncLocalImageView` and `LifeListThumbnailView` elegantly trap the 404 explicitly. Rather than aggressively rendering "Visuals Archived", the system utilizes a high-performance `fetchNetworkFallback` hook. It securely unzips the GBIF or Wikipedia Reference URL into a tiny footprint (500x500 `CGSize`), loads it perfectly into `ImageCache.shared` explicitly, and dynamically replaces the expired local file gracefully with zero extra scrolling data latency across the grid UI natively.
 ## Helper Modifiers
 
-### `VisualEffectBlur`
-- Used across the codebase seamlessly wrapping legacy `UIBlurEffect` natively inside `.edgesIgnoringSafeArea` boundaries tightly executing aesthetic bounds flawlessly internally mapping across the entire design system inherently flawlessly.
-
 ### `.injectAppDependencies(container:)`
 - Standard view modifier preventing deep `$EnvironmentObject` injection chains cleanly. Passes the primary `AppDIContainer` securely across UI states dynamically.

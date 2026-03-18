@@ -42,7 +42,13 @@ struct UserProfileHeaderView: View {
     }
     
     var body: some View {
-        VStack(spacing: 24) {  
+        VStack(spacing: 24) {
+            // Digital Terrarium Hero Placeholer
+            TerrariumView()
+                .frame(height: 240)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
+                
             // Persona Title & Description
             VStack(spacing: 8) {
                 Text(persona)

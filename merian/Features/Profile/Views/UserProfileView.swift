@@ -10,7 +10,7 @@ struct UserProfileView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 32) {
+                VStack(spacing: 16) {
                     
                     // User Header
                     UserProfileHeaderView(supabase: supabase) {
@@ -24,12 +24,7 @@ struct UserProfileView: View {
                         UserProfileStatsView()
                         .padding(.horizontal, 24)
                     }
-                    
-
-                    
-                 
-                    
-                   
+        
                 }
                 .padding(.bottom, 40)
             }
