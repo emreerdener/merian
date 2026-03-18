@@ -40,7 +40,7 @@ struct MerianApp: App {
 
     var body: some Scene {
         WindowGroup {
-            CameraRootView()
+            MainTabView()
                 .injectAppDependencies(container: diContainer)
                 .modelContainer(container)
                 .onAppear {
