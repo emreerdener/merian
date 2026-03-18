@@ -38,7 +38,7 @@ struct ScansSearchView: View {
     var body: some View {
         NavigationStack {
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 0) {
+                HStack(spacing: 0) {
                 VStack(spacing: 8) {
                     if searchManager.searchQuery.isEmpty && !isSearchFocused {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -70,6 +70,22 @@ struct ScansSearchView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 8)
                         .background(Color(UIColor.systemBackground))
+                    } else {
+                        HStack {
+                            Text(searchManager.searchQuery.isEmpty ? "Search library" : "Search results")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                            
+                            Spacer()
+                            
+                            Text("\(searchManager.filteredScans.count) found")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
                     }
                     
                     ScrollView {
@@ -235,6 +251,7 @@ struct ScansSearchView: View {
             }
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: Binding(get: { activeTab }, set: { if let val = $0 { activeTab = val } }))
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .sheet(item: $selectedScanForInsight) { scan in
                 InsightSheetView(isPresented: Binding(
                     get: { selectedScanForInsight != nil },
