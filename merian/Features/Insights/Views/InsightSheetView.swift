@@ -158,15 +158,19 @@ struct InsightSheetView: View {
                 }
                 
                 if showCelebration {
-                    NewDiscoveryCelebrationView(
-                        commonName: commonName,
-                        onDismiss: {
-                            withAnimation(.easeOut(duration: 0.5)) {
-                                showCelebration = false
+                    VStack {
+                        NewDiscoveryCelebrationView(
+                            commonName: commonName,
+                            onDismiss: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    showCelebration = false
+                                }
                             }
-                        }
-                    )
-                    .transition(AnyTransition.opacity.combined(with: AnyTransition.scale(scale: 0.95)))
+                        )
+                        .padding(.top, 16)
+                        Spacer()
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                     .zIndex(100)
                 }
             } // NavigationStack

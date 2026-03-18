@@ -6,88 +6,97 @@ struct NewDiscoveryCelebrationView: View {
     let commonName: String
     let onDismiss: () -> Void
     
-    @State private var showIcon = false
-    @State private var showText = false
+    @State private var dismissTask: Task<Void, Never>?
     
     var body: some View {
-        ZStack {
-            VStack(spacing: 24) {
-                if showIcon {
-                    ZStack {
-                        Circle()
-                            .fill(Color(white: 0.15))
-                            .frame(width: 120, height: 120)
-                            .shadow(color: .white.opacity(0.1), radius: 20)
-                        
-                        // Fallback gracefully on heavy thermal conditions natively
-                        if !hardwareOrchestrator.isCriticalHeatWarningActive {
-                            if #available(iOS 17.0, *) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(.yellow, .cyan)
-                                    .symbolEffect(.bounce, value: showIcon)
-                            } else {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(.yellow, .cyan)
-                            }
-                        } else {
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 60))
-                                .foregroundColor(.yellow)
-                        }
-                    }
-                    .transition(.scale(scale: 0.5).combined(with: .opacity))
+        HStack(spacing: 12) {
+            // Icon Fallback
+            if !hardwareOrchestrator.isCriticalHeatWarningActive {
+                if #available(iOS 17.0, *) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.yellow, .cyan)
+                        .symbolEffect(.bounce, options: .repeating)
+                } else {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.yellow, .cyan)
                 }
-                
-                if showText {
-                    VStack(spacing: 12) {
-                        Text("New species discovered!")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                        
-                        Text(commonName)
-                            .font(.largeTitle)
-                            .fontWeight(.black)
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-                    }
-                    .transition(.offset(y: 20).combined(with: .opacity))
-                    .accessibilityAddTraits(.isHeader)
-                }
+            } else {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.yellow)
             }
-            .padding(32)
-            .background(.ultraThinMaterial)
-            .environment(\.colorScheme, .dark)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.3), radius: 20, y: 10)
-            .padding(24)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("NEW DISCOVERY")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.secondary)
+                
+                Text(commonName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+            }
         }
-        .allowsHitTesting(false)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+        .environment(\.colorScheme, .dark)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.5),
+                            Color.white.opacity(0.1),
+                            Color.white.opacity(0.3)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.5
+                )
+        )
+        .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
+        .accessibilityAddTraits(.isHeader)
+        .onTapGesture {
+            dismissEarly()
+        }
+        .gesture(
+            DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                .onEnded { value in
+                    if value.translation.height < 0 {
+                        dismissEarly()
+                    }
+                }
+        )
         .onAppear {
             AppTelemetry.trackNewDiscovery(isPro: RevenueCatManager.shared.isProActive)
             HapticManager.shared.triggerSuccessPulse()
             
-            // Staggered sequence for high-end sleekness
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1)) {
-                showIcon = true
-            }
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3)) {
-                showText = true
-            }
-            
             if UIAccessibility.isVoiceOverRunning {
                 UIAccessibility.post(notification: .announcement, argument: "New species discovered! \(commonName)")
             }
-        }
-        .task {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            if !Task.isCancelled {
-                await MainActor.run {
-                    onDismiss()
+            
+            dismissTask = Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        onDismiss()
+                    }
                 }
             }
+        }
+    }
+    
+    private func dismissEarly() {
+        dismissTask?.cancel()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            onDismiss()
         }
     }
 }
