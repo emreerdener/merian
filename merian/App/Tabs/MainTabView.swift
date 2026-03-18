@@ -51,10 +51,6 @@ struct MainTabView: View {
             }
             .padding(.bottom, 8)
             .padding(.top, 8) // Optional top padding
-            .background(
-                LinearGradient(colors: [Color.black.opacity(0.85), Color.black.opacity(0.5), Color.clear], startPoint: .top, endPoint: .bottom)
-                    .ignoresSafeArea(edges: .top)
-            )
         }
         .environment(\.colorScheme, .dark) // Enforce dark scheme for tabs / gradients over camera
     }
