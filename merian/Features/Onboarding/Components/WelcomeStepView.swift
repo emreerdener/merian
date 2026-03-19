@@ -28,7 +28,7 @@ struct WelcomeStepView: View {
             Spacer()
             
             Button(action: onNext) {
-                Text("Get Started")
+                Text("Get started")
                     .font(.headline)
                     .foregroundColor(.black)
                     .frame(maxWidth: .infinity)

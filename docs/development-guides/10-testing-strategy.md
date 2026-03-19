@@ -55,6 +55,7 @@ The testing bounds are mapped physically within `merianTests/Core` and `merianTe
 ### UI & Utilities
 - **`ImageDownsamplerTests.swift`**: Directly tests pure Core Graphics memory constraint barriers mapping 4000x4000 physical payloads cleanly under safe metric limits natively to prevent Out-Of-Memory JetSam OS crashes structurally.
 - **`ScansSearchManagerTests.swift`**: Verifies debounced string bounds extracting correctly locally via SwiftData `@Query` mechanisms safely.
+- **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine progression natively, guaranteeing structural hardware fallback steps cleanly prevent `Int` scalar out-of-bounds execution crashes. It strictly tests the core persistence loops simulating native `@AppStorage` routing flags out of the `.ready` boundary entirely offline.
 
 ## Mocking Physical Apple Ecosystem Limits natively (`DeviceIdentityManager`)
 

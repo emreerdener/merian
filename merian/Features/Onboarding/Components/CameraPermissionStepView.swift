@@ -36,7 +36,7 @@ struct CameraPermissionStepView: View {
                     }
                 }
             } label: {
-                Text("Enable Camera")
+                Text("Enable camera")
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)

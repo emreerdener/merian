@@ -28,7 +28,7 @@ struct ReadyStepView: View {
             Spacer()
             
             Button(action: onFinish) {
-                Text("Start Scanning")
+                Text("Start scanning")
                     .font(.headline)
                     .foregroundColor(.black)
                     .frame(maxWidth: .infinity)

@@ -37,7 +37,7 @@ struct LocationPermissionStepView: View {
                     }
                     locationManagerDelegate.requestWhenInUse()
                 } label: {
-                    Text("Enable Location")
+                    Text("Enable location")
                         .font(.headline)
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)

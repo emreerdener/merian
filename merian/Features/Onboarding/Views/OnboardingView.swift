@@ -3,16 +3,10 @@ import AVFoundation
 import CoreLocation
 import RiveRuntime
 
-enum OnboardingStep: Int, CaseIterable {
-    case welcome = 0
-    case camera
-    case location
-    case ready
-}
+
 
 struct OnboardingView: View {
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
-    @State private var currentStep: OnboardingStep = .welcome
+    @StateObject private var viewModel = OnboardingViewModel()
     @StateObject private var locationManagerDelegate = LocationPermissionDelegate()
     
     var body: some View {
@@ -21,7 +15,7 @@ struct OnboardingView: View {
             Color.black.ignoresSafeArea()
             
             // Programmatic Step Control (Disables arbitrary swiping)
-            switch currentStep {
+            switch viewModel.currentStep {
             case .welcome:
                 WelcomeStepView { advanceStep() }
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -37,7 +31,7 @@ struct OnboardingView: View {
             case .ready:
                 ReadyStepView {
                     withAnimation(.easeInOut(duration: 0.5)) {
-                        hasCompletedOnboarding = true // Triggers root view teardown
+                        viewModel.completeOnboarding() // Triggers root view teardown
                     }
                 }
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -48,9 +42,7 @@ struct OnboardingView: View {
     
     private func advanceStep() {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            if let next = OnboardingStep(rawValue: currentStep.rawValue + 1) {
-                currentStep = next
-            }
+            viewModel.advanceStep()
         }
     }
 }

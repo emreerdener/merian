@@ -11,7 +11,13 @@ class LocationPermissionDelegate: NSObject, ObservableObject, CLLocationManagerD
     }
     
     func requestWhenInUse() {
-        manager.requestWhenInUseAuthorization()
+        if manager.authorizationStatus == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        } else {
+            DispatchQueue.main.async {
+                self.onAuthorizationDetermined?()
+            }
+        }
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
