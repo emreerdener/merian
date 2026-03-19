@@ -52,10 +52,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             }
             .store(in: &cancellables)
             
-        // CRITICAL FIX: Offload heavy hardware locks off the Main Thread for instant UI booting
-        queue.async {
-            self.setupSession()
-        }
+        // Explicitly decoupled setupSession() off the init boundary perfectly delaying AVCaptureDevice instantiation natively until startSession is called, eliminating early permission popup triggers completely!
         
         NotificationCenter.default.publisher(for: AVCaptureDevice.subjectAreaDidChangeNotification)
             .sink { [weak self] _ in
@@ -120,9 +117,15 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         session.commitConfiguration()
     }
     
+    nonisolated(unsafe) private var isSessionConfigured = false
+
     func startSession() {
         guard !session.isRunning else { return }
         queue.async {
+            if !self.isSessionConfigured {
+                self.setupSession()
+                self.isSessionConfigured = true
+            }
             self.session.startRunning()
             Task { @MainActor in
                 self.isSessionRunning = true

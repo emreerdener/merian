@@ -28,6 +28,10 @@ struct OnboardingView: View {
                 LocationPermissionStepView(locationManagerDelegate: locationManagerDelegate) { advanceStep() }
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                             removal: .move(edge: .leading).combined(with: .opacity)))
+            case .photoLibrary:
+                PhotoLibraryPermissionStepView { advanceStep() }
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                            removal: .move(edge: .leading).combined(with: .opacity)))
             case .ready:
                 ReadyStepView {
                     viewModel.completeOnboarding() // Triggers root view teardown safely without zero-frame animation artifacts

@@ -37,7 +37,11 @@ final class OnboardingViewModelTests: XCTestCase {
         viewModel.advanceStep()
         XCTAssertEqual(viewModel.currentStep, .location)
         
-        // Sequence: location -> ready
+        // Sequence: location -> photoLibrary
+        viewModel.advanceStep()
+        XCTAssertEqual(viewModel.currentStep, .photoLibrary)
+        
+        // Sequence: photoLibrary -> ready
         viewModel.advanceStep()
         XCTAssertEqual(viewModel.currentStep, .ready)
         
