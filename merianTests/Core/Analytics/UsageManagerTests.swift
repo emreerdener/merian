@@ -23,13 +23,13 @@ final class UsageManagerTests: XCTestCase {
         // Reset state
         usageManager.evaluateDailyRefresh()
         
-        XCTAssertEqual(usageManager.freeScansRemaining, 3)
+        XCTAssertEqual(usageManager.freeScansRemaining, 2)
         // Consume one
         usageManager.consumeScan()
-        XCTAssertEqual(usageManager.freeScansRemaining, 2)
+        XCTAssertEqual(usageManager.freeScansRemaining, 1)
         
         // Refund one
         usageManager.refundScan()
-        XCTAssertEqual(usageManager.freeScansRemaining, 3)
+        XCTAssertEqual(usageManager.freeScansRemaining, 2)
     }
 }

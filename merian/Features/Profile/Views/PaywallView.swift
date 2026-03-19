@@ -20,7 +20,7 @@ struct PaywallView: View {
                         .font(.title)
                         .fontWeight(.bold)
                     
-                    Text("You've used your 3 free daily scans. Keep exploring without limits by choosing an option below.")
+                    Text("You've used your 2 free daily scans. Keep exploring without limits by choosing an option below.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

@@ -5,8 +5,7 @@ import Combine
 @MainActor
 final class UsageManager: ObservableObject {
     static let shared = UsageManager()
-    
-    private let maxFreeScansPerDay = 3
+    private let maxFreeScansPerDay = 2
     
     @Published var freeScansRemaining: Int
     @Published var showPaywall: Bool = false

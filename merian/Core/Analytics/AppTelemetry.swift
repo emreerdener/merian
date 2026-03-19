@@ -52,7 +52,7 @@ enum AppTelemetry {
         ])
     }
     
-    /// Tracks when a user hits the physical 3-scan bounds and the Paywall springs dynamically
+    /// Tracks when a user hits the physical 2-scan bounds and the Paywall springs dynamically
     static func trackPaywallImpression() {
         guard isInitialized else { return }
         TelemetryManager.send("PaywallViewed")

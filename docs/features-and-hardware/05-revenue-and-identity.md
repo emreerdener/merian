@@ -39,7 +39,7 @@ A tightly coupled boundary enforcing the Paywall visually in frontend boundaries
 
 - Connects logically to `.canPerformScan(isProActive:)`, successfully enforcing the exact mathematical bound `return isProActive || freeScansRemaining > 0` natively, ensuring the hard paywall drops when expected limits are hit.
 - **Proactive Offline Consumption & Refunds**: Free quota tokens are now strictly deducted natively via `consumeScan()` the exact millisecond the user commits to analyzing an image inside `CameraViewModel`, *prior* to Edge inference routing, preventing "Airplane Mode Hoarding". However, to ensure fairness natively, if an inference drops into an unrecoverable failure state (e.g., explicit task cancellation, or complete JSON schema breakdown from AI response), `UsageManager.shared.refundScan()` instantly intercepts the state to refund the token securely so the user is not unfairly penalized for a technical hiccup.
-- Grants 3 free daily validations intrinsically via `UserDefaults` keyed explicitly against `DeviceIdentityManager.shared.deviceId`.
+- Grants 2 free daily validations intrinsically via `UserDefaults` keyed explicitly against `DeviceIdentityManager.shared.deviceId`.
 - Resets limits predictably across calendar bounds, actively triggering `$isPaywallOpen` sheets on strict bounds. The `evaluateDailyRefresh()` check is aggressively bridged into `AppDIContainer.handleActivePhase()` ensuring user quotas are dynamically zeroed the exact moment the app enters the foreground from an overnight suspension.
 
 ## Trust & Safety (`SocialGuardManager`)
