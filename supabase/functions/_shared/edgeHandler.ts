@@ -3,6 +3,16 @@ import { requireAuth } from "./auth.ts";
 import { createClient, User, SupabaseClient } from "@supabase/supabase-js";
 
 /**
+ * Standardized JSON response helper dropping boilerplate instantiation overhead.
+ */
+export function jsonResponse(payload: any, status: number = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    status,
+  });
+}
+
+/**
  * Universal Deno Edge Function wrapper consolidating OPTIONS preflights, 
  * Zero-Trust Supabase Authentication boundaries, and error swallowing globally.
  */
@@ -33,9 +43,6 @@ export async function withEdgeHandler(
     const msg = error instanceof Error ? error.message : "Unknown error";
     // @ts-ignore - status exists on Supabase exceptions natively
     const status = error && typeof error === 'object' && 'status' in error ? error.status as number : 500;
-    return new Response(JSON.stringify({ error: msg }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: status,
-    });
+    return jsonResponse({ error: msg }, status);
   }
 }

@@ -9,11 +9,7 @@ struct ScanSelectionSheetView: View {
     
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
     
-    let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
-    ]
+// Columns extracted natively
     
     var body: some View {
         NavigationStack {
@@ -25,35 +21,29 @@ struct ScanSelectionSheetView: View {
                 
                 ScrollView {
                     if allRecords.isEmpty {
-                        VStack {
-                            Spacer().frame(height: 80)
-                            Text("No Scans in Library")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
+                        EmptyStateView(
+                            iconName: "photo.on.rectangle.angled",
+                            title: "No Scans in Library",
+                            message: "Start exploring and capture your first scan to build your collections natively."
+                        )
+                        .foregroundColor(.white) // Safely inherits dark mode bounds cleanly
                     } else {
-                        LazyVGrid(columns: columns, spacing: 2) {
-                            ForEach(allRecords) { scan in
-                                let isSelected = collection.scans?.contains(where: { $0.id == scan.id }) ?? false
-                                
-                                Button(action: {
-                                    toggleSelection(scan: scan)
-                                }) {
-                                    Group {
-                                        ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
-                                    }
-                                    .overlay(
-                                        ZStack {
-                                            if isSelected {
-                                                Color.blue.opacity(0.6)
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundColor(.white)
-                                                    .font(.system(size: 24))
-                                            }
+                        ScanGridMatrix(scans: allRecords, onSelect: { scan in
+                            toggleSelection(scan: scan)
+                        }) { scan, thumbnail in
+                            let isSelected = collection.scans?.contains(where: { $0.id == scan.id }) ?? false
+                            
+                            thumbnail
+                                .overlay(
+                                    ZStack {
+                                        if isSelected {
+                                            Color.blue.opacity(0.6)
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 24))
                                         }
-                                    )
-                                }
-                            }
+                                    }
+                                )
                         }
                     }
                 }

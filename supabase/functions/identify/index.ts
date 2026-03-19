@@ -140,6 +140,7 @@ Crucial instructions:
       systemInstruction: systemInstruction,
       generationConfig: {
         temperature: 0.1, // Strict logical routing, preventing biological hallucination
+        maxOutputTokens: 800, // Forcefully cap thinking tokens and hybrid reasoning natively limits
       },
     });
 

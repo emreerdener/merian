@@ -13,11 +13,7 @@ struct CollectionDetailView: View {
     @State private var showScanSelection = false
     @State private var showDeleteConfirmation = false
     
-    let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
-    ]
+// Generic grid handles struct spacing
     
     var body: some View {
         ScrollView {
@@ -25,16 +21,11 @@ struct CollectionDetailView: View {
                 // To ensure visually consistent ordering, sort by timestamp
                 let sortedScans = scans.sorted(by: { $0.timestamp > $1.timestamp })
                 
-                LazyVGrid(columns: columns, spacing: 2) {
-                    ForEach(sortedScans) { scan in
-                        Button(action: {
-                            selectedScanForInsight = scan
-                            inferenceEngine.load(from: scan)
-                        }) {
-                            Group {
-                                ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
-                            }
-                        }
+                ScanGridMatrix(scans: sortedScans, onSelect: { scan in
+                    selectedScanForInsight = scan
+                    inferenceEngine.load(from: scan)
+                }) { scan, thumbnail in
+                    thumbnail
                         .contextMenu {
                             Button(role: .destructive) {
                                 removeFromCollection(scan: scan)
@@ -49,7 +40,6 @@ struct CollectionDetailView: View {
                                 Label("Delete scan permanently", systemImage: "trash")
                             }
                         }
-                    }
                 }
             } else {
                 EmptyStateView(

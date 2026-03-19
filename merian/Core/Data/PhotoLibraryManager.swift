@@ -75,23 +75,19 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         }
     }
     
-    func saveImageToLibrary(imageData: Data, location: CLLocation? = nil) async {
-        let shouldSave = UserDefaults.standard.object(forKey: "saveToCameraRoll") as? Bool ?? true
-        guard shouldSave else { return }
-        
-        let currentStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    private func executePhotoLibraryWrite(imageData: Data, location: CLLocation?, accessLevel: PHAccessLevel) async -> Bool {
+        let currentStatus = PHPhotoLibrary.authorizationStatus(for: accessLevel)
         let status: PHAuthorizationStatus
         
         if currentStatus == .notDetermined {
-            status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+            status = await PHPhotoLibrary.requestAuthorization(for: accessLevel)
         } else {
             status = currentStatus
         }
         
-        // Need explicit permission physically verified before writing bounds natively to prevent crashes
         guard status == .authorized || status == .limited else {
             print("⚠️ Insufficient permissions to securely persist array into Camera Roll.")
-            return 
+            return false
         }
         
         do {
@@ -104,35 +100,24 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
                     request.location = validLocation
                 }
             }
-            print("📸 Captured image efficiently pushed down into native Camera Roll.")
-        } catch {
-            print("⚠️ Failed to save image to photo library bounds natively: \(error)")
-        }
-    }
-    func saveImageManual(imageData: Data) async -> Bool {
-        let currentStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
-        let status: PHAuthorizationStatus
-        
-        if currentStatus == .notDetermined {
-            status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-        } else {
-            status = currentStatus
-        }
-        
-        guard status == .authorized || status == .limited else {
-            return false
-        }
-        
-        do {
-            try await PHPhotoLibrary.shared().performChanges {
-                let request = PHAssetCreationRequest.forAsset()
-                // Directly pass the raw physics buffers seamlessly natively maintaining EXIF data dynamically.
-                request.addResource(with: .photo, data: imageData, options: nil)
-            }
             return true
         } catch {
-            print("⚠️ Failed to explicitly save image to photo library: \(error)")
+            print("⚠️ Failed to natively save image to photo library bounds: \(error)")
             return false
         }
+    }
+    
+    func saveImageToLibrary(imageData: Data, location: CLLocation? = nil) async {
+        let shouldSave = UserDefaults.standard.object(forKey: "saveToCameraRoll") as? Bool ?? true
+        guard shouldSave else { return }
+        
+        let success = await executePhotoLibraryWrite(imageData: imageData, location: location, accessLevel: .readWrite)
+        if success {
+            print("📸 Captured image efficiently pushed down into native Camera Roll.")
+        }
+    }
+    
+    func saveImageManual(imageData: Data) async -> Bool {
+        return await executePhotoLibraryWrite(imageData: imageData, location: nil, accessLevel: .addOnly)
     }
 }

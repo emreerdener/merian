@@ -27,11 +27,7 @@ struct ScansSearchView: View {
     @State private var showDeleteConfirmation = false
     @State private var isSearchFocused = false
     
-    let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
-    ]
+// Struct bounds maintained safely
     
     private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles"]
     
@@ -90,65 +86,33 @@ struct ScansSearchView: View {
                     
                     ScrollView {
                         if searchManager.filteredScans.isEmpty {
-                            VStack(spacing: 16) {
-                                Spacer().frame(height: 80)
-                                
-                                ZStack {
-                                    Circle()
-                                        .fill(searchManager.activeCategoryFilter == "All" ? Color.secondary.opacity(0.1) : Color.primary.opacity(0.1))
-                                        .frame(width: 80, height: 80)
-                                    
-                                    Image(systemName: "camera.macro")
-                                        .font(.system(size: 32, weight: .light))
-                                        .foregroundColor(searchManager.activeCategoryFilter == "All" ? .secondary : .primary)
-                                }
-                                
-                                Text("No scans found")
-                                    .font(.headline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.primary)
-                                
-                                if !searchManager.searchQuery.isEmpty {
-                                    Text("No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-                                } else if searchManager.activeCategoryFilter != "All" {
-                                    Text("You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-                                } else {
-                                    Text("Start exploring and capture your first scan!")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
+                            EmptyStateView(
+                                iconName: "camera.macro",
+                                title: "No scans found",
+                                message: {
+                                    if !searchManager.searchQuery.isEmpty {
+                                        return "No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter)"
+                                    } else if searchManager.activeCategoryFilter != "All" {
+                                        return "You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet"
+                                    } else {
+                                        return "Start exploring and capture your first scan!"
+                                    }
+                                }()
+                            )
                         } else {
-                            LazyVGrid(columns: columns, spacing: 2) {
-                                ForEach(searchManager.filteredScans) { scan in
-                                    Button(action: {
-                                        selectedScanForInsight = scan
-                                        inferenceEngine.load(from: scan)
-                                    }) {
-                                        Group {
-                                            ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
-                                        }
-                                        .contextMenu {
-                                            Button(role: .destructive) {
-                                                scanToDelete = scan
-                                                showDeleteConfirmation = true
-                                            } label: {
-                                                Label("Delete scan permanently", systemImage: "trash")
-                                            }
+                            ScanGridMatrix(scans: searchManager.filteredScans, onSelect: { scan in
+                                selectedScanForInsight = scan
+                                inferenceEngine.load(from: scan)
+                            }) { scan, thumbnail in
+                                thumbnail
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            scanToDelete = scan
+                                            showDeleteConfirmation = true
+                                        } label: {
+                                            Label("Delete scan permanently", systemImage: "trash")
                                         }
                                     }
-                                }
                             }
                         }
                     }

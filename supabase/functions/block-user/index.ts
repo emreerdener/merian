@@ -1,6 +1,5 @@
 import { serve } from "@std/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { withEdgeHandler, jsonResponse } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const body = await req.json();
@@ -20,8 +19,5 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       throw error;
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ success: true });
 }));

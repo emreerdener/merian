@@ -1,6 +1,5 @@
 import { serve } from "@std/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { withEdgeHandler, jsonResponse } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const userId = user.id;
@@ -39,13 +38,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       );
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         message: "Account successfully deleted and tombstoned.",
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      },
-    );
+      });
 }));

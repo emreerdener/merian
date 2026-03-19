@@ -1,6 +1,5 @@
 import { serve } from "@std/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { withEdgeHandler, jsonResponse } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const targetUserId = user.id;
@@ -9,17 +8,11 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const ghost_id = body.ghost_id;
 
     if (!ghost_id) {
-       return new Response(JSON.stringify({ error: "Missing ghost_id" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+       return jsonResponse({ error: "Missing ghost_id" }, 400);
     }
 
     if (ghost_id === targetUserId) {
-       return new Response(JSON.stringify({ message: "No merge required" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+       return jsonResponse({ message: "No merge required" }, 200);
     }
 
     // CRITICAL: Validate the requested ghost_id is actually an Anonymous Ghost User natively before obliterating it.
@@ -27,18 +20,12 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const { data: ghostUser, error: ghostUserError } = await supabaseAdmin.auth.admin.getUserById(ghost_id);
     
     if (ghostUserError || !ghostUser?.user) {
-       return new Response(JSON.stringify({ error: "Ghost user account not found or already merged." }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+       return jsonResponse({ error: "Ghost user account not found or already merged." }, 404);
     }
 
     if (!ghostUser.user.is_anonymous) {
        console.error(`IDOR ATO Attempt: User ${targetUserId} attempted to blindly steal fully authenticated account ${ghost_id}`);
-       return new Response(JSON.stringify({ error: "Forbidden: The requested profile is fully authenticated and cannot be hijacked." }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+       return jsonResponse({ error: "Forbidden: The requested profile is fully authenticated and cannot be hijacked." }, 403);
     }
 
     // Securely transfer PostgreSQL scans ownership from the Ghost UUID to the newly verified session.user.id
@@ -59,8 +46,5 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       console.error(`Erasing Ghost ID ${ghost_id} completely failed natively: ${deleteError.message}`);
     }
 
-    return new Response(JSON.stringify({ success: true, targetUserId }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ success: true, targetUserId }, 200);
 }));

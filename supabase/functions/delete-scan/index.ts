@@ -1,17 +1,13 @@
 import { serve } from "@std/http/server.ts";
 import { getR2Config } from "../_shared/aws.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { withEdgeHandler, jsonResponse } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const requestBody = await req.json();
     const { scanId } = requestBody;
 
     if (!scanId) {
-      return new Response(JSON.stringify({ error: "Missing scanId in request body" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing scanId in request body" }, 400);
     }
 
     // Process deletion
@@ -24,19 +20,13 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
 
     if (fetchError || !scan) {
       console.log(`Scan ${scanId} not found, likely an offline scan that never synced.`);
-      return new Response(JSON.stringify({ success: true, message: "Scan not found remotely." }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true, message: "Scan not found remotely." }, 200);
     }
 
     // 2. Authorization check
     if (scan.user_id !== user.id) {
       console.error(`IDOR attempt: User ${user.id} tried to delete scan ${scanId} owned by ${scan.user_id}`);
-      return new Response(JSON.stringify({ error: "Forbidden: You do not own this scan" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Forbidden: You do not own this scan" }, 403);
     }
 
     // 3. R2 Image Erasure
@@ -70,15 +60,9 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
 
     if (deleteError) {
       console.error("Database deletion error:", deleteError);
-      return new Response(JSON.stringify({ error: "Failed to delete scan from database" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Failed to delete scan from database" }, 500);
     }
     console.log(`Successfully deleted scan ${scanId} for user ${user.id}`);
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: true }, 200);
 }));

@@ -1,7 +1,6 @@
 import { serve } from "@std/http/server.ts";
 import { getR2Config } from "../_shared/aws.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { withEdgeHandler, jsonResponse } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) => withEdgeHandler(req, async (user, _supabaseAdmin) => {
     const body = await req.json();
@@ -9,10 +8,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, _supabaseAdmin) => {
     const userId = user.id;
 
     if (!userId) {
-       return new Response(
-           JSON.stringify({ error: "Missing identity token" }), 
-           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-       );
+       return jsonResponse({ error: "Missing identity token" }, 400);
     }
 
     if (
@@ -48,8 +44,5 @@ serve((req: Request) => withEdgeHandler(req, async (user, _supabaseAdmin) => {
       })
     );
 
-    return new Response(JSON.stringify({ urls }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ urls });
 }));

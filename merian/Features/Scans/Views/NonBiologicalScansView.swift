@@ -12,11 +12,7 @@ struct NonBiologicalScansView: View {
     @State private var scanToDelete: LocalScanRecord? = nil
     @State private var showDeleteConfirmation = false
     
-    let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
-    ]
+// Layout abstracted into generic component
     
     var body: some View {
         ScrollView {
@@ -27,16 +23,11 @@ struct NonBiologicalScansView: View {
                     message: "You haven't documented any non-biological subjects yet."
                 )
             } else {
-                LazyVGrid(columns: columns, spacing: 2) {
-                    ForEach(nonBioRecords) { scan in
-                        Button(action: {
-                            selectedScanForInsight = scan
-                            inferenceEngine.load(from: scan)
-                        }) {
-                            Group {
-                                ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
-                            }
-                        }
+                ScanGridMatrix(scans: nonBioRecords, onSelect: { scan in
+                    selectedScanForInsight = scan
+                    inferenceEngine.load(from: scan)
+                }) { scan, thumbnail in
+                    thumbnail
                         .contextMenu {
                             Button(role: .destructive) {
                                 scanToDelete = scan
@@ -45,7 +36,6 @@ struct NonBiologicalScansView: View {
                                 Label("Delete scan permanently", systemImage: "trash")
                             }
                         }
-                    }
                 }
             }
         }

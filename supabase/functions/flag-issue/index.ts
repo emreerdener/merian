@@ -1,13 +1,12 @@
 import { serve } from "@std/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { withEdgeHandler, jsonResponse } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const { scanId, flagReason, userSuggestion } = await req.json();
     const userId = user.id;
 
     if (!scanId || !flagReason) {
-      return new Response(JSON.stringify({ error: "Missing required parameters." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ error: "Missing required parameters." }, 400);
     }
 
     // Insert into flagged_reviews
@@ -33,8 +32,5 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
 
     if (updateError) throw new Error(`Update failed: ${updateError.message}`);
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ success: true }, 200);
 }));
