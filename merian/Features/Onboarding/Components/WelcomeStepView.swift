@@ -10,8 +10,8 @@ struct WelcomeStepView: View {
             title: "Your Magical\nMagnifying Glass",
             subtitle: "Merian identifies the living world around you with scientific accuracy. Point at any plant or animal to begin.",
             primaryButtonTitle: "Get started",
-            primaryButtonTextColor: .black,
-            primaryButtonColor: .white,
+            primaryButtonTextColor: Color.black,
+            primaryButtonColor: Color.white,
             primaryAction: onNext
         )
     }

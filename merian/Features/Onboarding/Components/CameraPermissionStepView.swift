@@ -11,8 +11,8 @@ struct CameraPermissionStepView: View {
             title: "We need to see\nwhat you see",
             subtitle: "Enable camera access so Merian can identify the natural world right in front of you. We never record without your permission.",
             primaryButtonTitle: "Enable camera",
-            primaryButtonTextColor: .white,
-            primaryButtonColor: .blue,
+            primaryButtonTextColor: Color.white,
+            primaryButtonColor: Color.blue,
             primaryAction: {
                 AVCaptureDevice.requestAccess(for: .video) { granted in
                     DispatchQueue.main.async {

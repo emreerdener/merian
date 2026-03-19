@@ -12,7 +12,7 @@ struct PhotoLibraryPermissionStepView: View {
             title: "Archive your\ndiscoveries",
             subtitle: "Merian needs access to your Photo Library to save your high-resolution taxonomy images seamlessly.",
             primaryButtonTitle: "Enable photo access",
-            primaryButtonTextColor: .white,
+            primaryButtonTextColor: Color.white,
             primaryButtonColor: Color.purple.opacity(0.8),
             primaryAction: {
                 let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)

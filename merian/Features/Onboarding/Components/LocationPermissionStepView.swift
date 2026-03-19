@@ -13,7 +13,7 @@ struct LocationPermissionStepView: View {
             title: "Where you are\nmatters",
             subtitle: "Merian uses your geographic coordinate context to instantly improve AI accuracy and identify local ecology.",
             primaryButtonTitle: "Enable location",
-            primaryButtonTextColor: .black,
+            primaryButtonTextColor: Color.black,
             primaryButtonColor: Color.green.opacity(0.8),
             primaryAction: {
                 locationManagerDelegate.onAuthorizationDetermined = {

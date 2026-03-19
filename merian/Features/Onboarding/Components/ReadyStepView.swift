@@ -10,8 +10,8 @@ struct ReadyStepView: View {
             title: "You're ready",
             subtitle: "Let's step outside and discover something wild.",
             primaryButtonTitle: "Start scanning",
-            primaryButtonTextColor: .black,
-            primaryButtonColor: .white,
+            primaryButtonTextColor: Color.black,
+            primaryButtonColor: Color.white,
             primaryAction: onFinish
         )
     }
