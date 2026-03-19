@@ -108,11 +108,11 @@ struct CameraRootView: View {
                         ZStack {
                             Circle()
                                 .stroke(Color.white, lineWidth: 1)
-                                .frame(width: 72, height: 72)
+                                .frame(width: 80, height: 80)
                             
                             Circle()
                                 .fill(Color.white)
-                                .frame(width: 64, height: 64)
+                                .frame(width: 72, height: 72)
                         }
                         .environment(\.colorScheme, .dark)
                         .onTapGesture {
