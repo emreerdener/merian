@@ -5,6 +5,104 @@ import { getS3Client } from "../_shared/aws.ts";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+async function migrateUserStorage(userId: string, sourcePrefix: string, targetPrefix: string) {
+  try {
+    const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
+    const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
+    const aws = getS3Client();
+    const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+    let totalMigrated = 0;
+    let hasMore = true;
+    let start = 0;
+    const pageSize = 1000;
+
+    while (hasMore) {
+      const { data: scans, error: scansError } = await supabaseAdmin
+        .from("scans")
+        .select("id, image_storage_urls")
+        .eq("user_id", userId)
+        .order("id", { ascending: true })
+        .range(start, start + pageSize - 1);
+
+      if (scansError) throw scansError;
+
+      if (!scans || scans.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < scans.length; i += BATCH_SIZE) {
+        const chunk = scans.slice(i, i + BATCH_SIZE);
+        
+        await Promise.allSettled(chunk.map(async (scan) => {
+          if (!scan.image_storage_urls || scan.image_storage_urls.length === 0) return;
+
+          let migrated = false;
+
+          const urlPromises = scan.image_storage_urls.map(async (urlStr: string) => {
+            if (urlStr.includes(`public_uploads/${sourcePrefix}/`)) {
+              const parsedUrl = new URL(urlStr);
+              const pathParts = parsedUrl.pathname.split("/");
+              const fileName = pathParts.pop();
+              const originalUserId = pathParts.pop();
+
+              const sourceKey = `public_uploads/${sourcePrefix}/${originalUserId}/${fileName}`;
+              const targetKey = `public_uploads/${targetPrefix}/${userId}/${fileName}`;
+
+              const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;
+              const deleteUrl = `${endpoint}/${R2_BUCKET_NAME}/${sourceKey}`;
+
+              const copyResponse = await aws.fetch(copyUrl, {
+                method: "PUT",
+                headers: {
+                  "x-amz-copy-source": encodeURI(`/${R2_BUCKET_NAME}/${sourceKey}`)
+                }
+              });
+
+              if (copyResponse.ok) {
+                await aws.fetch(deleteUrl, { method: "DELETE" });
+                
+                const cleanMapUrl = `https://media.merian.app/${targetKey}`;
+                migrated = true;
+                totalMigrated++;
+                return cleanMapUrl;
+              } else {
+                console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
+                const brokenMapUrl = `https://media.merian.app/${sourceKey}`;
+                return brokenMapUrl;
+              }
+            } else {
+              return urlStr;
+            }
+          });
+
+          const resolvedUrls = await Promise.all(urlPromises);
+
+          if (migrated) {
+            await supabaseAdmin
+              .from("scans")
+              .update({ image_storage_urls: resolvedUrls })
+              .eq("id", scan.id);
+          }
+        }));
+      }
+
+      if (scans.length < pageSize) {
+        hasMore = false;
+      } else {
+        start += pageSize;
+      }
+    }
+    
+    console.log(`S3 Background Migration Complete. Relocated ${totalMigrated} blobs from ${sourcePrefix} to ${targetPrefix} for ${userId}.`);
+  } catch (e) {
+    console.error(`Background S3 Migration (${sourcePrefix}->${targetPrefix}) aborted natively: `, e);
+  }
+}
+
 serve(async (req: Request) => {
   try {
     const WEBHOOK_SECRET = Deno.env.get("REVENUECAT_WEBHOOK_SECRET");
@@ -56,111 +154,8 @@ serve(async (req: Request) => {
       }
 
       // Phase 2: Decoupled S3 Migration
-      // Deferring bulk R2 bucket copying from /free/ to /pro/ physically into EdgeRuntime.waitUntil(promise) 
-      // to guarantee webhook completes well within the 10-second Deno Edge limit and avoids 504 RevenueCat Retry loops.
       // @ts-ignore: EdgeRuntime is a global context native to Supabase Edge execution
-      EdgeRuntime.waitUntil(
-        (async () => {
-          try {
-            const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
-            const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-
-            const aws = getS3Client();
-
-            const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-
-            let totalMigrated = 0;
-            let hasMore = true;
-            let start = 0;
-            const pageSize = 1000;
-
-            while (hasMore) {
-              // Explicitly map all existing free-tier data blobs off PostgreSQL natively utilizing pagination
-              const { data: scans, error: scansError } = await supabaseAdmin
-                .from("scans")
-                .select("id, image_storage_urls")
-                .eq("user_id", userId)
-                .order("id", { ascending: true })
-                .range(start, start + pageSize - 1);
-
-              if (scansError) throw scansError;
-
-              if (!scans || scans.length === 0) {
-                hasMore = false;
-                break;
-              }
-
-              const BATCH_SIZE = 50;
-              for (let i = 0; i < scans.length; i += BATCH_SIZE) {
-                const chunk = scans.slice(i, i + BATCH_SIZE);
-                
-                await Promise.allSettled(chunk.map(async (scan) => {
-                  if (!scan.image_storage_urls || scan.image_storage_urls.length === 0) return;
-
-                  let migrated = false;
-
-                  const urlPromises = scan.image_storage_urls.map(async (urlStr: string) => {
-                    if (urlStr.includes("public_uploads/free/")) {
-                      const parsedUrl = new URL(urlStr);
-                      const pathParts = parsedUrl.pathname.split("/");
-                      const fileName = pathParts.pop();
-                      const originalUserId = pathParts.pop();
-
-                      const sourceKey = `public_uploads/free/${originalUserId}/${fileName}`;
-                      const targetKey = `public_uploads/pro/${userId}/${fileName}`;
-
-                      const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;
-                      const deleteUrl = `${endpoint}/${R2_BUCKET_NAME}/${sourceKey}`;
-
-                      const copyResponse = await aws.fetch(copyUrl, {
-                        method: "PUT",
-                        headers: {
-                          "x-amz-copy-source": encodeURI(`/${R2_BUCKET_NAME}/${sourceKey}`)
-                        }
-                      });
-
-                      if (copyResponse.ok) {
-                        // Physically terminate the free-tier origin bounding
-                        await aws.fetch(deleteUrl, { method: "DELETE" });
-                        
-                        const cleanMapUrl = `https://media.merian.app/${targetKey}`;
-                        migrated = true;
-                        totalMigrated++;
-                        return cleanMapUrl;
-                      } else {
-                        console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
-                        const brokenMapUrl = `https://media.merian.app/${sourceKey}`;
-                        return brokenMapUrl;
-                      }
-                    } else {
-                      return urlStr;
-                    }
-                  });
-
-                  const resolvedUrls = await Promise.all(urlPromises);
-
-                  if (migrated) {
-                    await supabaseAdmin
-                      .from("scans")
-                      .update({ image_storage_urls: resolvedUrls })
-                      .eq("id", scan.id);
-                  }
-                }));
-              }
-
-              if (scans.length < pageSize) {
-                hasMore = false;
-              } else {
-                start += pageSize;
-              }
-            }
-            
-            console.log(`S3 Background Migration Complete. Relocated ${totalMigrated} blobs physically to Pro architecture for ${userId}.`);
-          } catch (e) {
-            console.error("Background S3 Migration physically aborted natively: ", e);
-          }
-        })()
-      );
+      EdgeRuntime.waitUntil(migrateUserStorage(userId, "free", "pro"));
     } else if (["EXPIRATION"].includes(eventType)) {
       // Revert user tier strictly back to 'free'
       const { error: downgradeError } = await supabaseAdmin
@@ -171,6 +166,10 @@ serve(async (req: Request) => {
       if (downgradeError) {
         throw new Error(`Failed to downgrade user tier: ${downgradeError.message}`);
       }
+      
+      // Phase 2: Decoupled S3 Expiration Migration bridging payload natively over bounds
+      // @ts-ignore: EdgeRuntime is a global context native to Supabase Edge execution
+      EdgeRuntime.waitUntil(migrateUserStorage(userId, "pro", "free"));
     }
 
     return new Response(JSON.stringify({ success: true }), {

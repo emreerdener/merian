@@ -60,12 +60,10 @@ serve(async (req: Request) => {
     // Phase 3: Cryptographic grouping without leaking Supabase identites.
     const secretHashSalt = Deno.env.get("SUPABASE_JWT_SECRET") || "salt";
     
-    // Initialize headers and string accumulators out of loop scope
-    const occurrenceHeader = "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters\n";
-    const occurrenceRows: string[] = [];
+    // Initialize headers and progressive string accumulators out of loop scope
+    let occurrenceCsvString = "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters\n";
     
-    const multimediaHeader = "coreid,identifier,format\n";
-    const multimediaRows: string[] = [];
+    let multimediaCsvString = "coreid,identifier,format\n";
     
     let hasMore = true;
     let start = 0;
@@ -130,11 +128,15 @@ serve(async (req: Request) => {
       }));
       
       for (const res of batchResults) {
-        occurrenceRows.push(res.occurrenceRow);
-        multimediaRows.push(...res.mRows);
+        occurrenceCsvString += res.occurrenceRow + "\n";
+        if (res.mRows.length > 0) {
+          multimediaCsvString += res.mRows.join("\n") + "\n";
+        }
       }
       
       // Allow data arrays and generic object clusters to be Garbage Collected instantly preventing V8 Heap out-of-memory spikes 
+      // @ts-ignore: Deno globalThis supports gc natively when run with --v8-flags=--expose-gc
+      globalThis.gc?.();
       
       if (data.length < PAGE_SIZE) {
         hasMore = false;
@@ -142,9 +144,6 @@ serve(async (req: Request) => {
         start += PAGE_SIZE;
       }
     }
-
-    const occurrenceCsv = occurrenceHeader + occurrenceRows.join("\n");
-    const multimediaCsv = multimediaHeader + multimediaRows.join("\n");
 
     // 4. Build meta.xml
     const metaXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -176,8 +175,8 @@ serve(async (req: Request) => {
 
     // 5. Zip it up (Phase 2: Use streaming internal representation to bypass 256MB V8 limit)
     const zip = new JSZip();
-    zip.file("occurrence.csv", occurrenceCsv);
-    zip.file("multimedia.csv", multimediaCsv);
+    zip.file("occurrence.csv", occurrenceCsvString);
+    zip.file("multimedia.csv", multimediaCsvString);
     zip.file("meta.xml", metaXml);
 
     const zipBuffer = await zip.generateAsync({ type: "uint8array", compression: "STORE" });

@@ -121,9 +121,18 @@ struct CameraRootView: View {
                     .padding(.bottom, 24)
                     
                     MainTabBar(
-                        isScansOpen: $viewModel.isScansOpen,
-                        isUserProfileOpen: $viewModel.isUserProfileOpen,
-                        isSettingsOpen: $viewModel.isSettingsOpen
+                        isScansOpen: Binding(
+                            get: { viewModel.activeSheet == .scans }, 
+                            set: { if $0 { viewModel.activeSheet = .scans } else if viewModel.activeSheet == .scans { viewModel.activeSheet = nil } }
+                        ),
+                        isUserProfileOpen: Binding(
+                            get: { viewModel.activeSheet == .profile }, 
+                            set: { if $0 { viewModel.activeSheet = .profile } else if viewModel.activeSheet == .profile { viewModel.activeSheet = nil } }
+                        ),
+                        isSettingsOpen: Binding(
+                            get: { viewModel.activeSheet == .settings }, 
+                            set: { if $0 { viewModel.activeSheet = .settings } else if viewModel.activeSheet == .settings { viewModel.activeSheet = nil } }
+                        )
                     )
                     .padding(.bottom, 24)
                 }
@@ -137,15 +146,34 @@ struct CameraRootView: View {
             }
             }
         }
-        // Insight Data View overlay 
-        .sheet(isPresented: $viewModel.isInsightSheetOpen, onDismiss: {
+        // Unified Application Sheet Router Overlay
+        .sheet(item: $viewModel.activeSheet, onDismiss: {
             viewModel.handleSheetDismiss()
-        }) {
-            InsightSheetView(isPresented: $viewModel.isInsightSheetOpen)
-                .presentationDragIndicator(.hidden)
-                .onAppear {
-                    viewModel.handleSheetAppear()
+        }) { sheet in
+            Group {
+                switch sheet {
+                case .insight:
+                    InsightSheetView(isPresented: Binding(
+                        get: { viewModel.activeSheet == .insight },
+                        set: { if !$0 && viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
+                    ))
+                case .paywall:
+                    PaywallView()
+                case .profile:
+                    UserProfileView()
+                case .scans:
+                    ScansSearchView(isInsightSheetOpen: Binding(
+                        get: { viewModel.activeSheet == .insight },
+                        set: { if $0 { viewModel.activeSheet = .insight } else if viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
+                    ))
+                case .settings:
+                    SettingsView()
                 }
+            }
+            .presentationDragIndicator(.hidden)
+            .onAppear {
+                viewModel.handleSheetAppear()
+            }
         }
         .onAppear {
             cameraManager.startSession()
@@ -159,33 +187,6 @@ struct CameraRootView: View {
         }
         .onChange(of: viewModel.selectedPhotoItem) { _, newItem in
             viewModel.handlePhotoPickerSelection(newItem: newItem, modelContext: modelContext)
-        }
-        .sheet(isPresented: $viewModel.isPaywallOpen, onDismiss: {
-            viewModel.handleSheetDismiss()
-        }) {
-            PaywallView()
-                .presentationDragIndicator(.hidden)
-                .onAppear {
-                    viewModel.handleSheetAppear()
-                }
-        }
-        .sheet(isPresented: $viewModel.isUserProfileOpen, onDismiss: {
-            viewModel.handleSheetDismiss()
-        }) {
-            UserProfileView()
-                .presentationDragIndicator(.hidden)
-                .onAppear {
-                    viewModel.handleSheetAppear()
-                }
-        }
-        .sheet(isPresented: $viewModel.isSettingsOpen, onDismiss: {
-            viewModel.handleSheetDismiss()
-        }) {
-            SettingsView()
-                .presentationDragIndicator(.hidden)
-                .onAppear {
-                    viewModel.handleSheetAppear()
-                }
         }
         .fullScreenCover(item: $viewModel.imageToCrop) { identItem in
             ImageCropperView(
@@ -207,15 +208,6 @@ struct CameraRootView: View {
                     viewModel.handleSheetAppear()
                 }
         }
-        .sheet(isPresented: $viewModel.isScansOpen, onDismiss: {
-            viewModel.handleSheetDismiss()
-        }) {
-            ScansSearchView(isInsightSheetOpen: $viewModel.isInsightSheetOpen)
-                .presentationDragIndicator(.hidden)
-                .onAppear {
-                    viewModel.handleSheetAppear()
-                }
-        }
         .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
             viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
         }
@@ -223,11 +215,7 @@ struct CameraRootView: View {
             viewModel.handleInferenceProcessingChange(isStillProcessing: isStillProcessing)
         }
         .onPhysicalCameraShutter(
-            isEnabled: !viewModel.isInsightSheetOpen &&
-                       !viewModel.isScansOpen &&
-                       !viewModel.isPaywallOpen &&
-                       !viewModel.isUserProfileOpen &&
-                       !viewModel.isSettingsOpen &&
+            isEnabled: viewModel.activeSheet == nil &&
                        !viewModel.isAnalyzingFullscreen &&
                        viewModel.imageToCrop == nil
         ) {

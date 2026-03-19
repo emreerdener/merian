@@ -79,6 +79,7 @@ class ScansSearchManager: ObservableObject {
             let matchingIds = await Task.detached(priority: .userInitiated) {
                 let tokens = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
                 return Set(searchData.filter { scan in
+                    if Task.isCancelled { return false }
                     let matchesCategory: Bool
                     switch catMatch {
                         case "all": 

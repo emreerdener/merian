@@ -5,6 +5,30 @@ import SwiftData
 import ImageIO
 #if canImport(UIKit)
 import UIKit
+
+/// A generic, thread-safe wrapper for managing UIBackgroundTaskIdentifier
+/// Ensures strict Sendable conformance avoiding iOS strict concurrency crashes natively.
+public final class BackgroundTaskWrapper: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _id: UIBackgroundTaskIdentifier = .invalid
+    
+    public var id: UIBackgroundTaskIdentifier {
+        get { lock.withLock { _id } }
+        set { lock.withLock { _id = newValue } }
+    }
+    
+    public init() {}
+    
+    public func safeEnd() {
+        let currentId = id
+        if currentId != .invalid {
+            DispatchQueue.main.async {
+                UIApplication.shared.endBackgroundTask(currentId)
+            }
+            id = .invalid
+        }
+    }
+}
 #endif
 
 /// Uses NWPathMonitor for a zero-data loss offline queue automatically syncing securely when a link is confirmed.
@@ -135,8 +159,13 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         isDeleted: false
                     )
                     modelContext.insert(scan)
-                    try? modelContext.save()
-                    OfflineQueueManager.shared.updateUnsyncedItemCount()
+                    do {
+                        try modelContext.save()
+                        OfflineQueueManager.shared.updateUnsyncedItemCount()
+                    } catch {
+                        print("Failed to save offline queue record. Cleaning up abandoned local image footprint.")
+                        try? FileManager.default.removeItem(at: fileURL)
+                    }
                     
                     #if os(iOS)
                     writeBox.safeEnd()
@@ -164,11 +193,11 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         
         #if os(iOS)
         let syncBox = BackgroundTaskWrapper()
-        syncBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") { [weak self] in
+        syncBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
             // This expiration handler is called if we run out of time
             print("Offline Queue background expiration triggered")
-            Task {
-                await self?.markSyncComplete()
+            Task { @MainActor in
+                SyncStateManager.shared.completeSync()
             }
             syncBox.safeEnd()
         }
@@ -281,17 +310,13 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         #if os(iOS)
         let inferenceBox = BackgroundTaskWrapper()
-        let setupBlock = {
-            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [inferenceBox] in
+        
+        Task { @MainActor in
+            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
                 print("Offline inference background task expired")
                 inferenceBox.safeEnd()
             }
         }
-        
-        if Thread.isMainThread {
-            setupBlock()
-        } else {
-            DispatchQueue.main.sync(execute: setupBlock)
         }
         #endif
         
@@ -414,7 +439,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     func updateUnsyncedItemCount() {
         guard let context = modelContext else { return }
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { !$0.isDeleted })
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == false })
         let count = (try? context.fetchCount(descriptor)) ?? 0
         Task { @MainActor in
             self.unsyncedItemsCount = count
@@ -433,7 +458,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     func purgeSoftDeletedRecords() {
         guard let modelContext = modelContext else { return }
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted })
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == true })
         let documentsDirectory = URL.documentsDirectory
         
         do {
@@ -463,7 +488,7 @@ actor BackgroundDatabaseActor {
     }
 
     func fetchPendingScans(limit: Int) -> [PendingScanPayload] {
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { !$0.isDeleted })
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == false })
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
         descriptor.fetchLimit = limit
         
@@ -476,39 +501,7 @@ actor BackgroundDatabaseActor {
         let decoder = JSONDecoder()
         if let parsedWrapper = try? decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData) {
             let edgeRes = parsedWrapper.data
-            
-            let insight = InsightData(
-                description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
-                isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
-                regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
-            )
-            
-            let taxonomyData = TaxonomyData(
-                kingdom: edgeRes.taxonomy?.kingdom,
-                phylum: edgeRes.taxonomy?.phylum,
-                className: edgeRes.taxonomy?.class,
-                order: edgeRes.taxonomy?.order,
-                family: edgeRes.taxonomy?.family,
-                genus: edgeRes.taxonomy?.genus
-            )
-            
-            var mappedData = SpeciesData(
-                scanId: edgeRes.scan_id,
-                commonName: edgeRes.common_name ?? "Unknown Subject",
-                scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
-                insightData: insight,
-                confidenceScore: edgeRes.confidence_score ?? 0.0,
-                diagnosticComparison: nil,
-                wikipediaUrl: edgeRes.wikipedia_url,
-                wikipediaExtract: edgeRes.wikipedia_extract,
-                referenceImageUrl: edgeRes.reference_image_url,
-                isBiological: edgeRes.is_biological_subject ?? true,
-                isLiveCapture: edgeRes.is_live_capture ?? true,
-                isInvasive: edgeRes.is_invasive ?? false,
-                ecologyType: edgeRes.ecology_type ?? "unknown",
-                taxonomy: taxonomyData,
-                colors: edgeRes.colors
-            )
+            var mappedData = SpeciesData(fromEdgeResponse: edgeRes, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
             
             if mappedData.confidenceScore > 0.0 {
                 // Retain exactly the original image paths to prevent sandbox leaks natively on SwiftData failures

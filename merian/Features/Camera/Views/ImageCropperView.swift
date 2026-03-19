@@ -223,7 +223,7 @@ struct ImageCropperView: View {
                         return nil
                     }
                     
-                    return renderData as Data
+                    return Data(renderData)
                 }
                 
                 return bytes ?? targetImage.jpegData(compressionQuality: 0.7) ?? Data()

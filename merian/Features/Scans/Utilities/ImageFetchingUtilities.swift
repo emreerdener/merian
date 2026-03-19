@@ -57,45 +57,64 @@ nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIIma
 actor LocalImageLoader {
     static let shared = LocalImageLoader()
     
+    private var activeTasks: [String: Task<UIImage?, Never>] = [:]
+    
     func loadImage(fromPath imagePath: String?, fallbackUrl: String? = nil, maxDimension: Int = 1024) async -> UIImage? {
-        let cacheKey = imagePath ?? fallbackUrl ?? UUID().uuidString
+        guard let cacheKey = imagePath ?? fallbackUrl else {
+            return nil
+        }
         
         // 1. RAM Cache Hit
         if let cached = ImageCache.shared.get(forKey: cacheKey) {
             return cached
         }
         
-        // 2. Local File Extraction directly off Main Thread
-        if let safePath = imagePath {
-            let filename = (safePath as NSString).lastPathComponent
-            let url = URL.documentsDirectory.appendingPathComponent(filename)
-            
-            if let decoded = await Task.detached(priority: .userInitiated, operation: { () -> UIImage? in
-                let options: [CFString: Any] = [
-                    kCGImageSourceCreateThumbnailFromImageAlways: true,
-                    kCGImageSourceCreateThumbnailWithTransform: true,
-                    kCGImageSourceThumbnailMaxPixelSize: maxDimension
-                ]
+        // 2. Thundering Herd Request Coalescing
+        if let existingTask = activeTasks[cacheKey] {
+            return await existingTask.value
+        }
+        
+        let fetchTask = Task<UIImage?, Never> {
+            // 3. Local File Extraction directly off Main Thread
+            if let safePath = imagePath {
+                let filename = (safePath as NSString).lastPathComponent
+                let url = URL.documentsDirectory.appendingPathComponent(filename)
                 
-                guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-                      let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-                    return nil
+                if let decoded = await Task.detached(priority: .userInitiated, operation: { () -> UIImage? in
+                    let options: [CFString: Any] = [
+                        kCGImageSourceCreateThumbnailFromImageAlways: true,
+                        kCGImageSourceCreateThumbnailWithTransform: true,
+                        kCGImageSourceThumbnailMaxPixelSize: maxDimension
+                    ]
+                    
+                    guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+                          let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+                        return nil
+                    }
+                    
+                    return UIImage(cgImage: cgImage)
+                }).value {
+                    ImageCache.shared.set(decoded, forKey: cacheKey)
+                    return decoded
                 }
-                
-                return UIImage(cgImage: cgImage)
-            }).value {
-                ImageCache.shared.set(decoded, forKey: cacheKey)
-                return decoded
             }
+            
+            // 4. Network Fallback mapped securely via URLSession matching legacy Grid arrays
+            if let fallbackUrlString = fallbackUrl, let url = URL(string: fallbackUrlString) {
+                if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey) {
+                    return networkImage
+                }
+            }
+            
+            return nil
         }
         
-        // 3. Network Fallback mapped securely via URLSession matching legacy Grid arrays
-        if let fallbackUrlString = fallbackUrl, let url = URL(string: fallbackUrlString) {
-            if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey) {
-                return networkImage
-            }
+        activeTasks[cacheKey] = fetchTask
+        
+        defer {
+            activeTasks.removeValue(forKey: cacheKey)
         }
         
-        return nil
+        return await fetchTask.value
     }
 }

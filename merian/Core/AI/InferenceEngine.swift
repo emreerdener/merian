@@ -87,6 +87,8 @@ final class InferenceEngine: ObservableObject {
 
     
     func analyze(imageData: Data, telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
+        self.inferenceTask?.cancel()
+        
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activeImageData = imageData

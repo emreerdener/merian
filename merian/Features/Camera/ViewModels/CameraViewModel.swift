@@ -22,12 +22,18 @@ struct ImageFileWrapper: Transferable, Sendable {
 
 @MainActor
 final class CameraViewModel: ObservableObject {
+    enum ActiveSheet: String, Identifiable {
+        case insight
+        case paywall
+        case scans
+        case profile
+        case settings
+        
+        var id: String { rawValue }
+    }
+    
     // UI Navigation & Sheet State
-    @Published var isInsightSheetOpen: Bool = false
-    @Published var isPaywallOpen: Bool = false
-    @Published var isScansOpen: Bool = false
-    @Published var isUserProfileOpen: Bool = false
-    @Published var isSettingsOpen: Bool = false
+    @Published var activeSheet: ActiveSheet? = nil
     @Published var imageToCrop: IdentifiableImage? = nil
     
     // Camera & Capture State
@@ -48,7 +54,7 @@ final class CameraViewModel: ObservableObject {
         NotificationCenter.default.publisher(for: NSNotification.Name("TriggerPaywall"))
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.isPaywallOpen = true
+                self?.activeSheet = .paywall
                 self?.isAnalyzingFullscreen = false
             }
             .store(in: &cancellables)
@@ -56,11 +62,7 @@ final class CameraViewModel: ObservableObject {
     
     private func resetModalsForBackground() {
         // Reset sheet boundaries so the user always returns to a clean camera view
-        isInsightSheetOpen = false
-        isPaywallOpen = false
-        isScansOpen = false
-        isUserProfileOpen = false
-        isSettingsOpen = false
+        activeSheet = nil
         imageToCrop = nil
         diContainer.gamificationManager.showTerrariumSheet = false
         
@@ -124,7 +126,7 @@ final class CameraViewModel: ObservableObject {
             } else {
                 await MainActor.run {
                     AppTelemetry.trackPaywallImpression()
-                    self.isPaywallOpen = true
+                    self.activeSheet = .paywall
                 }
             }
         }
@@ -209,7 +211,7 @@ final class CameraViewModel: ObservableObject {
             }
         } else {
             analysisImage = nil
-            if !isInsightSheetOpen {
+            if activeSheet != .insight {
                 diContainer.cameraManager.startSession()
             }
         }
@@ -220,7 +222,7 @@ final class CameraViewModel: ObservableObject {
             withAnimation {
                 isAnalyzingFullscreen = false
             }
-            isInsightSheetOpen = true
+            activeSheet = .insight
         }
     }
     
@@ -259,11 +261,7 @@ final class CameraViewModel: ObservableObject {
     
     func executeCapture() {
         // Prevent accidental hardware captures while a modal, sheet, or crop view is actively presented
-        guard !isInsightSheetOpen, 
-              !isScansOpen, 
-              !isPaywallOpen, 
-              !isUserProfileOpen, 
-              !isSettingsOpen,
+        guard activeSheet == nil,
               !isAnalyzingFullscreen, 
               !isCapturing,
               imageToCrop == nil else { return }
@@ -323,7 +321,7 @@ final class CameraViewModel: ObservableObject {
             }
         } else {
             AppTelemetry.trackPaywallImpression()
-            self.isPaywallOpen = true
+            self.activeSheet = .paywall
             self.isCapturing = false
         }
     }
