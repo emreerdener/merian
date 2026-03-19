@@ -1,6 +1,7 @@
 import { serve } from "@std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
 
+import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -14,21 +15,10 @@ serve(async (req: Request) => {
   }
 
   try {
-    // 1. Extract userId from authenticated token in the header
-    const token = req.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!token) {
-      throw new Error("Missing authorization header.");
-    }
+    const { user, response } = await requireAuth(req, supabaseAdmin);
+    if (response) return response;
 
-    // Validate the token to ensure the request is authorized exactly for the user being deleted
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      throw new Error("Invalid or expired authorization token.");
-    }
-    const userId = user.id;
+    const userId = user!.id;
 
     // 2. Delegate R2 wiping to background limits to prevent Deno timeout
     const { error: deletionError } = await supabaseAdmin
