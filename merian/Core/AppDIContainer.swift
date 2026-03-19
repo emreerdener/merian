@@ -10,7 +10,7 @@ final class AppDIContainer: ObservableObject {
     // Environment & Hardware
     let hardwareOrchestrator = HardwareOrchestrator.shared
     let cameraManager = CameraManager.shared
-    let hapticManager = HapticManager() // or shared if applicable
+    let hapticManager = HapticManager.shared
 
     // AI & Intelligence
     let inferenceEngine = InferenceEngine()

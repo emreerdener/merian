@@ -252,7 +252,6 @@ Generates an ecosystem report against AI inferences mapped aggressively within t
 ```json
 {
   "scanId": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
-  "userId": "Supabase Auth UUID explicitly linking for analytical parsing locally",
   "flagReason": "Incorrect Species",
   "userSuggestion": "Optional taxonomy string provided by the user manually"
 }
@@ -260,7 +259,8 @@ Generates an ecosystem report against AI inferences mapped aggressively within t
 
 ### Authentication Enforcement
 
-- Validates JWT signature to ensure a genuine authenticated identity mapping against `scan_id`. 
+- Strictly pulls `user!.id` natively returning from the `requireAuth(jwt)` middleware.
+- Validates JWT signature to ensure a genuine authenticated identity mapping against `scan_id` ignoring payload spoofing completely.
 - Natively inserts a row mapped strictly into `public.flagged_reviews`.
 - Triggers `HTTP 200` upon success securely decoupling the user's report without hanging the SwiftUI interface dynamically.
 

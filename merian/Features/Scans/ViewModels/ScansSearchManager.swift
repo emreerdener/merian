@@ -124,18 +124,10 @@ actor SearchDatabaseActor {
         var processed: [SearchableScan] = []
         processed.reserveCapacity(ids.count)
         
-        let descriptor = FetchDescriptor<LocalScanRecord>()
-        let allRecords = (try? self.modelContext.fetch(descriptor)) ?? []
-        
-        var recordDict: [PersistentIdentifier: LocalScanRecord] = [:]
-        for record in allRecords {
-            recordDict[record.persistentModelID] = record
-        }
-        
         for id in ids {
             if Task.isCancelled { break }
             
-            if let record = recordDict[id] {
+            if let record = self.modelContext.model(for: id) as? LocalScanRecord {
                 let tags = record.semanticTags.joined(separator: " ")
                 let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
                 

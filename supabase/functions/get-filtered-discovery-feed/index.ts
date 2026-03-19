@@ -55,7 +55,7 @@ serve(async (req: Request) => {
       .eq("geoprivacy", "open")
       .eq("is_live_capture", true)
       .eq("users.is_shadowbanned", false)
-      .not("user_id", "in", `(${isolatedExclusions.join(",")})`)
+      .not("user_id", "in", isolatedExclusions)
       .not("image_storage_urls", "eq", "{}")
       .order("timestamp", { ascending: false })
       .limit(limit);

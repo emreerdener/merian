@@ -21,6 +21,8 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
     nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
+    nonisolated(unsafe) private var activeHistogram = [vImagePixelCount](repeating: 0, count: 256)
+    
     @Published private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
     
     @Published var isSessionRunning = false
@@ -405,9 +407,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 
                 var error = kvImageNoError
                 
-                var histogram = [vImagePixelCount](repeating: 0, count: 256)
-                
-                histogram.withUnsafeMutableBufferPointer { histPtr in
+                activeHistogram.withUnsafeMutableBufferPointer { histPtr in
                     error = vImageHistogramCalculation_Planar8(&vImageBuffer, histPtr.baseAddress!, vImage_Flags(kvImageNoFlags))
                 }
                 
@@ -415,7 +415,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                     var totalLuma: UInt64 = 0
                     var totalPixels: UInt64 = 0
                     for i in 0..<256 {
-                        let count = UInt64(histogram[i])
+                        let count = UInt64(activeHistogram[i])
                         totalLuma += count * UInt64(i)
                         totalPixels += count
                     }

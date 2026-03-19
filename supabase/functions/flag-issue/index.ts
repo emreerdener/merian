@@ -13,12 +13,13 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { response } = await requireAuth(req, supabaseAdmin);
+    const { user, response } = await requireAuth(req, supabaseAdmin);
     if (response) return response;
 
-    const { scanId, userId, flagReason, userSuggestion } = await req.json();
+    const { scanId, flagReason, userSuggestion } = await req.json();
+    const userId = user!.id;
 
-    if (!scanId || !userId || !flagReason) {
+    if (!scanId || !flagReason) {
       return new Response(JSON.stringify({ error: "Missing required parameters." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

@@ -38,7 +38,7 @@ struct ScansThumbnailView: View {
                 }
             )
             .clipped()
-        .task(id: imagePath ?? fallbackImageUrl ?? UUID().uuidString) {
+        .task(id: imagePath ?? fallbackImageUrl ?? "empty_thumbnail_state") {
             if thumbnail == nil {
                 let img = await LocalImageLoader.shared.loadImage(fromPath: imagePath, fallbackUrl: fallbackImageUrl)
                 await MainActor.run {

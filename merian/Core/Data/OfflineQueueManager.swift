@@ -308,20 +308,19 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        #if os(iOS)
-        let inferenceBox = BackgroundTaskWrapper()
-        
-        Task { @MainActor in
-            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
-                print("Offline inference background task expired")
-                inferenceBox.safeEnd()
-            }
-        }
-        }
-        #endif
-        
-        guard let taskDesc = task.taskDescription else {
+        Task {
             #if os(iOS)
+            let inferenceBox = BackgroundTaskWrapper()
+            await MainActor.run {
+                inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
+                    print("Offline inference background task expired")
+                    inferenceBox.safeEnd()
+                }
+            }
+            #endif
+            
+            guard let taskDesc = task.taskDescription else {
+                #if os(iOS)
             inferenceBox.safeEnd()
             #endif
             return
@@ -353,17 +352,17 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 #endif
             } else {
                 print("Background upload rejected physically by boundary constraints. Server returned an error.")
-                Task { @MainActor [inferenceBox] in
+                await MainActor.run {
                     OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
-                    #if os(iOS)
-                    inferenceBox.safeEnd()
-                    #endif
                 }
+                #if os(iOS)
+                inferenceBox.safeEnd()
+                #endif
             }
             return
         }
         
-        Task { @MainActor [inferenceBox] in
+        await MainActor.run {
             
             guard let modelContext = OfflineQueueManager.shared.modelContext else {
                 #if os(iOS)
@@ -424,6 +423,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             #if os(iOS)
             inferenceBox.safeEnd()
             #endif
+        }
         }
     }
     

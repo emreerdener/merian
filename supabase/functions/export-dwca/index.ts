@@ -60,10 +60,10 @@ serve(async (req: Request) => {
     // Phase 3: Cryptographic grouping without leaking Supabase identites.
     const secretHashSalt = Deno.env.get("SUPABASE_JWT_SECRET") || "salt";
     
-    // Initialize headers and progressive string accumulators out of loop scope
-    let occurrenceCsvString = "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters\n";
+    // Initialize headers and progressive array accumulators out of loop scope
+    const occurrenceRows = ["coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters"];
     
-    let multimediaCsvString = "coreid,identifier,format\n";
+    const multimediaRows = ["coreid,identifier,format"];
     
     let hasMore = true;
     let start = 0;
@@ -128,9 +128,9 @@ serve(async (req: Request) => {
       }));
       
       for (const res of batchResults) {
-        occurrenceCsvString += res.occurrenceRow + "\n";
+        occurrenceRows.push(res.occurrenceRow);
         if (res.mRows.length > 0) {
-          multimediaCsvString += res.mRows.join("\n") + "\n";
+          multimediaRows.push(res.mRows.join("\n"));
         }
       }
       
@@ -175,8 +175,8 @@ serve(async (req: Request) => {
 
     // 5. Zip it up (Phase 2: Use streaming internal representation to bypass 256MB V8 limit)
     const zip = new JSZip();
-    zip.file("occurrence.csv", occurrenceCsvString);
-    zip.file("multimedia.csv", multimediaCsvString);
+    zip.file("occurrence.csv", occurrenceRows.join("\n") + "\n");
+    zip.file("multimedia.csv", multimediaRows.join("\n") + "\n");
     zip.file("meta.xml", metaXml);
 
     const zipBuffer = await zip.generateAsync({ type: "uint8array", compression: "STORE" });

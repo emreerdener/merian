@@ -81,10 +81,13 @@ actor LocalImageLoader {
             if Task.isCancelled { return nil }
             
             return await Task.detached(priority: .userInitiated) {
-                // Rely on native ImageCache or internal mapping
-                let fallback = UIImage(data: data)?.preparingThumbnail(of: CGSize(width: 500, height: 500))
-                if let fb = fallback { ImageCache.shared.set(fb, forKey: cacheKey) }
-                return fallback
+                if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 500) {
+                    let thumbnail = UIImage(cgImage: cgImage)
+                    ImageCache.shared.set(thumbnail, forKey: cacheKey)
+                    return thumbnail
+                }
+                
+                return nil
             }.value
         } catch {
             return nil
