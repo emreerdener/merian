@@ -62,12 +62,14 @@ serve(async (req: Request) => {
       .select(
         `
         *,
-        species_dictionary (*)
+        species_dictionary (*),
+        users!inner(is_shadowbanned)
       `,
       )
       .eq("geoprivacy", "open")
       .eq("is_live_capture", true)
-      .not("user_id", "in", isolatedExclusions)
+      .eq("users.is_shadowbanned", false)
+      .not("user_id", "in", `(${isolatedExclusions.join(",")})`)
       .not("image_storage_urls", "eq", "{}")
       .order("timestamp", { ascending: false })
       .limit(limit);

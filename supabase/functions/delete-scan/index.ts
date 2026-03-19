@@ -28,12 +28,7 @@ serve(async (req: Request) => {
     }
     
     // Validate the session natively against GoTrue to handle ES256 tokens securely
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
 
     if (authError || !user) {
       console.error("Auth Rejection:", authError);

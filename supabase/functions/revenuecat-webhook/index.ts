@@ -107,11 +107,13 @@ serve(async (req: Request) => {
                   let migrated = false;
 
                   const urlPromises = scan.image_storage_urls.map(async (urlStr: string) => {
-                    if (urlStr.includes(`public_uploads/free/${userId}/`)) {
+                    if (urlStr.includes("public_uploads/free/")) {
                       const parsedUrl = new URL(urlStr);
-                      const fileName = parsedUrl.pathname.split("/").pop();
+                      const pathParts = parsedUrl.pathname.split("/");
+                      const fileName = pathParts.pop();
+                      const originalUserId = pathParts.pop();
 
-                      const sourceKey = `public_uploads/free/${userId}/${fileName}`;
+                      const sourceKey = `public_uploads/free/${originalUserId}/${fileName}`;
                       const targetKey = `public_uploads/pro/${userId}/${fileName}`;
 
                       const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;

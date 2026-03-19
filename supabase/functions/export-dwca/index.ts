@@ -30,12 +30,7 @@ serve(async (req: Request) => {
     }
 
     // Validate the session natively against GoTrue to handle ES256 tokens securely
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: req.headers.get("Authorization") || "" } }
-    });
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader);
 
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized: Invalid token signature" }), {
@@ -79,8 +74,16 @@ serve(async (req: Request) => {
       query = query.eq("user_id", userId);
     }
 
-    // deno-lint-ignore no-explicit-any
-    const scans: any[] = [];
+    // Phase 3: Cryptographic grouping without leaking Supabase identites.
+    const secretHashSalt = Deno.env.get("SUPABASE_JWT_SECRET") || "salt";
+    
+    // Initialize headers and string accumulators out of loop scope
+    const occurrenceHeader = "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters\n";
+    const occurrenceRows: string[] = [];
+    
+    const multimediaHeader = "coreid,identifier,format\n";
+    const multimediaRows: string[] = [];
+    
     let hasMore = true;
     let start = 0;
     const PAGE_SIZE = 1000;
@@ -96,26 +99,9 @@ serve(async (req: Request) => {
         break;
       }
       
-      scans.push(...data);
-      if (data.length < PAGE_SIZE) {
-        hasMore = false;
-      } else {
-        start += PAGE_SIZE;
-      }
-    }
-
-    // Phase 3: Cryptographic grouping without leaking Supabase identites.
-    const secretHashSalt = Deno.env.get("SUPABASE_JWT_SECRET") || "salt";
-    
-    // 2. Build occurrence.csv
-    const occurrenceHeader = "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters\n";
-    const occurrenceRows: string[] = [];
-    const BATCH_SIZE = 250;
-
-    for (let i = 0; i < scans.length; i += BATCH_SIZE) {
-      const batch = scans.slice(i, i + BATCH_SIZE);
+      // Instantly evaluate and stringify the CSV bounded responses out of the postgres V8 payload
       // deno-lint-ignore no-explicit-any
-      const batchResults = await Promise.all(batch.map(async (scan: any) => {
+      const batchResults = await Promise.all(data.map(async (scan: any) => {
         const species = scan.species_dictionary || {};
         const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
         
@@ -125,8 +111,8 @@ serve(async (req: Request) => {
         if (!isTombstoned) {
             if (exportScope === "global") {
                // Hash to maintain contributor isolation anonymously
-               const data = new TextEncoder().encode(scan.user_id + secretHashSalt);
-               const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+               const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
+               const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
                recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
             } else {
                recordedBy = scan.user_id;
@@ -152,22 +138,29 @@ serve(async (req: Request) => {
         if (lat === null || lat === undefined) lat = "";
         if (lon === null || lon === undefined) lon = "";
 
-        return `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
+        const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
+        
+        const urls = scan.image_storage_urls || [];
+        const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
+
+        return { occurrenceRow, mRows };
       }));
       
-      occurrenceRows.push(...batchResults);
+      for (const res of batchResults) {
+        occurrenceRows.push(res.occurrenceRow);
+        multimediaRows.push(...res.mRows);
+      }
+      
+      // Allow data arrays and generic object clusters to be Garbage Collected instantly preventing V8 Heap out-of-memory spikes 
+      
+      if (data.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        start += PAGE_SIZE;
+      }
     }
-    
-    const occurrenceCsv = occurrenceHeader + occurrenceRows.join("\n");
 
-    // 3. Build multimedia.csv 
-    const multimediaHeader = "coreid,identifier,format\n";
-    // deno-lint-ignore no-explicit-any
-    const multimediaRows = scans.flatMap((scan: any) => {
-      const urls = scan.image_storage_urls || [];
-      if (urls.length === 0) return []; 
-      return urls.map((url: string) => `${scan.id},${url},image/jpeg`);
-    });
+    const occurrenceCsv = occurrenceHeader + occurrenceRows.join("\n");
     const multimediaCsv = multimediaHeader + multimediaRows.join("\n");
 
     // 4. Build meta.xml

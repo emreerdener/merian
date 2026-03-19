@@ -88,7 +88,11 @@ final class CameraViewModel: ObservableObject {
             }
             
             if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
-                if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 4000) {
+                let detatchedDownsample = await Task.detached(priority: .userInitiated) {
+                    ImageDownsampler.downsample(data: data, maxSize: 4000)
+                }.value
+                
+                if let cgImage = detatchedDownsample {
                     let rawImage = UIImage(cgImage: cgImage)
                     await MainActor.run {
                         self.imageToCrop = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)
@@ -252,7 +256,11 @@ final class CameraViewModel: ObservableObject {
                     let flashFired = diContainer.cameraManager.isFlashEnabled
                     let capturedDistance = diContainer.cameraManager.subjectDistanceInMeters
                     
-                    if let cgImage = ImageDownsampler.downsample(data: captureData, maxSize: 4000) {
+                    let detachedDownsample = await Task.detached(priority: .userInitiated) {
+                        ImageDownsampler.downsample(data: captureData, maxSize: 4000)
+                    }.value
+                    
+                    if let cgImage = detachedDownsample {
                         let rawImage = UIImage(cgImage: cgImage)
                         await MainActor.run {
                             self.imageToCrop = IdentifiableImage(

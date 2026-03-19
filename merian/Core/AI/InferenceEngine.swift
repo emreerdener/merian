@@ -7,6 +7,7 @@ import ImageIO
 
 enum APIError: Error {
     case proRequiredForOfflineTracking
+    case decodingFailed
 }
 
 /// Manages real-time AI taxonomy processing via Supabase Edge Functions
@@ -156,9 +157,17 @@ final class InferenceEngine: ObservableObject {
                 
                 // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely
                 let container = modelContext?.container
-                let (finalMappedData, isNewDisc) = await Task.detached(priority: .userInitiated) { () -> (SpeciesData?, Bool) in
+                let (finalMappedData, isNewDisc) = try await Task.detached(priority: .userInitiated) { () -> (SpeciesData?, Bool) in
                     let decoder = JSONDecoder()
-                    guard let parsedWrapper = try? decoder.decode(EdgeResponseWrapper.self, from: resultData) else { return (nil, false) }
+                    
+                    let parsedWrapper: EdgeResponseWrapper
+                    do {
+                        parsedWrapper = try decoder.decode(EdgeResponseWrapper.self, from: resultData)
+                    } catch let error as DecodingError {
+                        print("⚠️ AI JSON Payload Hallucination / Decoding Error: \(error.localizedDescription)")
+                        throw APIError.decodingFailed
+                    }
+                    
                     let edgeRes = parsedWrapper.data
                     
                     let insight = InsightData(
@@ -231,36 +240,39 @@ final class InferenceEngine: ObservableObject {
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     self.speciesData = mappedData
-                } else {
-                        print("⚠️ Inference Engine: Failed to structure Gemini JSON properly")
-                        UsageManager.shared.refundScan()
-                        self.speciesData = SpeciesData(
-                            scanId: nil,
-                            commonName: "Analysis Failed",
-                            scientificName: "Data Unreadable",
-                            insightData: InsightData(description: "Cannot process the server taxonomy schema.", isPoisonous: false, regionalStatusRationale: nil),
-                            confidenceScore: 0,
-                            diagnosticComparison: nil,
-                            wikipediaUrl: nil,
-                            wikipediaExtract: nil,
-                            referenceImageUrl: nil,
-                            isBiological: true,
-                            isLiveCapture: true,
-                            isInvasive: false,
-                            ecologyType: "unknown",
-                            taxonomy: nil,
-                            locationName: locationName,
-                            weatherCondition: weatherCondition,
-                            weatherTemperatureF: weatherTemperatureF,
-                            colors: nil
-                        )
-                    }
+                }
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
                     self.isProcessing = false
                     if !self.isBackgroundRescued {
                         UsageManager.shared.refundScan()
                     }
+                    return
+                }
+                
+                if let apiError = error as? APIError, apiError == .decodingFailed {
+                    UsageManager.shared.refundScan()
+                    self.speciesData = SpeciesData(
+                        scanId: nil,
+                        commonName: "Analysis Failed",
+                        scientificName: "Data Unreadable",
+                        insightData: InsightData(description: "The AI failed to understand the image or produced an unreadable schema.", isPoisonous: false, regionalStatusRationale: nil),
+                        confidenceScore: 0,
+                        diagnosticComparison: nil,
+                        wikipediaUrl: nil,
+                        wikipediaExtract: nil,
+                        referenceImageUrl: nil,
+                        isBiological: true,
+                        isLiveCapture: true,
+                        isInvasive: false,
+                        ecologyType: "unknown",
+                        taxonomy: nil,
+                        locationName: locationName,
+                        weatherCondition: weatherCondition,
+                        weatherTemperatureF: weatherTemperatureF,
+                        colors: nil
+                    )
+                    self.isProcessing = false
                     return
                 }
                 

@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct NonBiologicalScansView: View {
-    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false || $0.commonName == "Unknown Subject" }, sort: \.timestamp, order: .reverse) private var nonBioRecords: [LocalScanRecord]
+    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false || $0.commonName == "Unknown subject" }, sort: \.timestamp, order: .reverse) private var nonBioRecords: [LocalScanRecord]
     
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var inferenceEngine: InferenceEngine
@@ -59,7 +59,7 @@ struct NonBiologicalScansView: View {
                 }
             }
         }
-        .navigationTitle("Non biological")
+        .navigationTitle("Non-biological")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedScanForInsight) { scan in
             InsightSheetView(isPresented: Binding(

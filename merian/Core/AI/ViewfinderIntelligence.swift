@@ -65,8 +65,13 @@ final class ViewfinderIntelligence: ObservableObject {
     
     private func updateHint(_ hint: VUIHint) async {
         await MainActor.run {
-            self.currentHint = hint
-            self.isOptimal = (hint == .optimal)
+            if self.currentHint != hint {
+                self.currentHint = hint
+            }
+            let newOptimalState = (hint == .optimal)
+            if self.isOptimal != newOptimalState {
+                self.isOptimal = newOptimalState
+            }
         }
     }
 }

@@ -59,39 +59,95 @@ final class ScanRepository {
         )
     }
 
+struct CloudSpeciesDictionary: Decodable, Sendable {
+    let scientific_name: String?
+    let kingdom: String?
+    let phylum: String?
+    let `class`: String?
+    let order: String?
+    let family: String?
+    let genus: String?
+    let wikipedia_url: String?
+    let reference_image_url: String?
+    let is_poisonous: Bool?
+    let common_names: [String: String?]?
+    let descriptions: [String: String?]?
+}
+
+struct HistoricalScanResponse: Decodable, Sendable {
+    let id: String
+    let image_storage_urls: [String]?
+    let timestamp: String?
+    let weather_condition: String?
+    let weather_temperature_f: Double?
+    let ai_confidence_score: Double?
+    let ecology_type: String?
+    let is_invasive: Bool?
+    let is_live_capture: Bool?
+    let colors: [String]?
+    let species_dictionary: CloudSpeciesDictionary?
+}
+
+@ModelActor
+actor HistoricalDatabaseActor {
+    func ingestHistoricalScans(missingScans: [HistoricalScanResponse]) {
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fallbackFormatter = ISO8601DateFormatter()
+        
+        for scan in missingScans {
+            if Task.isCancelled { break }
+            let parsedDate = scan.timestamp.flatMap { isoFormatter.date(from: $0) ?? fallbackFormatter.date(from: $0) } ?? Date()
+            
+            let dict = scan.species_dictionary
+            let sciName = dict?.scientific_name ?? "Unknown Subject"
+            let cName = dict?.common_names?.compactMap { $0.value }.first ?? sciName
+            let desc = dict?.descriptions?.compactMap { $0.value }.first ?? "No ecological description available for this subject."
+            
+            // If it exists safely mapped in R2, explicitly ingest the clean public Cloudflare Web URL natively
+            let rawR2Image = scan.image_storage_urls?.first
+            
+            let record = LocalScanRecord(
+                id: scan.id,
+                speciesId: UUID().uuidString,
+                scientificName: sciName,
+                commonName: cName,
+                insightDescription: desc,
+                timestamp: parsedDate,
+                localImagePath: nil, // We enforce physical absence here, dropping cleanly onto the R2 payload URL below natively
+                semanticTags: [cName, sciName] + (scan.colors ?? []),
+                isPoisonous: dict?.is_poisonous ?? false,
+                isBiological: true,
+                isLiveCapture: scan.is_live_capture ?? true,
+                isInvasive: scan.is_invasive ?? false,
+                ecologyType: scan.ecology_type ?? "unknown",
+                wikipediaUrl: dict?.wikipedia_url,
+                referenceImageUrl: rawR2Image ?? dict?.reference_image_url,
+                additionalImagePaths: nil,
+                confidenceScore: scan.ai_confidence_score,
+                isLocallyArchived: false,
+                taxonomyKingdom: dict?.kingdom,
+                taxonomyPhylum: dict?.phylum,
+                taxonomyClass: dict?.class,
+                taxonomyOrder: dict?.order,
+                taxonomyFamily: dict?.family,
+                taxonomyGenus: dict?.genus,
+                locationName: nil,
+                weatherCondition: scan.weather_condition,
+                weatherTemperatureF: scan.weather_temperature_f
+            )
+            
+            modelContext.insert(record)
+        }
+        
+        try? modelContext.save()
+    }
+}
+
     /// Re-hydration protocol binding historical Ghost/Pro cloud scans back down onto the iOS SwiftData Scans locally natively
     func syncHistoricalScansDown(modelContext: ModelContext) async {
         guard SupabaseManager.shared.isAuthenticated, 
               let userId = SupabaseManager.shared.currentUser?.id.uuidString else { return }
-        
-        struct CloudSpeciesDictionary: Decodable, Sendable {
-            let scientific_name: String?
-            let kingdom: String?
-            let phylum: String?
-            let `class`: String?
-            let order: String?
-            let family: String?
-            let genus: String?
-            let wikipedia_url: String?
-            let reference_image_url: String?
-            let is_poisonous: Bool?
-            let common_names: [String: String?]?
-            let descriptions: [String: String?]?
-        }
-        
-        struct HistoricalScanResponse: Decodable, Sendable {
-            let id: String
-            let image_storage_urls: [String]?
-            let timestamp: String?
-            let weather_condition: String?
-            let weather_temperature_f: Double?
-            let ai_confidence_score: Double?
-            let ecology_type: String?
-            let is_invasive: Bool?
-            let is_live_capture: Bool?
-            let colors: [String]?
-            let species_dictionary: CloudSpeciesDictionary?
-        }
         
         do {
             let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
@@ -111,55 +167,12 @@ final class ScanRepository {
             
             print("🔄 Merian Sync: Restoring \(missingScans.count) historical scan payloads natively...")
             
-            let isoFormatter = ISO8601DateFormatter()
-            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            let fallbackFormatter = ISO8601DateFormatter()
+            let container = modelContext.container
+            await Task.detached(priority: .userInitiated) {
+                let dbActor = HistoricalDatabaseActor(modelContainer: container)
+                await dbActor.ingestHistoricalScans(missingScans: missingScans)
+            }.value
             
-            for scan in missingScans {
-                let parsedDate = scan.timestamp.flatMap { isoFormatter.date(from: $0) ?? fallbackFormatter.date(from: $0) } ?? Date()
-                
-                let dict = scan.species_dictionary
-                let sciName = dict?.scientific_name ?? "Unknown Subject"
-                let cName = dict?.common_names?.compactMap { $0.value }.first ?? sciName
-                let desc = dict?.descriptions?.compactMap { $0.value }.first ?? "No ecological description available for this subject."
-                
-                // If it exists safely mapped in R2, explicitly ingest the clean public Cloudflare Web URL natively
-                let rawR2Image = scan.image_storage_urls?.first
-                
-                let record = LocalScanRecord(
-                    id: scan.id,
-                    speciesId: UUID().uuidString,
-                    scientificName: sciName,
-                    commonName: cName,
-                    insightDescription: desc,
-                    timestamp: parsedDate,
-                    localImagePath: nil, // We enforce physical absence here, dropping cleanly onto the R2 payload URL below natively
-                    semanticTags: [cName, sciName] + (scan.colors ?? []),
-                    isPoisonous: dict?.is_poisonous ?? false,
-                    isBiological: true,
-                    isLiveCapture: scan.is_live_capture ?? true,
-                    isInvasive: scan.is_invasive ?? false,
-                    ecologyType: scan.ecology_type ?? "unknown",
-                    wikipediaUrl: dict?.wikipedia_url,
-                    referenceImageUrl: rawR2Image ?? dict?.reference_image_url,
-                    additionalImagePaths: nil,
-                    confidenceScore: scan.ai_confidence_score,
-                    isLocallyArchived: false,
-                    taxonomyKingdom: dict?.kingdom,
-                    taxonomyPhylum: dict?.phylum,
-                    taxonomyClass: dict?.class,
-                    taxonomyOrder: dict?.order,
-                    taxonomyFamily: dict?.family,
-                    taxonomyGenus: dict?.genus,
-                    locationName: nil,
-                    weatherCondition: scan.weather_condition,
-                    weatherTemperatureF: scan.weather_temperature_f
-                )
-                
-                modelContext.insert(record)
-            }
-            
-            try? modelContext.save()
             print("✅ Merian Sync: Restored Historical payload records.")
             
         } catch {

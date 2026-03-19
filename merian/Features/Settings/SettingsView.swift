@@ -165,7 +165,7 @@ struct SettingsView: View {
                             let cachesDir = URL.cachesDirectory
                             if let enumerator = FileManager.default.enumerator(at: cachesDir, includingPropertiesForKeys: nil) {
                                 while let fileURL = enumerator.nextObject() as? URL {
-                                    if fileURL.pathExtension == "jpg" {
+                                    if fileURL.pathExtension == "jpg" && !fileURL.lastPathComponent.contains("_temp_upload") {
                                         try? FileManager.default.removeItem(at: fileURL)
                                     }
                                 }

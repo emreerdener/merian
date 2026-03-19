@@ -221,7 +221,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             let scanData = await dbActor.fetchPendingScans(limit: 5)
             let backgroundSession = await MainActor.run { self.backgroundSession }
             let activeTasks = await backgroundSession.allTasks
-            let activeScanIDs = Set(activeTasks.compactMap { $0.taskDescription })
+            let activeScanIDs = Set(activeTasks.compactMap { $0.taskDescription?.components(separatedBy: "_").first ?? $0.taskDescription })
             
             let filteredScans = scanData.filter { !activeScanIDs.contains($0.id) }
             
@@ -291,7 +291,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                             continue
                         }
                         
-                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
+                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_\(index)_temp_upload.jpg")
                         
                         // CRITICAL FIX: Explicitly remove orphaned files to prevent copyItem from silently failing
                         try? FileManager.default.removeItem(at: tempFileURL)
@@ -299,7 +299,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         
                         // Enqueue to the iOS Background URLSession cleanly using the physical file
                         let uploadTask = backgroundSession.uploadTask(with: request, fromFile: tempFileURL)
-                        uploadTask.taskDescription = scanId
+                        uploadTask.taskDescription = "\(scanId)_\(index)"
                         uploadTask.resume()
                     }
                     
@@ -327,13 +327,58 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let scanId = task.taskDescription else { return }
+        #if os(iOS)
+        final class InferenceBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var _id: UIBackgroundTaskIdentifier = .invalid
+            var id: UIBackgroundTaskIdentifier {
+                get { lock.withLock { _id } }
+                set { lock.withLock { _id = newValue } }
+            }
+            func safeEnd() {
+                let currentId = id
+                if currentId != .invalid {
+                    DispatchQueue.main.async {
+                        UIApplication.shared.endBackgroundTask(currentId)
+                    }
+                    id = .invalid
+                }
+            }
+        }
+        let inferenceBox = InferenceBox()
+        let setupBlock = {
+            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [inferenceBox] in
+                print("Offline inference background task expired")
+                inferenceBox.safeEnd()
+            }
+        }
         
-        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_temp_upload.jpg")
+        if Thread.isMainThread {
+            setupBlock()
+        } else {
+            DispatchQueue.main.sync(execute: setupBlock)
+        }
+        #endif
+        
+        guard let taskDesc = task.taskDescription else {
+            #if os(iOS)
+            inferenceBox.safeEnd()
+            #endif
+            return
+        }
+        
+        let components = taskDesc.components(separatedBy: "_")
+        let scanId = components[0]
+        let indexPart = components.count > 1 ? components[1] : ""
+        
+        let tempFileURL = URL.cachesDirectory.appendingPathComponent(indexPart.isEmpty ? "\(scanId)_temp_upload.jpg" : "\(scanId)_\(indexPart)_temp_upload.jpg")
         try? FileManager.default.removeItem(at: tempFileURL)
         
         guard error == nil else {
             print("Background upload hard failed: \(error!)")
+            #if os(iOS)
+            inferenceBox.safeEnd()
+            #endif
             return
         }
         
@@ -343,41 +388,26 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             
             if recoverableCodes.contains(statusCode) {
                 print("Background upload failed with recoverable status (\(statusCode)). Retaining in queue.")
+                #if os(iOS)
+                inferenceBox.safeEnd()
+                #endif
             } else {
                 print("Background upload rejected physically by boundary constraints. Server returned an error.")
-                Task { @MainActor in
+                Task { @MainActor [inferenceBox] in
                     OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+                    #if os(iOS)
+                    inferenceBox.safeEnd()
+                    #endif
                 }
             }
             return
         }
         
-        Task { @MainActor in
-            #if os(iOS)
-            final class InferenceBox: @unchecked Sendable {
-                private let lock = NSLock()
-                private var _id: UIBackgroundTaskIdentifier = .invalid
-                var id: UIBackgroundTaskIdentifier {
-                    get { lock.withLock { _id } }
-                    set { lock.withLock { _id = newValue } }
-                }
-            }
-            let inferenceBox = InferenceBox()
-            inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [inferenceBox] in
-                print("Offline inference background task expired")
-                if inferenceBox.id != .invalid {
-                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
-                    inferenceBox.id = .invalid
-                }
-            }
-            #endif
+        Task { @MainActor [inferenceBox] in
             
             guard let modelContext = OfflineQueueManager.shared.modelContext else {
                 #if os(iOS)
-                if inferenceBox.id != .invalid { 
-                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
-                    inferenceBox.id = .invalid
-                }
+                inferenceBox.safeEnd()
                 #endif
                 return
             }
@@ -385,20 +415,14 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             
             guard let scan = try? modelContext.fetch(descriptor).first else {
                 #if os(iOS)
-                if inferenceBox.id != .invalid { 
-                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
-                    inferenceBox.id = .invalid
-                }
+                inferenceBox.safeEnd()
                 #endif
                 return
             }
             
             guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else {
                 #if os(iOS)
-                if inferenceBox.id != .invalid { 
-                    UIApplication.shared.endBackgroundTask(inferenceBox.id)
-                    inferenceBox.id = .invalid
-                }
+                inferenceBox.safeEnd()
                 #endif
                 return
             }
@@ -434,10 +458,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             }
             
             #if os(iOS)
-            if inferenceBox.id != .invalid {
-                UIApplication.shared.endBackgroundTask(inferenceBox.id)
-                inferenceBox.id = .invalid
-            }
+            inferenceBox.safeEnd()
             #endif
         }
     }

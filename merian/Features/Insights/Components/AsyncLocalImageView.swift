@@ -55,7 +55,8 @@ struct AsyncLocalImageView: View {
             return
         }
         
-        let url = URL.documentsDirectory.appendingPathComponent(imagePath)
+        let fileName = (imagePath as NSString).lastPathComponent
+        let url = URL.documentsDirectory.appendingPathComponent(fileName)
         Task {
             if let decoded = await Task.detached(priority: .userInitiated, operation: {
                 let options: [CFString: Any] = [
