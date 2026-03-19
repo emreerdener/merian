@@ -30,9 +30,7 @@ struct OnboardingView: View {
                                             removal: .move(edge: .leading).combined(with: .opacity)))
             case .ready:
                 ReadyStepView {
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        viewModel.completeOnboarding() // Triggers root view teardown
-                    }
+                    viewModel.completeOnboarding() // Triggers root view teardown safely without zero-frame animation artifacts
                 }
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                         removal: .move(edge: .leading).combined(with: .opacity)))

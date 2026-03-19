@@ -41,11 +41,11 @@ struct MerianApp: App {
             Group {
                 if hasCompletedOnboarding {
                     CameraRootView()
-                        .modelContainer(container)
                 } else {
                     OnboardingView()
                 }
             }
+            .modelContainer(container)
             .injectAppDependencies(container: diContainer)
             .onAppear {
                 diContainer.revenueCatManager.configure()
