@@ -35,8 +35,7 @@ struct SpeciesDataTests {
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "Terrestrial",
-            taxonomy: taxonomyData,
-            isNewDiscovery: false
+            taxonomy: taxonomyData
         )
         
         // Assert

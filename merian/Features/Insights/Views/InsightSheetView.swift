@@ -48,7 +48,8 @@ struct InsightSheetView: View {
                             // Specialized Non-Biological UI: Strip out taxonomy, safety loops, and regional bounds entirely!
                             VStack(alignment: .leading, spacing: 16) {
                                 Text(commonName)
-                                    .font(.system(size: 38, weight: .black, design: .rounded))
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
                                     .foregroundColor(.primary)
                                 
                                 Text(speciesData.insightData.description)
