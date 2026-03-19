@@ -3,7 +3,7 @@ import SwiftData
 
 struct ScanDeletionDialogModifier: ViewModifier {
     @Binding var isPresented: Bool
-    let scanId: String?
+    let record: LocalScanRecord?
     let modelContext: ModelContext
     let onComplete: () -> Void
 
@@ -15,14 +15,10 @@ struct ScanDeletionDialogModifier: ViewModifier {
                 titleVisibility: .visible
             ) {
                 Button("Delete permanently", role: .destructive) {
-                    guard let id = scanId else { return }
+                    guard let activeRecord = record else { return }
                     HapticManager.shared.triggerErrorThump()
-                    Task {
-                        await AppDIContainer.shared.scanRepository.eradicateScan(id: id, modelContext: modelContext)
-                        await MainActor.run {
-                            onComplete()
-                        }
-                    }
+                    AppDIContainer.shared.scanRepository.eradicateScan(record: activeRecord, modelContext: modelContext)
+                    onComplete()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -34,13 +30,13 @@ struct ScanDeletionDialogModifier: ViewModifier {
 extension View {
     func scanDeletionDialog(
         isPresented: Binding<Bool>,
-        scanId: String?,
+        record: LocalScanRecord?,
         modelContext: ModelContext,
         onComplete: @escaping () -> Void = {}
     ) -> some View {
         self.modifier(ScanDeletionDialogModifier(
             isPresented: isPresented,
-            scanId: scanId,
+            record: record,
             modelContext: modelContext,
             onComplete: onComplete
         ))

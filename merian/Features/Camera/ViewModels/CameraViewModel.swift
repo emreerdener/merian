@@ -86,9 +86,6 @@ final class CameraViewModel: ObservableObject {
     // Asynchronous Context Pipeline
     @Published var preFetchedContext: EnvironmentContext? = nil
     
-    // Focus State
-    @Published var focusLocation: CGPoint? = nil
-    @Published var showFocusIndicator: Bool = false
     private var focusTask: Task<Void, Never>?
     
     // Dependencies
@@ -241,22 +238,9 @@ final class CameraViewModel: ObservableObject {
         }
     }
     
-    func handleFocusTap(layerPoint: CGPoint, devicePoint: CGPoint) {
+    func handleFocusTap(devicePoint: CGPoint) {
         diContainer.cameraManager.setFocusPoint(devicePoint)
         diContainer.hapticManager.triggerSelectionPulse()
-        
-        focusLocation = layerPoint
-        showFocusIndicator = true
-        
-        focusTask?.cancel()
-        focusTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            if !Task.isCancelled {
-                withAnimation(.easeOut) {
-                    showFocusIndicator = false
-                }
-            }
-        }
     }
     
     func executeCapture() {

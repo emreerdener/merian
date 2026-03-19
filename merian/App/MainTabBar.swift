@@ -14,7 +14,7 @@ struct MainTabBar: View {
             )   
 
             TabBarButton(
-                iconName: "book",
+                iconName: "rectangle.stack",
                 title: "Scans",
                 action: { isScansOpen = true }
             )
@@ -60,6 +60,7 @@ fileprivate struct TabBarButton: View {
             VStack(spacing: 4) {
                 Image(systemName: iconName)
                     .font(.system(size: 20, weight: .regular))
+                    .frame(height: 24)
                 Text(title)
                     .font(.system(size: 10, weight: .semibold))
             }

@@ -15,6 +15,10 @@ struct CameraRootView: View {
     @Environment(\.modelContext) private var modelContext
     
     @StateObject private var viewModel = CameraViewModel()
+    
+    @State private var focusLocation: CGPoint? = nil
+    @State private var showFocusIndicator: Bool = false
+    @State private var focusTask: Task<Void, Never>? = nil
 
     
     var body: some View {
@@ -26,12 +30,25 @@ struct CameraRootView: View {
             CameraPreviewView(
                 session: cameraManager.session,
                 onTap: { layerPoint, devicePoint in
-                    viewModel.handleFocusTap(layerPoint: layerPoint, devicePoint: devicePoint)
+                    viewModel.handleFocusTap(devicePoint: devicePoint)
+                    focusLocation = layerPoint
+                    showFocusIndicator = true
+                    
+                    focusTask?.cancel()
+                    focusTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        if !Task.isCancelled {
+                            withAnimation(.easeOut) {
+                                showFocusIndicator = false
+                            }
+                        }
+                    }
                 }
             )
             .ignoresSafeArea()
             
-            if viewModel.showFocusIndicator, let location = viewModel.focusLocation {
+            
+            if showFocusIndicator, let location = focusLocation {
                 Rectangle()
                     .stroke(Color.yellow, lineWidth: 1.5)
                     .frame(width: 72, height: 72)
@@ -45,6 +62,7 @@ struct CameraRootView: View {
             Color.black
                 .ignoresSafeArea()
                 .opacity(viewModel.flashOpacity)
+                .allowsHitTesting(false)
             
             // Thermal Warning Indicator overlay
             ThermalWarningOverlay()

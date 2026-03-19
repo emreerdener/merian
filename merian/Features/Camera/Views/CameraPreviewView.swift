@@ -23,6 +23,7 @@ struct CameraPreviewView: UIViewRepresentable {
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
         
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        tapGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(tapGesture)
         
         return view

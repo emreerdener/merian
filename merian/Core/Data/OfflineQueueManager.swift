@@ -138,12 +138,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     }
     
     func enqueueCapture(imageData: Data, telemetry: CaptureTelemetry, blurScore: Double? = nil) {
-        
-        guard let modelContext = modelContext else {
-            print("ModelContext not set on OfflineQueueManager")
-            return
-        }
-        
         let fileName = "\(UUID().uuidString).jpg"
         let documentsDirectory = URL.documentsDirectory
         let fileURL = documentsDirectory.appendingPathComponent(fileName)
@@ -172,9 +166,10 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         uvIndex: telemetry.uvIndex,
                         isDeleted: false
                     )
-                    modelContext.insert(scan)
+                    guard let ctx = OfflineQueueManager.shared.modelContext else { return }
+                    ctx.insert(scan)
                     do {
-                        try modelContext.save()
+                        try ctx.save()
                         OfflineQueueManager.shared.updateUnsyncedItemCount()
                     } catch {
                         print("Failed to save offline queue record. Cleaning up abandoned local image footprint.")

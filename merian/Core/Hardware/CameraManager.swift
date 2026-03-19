@@ -124,7 +124,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         guard !session.isRunning else { return }
         queue.async {
             self.session.startRunning()
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.isSessionRunning = true
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
                 ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
@@ -136,7 +136,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         guard session.isRunning else { return }
         queue.async {
             self.session.stopRunning()
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.isSessionRunning = false
             }
         }

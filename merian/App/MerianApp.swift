@@ -14,10 +14,19 @@ struct MerianApp: App {
     @Environment(\.scenePhase) private var scenePhase
     let diContainer = AppDIContainer.shared
 
-    @State private var container: ModelContainer?
+    let container: ModelContainer
     
     init() {
-        // Initialize Zero-PII Crash & Anonymous Usage Metrics completely off the main thread to prevent camera initialization stutters
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV9.self)
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
+            AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
+        } catch {
+            fatalError("Could not create ModelContainer: \(error)")
+        }
+        
+        // Initialize Zero-PII Crash & Anonymous Usage Metrics off the main thread
         Task.detached(priority: .background) {
             try? await Task.sleep(nanoseconds: 500_000_000)
             AppTelemetry.initialize()
@@ -28,32 +37,10 @@ struct MerianApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if let activeContainer = container {
-                    CameraRootView()
-                        .modelContainer(activeContainer)
-                } else {
-                    CameraRootView()
-                }
+                CameraRootView()
+                    .modelContainer(container)
             }
             .injectAppDependencies(container: diContainer)
-            .task {
-                guard container == nil else { return }
-                
-                // Initialize SwiftData strictly off the Main Thread explicitly protecting the Apple native camera 120Hz boot physically
-                do {
-                    let schema = Schema(versionedSchema: MerianSchemaV9.self)
-                    let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-                    
-                    let activeContainer = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [modelConfiguration])
-                    
-                    await MainActor.run {
-                        AppDIContainer.shared.scanRepository.configure(with: activeContainer.mainContext)
-                        self.container = activeContainer
-                    }
-                } catch {
-                    fatalError("Could not create ModelContainer: \(error)")
-                }
-            }
             .onAppear {
                 diContainer.revenueCatManager.configure()
             }

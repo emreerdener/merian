@@ -336,7 +336,7 @@ struct ScansSearchView: View {
         }
         .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
-            scanId: scanToDelete?.id,
+            record: scanToDelete,
             modelContext: modelContext
         ) {
             scanToDelete = nil
