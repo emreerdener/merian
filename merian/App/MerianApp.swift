@@ -34,11 +34,17 @@ struct MerianApp: App {
         }
     }
 
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
+
     var body: some Scene {
         WindowGroup {
             Group {
-                CameraRootView()
-                    .modelContainer(container)
+                if hasCompletedOnboarding {
+                    CameraRootView()
+                        .modelContainer(container)
+                } else {
+                    OnboardingView()
+                }
             }
             .injectAppDependencies(container: diContainer)
             .onAppear {

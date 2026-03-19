@@ -2,7 +2,18 @@
 
 Merian's UI architecture strictly adheres to a modular, glassmorphic design philosophy, ensuring maximum reuse of Swift components while safely decoupling heavy data operations from the main rendering loop to maintain a continuous 60fps framerate.
 
-## 1. The Scans Library (`ScansSearchView`, `ScansSearchManager`)
+## 1. Onboarding & Permission Priming (`OnboardingView`)
+
+To satisfy Apple's strict privacy guidelines and secure high opt-in rates without creating friction, Merian entirely intercepts the cold boot via a programmatic **Permission Priming** sequence. The `Onboarding` feature vigorously adheres to the Domain-Driven folder architecture. The structural state map (`Models/OnboardingStep`) and iOS hardware delegates (`Utilities/LocationPermissionDelegate`) are rigorously decoupled natively from the main UI orchestrator (`Views/OnboardingView`). Each fallback step is natively instantiated inside completely discrete SwiftUI bounds within `Components/` to prevent monolithic view bloat.
+
+- **Enum-Backed State Machine (`OnboardingStep`)**: Radically enforces sequential permission gating (`.welcome`, `.camera`, `.location`, `.ready`) via a strict `switch` statement overlaying a `ZStack`. This completely prevents users from accidentally bypassing the `AVCaptureDevice` execution prompt by simply swiping (a core flaw of standard `.tabViewStyle(.page)` paradigms).
+- **Asymmetric Glassmorphism Integrations**: View state transitions are globally synchronized strictly using `withAnimation(.spring(...))` pushing fluid `.asymmetric(insertion: .move, removal: .move)` structures.
+- **Hardware Fallbacks**: 
+  - `CameraPermissionStepView`: Asynchronously wraps `AVCaptureDevice.requestAccess(for: .video)` closures directly into the UI state, allowing the system to naturally slide onto the Location view exactly when the iOS permission boundary resolves.
+  - `LocationPermissionStepView`: Hooks heavily into a clean `CLLocationManagerDelegate` observing dynamic authorization loops. Crucially, it provides a transparent "Skip for now" fallback button explicitly preserving Apple's App Store Review requirements without alienating free users.
+- **Root View Handoff (`MerianApp`)**: Driven explicitly by an `@AppStorage("hasCompletedOnboarding")` physical boundary. The moment the user completes Step 4, SwiftUI dynamically rewires the physical WindowGroup, unmounting `OnboardingView` forever and instantly mapping heavy hardware layers back to the `CameraRootView`. Because `CameraRootView` remains entirely uninitialized in RAM until this flag hits `true`, intense background dependencies (like `AVCaptureSession.beginConfiguration`) are elegantly shielded from the onboarding frames natively.
+
+## 2. The Scans Library (`ScansSearchView`, `ScansSearchManager`)
 The Scans tab acts as the user's primary offline biological journal. 
 
 ### Native Paging Navigation
@@ -36,7 +47,7 @@ The Scans tab acts as the user's primary offline biological journal.
 - **Historical Payload Override**: To entirely avoid destroying device cellular data limits downloading massive multi-gigabyte historical image files physically into iOS, the hydration engine (`ScanRepository.syncHistoricalScansDown`) smartly forces the SwiftData payload `.localImagePath = nil` while simultaneously overriding `.referenceImageUrl` to dynamically hold the specific historical Cloudflare R2 URL. This explicitly routes all native frontend components into utilizing Apple's asynchronous cache layers natively. Specifically, both `ScansThumbnailView` and `AsyncLocalImageView` pipe these paths directly into the thread-safe `LocalImageLoader` actor. If missing from Sandboxed Documents natively, the actor robustly executes a `fetchNetworkFallback` via `URLSession` organically shielding all structural frontend view code from conditional 50-line `if let` blocks completely.
 - **Sandbox Resiliency**: Physical disk file references completely drop absolute path trails prior to parsing (via `.lastPathComponent`). This gracefully secures the `LocalImageLoader` payload extracting `Documents/` payload bytes dynamically without rendering broken thumbnails when the OS natively shifts active container mount paths (e.g. during Xcode Simulator rebuilds or iOS firmware updates).
 
-## 2. Inferences & Telemetry (`InsightSheetView`)
+## 3. Inferences & Telemetry (`InsightSheetView`)
 The `InsightSheetView` is Merian's central contextual readout, triggered immediately after an Edge API loop or seamlessly opened offline via the Scans library.
 
 ### Core Rendering Logic
@@ -54,7 +65,7 @@ The `InsightSheetView` is Merian's central contextual readout, triggered immedia
 - Spawns parallel external lookups fetching the full taxonomic classification into the visual `InsightTaxonomyTree`.
 - Triggers Safari modals securely fetching Wikipedia data via a secondary decoupled asynchronous `WikipediaService` hook natively embedded in the background to not lock the UI actor during network spin-ups.
 
-## 3. Account (`UserProfileView`) and Settings (`SettingsView`)
+## 4. Account (`UserProfileView`) and Settings (`SettingsView`)
 The primary identity portal bridging local usage limits with the Supabase Ghost Session ecosystem.
 
 ### Native OAuth & Entitlements
@@ -80,11 +91,11 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 - **Account Eraaaasure**: Features a hardline "Delete Account & Data" action executing a native `.destructive` `.confirmationDialog`. This forces a sequential 4-part wipe: triggering the Deno `/safe-delete` endpoint natively, destroying the GoTrue identity locally (`signOut`), and explicitly dumping the entire device SQLite boundary dynamically (`ScanRepository.shared.purgeAllData`) pushing the user gracefully back into the generic Camera interface smoothly without crashing.
 
 
-## 4. Hardware Integrations (`AVCaptureEventInteraction`)
+## 5. Hardware Integrations (`AVCaptureEventInteraction`)
 - Directly hooks into iOS 17.2 tactile hardware boundaries ensuring that depressing physical hardware configurations natively triggers the exact same `EnvironmentContextManager` background `MKReverseGeocodingRequest` and `WeatherService` hooks seamlessly as the screen UI.
 - All points of access guarantee zero-latency capturing and GPS binding natively mapped straight into EXIF metadata directly inside the user's core iPhone Photo Roll.
 
-## 5. UI Abstract Modularization
+## 6. UI Abstract Modularization
 - The UI hierarchy strictly avoids massive structural bindings. The primary navigational routing structure completely avoids UIKit toolbars, abstracting natively from the monolithic `CameraRootView` into an isolated `MainTabBar` capsule component floating 24pts off the bottom horizontal bounds. All core camera utilities (Flash Toggle, Camera Roll Picker, Shutter Button) are explicitly stacked directly above it, mimicking the core Apple iOS ergonomic layouts dynamically adapting without top-heavy navigation constraints.
 - `Camera` natively separates layout (`Views/CameraRootView`, `Views/ScanningOverlayView`, `Views/ImageCropperView`), state logic (`ViewModels/CameraViewModel`), and modular sub-views (`Components/ThermalWarningOverlay`, `Components/ViewfinderHintBanner`), completely uncoupling the old monolithic `CameraOverlayComponents` script. Additionally, it structurally shields against "Silent Scan" UI drops: if the user aggressively backgrounds the app during an active AI lookup, `CameraViewModel` explicitly refuses to reset `isAnalyzingFullscreen = false` via an `inferenceEngine.isProcessing` guard, ensuring that upon restoring the app into the foreground, the completed Modal sheet bounds present exactly as expected organically without rendering empty views natively.
 - `UserProfileView` natively abstracts completely. The massive scrolling interface was strictly decoupled into `UserProfileHeaderView` (Avatar metadata, Explorer Persona, Auth Status routing), `UserProfileStatsView` (isolated SwiftData queries/calendar aggregations), and foundational blocks like `StatCardView` and `TerrariumView` securely nested into `Components/`. The top right `Settings` header link was entirely stripped here to prevent redundant UI routing, since it's now securely positioned universally inside the `MainTabBar`. 
