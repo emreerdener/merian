@@ -1,6 +1,6 @@
 import { serve } from "@std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
-import { AwsClient } from "aws4fetch";
+import { getS3Client } from "../_shared/aws.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -64,15 +64,8 @@ serve(async (req: Request) => {
           try {
             const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
             const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-            const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID")!;
-            const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY")!;
 
-            const aws = new AwsClient({
-              accessKeyId: R2_ACCESS_KEY_ID,
-              secretAccessKey: R2_SECRET_ACCESS_KEY,
-              service: "s3",
-              region: "auto",
-            });
+            const aws = getS3Client();
 
             const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 

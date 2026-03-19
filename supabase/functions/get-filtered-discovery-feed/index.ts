@@ -1,6 +1,6 @@
 import { serve } from "@std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
-
+import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -17,20 +17,10 @@ serve(async (req: Request) => {
   try {
     const { limit = 20 } = await req.json();
 
-    const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(authHeader);
+    const { user, response } = await requireAuth(req, supabase);
+    if (response) return response;
 
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-
-    const userId = user.id;
+    const userId = user!.id;
 
     // 1. Isolation Filter Hook - Query blocked_ids mapping the blocker explicitly
     const { data: blocksData, error: blocksError } = await supabase

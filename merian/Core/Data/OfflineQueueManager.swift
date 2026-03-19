@@ -104,20 +104,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         let fileURL = documentsDirectory.appendingPathComponent(fileName)
         
         #if os(iOS)
-        final class WriteBox: @unchecked Sendable {
-            private let lock = NSLock()
-            private var _id: UIBackgroundTaskIdentifier = .invalid
-            var id: UIBackgroundTaskIdentifier {
-                get { lock.withLock { _id } }
-                set { lock.withLock { _id = newValue } }
-            }
-        }
-        let writeBox = WriteBox()
+        let writeBox = BackgroundTaskWrapper()
         writeBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueCaptureWrite") {
-            if writeBox.id != .invalid {
-                UIApplication.shared.endBackgroundTask(writeBox.id)
-                writeBox.id = .invalid
-            }
+            writeBox.safeEnd()
         }
         #endif
         
@@ -150,20 +139,14 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     OfflineQueueManager.shared.updateUnsyncedItemCount()
                     
                     #if os(iOS)
-                    if writeBox.id != .invalid {
-                        UIApplication.shared.endBackgroundTask(writeBox.id)
-                        writeBox.id = .invalid
-                    }
+                    writeBox.safeEnd()
                     #endif
                 }
             } catch {
                 print("Failed to enqueue capture: \(error)")
                 await MainActor.run {
                     #if os(iOS)
-                    if writeBox.id != .invalid {
-                        UIApplication.shared.endBackgroundTask(writeBox.id)
-                        writeBox.id = .invalid
-                    }
+                    writeBox.safeEnd()
                     #endif
                 }
             }
@@ -180,26 +163,14 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         isSyncing = true
         
         #if os(iOS)
-        final class SyncBox: @unchecked Sendable {
-            private let lock = NSLock()
-            private var _id: UIBackgroundTaskIdentifier = .invalid
-            var id: UIBackgroundTaskIdentifier {
-                get { lock.withLock { _id } }
-                set { lock.withLock { _id = newValue } }
-            }
-        }
-        let syncBox = SyncBox()
+        let syncBox = BackgroundTaskWrapper()
         syncBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") { [weak self] in
             // This expiration handler is called if we run out of time
-            self?.syncTask?.cancel()
-            Task { @MainActor [weak self] in
-                self?.isSyncing = false
-                SyncStateManager.shared.completeSync()
+            print("Offline Queue background expiration triggered")
+            Task {
+                await self?.markSyncComplete()
             }
-            if syncBox.id != .invalid {
-                UIApplication.shared.endBackgroundTask(syncBox.id)
-                syncBox.id = .invalid
-            }
+            syncBox.safeEnd()
         }
         #endif
         
@@ -219,10 +190,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         SyncStateManager.shared.completeSync()
                     }
                     #if os(iOS)
-                    if syncBox.id != .invalid { 
-                        UIApplication.shared.endBackgroundTask(syncBox.id)
-                        syncBox.id = .invalid
-                    }
+                    syncBox.safeEnd()
                     #endif
                 }
                 return
@@ -301,10 +269,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     SyncStateManager.shared.completeSync()
                     
                     #if os(iOS)
-                    if syncBox.id != .invalid {
-                        UIApplication.shared.endBackgroundTask(syncBox.id)
-                        syncBox.id = .invalid
-                    }
+                        syncBox.safeEnd()
                     #endif
                 }
             }
@@ -315,24 +280,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         #if os(iOS)
-        final class InferenceBox: @unchecked Sendable {
-            private let lock = NSLock()
-            private var _id: UIBackgroundTaskIdentifier = .invalid
-            var id: UIBackgroundTaskIdentifier {
-                get { lock.withLock { _id } }
-                set { lock.withLock { _id = newValue } }
-            }
-            func safeEnd() {
-                let currentId = id
-                if currentId != .invalid {
-                    DispatchQueue.main.async {
-                        UIApplication.shared.endBackgroundTask(currentId)
-                    }
-                    id = .invalid
-                }
-            }
-        }
-        let inferenceBox = InferenceBox()
+        let inferenceBox = BackgroundTaskWrapper()
         let setupBlock = {
             inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") { [inferenceBox] in
                 print("Offline inference background task expired")

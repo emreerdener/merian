@@ -1,6 +1,6 @@
 import { serve } from "@std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
-
+import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -13,15 +13,8 @@ serve(async (req: Request) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization") || "";
-    if (!authHeader.startsWith("Bearer ")) throw new Error("Missing Authorization header");
-
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
-
-    if (authError || !user) {
-      console.error("Auth Rejection:", authError);
-      return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    const { response } = await requireAuth(req, supabaseAdmin);
+    if (response) return response;
 
     const { scanId, userId, flagReason, userSuggestion } = await req.json();
 

@@ -1,7 +1,7 @@
 import { serve } from "@std/http/server.ts";
-import { AwsClient } from "aws4fetch";
 import { createClient } from "@supabase/supabase-js";
-
+import { requireAuth } from "../_shared/auth.ts";
+import { getS3Client } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -13,26 +13,9 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Missing or invalid Authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    
-    // Validate the session natively against GoTrue to handle ES256 tokens securely
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
-
-    if (authError || !user) {
-      console.error("Auth Rejection:", authError);
-      return new Response(JSON.stringify({ error: "Invalid token signature" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const { user, response } = await requireAuth(req, supabaseAdmin);
+    if (response) return response;
 
     const requestBody = await req.json();
     const { scanId } = requestBody;
@@ -61,8 +44,8 @@ serve(async (req: Request) => {
     }
 
     // 2. Authorization check
-    if (scan.user_id !== user.id) {
-      console.error(`IDOR attempt: User ${user.id} tried to delete scan ${scanId} owned by ${scan.user_id}`);
+    if (scan.user_id !== user!.id) {
+      console.error(`IDOR attempt: User ${user!.id} tried to delete scan ${scanId} owned by ${scan.user_id}`);
       return new Response(JSON.stringify({ error: "Forbidden: You do not own this scan" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -73,12 +56,7 @@ serve(async (req: Request) => {
     if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
       const r2AccountId = Deno.env.get("R2_ACCOUNT_ID") || "";
       const r2Bucket = Deno.env.get("R2_BUCKET_NAME") || "";
-      
-      const aws = new AwsClient({
-        accessKeyId: Deno.env.get("R2_ACCESS_KEY_ID") || "",
-        secretAccessKey: Deno.env.get("R2_SECRET_ACCESS_KEY") || "",
-        region: "auto",
-      });
+      const aws = getS3Client();
 
       await Promise.allSettled(
         scan.image_storage_urls.map(async (url: string) => {
@@ -112,8 +90,7 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    console.log(`Successfully deleted scan ${scanId} for user ${user.id}`);
+    console.log(`Successfully deleted scan ${scanId} for user ${user!.id}`);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,

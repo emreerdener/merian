@@ -1,8 +1,9 @@
 import { serve } from "@std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
 import JSZip from "jszip";
-import { AwsClient } from "aws4fetch";
 import { encodeHex } from "@std/encoding/hex.ts";
+import { requireAuth } from "../_shared/auth.ts";
+import { getS3Client } from "../_shared/aws.ts";
 
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -16,26 +17,11 @@ serve(async (req: Request) => {
   }
 
   try {
+    const { user, response } = await requireAuth(req, supabase);
+    if (response) return response;
+
     const { includePreciseCoordinates = false, exportScope = "user" } = await req.json();
-
-    const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized: Missing token" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-
-    // Validate the session natively against GoTrue to handle ES256 tokens securely
-    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader);
-
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized: Invalid token signature" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-    const userId = user.id;
+    const userId = user!.id;
 
     // 1. Query verified academic captures
     let query = supabase
@@ -199,15 +185,8 @@ serve(async (req: Request) => {
     // 6. Upload to R2 and Generate Download URL
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
     const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-    const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID")!;
-    const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY")!;
 
-    const aws = new AwsClient({
-      accessKeyId: R2_ACCESS_KEY_ID,
-      secretAccessKey: R2_SECRET_ACCESS_KEY,
-      service: "s3",
-      region: "auto",
-    });
+    const aws = getS3Client();
 
     const timestamp = Date.now();
     const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;

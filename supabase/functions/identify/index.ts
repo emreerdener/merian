@@ -1,11 +1,11 @@
 import { serve } from "@std/http/server.ts";
 import { encodeBase64 } from "@std/encoding-base64";
 
-import { AwsClient } from "aws4fetch";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { createClient } from "@supabase/supabase-js";
 import { evaluateAndProcessPayload } from "./moderation.ts";
-
+import { requireAuth } from "../_shared/auth.ts";
+import { getS3Client } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -19,31 +19,8 @@ serve(async (req: Request) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing Authorization header" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        },
-      );
-    }
-
-    // Validate the session natively against GoTrue to handle ES256 tokens securely
-    const { data: { user }, error: authError } = await supabaseAdmin.auth
-      .getUser(authHeader.replace("Bearer ", ""));
-
-    if (authError || !user) {
-      console.error("Auth Rejection:", authError);
-      return new Response(
-        JSON.stringify({ error: "Invalid or expired Session" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    const { user, response } = await requireAuth(req, supabaseAdmin);
+    if (response) return response;
 
     const body = await req.json();
     const {
@@ -90,15 +67,8 @@ serve(async (req: Request) => {
     } else {
       const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
       const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-      const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID")!;
-      const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY")!;
 
-      const aws = new AwsClient({
-        accessKeyId: R2_ACCESS_KEY_ID,
-        secretAccessKey: R2_SECRET_ACCESS_KEY,
-        service: "s3",
-        region: "auto",
-      });
+      const aws = getS3Client();
 
       const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
       const getUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
@@ -134,7 +104,7 @@ serve(async (req: Request) => {
     const { data: existingUser } = await supabaseAdmin
       .from("users")
       .select("subscription_tier")
-      .eq("id", user.id)
+      .eq("id", user!.id)
       .single();
 
     if (existingUser) {
@@ -144,7 +114,7 @@ serve(async (req: Request) => {
       await supabaseAdmin
         .from("users")
         .upsert(
-          { id: user.id, subscription_tier: "free" },
+          { id: user!.id, subscription_tier: "free" },
           { onConflict: "id", ignoreDuplicates: true },
         );
     }
@@ -362,7 +332,7 @@ Crucial instructions:
     const cleanJsonString = jsonMatch[0];
     const parsedData = JSON.parse(cleanJsonString);
 
-    const userId = user.id;
+    const userId = user!.id;
     if (!userId) {
       throw new Error(
         "Unauthorized: Invalid or missing User IDFV. Scans cannot be saved without a physical Device ID.",
@@ -376,7 +346,7 @@ Crucial instructions:
     const backgroundTask = (async () => {
       try {
         const modResult = await evaluateAndProcessPayload(
-          user.id,
+          user!.id,
           r2ObjectKey,
           imageBase64,
           finishReason,
@@ -555,7 +525,7 @@ Crucial instructions:
           .from("scans")
           .insert({
             id: generatedScanId,
-            user_id: userId,
+            user_id: user!.id,
             species_id: speciesId,
             gps_lat_exact: gpsLatitude,
             gps_long_exact: gpsLongitude,

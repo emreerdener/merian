@@ -1,7 +1,7 @@
 import { serve } from "@std/http/server.ts";
-import { AwsClient } from "aws4fetch";
 import { createClient } from "@supabase/supabase-js";
-
+import { requireAuth } from "../_shared/auth.ts";
+import { getS3Client } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -15,25 +15,12 @@ serve(async (req: Request) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing Authorization header" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
-      );
-    }
-
-    // Validate the session natively against GoTrue to handle ES256 tokens securely
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
-
-    if (authError || !user) {
-      console.error("Auth Rejection:", authError);
-      return new Response(JSON.stringify({ error: "Invalid or expired Session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } })
-    }
+    const { user, response } = await requireAuth(req, supabaseAdmin);
+    if (response) return response;
 
     const body = await req.json();
     const { fileNames } = body;
-    const userId = user.id;
+    const userId = user!.id;
 
     if (!userId) {
        return new Response(
@@ -52,15 +39,7 @@ serve(async (req: Request) => {
 
     const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
     const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-    const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID")!;
-    const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY")!;
-
-    const aws = new AwsClient({
-      accessKeyId: R2_ACCESS_KEY_ID,
-      secretAccessKey: R2_SECRET_ACCESS_KEY,
-      service: "s3",
-      region: "auto",
-    });
+    const aws = getS3Client();
 
     const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
     const urls = await Promise.all(
