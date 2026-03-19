@@ -1,6 +1,6 @@
 import { corsHeaders } from "./cors.ts";
 import { requireAuth } from "./auth.ts";
-import { createClient, User, SupabaseClient } from "@supabase/supabase-js";
+import { createClient, User, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 /**
  * Standardized JSON response helper dropping boilerplate instantiation overhead.

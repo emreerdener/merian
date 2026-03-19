@@ -1,4 +1,4 @@
-import { AwsClient } from "aws4fetch";
+import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
 
 export function getS3Client(): AwsClient {
     return new AwsClient({

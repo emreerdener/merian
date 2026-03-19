@@ -1,4 +1,4 @@
-import { SupabaseClient, User } from "@supabase/supabase-js";
+import { SupabaseClient, User } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "./cors.ts";
 
 export async function requireAuth(req: Request, supabaseAdmin: SupabaseClient): Promise<{ user: User | null; response: Response | null }> {

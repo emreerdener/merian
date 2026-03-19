@@ -43,6 +43,7 @@ The transaction log for every identification ever successfully passed.
 - `colors` (Text Array): Extracted via Gemini natively indexing 1-3 dominant biological colors for immediate semantic searchability.
 - `weather_condition`, `regional_status_rationale`, `semantic_location`, `device_locale`, `time_of_day`, `depth_scale_text` (Text)
 - `weather_temperature_f`, `camera_pitch_degrees`, `compass_heading`, `relative_humidity` (Float)
+- `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_total_tokens` (Int): Exact Google Cloud token margins mapped safely per-scan from `usageMetadata` native payload tracking.
 - `current_month`, `uv_index` (Int)
 - `is_flash_fired` (Boolean)
 - `image_storage_urls` (Text Array): Stores safe public Cloudflare links generated explicitly off the Moderation engine safely resolving explicit abuses natively.

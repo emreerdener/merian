@@ -1,7 +1,7 @@
-import { serve } from "@std/http/server.ts";
-import { encodeBase64 } from "@std/encoding-base64";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -304,6 +304,11 @@ Crucial instructions:
     let finishReason: string | undefined;
     let safetyRatings: unknown[] | undefined;
     let responseText = "";
+    
+    // Telemetry pointers securely initialized natively
+    let llmPromptTokens: number | null = null;
+    let llmCandidateTokens: number | null = null;
+    let llmTotalTokens: number | null = null;
     try {
         const result = await model.generateContent({
             contents: [{ role: "user", parts }],
@@ -317,6 +322,15 @@ Crucial instructions:
         finishReason = candidate?.finishReason;
         safetyRatings = candidate?.safetyRatings;
         responseText = result.response.text();
+        
+        // Extract native Gemini token usage bounds natively
+        const usage = result.response.usageMetadata;
+        if (usage) {
+            console.log(`Token Usage [${user.id}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`);
+            llmPromptTokens = usage.promptTokenCount;
+            llmCandidateTokens = usage.candidatesTokenCount;
+            llmTotalTokens = usage.totalTokenCount;
+        }
     } catch (genError) {
         console.error("Gemini Critical Extraction Failure:", genError);
         return new Response(JSON.stringify({ error: `Gemini Validation Error: ${(genError as Error).message}` }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
@@ -549,6 +563,9 @@ Crucial instructions:
             relative_humidity: relativeHumidity,
             uv_index: uvIndex,
             depth_scale_text: depthScaleText,
+            llm_prompt_tokens: llmPromptTokens,
+            llm_candidate_tokens: llmCandidateTokens,
+            llm_total_tokens: llmTotalTokens,
             image_storage_urls: modResult.publicUrl
               ? [modResult.publicUrl]
               : [],

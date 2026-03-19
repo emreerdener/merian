@@ -1,6 +1,6 @@
-import { serve } from "@std/http/server.ts";
-import JSZip from "jszip";
-import { encodeHex } from "@std/encoding/hex.ts";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import JSZip from "https://esm.sh/jszip@3.10.1";
+import { encodeHex } from "https://deno.land/std@0.224.0/encoding/hex.ts";
 
 import { getR2Config } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";

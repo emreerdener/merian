@@ -1,4 +1,4 @@
-import { serve } from "@std/http/server.ts";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { getR2Config } from "../_shared/aws.ts";
 import { withEdgeHandler, jsonResponse } from "../_shared/edgeHandler.ts";
 
