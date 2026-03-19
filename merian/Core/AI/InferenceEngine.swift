@@ -112,6 +112,8 @@ final class InferenceEngine: ObservableObject {
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
             
+            let boundaryStartTime = CFAbsoluteTimeGetCurrent()
+            
             // 1. Data is already safely compressed from camera cropper directly
             let compressedData = imageData
             self.activeCompressedImageData = compressedData
@@ -123,24 +125,21 @@ final class InferenceEngine: ObservableObject {
                 
                 let client = MerianNetworkClient.shared
                 
-                // 2. Request Secure Cloudflare R2 Staging URL
-                let presignedUrls = try await client.generateUploadURLs(fileNames: ["live_scan.jpg"])
-                guard let target = presignedUrls.first else {
-                    throw URLError(.badServerResponse)
-                }
+                // 2. Convert Data to structural base64 string
+                let base64String = compressedData.base64EncodedString()
+                let targetObjectKey = "staging/\(UUID().uuidString).jpg"
                 
-                try Task.checkCancellation() // <-- ADD THIS
+                try Task.checkCancellation() 
                 
-                // 3. Upload bytes to R2 (compressed)
-                try await client.uploadToR2(url: target.signedUrl, data: compressedData)
-                
-                try Task.checkCancellation() // <-- ADD THIS
-                
-                // 3. Transmit the Object Key to the robust Supabase architecture for verification
+                // 3. Transmit the payload directly skipping R2 hops entirely
+                let inferenceStartTime = CFAbsoluteTimeGetCurrent()
                 let resultData = try await client.analyzeSubject(
-                    r2ObjectKey: target.objectKey,
+                    r2ObjectKey: targetObjectKey,
+                    base64ImageData: base64String,
                     telemetry: telemetry
                 )
+                let inferenceTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
+                print("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime)) seconds.")
                 
                 // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely
                 let container = modelContext?.container
@@ -182,6 +181,9 @@ final class InferenceEngine: ObservableObject {
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     self.speciesData = mappedData
+                    
+                    let totalPipelineTime = CFAbsoluteTimeGetCurrent() - boundaryStartTime
+                    print("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime)) seconds!")
                 }
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {

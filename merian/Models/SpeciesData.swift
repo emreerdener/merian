@@ -155,8 +155,14 @@ struct DiagnosticComparison {
 }
 
 struct KeyDifferentiator: Identifiable, Codable {
-    let id = UUID()
+    var id = UUID()
     let trait: String
     let subjectValue: String
     let lookalikeValue: String
+    
+    enum CodingKeys: String, CodingKey {
+        case trait
+        case subjectValue
+        case lookalikeValue
+    }
 }

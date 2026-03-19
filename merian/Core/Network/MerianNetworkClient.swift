@@ -29,7 +29,7 @@ class MerianNetworkClient {
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
     // Step 2: Supabase Inference
-    func analyzeSubject(r2ObjectKey: String, telemetry: CaptureTelemetry, isRetry: Bool = false) async throws -> Data {
+    func analyzeSubject(r2ObjectKey: String?, base64ImageData: String?, telemetry: CaptureTelemetry, isRetry: Bool = false) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
         
         // CRITICAL: Prevent iOS from returning cached 401s during the self-healing retry loop
@@ -71,6 +71,7 @@ class MerianNetworkClient {
         let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
         let payload: [String: Any?] = [
             "r2ObjectKey": r2ObjectKey,
+            "imageBase64": base64ImageData,
             "user_id": deviceId,
             "mimeType": "image/jpeg",
             "depthScaleText": depthScaleText,
@@ -122,7 +123,7 @@ class MerianNetworkClient {
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     
                     // Recursively retry exactly once with the fresh token
-                    return try await analyzeSubject(r2ObjectKey: r2ObjectKey, telemetry: telemetry, isRetry: true)
+                    return try await analyzeSubject(r2ObjectKey: r2ObjectKey, base64ImageData: base64ImageData, telemetry: telemetry, isRetry: true)
                 } else {
                     print("🚨 NATIVE SESSION EXPIRED. Failing gracefully to allow re-authentication.")
                     throw NetworkError.invalidResponse

@@ -64,6 +64,9 @@ final class CameraViewModel: ObservableObject {
     @Published var scanningPhaseText: String = "Analyzing subject..."
     @Published var analysisImage: UIImage? = nil
     
+    // Asynchronous Context Pipeline
+    @Published var preFetchedContext: EnvironmentContext? = nil
+    
     // Focus State
     @Published var focusLocation: CGPoint? = nil
     @Published var showFocusIndicator: Bool = false
@@ -134,8 +137,13 @@ final class CameraViewModel: ObservableObject {
                 // Prevent current GPS from overwriting a gallery photo lacking EXIF data
                 context = EnvironmentContext(location: nil, weatherCondition: nil, weatherTemperature: nil)
             } else {
-                let lockedLocation = historicalContext?.location
-                context = await self.diContainer.environmentContextManager.fetchDeferredContext(preLockedLocation: lockedLocation)
+                if let mappedContext = self.preFetchedContext {
+                    context = mappedContext
+                    self.preFetchedContext = nil
+                } else {
+                    let lockedLocation = historicalContext?.location
+                    context = await self.diContainer.environmentContextManager.fetchDeferredContext(preLockedLocation: lockedLocation)
+                }
             }
             
             await MainActor.run {
@@ -254,8 +262,10 @@ final class CameraViewModel: ObservableObject {
                     let instantLocation = diContainer.environmentContextManager.cachedLocation
                     let captureData = try await diContainer.cameraManager.captureImage()
                     
-                    // Actively push the original 12MP buffer down natively into the user's Camera Roll securely
-                    await diContainer.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
+                    // Actively push the original 12MP buffer down natively into the user's Camera Roll securely without blocking UI sweeps natively
+                    Task.detached(priority: .utility) {
+                        await AppDIContainer.shared.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
+                    }
                     
                     let flashFired = diContainer.cameraManager.isFlashEnabled
                     let capturedDistance = diContainer.cameraManager.subjectDistanceInMeters
@@ -266,6 +276,14 @@ final class CameraViewModel: ObservableObject {
                     
                     if let cgImage = detachedDownsample {
                         let rawImage = UIImage(cgImage: cgImage)
+                        
+                        Task.detached(priority: .userInitiated) {
+                            let prefetched = await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
+                            await MainActor.run {
+                                self.preFetchedContext = prefetched
+                            }
+                        }
+                        
                         await MainActor.run {
                             self.imageToCrop = IdentifiableImage(
                                 image: rawImage,

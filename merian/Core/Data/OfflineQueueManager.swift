@@ -432,6 +432,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 )
                 let resultData = try await MerianNetworkClient.shared.analyzeSubject(
                     r2ObjectKey: r2ObjectKey,
+                    base64ImageData: nil,
                     telemetry: telemetry
                 )
                 let backgroundActor = BackgroundDatabaseActor(modelContainer: modelContext.container)

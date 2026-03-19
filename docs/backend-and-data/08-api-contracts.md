@@ -40,6 +40,7 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
 ```json
 {
   "r2ObjectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename.jpg",
+  "imageBase64": "<base64 encoded string array for instant processing (skips r2ObjectKey)>",
   "user_id": "Supabase Auth UUID explicitly linking natively via GoTrue Session",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
@@ -111,7 +112,7 @@ The `merianResponseSchema` within Deno forces Gemini structurally into this exac
 
 ## The Standardized JSON Return Payload (From Supabase to Swift)
 
-To seamlessly integrate with `MerianNetworkClient.swift` securely, the `/identify` Edge function returns standard, nested JSON array logic.
+To completely eliminate network bottleneck latency, the `/identify` Edge Function generates the `scan_id` locally using `crypto.randomUUID()` and **instantaneously returns the `data` payload natively** to the iOS application as soon as the Gemini inference completes. It permanently abstracts all relational PostgreSQL insertions, background R2 uploads, and parallel API scrapers (GBIF/Wikipedia) securely behind an asynchronous `EdgeRuntime.waitUntil` boundary preventing UI threading locks implicitly.
 
 ```json
 {

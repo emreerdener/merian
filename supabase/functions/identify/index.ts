@@ -2,10 +2,7 @@ import { serve } from "@std/http/server.ts";
 import { encodeBase64 } from "@std/encoding-base64";
 
 import { AwsClient } from "aws4fetch";
-import {
-  GoogleGenerativeAI,
-  SchemaType,
-} from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { createClient } from "@supabase/supabase-js";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 
@@ -34,7 +31,8 @@ serve(async (req: Request) => {
     }
 
     // Validate the session natively against GoTrue to handle ES256 tokens securely
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
+    const { data: { user }, error: authError } = await supabaseAdmin.auth
+      .getUser(authHeader.replace("Bearer ", ""));
 
     if (authError || !user) {
       console.error("Auth Rejection:", authError);
@@ -50,6 +48,7 @@ serve(async (req: Request) => {
     const body = await req.json();
     const {
       r2ObjectKey,
+      imageBase64,
       user_id,
       gpsLatitude,
       gpsLongitude,
@@ -68,8 +67,10 @@ serve(async (req: Request) => {
       uvIndex,
     } = body;
 
-    if (!r2ObjectKey) {
-      throw new Error("Missing r2ObjectKey.");
+    if (!r2ObjectKey && !imageBase64) {
+      throw new Error(
+        "Missing structural boundary (neither r2ObjectKey nor imageBase64 provided).",
+      );
     }
 
     if (!user_id) {
@@ -82,45 +83,52 @@ serve(async (req: Request) => {
       );
     }
 
-    const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
-    const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-    const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID")!;
-    const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY")!;
+    let base64Payload = "";
 
-    const aws = new AwsClient({
-      accessKeyId: R2_ACCESS_KEY_ID,
-      secretAccessKey: R2_SECRET_ACCESS_KEY,
-      service: "s3",
-      region: "auto",
-    });
+    if (imageBase64) {
+      base64Payload = imageBase64;
+    } else {
+      const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
+      const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
+      const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID")!;
+      const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY")!;
 
-    const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-    const getUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
+      const aws = new AwsClient({
+        accessKeyId: R2_ACCESS_KEY_ID,
+        secretAccessKey: R2_SECRET_ACCESS_KEY,
+        service: "s3",
+        region: "auto",
+      });
 
-    const r2Response = await aws.fetch(getUrl);
-    if (!r2Response.ok) {
-      throw new Error(
-        `Failed to fetch image from R2: ${r2Response.statusText}`,
-      );
-    }
+      const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+      const getUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
 
-    // Phase 2: S3 Object Sizing Attack Protection - Limit to 5MB to prevent OOM
-    const contentLengthStr = r2Response.headers.get("Content-Length");
-    if (contentLengthStr) {
-      const bytes = parseInt(contentLengthStr, 10);
-      if (bytes > 5 * 1024 * 1024) {
-        return new Response(
-          JSON.stringify({ error: "Payload Too Large: Exceeds 5MB boundary." }),
-          {
-            status: 413,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
+      const r2Response = await aws.fetch(getUrl);
+      if (!r2Response.ok) {
+        throw new Error(
+          `Failed to fetch image from R2: ${r2Response.statusText}`,
         );
       }
-    }
 
-    const arrayBuffer = await r2Response.arrayBuffer();
-    const base64Image = encodeBase64(new Uint8Array(arrayBuffer));
+      // Phase 2: S3 Object Sizing Attack Protection - Limit to 5MB to prevent OOM
+      const contentLengthStr = r2Response.headers.get("Content-Length");
+      if (contentLengthStr) {
+        const bytes = parseInt(contentLengthStr, 10);
+        if (bytes > 5 * 1024 * 1024) {
+          return new Response(
+            JSON.stringify({
+              error: "Payload Too Large: Exceeds 5MB boundary.",
+            }),
+            {
+              status: 413,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
+      const arrayBuffer = await r2Response.arrayBuffer();
+      base64Payload = encodeBase64(new Uint8Array(arrayBuffer));
+    }
 
     let userTier = "free";
     const { data: existingUser } = await supabaseAdmin
@@ -145,7 +153,8 @@ serve(async (req: Request) => {
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-    const systemInstruction = `You are Merian, the world's leading biological identification engine.
+    const systemInstruction =
+      `You are Merian, the world's leading biological identification engine.
 Your task is to accurately identify biological subjects. 
 Crucial instructions:
 1. Always check for liveness. If the subject is on a screen, in a book, or otherwise artificial, it is not a live capture.
@@ -154,8 +163,9 @@ Crucial instructions:
 4. You must write all 'insight_data' fields and the 'common_name' strictly in the target Locale provided in the context.
 5. You must format the 'common_name' so that each word is capitalized in standard title case (e.g. "Bearded Iris" instead of "bearded iris").`;
 
-    const targetModel =
-      userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
+    const targetModel = userTier === "pro"
+      ? "gemini-2.5-pro"
+      : "gemini-2.5-flash";
 
     const model = genAI.getGenerativeModel({
       model: targetModel,
@@ -167,19 +177,37 @@ Crucial instructions:
 
     const dynamicContext = `
       Environmental Context:
-      - GPS Coordinates: Lat ${gpsLatitude ?? "Unknown"}, Long ${gpsLongitude ?? "Unknown"}
-      - Elevation: ${gpsElevation != null ? `${gpsElevation} meters` : "Unknown"}
+      - GPS Coordinates: Lat ${gpsLatitude ?? "Unknown"}, Long ${
+      gpsLongitude ?? "Unknown"
+    }
+      - Elevation: ${
+      gpsElevation != null ? `${gpsElevation} meters` : "Unknown"
+    }
       - Depth Scale (Lidar): ${depthScaleText ?? "Unknown"}
       - Semantic Location: ${semanticLocation ?? "Unknown"}
       - Weather Condition: ${weatherCondition ?? "Unknown"}
-      - Temperature: ${weatherTemperatureF != null ? `${weatherTemperatureF}°F` : "Unknown"}
+      - Temperature: ${
+      weatherTemperatureF != null ? `${weatherTemperatureF}°F` : "Unknown"
+    }
       - Device Locale: ${deviceLocale ?? "en"}
       - Current Month: ${currentMonth ?? "Unknown"}
       - Time of Day: ${timeOfDay ?? "Unknown"}
-      - Hardware Flash Fired: ${isFlashFired ? "Yes (Colors may be washed out or overexposed)" : "No"}
-      - Camera Angle (Pitch): ${cameraPitchDegrees != null ? `${cameraPitchDegrees}° (Negative = looking down, Positive = looking up)` : "Unknown"}
-      - Compass Heading: ${compassHeading != null ? `${compassHeading}°` : "Unknown"}
-      - Relative Humidity: ${relativeHumidity != null ? (relativeHumidity * 100).toFixed(0) + "%" : "Unknown"}
+      - Hardware Flash Fired: ${
+      isFlashFired ? "Yes (Colors may be washed out or overexposed)" : "No"
+    }
+      - Camera Angle (Pitch): ${
+      cameraPitchDegrees != null
+        ? `${cameraPitchDegrees}° (Negative = looking down, Positive = looking up)`
+        : "Unknown"
+    }
+      - Compass Heading: ${
+      compassHeading != null ? `${compassHeading}°` : "Unknown"
+    }
+      - Relative Humidity: ${
+      relativeHumidity != null
+        ? (relativeHumidity * 100).toFixed(0) + "%"
+        : "Unknown"
+    }
       - UV Index: ${uvIndex ?? "Unknown"}
     `;
 
@@ -264,7 +292,11 @@ Crucial instructions:
               },
             },
           },
-          required: ["primary_match_rationale", "confusing_lookalike_name", "key_differentiators"],
+          required: [
+            "primary_match_rationale",
+            "confusing_lookalike_name",
+            "key_differentiators",
+          ],
         },
         colors: {
           type: SchemaType.ARRAY,
@@ -293,43 +325,33 @@ Crucial instructions:
       {
         inlineData: {
           mimeType: "image/jpeg",
-          data: base64Image,
+          data: base64Payload,
         },
       },
       { text: dynamicContext },
       { text: "Perform the biological identification." },
     ];
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        // deno-lint-ignore no-explicit-any
-        responseSchema: merianResponseSchema as any,
-      },
-    });
-
-    const candidate = result.response.candidates?.[0];
-    const finishReason = candidate?.finishReason;
-    const safetyRatings = candidate?.safetyRatings;
-
-    // supabaseAdmin already instantiated above
-
-    const modResult = await evaluateAndProcessPayload(
-      user.id,
-      r2ObjectKey,
-      finishReason,
-      safetyRatings,
-      userTier,
-    );
-    if (
-      modResult.status === "SHADOWBANNED" ||
-      modResult.status === "DELETED_WARNING"
-    ) {
-      throw new Error("Media flagged by safety moderation");
+    let finishReason: string | undefined;
+    let safetyRatings: any[] | undefined;
+    let responseText = "";
+    try {
+        const result = await model.generateContent({
+            contents: [{ role: "user", parts }],
+            generationConfig: {
+                responseMimeType: "application/json",
+                // deno-lint-ignore no-explicit-any
+                responseSchema: merianResponseSchema as any,
+            },
+        });
+        const candidate = result.response.candidates?.[0];
+        finishReason = candidate?.finishReason;
+        safetyRatings = candidate?.safetyRatings;
+        responseText = result.response.text();
+    } catch (genError) {
+        console.error("Gemini Critical Extraction Failure:", genError);
+        return new Response(JSON.stringify({ error: `Gemini Validation Error: ${(genError as Error).message}` }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
     }
-
-    const responseText = result.response.text();
 
     // Strip markdown formatting if Gemini hallucinates markdown blocks
     const cleanJsonString = responseText
@@ -337,207 +359,253 @@ Crucial instructions:
       .replace(/```/g, "")
       .trim();
 
-    // Parse Gemini response to persist securely into the physical DB
     const parsedData = JSON.parse(cleanJsonString);
 
     const userId = user.id;
-    if (userId) {
-      let speciesId = null;
-
-      // Upsert physical taxonomy object dictionary lookup cleanly
-      if (
-        parsedData.is_biological_subject &&
-        parsedData.scientific_name &&
-        parsedData.taxonomy
-      ) {
-        let wikiUrl: string | null = null;
-        let wikiExtract: string | null = null;
-        let gbifKey: number | null = null;
-        let combinedImageUrls: string | null = null;
-
-        try {
-          const fetchedUrls: string[] = [];
-
-          const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
-            // Unauthenticated taxonomy fetch to global GBIF registry
-            (async () => {
-              let key: number | null = null;
-              let urls: string[] = [];
-              const gbifRes = await fetch(
-                `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(parsedData.scientific_name)}`,
-                { signal: AbortSignal.timeout(2500) },
-              );
-              if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
-              const gbifJson = await gbifRes.json();
-              key = gbifJson.usageKey || null;
-
-              if (key) {
-                const mediaRes = await fetch(
-                  `https://api.gbif.org/v1/species/${key}/media`,
-                  { signal: AbortSignal.timeout(2500) },
-                );
-                if (mediaRes.ok) {
-                  const mediaJson = await mediaRes.json();
-                  if (mediaJson.results && mediaJson.results.length > 0) {
-                    urls = mediaJson.results
-                      .filter(
-                        (m: Record<string, string>) =>
-                          m.type === "StillImage" && m.identifier,
-                      )
-                      .map((m: Record<string, string>) => m.identifier)
-                      .slice(0, 5);
-                  }
-                }
-              }
-              return { key, urls };
-            })(),
-
-            // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
-            (async () => {
-              const wikiRes = await fetch(
-                `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsedData.scientific_name.replace(/ /g, "_"))}`,
-                { signal: AbortSignal.timeout(2500) },
-              );
-              if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
-              const wikiJson = await wikiRes.json();
-              const url = wikiJson.content_urls?.desktop?.page || null;
-              const extract = wikiJson.extract || null;
-              const img =
-                wikiJson.originalimage?.source ||
-                wikiJson.thumbnail?.source ||
-                null;
-              return { url, extract, img };
-            })(),
-          ]);
-
-          if (gbifOutcome.status === "fulfilled") {
-            gbifKey = gbifOutcome.value.key;
-            fetchedUrls.push(...gbifOutcome.value.urls);
-          }
-          if (wikiOutcome.status === "fulfilled") {
-            wikiUrl = wikiOutcome.value.url;
-            wikiExtract = wikiOutcome.value.extract;
-            if (wikiOutcome.value.img) {
-              fetchedUrls.unshift(wikiOutcome.value.img);
-            }
-          }
-
-          if (fetchedUrls.length > 0) {
-            // Deduplicate explicitly and serialize
-            combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
-          }
-        } catch (e) {
-          console.log("Data enrichment failed silently: ", e);
-        }
-
-        const { data: unifiedSpecies, error: upsertError } = await supabaseAdmin
-          .from("species_dictionary")
-          .upsert(
-            {
-              scientific_name: parsedData.scientific_name,
-              common_names: { default: parsedData.common_name },
-              kingdom: parsedData.taxonomy.kingdom,
-              phylum: parsedData.taxonomy.phylum,
-              class: parsedData.taxonomy.class,
-              order: parsedData.taxonomy.order,
-              family: parsedData.taxonomy.family,
-              genus: parsedData.taxonomy.genus,
-              descriptions: {
-                insight: parsedData.insight_data.description,
-                wikipedia: wikiExtract,
-              },
-              is_poisonous: parsedData.insight_data.is_poisonous,
-              wikipedia_url: wikiUrl,
-              gbif_taxon_key: gbifKey,
-              reference_image_url: combinedImageUrls,
-              native_region: "Unknown",
-              iucn_red_list_status: parsedData.iucn_red_list_status,
-            },
-            { onConflict: "scientific_name", ignoreDuplicates: true },
-          )
-          .select("id, wikipedia_url, reference_image_url, descriptions")
-          .maybeSingle();
-
-        if (upsertError) {
-          console.error("Upsert failed: ", upsertError);
-        }
-
-        let resolvedSpecies = unifiedSpecies;
-
-        // If 'ignoreDuplicates' kicks in during concurrent scans, Postgres returns NULL data.
-        // We gracefully catch this here and execute a native read explicitly fetching the physical dictionary UUID.
-        if (!resolvedSpecies && !upsertError) {
-          const { data: existingSpecies, error: selectError } =
-            await supabaseAdmin
-              .from("species_dictionary")
-              .select("id, wikipedia_url, reference_image_url, descriptions")
-              .eq("scientific_name", parsedData.scientific_name)
-              .single();
-
-          if (selectError) {
-            console.error(
-              "Failed to fetch existing species cleanly: ",
-              selectError,
-            );
-          } else {
-            resolvedSpecies = existingSpecies;
-          }
-        }
-
-        if (resolvedSpecies) {
-          speciesId = resolvedSpecies.id;
-          parsedData.wikipedia_url = resolvedSpecies.wikipedia_url;
-          parsedData.wikipedia_extract =
-            resolvedSpecies.descriptions?.wikipedia || wikiExtract;
-          parsedData.reference_image_url = resolvedSpecies.reference_image_url;
-        }
-      }
-
-      // Finally natively bind the architectural map directly down to the Ghost User UUID
-      const { data: scanData, error: scanInsertError } = await supabaseAdmin
-        .from("scans")
-        .insert({
-          user_id: userId,
-          species_id: speciesId,
-          gps_lat_exact: gpsLatitude,
-          gps_long_exact: gpsLongitude,
-          gps_elevation: gpsElevation,
-          ai_confidence_score: parsedData.confidence_score,
-          blur_score: parsedData.blur_score,
-          ecology_type: parsedData.ecology_type,
-          is_invasive: parsedData.is_invasive,
-          colors: parsedData.colors,
-          regional_status_rationale:
-            parsedData.insight_data.regional_status_rationale,
-          is_live_capture: parsedData.is_live_capture,
-          weather_condition: weatherCondition,
-          weather_temperature_f: weatherTemperatureF,
-          semantic_location: semanticLocation,
-          device_locale: deviceLocale,
-          current_month: currentMonth,
-          time_of_day: timeOfDay,
-          is_flash_fired: isFlashFired,
-          camera_pitch_degrees: cameraPitchDegrees,
-          compass_heading: compassHeading,
-          relative_humidity: relativeHumidity,
-          uv_index: uvIndex,
-          depth_scale_text: depthScaleText,
-          image_storage_urls: modResult.publicUrl ? [modResult.publicUrl] : [],
-        })
-        .select("id")
-        .single();
-
-      if (scanInsertError) {
-        console.error("Failed to insert scan:", scanInsertError);
-      }
-
-      if (scanData) {
-        parsedData.scan_id = scanData.id;
-      }
-    } else {
+    if (!userId) {
       throw new Error(
         "Unauthorized: Invalid or missing User IDFV. Scans cannot be saved without a physical Device ID.",
       );
+    }
+
+    // Explicitly generate the physical UUID mapping asynchronously here skipping the synchronous PostgreSQL wait limits completely.
+    const generatedScanId = crypto.randomUUID();
+    parsedData.scan_id = generatedScanId;
+
+    const backgroundTask = (async () => {
+      try {
+        const modResult = await evaluateAndProcessPayload(
+          user.id,
+          r2ObjectKey,
+          imageBase64,
+          finishReason,
+          safetyRatings,
+          userTier,
+        );
+        if (
+          modResult.status === "SHADOWBANNED" ||
+          modResult.status === "DELETED_WARNING"
+        ) {
+          console.error(
+            "Media flagged by safety moderation. Halting background data ingestion.",
+          );
+          return;
+        }
+        let speciesId = null;
+
+        // Upsert physical taxonomy object dictionary lookup cleanly
+        if (
+          parsedData.is_biological_subject &&
+          parsedData.scientific_name &&
+          parsedData.taxonomy
+        ) {
+          let wikiUrl: string | null = null;
+          let wikiExtract: string | null = null;
+          let gbifKey: number | null = null;
+          let combinedImageUrls: string | null = null;
+
+          try {
+            const fetchedUrls: string[] = [];
+
+            const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
+              // Unauthenticated taxonomy fetch to global GBIF registry
+              (async () => {
+                let key: number | null = null;
+                let urls: string[] = [];
+                const gbifRes = await fetch(
+                  `https://api.gbif.org/v1/species/match?name=${
+                    encodeURIComponent(parsedData.scientific_name)
+                  }`,
+                  { signal: AbortSignal.timeout(2500) },
+                );
+                if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
+                const gbifJson = await gbifRes.json();
+                key = gbifJson.usageKey || null;
+
+                if (key) {
+                  const mediaRes = await fetch(
+                    `https://api.gbif.org/v1/species/${key}/media`,
+                    { signal: AbortSignal.timeout(2500) },
+                  );
+                  if (mediaRes.ok) {
+                    const mediaJson = await mediaRes.json();
+                    if (mediaJson.results && mediaJson.results.length > 0) {
+                      urls = mediaJson.results
+                        .filter(
+                          (m: Record<string, string>) =>
+                            m.type === "StillImage" && m.identifier,
+                        )
+                        .map((m: Record<string, string>) => m.identifier)
+                        .slice(0, 5);
+                    }
+                  }
+                }
+                return { key, urls };
+              })(),
+
+              // Unauthenticated lookup against Wikipedia's Desktop Page REST framework
+              (async () => {
+                const wikiRes = await fetch(
+                  `https://en.wikipedia.org/api/rest_v1/page/summary/${
+                    encodeURIComponent(
+                      parsedData.scientific_name.replace(/ /g, "_"),
+                    )
+                  }`,
+                  { signal: AbortSignal.timeout(2500) },
+                );
+                if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
+                const wikiJson = await wikiRes.json();
+                const url = wikiJson.content_urls?.desktop?.page || null;
+                const extract = wikiJson.extract || null;
+                const img = wikiJson.originalimage?.source ||
+                  wikiJson.thumbnail?.source ||
+                  null;
+                return { url, extract, img };
+              })(),
+            ]);
+
+            if (gbifOutcome.status === "fulfilled") {
+              gbifKey = gbifOutcome.value.key;
+              fetchedUrls.push(...gbifOutcome.value.urls);
+            }
+            if (wikiOutcome.status === "fulfilled") {
+              wikiUrl = wikiOutcome.value.url;
+              wikiExtract = wikiOutcome.value.extract;
+              if (wikiOutcome.value.img) {
+                fetchedUrls.unshift(wikiOutcome.value.img);
+              }
+            }
+
+            if (fetchedUrls.length > 0) {
+              // Deduplicate explicitly and serialize
+              combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
+            }
+          } catch (e) {
+            console.log("Data enrichment failed silently: ", e);
+          }
+
+          const { data: unifiedSpecies, error: upsertError } =
+            await supabaseAdmin
+              .from("species_dictionary")
+              .upsert(
+                {
+                  scientific_name: parsedData.scientific_name,
+                  common_names: { default: parsedData.common_name },
+                  kingdom: parsedData.taxonomy.kingdom,
+                  phylum: parsedData.taxonomy.phylum,
+                  class: parsedData.taxonomy.class,
+                  order: parsedData.taxonomy.order,
+                  family: parsedData.taxonomy.family,
+                  genus: parsedData.taxonomy.genus,
+                  descriptions: {
+                    insight: parsedData.insight_data.description,
+                    wikipedia: wikiExtract,
+                  },
+                  is_poisonous: parsedData.insight_data.is_poisonous,
+                  wikipedia_url: wikiUrl,
+                  gbif_taxon_key: gbifKey,
+                  reference_image_url: combinedImageUrls,
+                  native_region: "Unknown",
+                  iucn_red_list_status: parsedData.iucn_red_list_status,
+                },
+                { onConflict: "scientific_name", ignoreDuplicates: true },
+              )
+              .select("id, wikipedia_url, reference_image_url, descriptions")
+              .maybeSingle();
+
+          if (upsertError) {
+            console.error("Upsert failed: ", upsertError);
+          }
+
+          let resolvedSpecies = unifiedSpecies;
+
+          // If 'ignoreDuplicates' kicks in during concurrent scans, Postgres returns NULL data.
+          // We gracefully catch this here and execute a native read explicitly fetching the physical dictionary UUID.
+          if (!resolvedSpecies && !upsertError) {
+            const { data: existingSpecies, error: selectError } =
+              await supabaseAdmin
+                .from("species_dictionary")
+                .select("id, wikipedia_url, reference_image_url, descriptions")
+                .eq("scientific_name", parsedData.scientific_name)
+                .single();
+
+            if (selectError) {
+              console.error(
+                "Failed to fetch existing species cleanly: ",
+                selectError,
+              );
+            } else {
+              resolvedSpecies = existingSpecies;
+            }
+          }
+
+          if (resolvedSpecies) {
+            speciesId = resolvedSpecies.id;
+            parsedData.wikipedia_url = resolvedSpecies.wikipedia_url;
+            parsedData.wikipedia_extract =
+              resolvedSpecies.descriptions?.wikipedia || wikiExtract;
+            parsedData.reference_image_url =
+              resolvedSpecies.reference_image_url;
+          }
+        }
+
+        // Finally natively bind the architectural map directly down to the Ghost User UUID
+        const { data: scanData, error: scanInsertError } = await supabaseAdmin
+          .from("scans")
+          .insert({
+            id: generatedScanId,
+            user_id: userId,
+            species_id: speciesId,
+            gps_lat_exact: gpsLatitude,
+            gps_long_exact: gpsLongitude,
+            gps_elevation: gpsElevation,
+            ai_confidence_score: parsedData.confidence_score,
+            blur_score: parsedData.blur_score,
+            ecology_type: parsedData.ecology_type,
+            is_invasive: parsedData.is_invasive,
+            colors: parsedData.colors,
+            regional_status_rationale:
+              parsedData.insight_data.regional_status_rationale,
+            is_live_capture: parsedData.is_live_capture,
+            weather_condition: weatherCondition,
+            weather_temperature_f: weatherTemperatureF,
+            semantic_location: semanticLocation,
+            device_locale: deviceLocale,
+            current_month: currentMonth,
+            time_of_day: timeOfDay,
+            is_flash_fired: isFlashFired,
+            camera_pitch_degrees: cameraPitchDegrees,
+            compass_heading: compassHeading,
+            relative_humidity: relativeHumidity,
+            uv_index: uvIndex,
+            depth_scale_text: depthScaleText,
+            image_storage_urls: modResult.publicUrl
+              ? [modResult.publicUrl]
+              : [],
+          })
+          .select("id")
+          .single();
+
+        if (scanInsertError) {
+          console.error("Failed to insert scan:", scanInsertError);
+        }
+
+        if (scanData) {
+          // Redundant safely omitted since we pregenerated `parsedData.scan_id` dynamically prior!
+        }
+    } catch (e) {
+        console.error("Background AI ingestion completely failed:", e);
+      }
+    })();
+
+    // Supabase Edge Functions native execution handler 
+    // deno-lint-ignore no-explicit-any
+    if (typeof (globalThis as any).EdgeRuntime === "object" && typeof (globalThis as any).EdgeRuntime.waitUntil === "function") {
+      // deno-lint-ignore no-explicit-any
+      (globalThis as any).EdgeRuntime.waitUntil(backgroundTask);
+    } else {
+      // Graceful fallback for local development or Deno Core isolated workers
+      backgroundTask.catch(console.error);
     }
 
     // Return standard nested JSON array to prevent iOS decoding double-escaped strings

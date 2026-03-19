@@ -4,6 +4,7 @@ import { AwsClient } from "aws4fetch";
 export async function evaluateAndProcessPayload(
   userId: string,
   r2ObjectKey: string,
+  imageBase64: string | undefined,
   geminiFinishReason: string | undefined,
   // deno-lint-ignore no-explicit-any
   safetyRatings: any[] | undefined,
@@ -60,10 +61,12 @@ export async function evaluateAndProcessPayload(
         `Unsafe media detected for user ${userId}. Engaging Unsafe Flow.`,
       );
 
-      // Step A: Send DELETE request purging image explicitly from staging
-      const deleteReq = new Request(stagingUrl, { method: "DELETE" });
-      const signedDelete = await aws.sign(deleteReq);
-      await fetch(signedDelete);
+      // Step A: Send DELETE request purging image explicitly from staging (if uploaded remotely)
+      if (!imageBase64) {
+          const deleteReq = new Request(stagingUrl, { method: "DELETE" });
+          const signedDelete = await aws.sign(deleteReq);
+          await fetch(signedDelete);
+      }
 
       // Step B: Fetch and increment abuse strikes in Supabase
       const { data: userData, error: fetchError } = await supabase
@@ -102,24 +105,42 @@ export async function evaluateAndProcessPayload(
     // 4. Safe Flow Pipeline
     console.log(`Media marked safe. Engaing Safe Flow Pipeline.`);
 
-    // Step A: Copy source image structurally within R2
-    const copyReq = new Request(targetS3Url, {
-      method: "PUT",
-      headers: {
-        "x-amz-copy-source": `/${R2_BUCKET_NAME}/${r2ObjectKey}`,
-      },
-    });
-
-    const signedCopy = await aws.sign(copyReq);
-    const copyRes = await fetch(signedCopy);
-
-    if (copyRes.ok) {
-      // Step B: Purge origin from staging payload block after valid internal transfer
-      const originDeleteReq = new Request(stagingUrl, { method: "DELETE" });
-      const signedOriginDelete = await aws.sign(originDeleteReq);
-      await fetch(signedOriginDelete);
+    // Step A: Migrate source image securely into R2 explicit bounds natively
+    if (imageBase64) {
+        // Direct conversion natively decoding the Base64 boundary String down into Uint8Array
+        const arrayBuffer = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0));
+        
+        const uploadReq = new Request(targetS3Url, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "image/jpeg"
+            },
+            body: arrayBuffer
+        });
+        const signedUpload = await aws.sign(uploadReq);
+        const uploadRes = await fetch(signedUpload);
+        if (!uploadRes.ok) {
+            console.error(`Failed to upload direct Base64 buffer into R2. Pipeline stopped.`);
+        }
     } else {
-      console.error(`Failed to promote payload into R2. Pipeline stopped.`);
+        const copyReq = new Request(targetS3Url, {
+          method: "PUT",
+          headers: {
+            "x-amz-copy-source": `/${R2_BUCKET_NAME}/${r2ObjectKey}`,
+          },
+        });
+
+        const signedCopy = await aws.sign(copyReq);
+        const copyRes = await fetch(signedCopy);
+
+        if (copyRes.ok) {
+          // Step B: Purge origin from staging payload block after valid internal transfer
+          const originDeleteReq = new Request(stagingUrl, { method: "DELETE" });
+          const signedOriginDelete = await aws.sign(originDeleteReq);
+          await fetch(signedOriginDelete);
+        } else {
+          console.error(`Failed to promote staging payload into R2. Pipeline stopped.`);
+        }
     }
 
     return { status: "PROMOTED", publicUrl: publicR2DevUrl };
