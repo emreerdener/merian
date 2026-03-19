@@ -13,6 +13,7 @@ class ScansSearchManager: ObservableObject {
         didSet { updateSearchableData() }
     }
     
+    private var scanMap: [String: LocalScanRecord] = [:]
     private var searchableData: [SearchableScan] = []
     private var searchTask: Task<Void, Never>?
     private var indexingTask: Task<Void, Never>?
@@ -22,11 +23,16 @@ class ScansSearchManager: ObservableObject {
         
         guard let firstScan = allScans.first, let container = firstScan.modelContext?.container else {
             self.searchableData = []
+            self.scanMap = [:]
             return
         }
         
         // Critically extract lightweight persistent identifiers natively keeping O(N) evaluations blazingly fast on UI bounds
         let ids = allScans.map { $0.persistentModelID }
+        
+        var newMap: [String: LocalScanRecord] = [:]
+        for scan in allScans { newMap[scan.id] = scan }
+        self.scanMap = newMap
         
         indexingTask = Task.detached(priority: .userInitiated) {
             let dbActor = SearchDatabaseActor(modelContainer: container)
@@ -76,9 +82,10 @@ class ScansSearchManager: ObservableObject {
             
             // Offload heavy multi-token String matching entirely off the UI thread
             let searchData = self.searchableData
+            
             let matchingIds = await Task.detached(priority: .userInitiated) {
                 let tokens = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-                return Set(searchData.filter { scan in
+                let matched = searchData.filter { scan in
                     if Task.isCancelled { return false }
                     let matchesCategory: Bool
                     switch catMatch {
@@ -106,11 +113,18 @@ class ScansSearchManager: ObservableObject {
                     return tokens.allSatisfy { token in
                         scan.searchString.contains(token)
                     }
-                }.map { $0.id })
+                }
+                
+                if Task.isCancelled { return [String]() }
+                // Return explicitly primitive Sendable boundaries preventing Swift 6 PersistentModel crossing errors natively
+                return matched.map { $0.id }
             }.value
             
             if Task.isCancelled { return }
-            let filteredSubset = self.allScans.filter { matchingIds.contains($0.id) }
+            
+            // Decouple native UI starvation by extracting perfectly O(1) subset arrays completely securely
+            let filteredSubset = matchingIds.compactMap { self.scanMap[$0] }
+            
             withAnimation {
                 self.filteredScans = filteredSubset
             }

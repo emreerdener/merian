@@ -80,9 +80,12 @@ serve(async (req: Request) => {
         break;
       }
       
-      // Instantly evaluate and stringify the CSV bounded responses out of the postgres V8 payload
-      // deno-lint-ignore no-explicit-any
-      const batchResults = await Promise.all(data.map(async (scan: any) => {
+      // CRITICAL SEC FIX: Prevent V8 Event Loop Starvation structurally on massive export scales natively
+      // Instead of explicitly blasting 1,000 concurrent cryptographic digests synchronously starving V8, process them sequentially
+      const batchResults = [];
+      for (const row of data) {
+        // deno-lint-ignore no-explicit-any
+        const scan = row as any;
         const species = scan.species_dictionary || {};
         const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
         
@@ -122,10 +125,11 @@ serve(async (req: Request) => {
         const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
         
         const urls = scan.image_storage_urls || [];
+        // deno-lint-ignore no-explicit-any
         const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
 
-        return { occurrenceRow, mRows };
-      }));
+        batchResults.push({ occurrenceRow, mRows });
+      }
       
       for (const res of batchResults) {
         occurrenceRows.push(res.occurrenceRow);

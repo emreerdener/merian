@@ -13,11 +13,14 @@ final class HapticManager {
     private let selection = UISelectionFeedbackGenerator()
 
     init() {
-        heavy.prepare()
-        light.prepare()
-        rigid.prepare()
-        medium.prepare()
-        error.prepare()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            self.heavy.prepare()
+            self.light.prepare()
+            self.rigid.prepare()
+            self.medium.prepare()
+            self.error.prepare()
+        }
     }
 
     func triggerFocusSnap() { if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { heavy.impactOccurred() } }

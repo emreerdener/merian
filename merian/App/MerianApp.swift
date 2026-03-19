@@ -14,7 +14,7 @@ struct MerianApp: App {
     @Environment(\.scenePhase) private var scenePhase
     let diContainer = AppDIContainer.shared
 
-    let container: ModelContainer
+    @State private var container: ModelContainer?
     
     init() {
         // Initialize Zero-PII Crash & Anonymous Usage Metrics completely off the main thread to prevent camera initialization stutters
@@ -23,41 +23,52 @@ struct MerianApp: App {
             AppTelemetry.initialize()
             await PostHogManager.shared.configure()
         }
-        
-        let schema = Schema(versionedSchema: MerianSchemaV9.self)
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        do {
-            container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [modelConfiguration])
-            
-            // CRITICAL FIX: Access the singleton directly via .shared to prevent SwiftUI from 
-            // prematurely evaluating the @StateObject property wrapper and throwing memory warnings.
-            AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
-        } catch {
-            // Fatal error protects against wiping data when encountering production schema migrations
-            fatalError("Could not create ModelContainer: \(error)")
-        }
     }
 
     var body: some Scene {
         WindowGroup {
-            CameraRootView()
-                .injectAppDependencies(container: diContainer)
-                .modelContainer(container)
-                .onAppear {
-                    diContainer.revenueCatManager.configure()
+            Group {
+                if let activeContainer = container {
+                    CameraRootView()
+                        .modelContainer(activeContainer)
+                } else {
+                    CameraRootView()
                 }
-                .onOpenURL { url in
-                    if GIDSignIn.sharedInstance.handle(url) {
-                        return
+            }
+            .injectAppDependencies(container: diContainer)
+            .task {
+                guard container == nil else { return }
+                
+                // Initialize SwiftData strictly off the Main Thread explicitly protecting the Apple native camera 120Hz boot physically
+                do {
+                    let schema = Schema(versionedSchema: MerianSchemaV9.self)
+                    let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+                    
+                    let activeContainer = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [modelConfiguration])
+                    
+                    await MainActor.run {
+                        AppDIContainer.shared.scanRepository.configure(with: activeContainer.mainContext)
+                        self.container = activeContainer
                     }
-                    Task {
-                        do {
-                            try await diContainer.supabaseManager.client.auth.session(from: url)
-                        } catch {
-                            print("Supabase auth session URL handler failed: \(error)")
-                        }
+                } catch {
+                    fatalError("Could not create ModelContainer: \(error)")
+                }
+            }
+            .onAppear {
+                diContainer.revenueCatManager.configure()
+            }
+            .onOpenURL { url in
+                if GIDSignIn.sharedInstance.handle(url) {
+                    return
+                }
+                Task {
+                    do {
+                        try await diContainer.supabaseManager.client.auth.session(from: url)
+                    } catch {
+                        print("Supabase auth session URL handler failed: \(error)")
                     }
                 }
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {

@@ -125,6 +125,8 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         queue.async {
             self.session.startRunning()
             Task { @MainActor in
+                // CRITICAL FIX: Gracefully yield the Main RunLoop natively escaping the active SwiftUI View update cycle
+                try? await Task.sleep(nanoseconds: 50_000_000) 
                 self.isSessionRunning = true
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
                 ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
@@ -137,6 +139,8 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         queue.async {
             self.session.stopRunning()
             Task { @MainActor in
+                // Yield the render frame avoiding state evaluation collision natively 
+                try? await Task.sleep(nanoseconds: 50_000_000)
                 self.isSessionRunning = false
             }
         }

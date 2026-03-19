@@ -362,68 +362,78 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             return
         }
         
-        await MainActor.run {
-            
-            guard let modelContext = OfflineQueueManager.shared.modelContext else {
-                #if os(iOS)
-                inferenceBox.safeEnd()
-                #endif
-                return
-            }
-            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            
-            guard let scan = try? modelContext.fetch(descriptor).first else {
-                #if os(iOS)
-                inferenceBox.safeEnd()
-                #endif
-                return
-            }
-            
-            guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else {
-                #if os(iOS)
-                inferenceBox.safeEnd()
-                #endif
-                return
-            }
-            let r2ObjectKey = String(urlPath[range.lowerBound...])
-            
-            do {
-                let telemetry = CaptureTelemetry(
-                    subjectDistanceInMeters: scan.subjectDistanceInMeters,
-                    gpsLatitude: scan.gpsLatitude,
-                    gpsLongitude: scan.gpsLongitude,
-                    gpsElevation: scan.gpsElevation,
-                    locationName: scan.locationName,
-                    weatherCondition: scan.weatherCondition,
-                    weatherTemperatureF: scan.weatherTemperatureF,
-                    cameraPitchDegrees: scan.cameraPitchDegrees,
-                    compassHeading: scan.compassHeading,
-                    relativeHumidity: scan.relativeHumidity,
-                    uvIndex: scan.uvIndex,
-                    isFlashFired: scan.isFlashFired
-                )
-                let resultData = try await MerianNetworkClient.shared.analyzeSubject(
-                    r2ObjectKey: r2ObjectKey,
-                    base64ImageData: nil,
-                    telemetry: telemetry
-                )
-                let backgroundActor = BackgroundDatabaseActor(modelContainer: modelContext.container)
-                await backgroundActor.processAndCleanupOfflineScan(
-                    resultData: resultData,
-                    originalImagePaths: scan.localImagePaths,
-                    scanId: scanId
-                )
-                
-                OfflineQueueManager.shared.updateUnsyncedItemCount()
-                CircuitBreakerManager.shared.recordSuccess()
-            } catch {
-                print("Failed downstream inference on offline queued scan: \(error)")
-            }
-            
+        struct ExtractedScanData {
+            let telemetry: CaptureTelemetry
+            let localImagePaths: [String]
+            let container: ModelContainer
+        }
+        
+        guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else {
             #if os(iOS)
             inferenceBox.safeEnd()
             #endif
+            return
         }
+        let r2ObjectKey = String(urlPath[range.lowerBound...])
+
+        let scanData = await MainActor.run { () -> ExtractedScanData? in
+            guard let modelContext = OfflineQueueManager.shared.modelContext,
+                  let container = OfflineQueueManager.shared.modelContext?.container else {
+                return nil
+            }
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            guard let scan = try? modelContext.fetch(descriptor).first else { return nil }
+            
+            let telemetry = CaptureTelemetry(
+                subjectDistanceInMeters: scan.subjectDistanceInMeters,
+                gpsLatitude: scan.gpsLatitude,
+                gpsLongitude: scan.gpsLongitude,
+                gpsElevation: scan.gpsElevation,
+                locationName: scan.locationName,
+                weatherCondition: scan.weatherCondition,
+                weatherTemperatureF: scan.weatherTemperatureF,
+                cameraPitchDegrees: scan.cameraPitchDegrees,
+                compassHeading: scan.compassHeading,
+                relativeHumidity: scan.relativeHumidity,
+                uvIndex: scan.uvIndex,
+                isFlashFired: scan.isFlashFired
+            )
+            
+            return ExtractedScanData(telemetry: telemetry, localImagePaths: scan.localImagePaths, container: container)
+        }
+        
+        guard let extracted = scanData else {
+            #if os(iOS)
+            inferenceBox.safeEnd()
+            #endif
+            return
+        }
+        
+        do {
+            let resultData = try await MerianNetworkClient.shared.analyzeSubject(
+                r2ObjectKey: r2ObjectKey,
+                base64ImageData: nil,
+                telemetry: extracted.telemetry
+            )
+            
+            let backgroundActor = BackgroundDatabaseActor(modelContainer: extracted.container)
+            await backgroundActor.processAndCleanupOfflineScan(
+                resultData: resultData,
+                originalImagePaths: extracted.localImagePaths,
+                scanId: scanId
+            )
+            
+            await MainActor.run {
+                OfflineQueueManager.shared.updateUnsyncedItemCount()
+                CircuitBreakerManager.shared.recordSuccess()
+            }
+        } catch {
+            print("Failed downstream inference on offline queued scan: \(error)")
+        }
+            
+        #if os(iOS)
+        inferenceBox.safeEnd()
+        #endif
         }
     }
     
@@ -568,6 +578,15 @@ actor BackgroundDatabaseActor {
                 modelContext.delete(scan)
             }
             try modelContext.save()
+            
+            // CRITICAL FIX: Explicitly drop the local .jpg payloads off the physical iOS SSD preventing gigabytes of storage leaks
+            // because the successful record resolves its Base64/Network trace safely inside the cloud loop.
+            let documentsDirectory = URL.documentsDirectory
+            for path in originalImagePaths {
+                let fileURL = documentsDirectory.appendingPathComponent(path)
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+            
         } catch {
             print("Background cleanup logic explicitly failed out of process offline trace natively: \(error)")
         }

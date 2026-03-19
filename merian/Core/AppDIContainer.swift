@@ -8,32 +8,32 @@ final class AppDIContainer: ObservableObject {
     static let shared = AppDIContainer()
 
     // Environment & Hardware
-    let hardwareOrchestrator = HardwareOrchestrator.shared
-    let cameraManager = CameraManager.shared
-    let hapticManager = HapticManager.shared
+    lazy var hardwareOrchestrator = HardwareOrchestrator.shared
+    lazy var cameraManager = CameraManager.shared
+    lazy var hapticManager = HapticManager.shared
 
     // AI & Intelligence
-    let inferenceEngine = InferenceEngine()
-    let vui = ViewfinderIntelligence.shared
+    lazy var inferenceEngine = InferenceEngine()
+    lazy var vui = ViewfinderIntelligence.shared
     
     // Core Services
-    let environmentContextManager = EnvironmentContextManager.shared
+    lazy var environmentContextManager = EnvironmentContextManager.shared
 
     // Data & Sync
-    let scanRepository = ScanRepository.shared
-    let offlineQueueManager = OfflineQueueManager.shared
-    let syncStateManager = SyncStateManager.shared
-    let archiveManager = ArchiveManager.shared
-    let photoLibraryManager = PhotoLibraryManager.shared
+    lazy var scanRepository = ScanRepository.shared
+    lazy var offlineQueueManager = OfflineQueueManager.shared
+    lazy var syncStateManager = SyncStateManager.shared
+    lazy var archiveManager = ArchiveManager.shared
+    lazy var photoLibraryManager = PhotoLibraryManager.shared
 
     // Network & Backend
-    let supabaseManager = SupabaseManager.shared
+    lazy var supabaseManager = SupabaseManager.shared
     
     // Analytics & Security
-    let revenueCatManager = RevenueCatManager.shared
-    let usageManager = UsageManager.shared
-    let gamificationManager = GamificationManager.shared
-    let circuitBreakerManager = CircuitBreakerManager.shared
+    lazy var revenueCatManager = RevenueCatManager.shared
+    lazy var usageManager = UsageManager.shared
+    lazy var gamificationManager = GamificationManager.shared
+    lazy var circuitBreakerManager = CircuitBreakerManager.shared
 
     private init() {
         // Private initialization for singleton

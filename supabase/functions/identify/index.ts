@@ -50,6 +50,23 @@ serve(async (req: Request) => {
       );
     }
 
+    if (r2ObjectKey) {
+      // CRITICAL SEC FIX: Prevent malicious actors from submitting spoofed payloads extracting foreign blobs
+      // The `r2ObjectKey` must physically belong to the authenticated user's boundary and explicitly bypass `../` loops natively
+      if (!r2ObjectKey.startsWith(`staging/${user!.id}/`)) {
+        return new Response(
+          JSON.stringify({ error: "SECURITY VIOLATION (IDOR): Attempting to scrape foreign r2ObjectKey bounds." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (r2ObjectKey.includes("..")) {
+        return new Response(
+          JSON.stringify({ error: "SECURITY VIOLATION: Path traversal detected inside payload boundaries." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     if (!user_id) {
       return new Response(
         JSON.stringify({ error: "Missing user_id parameter in body" }),
@@ -303,7 +320,7 @@ Crucial instructions:
     ];
 
     let finishReason: string | undefined;
-    let safetyRatings: any[] | undefined;
+    let safetyRatings: unknown[] | undefined;
     let responseText = "";
     try {
         const result = await model.generateContent({

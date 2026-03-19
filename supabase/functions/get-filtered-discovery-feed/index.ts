@@ -64,9 +64,13 @@ serve(async (req: Request) => {
       throw new Error(`Failed to map global feeds: ${feedError.message}`);
     }
 
-    // 4. Secure the Payload Coordinates Against Endangered Species Poaching Data Leaks
+    // 4. Secure the Payload Coordinates Against Geoprivacy Vulnerabilities natively
     // deno-lint-ignore no-explicit-any
     const sanitizedFeedData = feedData.map((scan: any) => {
+      // CRITICAL SEC FIX: Unconditionally delete exact pinpoint coordinates natively globally protecting User Geoprivacy
+      delete scan.gps_lat_exact;
+      delete scan.gps_long_exact;
+
       const species = scan.species_dictionary || {};
       const isProtected =
         species.iucn_red_list_status === "vulnerable" ||
@@ -75,10 +79,7 @@ serve(async (req: Request) => {
         species.iucn_red_list_status === "near_threatened";
 
       if (isProtected) {
-        // Obliterate exact pinpoint coordinates natively resolving anti-poaching security constraints natively
-        delete scan.gps_lat_exact;
-        delete scan.gps_long_exact;
-        // Obscure public boundaries roughly to approx 11km blocks natively
+        // Obscure public boundaries roughly to approx 11km blocks natively exclusively for protected targets
         if (scan.gps_lat_public != null)
           scan.gps_lat_public = Math.round(scan.gps_lat_public * 10) / 10;
         if (scan.gps_long_public != null)

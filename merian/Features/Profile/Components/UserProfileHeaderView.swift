@@ -3,13 +3,11 @@ import SwiftData
 
 struct UserProfileHeaderView: View {
     @ObservedObject var supabase: SupabaseManager
-    @Query private var allRecords: [LocalScanRecord]
+    @Environment(\.modelContext) private var modelContext
     
     var onSettingsTap: () -> Void
     
-    private var uniqueSpeciesCount: Int {
-        Set(allRecords.compactMap { $0.scientificName }).count
-    }
+    @State private var uniqueSpeciesCount: Int = 0
     
     private var persona: String {
         let count = uniqueSpeciesCount
@@ -116,6 +114,14 @@ struct UserProfileHeaderView: View {
                 .padding(.horizontal, 24)
             }
             .buttonStyle(PlainButtonStyle())
+        }
+        .task {
+            let container = modelContext.container
+            let actor = ProfileDatabaseActor(modelContainer: container)
+            let (species, _) = await actor.calculateProfileStats()
+            await MainActor.run {
+                self.uniqueSpeciesCount = species
+            }
         }
     }
 }

@@ -49,6 +49,13 @@ async function migrateUserStorage(userId: string, sourcePrefix: string, targetPr
               const fileName = pathParts.pop();
               const originalUserId = pathParts.pop();
 
+              // CRITICAL SEC FIX: Prevent malicious actors from submitting spoofed payloads 
+              // that overwrite or delete adjacent user's private captures in R2 via arbitrary URLs
+              if (originalUserId !== userId) {
+                  console.warn(`SECURITY VIOLATION (IDOR): Webhook user ${userId} attempted to migrate assets belonging to ${originalUserId}`);
+                  return urlStr;
+              }
+
               const sourceKey = `public_uploads/${sourcePrefix}/${originalUserId}/${fileName}`;
               const targetKey = `public_uploads/${targetPrefix}/${userId}/${fileName}`;
 

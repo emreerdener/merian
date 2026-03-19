@@ -36,6 +36,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     private var geocodeCache: [String: String] = [:]
     private var geocodeKeys: [String] = []
     private let geocodeCacheLimit = 200
+    private var activeGeocodeTasks: [String: Task<String?, Never>] = [:]
     
     private override init() {
         super.init()
@@ -163,40 +164,51 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
             return cached
         }
         
-        let geocoder = CLGeocoder()
-        let generatedString: String? = await withCheckedContinuation { continuation in
-            geocoder.reverseGeocodeLocation(location) { placemarks, error in
-                if error != nil {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                
-                if let placemark = placemarks?.first {
-                    if let city = placemark.locality, let adminArea = placemark.administrativeArea {
-                        continuation.resume(returning: "\(city), \(adminArea)")
-                    } else if let city = placemark.locality {
-                        continuation.resume(returning: city)
-                    } else if let name = placemark.name {
-                        continuation.resume(returning: name)
+        // CRITICAL SEC FIX: Prevent the "Thundering Herd" API crash by explicitly coalescing concurrent fetches natively
+        if let existingTask = activeGeocodeTasks[key] {
+            return await existingTask.value
+        }
+        
+        let task = Task { @MainActor () -> String? in
+            let geocoder = CLGeocoder()
+            let generatedString: String? = await withCheckedContinuation { continuation in
+                geocoder.reverseGeocodeLocation(location) { placemarks, error in
+                    if error != nil {
+                        continuation.resume(returning: nil)
+                        return
+                    }
+                    
+                    if let placemark = placemarks?.first {
+                        if let city = placemark.locality, let adminArea = placemark.administrativeArea {
+                            continuation.resume(returning: "\(city), \(adminArea)")
+                        } else if let city = placemark.locality {
+                            continuation.resume(returning: city)
+                        } else if let name = placemark.name {
+                            continuation.resume(returning: name)
+                        } else {
+                            continuation.resume(returning: nil)
+                        }
                     } else {
                         continuation.resume(returning: nil)
                     }
-                } else {
-                    continuation.resume(returning: nil)
                 }
             }
-        }
-        
-        if let validString = generatedString {
-            if geocodeKeys.count >= geocodeCacheLimit {
-                let oldest = geocodeKeys.removeFirst()
-                geocodeCache.removeValue(forKey: oldest)
+            
+            if let validString = generatedString {
+                if self.geocodeKeys.count >= self.geocodeCacheLimit {
+                    let oldest = self.geocodeKeys.removeFirst()
+                    self.geocodeCache.removeValue(forKey: oldest)
+                }
+                self.geocodeKeys.append(key)
+                self.geocodeCache[key] = validString
             }
-            geocodeKeys.append(key)
-            geocodeCache[key] = validString
+            
+            self.activeGeocodeTasks.removeValue(forKey: key)
+            return generatedString
         }
         
-        return generatedString
+        activeGeocodeTasks[key] = task
+        return await task.value
     }
     
     private func requestSingleLocation() async -> CLLocation? {

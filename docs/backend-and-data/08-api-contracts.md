@@ -35,7 +35,7 @@ The server automatically extracts the genuine user identity cryptographically ma
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
-When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase:
+When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. Notably, to defend against Path Traversal and Data Scraping, the server violently enforces that any `r2ObjectKey` structurally completely mandates `staging/${user.id}/` mappings and inherently rejects `../` traversal attempts explicitly dropping foreign malicious requests instantly returning `HTTP 400` status constraints implicitly.
 
 ```json
 {
@@ -155,8 +155,8 @@ Because we use `URLSession` inside `MerianNetworkClient` instead of the Supabase
 
 Any request attempting to fake a user session via a manipulated JSON body without passing a valid structural JWT signature in the header natively fails with a `401 Unauthorized` token boundary. This guarantees actors can only physically query Discovery Feeds mapping dynamically to their own authenticated blocklists natively.
 
-### Endangered Species Payload Shielding
-To completely prevent poachers from harvesting exact GPS geometries for IUCN Endangered, Vulnerable, or Near-Threatened species, the endpoint executes a stringent post-processing `map` array loop natively before JSON transmission. If the specific Linnaean taxonomy flags the capture as protected, the `.gps_lat_exact` and `.gps_long_exact` numeric boundaries are aggressively deleted completely off the global JSON payload, natively rounding their `gps_lat_public` geometries mathematically to 11km bounds. This completely obscures the data seamlessly regardless of whether the user opted into `Open` geoprivacy natively.
+### Global Geoprivacy & Endangered Species Shielding
+To completely prevent physical location tracking, geolocation scraping, and poachers from harvesting targets mapping dynamically to IUCN Endangered, Vulnerable, or Near-Threatened species, the endpoint executes an aggressive stringent post-processing `map` array loop natively before JSON transmission. The system **unconditionally** deletes the exact `.gps_lat_exact` and `.gps_long_exact` numeric boundaries completely off the global JSON payload for every single user scan natively, closing global tracking bounds seamlessly regardless of whether the user explicitly opted into `Open` geoprivacy natively. Furthermore, if the specific Linnaean taxonomy flags the capture as protected, it organically rounds their `gps_lat_public` geometries mathematically down to 11km structural tiles masking the generalized discovery feed dynamically.
 
 ---
 

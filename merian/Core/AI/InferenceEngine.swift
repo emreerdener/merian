@@ -165,6 +165,10 @@ final class InferenceEngine: ObservableObject {
                         weatherTemperatureF: telemetry.weatherTemperatureF
                     )
                     
+                    // CRITICAL FIX: Prevent phantom DB inserts by strictly validating Task cancellation before inserting!
+                    // If the user triggered the offline queue or backed out mid-flight, this structurally aborts the detached thread.
+                    try Task.checkCancellation()
+                    
                     var newDiscovery = false
                     
                     // Persist to SwiftData Scans securely isolated via @ModelActor off the main thread bounds natively stopping EXC_BAD_ACCESS
