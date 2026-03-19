@@ -122,15 +122,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-    const systemInstruction =
-      `You are Merian, the world's leading biological identification engine.
-Your task is to accurately identify biological subjects. 
-Crucial instructions:
-1. Always check for liveness. If the subject is on a screen, in a book, or otherwise artificial, it is not a live capture.
-2. Evaluate the 'is_invasive' flag strictly based on the provided GPS coordinates and ecological literature.
-3. If your confidence_score is below 0.85 (85%), you MUST fill out the 'diagnostic_comparison' object.
-4. You must write all 'insight_data' fields and the 'common_name' strictly in the target Locale provided in the context.
-5. You must format the 'common_name' so that each word is capitalized in standard title case (e.g. "Bearded Iris" instead of "bearded iris").`;
+    const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case.`;
 
     const targetModel = userTier === "pro"
       ? "gemini-2.5-pro"
@@ -145,41 +137,24 @@ Crucial instructions:
       },
     });
 
-    const dynamicContext = `
-      Environmental Context:
-      - GPS Coordinates: Lat ${gpsLatitude ?? "Unknown"}, Long ${
-      gpsLongitude ?? "Unknown"
-    }
-      - Elevation: ${
-      gpsElevation != null ? `${gpsElevation} meters` : "Unknown"
-    }
-      - Depth Scale (Lidar): ${depthScaleText ?? "Unknown"}
-      - Semantic Location: ${semanticLocation ?? "Unknown"}
-      - Weather Condition: ${weatherCondition ?? "Unknown"}
-      - Temperature: ${
-      weatherTemperatureF != null ? `${weatherTemperatureF}°F` : "Unknown"
-    }
-      - Device Locale: ${deviceLocale ?? "en"}
-      - Current Month: ${currentMonth ?? "Unknown"}
-      - Time of Day: ${timeOfDay ?? "Unknown"}
-      - Hardware Flash Fired: ${
-      isFlashFired ? "Yes (Colors may be washed out or overexposed)" : "No"
-    }
-      - Camera Angle (Pitch): ${
-      cameraPitchDegrees != null
-        ? `${cameraPitchDegrees}° (Negative = looking down, Positive = looking up)`
-        : "Unknown"
-    }
-      - Compass Heading: ${
-      compassHeading != null ? `${compassHeading}°` : "Unknown"
-    }
-      - Relative Humidity: ${
-      relativeHumidity != null
-        ? (relativeHumidity * 100).toFixed(0) + "%"
-        : "Unknown"
-    }
-      - UV Index: ${uvIndex ?? "Unknown"}
-    `;
+    const telemetryItems = [
+      `GPS: Lat ${gpsLatitude ?? "null"}, Long ${gpsLongitude ?? "null"}`,
+      gpsElevation != null ? `Elevation: ${gpsElevation}m` : null,
+      depthScaleText ? `Depth: ${depthScaleText}` : null,
+      semanticLocation ? `Location: ${semanticLocation}` : null,
+      weatherCondition ? `Weather: ${weatherCondition}` : null,
+      weatherTemperatureF != null ? `Temp: ${weatherTemperatureF}°F` : null,
+      deviceLocale ? `Locale: ${deviceLocale}` : null,
+      currentMonth ? `Month: ${currentMonth}` : null,
+      timeOfDay ? `Time: ${timeOfDay}` : null,
+      isFlashFired ? `Flash Fired: Yes` : null,
+      cameraPitchDegrees != null ? `Pitch: ${cameraPitchDegrees}°` : null,
+      compassHeading != null ? `Heading: ${compassHeading}°` : null,
+      relativeHumidity != null ? `Humidity: ${(relativeHumidity * 100).toFixed(0)}%` : null,
+      uvIndex != null ? `UV: ${uvIndex}` : null
+    ].filter(Boolean);
+
+    const dynamicContext = `Context:\n${telemetryItems.join("\n")}`;
 
     const merianResponseSchema = {
       type: SchemaType.OBJECT,
@@ -189,18 +164,14 @@ Crucial instructions:
         ecology_type: {
           type: SchemaType.STRING,
           enum: ["wild", "urban", "domesticated", "unknown"],
-          description: "Identify the ecological origin of the subject.",
         },
         scientific_name: { type: SchemaType.STRING },
         common_name: { type: SchemaType.STRING },
         confidence_score: {
           type: SchemaType.NUMBER,
-          description: "Float between 0.0 and 1.0",
         },
         blur_score: {
           type: SchemaType.NUMBER,
-          description:
-            "Float between 0.0 and 1.0 mapping the optical blur of the image, where 0.0 is perfectly sharp and 1.0 is extremely blurry/unusable.",
         },
         is_invasive: { type: SchemaType.BOOLEAN },
         iucn_red_list_status: {
@@ -216,8 +187,6 @@ Crucial instructions:
             "extinct_in_the_wild",
             "extinct",
           ],
-          description:
-            "Assess the IUCN Red List conservation status. Must exactly match one of the predefined enums.",
         },
         taxonomy: {
           type: SchemaType.OBJECT,
@@ -252,14 +221,8 @@ Crucial instructions:
             confusing_lookalike_name: { type: SchemaType.STRING },
             key_differentiators: {
               type: SchemaType.ARRAY,
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  trait: { type: SchemaType.STRING },
-                  subject_value: { type: SchemaType.STRING },
-                  lookalike_value: { type: SchemaType.STRING },
-                },
-              },
+              items: { type: SchemaType.STRING },
+              description: "Array of strings describing differences against lookalike."
             },
           },
           required: [
@@ -271,8 +234,6 @@ Crucial instructions:
         colors: {
           type: SchemaType.ARRAY,
           items: { type: SchemaType.STRING },
-          description:
-            "An array of 1-3 visually dominant colors present on the biological subject natively.",
         },
       },
       required: [

@@ -72,12 +72,7 @@ final class InferenceEngine: ObservableObject {
         struct Diagnostic: Codable {
             let primary_match_rationale: String?
             let confusing_lookalike_name: String?
-            struct Differentiator: Codable {
-                let trait: String?
-                let subject_value: String?
-                let lookalike_value: String?
-            }
-            let key_differentiators: [Differentiator]?
+            let key_differentiators: [String]?
         }
         let diagnostic_comparison: Diagnostic?
         let wikipedia_url: String?
@@ -328,7 +323,7 @@ final class InferenceEngine: ObservableObject {
            let lookalike = record.diagnosticLookalikeName,
            let diffJsonStr = record.diagnosticDifferentiatorsJson,
            let diffData = diffJsonStr.data(using: .utf8),
-           let diffs = try? JSONDecoder().decode([KeyDifferentiator].self, from: diffData),
+           let diffs = try? JSONDecoder().decode([String].self, from: diffData),
            !diffs.isEmpty {
             
             parsedDiagnostic = DiagnosticComparison(

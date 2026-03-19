@@ -62,14 +62,9 @@ struct SpeciesData {
         if let diag = edgeRes.diagnostic_comparison,
            let rationale = diag.primary_match_rationale,
            let lookalike = diag.confusing_lookalike_name,
-           let diffs = diag.key_differentiators {
-            let mappedDiffs = diffs.compactMap { d -> KeyDifferentiator? in
-                guard let t = d.trait, let sv = d.subject_value, let lv = d.lookalike_value else { return nil }
-                return KeyDifferentiator(trait: t, subjectValue: sv, lookalikeValue: lv)
-            }
-            if !mappedDiffs.isEmpty {
-                parsedDiagnostic = DiagnosticComparison(primaryMatchRationale: rationale, confusingLookalikeName: lookalike, keyDifferentiators: mappedDiffs)
-            }
+           let diffs = diag.key_differentiators,
+           !diffs.isEmpty {
+            parsedDiagnostic = DiagnosticComparison(primaryMatchRationale: rationale, confusingLookalikeName: lookalike, keyDifferentiators: diffs)
         }
         
         self.scanId = edgeRes.scan_id
@@ -151,18 +146,5 @@ struct InsightData {
 struct DiagnosticComparison {
     let primaryMatchRationale: String
     let confusingLookalikeName: String
-    let keyDifferentiators: [KeyDifferentiator]
-}
-
-struct KeyDifferentiator: Identifiable, Codable {
-    var id = UUID()
-    let trait: String
-    let subjectValue: String
-    let lookalikeValue: String
-    
-    enum CodingKeys: String, CodingKey {
-        case trait
-        case subjectValue
-        case lookalikeValue
-    }
+    let keyDifferentiators: [String]
 }
