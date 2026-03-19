@@ -132,7 +132,6 @@ final class CameraViewModel: ObservableObject {
     func handleCropCompletion(croppedData: Data, modelContext: ModelContext) {
         let historicalContext = imageToCrop?.environmentContext
         let isFromGallery = imageToCrop?.isFromGallery == true
-        let flashFired = imageToCrop?.isFlashFired
         let capturedDistance = imageToCrop?.subjectDistanceInMeters
         imageToCrop = nil
         
@@ -274,8 +273,6 @@ final class CameraViewModel: ObservableObject {
                     Task.detached(priority: .utility) {
                         await AppDIContainer.shared.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
                     }
-                    
-                    let flashFired = diContainer.cameraManager.isFlashEnabled
                     let capturedDistance = diContainer.cameraManager.subjectDistanceInMeters
                     
                     let detachedDownsample = await Task.detached(priority: .userInitiated) {
@@ -297,7 +294,6 @@ final class CameraViewModel: ObservableObject {
                                 image: rawImage,
                                 environmentContext: instantLocation != nil ? EnvironmentContext(location: instantLocation) : nil,
                                 isFromGallery: false,
-                                isFlashFired: flashFired,
                                 subjectDistanceInMeters: capturedDistance
                             )
                         }
