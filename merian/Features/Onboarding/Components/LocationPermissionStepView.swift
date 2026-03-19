@@ -30,7 +30,7 @@ struct LocationPermissionStepView: View {
             }
             Spacer()
             
-            VStack(spacing: 16) {
+            VStack(spacing: 24) {
                 Button {
                     locationManagerDelegate.onAuthorizationDetermined = {
                         onNext()

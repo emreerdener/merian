@@ -197,12 +197,23 @@ final class CameraViewModel: ObservableObject {
     func synchronizeAnalysisState(isFullscreen: Bool) {
         if isFullscreen {
             diContainer.cameraManager.stopSession() // Revert viewport to off while analyzing over it
-            scanningPhaseText = "Scanning..."
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                if self.isAnalyzingFullscreen {
-                    withAnimation {
-                        self.scanningPhaseText = "Identifying..."
+            // Dynamically rotate processing labels natively so the user feels active execution pacing during long 5-10 second global inference requests
+            let engagingPrompts = [
+                "Scanning image...",
+                "Analyzing subject...",
+                "Processing context...",
+                "Evaluating matches...",
+                "Identifying species...",
+                "Finalizing result..."
+            ]
+            
+            for (index, prompt) in engagingPrompts.enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(index + 1) * 1.6) {
+                    if self.isAnalyzingFullscreen {
+                        withAnimation(.easeIn(duration: 0.35)) {
+                            self.scanningPhaseText = prompt
+                        }
                     }
                 }
             }

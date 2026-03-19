@@ -29,7 +29,7 @@ struct PhotoLibraryPermissionStepView: View {
             }
             Spacer()
             
-            VStack(spacing: 16) {
+            VStack(spacing: 24) {
                 Button {
                     let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
                     if status == .notDetermined {

@@ -41,48 +41,58 @@ struct InsightSheetView: View {
             NavigationStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        
-                        // 0. The Image Carousel
+                        // 0. The universally shared Image Carousel bounds natively
                         InsightCarouselView()
                         
-                        // 2. Core Taxonomy Block
-                        InsightTaxonomyHeader()
-                        
-                        // 3. Ecological Descriptive Insight
-                        InsightDescriptionSection(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
-                        
-                         // 1. The Toxicity Banner (Safety Critical)
-                        InsightToxicityBanner()
+                        if let speciesData = inferenceEngine.speciesData, !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
+                            // Specialized Non-Biological UI: Strip out taxonomy, safety loops, and regional bounds entirely!
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text(commonName)
+                                    .font(.system(size: 38, weight: .black, design: .rounded))
+                                    .foregroundColor(.primary)
+                                
+                                Text(speciesData.insightData.description)
+                                    .font(.body)
+                                    .foregroundColor(.primary.opacity(0.8))
+                                    .lineSpacing(6)
+                            }
                             .padding(.horizontal)
                             
-                        // 3.5 Taxonomy Tree
-                        InsightTaxonomyTree()
-                    
-                    // 4. Fallback Validation Block
-                    if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.85, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
-                        DiagnosticComparisonView(diagnosticData: diagnosticData)
-                            .padding(.horizontal)
-                            .padding(.top, 16)
-                    }
-                    
-                    // 5. Flag Issue Action
-                    Divider()
-                        .padding(.vertical, 8)
-                    
-                    Button(action: {
-                        isFlagIssuePresented = true
-                    }) {
-                        HStack {
-                            Image(systemName: "flag.fill")
-                            Text("Report incorrect ID")
+                        } else {
+                            // Core Biological Taxonomy Pipeline
+                            InsightTaxonomyHeader()
+                            
+                            InsightDescriptionSection(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
+                            
+                            InsightToxicityBanner()
+                                .padding(.horizontal)
+                                
+                            InsightTaxonomyTree()
+                            
+                            if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.85, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
+                                DiagnosticComparisonView(diagnosticData: diagnosticData)
+                                    .padding(.horizontal)
+                                    .padding(.top, 16)
+                            }
                         }
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity)
-                    }
-                    
-                    Spacer(minLength: 40)
+                        
+                        Divider()
+                            .padding(.vertical, 8)
+                        
+                        Button(action: {
+                            isFlagIssuePresented = true
+                        }) {
+                            HStack {
+                                Image(systemName: "flag.fill")
+                                Text("Report incorrect ID")
+                            }
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity)
+                        }
+                        
+                        Spacer(minLength: 40)
                     }
                 }
                 .textSelection(.enabled)
