@@ -5,7 +5,7 @@ import { createClient, User, SupabaseClient } from "https://esm.sh/@supabase/sup
 /**
  * Standardized JSON response helper dropping boilerplate instantiation overhead.
  */
-export function jsonResponse(payload: any, status: number = 200): Response {
+export function jsonResponse(payload: unknown, status: number = 200): Response {
   return new Response(JSON.stringify(payload), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
     status,

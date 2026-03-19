@@ -196,14 +196,22 @@ struct InsightSheetView: View {
                 let announcement = isPoisonous ? "\(commonName). Warning: This subject is poisonous." : commonName
                 UIAccessibility.post(notification: .announcement, argument: announcement)
             }
-            if inferenceEngine.speciesData?.isNewDiscovery == true {
-                showCelebration = true
+            if let data = inferenceEngine.speciesData, data.isNewDiscovery {
+                let lowerName = data.commonName.lowercased()
+                if data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object" {
+                    showCelebration = true
+                }
             }
         }
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             if !isStillProcessing {
-                if inferenceEngine.speciesData?.isNewDiscovery != true {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                if let data = inferenceEngine.speciesData {
+                    let lowerName = data.commonName.lowercased()
+                    let isValidCelebration = data.isNewDiscovery && data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object"
+                    
+                    if !isValidCelebration {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
                 }
             }
         }

@@ -21,8 +21,6 @@ struct ScanningOverlayView: View {
                 .padding(.horizontal, 32)
             
             VStack {
-                Spacer()
-                
                 // Refined Text Pill
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles")
@@ -46,7 +44,9 @@ struct ScanningOverlayView: View {
                         .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
                 )
                 .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
-                .padding(.bottom, 60)
+                .padding(.top, 80)
+                
+                Spacer()
             }
         }
     }
