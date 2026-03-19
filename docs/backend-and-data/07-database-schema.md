@@ -42,10 +42,9 @@ The transaction log for every identification ever successfully passed.
 - `ecology_type` (ENUM): `'wild'` | `'urban'` | `'domesticated'` | `'unknown'`
 - `colors` (Text Array): Extracted via Gemini natively indexing 1-3 dominant biological colors for immediate semantic searchability.
 - `weather_condition`, `regional_status_rationale`, `semantic_location`, `device_locale`, `time_of_day`, `depth_scale_text` (Text)
-- `weather_temperature_f`, `camera_pitch_degrees`, `compass_heading`, `relative_humidity` (Float)
+- `weather_temperature_f` (Float)
 - `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_total_tokens` (Int): Exact Google Cloud token margins mapped safely per-scan from `usageMetadata` native payload tracking.
-- `current_month`, `uv_index` (Int)
-- `is_flash_fired` (Boolean)
+- `current_month` (Int)
 - `image_storage_urls` (Text Array): Stores safe public Cloudflare links generated explicitly off the Moderation engine safely resolving explicit abuses natively.
 - `is_flagged` (Boolean): Managed asynchronously via `00005_flagged_reviews.sql` indicating human-reported moderation flags natively mapped.
 - `is_tombstoned` (Boolean): Handled locally via `00006_apply_user_tombstone.sql` anonymizing historical AI data for GDPR-compliant account deletions gracefully mapping offline cache continuity.
@@ -81,10 +80,8 @@ Locally captures state when cell towers drop. `MerianSchemaV9` cleanly expands t
 - `localImagePaths`: [String] (References to High-Res JPEGs written inside `URL.documentsDirectory`)
 - `gpsLatitude`, `gpsLongitude`, `gpsElevation`: Double?
 - `weatherCondition`, `locationName`: String?
-- `weatherTemperatureF`, `blurScore`, `cameraPitchDegrees`, `compassHeading`, `relativeHumidity`: Double?
+- `weatherTemperatureF`, `blurScore`: Double?
 - `subjectDistanceInMeters`: Float?
-- `isFlashFired`: Bool?
-- `uvIndex`: Int?
 - `isDeleted`: Bool (Soft-delete boundary once 200 OK receives back from Edge)
 
 ### `LocalScanRecord` (Scans)

@@ -179,11 +179,7 @@ final class CameraViewModel: ObservableObject {
                 locationName: context.locationName,
                 weatherCondition: context.weatherCondition,
                 weatherTemperatureF: context.weatherTemperature,
-                cameraPitchDegrees: context.cameraPitchDegrees,
-                compassHeading: context.compassHeading,
-                relativeHumidity: context.relativeHumidity,
-                uvIndex: context.uvIndex,
-                isFlashFired: flashFired
+                timeOfDay: nil
             )
             
             self.diContainer.inferenceEngine.analyze(

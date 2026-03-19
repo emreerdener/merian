@@ -12,7 +12,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 ### `EnvironmentContextManager`
 - Explicit mapping for configuring dual properties natively inside the `EnvironmentContext` dependency graph without invoking UI rerenders:
   - **CoreLocation**: Caches and strictly updates precise physics logic (`CLLocationCoordinate2D`, `altitude`, `course`).
-  - **WeatherKit**: Aggregates hyper-local edge metrics like `temperature`, `condition`, `humidity`, and `uvIndex` instantaneously natively to supplement inference payloads.
+  - **WeatherKit**: Aggregates hyper-local edge metrics like `temperature` and `condition` instantaneously natively to supplement inference payloads.
 - Intelligently locks variables globally to `cacheThreshold` boundaries directly shielding the device battery pool smoothly.
 
 ### `HapticManager`

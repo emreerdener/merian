@@ -159,11 +159,11 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         blurScore: blurScore,
                         subjectDistanceInMeters: telemetry.subjectDistanceInMeters,
                         locationName: telemetry.locationName,
-                        isFlashFired: telemetry.isFlashFired,
-                        cameraPitchDegrees: telemetry.cameraPitchDegrees,
-                        compassHeading: telemetry.compassHeading,
-                        relativeHumidity: telemetry.relativeHumidity,
-                        uvIndex: telemetry.uvIndex,
+                        isFlashFired: nil,
+                        cameraPitchDegrees: nil,
+                        compassHeading: nil,
+                        relativeHumidity: nil,
+                        uvIndex: nil,
                         isDeleted: false
                     )
                     guard let ctx = OfflineQueueManager.shared.modelContext else { return }
@@ -362,11 +362,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 locationName: scan.locationName,
                 weatherCondition: scan.weatherCondition,
                 weatherTemperatureF: scan.weatherTemperatureF,
-                cameraPitchDegrees: scan.cameraPitchDegrees,
-                compassHeading: scan.compassHeading,
-                relativeHumidity: scan.relativeHumidity,
-                uvIndex: scan.uvIndex,
-                isFlashFired: scan.isFlashFired
+                timeOfDay: nil
             )
             
             return ExtractedScanData(telemetry: telemetry, localImagePaths: scan.localImagePaths, container: container)

@@ -10,11 +10,7 @@ struct CaptureTelemetry: Sendable {
     let locationName: String?
     let weatherCondition: String?
     let weatherTemperatureF: Double?
-    let cameraPitchDegrees: Double?
-    let compassHeading: Double?
-    let relativeHumidity: Double?
-    let uvIndex: Int?
-    let isFlashFired: Bool?
+    let timeOfDay: String?
 }
 // MARK: - Primary Domain Models (Data received from InferenceEngine/Gemini Edge JSON)
 struct SpeciesData {

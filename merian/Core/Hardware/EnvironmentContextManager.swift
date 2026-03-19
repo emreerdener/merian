@@ -11,10 +11,6 @@ struct EnvironmentContext {
     var locationName: String? = nil
     var weatherCondition: String? = nil
     var weatherTemperature: Double? = nil
-    var cameraPitchDegrees: Double? = nil
-    var compassHeading: Double? = nil
-    var relativeHumidity: Double? = nil
-    var uvIndex: Int? = nil
 }
 
 /// A centralized singleton that lazily retrieves GPS locations and WeatherKit payloads only when explicitly triggered.
@@ -100,36 +96,20 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         
         let locationName = await reverseGeocode(location: validLocation)
         
-        var capturedPitch: Double? = nil
-        if motionManager.isDeviceMotionAvailable, let pitch = motionManager.deviceMotion?.attitude.pitch {
-            capturedPitch = pitch * 180 / .pi
-        }
-        
-        var capturedHeading: Double? = nil
-        if let trueHeading = locationManager.heading?.trueHeading, trueHeading >= 0 {
-            capturedHeading = trueHeading
-        }
-        
         // Attempt WeatherKit data if a location is returned
         do {
             let weather = try await weatherService.weather(for: validLocation)
             let condition = weather.currentWeather.condition.description
             let tempF = weather.currentWeather.temperature.converted(to: .fahrenheit).value
-            let humidity = weather.currentWeather.humidity
-            let uvIndex = weather.currentWeather.uvIndex.value
             
             return EnvironmentContext(
                 location: validLocation,
                 locationName: locationName,
                 weatherCondition: condition,
-                weatherTemperature: tempF,
-                cameraPitchDegrees: capturedPitch,
-                compassHeading: capturedHeading,
-                relativeHumidity: humidity,
-                uvIndex: uvIndex
+                weatherTemperature: tempF
             )
         } catch {
-            return EnvironmentContext(location: validLocation, locationName: locationName, cameraPitchDegrees: capturedPitch, compassHeading: capturedHeading)
+            return EnvironmentContext(location: validLocation, locationName: locationName)
         }
     }
     
@@ -146,9 +126,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
                     location: location,
                     locationName: locationName,
                     weatherCondition: targetHour.condition.description,
-                    weatherTemperature: targetHour.temperature.converted(to: .fahrenheit).value,
-                    relativeHumidity: targetHour.humidity,
-                    uvIndex: targetHour.uvIndex.value
+                    weatherTemperature: targetHour.temperature.converted(to: .fahrenheit).value
                 )
             } else {
                 return EnvironmentContext(location: location, locationName: locationName)

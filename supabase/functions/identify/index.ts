@@ -23,11 +23,6 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       currentMonth,
       semanticLocation,
       timeOfDay,
-      isFlashFired,
-      cameraPitchDegrees,
-      compassHeading,
-      relativeHumidity,
-      uvIndex,
     } = body;
 
     if (!r2ObjectKey && !imageBase64) {
@@ -138,23 +133,18 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     });
 
     const telemetryItems = [
-      `GPS: Lat ${gpsLatitude ?? "null"}, Long ${gpsLongitude ?? "null"}`,
-      gpsElevation != null ? `Elevation: ${gpsElevation}m` : null,
-      depthScaleText ? `Depth: ${depthScaleText}` : null,
-      semanticLocation ? `Location: ${semanticLocation}` : null,
-      weatherCondition ? `Weather: ${weatherCondition}` : null,
-      weatherTemperatureF != null ? `Temp: ${weatherTemperatureF}°F` : null,
-      deviceLocale ? `Locale: ${deviceLocale}` : null,
-      currentMonth ? `Month: ${currentMonth}` : null,
-      timeOfDay ? `Time: ${timeOfDay}` : null,
-      isFlashFired ? `Flash Fired: Yes` : null,
-      cameraPitchDegrees != null ? `Pitch: ${cameraPitchDegrees}°` : null,
-      compassHeading != null ? `Heading: ${compassHeading}°` : null,
-      relativeHumidity != null ? `Humidity: ${(relativeHumidity * 100).toFixed(0)}%` : null,
-      uvIndex != null ? `UV: ${uvIndex}` : null
+      (gpsLatitude != null && gpsLongitude != null) ? `GPS:${gpsLatitude},${gpsLongitude}` : null,
+      gpsElevation != null ? `Elev:${gpsElevation}m` : null,
+      depthScaleText ? `Depth:${depthScaleText}` : null,
+      semanticLocation ? `Loc:${semanticLocation}` : null,
+      weatherCondition ? `Wx:${weatherCondition}` : null,
+      weatherTemperatureF != null ? `Temp:${weatherTemperatureF}F` : null,
+      deviceLocale ? `Locale:${deviceLocale}` : null,
+      currentMonth ? `Month:${currentMonth}` : null,
+      timeOfDay ? `Time:${timeOfDay}` : null
     ].filter(Boolean);
 
-    const dynamicContext = `Context:\n${telemetryItems.join("\n")}`;
+    const combinedPrompt = `Context: ${telemetryItems.join(", ")}. Perform biological identification.`;
 
     const merianResponseSchema = {
       type: SchemaType.OBJECT,
@@ -259,8 +249,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
           data: base64Payload,
         },
       },
-      { text: dynamicContext },
-      { text: "Perform the biological identification." },
+      { text: combinedPrompt },
     ];
 
     let finishReason: string | undefined;
@@ -519,11 +508,6 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
             device_locale: deviceLocale,
             current_month: currentMonth,
             time_of_day: timeOfDay,
-            is_flash_fired: isFlashFired,
-            camera_pitch_degrees: cameraPitchDegrees,
-            compass_heading: compassHeading,
-            relative_humidity: relativeHumidity,
-            uv_index: uvIndex,
             depth_scale_text: depthScaleText,
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,

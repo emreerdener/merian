@@ -22,13 +22,12 @@ final class InferenceEngine: ObservableObject {
     private(set) var activeLatitude: Double? = nil
     private(set) var activeLongitude: Double? = nil
     private(set) var activeElevation: Double? = nil
+    private var activeDeviceLocale: String?
+    private var activeCurrentMonth: Int?
+    private var activeTimeOfDay: String? = nil
     private(set) var activeLocationName: String? = nil
     private(set) var activeWeatherCondition: String? = nil
     private(set) var activeTemperatureF: Double? = nil
-    private(set) var activePitchDegrees: Double? = nil
-    private(set) var activeCompassHeading: Double? = nil
-    private(set) var activeRelativeHumidity: Double? = nil
-    private(set) var activeUvIndex: Int? = nil
     private(set) var activeFlashFired: Bool? = nil
     private(set) var activeDistanceInMeters: Float? = nil
     
@@ -99,11 +98,7 @@ final class InferenceEngine: ObservableObject {
         self.activeLocationName = telemetry.locationName
         self.activeWeatherCondition = telemetry.weatherCondition
         self.activeTemperatureF = telemetry.weatherTemperatureF
-        self.activePitchDegrees = telemetry.cameraPitchDegrees
-        self.activeCompassHeading = telemetry.compassHeading
-        self.activeRelativeHumidity = telemetry.relativeHumidity
-        self.activeUvIndex = telemetry.uvIndex
-        self.activeFlashFired = telemetry.isFlashFired
+        // Ephemeral telemetry removed to preserve memory boundaries
         self.activeDistanceInMeters = telemetry.subjectDistanceInMeters
         
         self.inferenceTask = Task { [weak self] in

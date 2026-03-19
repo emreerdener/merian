@@ -54,11 +54,7 @@ final class AppDIContainer: ObservableObject {
                         locationName: inferenceEngine.activeLocationName,
                         weatherCondition: inferenceEngine.activeWeatherCondition,
                         weatherTemperatureF: inferenceEngine.activeTemperatureF,
-                        cameraPitchDegrees: inferenceEngine.activePitchDegrees,
-                        compassHeading: inferenceEngine.activeCompassHeading,
-                        relativeHumidity: inferenceEngine.activeRelativeHumidity,
-                        uvIndex: inferenceEngine.activeUvIndex,
-                        isFlashFired: inferenceEngine.activeFlashFired
+                        timeOfDay: nil
                     ),
                     blurScore: nil
                 )

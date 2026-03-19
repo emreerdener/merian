@@ -131,12 +131,7 @@ class MerianNetworkClient {
             "weatherTemperatureF": telemetry.weatherTemperatureF,
             "deviceLocale": deviceLocale,
             "currentMonth": currentMonth,
-            "timeOfDay": timeOfDay,
-            "cameraPitchDegrees": telemetry.cameraPitchDegrees,
-            "compassHeading": telemetry.compassHeading,
-            "relativeHumidity": telemetry.relativeHumidity,
-            "uvIndex": telemetry.uvIndex,
-            "isFlashFired": telemetry.isFlashFired
+            "timeOfDay": timeOfDay
         ]
         
         // Remove nils
