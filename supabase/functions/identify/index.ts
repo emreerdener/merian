@@ -37,9 +37,10 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     }
 
     if (r2ObjectKey) {
-      // CRITICAL SEC FIX: Prevent malicious actors from submitting spoofed payloads extracting foreign blobs
-      // The `r2ObjectKey` must physically belong to the authenticated user's boundary and explicitly bypass `../` loops natively
-      if (!r2ObjectKey.startsWith(`staging/${user.id}/`)) {
+      // CRITICAL SEC FIX: Prevent malicious actors from submitting spoofed payloads extracting foreign blobs.
+      // If `imageBase64` is present, the key is strictly used for destination filename creation and is securely force-prefixed in `moderation.ts`!
+      if (!imageBase64 && !r2ObjectKey.startsWith(`staging/${user.id}/`)) {
+        console.error(`IDOR MISMATCH: r2ObjectKey was ${r2ObjectKey} but user.id is ${user.id}`);
         return new Response(
           JSON.stringify({ error: "SECURITY VIOLATION (IDOR): Attempting to scrape foreign r2ObjectKey bounds." }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
