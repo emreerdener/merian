@@ -5,6 +5,21 @@ import SwiftData
 import Photos
 import Combine
 
+struct ImageFileWrapper: Transferable, Sendable {
+    let url: URL
+    
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .image) { wrapper in
+            SentTransferredFile(wrapper.url)
+        } importing: { received in
+            let tempDir = FileManager.default.temporaryDirectory
+            let tempDst = tempDir.appendingPathComponent(UUID().uuidString).appendingPathExtension(received.file.pathExtension)
+            try FileManager.default.copyItem(at: received.file, to: tempDst)
+            return Self(url: tempDst)
+        }
+    }
+}
+
 @MainActor
 final class CameraViewModel: ObservableObject {
     // UI Navigation & Sheet State
@@ -81,30 +96,8 @@ final class CameraViewModel: ObservableObject {
         Task { [weak self] in
             guard let self = self,
                   let newItem = newItem else { return }
-            
-            let tempUrl = try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
-                newItem.loadFileRepresentation(for: .image) { url, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
-                    guard let url = url else {
-                        continuation.resume(throwing: NSError(domain: "PhotosPicker", code: 404))
-                        return
-                    }
-                    
-                    let tempDir = FileManager.default.temporaryDirectory
-                    let dstUrl = tempDir.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
-                    do {
-                        try FileManager.default.copyItem(at: url, to: dstUrl)
-                        continuation.resume(returning: dstUrl)
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-            
-            guard let validUrl = tempUrl else { return }
+            guard let wrapper = try? await newItem.loadTransferable(type: ImageFileWrapper.self) else { return }
+            let validUrl = wrapper.url
             defer { try? FileManager.default.removeItem(at: validUrl) }
             
             // Attempt to retrieve native PHAsset context to map historical GPS / Weather
