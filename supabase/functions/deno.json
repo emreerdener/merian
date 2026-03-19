@@ -1,0 +1,11 @@
+{
+  "imports": {
+    "@std/http/": "https://deno.land/std@0.224.0/http/",
+    "@std/encoding/": "https://deno.land/std@0.224.0/encoding/",
+    "@std/encoding-base64": "jsr:@std/encoding@1/base64",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.0",
+    "aws4fetch": "https://esm.sh/aws4fetch@1.0.20",
+    "@google/generative-ai": "https://esm.sh/@google/generative-ai@0.24.1",
+    "jszip": "https://esm.sh/jszip@3.10.1"
+  }
+}

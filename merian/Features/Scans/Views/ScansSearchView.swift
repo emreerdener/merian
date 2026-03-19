@@ -230,7 +230,7 @@ struct ScansSearchView: View {
                             NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
                         } label: {
                             HStack {
-                                Text("Non biological")
+                                Text("Non-biological")
                                     .font(.headline)
                                 Spacer()
                                 Image(systemName: "chevron.right")

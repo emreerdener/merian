@@ -1,8 +1,8 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import JSZip from "https://esm.sh/jszip@3.10.1";
-import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
-import { encodeHex } from "https://deno.land/std@0.224.0/encoding/hex.ts";
+import { serve } from "@std/http/server.ts";
+import { createClient } from "@supabase/supabase-js";
+import JSZip from "jszip";
+import { AwsClient } from "aws4fetch";
+import { encodeHex } from "@std/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

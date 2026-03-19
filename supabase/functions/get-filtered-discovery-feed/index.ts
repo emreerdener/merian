@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { serve } from "@std/http/server.ts";
+import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,6 +79,7 @@ serve(async (req: Request) => {
     }
 
     // 4. Secure the Payload Coordinates Against Endangered Species Poaching Data Leaks
+    // deno-lint-ignore no-explicit-any
     const sanitizedFeedData = feedData.map((scan: any) => {
       const species = scan.species_dictionary || {};
       const isProtected = 
