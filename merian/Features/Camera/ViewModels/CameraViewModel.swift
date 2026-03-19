@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import PhotosUI
 import SwiftData
 import Photos
@@ -48,8 +49,9 @@ final class CameraViewModel: ObservableObject {
         imageToCrop = nil
         diContainer.gamificationManager.showTerrariumSheet = false
         
-        // Let the InferenceEngine know it must stop updating the active scanning loop on our view.
-        if isAnalyzingFullscreen {
+        // Do not violently kill the analyzing overlay natively if the Inference Engine is actively mid-scan in the background thread.
+        // Otherwise, the user returns to empty UI while `isProcessing` silently completes offscreen dropping the UI presentation logic entirely.
+        if isAnalyzingFullscreen && !diContainer.inferenceEngine.isProcessing {
             isAnalyzingFullscreen = false
             scanningPhaseText = "Analyzing subject..."
             analysisImage = nil
@@ -78,8 +80,32 @@ final class CameraViewModel: ObservableObject {
     func handlePhotoPickerSelection(newItem: PhotosPickerItem?, modelContext: ModelContext) {
         Task { [weak self] in
             guard let self = self,
-                  let newItem = newItem,
-                  let data = try? await newItem.loadTransferable(type: Data.self) else { return }
+                  let newItem = newItem else { return }
+            
+            let tempUrl = try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+                newItem.loadFileRepresentation(for: .image) { url, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let url = url else {
+                        continuation.resume(throwing: NSError(domain: "PhotosPicker", code: 404))
+                        return
+                    }
+                    
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let dstUrl = tempDir.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
+                    do {
+                        try FileManager.default.copyItem(at: url, to: dstUrl)
+                        continuation.resume(returning: dstUrl)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+            
+            guard let validUrl = tempUrl else { return }
+            defer { try? FileManager.default.removeItem(at: validUrl) }
             
             // Attempt to retrieve native PHAsset context to map historical GPS / Weather
             var historicalContext: EnvironmentContext? = nil
@@ -92,7 +118,7 @@ final class CameraViewModel: ObservableObject {
             
             if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
                 let detatchedDownsample = await Task.detached(priority: .userInitiated) {
-                    ImageDownsampler.downsample(data: data, maxSize: 4000)
+                    ImageDownsampler.downsample(url: validUrl, maxSize: 4000)
                 }.value
                 
                 if let cgImage = detatchedDownsample {

@@ -21,6 +21,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
     nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
+    nonisolated(unsafe) private var activeHistogram = [vImagePixelCount](repeating: 0, count: 256)
     
     @Published var isSessionRunning = false
     @Published var subjectDistanceInMeters: Float? = nil
@@ -32,6 +33,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: "isLiveInferencePaused") as? Bool ?? UIDevice.current.isModernIPhone
     
     // VUI Throttle parameters
+    private var cachedInferencePreferenceTracker: Bool?
     
     // Photo capture state
     private var activePhotoContinuation: CheckedContinuation<Data, Error>?
@@ -176,6 +178,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     func throttleToIdleState() {
         HardwareOrchestrator.shared.isIdleLocked = true
+        cachedInferencePreferenceTracker = isLiveInferencePaused
         isLiveInferencePaused = true
         
         guard let deviceInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
@@ -212,7 +215,12 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     func restoreFromIdleState() {
         HardwareOrchestrator.shared.isIdleLocked = false
-        isLiveInferencePaused = false
+        if let originalPreference = cachedInferencePreferenceTracker {
+            isLiveInferencePaused = originalPreference
+            cachedInferencePreferenceTracker = nil
+        } else {
+            isLiveInferencePaused = false
+        }
         applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
         ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
     }
@@ -395,10 +403,9 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                     rowBytes: bytesPerRow
                 )
                 
-                var histogram = [vImagePixelCount](repeating: 0, count: 256)
                 var error = kvImageNoError
                 
-                histogram.withUnsafeMutableBufferPointer { histPtr in
+                activeHistogram.withUnsafeMutableBufferPointer { histPtr in
                     error = vImageHistogramCalculation_Planar8(&vImageBuffer, histPtr.baseAddress!, vImage_Flags(kvImageNoFlags))
                 }
                 
@@ -406,7 +413,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                     var totalLuma: UInt64 = 0
                     var totalPixels: UInt64 = 0
                     for i in 0..<256 {
-                        let count = UInt64(histogram[i])
+                        let count = UInt64(activeHistogram[i])
                         totalLuma += count * UInt64(i)
                         totalPixels += count
                     }

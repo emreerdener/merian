@@ -353,12 +353,13 @@ Crucial instructions:
         return new Response(JSON.stringify({ error: `Gemini Validation Error: ${(genError as Error).message}` }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
     }
 
-    // Strip markdown formatting if Gemini hallucinates markdown blocks
-    const cleanJsonString = responseText
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
-
+    // Strip markdown formatting if Gemini hallucinates markdown blocks or conversational text
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+        console.error("Failed to extract JSON structure from Gemini response:", responseText);
+        return new Response(JSON.stringify({ error: "Gemini Hallucination: Missing JSON payload" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 422 });
+    }
+    const cleanJsonString = jsonMatch[0];
     const parsedData = JSON.parse(cleanJsonString);
 
     const userId = user.id;

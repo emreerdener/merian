@@ -29,7 +29,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     
     @Published var isAuthorized: Bool = false
     
-    private var activeContinuationWrapper: CheckedContinuation<CLLocation?, Never>?
+    private var activeContinuations: [CheckedContinuation<CLLocation?, Never>] = []
     private var timeoutTask: Task<Void, Never>?
     private(set) var cachedLocation: CLLocation?
     
@@ -202,13 +202,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     private func requestSingleLocation() async -> CLLocation? {
         timeoutTask?.cancel()
         
-        if let active = activeContinuationWrapper {
-            activeContinuationWrapper = nil
-            active.resume(returning: nil)
-        }
-        
         return await withCheckedContinuation { continuation in
-            self.activeContinuationWrapper = continuation
+            self.activeContinuations.append(continuation)
             self.locationManager.requestLocation()
             
             // Anti-Deadlock timeout: Force-resume after 2.0s if hardware fails to lock satellites
@@ -217,8 +212,9 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
                 
                 guard !Task.isCancelled else { return }
                 
-                if let active = self.activeContinuationWrapper {
-                    self.activeContinuationWrapper = nil
+                let pending = self.activeContinuations
+                self.activeContinuations.removeAll()
+                for active in pending {
                     active.resume(returning: self.cachedLocation)
                 }
             }
@@ -236,10 +232,14 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         Task { @MainActor in
             self.timeoutTask?.cancel()
             
-            if let continuation = self.activeContinuationWrapper {
-                self.activeContinuationWrapper = nil
+            let pending = self.activeContinuations
+            self.activeContinuations.removeAll()
+            
+            for continuation in pending {
                 continuation.resume(returning: location)
-            } else {
+            }
+            
+            if pending.isEmpty {
                  self.cachedLocation = location
             }
         }
@@ -249,8 +249,10 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         Task { @MainActor in
             self.timeoutTask?.cancel()
             
-            if let continuation = self.activeContinuationWrapper {
-                self.activeContinuationWrapper = nil
+            let pending = self.activeContinuations
+            self.activeContinuations.removeAll()
+            
+            for continuation in pending {
                 continuation.resume(returning: nil)
             }
         }

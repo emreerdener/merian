@@ -205,12 +205,12 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         
         syncTask = Task.detached(priority: .background) { [syncBox] in
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            let scanData = await dbActor.fetchPendingScans(limit: 5)
+            let scanData = await dbActor.fetchPendingScans(limit: 50)
             let backgroundSession = await MainActor.run { self.backgroundSession }
             let activeTasks = await backgroundSession.allTasks
             let activeScanIDs = Set(activeTasks.compactMap { $0.taskDescription?.components(separatedBy: "_").first ?? $0.taskDescription })
             
-            let filteredScans = scanData.filter { !activeScanIDs.contains($0.id) }
+            let filteredScans = Array(scanData.filter { !activeScanIDs.contains($0.id) }.prefix(5))
             
             guard !filteredScans.isEmpty else {
                 await MainActor.run {
@@ -563,20 +563,8 @@ actor BackgroundDatabaseActor {
             )
             
             if mappedData.confidenceScore > 0.0 {
-                // Pre-process and securely duplicate offline image paths explicitly preventing aggressive FileManager cleanup deletions
-                var newlyCopiedPaths: [String] = []
-                for originalPath in originalImagePaths {
-                    let sourceURL = URL.documentsDirectory.appendingPathComponent(originalPath)
-                    let newFilename = "\(UUID().uuidString)_scan.jpg"
-                    let destinationURL = URL.documentsDirectory.appendingPathComponent(newFilename)
-                    
-                    do {
-                        try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
-                        newlyCopiedPaths.append(newFilename)
-                    } catch {
-                        print("Failed to physically bridge offline queue image to persistent Scans: \(error)")
-                    }
-                }
+                // Retain exactly the original image paths to prevent sandbox leaks natively on SwiftData failures
+                let newlyCopiedPaths: [String] = originalImagePaths
 
                 let targetName = mappedData.scientificName
                 let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
