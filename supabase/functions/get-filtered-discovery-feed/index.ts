@@ -68,10 +68,10 @@ serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     const sanitizedFeedData = feedData.map((scan: any) => {
       const species = scan.species_dictionary || {};
-      const isProtected = 
-        species.iucn_red_list_status === "vulnerable" || 
-        species.iucn_red_list_status === "endangered" || 
-        species.iucn_red_list_status === "critically_endangered" || 
+      const isProtected =
+        species.iucn_red_list_status === "vulnerable" ||
+        species.iucn_red_list_status === "endangered" ||
+        species.iucn_red_list_status === "critically_endangered" ||
         species.iucn_red_list_status === "near_threatened";
 
       if (isProtected) {
@@ -79,8 +79,10 @@ serve(async (req: Request) => {
         delete scan.gps_lat_exact;
         delete scan.gps_long_exact;
         // Obscure public boundaries roughly to approx 11km blocks natively
-        if (scan.gps_lat_public != null) scan.gps_lat_public = Math.round(scan.gps_lat_public * 10) / 10;
-        if (scan.gps_long_public != null) scan.gps_long_public = Math.round(scan.gps_long_public * 10) / 10;
+        if (scan.gps_lat_public != null)
+          scan.gps_lat_public = Math.round(scan.gps_lat_public * 10) / 10;
+        if (scan.gps_long_public != null)
+          scan.gps_long_public = Math.round(scan.gps_long_public * 10) / 10;
       }
       return scan;
     });
