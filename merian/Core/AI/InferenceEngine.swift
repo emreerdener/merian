@@ -86,7 +86,7 @@ final class InferenceEngine: ObservableObject {
     }    
 
     
-    func analyze(imageData: Data, subjectDistanceInMeters: Float? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil, gpsElevation: Double? = nil, locationName: String? = nil, weatherCondition: String? = nil, weatherTemperatureF: Double? = nil, cameraPitchDegrees: Double? = nil, compassHeading: Double? = nil, relativeHumidity: Double? = nil, uvIndex: Int? = nil, isFlashFired: Bool? = nil, modelContext: ModelContext? = nil) {
+    func analyze(imageData: Data, telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
         // Reset states for a fresh native scan
         self.isProcessing = true
         self.activeImageData = imageData
@@ -96,18 +96,18 @@ final class InferenceEngine: ObservableObject {
         self.speciesData = nil
         self.isBackgroundRescued = false
         
-        self.activeLatitude = gpsLatitude
-        self.activeLongitude = gpsLongitude
-        self.activeElevation = gpsElevation
-        self.activeLocationName = locationName
-        self.activeWeatherCondition = weatherCondition
-        self.activeTemperatureF = weatherTemperatureF
-        self.activePitchDegrees = cameraPitchDegrees
-        self.activeCompassHeading = compassHeading
-        self.activeRelativeHumidity = relativeHumidity
-        self.activeUvIndex = uvIndex
-        self.activeFlashFired = isFlashFired
-        self.activeDistanceInMeters = subjectDistanceInMeters
+        self.activeLatitude = telemetry.gpsLatitude
+        self.activeLongitude = telemetry.gpsLongitude
+        self.activeElevation = telemetry.gpsElevation
+        self.activeLocationName = telemetry.locationName
+        self.activeWeatherCondition = telemetry.weatherCondition
+        self.activeTemperatureF = telemetry.weatherTemperatureF
+        self.activePitchDegrees = telemetry.cameraPitchDegrees
+        self.activeCompassHeading = telemetry.compassHeading
+        self.activeRelativeHumidity = telemetry.relativeHumidity
+        self.activeUvIndex = telemetry.uvIndex
+        self.activeFlashFired = telemetry.isFlashFired
+        self.activeDistanceInMeters = telemetry.subjectDistanceInMeters
         
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
@@ -137,22 +137,9 @@ final class InferenceEngine: ObservableObject {
                 try Task.checkCancellation() // <-- ADD THIS
                 
                 // 3. Transmit the Object Key to the robust Supabase architecture for verification
-                // 3. Transmit the Object Key to the robust Supabase architecture for verification
-                let depthScaleText = subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
                 let resultData = try await client.analyzeSubject(
                     r2ObjectKey: target.objectKey,
-                    depthScaleText: depthScaleText,
-                    gpsLatitude: gpsLatitude,
-                    gpsLongitude: gpsLongitude,
-                    gpsElevation: gpsElevation,
-                    semanticLocation: locationName,
-                    weatherCondition: weatherCondition,
-                    weatherTemperatureF: weatherTemperatureF,
-                    cameraPitchDegrees: cameraPitchDegrees,
-                    compassHeading: compassHeading,
-                    relativeHumidity: relativeHumidity,
-                    uvIndex: uvIndex,
-                    isFlashFired: isFlashFired
+                    telemetry: telemetry
                 )
                 
                 // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely
@@ -170,56 +157,11 @@ final class InferenceEngine: ObservableObject {
                     
                     let edgeRes = parsedWrapper.data
                     
-                    let insight = InsightData(
-                        description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
-                        isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
-                        regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
-                    )
-                    
-                    let taxonomyData = TaxonomyData(
-                        kingdom: edgeRes.taxonomy?.kingdom,
-                        phylum: edgeRes.taxonomy?.phylum,
-                        className: edgeRes.taxonomy?.class,
-                        order: edgeRes.taxonomy?.order,
-                        family: edgeRes.taxonomy?.family,
-                        genus: edgeRes.taxonomy?.genus
-                    )
-                    
-                    var parsedDiagnostic: DiagnosticComparison? = nil
-                    if let diag = edgeRes.diagnostic_comparison,
-                       let rationale = diag.primary_match_rationale,
-                       let lookalike = diag.confusing_lookalike_name,
-                       let diffs = diag.key_differentiators {
-                        
-                        let mappedDiffs = diffs.compactMap { d -> KeyDifferentiator? in
-                            guard let t = d.trait, let sv = d.subject_value, let lv = d.lookalike_value else { return nil }
-                            return KeyDifferentiator(trait: t, subjectValue: sv, lookalikeValue: lv)
-                        }
-                        
-                        if !mappedDiffs.isEmpty {
-                            parsedDiagnostic = DiagnosticComparison(primaryMatchRationale: rationale, confusingLookalikeName: lookalike, keyDifferentiators: mappedDiffs)
-                        }
-                    }
-
                     let mappedData = SpeciesData(
-                        scanId: edgeRes.scan_id,
-                        commonName: edgeRes.common_name ?? "Unknown Subject",
-                        scientificName: edgeRes.scientific_name ?? "Taxonomy Unavailable",
-                        insightData: insight,
-                        confidenceScore: edgeRes.confidence_score ?? 0.0,
-                        diagnosticComparison: parsedDiagnostic,
-                        wikipediaUrl: edgeRes.wikipedia_url,
-                        wikipediaExtract: edgeRes.wikipedia_extract,
-                        referenceImageUrl: edgeRes.reference_image_url,
-                        isBiological: edgeRes.is_biological_subject ?? true,
-                        isLiveCapture: edgeRes.is_live_capture ?? true,
-                        isInvasive: edgeRes.is_invasive ?? false,
-                        ecologyType: edgeRes.ecology_type ?? "unknown",
-                        taxonomy: taxonomyData,
-                        locationName: locationName,
-                        weatherCondition: weatherCondition,
-                        weatherTemperatureF: weatherTemperatureF,
-                        colors: edgeRes.colors
+                        fromEdgeResponse: edgeRes,
+                        locationName: telemetry.locationName,
+                        weatherCondition: telemetry.weatherCondition,
+                        weatherTemperatureF: telemetry.weatherTemperatureF
                     )
                     
                     var newDiscovery = false
@@ -267,9 +209,9 @@ final class InferenceEngine: ObservableObject {
                         isInvasive: false,
                         ecologyType: "unknown",
                         taxonomy: nil,
-                        locationName: locationName,
-                        weatherCondition: weatherCondition,
-                        weatherTemperatureF: weatherTemperatureF,
+                        locationName: telemetry.locationName,
+                        weatherCondition: telemetry.weatherCondition,
+                        weatherTemperatureF: telemetry.weatherTemperatureF,
                         colors: nil
                     )
                     self.isProcessing = false
@@ -288,19 +230,8 @@ final class InferenceEngine: ObservableObject {
                 CircuitBreakerManager.shared.recordFailure()
                 OfflineQueueManager.shared.enqueueCapture(
                     imageData: compressedData,
-                    gpsLatitude: gpsLatitude,
-                    gpsLongitude: gpsLongitude,
-                    gpsElevation: gpsElevation,
-                    weatherCondition: weatherCondition,
-                    weatherTemperatureF: weatherTemperatureF,
-                    blurScore: nil,
-                    subjectDistanceInMeters: subjectDistanceInMeters,
-                    locationName: locationName,
-                    isFlashFired: isFlashFired,
-                    cameraPitchDegrees: cameraPitchDegrees,
-                    compassHeading: compassHeading,
-                    relativeHumidity: relativeHumidity,
-                    uvIndex: uvIndex
+                    telemetry: telemetry,
+                    blurScore: nil
                 )
                 print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
                 self.speciesData = SpeciesData(
@@ -318,9 +249,9 @@ final class InferenceEngine: ObservableObject {
                     isInvasive: false,
                     ecologyType: "unknown",
                     taxonomy: nil,
-                    locationName: locationName,
-                    weatherCondition: weatherCondition,
-                    weatherTemperatureF: weatherTemperatureF
+                    locationName: telemetry.locationName,
+                    weatherCondition: telemetry.weatherCondition,
+                    weatherTemperatureF: telemetry.weatherTemperatureF
                 )
             }
             

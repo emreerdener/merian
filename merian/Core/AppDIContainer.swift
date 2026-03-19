@@ -46,19 +46,21 @@ final class AppDIContainer: ObservableObject {
             if revenueCatManager.isProActive {
                 offlineQueueManager.enqueueCapture(
                     imageData: payload,
-                    gpsLatitude: inferenceEngine.activeLatitude,
-                    gpsLongitude: inferenceEngine.activeLongitude,
-                    gpsElevation: inferenceEngine.activeElevation,
-                    weatherCondition: inferenceEngine.activeWeatherCondition,
-                    weatherTemperatureF: inferenceEngine.activeTemperatureF,
-                    blurScore: nil,
-                    subjectDistanceInMeters: inferenceEngine.activeDistanceInMeters,
-                    locationName: inferenceEngine.activeLocationName,
-                    isFlashFired: inferenceEngine.activeFlashFired,
-                    cameraPitchDegrees: inferenceEngine.activePitchDegrees,
-                    compassHeading: inferenceEngine.activeCompassHeading,
-                    relativeHumidity: inferenceEngine.activeRelativeHumidity,
-                    uvIndex: inferenceEngine.activeUvIndex
+                    telemetry: CaptureTelemetry(
+                        subjectDistanceInMeters: inferenceEngine.activeDistanceInMeters,
+                        gpsLatitude: inferenceEngine.activeLatitude,
+                        gpsLongitude: inferenceEngine.activeLongitude,
+                        gpsElevation: inferenceEngine.activeElevation,
+                        locationName: inferenceEngine.activeLocationName,
+                        weatherCondition: inferenceEngine.activeWeatherCondition,
+                        weatherTemperatureF: inferenceEngine.activeTemperatureF,
+                        cameraPitchDegrees: inferenceEngine.activePitchDegrees,
+                        compassHeading: inferenceEngine.activeCompassHeading,
+                        relativeHumidity: inferenceEngine.activeRelativeHumidity,
+                        uvIndex: inferenceEngine.activeUvIndex,
+                        isFlashFired: inferenceEngine.activeFlashFired
+                    ),
+                    blurScore: nil
                 )
             }
             inferenceEngine.cancelActiveRequest()

@@ -8,7 +8,7 @@ When the user physically captures an image within the application, the architect
 
 1. **Physical Hardware Abstraction**: `HardwareOrchestrator` governs the `CameraManager`, locking white balance and grabbing the exact physics coordinates (`CLLocationCoordinate2D`, Elevation, and LiDAR `subjectDistanceInMeters`).
 2. **Ephemeral Network Abstraction**: If the `NWPathMonitor` determines the device has active network bounds, `OfflineQueueManager` asks the Supabase Edge (`generate-upload-urls`) for a temporary Cloudflare R2 Upload link and `PUT`s the file automatically in the background.
-3. **Biological Inference (`InferenceEngine.swift`)**: Fires the exact R2 key, `subjectDistanceInMeters`, `deviceLocale`, and GPS logic explicitly to the Supabase `/identify` Edge Node, strictly shielding the frontend Swift code from knowing the `GEMINI_API_KEY`.
+3. **Biological Inference (`InferenceEngine.swift`)**: Fires the exact R2 key and unified `CaptureTelemetry` boundaries naturally decoupled natively down to the Supabase `/identify` Edge Node, strictly shielding the frontend Swift code from knowing the `GEMINI_API_KEY`.
 4. **Offline Resilience (Pro Feature)**: Should a Merian Pro user be off-grid on a hike, the binary payload successfully clears the `RevenueCatManager.shared.isProActive` boundary and is routed to a `.documentDirectory` caching folder and a `SwiftData` row is marked `isOfflineQueued = true`. Apple's `URLSession` Background protocols passively trigger upload logic directly when OS-level radio arrays regain access. Free users actively encounter an `APIError.proRequiredForOfflineTracking` boundary gracefully surfacing a Paywall.
 
 ## Core Decoupling (AppDIContainer)

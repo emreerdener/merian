@@ -27,13 +27,24 @@ struct OfflineQueueManagerTests {
         let dummyImageData = Data([0x00, 0x01, 0x02, 0x03])
         
         // Act
-        manager.enqueueCapture(
-            imageData: dummyImageData,
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
             gpsLatitude: 37.7749,
             gpsLongitude: -122.4194,
             gpsElevation: 10.0,
+            locationName: nil,
             weatherCondition: "cloudy",
             weatherTemperatureF: 65.0,
+            cameraPitchDegrees: nil,
+            compassHeading: nil,
+            relativeHumidity: nil,
+            uvIndex: nil,
+            isFlashFired: nil
+        )
+        
+        manager.enqueueCapture(
+            imageData: dummyImageData,
+            telemetry: telemetry,
             blurScore: 0.1
         )
         

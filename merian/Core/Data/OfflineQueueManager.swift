@@ -92,20 +92,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
     }
     
-    func enqueueCapture(imageData: Data,
-                        gpsLatitude: Double? = nil,
-                        gpsLongitude: Double? = nil,
-                        gpsElevation: Double? = nil,
-                        weatherCondition: String? = nil,
-                        weatherTemperatureF: Double? = nil,
-                        blurScore: Double? = nil,
-                        subjectDistanceInMeters: Float? = nil,
-                        locationName: String? = nil,
-                        isFlashFired: Bool? = nil,
-                        cameraPitchDegrees: Double? = nil,
-                        compassHeading: Double? = nil,
-                        relativeHumidity: Double? = nil,
-                        uvIndex: Int? = nil) {
+    func enqueueCapture(imageData: Data, telemetry: CaptureTelemetry, blurScore: Double? = nil) {
         
         guard let modelContext = modelContext else {
             print("ModelContext not set on OfflineQueueManager")
@@ -143,19 +130,19 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         id: UUID().uuidString,
                         timestamp: Date(),
                         localImagePaths: [fileName],
-                        gpsLatitude: gpsLatitude,
-                        gpsLongitude: gpsLongitude,
-                        gpsElevation: gpsElevation,
-                        weatherCondition: weatherCondition,
-                        weatherTemperatureF: weatherTemperatureF,
+                        gpsLatitude: telemetry.gpsLatitude,
+                        gpsLongitude: telemetry.gpsLongitude,
+                        gpsElevation: telemetry.gpsElevation,
+                        weatherCondition: telemetry.weatherCondition,
+                        weatherTemperatureF: telemetry.weatherTemperatureF,
                         blurScore: blurScore,
-                        subjectDistanceInMeters: subjectDistanceInMeters,
-                        locationName: locationName,
-                        isFlashFired: isFlashFired,
-                        cameraPitchDegrees: cameraPitchDegrees,
-                        compassHeading: compassHeading,
-                        relativeHumidity: relativeHumidity,
-                        uvIndex: uvIndex,
+                        subjectDistanceInMeters: telemetry.subjectDistanceInMeters,
+                        locationName: telemetry.locationName,
+                        isFlashFired: telemetry.isFlashFired,
+                        cameraPitchDegrees: telemetry.cameraPitchDegrees,
+                        compassHeading: telemetry.compassHeading,
+                        relativeHumidity: telemetry.relativeHumidity,
+                        uvIndex: telemetry.uvIndex,
                         isDeleted: false
                     )
                     modelContext.insert(scan)
@@ -429,13 +416,12 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             let r2ObjectKey = String(urlPath[range.lowerBound...])
             
             do {
-                let resultData = try await MerianNetworkClient.shared.analyzeSubject(
-                    r2ObjectKey: r2ObjectKey,
-                    depthScaleText: scan.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) },
+                let telemetry = CaptureTelemetry(
+                    subjectDistanceInMeters: scan.subjectDistanceInMeters,
                     gpsLatitude: scan.gpsLatitude,
                     gpsLongitude: scan.gpsLongitude,
                     gpsElevation: scan.gpsElevation,
-                    semanticLocation: scan.locationName,
+                    locationName: scan.locationName,
                     weatherCondition: scan.weatherCondition,
                     weatherTemperatureF: scan.weatherTemperatureF,
                     cameraPitchDegrees: scan.cameraPitchDegrees,
@@ -443,6 +429,10 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     relativeHumidity: scan.relativeHumidity,
                     uvIndex: scan.uvIndex,
                     isFlashFired: scan.isFlashFired
+                )
+                let resultData = try await MerianNetworkClient.shared.analyzeSubject(
+                    r2ObjectKey: r2ObjectKey,
+                    telemetry: telemetry
                 )
                 let backgroundActor = BackgroundDatabaseActor(modelContainer: modelContext.container)
                 await backgroundActor.processAndCleanupOfflineScan(

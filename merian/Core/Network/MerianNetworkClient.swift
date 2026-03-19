@@ -29,7 +29,7 @@ class MerianNetworkClient {
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
     // Step 2: Supabase Inference
-    func analyzeSubject(r2ObjectKey: String, depthScaleText: String?, gpsLatitude: Double?, gpsLongitude: Double?, gpsElevation: Double?, semanticLocation: String?, weatherCondition: String?, weatherTemperatureF: Double?, cameraPitchDegrees: Double?, compassHeading: Double?, relativeHumidity: Double?, uvIndex: Int?, isFlashFired: Bool?, isRetry: Bool = false) async throws -> Data {
+    func analyzeSubject(r2ObjectKey: String, telemetry: CaptureTelemetry, isRetry: Bool = false) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
         
         // CRITICAL: Prevent iOS from returning cached 401s during the self-healing retry loop
@@ -68,25 +68,26 @@ class MerianNetworkClient {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         let timeOfDay = formatter.string(from: Date())
         
+        let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
         let payload: [String: Any?] = [
             "r2ObjectKey": r2ObjectKey,
             "user_id": deviceId,
             "mimeType": "image/jpeg",
             "depthScaleText": depthScaleText,
-            "gpsLatitude": gpsLatitude,
-            "gpsLongitude": gpsLongitude,
-            "gpsElevation": gpsElevation,
-            "semanticLocation": semanticLocation,
-            "weatherCondition": weatherCondition,
-            "weatherTemperatureF": weatherTemperatureF,
+            "gpsLatitude": telemetry.gpsLatitude,
+            "gpsLongitude": telemetry.gpsLongitude,
+            "gpsElevation": telemetry.gpsElevation,
+            "semanticLocation": telemetry.locationName,
+            "weatherCondition": telemetry.weatherCondition,
+            "weatherTemperatureF": telemetry.weatherTemperatureF,
             "deviceLocale": deviceLocale,
             "currentMonth": currentMonth,
             "timeOfDay": timeOfDay,
-            "cameraPitchDegrees": cameraPitchDegrees,
-            "compassHeading": compassHeading,
-            "relativeHumidity": relativeHumidity,
-            "uvIndex": uvIndex,
-            "isFlashFired": isFlashFired
+            "cameraPitchDegrees": telemetry.cameraPitchDegrees,
+            "compassHeading": telemetry.compassHeading,
+            "relativeHumidity": telemetry.relativeHumidity,
+            "uvIndex": telemetry.uvIndex,
+            "isFlashFired": telemetry.isFlashFired
         ]
         
         // Remove nils
@@ -121,7 +122,7 @@ class MerianNetworkClient {
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     
                     // Recursively retry exactly once with the fresh token
-                    return try await analyzeSubject(r2ObjectKey: r2ObjectKey, depthScaleText: depthScaleText, gpsLatitude: gpsLatitude, gpsLongitude: gpsLongitude, gpsElevation: gpsElevation, semanticLocation: semanticLocation, weatherCondition: weatherCondition, weatherTemperatureF: weatherTemperatureF, cameraPitchDegrees: cameraPitchDegrees, compassHeading: compassHeading, relativeHumidity: relativeHumidity, uvIndex: uvIndex, isFlashFired: isFlashFired, isRetry: true)
+                    return try await analyzeSubject(r2ObjectKey: r2ObjectKey, telemetry: telemetry, isRetry: true)
                 } else {
                     print("🚨 NATIVE SESSION EXPIRED. Failing gracefully to allow re-authentication.")
                     throw NetworkError.invalidResponse

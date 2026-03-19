@@ -41,20 +41,12 @@ final class ScanRepository {
     /// Securely bridges the bytes directly to the networking infrastructure seamlessly buffering them offline if the network is absent
     func saveScan(
         imageData: Data,
-        latitude: Double? = nil,
-        longitude: Double? = nil,
-        elevation: Double? = nil,
-        weatherCondition: String? = nil,
-        weatherTemperatureF: Double? = nil,
+        telemetry: CaptureTelemetry,
         blurScore: Double? = nil
     ) {
         offlineQueue.enqueueCapture(
             imageData: imageData,
-            gpsLatitude: latitude,
-            gpsLongitude: longitude,
-            gpsElevation: elevation,
-            weatherCondition: weatherCondition,
-            weatherTemperatureF: weatherTemperatureF,
+            telemetry: telemetry,
             blurScore: blurScore
         )
     }

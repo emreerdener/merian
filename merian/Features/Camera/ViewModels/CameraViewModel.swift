@@ -145,8 +145,7 @@ final class CameraViewModel: ObservableObject {
             // Consume the strict free quota immediately upon commitment to prevent offline hoarding 
             self.diContainer.usageManager.consumeScan()
             
-            self.diContainer.inferenceEngine.analyze(
-                imageData: croppedData,
+            let telemetry = CaptureTelemetry(
                 subjectDistanceInMeters: capturedDistance,
                 gpsLatitude: context.location?.coordinate.latitude,
                 gpsLongitude: context.location?.coordinate.longitude,
@@ -158,7 +157,12 @@ final class CameraViewModel: ObservableObject {
                 compassHeading: context.compassHeading,
                 relativeHumidity: context.relativeHumidity,
                 uvIndex: context.uvIndex,
-                isFlashFired: flashFired,
+                isFlashFired: flashFired
+            )
+            
+            self.diContainer.inferenceEngine.analyze(
+                imageData: croppedData,
+                telemetry: telemetry,
                 modelContext: modelContext
             )
         }

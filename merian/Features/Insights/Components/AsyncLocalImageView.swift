@@ -48,45 +48,14 @@ struct AsyncLocalImageView: View {
     
     private func loadThumbnail() {
         guard loadedImage == nil else { return }
-        
-        // 1. RAM Cache Hit (Instant 0ms load)
-        if let cached = ImageCache.shared.get(forKey: imagePath) {
-            self.loadedImage = cached
-            return
-        }
-        
-        let fileName = (imagePath as NSString).lastPathComponent
-        let url = URL.documentsDirectory.appendingPathComponent(fileName)
         Task {
-            if let decoded = await Task.detached(priority: .userInitiated, operation: {
-                let options: [CFString: Any] = [
-                    kCGImageSourceCreateThumbnailFromImageAlways: true,
-                    kCGImageSourceCreateThumbnailWithTransform: true,
-                    kCGImageSourceThumbnailMaxPixelSize: 1024
-                ]
-                
-                guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-                      let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-                    return nil as UIImage?
-                }
-                
-                return UIImage(cgImage: cgImage)
-            }).value {
-                // 2. Save to RAM Cache
-                ImageCache.shared.set(decoded, forKey: imagePath)
-                
-                await MainActor.run {
-                    self.loadedImage = decoded
-                }
-            } else if let fallbackUrlString = fallbackImageUrl, let fallbackUrl = URL(string: fallbackUrlString) {
-                // 3. Network Fallback hook precisely mirrored from Scans grids
-                if let networkImage = await fetchNetworkFallback(url: fallbackUrl, cacheKey: imagePath) {
-                    await MainActor.run { self.loadedImage = networkImage }
+            let img = await LocalImageLoader.shared.loadImage(fromPath: imagePath, fallbackUrl: fallbackImageUrl)
+            await MainActor.run {
+                if let img = img {
+                    self.loadedImage = img
                 } else {
-                    await MainActor.run { self.hasFailedToLoad = true }
+                    self.hasFailedToLoad = true
                 }
-            } else {
-                await MainActor.run { self.hasFailedToLoad = true }
             }
         }
     }

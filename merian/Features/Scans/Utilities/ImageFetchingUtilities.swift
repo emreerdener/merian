@@ -52,3 +52,50 @@ nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIIma
         return nil
     }
 }
+
+/// Unifies APFS file rendering, sandbox extractions, and Cloudflare R2 loading autonomously handling physical cache networks natively.
+actor LocalImageLoader {
+    static let shared = LocalImageLoader()
+    
+    func loadImage(fromPath imagePath: String?, fallbackUrl: String? = nil, maxDimension: Int = 1024) async -> UIImage? {
+        let cacheKey = imagePath ?? fallbackUrl ?? UUID().uuidString
+        
+        // 1. RAM Cache Hit
+        if let cached = ImageCache.shared.get(forKey: cacheKey) {
+            return cached
+        }
+        
+        // 2. Local File Extraction directly off Main Thread
+        if let safePath = imagePath {
+            let filename = (safePath as NSString).lastPathComponent
+            let url = URL.documentsDirectory.appendingPathComponent(filename)
+            
+            if let decoded = await Task.detached(priority: .userInitiated, operation: { () -> UIImage? in
+                let options: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: maxDimension
+                ]
+                
+                guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
+                      let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+                    return nil
+                }
+                
+                return UIImage(cgImage: cgImage)
+            }).value {
+                ImageCache.shared.set(decoded, forKey: cacheKey)
+                return decoded
+            }
+        }
+        
+        // 3. Network Fallback mapped securely via URLSession matching legacy Grid arrays
+        if let fallbackUrlString = fallbackUrl, let url = URL(string: fallbackUrlString) {
+            if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey) {
+                return networkImage
+            }
+        }
+        
+        return nil
+    }
+}
