@@ -1,22 +1,9 @@
 import { serve } from "@std/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
-import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const { user, response } = await requireAuth(req, supabaseAdmin);
-    if (response) return response;
-
-    const targetUserId = user!.id;
+serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const targetUserId = user.id;
 
     const body = await req.json();
     const ghost_id = body.ghost_id;
@@ -76,12 +63,4 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Merge Ghost Profile failed:", message);
-    return new Response(JSON.stringify({ error: message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
-  }
-});
+}));

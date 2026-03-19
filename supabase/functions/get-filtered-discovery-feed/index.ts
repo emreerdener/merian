@@ -1,29 +1,14 @@
 import { serve } from "@std/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
-import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-// Utilize Service Role Key to securely access shadowbanned users + global feeds via edge
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
+serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const { limit = 20 } = await req.json();
 
-    const { user, response } = await requireAuth(req, supabase);
-    if (response) return response;
-
-    const userId = user!.id;
+    const userId = user.id;
 
     // 1. Isolation Filter Hook - Query blocked_ids mapping the blocker explicitly
-    const { data: blocksData, error: blocksError } = await supabase
+    const { data: blocksData, error: blocksError } = await supabaseAdmin
       .from("user_blocks")
       .select("blocked_id")
       .eq("blocker_id", userId);
@@ -43,7 +28,7 @@ serve(async (req: Request) => {
     // The raw isolation array passed safely down into the PostgreSQL `in` bounds without string casting
 
     // 3. Query Scans matching Open bounds & Excluding Isolated Actors
-    const { data: feedData, error: feedError } = await supabase
+    const { data: feedData, error: feedError } = await supabaseAdmin
       .from("scans")
       .select(
         `
@@ -93,12 +78,4 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
-  }
-});
+}));

@@ -2,26 +2,12 @@ import { serve } from "@std/http/server.ts";
 import { encodeBase64 } from "@std/encoding-base64";
 
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { createClient } from "@supabase/supabase-js";
 import { evaluateAndProcessPayload } from "./moderation.ts";
-import { requireAuth } from "../_shared/auth.ts";
-import { getS3Client } from "../_shared/aws.ts";
+import { getR2Config } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const { user, response } = await requireAuth(req, supabaseAdmin);
-    if (response) return response;
-
+serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const body = await req.json();
     const {
       r2ObjectKey,
@@ -53,7 +39,7 @@ serve(async (req: Request) => {
     if (r2ObjectKey) {
       // CRITICAL SEC FIX: Prevent malicious actors from submitting spoofed payloads extracting foreign blobs
       // The `r2ObjectKey` must physically belong to the authenticated user's boundary and explicitly bypass `../` loops natively
-      if (!r2ObjectKey.startsWith(`staging/${user!.id}/`)) {
+      if (!r2ObjectKey.startsWith(`staging/${user.id}/`)) {
         return new Response(
           JSON.stringify({ error: "SECURITY VIOLATION (IDOR): Attempting to scrape foreign r2ObjectKey bounds." }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -82,15 +68,10 @@ serve(async (req: Request) => {
     if (imageBase64) {
       base64Payload = imageBase64;
     } else {
-      const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
-      const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
+      const { s3Client, bucketName, endpoint } = getR2Config();
+      const getUrl = `${endpoint}/${bucketName}/${r2ObjectKey}`;
 
-      const aws = getS3Client();
-
-      const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-      const getUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
-
-      const r2Response = await aws.fetch(getUrl);
+      const r2Response = await s3Client.fetch(getUrl);
       if (!r2Response.ok) {
         throw new Error(
           `Failed to fetch image from R2: ${r2Response.statusText}`,
@@ -601,11 +582,4 @@ Crucial instructions:
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error) {
-    console.error("FATAL ERROR IN EDGE LAYER:", error);
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
-  }
-});
+}));

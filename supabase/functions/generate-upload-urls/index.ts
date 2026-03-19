@@ -1,26 +1,12 @@
 import { serve } from "@std/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
-import { requireAuth } from "../_shared/auth.ts";
-import { getS3Client } from "../_shared/aws.ts";
+import { getR2Config } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const { user, response } = await requireAuth(req, supabaseAdmin);
-    if (response) return response;
-
+serve((req: Request) => withEdgeHandler(req, async (user, _supabaseAdmin) => {
     const body = await req.json();
     const { fileNames } = body;
-    const userId = user!.id;
+    const userId = user.id;
 
     if (!userId) {
        return new Response(
@@ -37,21 +23,18 @@ serve(async (req: Request) => {
       throw new Error("Invalid request or exceeded maximum files.");
     }
 
-    const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
-    const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-    const aws = getS3Client();
+    const { s3Client, bucketName, endpoint } = getR2Config();
 
-    const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
     const urls = await Promise.all(
       fileNames.map(async (fileName: string) => {
         const imageId = crypto.randomUUID();
         const key = `staging/${userId}/${imageId}.jpg`;
-        const urlString = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
+        const urlString = `${endpoint}/${bucketName}/${key}`;
 
         const putUrl = new URL(urlString);
         putUrl.searchParams.set("X-Amz-Expires", "86400");
 
-        const signedPut = await aws.sign(putUrl.toString(), {
+        const signedPut = await s3Client.sign(putUrl.toString(), {
           method: "PUT",
           headers: { "Content-Type": "image/jpeg" },
           aws: { signQuery: true },
@@ -69,10 +52,4 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
-  }
-});
+}));

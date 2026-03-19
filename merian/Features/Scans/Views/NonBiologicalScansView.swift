@@ -21,21 +21,11 @@ struct NonBiologicalScansView: View {
     var body: some View {
         ScrollView {
             if nonBioRecords.isEmpty {
-                VStack(spacing: 16) {
-                    Spacer().frame(height: 80)
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundColor(.secondary)
-                    Text("No non-biological scans")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    Text("You haven't documented any non-biological subjects yet.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-                .frame(maxWidth: .infinity)
+                EmptyStateView(
+                    iconName: "photo.on.rectangle.angled",
+                    title: "No non-biological scans",
+                    message: "You haven't documented any non-biological subjects yet."
+                )
             } else {
                 LazyVGrid(columns: columns, spacing: 2) {
                     ForEach(nonBioRecords) { scan in
@@ -67,22 +57,12 @@ struct NonBiologicalScansView: View {
                 set: { if !$0 { selectedScanForInsight = nil } }
             ))
         }
-        .confirmationDialog(
-            "Delete scan",
+        .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible,
-            presenting: scanToDelete
-        ) { scan in
-            Button("Delete scan permanently", role: .destructive) {
-                HapticManager.shared.triggerErrorThump()
-                ScanRepository.shared.eradicateScan(record: scan, modelContext: modelContext)
-                scanToDelete = nil
-            }
-            Button("Cancel", role: .cancel) {
-                scanToDelete = nil
-            }
-        } message: { _ in
-            Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device.")
+            scanId: scanToDelete?.id,
+            modelContext: modelContext
+        ) {
+            scanToDelete = nil
         }
     }
 }

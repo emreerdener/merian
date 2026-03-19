@@ -1,24 +1,9 @@
 import { serve } from "@std/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
-
-import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-// Use SERVICE_ROLE_KEY to bypass RLS and delete the core user profile
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const { user, response } = await requireAuth(req, supabaseAdmin);
-    if (response) return response;
-
-    const userId = user!.id;
+serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const userId = user.id;
 
     // 2. Delegate R2 wiping to background limits to prevent Deno timeout
     const { error: deletionError } = await supabaseAdmin
@@ -63,10 +48,4 @@ serve(async (req: Request) => {
         status: 200,
       },
     );
-  } catch (error) {
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
-  }
-});
+}));

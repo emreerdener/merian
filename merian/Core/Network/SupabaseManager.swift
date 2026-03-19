@@ -132,6 +132,28 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
         return session.accessToken
     }
     
+    /// Unifies the JWT extraction, OAuth Ghost fallbacks, and generic REST header injection, aggressively stripping duplicated catch structures across Network clients natively
+    func getValidAuthHeaders() async throws -> [String: String] {
+        var token: String
+        do {
+            token = try await self.getActiveJWT()
+        } catch {
+            let hasAuthenticated = UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth")
+            if !hasAuthenticated {
+                await self.initializeGhostSession()
+                token = try await self.getActiveJWT()
+            } else {
+                throw error
+            }
+        }
+        
+        return [
+            "Authorization": "Bearer \(token)",
+            "apikey": MerianEnvironment.supabaseAnonKey,
+            "Content-Type": "application/json"
+        ]
+    }
+    
     // MARK: - OAuth & Apple Sign In
     
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {

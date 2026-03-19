@@ -43,26 +43,12 @@ class MerianNetworkClient {
             request.httpBody = body
         }
         
-        do {
-            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
-            if activeJWT == nil {
-                if UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth") {
-                    print("🚨 MerianNetworkClient: Disconnected OAuth user. Throwing to force manual UI login.")
-                    throw NetworkError.invalidResponse
-                }
-                print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
-                await SupabaseManager.shared.initializeGhostSession()
-                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
-            }
-            guard let finalJWT = activeJWT else {
-                print("⚠️ MerianNetworkClient: Active JWT missing or expired after retry. Throwing NetworkError.")
-                throw NetworkError.invalidResponse
-            }
-            request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
-            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
-        } catch {
-            print("⚠️ MerianNetworkClient: Critical Auth Failure: \(error.localizedDescription)")
+        guard let authHeaders = try? await SupabaseManager.shared.getValidAuthHeaders() else {
+            print("⚠️ MerianNetworkClient: Critical Auth Failure or Disconnected OAuth User natively resolving bounds.")
             throw NetworkError.invalidResponse
+        }
+        for (key, val) in authHeaders {
+            request.setValue(val, forHTTPHeaderField: key)
         }
         
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -113,26 +99,12 @@ class MerianNetworkClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        do {
-            var activeJWT = try? await SupabaseManager.shared.getActiveJWT()
-            if activeJWT == nil {
-                if UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth") {
-                    print("🚨 MerianNetworkClient: Disconnected OAuth user. Throwing to force manual UI login.")
-                    throw NetworkError.invalidResponse
-                }
-                print("⚠️ MerianNetworkClient: JWT missing, retrying Ghost initialization...")
-                await SupabaseManager.shared.initializeGhostSession()
-                activeJWT = try? await SupabaseManager.shared.getActiveJWT()
-            }
-            guard let finalJWT = activeJWT else {
-                print("⚠️ MerianNetworkClient: Active JWT missing or expired after retry. Throwing NetworkError.")
-                throw NetworkError.invalidResponse
-            }
-            request.setValue("Bearer \(finalJWT)", forHTTPHeaderField: "Authorization")
-            request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
-        } catch {
-            print("⚠️ MerianNetworkClient: Critical Auth Failure: \(error.localizedDescription)")
+        guard let authHeaders = try? await SupabaseManager.shared.getValidAuthHeaders() else {
+            print("⚠️ MerianNetworkClient: Critical Auth Failure or Disconnected OAuth User natively resolving bounds.")
             throw NetworkError.invalidResponse
+        }
+        for (key, val) in authHeaders {
+            request.setValue(val, forHTTPHeaderField: key)
         }
         
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }

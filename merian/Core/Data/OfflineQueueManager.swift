@@ -28,6 +28,27 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
             id = .invalid
         }
     }
+    
+    @discardableResult
+    public static func execute(
+        name: String,
+        expirationHandler: (@Sendable () -> Void)? = nil,
+        operation: @escaping @Sendable (BackgroundTaskWrapper) async -> Void
+    ) -> Task<Void, Never> {
+        let task = BackgroundTaskWrapper()
+        #if os(iOS)
+        let taskId = UIApplication.shared.beginBackgroundTask(withName: name) {
+            expirationHandler?()
+            task.safeEnd()
+        }
+        task.id = taskId
+        #endif
+        
+        return Task.detached(priority: .background) {
+            await operation(task)
+            task.safeEnd()
+        }
+    }
 }
 #endif
 
@@ -127,14 +148,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         let documentsDirectory = URL.documentsDirectory
         let fileURL = documentsDirectory.appendingPathComponent(fileName)
         
-        #if os(iOS)
-        let writeBox = BackgroundTaskWrapper()
-        writeBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueCaptureWrite") {
-            writeBox.safeEnd()
-        }
-        #endif
-        
-        Task.detached(priority: .userInitiated) { [writeBox] in
+        BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite") { _ in
             do {
                 try imageData.write(to: fileURL)
                 
@@ -166,17 +180,10 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                         print("Failed to save offline queue record. Cleaning up abandoned local image footprint.")
                         try? FileManager.default.removeItem(at: fileURL)
                     }
-                    
-                    #if os(iOS)
-                    writeBox.safeEnd()
-                    #endif
                 }
             } catch {
                 print("Failed to enqueue capture: \(error)")
                 await MainActor.run {
-                    #if os(iOS)
-                    writeBox.safeEnd()
-                    #endif
                 }
             }
         }
@@ -191,19 +198,13 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         
         isSyncing = true
         
-        #if os(iOS)
-        let syncBox = BackgroundTaskWrapper()
-        syncBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineQueueSync") {
-            // This expiration handler is called if we run out of time
-            print("Offline Queue background expiration triggered")
-            Task { @MainActor in
-                SyncStateManager.shared.completeSync()
+        syncTask = BackgroundTaskWrapper.execute(
+            name: "OfflineQueueSync",
+            expirationHandler: {
+                print("Offline Queue background expiration triggered")
+                Task { @MainActor in SyncStateManager.shared.completeSync() }
             }
-            syncBox.safeEnd()
-        }
-        #endif
-        
-        syncTask = Task.detached(priority: .background) { [syncBox] in
+        ) { _ in
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let scanData = await dbActor.fetchPendingScans(limit: 50)
             let backgroundSession = await MainActor.run { self.backgroundSession }
@@ -218,9 +219,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     if scanData.isEmpty {
                         SyncStateManager.shared.completeSync()
                     }
-                    #if os(iOS)
-                    syncBox.safeEnd()
-                    #endif
                 }
                 return
             }
@@ -296,10 +294,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 await MainActor.run {
                     self.isSyncing = false
                     SyncStateManager.shared.completeSync()
-                    
-                    #if os(iOS)
-                        syncBox.safeEnd()
-                    #endif
                 }
             }
             
@@ -308,21 +302,14 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        Task {
-            #if os(iOS)
-            let inferenceBox = BackgroundTaskWrapper()
-            await MainActor.run {
-                inferenceBox.id = UIApplication.shared.beginBackgroundTask(withName: "OfflineInference") {
-                    print("Offline inference background task expired")
-                    inferenceBox.safeEnd()
-                }
+        BackgroundTaskWrapper.execute(
+            name: "OfflineInference",
+            expirationHandler: {
+                print("Offline inference background task expired")
             }
-            #endif
+        ) { _ in
             
             guard let taskDesc = task.taskDescription else {
-                #if os(iOS)
-            inferenceBox.safeEnd()
-            #endif
             return
         }
         
@@ -335,9 +322,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         
         guard error == nil else {
             print("Background upload hard failed: \(error!)")
-            #if os(iOS)
-            inferenceBox.safeEnd()
-            #endif
             return
         }
         
@@ -347,17 +331,11 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             
             if recoverableCodes.contains(statusCode) {
                 print("Background upload failed with recoverable status (\(statusCode)). Retaining in queue.")
-                #if os(iOS)
-                inferenceBox.safeEnd()
-                #endif
             } else {
                 print("Background upload rejected physically by boundary constraints. Server returned an error.")
                 await MainActor.run {
                     OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
                 }
-                #if os(iOS)
-                inferenceBox.safeEnd()
-                #endif
             }
             return
         }
@@ -369,9 +347,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
         
         guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else {
-            #if os(iOS)
-            inferenceBox.safeEnd()
-            #endif
             return
         }
         let r2ObjectKey = String(urlPath[range.lowerBound...])
@@ -403,9 +378,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
         
         guard let extracted = scanData else {
-            #if os(iOS)
-            inferenceBox.safeEnd()
-            #endif
             return
         }
         
@@ -430,10 +402,6 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         } catch {
             print("Failed downstream inference on offline queued scan: \(error)")
         }
-            
-        #if os(iOS)
-        inferenceBox.safeEnd()
-        #endif
         }
     }
     

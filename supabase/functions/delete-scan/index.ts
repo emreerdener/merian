@@ -1,22 +1,9 @@
 import { serve } from "@std/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
-import { requireAuth } from "../_shared/auth.ts";
-import { getS3Client } from "../_shared/aws.ts";
+import { getR2Config } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-  try {
-    const { user, response } = await requireAuth(req, supabaseAdmin);
-    if (response) return response;
-
+serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const requestBody = await req.json();
     const { scanId } = requestBody;
 
@@ -44,8 +31,8 @@ serve(async (req: Request) => {
     }
 
     // 2. Authorization check
-    if (scan.user_id !== user!.id) {
-      console.error(`IDOR attempt: User ${user!.id} tried to delete scan ${scanId} owned by ${scan.user_id}`);
+    if (scan.user_id !== user.id) {
+      console.error(`IDOR attempt: User ${user.id} tried to delete scan ${scanId} owned by ${scan.user_id}`);
       return new Response(JSON.stringify({ error: "Forbidden: You do not own this scan" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -54,9 +41,7 @@ serve(async (req: Request) => {
 
     // 3. R2 Image Erasure
     if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
-      const r2AccountId = Deno.env.get("R2_ACCOUNT_ID") || "";
-      const r2Bucket = Deno.env.get("R2_BUCKET_NAME") || "";
-      const aws = getS3Client();
+      const { s3Client, bucketName, endpoint } = getR2Config();
 
       await Promise.allSettled(
         scan.image_storage_urls.map(async (url: string) => {
@@ -66,10 +51,10 @@ serve(async (req: Request) => {
             // Reconstruct internal S3 API bounding since the db now stores the safe public web R2 endpoints
             const s3Url = url.replace(
               "https://media.merian.app/",
-              `https://${r2AccountId}.r2.cloudflarestorage.com/${r2Bucket}/`
+              `${endpoint}/${bucketName}/`
             );
             
-            await aws.fetch(s3Url, { method: "DELETE" });
+            await s3Client.fetch(s3Url, { method: "DELETE" });
           } catch (e) {
             console.error(`Failed to delete image at ${url} from R2:`, e);
           }
@@ -90,18 +75,10 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    console.log(`Successfully deleted scan ${scanId} for user ${user!.id}`);
+    console.log(`Successfully deleted scan ${scanId} for user ${user.id}`);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
-  } catch (err) {
-    console.error("Internal Error:", err);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-});
+}));

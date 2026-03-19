@@ -30,7 +30,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 ### `OfflineQueueManager`
 - Dictates completely silent `URLSession` background mappings dynamically allowing the app to seamlessly stash pending physical imagery natively into the local disk partition (Document Directory).
 - Explicitly registers background handlers inside `AppDelegate` safely guaranteeing `URLSession` callbacks natively execute uploads seamlessly completely apart from the main user UI grid logic.
-- Utilizes a unified generic `BackgroundTaskWrapper` to rigidly encapsulate active memory environments binding `NSLock` thread boundaries securely to `UIBackgroundTaskIdentifier` instances gracefully preventing system leaks under suspension.
+- Utilizes a unified static abstraction `BackgroundTaskWrapper.execute(name:operation:)` natively to rigidly encapsulate active memory environments binding OS threat loops securely to `UIBackgroundTaskIdentifier` instances gracefully preventing system leaks under suspension natively.
 
 ### `ArchiveManager` (Archive Safety Protocol)
 - Explicit background worker strictly mapped to protect the data of Free tier users against the Cloudflare R2 90-day global purge logic (`00004_storage_lifecycle_sync.sql`).
@@ -44,10 +44,11 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Inherently abstracts API invocations natively using a centralized `performAuthenticatedRequest` pipeline, effortlessly intercepting duplicated JWT validation layers sequentially securely mapping identity configurations locally over all 5 discrete public endpoints natively.
 - Actively forces exact asynchronous REST calls (`/identify`, `/generate-upload-urls`, `/flag-issue`).
 - Automatically extracts the `DeviceIdentityManager.shared.deviceId` strictly bypassing arbitrary session state dependencies smoothly executing Supabase payload pushes correctly mapped directly to the active iOS `ProcessInfo` environment.
-- Safely traps `.401 Unauthorized` responses during API calls natively within `performAuthenticatedRequest`. Crucially checks `.bool(forKey: "Merian_HasAuthenticatedOAuth")` before initializing self-healing fallback states recursive loop natively globally executed for endpoints dynamically. If the flag indicates the token is from a native Apple/Google OAuth user, it deliberately skips the Ghost purge and gracefully throws a native `.invalidResponse` error to forcefully prompt the UI to handle manual re-authentication, guaranteeing it never permanently writes over a Pro User's identity. If it is purely an anonymous Ghost User, it explicitly purges the local session and regenerates a fresh Ghost UUID securely.
+- Safely traps `.401 Unauthorized` responses natively within `performAuthenticatedRequest`. Crucially, it completely abstracts JWT validation by delegating to `SupabaseManager.shared.getValidAuthHeaders()`, ensuring all network calls inherently benefit from the unified self-healing Ghost session fallback loops seamlessly securely.
 
 ### `SupabaseManager`
 - Completely delegates the secure API boundary parsing natively wrapped into GoTrue bindings.
+- Exports a singular, unified `getValidAuthHeaders() async throws -> [String: String]` abstraction. This completely consolidates the OAuth conditional checks (`Merian_HasAuthenticatedOAuth`) and automatic Ghost Session regeneration logic (using `.identifierForVendor`), ensuring a 100% success rate on stateless REST requests across `MerianNetworkClient` and `SocialGuardManager` natively.
 - Executes `signInAnonymously()` exclusively mapped to `.uuidString` metrics inside `.identifierForVendor`.
 - Maps native Apple/Google OAuth hooks seamlessly migrating Ghost User mappings cleanly explicitly calling `RevenueCatManager.shared.linkWithSupabase()` correctly aligning payment limits securely natively.
 

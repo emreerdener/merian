@@ -158,21 +158,11 @@ struct ScansSearchView: View {
                 
                 ScrollView {
                         if collections.isEmpty {
-                            VStack(spacing: 16) {
-                                Spacer().frame(height: 80)
-                                Image(systemName: "folder")
-                                    .font(.system(size: 32, weight: .light))
-                                    .foregroundColor(.secondary)
-                                Text("No collections")
-                                    .font(.headline)
-                                    .fontWeight(.semibold)
-                                Text("Create your first collection to start organizing your scans.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 40)
-                            }
-                            .frame(maxWidth: .infinity)
+                            EmptyStateView(
+                                iconName: "folder",
+                                title: "No collections",
+                                message: "Create your first collection to start organizing your scans."
+                            )
                         } else {
                             LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
                                 ForEach(collections) { collection in
@@ -344,22 +334,12 @@ struct ScansSearchView: View {
             searchManager.allScans = newRecords
             searchManager.performSearch(query: searchManager.searchQuery)
         }
-        .confirmationDialog(
-            "Delete scan",
+        .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible,
-            presenting: scanToDelete
-        ) { scan in
-            Button("Delete scan permanently", role: .destructive) {
-                HapticManager.shared.triggerErrorThump()
-                ScanRepository.shared.eradicateScan(record: scan, modelContext: modelContext)
-                scanToDelete = nil
-            }
-            Button("Cancel", role: .cancel) {
-                scanToDelete = nil
-            }
-        } message: { _ in
-            Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
+            scanId: scanToDelete?.id,
+            modelContext: modelContext
+        ) {
+            scanToDelete = nil
         }
     }
 }

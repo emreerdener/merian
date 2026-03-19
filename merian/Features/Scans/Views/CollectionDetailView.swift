@@ -52,20 +52,11 @@ struct CollectionDetailView: View {
                     }
                 }
             } else {
-                VStack(spacing: 16) {
-                    Spacer().frame(height: 80)
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 32, weight: .light))
-                        .foregroundColor(.secondary)
-                    Text("Empty collection")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    Text("Add scans from your library to start building your collection.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                    
+                EmptyStateView(
+                    iconName: "photo.on.rectangle.angled",
+                    title: "Empty collection",
+                    message: "Add scans from your library to start building your collection."
+                ) {
                     Button(action: { showScanSelection = true }) {
                         Text("Explore library")
                             .fontWeight(.semibold)
@@ -77,7 +68,6 @@ struct CollectionDetailView: View {
                     }
                     .padding(.top, 8)
                 }
-                .frame(maxWidth: .infinity)
             }
         }
         .navigationTitle(collection.name)
@@ -101,22 +91,12 @@ struct CollectionDetailView: View {
         .sheet(isPresented: $showScanSelection) {
             ScanSelectionSheetView(collection: collection)
         }
-        .confirmationDialog(
-            "Delete scan",
+        .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible,
-            presenting: scanToDelete
-        ) { scan in
-            Button("Delete scan permanently", role: .destructive) {
-                HapticManager.shared.triggerErrorThump()
-                ScanRepository.shared.eradicateScan(record: scan, modelContext: modelContext)
-                scanToDelete = nil
-            }
-            Button("Cancel", role: .cancel) {
-                scanToDelete = nil
-            }
-        } message: { _ in
-            Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
+            scanId: scanToDelete?.id,
+            modelContext: modelContext
+        ) {
+            scanToDelete = nil
         }
     }
     

@@ -1,30 +1,17 @@
 import { serve } from "@std/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
 import JSZip from "jszip";
 import { encodeHex } from "@std/encoding/hex.ts";
-import { requireAuth } from "../_shared/auth.ts";
-import { getS3Client } from "../_shared/aws.ts";
 
+import { getR2Config } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
-    const { user, response } = await requireAuth(req, supabase);
-    if (response) return response;
-
+serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const { includePreciseCoordinates = false, exportScope = "user" } = await req.json();
-    const userId = user!.id;
+    const userId = user.id;
 
     // 1. Query verified academic captures
-    let query = supabase
+    let query = supabaseAdmin
       .from("scans")
       .select(`
         id,
@@ -86,7 +73,8 @@ serve(async (req: Request) => {
       for (const row of data) {
         // deno-lint-ignore no-explicit-any
         const scan = row as any;
-        const species = scan.species_dictionary || {};
+        // deno-lint-ignore no-explicit-any
+        const species = (scan.species_dictionary || {}) as any;
         const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
         
         const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
@@ -125,7 +113,6 @@ serve(async (req: Request) => {
         const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
         
         const urls = scan.image_storage_urls || [];
-        // deno-lint-ignore no-explicit-any
         const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
 
         batchResults.push({ occurrenceRow, mRows });
@@ -186,18 +173,14 @@ serve(async (req: Request) => {
     const zipBuffer = await zip.generateAsync({ type: "uint8array", compression: "STORE" });
 
     // 6. Upload to R2 and Generate Download URL
-    const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
-    const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-
-    const aws = getS3Client();
+    const { s3Client, bucketName, endpoint } = getR2Config();
 
     const timestamp = Date.now();
-    const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
     const exportKey = `exports/${userId}/Scans_DwC_Archive_${timestamp}.zip`;
-    const urlString = `${endpoint}/${R2_BUCKET_NAME}/${exportKey}`;
+    const urlString = `${endpoint}/${bucketName}/${exportKey}`;
 
     // Use statically resolved Uint8Array explicitly with calculated Content-Length to bypass AWS chunked 411/403 crashes natively
-    const putRes = await aws.fetch(urlString, {
+    const putRes = await s3Client.fetch(urlString, {
       method: "PUT",
       headers: {
         "Content-Length": zipBuffer.length.toString(),
@@ -212,7 +195,7 @@ serve(async (req: Request) => {
 
     const getUrl = new URL(urlString);
     getUrl.searchParams.set("X-Amz-Expires", "86400");
-    const signedGet = await aws.sign(getUrl.toString(), {
+    const signedGet = await s3Client.sign(getUrl.toString(), {
       method: "GET",
       aws: { signQuery: true },
     });
@@ -221,11 +204,4 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
-  }
-});
+}));

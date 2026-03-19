@@ -17,20 +17,7 @@ struct AsyncLocalImageView: View {
                     .aspectRatio(1.0, contentMode: .fill)
                     .clipped()
             } else if hasFailedToLoad {
-                ZStack {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark)
-                    
-                    VStack(spacing: 4) {
-                        Image(systemName: "archivebox.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.white.opacity(0.7))
-                        Text("Visuals Archived")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                }
+                ArchivedVisualsView()
                 .aspectRatio(1.0, contentMode: .fill)
                 .frame(maxWidth: .infinity)
                 .clipped()
