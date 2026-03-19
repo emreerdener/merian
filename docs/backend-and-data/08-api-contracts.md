@@ -70,6 +70,7 @@ The `merianResponseSchema` within Deno forces Gemini structurally into this exac
 
 ```json
 {
+  "scan_id": "Generated via crypto.randomUUID() on Deno Edge",
   "is_biological_subject": true,
   "is_live_capture": true,
   "ecology_type": "wild",
