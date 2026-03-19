@@ -69,6 +69,9 @@ final class AppDIContainer: ObservableObject {
     
     /// Handles application transition to inactive (like app switcher)
     func handleInactivePhase() {
+        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        guard hasCompletedOnboarding else { return }
+        
         cameraManager.stopSession()
         
         // Ensure the UI gracefully defaults back to the ready-to-scan state
@@ -80,6 +83,10 @@ final class AppDIContainer: ObservableObject {
     
     /// Handles application transition to active foreground
     func handleActivePhase() {
+        // Structurally prevent the OS from booting camera sessions implicitly or hitting API quotas actively natively during the Onboarding flow securely.
+        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        guard hasCompletedOnboarding else { return }
+        
         cameraManager.startSession()
         usageManager.evaluateDailyRefresh()
         
