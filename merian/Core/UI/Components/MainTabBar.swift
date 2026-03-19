@@ -6,17 +6,24 @@ struct MainTabBar: View {
     @Binding var isSettingsOpen: Bool
     
     var body: some View {
-        HStack(spacing: 40) {
+        HStack(spacing: 32) {
             TabBarButton(
-                iconName: "person",
-                title: "Profile",
-                action: { isUserProfileOpen = true }
-            )   
+                iconName: "globe",
+                title: "Explore",
+                action: {},
+                isDisabled: true
+            )
 
             TabBarButton(
                 iconName: "rectangle.stack",
                 title: "Scans",
                 action: { isScansOpen = true }
+            )
+
+             TabBarButton(
+                iconName: "person",
+                title: "Profile",
+                action: { isUserProfileOpen = true }
             )
 
             TabBarButton(
@@ -54,6 +61,7 @@ fileprivate struct TabBarButton: View {
     let iconName: String
     let title: String
     let action: () -> Void
+    var isDisabled: Bool = false
     
     var body: some View {
         Button(action: action) {
@@ -67,5 +75,7 @@ fileprivate struct TabBarButton: View {
             .foregroundColor(.primary)
             .contentShape(Rectangle())
         }
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.4 : 1.0)
     }
 }
