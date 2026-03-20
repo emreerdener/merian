@@ -31,6 +31,23 @@ struct InsightSheetView: View {
         NavigationStack {
             ZStack(alignment: .top) {
                 scrollableCanvas
+                
+                // Native Synthesized Mini Title
+                if showMiniTitle {
+                    Text(commonName)
+                        .font(.system(.subheadline))
+                        .fontWeight(.bold)
+                        .lineLimit(1)
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.15))
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.top, 14) // Seamlessly visually maps to standard Navigation bounds height
+                        .zIndex(50)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+                
                 celebrationOverlay
             }
             .toolbarBackground(.hidden, for: .navigationBar)

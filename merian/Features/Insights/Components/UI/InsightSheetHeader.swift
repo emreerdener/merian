@@ -15,22 +15,9 @@ struct InsightSheetHeader: ToolbarContent {
             Button(action: { dismiss() }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.secondary)
             }
         }
-        
-        ToolbarItem(placement: .principal) {
-            Text(commonName)
-                .font(.system(.subheadline))
-                .fontWeight(.bold)
-                .lineLimit(1)
-                .foregroundColor(.primary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(Color.black.opacity(0.15))
-                .background(.ultraThinMaterial, in: Capsule())
-                .opacity(showTitle ? 1 : 0)
-        }
+
         
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
@@ -47,7 +34,6 @@ struct InsightSheetHeader: ToolbarContent {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.secondary)
             }
         }
     }

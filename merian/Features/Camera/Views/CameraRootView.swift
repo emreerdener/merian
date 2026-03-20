@@ -146,10 +146,6 @@ struct CameraRootView: View {
                         isUserProfileOpen: Binding(
                             get: { viewModel.activeSheet == .profile }, 
                             set: { if $0 { viewModel.activeSheet = .profile } else if viewModel.activeSheet == .profile { viewModel.activeSheet = nil } }
-                        ),
-                        isSettingsOpen: Binding(
-                            get: { viewModel.activeSheet == .settings }, 
-                            set: { if $0 { viewModel.activeSheet = .settings } else if viewModel.activeSheet == .settings { viewModel.activeSheet = nil } }
                         )
                     )
                     .padding(.bottom, 24)

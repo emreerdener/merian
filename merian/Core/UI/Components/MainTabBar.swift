@@ -3,7 +3,6 @@ import SwiftUI
 struct MainTabBar: View {
     @Binding var isScansOpen: Bool
     @Binding var isUserProfileOpen: Bool
-    @Binding var isSettingsOpen: Bool
     @State private var showComingSoon = false
     @State private var tooltipTask: Task<Void, Never>?
     
@@ -62,12 +61,6 @@ struct MainTabBar: View {
                 title: "Profile",
                 action: { isUserProfileOpen = true }
             )
-
-            TabBarButton(
-                iconName: "gearshape",
-                title: "Settings",
-                action: { isSettingsOpen = true }
-            ) 
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 32)

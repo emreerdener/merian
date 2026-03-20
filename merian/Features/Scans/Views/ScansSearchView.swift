@@ -241,7 +241,6 @@ struct ScansSearchView: View {
                     }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.secondary)
                     }
                 }
                 
