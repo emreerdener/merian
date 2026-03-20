@@ -96,29 +96,25 @@ struct UserProfileView: View {
                     Toggle("System Haptics", isOn: $isHapticsEnabled)
                     Toggle("Save to Camera Roll", isOn: $saveToCameraRoll)
                     
-                    NavigationLink {
-                        SettingsGeoprivacyView(defaultGeoprivacy: $defaultGeoprivacy) { newValue in
-                            Task {
-                                guard let userId = supabase.currentUser?.id else { return }
-                                do {
-                                    try await supabase.client.from("users")
-                                        .update(["default_geoprivacy": newValue])
-                                        .eq("id", value: userId)
-                                        .execute()
-                                } catch {
-                                    print("Failed to update geoprivacy: \(error)")
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            Text("Geoprivacy")
-                            Spacer()
-                            Text(defaultGeoprivacy.capitalized)
-                                .foregroundColor(.secondary)
-                        }
+                    Picker("Geoprivacy", selection: $defaultGeoprivacy) {
+                        Text("Open").tag("open")
+                        Text("Obscured").tag("obscured")
+                        Text("Private").tag("private")
                     }
                     .padding(.vertical, 4)
+                    .onChange(of: defaultGeoprivacy) { _, newValue in
+                        Task {
+                            guard let userId = supabase.currentUser?.id else { return }
+                            do {
+                                try await supabase.client.from("users")
+                                    .update(["default_geoprivacy": newValue])
+                                    .eq("id", value: userId)
+                                    .execute()
+                            } catch {
+                                print("Failed to update geoprivacy: \(error)")
+                            }
+                        }
+                    }
                 } header: {
                     Text("Preferences")
                 }

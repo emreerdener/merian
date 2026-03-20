@@ -72,7 +72,8 @@ actor LocalImageLoader {
         if Task.isCancelled { return nil }
         
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (tempURL, response) = try await URLSession.shared.download(from: url)
+            defer { try? FileManager.default.removeItem(at: tempURL) }
             
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 return nil
@@ -81,7 +82,7 @@ actor LocalImageLoader {
             if Task.isCancelled { return nil }
             
             return await Task.detached(priority: .userInitiated) {
-                if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 500) {
+                if let cgImage = ImageDownsampler.downsample(url: tempURL, maxSize: 500) {
                     let thumbnail = UIImage(cgImage: cgImage)
                     ImageCache.shared.set(thumbnail, forKey: cacheKey)
                     return thumbnail

@@ -182,8 +182,6 @@ struct CameraRootView: View {
                         get: { viewModel.activeSheet == .insight },
                         set: { if $0 { viewModel.activeSheet = .insight } else if viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
                     ))
-                case .settings:
-                    SettingsView()
                 }
             }
             .presentationDragIndicator(.hidden)

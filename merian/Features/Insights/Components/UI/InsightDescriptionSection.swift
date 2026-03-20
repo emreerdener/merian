@@ -11,9 +11,16 @@ struct InsightDescriptionSection: View {
             VStack(alignment: .leading, spacing: 16) {
                 if let wikiExtract = data.wikipediaExtract {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("More information")
-                          .font(.system(.headline))
-                            .padding(.bottom, 8)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "book")
+                                .foregroundColor(.secondary)
+                            Text("More information")
+                                .font(.system(.headline))
+                                .foregroundColor(.primary)
+                        }
+                        .padding(.bottom, 8)
+                           
                         Text(wikiExtract)
                             .font(.system(.body))
                             .foregroundColor(.secondary)

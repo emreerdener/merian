@@ -27,7 +27,6 @@ final class CameraViewModel: ObservableObject {
         case paywall
         case scans
         case profile
-        case settings
         
         var id: String { rawValue }
     }

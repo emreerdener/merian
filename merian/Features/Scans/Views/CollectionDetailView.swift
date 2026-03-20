@@ -24,22 +24,15 @@ struct CollectionDetailView: View {
                 ScanGridMatrix(scans: sortedScans, onSelect: { scan in
                     selectedScanForInsight = scan
                     inferenceEngine.load(from: scan)
-                }) { scan, thumbnail in
-                    thumbnail
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                removeFromCollection(scan: scan)
-                            } label: {
-                                Label("Remove from collection", systemImage: "minus.circle")
-                            }
-                            
-                            Button(role: .destructive) {
-                                scanToDelete = scan
-                                showDeleteConfirmation = true
-                            } label: {
-                                Label("Delete scan permanently", systemImage: "trash")
-                            }
-                        }
+                }, onDelete: { scan in
+                    scanToDelete = scan
+                    showDeleteConfirmation = true
+                }) { scan in
+                    Button(role: .destructive) {
+                        removeFromCollection(scan: scan)
+                    } label: {
+                        Label("Remove from collection", systemImage: "minus.circle")
+                    }
                 }
             } else {
                 EmptyStateView(

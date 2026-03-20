@@ -28,23 +28,15 @@ struct ScanSelectionSheetView: View {
                         )
                         .foregroundColor(.white) // Safely inherits dark mode bounds cleanly
                     } else {
-                        ScanGridMatrix(scans: allRecords, onSelect: { scan in
-                            toggleSelection(scan: scan)
-                        }) { scan, thumbnail in
-                            let isSelected = collection.scans?.contains(where: { $0.id == scan.id }) ?? false
-                            
-                            thumbnail
-                                .overlay(
-                                    ZStack {
-                                        if isSelected {
-                                            Color.blue.opacity(0.6)
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 24))
-                                        }
-                                    }
-                                )
-                        }
+                        ScanGridMatrix(
+                            scans: allRecords,
+                            onSelect: { scan in
+                                toggleSelection(scan: scan)
+                            },
+                            isSelected: { scan in
+                                collection.scans?.contains(where: { $0.id == scan.id }) ?? false
+                            }
+                        )
                     }
                 }
             }

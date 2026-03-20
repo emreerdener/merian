@@ -190,22 +190,25 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     }
     
     private func requestSingleLocation() async -> CLLocation? {
-        timeoutTask?.cancel()
+        // Only set timeoutTask if it's currently nil
         
         return await withCheckedContinuation { continuation in
             self.activeContinuations.append(continuation)
             self.locationManager.requestLocation()
             
             // Anti-Deadlock timeout: Force-resume after 2.0s if hardware fails to lock satellites
-            self.timeoutTask = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                
-                guard !Task.isCancelled else { return }
-                
-                let pending = self.activeContinuations
-                self.activeContinuations.removeAll()
-                for active in pending {
-                    active.resume(returning: self.cachedLocation)
+            if self.timeoutTask == nil {
+                self.timeoutTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    
+                    guard !Task.isCancelled else { return }
+                    
+                    let pending = self.activeContinuations
+                    self.activeContinuations.removeAll()
+                    for active in pending {
+                        active.resume(returning: self.cachedLocation)
+                    }
+                    self.timeoutTask = nil
                 }
             }
         }
@@ -221,6 +224,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         guard let location = locations.last else { return }
         Task { @MainActor in
             self.timeoutTask?.cancel()
+            self.timeoutTask = nil
             
             let pending = self.activeContinuations
             self.activeContinuations.removeAll()
@@ -238,6 +242,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
             self.timeoutTask?.cancel()
+            self.timeoutTask = nil
             
             let pending = self.activeContinuations
             self.activeContinuations.removeAll()

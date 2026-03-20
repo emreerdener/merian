@@ -130,16 +130,18 @@ struct ImageCropperView: View {
         )
         
         // Capture properties securely for detached thread to prevent MainActor UI block
-        let targetImage = image
+        let targetSize = image.size
+        let targetCGImage = image.cgImage
+        let targetOrientation = image.imageOrientation
         HapticManager.shared.triggerMediumPulse()
         
         Task {
-            let processedData = await Task.detached(priority: .userInitiated) {
+            let processedBytes = await Task.detached(priority: .userInitiated) {
                 let bytes: Data? = autoreleasepool {
-                    let W = targetImage.size.width
-                    let H = targetImage.size.height
+                    let W = targetSize.width
+                    let H = targetSize.height
                     
-                    guard let cgImg = targetImage.cgImage else {
+                    guard let cgImg = targetCGImage else {
                         return nil
                     }
                     
@@ -172,7 +174,7 @@ struct ImageCropperView: View {
                     
                     // Natively flip bounds based on Apple sensor rotation (imageOrientation)
                     var cropRect: CGRect
-                    switch targetImage.imageOrientation {
+                    switch targetOrientation {
                     case .up:           cropRect = CGRect(x: ux * cW, y: uy * cH, width: uw * cW, height: uh * cH)
                     case .down:         cropRect = CGRect(x: (1 - ux - uw) * cW, y: (1 - uy - uh) * cH, width: uw * cW, height: uh * cH)
                     case .left:         cropRect = CGRect(x: (1 - uy - uh) * cW, y: ux * cH, width: uh * cW, height: uw * cH)
@@ -191,7 +193,7 @@ struct ImageCropperView: View {
                     
                     // Map UIImage.Orientation directly to CGImagePropertyOrientation natively
                     let cgOrientation: CGImagePropertyOrientation
-                    switch targetImage.imageOrientation {
+                    switch targetOrientation {
                     case .up: cgOrientation = .up
                     case .down: cgOrientation = .down
                     case .left: cgOrientation = .left
@@ -225,9 +227,10 @@ struct ImageCropperView: View {
                     return Data(renderData)
                 }
                 
-                return bytes ?? targetImage.jpegData(compressionQuality: 0.7) ?? Data()
+                return bytes
             }.value
             
+            let processedData = processedBytes ?? image.jpegData(compressionQuality: 0.7) ?? Data()
             onCrop(processedData)
         }
     }

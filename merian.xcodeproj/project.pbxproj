@@ -30,7 +30,6 @@
 		23C78055B3184E43EB0E7A22 /* ScansSearchManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF90A61C44EC7B1B43D528E /* ScansSearchManagerTests.swift */; };
 		2896BD2477B044B84CB06642 /* ConservationCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 568FF62B14924BD5207EBF19 /* ConservationCardView.swift */; };
 		2BF1BEB4A71119405DD5F026 /* WatchAcousticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A5A4F88C1B623CFF5B25F /* WatchAcousticManager.swift */; };
-		2C626F9A44EF4567D6F6375A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC33667E9CA131F543FBD4B9 /* SettingsView.swift */; };
 		2EA34DB4680CC269E0767805 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF6016D928A11551039654D0 /* Assets.xcassets */; };
 		329169F2439B45C14F911359 /* PostHogManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32F31F1296ED7CCA1F086905 /* PostHogManagerTests.swift */; };
 		35C19CF7E78AB40508707771 /* SupabaseManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB7B16803A6530423FEA873 /* SupabaseManagerTests.swift */; };
@@ -312,7 +311,6 @@
 		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F6963D372E7F7B17BB7B0DB3 /* MainTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabBar.swift; sourceTree = "<group>"; };
 		F803C9E6C5AF6E9C63FC1D6A /* ScansSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansSearchManager.swift; sourceTree = "<group>"; };
-		FC33667E9CA131F543FBD4B9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FE003E7C60B8D9CA8F55C02E /* Aliases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aliases.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -410,14 +408,6 @@
 			path = Security;
 			sourceTree = "<group>";
 		};
-		1A39A7BD9A5FCBE08582D69F /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				FC33667E9CA131F543FBD4B9 /* SettingsView.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
 		1B212C92EB07EC7BF624F2FE /* Components */ = {
 			isa = PBXGroup;
 			children = (
@@ -500,14 +490,6 @@
 			path = Configuration;
 			sourceTree = "<group>";
 		};
-		3654B30A1BB87FCCDFDC1634 /* Settings */ = {
-			isa = PBXGroup;
-			children = (
-				1A39A7BD9A5FCBE08582D69F /* Views */,
-			);
-			path = Settings;
-			sourceTree = "<group>";
-		};
 		36CDA8550842C52EB41E2AE1 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -575,7 +557,6 @@
 				CADA11208423BB9D31B652DA /* Onboarding */,
 				077EC84613050955ABAE9F5D /* Profile */,
 				5202D703A0817E41FF93DD32 /* Scans */,
-				3654B30A1BB87FCCDFDC1634 /* Settings */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -1256,7 +1237,6 @@
 				90557DF6A07EC4FD261C1FA9 /* ScansThumbnailView.swift in Sources */,
 				6F8A519B83E72CFFF47B83C5 /* SchemaVersions.swift in Sources */,
 				3914E47FD0554E28C082FA57 /* SearchableScan.swift in Sources */,
-				2C626F9A44EF4567D6F6375A /* SettingsView.swift in Sources */,
 				89143DCFA1EF1A9D5B72F894 /* SocialGuardManager.swift in Sources */,
 				448656F1135935AE41FD651A /* SpeciesData.swift in Sources */,
 				C0574D4D3840B39A3329D2E4 /* StatCardView.swift in Sources */,

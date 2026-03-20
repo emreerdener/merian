@@ -7,7 +7,7 @@ struct InsightTaxonomyTree: View {
         if let taxonomy = inferenceEngine.speciesData?.taxonomy {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
-                    Image(systemName: "square.stack.3d.down.right.fill")
+                    Image(systemName: "square.stack.3d.down.right")
                         .foregroundColor(.secondary)
                     Text("Taxonomy")
                         .font(.system(.headline))

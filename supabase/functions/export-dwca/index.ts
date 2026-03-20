@@ -69,8 +69,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       
       // CRITICAL SEC FIX: Prevent V8 Event Loop Starvation structurally on massive export scales natively
       // Instead of explicitly blasting 1,000 concurrent cryptographic digests synchronously starving V8, process them sequentially
-      const batchResults = [];
-      for (const row of data) {
+      const batchResults = await Promise.all(data.map(async (row) => {
         // deno-lint-ignore no-explicit-any
         const scan = row as any;
         // deno-lint-ignore no-explicit-any
@@ -115,8 +114,8 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
         const urls = scan.image_storage_urls || [];
         const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
 
-        batchResults.push({ occurrenceRow, mRows });
-      }
+        return { occurrenceRow, mRows };
+      }));
       
       for (const res of batchResults) {
         occurrenceRows.push(res.occurrenceRow);

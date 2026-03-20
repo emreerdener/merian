@@ -1,9 +1,11 @@
 import SwiftUI
 
-struct ScanGridMatrix<Content: View>: View {
+struct ScanGridMatrix<MenuContent: View>: View {
     let scans: [LocalScanRecord]
     let onSelect: (LocalScanRecord) -> Void
-    @ViewBuilder let thumbnailModifier: (LocalScanRecord, ScansThumbnailView) -> Content
+    var onDelete: ((LocalScanRecord) -> Void)? = nil
+    var isSelected: ((LocalScanRecord) -> Bool)? = nil
+    @ViewBuilder var customMenuItems: ((LocalScanRecord) -> MenuContent)
     
     private let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -18,10 +20,40 @@ struct ScanGridMatrix<Content: View>: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     onSelect(scan)
                 }) {
-                    thumbnailModifier(scan, ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl))
+                    ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
+                        .overlay(
+                            ZStack {
+                                if isSelected?(scan) == true {
+                                    Color.blue.opacity(0.6)
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 24))
+                                }
+                            }
+                        )
+                        .contextMenu {
+                            customMenuItems(scan)
+                            if let onDelete = onDelete {
+                                Button(role: .destructive) {
+                                    onDelete(scan)
+                                } label: {
+                                    Label("Delete scan permanently", systemImage: "trash")
+                                }
+                            }
+                        }
                 }
                 .buttonStyle(.plain) // Prevent underlying iOS UI button highlight hijacking natively
             }
         }
+    }
+}
+
+extension ScanGridMatrix where MenuContent == EmptyView {
+    init(scans: [LocalScanRecord], onSelect: @escaping (LocalScanRecord) -> Void, onDelete: ((LocalScanRecord) -> Void)? = nil, isSelected: ((LocalScanRecord) -> Bool)? = nil) {
+        self.scans = scans
+        self.onSelect = onSelect
+        self.onDelete = onDelete
+        self.isSelected = isSelected
+        self.customMenuItems = { _ in EmptyView() }
     }
 }

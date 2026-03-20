@@ -501,6 +501,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         } onCancel: {
             Task { @MainActor [weak self] in
                 guard let self = self, let activeCont = self.activePhotoContinuation else { return }
+                self.activeTimeoutTask?.cancel()
                 self.activePhotoContinuation = nil
                 activeCont.resume(throwing: CancellationError())
             }

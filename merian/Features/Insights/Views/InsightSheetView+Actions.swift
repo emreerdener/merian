@@ -95,30 +95,33 @@ extension InsightSheetView {
             "Check out this \(commonName) (\(scientificName)) I discovered using Merian! \nhttps://merian.app"
         ]
         
-        // Attempt to explicitly attach the physical photograph natively into the iOS Share Sheet payload
-        if let liveData = inferenceEngine.activeImageData, let image = UIImage(data: liveData) {
-            items.insert(image, at: 0)
-            presentShareSheet(items: items)
-            
-        } else if let validPath = inferenceEngine.validHistoricImagePaths.first, 
-                  let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),
-                  let image = UIImage(data: data) {
-            items.insert(image, at: 0)
-            presentShareSheet(items: items)
-            
-        } else {
-            // Unpack remote Cloudflare R2 string natively dropping any foreign wikipedia resources
-            let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
-            if let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") })?.trimmingCharacters(in: .whitespacesAndNewlines), let url = URL(string: safeCloudUrl) {
-                // Execute a decoupled fast background fetch for the remote image to prevent blocking the UI thread abruptly
-                Task {
-                    if let (data, _) = try? await URLSession.shared.data(from: url), let image = UIImage(data: data) {
-                        items.insert(image, at: 0)
-                    }
-                    await MainActor.run { presentShareSheet(items: items) }
+        let liveData = inferenceEngine.activeImageData
+        let historicPath = inferenceEngine.validHistoricImagePaths.first
+        let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+        let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") })?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        Task {
+            let extractedImage = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+                if let live = liveData, let image = UIImage(data: live) {
+                    return image
+                } else if let validPath = historicPath,
+                          let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),
+                          let image = UIImage(data: data) {
+                    return image
                 }
+                return nil
+            }.value
+            
+            if let image = extractedImage {
+                items.insert(image, at: 0)
+                await MainActor.run { presentShareSheet(items: items) }
+            } else if let urlStr = safeCloudUrl, let url = URL(string: urlStr) {
+                if let (data, _) = try? await URLSession.shared.data(from: url), let image = UIImage(data: data) {
+                    items.insert(image, at: 0)
+                }
+                await MainActor.run { presentShareSheet(items: items) }
             } else {
-                presentShareSheet(items: items)
+                await MainActor.run { presentShareSheet(items: items) }
             }
         }
     }

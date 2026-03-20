@@ -286,13 +286,8 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     print("Failed to request Background staging URLs natively: \(error)")
                 }
                 
-                await MainActor.run {
-                    self.isSyncing = false
-                    SyncStateManager.shared.completeSync()
-                }
+                // the remote system handles upload and then completion delegate fires.
             }
-            
-        SyncStateManager.shared.completeSync()
     }
     
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
@@ -392,6 +387,14 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             }
         } catch {
             print("Failed downstream inference on offline queued scan: \(error)")
+        }
+            
+        let activeTasks = await session.allTasks
+        if activeTasks.isEmpty {
+            await MainActor.run {
+                OfflineQueueManager.shared.isSyncing = false
+                SyncStateManager.shared.completeSync()
+            }
         }
         }
     }

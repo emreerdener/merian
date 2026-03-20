@@ -103,17 +103,10 @@ struct ScansSearchView: View {
                             ScanGridMatrix(scans: searchManager.filteredScans, onSelect: { scan in
                                 selectedScanForInsight = scan
                                 inferenceEngine.load(from: scan)
-                            }) { scan, thumbnail in
-                                thumbnail
-                                    .contextMenu {
-                                        Button(role: .destructive) {
-                                            scanToDelete = scan
-                                            showDeleteConfirmation = true
-                                        } label: {
-                                            Label("Delete scan permanently", systemImage: "trash")
-                                        }
-                                    }
-                            }
+                            }, onDelete: { scan in
+                                scanToDelete = scan
+                                showDeleteConfirmation = true
+                            })
                         }
                     }
                 }
