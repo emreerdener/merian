@@ -53,13 +53,19 @@ struct MainTabBar: View {
             TabBarButton(
                 iconName: "rectangle.stack",
                 title: "Scans",
-                action: { isScansOpen = true }
+                action: { 
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    isScansOpen = true 
+                }
             )
 
              TabBarButton(
                 iconName: "person",
                 title: "Profile",
-                action: { isUserProfileOpen = true }
+                action: { 
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    isUserProfileOpen = true 
+                }
             )
         }
         .padding(.vertical, 12)

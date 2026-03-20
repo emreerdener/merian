@@ -116,6 +116,7 @@ struct CameraRootView: View {
                         }
                         .environment(\.colorScheme, .dark)
                         .onTapGesture {
+                            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                             viewModel.executeCapture()
                         }
                         .padding(.bottom, 32) // Elevates shutter specifically
@@ -124,6 +125,7 @@ struct CameraRootView: View {
                         
                         // Flash toggle
                         Button(action: {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             cameraManager.toggleFlash()
                         }) {
                             Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
