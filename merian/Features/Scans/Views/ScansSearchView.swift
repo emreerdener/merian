@@ -114,7 +114,8 @@ struct ScansSearchView: View {
                 .id(ScansTab.library)
                 
                 ScrollView {
-                        if collections.isEmpty {
+                        let userCollections = collections.filter { $0.name != "Favorites" }
+                        if userCollections.isEmpty {
                             EmptyStateView(
                                 iconName: "folder",
                                 title: "No collections",
@@ -122,7 +123,7 @@ struct ScansSearchView: View {
                             )
                         } else {
                             LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
-                                ForEach(collections) { collection in
+                                ForEach(userCollections) { collection in
                                     NavigationLink {
                                         CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
                                     } label: {
@@ -173,6 +174,30 @@ struct ScansSearchView: View {
                             .padding(.top, 16)
                         }
                         
+                        if let favorites = collections.first(where: { $0.name == "Favorites" }) {
+                            NavigationLink {
+                                CollectionDetailView(collection: favorites, isInsightSheetOpen: $isInsightSheetOpen)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "heart.fill")
+                                        .foregroundColor(.red)
+                                    Text("Favorites")
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("\(favorites.scans?.count ?? 0)")
+                                        .foregroundColor(.secondary)
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding()
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 16)
+                        }
+                        
                         NavigationLink {
                             NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
                         } label: {
@@ -189,7 +214,7 @@ struct ScansSearchView: View {
                             .padding(.horizontal)
                         }
                         .buttonStyle(.plain)
-                        .padding(.vertical, 32)
+                        .padding(.vertical, 8)
                 }
                 .containerRelativeFrame(.horizontal)
                 .id(ScansTab.collections)
@@ -285,6 +310,12 @@ struct ScansSearchView: View {
         .onAppear {
             searchManager.allScans = allRecords
             searchManager.performSearch(query: searchManager.searchQuery)
+            
+            if !collections.contains(where: { $0.name == "Favorites" }) {
+                let favorites = ScanCollection(name: "Favorites")
+                modelContext.insert(favorites)
+                try? modelContext.save()
+            }
         }
         .onChange(of: allRecords) { _, newRecords in
             searchManager.allScans = newRecords

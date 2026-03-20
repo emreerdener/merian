@@ -70,6 +70,10 @@ extension InsightSheetView {
         InsightTaxonomyTree()
             .padding(.horizontal)
             .padding(.top, 8)
+
+        InsightConservationCard()
+            .padding(.horizontal)
+            .padding(.top, 8)
             
         InsightDescriptionSection(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
             .padding(.horizontal)
@@ -81,9 +85,7 @@ extension InsightSheetView {
                 .padding(.top, 8)
         }
         
-        InsightConservationCard()
-            .padding(.horizontal)
-            .padding(.top, 8)
+     
     }
     
     @ViewBuilder
@@ -109,15 +111,23 @@ extension InsightSheetView {
     @ViewBuilder
     var addCollectionButton: some View {
         Menu {
-            Button(action: { print("Added to Favorites") }) {
-                Label("Favorites", systemImage: "star")
+            if let favorites = collections.first(where: { $0.name == "Favorites" }) {
+                let isFavorited = activeLocalRecord?.collections?.contains(where: { $0.id == favorites.id }) ?? false
+                Button(action: { toggleScanInCollection(favorites) }) {
+                    Label("Favorites", systemImage: isFavorited ? "heart.fill" : "heart")
+                }
+                Divider()
             }
-            Button(action: { print("Added to Sightings") }) {
-                Label("Sightings", systemImage: "eye")
+            
+            ForEach(collections.filter { $0.name != "Favorites" }) { collection in
+                let isSelected = activeLocalRecord?.collections?.contains(where: { $0.id == collection.id }) ?? false
+                Button(action: { toggleScanInCollection(collection) }) {
+                    Label(collection.name, systemImage: isSelected ? "checkmark.circle.fill" : "folder")
+                }
             }
             Divider()
-            Button(action: { showCollectionPicker = true }) {
-                Label("New Collection...", systemImage: "plus")
+            Button(action: { showNewCollectionAlert = true }) {
+                Label("New Collection...", systemImage: "folder.badge.plus")
             }
         } label: {
             HStack(spacing: 6) {
@@ -126,6 +136,7 @@ extension InsightSheetView {
             .padding(.horizontal, 16)
             .foregroundColor(.secondary)
         }
+        .disabled(inferenceEngine.speciesData?.scanId == nil)
     }
     
     @ViewBuilder

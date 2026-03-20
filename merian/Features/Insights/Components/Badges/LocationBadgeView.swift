@@ -10,7 +10,7 @@ struct LocationBadgeView: View {
         let name: String? = inferenceEngine.speciesData?.locationName
         #endif
         
-        if let validName = name {
+        if let validName = name, !validName.trimmingCharacters(in: .whitespaces).isEmpty {
             HStack(spacing: 8) {
                 Image(systemName: "mappin.and.ellipse")
                 Text(validName)

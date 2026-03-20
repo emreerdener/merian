@@ -18,13 +18,11 @@ struct WeatherBadgeView: View {
                     Image(systemName: weatherIcon(for: validCondition))
                         .font(.system(.subheadline))
                         .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
                         
                     Text("\(Int(validTemp))°F")
                         .font(.system(.subheadline))
                         .fontWeight(.bold)
                         .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
                 }
                 
                 Text(validCondition.capitalized)

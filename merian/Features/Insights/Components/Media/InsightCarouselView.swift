@@ -124,7 +124,7 @@ private extension InsightCarouselView {
             .padding(.vertical, 6)
             .background(Color.black.opacity(0.2))
             .background(.ultraThinMaterial, in: Capsule())
-            .padding(.bottom, 50)
+            .padding(.bottom, 40)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex)
         }
     }
@@ -144,7 +144,7 @@ private extension InsightCarouselView {
         HStack(alignment: .top) {
             if hasWeather {
                 // Left Side Confidence Badge and Location
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
                     ConfidenceBadgeView()
                     LocationBadgeView()
                 }
@@ -162,7 +162,7 @@ private extension InsightCarouselView {
             }
         }
         .padding(.horizontal)
-        .padding(.top, -36) // Synthesizes the exact overlap required!
+        .padding(.top, -24) // Synthesizes the exact overlap required!
         .padding(.bottom, 8)
         .zIndex(10) // Forces the straddling item strictly on top
     }

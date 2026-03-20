@@ -148,4 +148,47 @@ extension InsightSheetView {
         
         topController.present(activityVC, animated: true)
     }
+    
+    func toggleScanInCollection(_ collection: ScanCollection) {
+        guard let record = activeLocalRecord else { return }
+        
+        if record.collections == nil {
+            record.collections = []
+        }
+        
+        if record.collections?.contains(where: { $0.id == collection.id }) == true {
+            record.collections?.removeAll(where: { $0.id == collection.id })
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                toastMessage = "Removed from \(collection.name)"
+            }
+        } else {
+            record.collections?.append(collection)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                toastMessage = "Added to \(collection.name)"
+            }
+        }
+        
+        try? modelContext.save()
+        HapticManager.shared.triggerSelectionPulse()
+    }
+    
+    func createNewCollection() {
+        let collectionName = newCollectionName.isEmpty ? "Untitled" : newCollectionName
+        let collection = ScanCollection(name: collectionName)
+        
+        modelContext.insert(collection)
+        
+        if activeLocalRecord?.collections == nil {
+            activeLocalRecord?.collections = []
+        }
+        activeLocalRecord?.collections?.append(collection)
+        
+        try? modelContext.save()
+        newCollectionName = ""
+        
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            toastMessage = "Created \(collectionName) and added scan"
+        }
+        HapticManager.shared.triggerSuccessPulse()
+    }
 }

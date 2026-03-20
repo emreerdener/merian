@@ -16,11 +16,16 @@ struct InsightSheetView: View {
     @State var selectedWikiURL: URL?
     @State var isFlagIssuePresented = false
     @State var showCelebration = false
-    @State var showCollectionPicker = false
+    @Query(sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
+    @State var activeLocalRecord: LocalScanRecord? = nil
+    @State var showNewCollectionAlert = false
+    @State var newCollectionName = ""
+    
     @State var showDeleteConfirmation = false
     @State var isSavingPhotos = false
     @State var showSaveSuccessAlert = false
     @State var showMiniTitle = false
+    @State var toastMessage: String? = nil
     
     // MARK: Diagnostic Bounds
     var isPoisonous: Bool { inferenceEngine.speciesData?.insightData.isPoisonous ?? false }
@@ -47,6 +52,8 @@ struct InsightSheetView: View {
                         .zIndex(50)
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 }
+                
+                toastOverlay
                 
                 celebrationOverlay
             }
@@ -89,7 +96,14 @@ struct InsightSheetView: View {
             // Presentation Logic Hook
             .presentationDetents([.large])
             .presentationDragIndicator(.hidden)
-            .onAppear { evaluateVoiceOverAndCelebration() }
+            .onAppear { 
+                evaluateVoiceOverAndCelebration() 
+                if !collections.contains(where: { $0.name == "Favorites" }) {
+                    let favorites = ScanCollection(name: "Favorites")
+                    modelContext.insert(favorites)
+                    try? modelContext.save()
+                }
+            }
             .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
                 evaluateProcessingCompletion(isStillProcessing: isStillProcessing)
             }
@@ -101,6 +115,47 @@ struct InsightSheetView: View {
                         showMiniTitle = shouldShow
                     }
                 }
+            }
+            .task(id: inferenceEngine.speciesData?.scanId) {
+                if let scanId = inferenceEngine.speciesData?.scanId {
+                    let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+                    activeLocalRecord = (try? modelContext.fetch(descriptor))?.first
+                }
+            }
+            .alert("New Collection", isPresented: $showNewCollectionAlert) {
+                TextField("Collection Name", text: $newCollectionName)
+                Button("Cancel", role: .cancel) { }
+                Button("Create", action: createNewCollection)
+            }
+            .task(id: toastMessage) {
+                if toastMessage != nil {
+                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        toastMessage = nil
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Toast Overlay
+    @ViewBuilder
+    var toastOverlay: some View {
+        if let message = toastMessage {
+            VStack {
+                Spacer()
+                Text(message)
+                    .font(.footnote)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .colorScheme(.dark)
+                    .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+                    .padding(.bottom, 60)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(100)
             }
         }
     }
