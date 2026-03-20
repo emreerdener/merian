@@ -57,7 +57,11 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. Notably
 
 ### The JSON Response Schema (From Gemini Back to Swift)
 
-The `merianResponseSchema` within Deno forces Gemini structurally into this exact format. If an AI Agent mutates any key here, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to prevent silent Swift failures during decoding.
+To drastically optimize API expenditures, the `identify` Deno Edge node employs a **Tiered Token Usage Strategy**:
+- **Pro Tier**: The `merianResponseSchema` structural map is explicitly passed inside the Gemini payload forcing the exact JSON schema defined below. While highly accurate, this incurs an artificial ~1,000 token system overhead strictly establishing keys.
+- **Free Tier**: The schema restriction is entirely dropped. Instead, the `systemInstruction` receives a lightweight text-prompt supplying a simple JSON example of the expected shape to massively reduce token ingestion bounds.
+
+If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to simultaneously support both the Pro schema and Free text-prompt shapes equally without throwing `JSONDecoder()` crashing states!
 
 **Critical Formatting Rule**: The Edge Function explicitly constraints Gemini to output the `common_name` tightly formatted in standard Title Case capitalization (e.g. "Monarch Butterfly"). However, for robust safety, the Swift decoding layer aggressively applies `.capitalized` properties downstream on rendering to guarantee older SQLite cache results physically display uniformly without requiring DB migrations natively.
 
