@@ -98,11 +98,6 @@ struct InsightSheetView: View {
             .presentationDragIndicator(.hidden)
             .onAppear { 
                 evaluateVoiceOverAndCelebration() 
-                if !collections.contains(where: { $0.name == "Favorites" }) {
-                    let favorites = ScanCollection(name: "Favorites")
-                    modelContext.insert(favorites)
-                    try? modelContext.save()
-                }
             }
             .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
                 evaluateProcessingCompletion(isStillProcessing: isStillProcessing)
@@ -129,7 +124,7 @@ struct InsightSheetView: View {
             }
             .task(id: toastMessage) {
                 if toastMessage != nil {
-                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                    try await Task.sleep(nanoseconds: 2_500_000_000)
                     withAnimation(.easeInOut(duration: 0.2)) {
                         toastMessage = nil
                     }

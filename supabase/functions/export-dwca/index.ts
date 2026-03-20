@@ -69,53 +69,59 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       
       // CRITICAL SEC FIX: Prevent V8 Event Loop Starvation structurally on massive export scales natively
       // Instead of explicitly blasting 1,000 concurrent cryptographic digests synchronously starving V8, process them sequentially
-      const batchResults = await Promise.all(data.map(async (row) => {
-        // deno-lint-ignore no-explicit-any
-        const scan = row as any;
-        // deno-lint-ignore no-explicit-any
-        const species = (scan.species_dictionary || {}) as any;
-        const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
-        
-        const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
-        let recordedBy = "Merian Citizen Scientist";
-        
-        if (!isTombstoned) {
-            if (exportScope === "global") {
-               // Hash to maintain contributor isolation anonymously
-               const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
-               const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
-               recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
-            } else {
-               recordedBy = scan.user_id;
-            }
-        }
+      const batchResults = [];
+      const SUB_BATCH_SIZE = 50;
+      for (let i = 0; i < data.length; i += SUB_BATCH_SIZE) {
+        const subBatch = data.slice(i, i + SUB_BATCH_SIZE);
+        const subBatchResults = await Promise.all(subBatch.map(async (row) => {
+          // deno-lint-ignore no-explicit-any
+          const scan = row as any;
+          // deno-lint-ignore no-explicit-any
+          const species = (scan.species_dictionary || {}) as any;
+          const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
+          
+          const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
+          let recordedBy = "Merian Citizen Scientist";
+          
+          if (!isTombstoned) {
+              if (exportScope === "global") {
+                 // Hash to maintain contributor isolation anonymously
+                 const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
+                 const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
+                 recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
+              } else {
+                 recordedBy = scan.user_id;
+              }
+          }
 
-        const isProtected = species.iucn_red_list_status === "vulnerable" || 
-                            species.iucn_red_list_status === "endangered" || 
-                            species.iucn_red_list_status === "critically_endangered" || 
-                            species.iucn_red_list_status === "near_threatened";
+          const isProtected = species.iucn_red_list_status === "vulnerable" || 
+                              species.iucn_red_list_status === "endangered" || 
+                              species.iucn_red_list_status === "critically_endangered" || 
+                              species.iucn_red_list_status === "near_threatened";
 
-        const canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId);
+          const canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId);
 
-        let lat = canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
-        let lon = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
-        const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
+          let lat = canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
+          let lon = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
+          const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
 
-        if (isProtected && lat !== null && lon !== null) {
-          lat = Math.round(lat * 10) / 10;
-          lon = Math.round(lon * 10) / 10;
-        }
+          if (isProtected && lat !== null && lon !== null) {
+            lat = Math.round(lat * 10) / 10;
+            lon = Math.round(lon * 10) / 10;
+          }
 
-        if (lat === null || lat === undefined) lat = "";
-        if (lon === null || lon === undefined) lon = "";
+          if (lat === null || lat === undefined) lat = "";
+          if (lon === null || lon === undefined) lon = "";
 
-        const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
-        
-        const urls = scan.image_storage_urls || [];
-        const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
+          const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
+          
+          const urls = scan.image_storage_urls || [];
+          const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
 
-        return { occurrenceRow, mRows };
-      }));
+          return { occurrenceRow, mRows };
+        }));
+        batchResults.push(...subBatchResults);
+      }
       
       for (const res of batchResults) {
         occurrenceRows.push(res.occurrenceRow);

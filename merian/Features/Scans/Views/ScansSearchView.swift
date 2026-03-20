@@ -37,35 +37,7 @@ struct ScansSearchView: View {
                 HStack(spacing: 0) {
                 VStack(spacing: 8) {
                     if searchManager.searchQuery.isEmpty && !isSearchFocused {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(filterCategories, id: \.self) { category in
-                                    Button(action: {
-                                        withAnimation {
-                                            if !searchManager.searchQuery.isEmpty {
-                                                searchManager.activeCategoryFilter = category 
-                                                searchManager.searchQuery = "" // This assignment explicitly triggers the .onChange modifier which launches the debounced search
-                                            } else {
-                                                searchManager.performSearch(query: "", category: category)
-                                            }
-                                        }
-                                    }) {
-                                        Text(category)
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 8)
-                                            .background(searchManager.activeCategoryFilter == category ? Color.primary : Color.secondary.opacity(0.15))
-                                            .foregroundColor(searchManager.activeCategoryFilter == category ? Color(UIColor.systemBackground) : .primary)
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
-                        }
-                        .padding(.top, 8)
-                        .padding(.bottom, 8)
-                        .background(Color(UIColor.systemBackground))
+                        CategoryFilterBar(searchManager: searchManager, filterCategories: filterCategories)
                     } else {
                         HStack {
                             Text(searchManager.searchQuery.isEmpty ? "Search library" : "Search results")
@@ -311,11 +283,6 @@ struct ScansSearchView: View {
             searchManager.allScans = allRecords
             searchManager.performSearch(query: searchManager.searchQuery)
             
-            if !collections.contains(where: { $0.name == "Favorites" }) {
-                let favorites = ScanCollection(name: "Favorites")
-                modelContext.insert(favorites)
-                try? modelContext.save()
-            }
         }
         .onChange(of: allRecords) { _, newRecords in
             searchManager.allScans = newRecords

@@ -471,11 +471,13 @@ actor BackgroundDatabaseActor {
     /// Called by the Offline Queue explicitly to ensure deferred scans are processed mathematically back down into the User's biological index natively.
     func processAndCleanupOfflineScan(resultData: Data, originalImagePaths: [String], scanId: String) {
         let decoder = JSONDecoder()
+        var inferenceFailed = true
         if let parsedWrapper = try? decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData) {
             let edgeRes = parsedWrapper.data
             var mappedData = SpeciesData(fromEdgeResponse: edgeRes, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
             
             if mappedData.confidenceScore > 0.0 {
+                inferenceFailed = false
                 // Retain exactly the original image paths to prevent sandbox leaks natively on SwiftData failures
                 let newlyCopiedPaths: [String] = originalImagePaths
 
@@ -544,10 +546,12 @@ actor BackgroundDatabaseActor {
             
             // CRITICAL FIX: Explicitly drop the local .jpg payloads off the physical iOS SSD preventing gigabytes of storage leaks
             // because the successful record resolves its Base64/Network trace safely inside the cloud loop.
-            let documentsDirectory = URL.documentsDirectory
-            for path in originalImagePaths {
-                let fileURL = documentsDirectory.appendingPathComponent(path)
-                try? FileManager.default.removeItem(at: fileURL)
+            if inferenceFailed {
+                let documentsDirectory = URL.documentsDirectory
+                for path in originalImagePaths {
+                    let fileURL = documentsDirectory.appendingPathComponent(path)
+                    try? FileManager.default.removeItem(at: fileURL)
+                }
             }
             
         } catch {

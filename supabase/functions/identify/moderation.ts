@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getS3Client } from "../_shared/aws.ts";
+import { decodeBase64 } from "@std/encoding/base64.ts";
 
 export async function evaluateAndProcessPayload(
   userId: string,
@@ -101,14 +102,14 @@ export async function evaluateAndProcessPayload(
     // Step A: Migrate source image securely into R2 explicit bounds natively
     if (imageBase64) {
         // Direct conversion natively decoding the Base64 boundary String down into Uint8Array
-        const arrayBuffer = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0));
+        const arrayBuffer = decodeBase64(imageBase64);
         
         const uploadReq = new Request(targetS3Url, {
             method: "PUT",
             headers: {
                 "Content-Type": "image/jpeg"
             },
-            body: arrayBuffer
+            body: arrayBuffer as unknown as BodyInit
         });
         const signedUpload = await aws.sign(uploadReq);
         const uploadRes = await fetch(signedUpload);

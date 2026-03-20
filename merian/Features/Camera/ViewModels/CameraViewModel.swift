@@ -83,7 +83,7 @@ final class CameraViewModel: ObservableObject {
     @Published var analysisImage: UIImage? = nil
     
     // Asynchronous Context Pipeline
-    @Published var preFetchedContext: EnvironmentContext? = nil
+    var preFetchTask: Task<EnvironmentContext, Never>? = nil
     
     private var focusTask: Task<Void, Never>?
     
@@ -153,9 +153,9 @@ final class CameraViewModel: ObservableObject {
                 // Prevent current GPS from overwriting a gallery photo lacking EXIF data
                 context = EnvironmentContext(location: nil, weatherCondition: nil, weatherTemperature: nil)
             } else {
-                if let mappedContext = self.preFetchedContext {
-                    context = mappedContext
-                    self.preFetchedContext = nil
+                if let activeTask = self.preFetchTask {
+                    context = await activeTask.value
+                    self.preFetchTask = nil
                 } else {
                     let lockedLocation = historicalContext?.location
                     context = await self.diContainer.environmentContextManager.fetchDeferredContext(preLockedLocation: lockedLocation)
@@ -281,14 +281,12 @@ final class CameraViewModel: ObservableObject {
                     if let cgImage = detachedDownsample {
                         let rawImage = UIImage(cgImage: cgImage)
                         
-                        Task.detached(priority: .userInitiated) {
-                            let prefetched = await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
-                            await MainActor.run {
-                                self.preFetchedContext = prefetched
-                            }
+                        let task = Task.detached(priority: .userInitiated) {
+                            return await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
                         }
                         
                         await MainActor.run {
+                            self.preFetchTask = task
                             self.imageToCrop = IdentifiableImage(
                                 image: rawImage,
                                 environmentContext: instantLocation != nil ? EnvironmentContext(location: instantLocation) : nil,

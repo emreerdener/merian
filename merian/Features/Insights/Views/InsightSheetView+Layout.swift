@@ -43,49 +43,12 @@ extension InsightSheetView {
     
     @ViewBuilder
     func nonBiologicalContent(for species: SpeciesData) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(commonName)
-                .font(.system(.largeTitle, design: .serif))
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-            
-            Text(species.insightData.description)
-                .font(.system(.body, design: .serif))
-                .foregroundColor(.secondary)
-                .lineSpacing(6)
-        }
-        .glassCard()
-        .padding(.horizontal)
+        InsightNonBiologicalContentView(species: species, commonName: commonName)
     }
     
     @ViewBuilder
     var biologicalContent: some View {
-        InsightTaxonomyHeader()
-            .padding(.horizontal)
-        
-        InsightToxicityBanner()
-            .padding(.horizontal)
-            .padding(.top, 8)
-            
-        InsightTaxonomyTree()
-            .padding(.horizontal)
-            .padding(.top, 8)
-
-        InsightConservationCard()
-            .padding(.horizontal)
-            .padding(.top, 8)
-            
-        InsightDescriptionSection(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
-            .padding(.horizontal)
-            .padding(.top, 8)
-        
-        if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.8, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
-            DiagnosticComparisonView(diagnosticData: diagnosticData)
-                .padding(.horizontal)
-                .padding(.top, 8)
-        }
-        
-     
+        InsightBiologicalContentView(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
     }
     
     @ViewBuilder

@@ -84,9 +84,7 @@ struct CollectionDetailView: View {
     }
     
     private func removeFromCollection(scan: LocalScanRecord) {
-        if let index = collection.scans?.firstIndex(where: { $0.id == scan.id }) {
-            collection.scans?.remove(at: index)
-            try? modelContext.save()
-        }
+        scan.collections?.removeAll(where: { $0.id == collection.id })
+        try? modelContext.save()
     }
 }

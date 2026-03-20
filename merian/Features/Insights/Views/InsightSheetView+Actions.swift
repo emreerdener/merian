@@ -34,17 +34,21 @@ extension InsightSheetView {
         guard !isSavingPhotos else { return }
         isSavingPhotos = true
         
-        Task {
+        let liveData = inferenceEngine.activeImageData
+        let validPaths = inferenceEngine.validHistoricImagePaths
+        let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+        
+        Task.detached(priority: .userInitiated) {
             var photosSaved = 0
             
             // 1. Live photo payload
-            if let liveData = inferenceEngine.activeImageData {
-                let success = await PhotoLibraryManager.shared.saveImageManual(imageData: liveData)
+            if let data = liveData {
+                let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
                 if success { photosSaved += 1 }
             }
             
             // 2. Local historical images securely cached on disk
-            for path in inferenceEngine.validHistoricImagePaths {
+            for path in validPaths {
                 let url = URL.documentsDirectory.appendingPathComponent(path)
                 if let data = try? Data(contentsOf: url) {
                     let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
@@ -53,7 +57,6 @@ extension InsightSheetView {
             }
             
             // 3. Remote user uploads explicitly filtering out GBIF/Wiki bounds
-            let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
             for urlStr in refUrls {
                 let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
                 if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
@@ -68,10 +71,10 @@ extension InsightSheetView {
             }
             
             await MainActor.run {
-                isSavingPhotos = false
+                self.isSavingPhotos = false
                 if photosSaved > 0 {
                     HapticManager.shared.triggerSuccessPulse()
-                    showSaveSuccessAlert = true
+                    self.showSaveSuccessAlert = true
                 }
             }
         }

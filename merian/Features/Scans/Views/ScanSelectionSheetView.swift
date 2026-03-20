@@ -58,13 +58,13 @@ struct ScanSelectionSheetView: View {
     }
     
     private func toggleSelection(scan: LocalScanRecord) {
-        if let existingScans = collection.scans, let index = existingScans.firstIndex(where: { $0.id == scan.id }) {
-            collection.scans?.remove(at: index)
+        if let existingScans = collection.scans, existingScans.contains(where: { $0.id == scan.id }) {
+            scan.collections?.removeAll(where: { $0.id == collection.id })
         } else {
-            if collection.scans == nil {
-                collection.scans = []
+            if scan.collections == nil {
+                scan.collections = []
             }
-            collection.scans?.append(scan)
+            scan.collections?.append(collection)
         }
         try? modelContext.save()
     }

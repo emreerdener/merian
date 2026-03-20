@@ -11,9 +11,16 @@ final class ScanRepository {
     
     private init() {}
     
-    /// Binds the system ModelContext to the repository infrastructure.
     func configure(with modelContext: ModelContext) {
         offlineQueue.modelContext = modelContext
+        
+        let descriptor = FetchDescriptor<ScanCollection>()
+        let collections = (try? modelContext.fetch(descriptor)) ?? []
+        if !collections.contains(where: { $0.name == "Favorites" }) {
+            let favorites = ScanCollection(name: "Favorites")
+            modelContext.insert(favorites)
+            try? modelContext.save()
+        }
     }
     
     /// Resolves and fetches all local scans explicitly matching a given filter scope
