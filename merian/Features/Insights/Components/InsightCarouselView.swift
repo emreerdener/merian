@@ -63,9 +63,19 @@ struct InsightCarouselView: View {
             // CRITICAL FIX: Explicitly prevents EXC_CRASH (SIGABRT) deep implicitly inside _ViewList_SubgraphRelease by coercing SwiftUI
             // to entirely destroy and reconstruct the core underlying native UICollectionView boundaries if array sizing inherently mutates structurally.
             .id("InsightCarousel_\(totalImages)_\(inferenceEngine.speciesData?.scanId ?? "null")")
-            .aspectRatio(1.0, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal)
+            .aspectRatio(1.0, contentMode: .fill)
+            .overlay(
+                VStack(spacing: 0) {
+                    Spacer()
+                    LinearGradient(
+                        colors: [.clear, Color(uiColor: .systemBackground)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                }
+            )
+            .clipped()
         }
     }
 }

@@ -4,14 +4,51 @@ struct MainTabBar: View {
     @Binding var isScansOpen: Bool
     @Binding var isUserProfileOpen: Bool
     @Binding var isSettingsOpen: Bool
+    @State private var showComingSoon = false
+    @State private var tooltipTask: Task<Void, Never>?
     
     var body: some View {
         HStack(spacing: 32) {
             TabBarButton(
-                iconName: "globe",
+                iconName: "safari",
                 title: "Explore",
-                action: {},
-                isDisabled: true
+                action: {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        showComingSoon = true
+                    }
+                    
+                    tooltipTask?.cancel()
+                    tooltipTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        if !Task.isCancelled {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                showComingSoon = false
+                            }
+                        }
+                    }
+                }
+            )
+            .overlay(
+                Group {
+                    if showComingSoon {
+                        Text("Coming soon")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(Color.blue)
+                                    .shadow(color: .black.opacity(0.3), radius: 5, y: 3)
+                            )
+                            .offset(y: -45)
+                            .transition(.scale(scale: 0.5, anchor: .bottom).combined(with: .opacity))
+                            .zIndex(100)
+                    }
+                }
+                .allowsHitTesting(false)
             )
 
             TabBarButton(

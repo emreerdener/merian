@@ -108,8 +108,10 @@ struct InsightSheetView: View {
                         FlagIssueView(scanId: scanId)
                     }
                 }
+                .ignoresSafeArea(edges: .top)
                 .navigationTitle(commonName)
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button(action: {
