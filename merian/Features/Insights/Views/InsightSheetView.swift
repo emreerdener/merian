@@ -35,6 +35,10 @@ struct InsightSheetView: View {
     var body: some View {
         NavigationStack {
             mainContent
+                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbar { sheetToolbarContent }
+                .toolbarBackground(.visible, for: .bottomBar)
+                .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
         }
         // Presentation Logic Hook
         .presentationDetents([.large])
@@ -69,10 +73,6 @@ struct InsightSheetView: View {
                 toastOverlay
                 celebrationOverlay
             }
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar { sheetToolbarContent }
-            .toolbarBackground(.visible, for: .bottomBar)
-            .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
         }
         .onAppear { 
             evaluateVoiceOverAndCelebration() 
