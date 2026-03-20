@@ -31,30 +31,31 @@ struct UserProfileView: View {
             List {
                 // MARK: - Core Profile Content
                 Section {
-                    VStack(spacing: 16) {
+                    VStack {
                         UserProfileHeaderView(supabase: supabase) {}
-
-                        UserProfileStatsView()
                     }
-                    .padding(.horizontal, 2) // Microscopically intercepts strict List bounding geometry safely
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 2)
+                    .padding(.bottom, 2)
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 
-                // MARK: - Legacy Settings Duplicate Block
-                // Section 1: Identity & Subscription
+                // Manage plan
                 Section {
                     Button(action: { showPaywall = true }) {
                         HStack {
                             Image(systemName: "star.fill")
                                 .foregroundColor(revenueCat.isProActive ? .yellow : .primary)
                             Text("Manage plan")
-                                .fontWeight(.semibold)
                                 .foregroundColor(.primary)
                             Spacer()
                             Text(revenueCat.isProActive ? "Merian Pro" : "Free")
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(.secondary)
                         }
                     }
@@ -62,34 +63,31 @@ struct UserProfileView: View {
                         PaywallView()
                             .environmentObject(RevenueCatManager.shared)
                      }
-                    
-                    UserProfileAuthSection(supabase: supabase)
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.vertical, 4)
-                } header: {
-                    Text("Account")
                 }
                 
                 // Section 2: Field & Hardware Preferences
                 Section {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Toggle("Expedition Mode", isOn: $isExpeditionModeActive)
                             .onChange(of: isExpeditionModeActive) { _, newValue in
                                 HardwareOrchestrator.shared.isExpeditionModeActive = newValue
                                 HardwareOrchestrator.shared.evaluateConstraints()
                             }
-                        Text("Limits camera to 24fps, disables heavy glass blurs, and pauses cellular queue syncing to maximize battery life off-grid.")
+                        Text("Maximizes battery life off-grid by capping camera frame rates and disabling heavy visual effects.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                     .padding(.vertical, 4)
                     
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("Legacy Viewfinder", isOn: $isLiveInferencePaused)
-                            .onChange(of: isLiveInferencePaused) { _, newValue in
-                                CameraManager.shared.isLiveInferencePaused = newValue
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Live Viewfinder Hints", isOn: Binding(
+                            get: { !isLiveInferencePaused },
+                            set: { newValue in
+                                isLiveInferencePaused = !newValue
+                                CameraManager.shared.isLiveInferencePaused = !newValue
                             }
-                        Text("Disables live AI scanning hints before capturing. Recommended for devices experiencing high thermal loads or heat warnings.")
+                        ))
+                        Text("Provides real-time AI scanning suggestions before you press the shutter. Turn off to reduce thermal load or battery drain.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -97,12 +95,7 @@ struct UserProfileView: View {
                     
                     Toggle("System Haptics", isOn: $isHapticsEnabled)
                     Toggle("Save to Camera Roll", isOn: $saveToCameraRoll)
-                } header: {
-                    Text("Field & Hardware")
-                }
-                
-                // Section 3: Privacy & Citizen Science
-                Section {
+                    
                     NavigationLink {
                         SettingsGeoprivacyView(defaultGeoprivacy: $defaultGeoprivacy) { newValue in
                             Task {
@@ -119,14 +112,19 @@ struct UserProfileView: View {
                         }
                     } label: {
                         HStack {
-                            Text("Default Geoprivacy")
+                            Text("Geoprivacy")
                             Spacer()
                             Text(defaultGeoprivacy.capitalized)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
-                    
+                } header: {
+                    Text("Preferences")
+                }
+                
+                // Section 3: Privacy & Citizen Science
+                Section {
                     if !supabase.isGuestUser {
                         // Export Scans
                         if let url = exportUrl {
@@ -169,30 +167,12 @@ struct UserProfileView: View {
                             .padding(.vertical, 8)
                     }
                 } header: {
-                    Text("Privacy & Science")
+                    Text("Export Data")
                 } footer: {
                     Text("Darwin Core Archive (DwC-A) exports package your entire cloud collection into a standardized scientific format.")
                 }
                 
-                // Section 4: Data Management
-                Section {
-                    Button(action: {
-                        Task {
-                            ImageCache.shared.clearCache()
-                            let cachesDir = URL.cachesDirectory
-                            if let enumerator = FileManager.default.enumerator(at: cachesDir, includingPropertiesForKeys: nil) {
-                                while let fileURL = enumerator.nextObject() as? URL {
-                                    if fileURL.pathExtension == "jpg" && !fileURL.lastPathComponent.contains("_temp_upload") {
-                                        try? FileManager.default.removeItem(at: fileURL)
-                                    }
-                                }
-                            }
-                            HapticManager.shared.triggerSuccessPulse()
-                        }
-                    }) {
-                        Text("Clear Local Cache")
-                    }
-                }
+
                 
                 // Section 5: Legal & Community
                 Section {
@@ -221,6 +201,28 @@ struct UserProfileView: View {
                 // Section 6: Danger Zone
                 Section {
                     Button(action: {
+                        Task {
+                            ImageCache.shared.clearCache()
+                            let cachesDir = URL.cachesDirectory
+                            if let enumerator = FileManager.default.enumerator(at: cachesDir, includingPropertiesForKeys: nil) {
+                                while let fileURL = enumerator.nextObject() as? URL {
+                                    if fileURL.pathExtension == "jpg" && !fileURL.lastPathComponent.contains("_temp_upload") {
+                                        try? FileManager.default.removeItem(at: fileURL)
+                                    }
+                                }
+                            }
+                            HapticManager.shared.triggerSuccessPulse()
+                        }
+                    }) {
+                        Text("Clear Local Cache")
+                            .foregroundColor(.red)
+                    }
+                    
+                    UserProfileAuthSection(supabase: supabase)
+                        .buttonStyle(PlainButtonStyle())
+                        .padding(.vertical, 4)
+                        
+                    Button(action: {
                         showDeleteConfirmation = true
                     }) {
                         HStack {
@@ -229,7 +231,6 @@ struct UserProfileView: View {
                                     .tint(.red)
                             } else {
                                 Text("Delete Account & Data")
-                                    .fontWeight(.semibold)
                             }
                         }
                         .foregroundColor(.red)

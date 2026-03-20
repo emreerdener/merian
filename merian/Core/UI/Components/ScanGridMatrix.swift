@@ -15,6 +15,7 @@ struct ScanGridMatrix<Content: View>: View {
         LazyVGrid(columns: columns, spacing: 2) {
             ForEach(scans) { scan in
                 Button(action: {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     onSelect(scan)
                 }) {
                     thumbnailModifier(scan, ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl))

@@ -43,13 +43,11 @@ struct UserProfileHeaderView: View {
         VStack(spacing: 24) {
             // Digital Terrarium Hero Placeholer
             TerrariumView()
-                .padding(.top, 8)
-                .padding(.bottom, 24)
                 
             // Persona Title & Description
             VStack(spacing: 8) {
                 Text(persona)
-                    .font(.title)
+                    .font(.system(.title, design: .serif))
                     .fontWeight(.bold)
                 
                 Text(personaDescription)
@@ -58,6 +56,8 @@ struct UserProfileHeaderView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
+            
+            UserProfileStatsView()
 
             // Authentication / User Profile Block
             VStack {
@@ -96,6 +96,7 @@ struct UserProfileHeaderView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                     }
+                    .buttonStyle(PlainButtonStyle())
                 } else {
                     // Authenticated User Profile Card
                     HStack(spacing: 12) {

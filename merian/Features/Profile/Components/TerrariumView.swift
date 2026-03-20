@@ -12,24 +12,18 @@ struct TerrariumView: View {
     
     var body: some View {
         ZStack {
-            // Glassmorphic interactive circle backdrop
-            Circle()
-                .fill(.ultraThinMaterial)
             if isRiveFileBundled {
                 ActiveTerrariumRenderer()
             } else {
-                // Graceful fallback placeholder alerting the team
-                VStack(spacing: 12) {
-                    Image(systemName: "leaf.circle.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(.green.opacity(0.8))
-                    Text("Terrarium globe")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                }
+                // Temporary static orb placeholder
+                Image("terrarium_orb")
+                    .resizable()
+                    .scaledToFill()
+                    .scaleEffect(1.25) // Adjust this multiplier to zoom the image larger!
             }
         }
-        .frame(width: 240, height: 200)
+        .frame(width: 300, height: 300)
+        .clipShape(Circle())
     }
 }
 

@@ -81,7 +81,7 @@ struct SettingsView: View {
                     Toggle("System Haptics", isOn: $isHapticsEnabled)
                     Toggle("Save to Camera Roll", isOn: $saveToCameraRoll)
                 } header: {
-                    Text("Field & Hardware")
+                    Text("Hardware")
                 }
                 
                 // Section 3: Privacy & Citizen Science
