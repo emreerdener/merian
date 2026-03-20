@@ -86,16 +86,17 @@ class ArchiveManager: ObservableObject {
             tempFileURL = stableURL
         }
         
+        defer {
+            if let fileToRemove = tempFileURL {
+                try? FileManager.default.removeItem(at: fileToRemove)
+            }
+        }
+        
         let resourceURL = tempFileURL ?? url
         
         try await PHPhotoLibrary.shared().performChanges {
             let creationRequest = PHAssetCreationRequest.forAsset()
             creationRequest.addResource(with: .photo, fileURL: resourceURL, options: nil)
-        }
-        
-        // Clean up explicit local file buffer footprint natively
-        if let fileToRemove = tempFileURL {
-            try? FileManager.default.removeItem(at: fileToRemove)
         }
         
         print("ArchiveManager: Successfully archived image to device Photos.")
@@ -168,36 +169,50 @@ actor ArchiveDatabaseActor {
     func rescueTransfers(resourceIDs: [PersistentIdentifier]) async {
         guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         
+        // Pre-calculate array of target UUID strings to naturally bypass N+1 network lookups
+        var targetMappings: [PersistentIdentifier: String] = [:]
+        for modelID in resourceIDs {
+            if let record = self.modelContext.model(for: modelID) as? LocalScanRecord {
+                targetMappings[modelID] = record.id
+            }
+        }
+        
+        let targetStrings = Array(targetMappings.values)
+        guard !targetStrings.isEmpty else { return }
+        
+        struct BulkScanUrlResponse: Decodable {
+            let id: String
+            let image_storage_urls: [String]
+        }
+        
+        var remoteUrlMap: [String: [String]] = [:]
+        
+        // Execute a single bulk query to extract all URLs in one O(1) payload
+        do {
+            let postgrestResponse = try await SupabaseManager.shared.client
+                .from("scans")
+                .select("id, image_storage_urls")
+                .in("id", values: targetStrings)
+                .execute()
+                
+            let decoder = JSONDecoder()
+            let parsedCollection = try decoder.decode([BulkScanUrlResponse].self, from: postgrestResponse.data)
+            
+            for item in parsedCollection {
+                remoteUrlMap[item.id] = item.image_storage_urls
+            }
+        } catch {
+            print("ArchiveManager: Failed bulk R2 URL fetch natively: \(error)")
+            return
+        }
+
         for modelID in resourceIDs {
             guard let record = self.modelContext.model(for: modelID) as? LocalScanRecord else { continue }
+            let scanId = targetMappings[modelID] ?? record.id
             
-            // Natively query the Supabase edge to extract the physical R2 url
-            struct ScanUrlResponse: Decodable {
-                let image_storage_urls: [String]
-            }
-            
-            let remoteUrl: URL
-            do {
-                let postgrestResponse = try await SupabaseManager.shared.client
-                    .from("scans")
-                    .select("image_storage_urls")
-                    .eq("id", value: record.id)
-                    .single()
-                    .execute()
-                
-                let decoder = JSONDecoder()
-                let parsed = try decoder.decode(ScanUrlResponse.self, from: postgrestResponse.data)
-                
-                guard let firstString = parsed.image_storage_urls.first,
-                      let parsedUrl = URL(string: firstString) else {
-                    // Mark structurally synced if no cloud URLs remain bounds-wise
-                    record.isLocallyArchived = true
-                    continue
-                }
-                
-                remoteUrl = parsedUrl
-            } catch {
-                print("ArchiveManager: Failed to fetch remote URL for scan \(record.id)")
+            let remoteUrls = remoteUrlMap[scanId] ?? []
+            guard let firstString = remoteUrls.first, let remoteUrl = URL(string: firstString) else {
+                record.isLocallyArchived = true
                 continue
             }
             

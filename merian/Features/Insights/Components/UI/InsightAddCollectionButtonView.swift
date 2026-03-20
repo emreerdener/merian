@@ -29,9 +29,11 @@ struct InsightAddCollectionButtonView: View {
             }
         } label: {
             HStack(spacing: 6) {
+                Image(systemName: "plus")
+                .font(.system(size: 14, weight: .semibold))
                 Text("Add to collection")
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 8)
             .foregroundColor(.secondary)
         }
         .disabled(!hasScanId)

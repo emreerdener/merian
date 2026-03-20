@@ -43,7 +43,7 @@ struct InsightTaxonomyTree: View {
             Text(value)
                 .font(.system(.subheadline))
                 .italic(!isSpecies)
-                .fontWeight(isSpecies ? .bold : .regular)
+                .fontWeight(isSpecies ? .semibold : .regular)
                 .foregroundColor(.primary)
         }
     }

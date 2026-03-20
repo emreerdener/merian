@@ -14,30 +14,10 @@ struct WeatherBadgeView: View {
         #endif
         
         if let validTemp = temp, let validCondition = cond {
-            VStack(alignment: .trailing, spacing: 4) {
-                HStack(spacing: 8) {
-                    Image(systemName: weatherIcon(for: validCondition))
-                        .font(.system(.subheadline))
-                        .foregroundColor(.white)
-                        
-                    Text("\(Int(validTemp))°F")
-                        .font(.system(.subheadline))
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                }
-                
-                Text(validCondition.capitalized)
-                    .font(.system(.caption))
-                    .fontWeight(.medium)
-                    .foregroundColor(.white.opacity(0.8))
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color.black.opacity(0.3))
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
+            BadgeView(
+                text: "\(Int(validTemp))°F \(validCondition.capitalized)",
+                color: .primary,
+                icon: weatherIcon(for: validCondition)
             )
         }
     }

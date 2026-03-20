@@ -72,11 +72,6 @@ struct ImageCropProcessor {
                 @unknown default:   cropRect = CGRect(x: ux * cW, y: uy * cH, width: uw * cW, height: uh * cH)
                 }
                 
-                // Isolate memory extraction cleanly in the background CPU pool natively
-                guard let croppedCG = cgImg.cropping(to: cropRect) else {
-                    return nil
-                }
-                
                 // Map UIImage.Orientation directly to CGImagePropertyOrientation natively
                 let cgOrientation: CGImagePropertyOrientation
                 switch targetOrientation {
@@ -91,6 +86,10 @@ struct ImageCropProcessor {
                 @unknown default: cgOrientation = .up
                 }
                 
+                // Isolate memory extraction cleanly in the background CPU pool natively
+                // Fallback to original cgImg if cropping fails to ensure off-main-thread processing
+                let finalCG = cgImg.cropping(to: cropRect) ?? cgImg
+                
                 let renderData = NSMutableData()
                 
                 // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
@@ -104,7 +103,7 @@ struct ImageCropProcessor {
                     kCGImageDestinationImageMaxPixelSize: 768 // Force maximum gemini down-render dynamically
                 ]
                 
-                CGImageDestinationAddImage(destination, croppedCG, options as CFDictionary)
+                CGImageDestinationAddImage(destination, finalCG, options as CFDictionary)
                 
                 guard CGImageDestinationFinalize(destination) else {
                     return nil
@@ -115,6 +114,6 @@ struct ImageCropProcessor {
             return bytes
         }.value
         
-        return processedBytes ?? image.jpegData(compressionQuality: 0.7) ?? Data()
+        return processedBytes ?? Data()
     }
 }

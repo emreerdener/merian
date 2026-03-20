@@ -168,6 +168,28 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
         return screen.windows.first(where: { $0.isKeyWindow })?.rootViewController
     }
     
+    private func finalizeOAuthLogin(provider: OpenIDConnectCredentials.Provider, idToken: String, accessToken: String?, nonce: String?) async throws {
+        if self.isGuestUser {
+            let ghostId = try? await client.auth.session.user.id.uuidString
+            do {
+                _ = try await client.auth.linkIdentityWithIdToken(
+                    credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
+                )
+            } catch {
+                _ = try await client.auth.signInWithIdToken(
+                    credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
+                )
+                if let ghostId = ghostId {
+                    await triggerGhostProfileMerge(from: ghostId)
+                }
+            }
+        } else {
+            _ = try await client.auth.signInWithIdToken(
+                credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
+            )
+        }
+    }
+    
     func signInWithGoogle() async {
         guard let rootVC = getRootViewController() else {
             print("Failed to find root view controller for Google Sign In")
@@ -182,38 +204,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
             }
             let accessToken = result.user.accessToken.tokenString
             
-            if self.isGuestUser {
-                let ghostId = try? await client.auth.session.user.id.uuidString
-                do {
-                    let _ = try await client.auth.linkIdentityWithIdToken(
-                        credentials: .init(
-                            provider: .google,
-                            idToken: idToken,
-                            accessToken: accessToken
-                        )
-                    )
-                } catch {
-                    let _ = try await client.auth.signInWithIdToken(
-                        credentials: .init(
-                            provider: .google,
-                            idToken: idToken,
-                            accessToken: accessToken
-                        )
-                    )
-                    if let ghostId = ghostId {
-                        await triggerGhostProfileMerge(from: ghostId)
-                    }
-                }
-            } else {
-                let _ = try await client.auth.signInWithIdToken(
-                    credentials: .init(
-                        provider: .google,
-                        idToken: idToken,
-                        accessToken: accessToken
-                    )
-                )
-            }
-            
+            try await self.finalizeOAuthLogin(provider: .google, idToken: idToken, accessToken: accessToken, nonce: nil)
             let session = try await client.auth.session
             await linkExternalTelemetry(user: session.user)
             
@@ -314,30 +305,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
             
             Task {
                 do {
-                    if self.isGuestUser {
-                        let ghostId = try? await client.auth.session.user.id.uuidString
-                        do {
-                            let _ = try await client.auth.linkIdentityWithIdToken(
-                                credentials: .init(
-                                    provider: .apple, 
-                                    idToken: idTokenString, 
-                                    nonce: nonce
-                                )
-                            )
-                        } catch {
-                            let _ = try await client.auth.signInWithIdToken(
-                                credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
-                            )
-                            if let ghostId = ghostId {
-                                await triggerGhostProfileMerge(from: ghostId)
-                            }
-                        }
-                    } else {
-                        let _ = try await client.auth.signInWithIdToken(
-                            credentials: .init(provider: .apple, idToken: idTokenString, nonce: nonce)
-                        )
-                    }
-                    
+                    try await self.finalizeOAuthLogin(provider: .apple, idToken: idTokenString, accessToken: nil, nonce: nonce)
                     let session = try await client.auth.session
                     await linkExternalTelemetry(user: session.user)
                     

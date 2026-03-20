@@ -120,4 +120,29 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     func saveImageManual(imageData: Data) async -> Bool {
         return await executePhotoLibraryWrite(imageData: imageData, location: nil, accessLevel: .addOnly)
     }
+    
+    func saveImageManual(fileURL: URL) async -> Bool {
+        let currentStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        let status: PHAuthorizationStatus
+        if currentStatus == .notDetermined {
+            status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        } else {
+            status = currentStatus
+        }
+        guard status == .authorized || status == .limited else {
+            print("⚠️ Insufficient permissions to securely persist array into Camera Roll.")
+            return false
+        }
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                // Directly pass the raw physics buffers seamlessly natively maintaining EXIF data dynamically.
+                request.addResource(with: .photo, fileURL: fileURL, options: nil)
+            }
+            return true
+        } catch {
+            print("⚠️ Failed to natively save image to photo library bounds: \(error)")
+            return false
+        }
+    }
 }

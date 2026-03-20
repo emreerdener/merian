@@ -60,9 +60,10 @@ struct CollectionDetailView: View {
                     showScanSelection = true
                 }) {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.blue)
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .buttonBorderShape(.circle)
             }
         }
         .sheet(item: $selectedScanForInsight) { scan in

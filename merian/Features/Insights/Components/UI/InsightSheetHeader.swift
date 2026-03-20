@@ -4,7 +4,6 @@ struct InsightSheetHeader: ToolbarContent {
     @Environment(\.dismiss) var dismiss
     
     let commonName: String
-    @Binding var showTitle: Bool
     @Binding var isFlagIssuePresented: Bool
     @Binding var isSavingPhotos: Bool
     @Binding var showDeleteConfirmation: Bool
@@ -17,7 +16,6 @@ struct InsightSheetHeader: ToolbarContent {
                     .font(.system(size: 16, weight: .bold))
             }
         }
-
         
         ToolbarItem(placement: .topBarTrailing) {
             Menu {

@@ -4,6 +4,7 @@ import SwiftUI
 struct AsyncLocalImageView: View {
     let imagePath: String
     var fallbackImageUrl: String? = nil
+    var onImageLoadFailed: (() -> Void)? = nil
     
     @State private var loadedImage: UIImage?
     @State private var hasFailedToLoad: Bool = false
@@ -42,6 +43,7 @@ struct AsyncLocalImageView: View {
                     self.loadedImage = img
                 } else {
                     self.hasFailedToLoad = true
+                    self.onImageLoadFailed?()
                 }
             }
         }

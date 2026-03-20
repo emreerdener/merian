@@ -315,7 +315,6 @@ final class InferenceEngine: ObservableObject {
 
 
     
-    /// Halts active inferences instantly if the iOS Watchdog forces a termination
     func cancelActiveRequest() {
         print("Cancelled active inference request to prevent watchdog termination.")
         isBackgroundRescued = true
@@ -331,6 +330,25 @@ final class InferenceEngine: ObservableObject {
         activeLocationName = nil
         activeWeatherCondition = nil
         activeTemperatureF = nil
+    }
+    
+    /// Safely cascades failing URLs directly out of the primary UI loops preserving continuous Carousel streams without throwing out-of-bounds Array indices natively
+    func dropInvalidCarouselImage(_ urlStr: String) {
+        if let idx = self.validHistoricImagePaths.firstIndex(of: urlStr) {
+            self.validHistoricImagePaths.remove(at: idx)
+        }
+        
+        if let currentRef = self.speciesData?.referenceImageUrl {
+            var parts = currentRef.components(separatedBy: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            
+            if let idx = parts.firstIndex(of: urlStr) {
+                parts.remove(at: idx)
+                let newJoined = parts.joined(separator: ",")
+                self.speciesData?.referenceImageUrl = newJoined.isEmpty ? nil : newJoined
+            }
+        }
     }
     
     /// Rehydrates the SpeciesData and UI payloads natively from an offline Scans record
@@ -350,7 +368,8 @@ final class InferenceEngine: ObservableObject {
         Task {
             let validPaths = await Task.detached(priority: .userInitiated) {
                 paths.filter { path in
-                    FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
+                    if path.starts(with: "http") { return true }
+                    return FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
                 }
             }.value
             

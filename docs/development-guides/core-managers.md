@@ -36,6 +36,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Explicit background worker strictly mapped to protect the data of Free tier users against the Cloudflare R2 90-day global purge logic (`00004_storage_lifecycle_sync.sql`).
 - Polls locally via `getAvailableDiskSpace()`.
 - Dynamically `evaluateAndRescueAgingScans` queries SwiftData logs looking for `.isLocallyArchived == false` records older than 80 days strictly executed locally via `.handleActivePhase()` native UI lifecycle hooks once per day saving images directly into explicit bounds. To physically block RAM spikes triggering JetSam boundaries during batch rescues, the system completely bypasses massive `.data(from:)` array loadings. Instead, it securely cross-references the remote database edge for `image_storage_urls`, and safely streams the binary payload down securely via `URLSession.shared.download(from:)` explicitly piping the temp file cleanly over to the document partition via `FileManager.default.moveItem`. Crucially, the system structurally writes only the relative `filename` string into SwiftData rather than the `fileURL.path`. This correctly prevents Absolute Sandbox Path map breakages caused by iOS dynamically altering and randomizing container UUIDs on device reboots and physical app updates seamlessly avoiding broken image renders natively completely.
+- **N+1 Query Eradication**: Completely skips sequential Supabase round-trips natively mapping the background dataset arrays. It preemptively extracts a complete array of `.identifier` strings, and sends a single `O(1)` `.in("id", ...)` PostgREST query payload cleanly pulling all storage relationships dynamically directly preventing worker starvation!
 
 ## Networking
 
@@ -49,6 +50,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 ### `SupabaseManager`
 - Completely delegates the secure API boundary parsing natively wrapped into GoTrue bindings.
 - Exports a singular, unified `getValidAuthHeaders() async throws -> [String: String]` abstraction. This completely consolidates the OAuth conditional checks (`Merian_HasAuthenticatedOAuth`) and automatic Ghost Session regeneration logic (using `.identifierForVendor`), ensuring a 100% success rate on stateless REST requests across `MerianNetworkClient` and `SocialGuardManager` natively.
+- **DRY OAuth Abstraction**: Explicitly abstracts Apple Sign In and Google Sign In fallback mapping networks securely isolating identical duplication directly into `private func finalizeOAuthLogin`. This securely maps `.linkIdentityWithIdToken` arrays against `.signInWithIdToken` bounds avoiding massive code redundancy mathematically!
 - Executes `signInAnonymously()` exclusively mapped to `.uuidString` metrics inside `.identifierForVendor`.
 - Maps native Apple/Google OAuth hooks seamlessly migrating Ghost User mappings cleanly explicitly calling `RevenueCatManager.shared.linkWithSupabase()` correctly aligning payment limits securely natively.
 

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { getS3Client } from "../_shared/aws.ts";
+import { getR2Config } from "../_shared/aws.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -8,10 +8,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 async function migrateUserStorage(userId: string, sourcePrefix: string, targetPrefix: string) {
   try {
-    const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID")!;
-    const R2_BUCKET_NAME = Deno.env.get("R2_BUCKET_NAME")!;
-    const aws = getS3Client();
-    const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+    const { s3Client, bucketName, endpoint } = getR2Config();
 
     let totalMigrated = 0;
     let hasMore = true;
@@ -59,18 +56,18 @@ async function migrateUserStorage(userId: string, sourcePrefix: string, targetPr
               const sourceKey = `public_uploads/${sourcePrefix}/${originalUserId}/${fileName}`;
               const targetKey = `public_uploads/${targetPrefix}/${userId}/${fileName}`;
 
-              const copyUrl = `${endpoint}/${R2_BUCKET_NAME}/${targetKey}`;
-              const deleteUrl = `${endpoint}/${R2_BUCKET_NAME}/${sourceKey}`;
+              const copyUrl = `${endpoint}/${bucketName}/${targetKey}`;
+              const deleteUrl = `${endpoint}/${bucketName}/${sourceKey}`;
 
-              const copyResponse = await aws.fetch(copyUrl, {
+              const copyResponse = await s3Client.fetch(copyUrl, {
                 method: "PUT",
                 headers: {
-                  "x-amz-copy-source": encodeURI(`/${R2_BUCKET_NAME}/${sourceKey}`)
+                  "x-amz-copy-source": encodeURI(`/${bucketName}/${sourceKey}`)
                 }
               });
 
               if (copyResponse.ok) {
-                await aws.fetch(deleteUrl, { method: "DELETE" });
+                await s3Client.fetch(deleteUrl, { method: "DELETE" });
                 
                 const cleanMapUrl = `https://media.merian.app/${targetKey}`;
                 migrated = true;

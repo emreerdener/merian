@@ -292,110 +292,118 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        // Extract non-Sendable properties safely before bridging context
+        let taskDescription = task.taskDescription
+        let originalRequestUrlPath = task.originalRequest?.url?.path
+        let responseStatusCode = (task.response as? HTTPURLResponse)?.statusCode
+        
         BackgroundTaskWrapper.execute(
             name: "OfflineInference",
             expirationHandler: {
                 print("Offline inference background task expired")
             }
         ) { _ in
-            
-            guard let taskDesc = task.taskDescription else {
-            return
-        }
-        
-        let components = taskDesc.components(separatedBy: "_")
-        let scanId = components[0]
-        let indexPart = components.count > 1 ? components[1] : ""
-        
-        let tempFileURL = URL.cachesDirectory.appendingPathComponent(indexPart.isEmpty ? "\(scanId)_temp_upload.jpg" : "\(scanId)_\(indexPart)_temp_upload.jpg")
-        try? FileManager.default.removeItem(at: tempFileURL)
-        
-        guard error == nil else {
-            print("Background upload hard failed: \(error!)")
-            return
-        }
-        
-        guard let response = task.response as? HTTPURLResponse, response.statusCode == 200 else {
-            let statusCode = (task.response as? HTTPURLResponse)?.statusCode ?? 0
-            let recoverableCodes = [403, 500, 502, 503, 504]
-            
-            if recoverableCodes.contains(statusCode) {
-                print("Background upload failed with recoverable status (\(statusCode)). Retaining in queue.")
-            } else {
-                print("Background upload rejected physically by boundary constraints. Server returned an error.")
-                await MainActor.run {
-                    OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+            defer {
+                Task {
+                    let activeTasks = await session.allTasks
+                    if activeTasks.isEmpty {
+                        await MainActor.run {
+                            OfflineQueueManager.shared.isSyncing = false
+                            SyncStateManager.shared.completeSync()
+                        }
+                    }
                 }
             }
-            return
-        }
+            
+            guard let taskDesc = taskDescription else {
+                return
+            }
         
-        struct ExtractedScanData {
-            let telemetry: CaptureTelemetry
-            let localImagePaths: [String]
-            let container: ModelContainer
-        }
-        
-        guard let urlPath = task.originalRequest?.url?.path, let range = urlPath.range(of: "staging/") else {
-            return
-        }
-        let r2ObjectKey = String(urlPath[range.lowerBound...])
+            let components = taskDesc.components(separatedBy: "_")
+            let scanId = components[0]
+            let indexPart = components.count > 1 ? components[1] : ""
+            
+            let tempFileURL = URL.cachesDirectory.appendingPathComponent(indexPart.isEmpty ? "\(scanId)_temp_upload.jpg" : "\(scanId)_\(indexPart)_temp_upload.jpg")
+            try? FileManager.default.removeItem(at: tempFileURL)
+            
+            guard error == nil else {
+                print("Background upload hard failed: \(error!)")
+                return
+            }
+            
+            guard let unwrappedStatusCode = responseStatusCode, unwrappedStatusCode == 200 else {
+                let code = responseStatusCode ?? 0
+                let recoverableCodes = [403, 500, 502, 503, 504]
+                
+                if recoverableCodes.contains(code) {
+                    print("Background upload failed with recoverable status (\(code)). Retaining in queue.")
+                } else {
+                    print("Background upload rejected physically by boundary constraints. Server returned an error.")
+                    await MainActor.run {
+                        OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+                    }
+                }
+                return
+            }
+            
+            struct ExtractedScanData {
+                let telemetry: CaptureTelemetry
+                let localImagePaths: [String]
+                let container: ModelContainer
+            }
+            
+            guard let urlPath = originalRequestUrlPath, let range = urlPath.range(of: "staging/") else {
+                return
+            }
+            let r2ObjectKey = String(urlPath[range.lowerBound...])
 
-        let scanData = await MainActor.run { () -> ExtractedScanData? in
-            guard let modelContext = OfflineQueueManager.shared.modelContext,
-                  let container = OfflineQueueManager.shared.modelContext?.container else {
-                return nil
+            let scanData = await MainActor.run { () -> ExtractedScanData? in
+                guard let modelContext = OfflineQueueManager.shared.modelContext,
+                      let container = OfflineQueueManager.shared.modelContext?.container else {
+                    return nil
+                }
+                let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+                guard let scan = try? modelContext.fetch(descriptor).first else { return nil }
+                
+                let telemetry = CaptureTelemetry(
+                    subjectDistanceInMeters: scan.subjectDistanceInMeters,
+                    gpsLatitude: scan.gpsLatitude,
+                    gpsLongitude: scan.gpsLongitude,
+                    gpsElevation: scan.gpsElevation,
+                    locationName: scan.locationName,
+                    weatherCondition: scan.weatherCondition,
+                    weatherTemperatureF: scan.weatherTemperatureF,
+                    timeOfDay: nil
+                )
+                
+                return ExtractedScanData(telemetry: telemetry, localImagePaths: scan.localImagePaths, container: container)
             }
-            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            guard let scan = try? modelContext.fetch(descriptor).first else { return nil }
             
-            let telemetry = CaptureTelemetry(
-                subjectDistanceInMeters: scan.subjectDistanceInMeters,
-                gpsLatitude: scan.gpsLatitude,
-                gpsLongitude: scan.gpsLongitude,
-                gpsElevation: scan.gpsElevation,
-                locationName: scan.locationName,
-                weatherCondition: scan.weatherCondition,
-                weatherTemperatureF: scan.weatherTemperatureF,
-                timeOfDay: nil
-            )
-            
-            return ExtractedScanData(telemetry: telemetry, localImagePaths: scan.localImagePaths, container: container)
-        }
-        
-        guard let extracted = scanData else {
-            return
-        }
-        
-        do {
-            let resultData = try await MerianNetworkClient.shared.analyzeSubject(
-                r2ObjectKey: r2ObjectKey,
-                base64ImageData: nil,
-                telemetry: extracted.telemetry
-            )
-            
-            let backgroundActor = BackgroundDatabaseActor(modelContainer: extracted.container)
-            await backgroundActor.processAndCleanupOfflineScan(
-                resultData: resultData,
-                originalImagePaths: extracted.localImagePaths,
-                scanId: scanId
-            )
-            
-            await MainActor.run {
-                OfflineQueueManager.shared.updateUnsyncedItemCount()
-                CircuitBreakerManager.shared.recordSuccess()
+            guard let extracted = scanData else {
+                return
             }
-        } catch {
-            print("Failed downstream inference on offline queued scan: \(error)")
-        }
             
-        let activeTasks = await session.allTasks
-        if activeTasks.isEmpty {
-            await MainActor.run {
-                OfflineQueueManager.shared.isSyncing = false
-                SyncStateManager.shared.completeSync()
+            do {
+                let resultData = try await MerianNetworkClient.shared.analyzeSubject(
+                    r2ObjectKey: r2ObjectKey,
+                    base64ImageData: nil,
+                    telemetry: extracted.telemetry
+                )
+                
+                let backgroundActor = BackgroundDatabaseActor(modelContainer: extracted.container)
+                await backgroundActor.processAndCleanupOfflineScan(
+                    resultData: resultData,
+                    originalImagePaths: extracted.localImagePaths,
+                    scanId: scanId
+                )
+                
+                await MainActor.run {
+                    OfflineQueueManager.shared.updateUnsyncedItemCount()
+                    CircuitBreakerManager.shared.recordSuccess()
+                }
+            } catch {
+                print("Failed downstream inference on offline queued scan: \(error)")
             }
-        }
         }
     }
     

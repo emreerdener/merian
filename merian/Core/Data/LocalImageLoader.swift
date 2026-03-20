@@ -24,8 +24,14 @@ actor LocalImageLoader {
         }
         
         let fetchTask = Task<UIImage?, Never> {
-            // 3. Local File Extraction directly off Main Thread
-            if let safePath = imagePath {
+            // 3. Remote URL Execution (if 'imagePath' is actually a cloud URL payload directly)
+            if let safePath = imagePath, safePath.starts(with: "http"), let remoteUrl = URL(string: safePath) {
+                if let networkImage = await fetchNetworkFallback(url: remoteUrl, cacheKey: cacheKey) {
+                    return networkImage
+                }
+            } 
+            // 4. Local File Extraction directly off Main Thread
+            else if let safePath = imagePath, !safePath.starts(with: "http") {
                 let filename = (safePath as NSString).lastPathComponent
                 let url = URL.documentsDirectory.appendingPathComponent(filename)
                 
@@ -48,7 +54,7 @@ actor LocalImageLoader {
                 }
             }
             
-            // 4. Network Fallback mapped securely via URLSession matching legacy Grid arrays
+            // 5. Explicit Network Fallback explicitly routing legacy bounds
             if let fallbackUrlString = fallbackUrl, let url = URL(string: fallbackUrlString) {
                 if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey) {
                     return networkImage

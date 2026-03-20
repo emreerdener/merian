@@ -11,12 +11,11 @@ struct LocationBadgeView: View {
         #endif
         
         if let validName = name, !validName.trimmingCharacters(in: .whitespaces).isEmpty {
-            HStack(spacing: 8) {
-                Image(systemName: "mappin.and.ellipse")
-                Text(validName)
-                    .lineLimit(1)
-            }
-            .font(.system(.subheadline))
+            BadgeView(
+                text: validName,
+                color: .primary,
+                icon: "mappin.and.ellipse"
+            )
         }
     }
 }

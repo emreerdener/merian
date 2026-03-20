@@ -153,6 +153,7 @@ actor SearchDatabaseActor {
                     className: record.taxonomyClass?.lowercased() ?? ""
                 ))
             }
+            
         }
         
         return processed

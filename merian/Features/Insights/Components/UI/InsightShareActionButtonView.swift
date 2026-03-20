@@ -7,10 +7,10 @@ struct InsightShareActionButtonView: View {
         Button(action: { shareDiscovery() }) {
             HStack(spacing: 6) {
                 Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 Text("Share")
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 8)
         }
         .buttonStyle(.borderedProminent)
     }

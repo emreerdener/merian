@@ -22,7 +22,7 @@ struct SpeciesData {
     let diagnosticComparison: DiagnosticComparison?
     var wikipediaUrl: String?
     var wikipediaExtract: String?
-    let referenceImageUrl: String?
+    var referenceImageUrl: String?
     
     let isBiological: Bool
     let isLiveCapture: Bool

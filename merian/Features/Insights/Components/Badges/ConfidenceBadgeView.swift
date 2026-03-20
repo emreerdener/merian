@@ -5,17 +5,12 @@ struct ConfidenceBadgeView: View {
     
     var body: some View {
         if let score = confidenceScore, score > 0 {
-            HStack(spacing: 4) {
-                Text("\(Int(score * 100))% CONFIDENCE")
-                    .font(.system(.caption))
-                    .fontWeight(.bold)
-                    .tracking(1)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .foregroundColor(.white)
-            .background(score >= 0.85 ? Color.green : Color.orange)
-            .clipShape(Capsule())
+            BadgeView(
+                text: "\(Int(score * 100))% confidence",
+                color: score >= 0.85 ? .green : .orange,
+                icon: "sparkles.2",
+                isFilled: true
+            )
         }
     }
 }

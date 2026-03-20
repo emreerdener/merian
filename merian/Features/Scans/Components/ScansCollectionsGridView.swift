@@ -1,8 +1,12 @@
 import SwiftUI
+import SwiftData
 
 struct ScansCollectionsGridView: View {
     let collections: [ScanCollection]
     @Binding var isInsightSheetOpen: Bool
+    
+    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false || $0.commonName == "Unknown Subject" }) 
+    private var nonBioRecords: [LocalScanRecord]
     
     var body: some View {
         ScrollView {
@@ -71,9 +75,9 @@ struct ScansCollectionsGridView: View {
                     CollectionDetailView(collection: favorites, isInsightSheetOpen: $isInsightSheetOpen)
                 } label: {
                     HStack {
-                        Image(systemName: "heart.fill")
-                            .foregroundColor(.red)
-                        Text("Favorites")
+                        Image(systemName: "heart")
+                            .foregroundColor(.secondary)    
+                        Text("Favorites")   
                             .font(.headline)
                         Spacer()
                         Text("\(favorites.scans?.count ?? 0)")
@@ -94,9 +98,13 @@ struct ScansCollectionsGridView: View {
                 NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
             } label: {
                 HStack {
+                    Image(systemName: "cube")
+                        .foregroundColor(.secondary)
                     Text("Non-biological")
                         .font(.headline)
                     Spacer()
+                    Text("\(nonBioRecords.count)")
+                        .foregroundColor(.secondary)
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
                 }

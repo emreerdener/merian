@@ -24,8 +24,8 @@ struct InsightSheetView: View {
     @State var showDeleteConfirmation = false
     @State var isSavingPhotos = false
     @State var showSaveSuccessAlert = false
-    @State var showMiniTitle = false
     @State var toastMessage: String? = nil
+    @State private var showBottomBarTools = false
     
     // MARK: Diagnostic Bounds
     var isPoisonous: Bool { inferenceEngine.speciesData?.insightData.isPoisonous ?? false }
@@ -69,25 +69,20 @@ struct InsightSheetView: View {
         Group {
             ZStack(alignment: .top) {
                 scrollableCanvas
-                miniTitleView
                 toastOverlay
                 celebrationOverlay
             }
         }
         .onAppear { 
-            evaluateVoiceOverAndCelebration() 
+            evaluateVoiceOverAndCelebration()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    showBottomBarTools = true
+                }
+            }
         }
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             evaluateProcessingCompletion(isStillProcessing: isStillProcessing)
-        }
-        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-            let shouldShow = offset < -200
-            // Once the offset dips past -200, the main title is scrolled out of view, so show the mini header!
-            if showMiniTitle != shouldShow {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showMiniTitle = shouldShow
-                }
-            }
         }
         .task(id: inferenceEngine.speciesData?.scanId) {
             if let scanId = inferenceEngine.speciesData?.scanId {
@@ -115,36 +110,19 @@ struct InsightSheetView: View {
         activeLocalRecord = (try? modelContext.fetch(descriptor))?.first
     }
     
-    @ViewBuilder
-    var miniTitleView: some View {
-        if showMiniTitle {
-            Text(commonName)
-                .font(.system(.subheadline))
-                .fontWeight(.bold)
-                .lineLimit(1)
-                .foregroundColor(.primary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(Color.black.opacity(0.15))
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(.top, 14)
-                .zIndex(50)
-                .transition(.opacity.combined(with: .scale(scale: 0.9)))
-        }
-    }
+    
     
     @ToolbarContentBuilder
     var sheetToolbarContent: some ToolbarContent {
         InsightSheetHeader(
             commonName: commonName,
-            showTitle: $showMiniTitle,
             isFlagIssuePresented: $isFlagIssuePresented,
             isSavingPhotos: $isSavingPhotos,
             showDeleteConfirmation: $showDeleteConfirmation,
             onSavePhotos: saveUserPhotos
         )
         
-        if let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
+        if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
             ToolbarItemGroup(placement: .bottomBar) {
                 addCollectionButton
                 Spacer()
@@ -175,13 +153,3 @@ struct InsightSheetView: View {
         }
     }
 }
-
-// MARK: - Preference Key
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-

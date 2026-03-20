@@ -19,10 +19,8 @@ final class InsightMediaExportManager {
             // 2. Local historical images securely cached on disk
             for path in validPaths {
                 let url = URL.documentsDirectory.appendingPathComponent(path)
-                if let data = try? Data(contentsOf: url) {
-                    let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
-                    if success { photosSaved += 1 }
-                }
+                let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: url)
+                if success { photosSaved += 1 }
             }
             
             // 3. Remote user uploads explicitly filtering out GBIF/Wiki bounds
@@ -30,9 +28,10 @@ final class InsightMediaExportManager {
                 let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
                 if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
                     do {
-                        let (data, _) = try await URLSession.shared.data(from: url)
-                        let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                        let (fileURL, _) = try await URLSession.shared.download(from: url)
+                        let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: fileURL)
                         if success { photosSaved += 1 }
+                        try? FileManager.default.removeItem(at: fileURL)
                     } catch {
                         print("Failed to map R2 cloud payload for UI download: \(error)")
                     }

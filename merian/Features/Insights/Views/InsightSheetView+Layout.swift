@@ -9,12 +9,6 @@ extension InsightSheetView {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
                 InsightCarouselView()
-                    .background(GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: ScrollOffsetPreferenceKey.self,
-                            value: proxy.frame(in: .named("SheetScroll")).minY
-                        )
-                    })
                 
                 if let speciesData = inferenceEngine.speciesData, !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
                     nonBiologicalContent(for: speciesData)
@@ -25,7 +19,6 @@ extension InsightSheetView {
                 Spacer(minLength: 40)
             }
         }
-        .coordinateSpace(name: "SheetScroll")
         .textSelection(.enabled)
         .sheet(isPresented: $isSafariPresented) {
             if let safeUrl = selectedWikiURL {

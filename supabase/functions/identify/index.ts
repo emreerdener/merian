@@ -99,7 +99,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       .from("users")
       .select("subscription_tier")
       .eq("id", user!.id)
-      .single();
+      .maybeSingle();
 
     if (existingUser) {
       userTier = existingUser.subscription_tier;

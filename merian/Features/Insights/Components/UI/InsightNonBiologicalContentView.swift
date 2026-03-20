@@ -18,5 +18,7 @@ struct InsightNonBiologicalContentView: View {
         }
         .glassCard()
         .padding(.horizontal)
+        
+        InsightLocationWeatherCard(speciesData: species)
     }
 }
