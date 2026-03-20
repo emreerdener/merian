@@ -9,26 +9,30 @@ struct UserProfileHeaderView: View {
     
     @State private var uniqueSpeciesCount: Int = 0
     
-    private var persona: String {
+private var persona: String {
         let count = uniqueSpeciesCount
-        if count == 0 { return "Observer" }
-        else if count < 10 { return "Novice Naturalist" }
-        else if count < 50 { return "Field Naturalist" }
-        else if count < 100 { return "Avid Naturalist" }
-        else { return "Master Naturalist" }
+        if count == 0 { return "The Observer" }
+        else if count < 10 { return "Casual Explorer" }
+        else if count < 50 { return "Dedicated Naturalist" }
+        else if count < 100 { return "Verified Scholar" }
+        else { return "Apex Observer" }
     }
     
     private var personaDescription: String {
         let count = uniqueSpeciesCount
-        if count == 0 { return "Just starting to explore the natural world." }
-        else if count < 10 { return "Learning to identify local flora and fauna." }
-        else if count < 50 { return "Actively discovering new species." }
-        else if count < 100 { return "A dedicated explorer with a keen eye." }
-        else { return "An expert observer of the ecosystem." }
+        if count == 0 { return "The viewfinder is ready. Step outside to log your first scan." }
+        else if count < 10 { return "Starting your collection. Learning the language of local flora and fauna." }
+        else if count < 50 { return "Mapping local biodiversity and building a vibrant library." }
+        else if count < 100 { return "Curating a museum-grade archive of the natural world." }
+        else { return "An absolute authority on the ecosystem. Your collection is a masterpiece." }
     }
     
     private var userName: String? {
         supabase.currentUser?.userMetadata["full_name"]?.stringValue ?? supabase.currentUser?.userMetadata["name"]?.stringValue
+    }
+    
+    private var userEmail: String? {
+        supabase.currentUser?.email
     }
     
     private var userAvatarURL: URL? {
@@ -47,7 +51,7 @@ struct UserProfileHeaderView: View {
             // Persona Title & Description
             VStack(spacing: 8) {
                 Text(persona)
-                    .font(.system(.title, design: .serif))
+                    .font(.system(.largeTitle, design: .serif))
                     .fontWeight(.bold)
                 
                 Text(personaDescription)
@@ -119,12 +123,14 @@ struct UserProfileHeaderView: View {
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text(userName ?? "Explorer")
-                                .font(.headline)
+                                .font(.title3)
                                 .fontWeight(.semibold)
                             
-                            Text("Connected account")
-                                .font(.caption)
+                            Text(userEmail ?? "Connected account")
+                                .font(.footnote)
                                 .foregroundColor(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                         
                         Spacer()

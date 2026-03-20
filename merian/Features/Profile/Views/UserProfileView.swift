@@ -219,8 +219,6 @@ struct UserProfileView: View {
                     }
                     
                     UserProfileAuthSection(supabase: supabase)
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.vertical, 4)
                         
                     Button(action: {
                         showDeleteConfirmation = true

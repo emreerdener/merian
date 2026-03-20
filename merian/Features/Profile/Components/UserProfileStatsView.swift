@@ -47,9 +47,9 @@ struct UserProfileStatsView: View {
     @State private var computedStreak: Int = 0
     
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-            StatCardView(title: "Species", value: "\(computedSpeciesCount)", icon: "leaf.fill", color: .green)
-            StatCardView(title: "Current streak", value: "\(computedStreak) Day\(computedStreak == 1 ? "" : "s")", icon: "flame.fill", color: .orange)
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 24), GridItem(.flexible())], spacing: 16) {
+            StatCardView(title: "Species discovered", value: "\(computedSpeciesCount)", icon: "leaf.fill", color: .green)
+            StatCardView(title: "Current streak", value: "\(computedStreak) day\(computedStreak == 1 ? "" : "s")", icon: "flame.fill", color: .orange)
         }
         .task {
             let container = modelContext.container
