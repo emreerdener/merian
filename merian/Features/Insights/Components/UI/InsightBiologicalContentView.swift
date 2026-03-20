@@ -4,6 +4,7 @@ struct InsightBiologicalContentView: View {
     @EnvironmentObject var inferenceEngine: InferenceEngine
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?
+    var timestamp: Date? = nil
 
     var body: some View {
         InsightTaxonomyHeader(speciesData: inferenceEngine.speciesData)
@@ -20,7 +21,7 @@ struct InsightBiologicalContentView: View {
             .padding(.horizontal)
             .padding(.top, 8)
             
-        InsightLocationWeatherCard(speciesData: inferenceEngine.speciesData)
+        InsightLocationWeatherCard(speciesData: inferenceEngine.speciesData, timestamp: timestamp)
 
         InsightConservationCard()
             .padding(.horizontal)
@@ -40,12 +41,13 @@ struct InsightBiologicalContentView: View {
 
 struct InsightLocationWeatherCard: View {
     let speciesData: SpeciesData?
+    var timestamp: Date? = nil
     
     var hasValidData: Bool {
         guard let sd = speciesData else { return false }
         let nameValid = sd.locationName != nil && !sd.locationName!.trimmingCharacters(in: .whitespaces).isEmpty
         let weatherValid = sd.weatherTemperatureF != nil && sd.weatherCondition != nil
-        return nameValid || weatherValid
+        return nameValid || weatherValid || timestamp != nil
     }
     
     var body: some View {
@@ -73,6 +75,13 @@ struct InsightLocationWeatherCard: View {
                             title: "WEATHER", 
                             value: "\(Int(validTemp))°F \(validCondition.capitalized)",
                             valueIcon: weatherIcon(for: validCondition)
+                        )
+                    }
+                    
+                    if let ts = timestamp {
+                        featureRow(
+                            title: "TIME",
+                            value: ts.formatted(date: .omitted, time: .shortened)
                         )
                     }
                 }

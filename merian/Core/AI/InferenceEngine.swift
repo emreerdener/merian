@@ -286,16 +286,22 @@ final class InferenceEngine: ObservableObject {
                 let content_urls: ContentURLs?
                 struct ContentURLs: Decodable { let desktop: Desktop? }
                 struct Desktop: Decodable { let page: String? }
+                let originalimage: OriginalImage?
+                struct OriginalImage: Decodable { let source: String? }
             }
             
             let decoded = try JSONDecoder().decode(WikiRes.self, from: data)
             
             guard let extract = decoded.extract, let webUrl = decoded.content_urls?.desktop?.page else { return }
+            let imageUrl = decoded.originalimage?.source
             
             await MainActor.run {
                 if self.speciesData?.scientificName == species {
                     self.speciesData?.wikipediaExtract = extract
                     self.speciesData?.wikipediaUrl = webUrl
+                    if let img = imageUrl, !img.isEmpty {
+                        self.speciesData?.referenceImageUrl = img
+                    }
                 }
             }
             
@@ -303,7 +309,7 @@ final class InferenceEngine: ObservableObject {
                  let container = context.container
                  await Task.detached(priority: .background) {
                      let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: extract, url: webUrl)
+                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: extract, url: webUrl, imageUrl: imageUrl)
                  }.value
             }
             
@@ -356,6 +362,7 @@ final class InferenceEngine: ObservableObject {
         self.isProcessing = true
         
         self.activeImageData = nil
+        self.validHistoricImagePaths = []
         var paths: [String] = []
         if let localPath = record.localImagePath {
             paths.append(localPath)
@@ -430,8 +437,8 @@ final class InferenceEngine: ObservableObject {
         )
         self.isProcessing = false
         
-        // Retroactively hydrate any legacy offline scans that missed the initial Wikipedia extract resolution
-        if record.isBiological && record.wikipediaExtract == nil {
+        // Retroactively hydrate any legacy offline scans that missed the initial Wikipedia extract resolution OR Wikipedia reference images
+        if record.isBiological && (record.wikipediaExtract == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty) {
             let safeContext = record.modelContext
             Task {
                 await self.asynchronouslyFetchWikipediaAndHydrate(for: record.scientificName, scanId: record.id, modelContext: safeContext)

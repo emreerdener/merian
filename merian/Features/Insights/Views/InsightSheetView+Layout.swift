@@ -41,7 +41,11 @@ extension InsightSheetView {
     
     @ViewBuilder
     var biologicalContent: some View {
-        InsightBiologicalContentView(isSafariPresented: $isSafariPresented, selectedWikiURL: $selectedWikiURL)
+        InsightBiologicalContentView(
+            isSafariPresented: $isSafariPresented, 
+            selectedWikiURL: $selectedWikiURL,
+            timestamp: activeLocalRecord?.timestamp
+        )
     }
     
     @ViewBuilder

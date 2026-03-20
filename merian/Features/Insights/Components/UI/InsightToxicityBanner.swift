@@ -31,19 +31,6 @@ struct InsightToxicityBanner: View {
             // Accessibility: Explicitly anchor screen readers to the threat first
             .accessibilityAddTraits(.isHeader)
             .shadow(color: .red.opacity(0.5), radius: 10, y: 5)
-        } else {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "info.circle.fill")
-                    .foregroundColor(.secondary)
-                    .padding(.top, 2)
-                Text("Merian is an educational tool. Never ingest wild flora. Be cautious around unknown species.")
-                    .font(.system(.caption))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.leading)
-                    .lineSpacing(4)
-                Spacer()
-            }
-            .glassCard()
         }
     }
 }
