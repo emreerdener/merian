@@ -73,7 +73,7 @@ _Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `M
 
 ### `OfflineQueuedScan`
 
-Locally captures state when cell towers drop. `MerianSchemaV9` cleanly expands the cached telemetry payload securely caching explicit context boundaries locally when off-grid.
+Locally captures state when cell towers drop. `MerianSchemaV10` cleanly expands the cached telemetry payload securely caching explicit context boundaries locally when off-grid.
 
 - `id`: String (UUID)
 - `timestamp`: Date
@@ -103,8 +103,8 @@ Tracks locally synchronized and unique species scans natively for the Scans libr
 - `isInvasive`: Bool (from Edge)
 - `ecologyType`: String (from Edge)
 - `semanticTags`: [String] (AI-generated hidden array of contextual tags to power local, offline semantic search routing without requiring an internet connection).
-- `wikipediaUrl`: String?
-- `wikipediaExtract`: String? (Explicit text payload from REST API mapped into `MerianSchemaV5` for native offline UI caching).
+- `wikipediaUrl`: String? (Asynchronously hydrated by the `BackgroundDatabaseActor` after standalone REST execution resolving bounds offline)
+- `wikipediaExtract`: String? (Explicit text payload from REST API mapped iteratively by `updateScanWithWikipedia` natively into iOS persistent storage).
 - `referenceImageUrl`: String?
 - `isLocallyArchived`: Bool (Managed internally by the Archive Safety Protocol to track R2 payloads downloaded before the 90-day free tier expiration limit).
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`, `taxonomyFamily`, `taxonomyGenus`: String? (Explicitly stored Linnaean taxonomy fields mapped into `MerianSchemaV3` enabling rigid detached background semantic discovery loops natively bypassing arbitrary UI `ecology_type` bounds safely.)

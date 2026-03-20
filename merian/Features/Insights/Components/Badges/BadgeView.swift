@@ -9,6 +9,7 @@ struct BadgeView: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
+                .frame(width: 16, height: 16)
             Text(text)
         }
         .font(.system(.footnote))

@@ -106,6 +106,8 @@ The `merianResponseSchema` within Deno forces Gemini structurally into this exac
 
 To completely eliminate network bottleneck latency, the `/identify` Edge Function generates the `scan_id` locally using `crypto.randomUUID()` and **instantaneously returns the `data` payload natively** to the iOS application as soon as the Gemini inference completes. It permanently abstracts all relational PostgreSQL insertions, background R2 uploads, and parallel API scrapers (GBIF/Wikipedia) securely behind an asynchronous `EdgeRuntime.waitUntil` boundary preventing UI threading locks implicitly.
 
+> **Note on Wikipedia Extraction:** Because the server asynchronously fetches Wikipedia payload metadata natively inside of PostgreSQL *after* delivering the active response down to iOS, live scans will execute instantaneously but omit Wikipedia references structurally. The iOS client intentionally triggers a secondary `fetch` to `en.wikipedia.org/api/rest_v1/page/summary/` synchronously with the rendering timeline to backfill the `InsightSheetView` UI organically via `@Published` property wrapper mutations without compromising initial AI performance.
+
 ```json
 {
   "success": true,

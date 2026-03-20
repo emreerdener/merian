@@ -39,7 +39,11 @@ struct InsightCarouselView: View {
                     .aspectRatio(1.0, contentMode: .fill)
                     .mask(
                         LinearGradient(
-                            colors: [.black, .black, .black.opacity(0.8), .clear],
+                            stops: [
+                                .init(color: .black, location: 0.0),   // Anchor opaque at top
+                                .init(color: .black, location: 0.8),   // Hold fully opaque down to exactly 80%
+                                .init(color: .clear, location: 1.0)    // Rapidly fade to clear only in the final 20%
+                            ],
                             startPoint: .top,
                             endPoint: .bottom
                         )

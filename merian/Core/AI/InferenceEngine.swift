@@ -181,6 +181,12 @@ final class InferenceEngine: ObservableObject {
                     
                     let totalPipelineTime = CFAbsoluteTimeGetCurrent() - boundaryStartTime
                     print("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime)) seconds!")
+                    
+                    if mappedData.isBiological {
+                        Task {
+                            await self.asynchronouslyFetchWikipediaAndHydrate(for: mappedData.scientificName, scanId: mappedData.scanId, modelContext: modelContext)
+                        }
+                    }
                 }
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
@@ -259,6 +265,54 @@ final class InferenceEngine: ObservableObject {
         }
     }
     
+    /// Hits the Wikimedia Desktop Summary framework independently skipping the Inference loop latency cost natively.
+    private func asynchronouslyFetchWikipediaAndHydrate(for species: String, scanId: String?, modelContext: ModelContext?) async {
+        guard !species.isEmpty, species.lowercased() != "taxonomy unavailable", species.lowercased() != "unknown subject" else { return }
+        
+        // Match the backend whitespace replacement strategy safely enforcing capital bounds explicitly
+        let normalized = species.replacingOccurrences(of: " ", with: "_")
+        guard let enc = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(enc)") else { return }
+        
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 4.0
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return }
+            
+            struct WikiRes: Decodable {
+                let extract: String?
+                let content_urls: ContentURLs?
+                struct ContentURLs: Decodable { let desktop: Desktop? }
+                struct Desktop: Decodable { let page: String? }
+            }
+            
+            let decoded = try JSONDecoder().decode(WikiRes.self, from: data)
+            
+            guard let extract = decoded.extract, let webUrl = decoded.content_urls?.desktop?.page else { return }
+            
+            await MainActor.run {
+                if self.speciesData?.scientificName == species {
+                    self.speciesData?.wikipediaExtract = extract
+                    self.speciesData?.wikipediaUrl = webUrl
+                }
+            }
+            
+            if let scanId = scanId, let context = modelContext {
+                 let container = context.container
+                 await Task.detached(priority: .background) {
+                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: extract, url: webUrl)
+                 }.value
+            }
+            
+        } catch {
+            print("Silently bypassed Wikipedia background hydration: \(error)")
+        }
+    }
+    
+
 
     
     /// Halts active inferences instantly if the iOS Watchdog forces a termination
@@ -356,6 +410,14 @@ final class InferenceEngine: ObservableObject {
             weatherTemperatureF: record.weatherTemperatureF
         )
         self.isProcessing = false
+        
+        // Retroactively hydrate any legacy offline scans that missed the initial Wikipedia extract resolution
+        if record.isBiological && record.wikipediaExtract == nil {
+            let safeContext = record.modelContext
+            Task {
+                await self.asynchronouslyFetchWikipediaAndHydrate(for: record.scientificName, scanId: record.id, modelContext: safeContext)
+            }
+        }
     }
     
 

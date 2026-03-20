@@ -20,8 +20,8 @@ struct SpeciesData {
     let insightData: InsightData
     let confidenceScore: Double
     let diagnosticComparison: DiagnosticComparison?
-    let wikipediaUrl: String?
-    let wikipediaExtract: String?
+    var wikipediaUrl: String?
+    var wikipediaExtract: String?
     let referenceImageUrl: String?
     
     let isBiological: Bool

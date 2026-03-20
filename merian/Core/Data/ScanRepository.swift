@@ -95,7 +95,8 @@ actor HistoricalDatabaseActor {
             let dict = scan.species_dictionary
             let sciName = dict?.scientific_name ?? "Unknown Subject"
             let cName = dict?.common_names?.compactMap { $0.value }.first ?? sciName
-            let desc = dict?.descriptions?.compactMap { $0.value }.first ?? "No ecological description available for this subject."
+            let desc = dict?.descriptions?["insight"]?.flatMap { $0 } ?? "No ecological description available for this subject."
+            let wikiExtract = dict?.descriptions?["wikipedia"]?.flatMap { $0 }
             
             // If it exists safely mapped in R2, explicitly ingest the clean public Cloudflare Web URL natively
             let rawR2Image = scan.image_storage_urls?.first
@@ -115,6 +116,7 @@ actor HistoricalDatabaseActor {
                 isInvasive: scan.is_invasive ?? false,
                 ecologyType: scan.ecology_type ?? "unknown",
                 wikipediaUrl: dict?.wikipedia_url,
+                wikipediaExtract: wikiExtract,
                 referenceImageUrl: rawR2Image ?? dict?.reference_image_url,
                 additionalImagePaths: nil,
                 confidenceScore: scan.ai_confidence_score,

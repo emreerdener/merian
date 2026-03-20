@@ -7,7 +7,7 @@ extension InsightSheetView {
     @ViewBuilder
     var scrollableCanvas: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: 16) {
                 InsightCarouselView()
                     .background(GeometryReader { proxy in
                         Color.clear.preference(

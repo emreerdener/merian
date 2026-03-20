@@ -611,4 +611,16 @@ actor BackgroundDatabaseActor {
         }
         return newDiscovery
     }
+    
+    /// Autonomously updates the SwiftData struct securely on an actor thread post-inference to retroactively hydrate Wikipedia data.
+    func updateScanWithWikipedia(scanId: String, extract: String, url: String) {
+        let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        if let record = (try? modelContext.fetch(fetchDescriptor))?.first {
+            record.wikipediaExtract = extract
+            record.wikipediaUrl = url
+            try? modelContext.save()
+        }
+    }
 }

@@ -11,12 +11,11 @@ struct InsightDescriptionSection: View {
             VStack(alignment: .leading, spacing: 16) {
                 if let wikiExtract = data.wikipediaExtract {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Wikipedia snippet")
-                            .font(.system(.subheadline))
-                            .fontWeight(.bold)
-                            .foregroundColor(.primary)
+                        Text("More information")
+                          .font(.system(.headline))
+                            .padding(.bottom, 8)
                         Text(wikiExtract)
-                            .font(.system(.footnote))
+                            .font(.system(.body))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -26,23 +25,23 @@ struct InsightDescriptionSection: View {
                         selectedWikiURL = wikiUrl
                         isSafariPresented = true
                     }) {
-                        HStack {
-                            Image(systemName: "safari.fill")
-                            Text("Read article on Wikipedia")
+                        HStack(spacing: 12) {
+                            Image(systemName: "safari")
+                                
+                            Text("Read more on Wikipedia")
                                 .font(.system(.body))
+                                
                             Spacer()
+                            
+                            // Maps mathematically to the exact native iOS indicator geometries
                             Image(systemName: "chevron.right")
                         }
-                        .padding()
-                        .background(Color(UIColor.secondarySystemFill))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color(UIColor.separator), lineWidth: 1)
-                        )
+                        .padding(.vertical, 14) // Standard List row vertical metrics
+                        .padding(.horizontal, 16)
+                        .background(Color(UIColor.tertiarySystemFill)) // Native translucent overlay depth
                         .cornerRadius(12)
                     }
                     .padding(.top, 4)
-                    .foregroundColor(.primary)
                 }
             }
             .glassCard()
