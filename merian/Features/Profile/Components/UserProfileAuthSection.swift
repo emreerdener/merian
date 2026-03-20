@@ -4,41 +4,7 @@ struct UserProfileAuthSection: View {
     @ObservedObject var supabase: SupabaseManager
     
     var body: some View {
-        if supabase.isGuestUser {
-            VStack(spacing: 16) {
-                Button(action: {
-                    supabase.startAppleSignIn()
-                }) {
-                    HStack {
-                        Image(systemName: "applelogo")
-                        Text("Sign in with Apple")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.primary)
-                    .foregroundColor(Color(UIColor.systemBackground))
-                    .cornerRadius(14)
-                }
-                
-                Button(action: {
-                    Task {
-                        await supabase.signInWithGoogle()
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "g.circle.fill")
-                        Text("Sign in with Google")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .foregroundColor(.primary)
-                    .cornerRadius(14)
-                }
-            }
-        } else {
+        if !supabase.isGuestUser {
             VStack(spacing: 16) {
                 Button(action: {
                     Task {

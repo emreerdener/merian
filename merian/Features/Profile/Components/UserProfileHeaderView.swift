@@ -43,7 +43,6 @@ struct UserProfileHeaderView: View {
         VStack(spacing: 24) {
             // Digital Terrarium Hero Placeholer
             TerrariumView()
-                .frame(height: 240)
                 .padding(.top, 8)
                 .padding(.bottom, 24)
                 
@@ -60,60 +59,83 @@ struct UserProfileHeaderView: View {
                     .padding(.horizontal, 32)
             }
 
-            // Smaller User Account Card
-            Button(action: {
-                if userName == nil {
-                    onSettingsTap()
-                }
-            }) {
-                HStack(spacing: 12) {
-                    if let avatarURL = userAvatarURL {
-                        AsyncImage(url: avatarURL) { image in
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        } placeholder: {
-                            ProgressView()
+            // Authentication / User Profile Block
+            VStack {
+                if supabase.isGuestUser {
+                    // Sign In Flow
+                    VStack(spacing: 12) {
+                        Button(action: {
+                            supabase.startAppleSignIn()
+                        }) {
+                            HStack {
+                                Image(systemName: "applelogo")
+                                Text("Sign in with Apple")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.primary)
+                            .foregroundColor(Color(UIColor.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
-                        .frame(width: 48, height: 48)
-                        .clipShape(Circle())
-                    } else {
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .frame(width: 48, height: 48)
-                            .foregroundColor(.gray)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(userName ?? "Guest Explorer")
-                            .font(.headline)
-                            .fontWeight(.semibold)
                         
-                        if userName == nil {
-                            Text("Unlinked account")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        Button(action: {
+                            Task {
+                                await supabase.signInWithGoogle()
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "g.circle.fill")
+                                Text("Sign in with Google")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color(UIColor.secondarySystemGroupedBackground))
+                            .foregroundColor(.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                    }
+                } else {
+                    // Authenticated User Profile Card
+                    HStack(spacing: 12) {
+                        if let avatarURL = userAvatarURL {
+                            AsyncImage(url: avatarURL) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            } placeholder: {
+                                ProgressView()
+                            }
+                            .frame(width: 48, height: 48)
+                            .clipShape(Circle())
                         } else {
+                            Image(systemName: "person.crop.circle.fill")
+                                .resizable()
+                                .frame(width: 48, height: 48)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(userName ?? "Explorer")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
                             Text("Connected account")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                        
+                        Spacer()
                     }
-                    
-                    Spacer()
-                    
-                    if userName == nil {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.secondary)
-                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color(UIColor.secondarySystemGroupedBackground))
+                    )
                 }
-                .padding(12)
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(16)
-                .padding(.horizontal, 24)
             }
-            .buttonStyle(PlainButtonStyle())
+
         }
         .task {
             let container = modelContext.container

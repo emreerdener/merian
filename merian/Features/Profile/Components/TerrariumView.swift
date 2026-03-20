@@ -15,7 +15,6 @@ struct TerrariumView: View {
             // Glassmorphic interactive circle backdrop
             Circle()
                 .fill(.ultraThinMaterial)
-                .frame(width: 300, height: 300)
             if isRiveFileBundled {
                 ActiveTerrariumRenderer()
             } else {
@@ -30,7 +29,7 @@ struct TerrariumView: View {
                 }
             }
         }
-        .padding(40)
+        .frame(width: 240, height: 200)
     }
 }
 
