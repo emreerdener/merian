@@ -70,9 +70,11 @@ extension InsightSheetView {
                 }
             }
             
+            let finalPhotosSaved = photosSaved
+            
             await MainActor.run {
                 self.isSavingPhotos = false
-                if photosSaved > 0 {
+                if finalPhotosSaved > 0 {
                     HapticManager.shared.triggerSuccessPulse()
                     self.showSaveSuccessAlert = true
                 }
