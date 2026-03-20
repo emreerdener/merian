@@ -11,7 +11,7 @@ struct InsightTaxonomyTree: View {
                         .foregroundColor(.secondary)
                     Text("Taxonomy")
                         .font(.system(.headline))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                 }
                 
                 VStack(spacing: 12) {
@@ -35,7 +35,7 @@ struct InsightTaxonomyTree: View {
                 .font(.system(.caption, design: .monospaced))
                 .fontWeight(.bold)
                 .tracking(1)
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundColor(.secondary)
             
             Spacer()
             
@@ -43,7 +43,7 @@ struct InsightTaxonomyTree: View {
                 .font(.system(.subheadline))
                 .italic(!isSpecies)
                 .fontWeight(isSpecies ? .bold : .regular)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
         }
     }
 }

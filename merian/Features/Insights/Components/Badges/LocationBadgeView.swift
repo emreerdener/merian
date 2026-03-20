@@ -17,8 +17,6 @@ struct LocationBadgeView: View {
                     .lineLimit(1)
             }
             .font(.system(.subheadline))
-            .foregroundColor(.white)
-            .shadow(color: .black.opacity(0.8), radius: 2, x: 0, y: 1)
         }
     }
 }

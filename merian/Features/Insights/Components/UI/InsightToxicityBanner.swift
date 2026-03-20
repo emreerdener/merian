@@ -34,11 +34,11 @@ struct InsightToxicityBanner: View {
         } else {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "info.circle.fill")
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.secondary)
                     .padding(.top, 2)
                 Text("Merian is an educational tool. Never ingest wild flora. Be cautious around unknown species.")
                     .font(.system(.caption))
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundColor(.secondary)
                     .multilineTextAlignment(.leading)
                     .lineSpacing(4)
                 Spacer()

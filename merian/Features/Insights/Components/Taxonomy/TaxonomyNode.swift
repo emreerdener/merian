@@ -9,12 +9,12 @@ struct TaxonomyNode: View {
             Text(level)
                 .font(.system(.caption2, design: .serif))
                 .bold()
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(.secondary)
                 .textCase(.uppercase)
             Text(name)
                 .font(.system(.subheadline, design: .serif))
                 .fontWeight(.semibold)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
@@ -22,7 +22,7 @@ struct TaxonomyNode: View {
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                .stroke(Color(UIColor.separator), lineWidth: 1)
         )
     }
 }

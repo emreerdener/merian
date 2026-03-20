@@ -16,7 +16,7 @@ struct DiagnosticComparisonView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Reasoning")
                                 .font(.system(.headline))
-                                .foregroundColor(.white)
+                                .foregroundColor(.primary)
                             
                             Text("NEURAL ENGINE V4.2")
                                 .font(.system(.caption2, design: .monospaced)) // sleek neon typography feel
@@ -30,14 +30,14 @@ struct DiagnosticComparisonView: View {
                 // Faint Watermark
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 44))
-                    .foregroundColor(.white.opacity(0.04))
+                    .foregroundColor(Color(UIColor.label).opacity(0.04))
                     .offset(x: 10, y: -10)
             }
             
             // Body: Primary Rationale
             Text(diagnosticData.primaryMatchRationale)
                 .font(.system(.subheadline))
-                .foregroundColor(.white.opacity(0.9))
+                .foregroundColor(.primary)
                 .lineSpacing(4)
             
             // Lookalike Block
@@ -55,13 +55,13 @@ struct DiagnosticComparisonView: View {
                     
                     Text("This specimen shares strong morphological traits with \(diagnosticData.confusingLookalikeName).")
                         .font(.system(.footnote))
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(.secondary)
                         .lineSpacing(2)
                 }
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 12)
-            .background(Color.white.opacity(0.05))
+            .background(Color(UIColor.tertiarySystemFill))
             .cornerRadius(12)
             
             // Morphological Weighting (Key Differentiators)
@@ -69,7 +69,7 @@ struct DiagnosticComparisonView: View {
                 Text("MORPHOLOGICAL ANALYSIS")
                     .font(.system(.caption2, design: .monospaced))
                     .fontWeight(.bold)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.secondary)
                     .tracking(1)
                 
                 ForEach(Array(diagnosticData.keyDifferentiators.enumerated()), id: \.element) { index, diff in
@@ -81,7 +81,7 @@ struct DiagnosticComparisonView: View {
                         
                         Text(diff)
                             .font(.system(.subheadline))
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundColor(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -92,7 +92,7 @@ struct DiagnosticComparisonView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                .stroke(Color(UIColor.separator), lineWidth: 0.5)
         )
     }
 }

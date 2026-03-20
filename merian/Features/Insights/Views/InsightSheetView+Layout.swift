@@ -47,11 +47,11 @@ extension InsightSheetView {
             Text(commonName)
                 .font(.system(.largeTitle, design: .serif))
                 .fontWeight(.bold)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             
             Text(species.insightData.description)
                 .font(.system(.body, design: .serif))
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.secondary)
                 .lineSpacing(6)
         }
         .glassCard()

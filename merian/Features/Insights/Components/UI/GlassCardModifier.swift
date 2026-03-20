@@ -8,9 +8,9 @@ struct GlassCardModifier: ViewModifier {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                    .stroke(Color(UIColor.separator), lineWidth: 0.5)
             )
-            .shadow(color: .black.opacity(0.4), radius: 30, x: 0, y: 15)
+            .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
     }
 }
 

@@ -17,7 +17,7 @@ struct InsightTaxonomyHeader: View {
         VStack(alignment: .center, spacing: 24) {
              VStack(alignment: .center, spacing: 8) {
                 Text(scientificName)
-                    .font(.system(.title3, design: .serif))
+                    .font(.system(.title3))
                     .italic()
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

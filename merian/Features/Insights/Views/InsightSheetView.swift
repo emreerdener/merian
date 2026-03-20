@@ -87,8 +87,6 @@ struct InsightSheetView: View {
             }
             
             // Presentation Logic Hook
-            .presentationBackground(.black)
-            .preferredColorScheme(.dark)
             .presentationDetents([.large])
             .presentationDragIndicator(.hidden)
             .onAppear { evaluateVoiceOverAndCelebration() }

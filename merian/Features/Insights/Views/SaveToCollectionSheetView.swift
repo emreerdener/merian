@@ -18,7 +18,6 @@ struct SaveToCollectionSheetView: View {
             ZStack {
                 Rectangle()
                     .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
                     .ignoresSafeArea()
                 
                 if localRecord == nil {
@@ -38,10 +37,10 @@ struct SaveToCollectionSheetView: View {
                                 }
                                 .padding()
                                 .foregroundColor(.blue)
-                                .background(Color.white.opacity(0.05))
+                                .background(Color(UIColor.tertiarySystemFill))
                             }
                             
-                            Divider().background(Color.white.opacity(0.1))
+                            Divider().background(Color(UIColor.separator))
                             
                             ForEach(collections) { collection in
                                 let isInCollection = collection.scans?.contains(where: { $0.id == scanId }) ?? false
@@ -56,7 +55,7 @@ struct SaveToCollectionSheetView: View {
                                             .frame(width: 24)
                                         
                                         Text(collection.name)
-                                            .foregroundColor(.white)
+                                            .foregroundColor(.primary)
                                         
                                         Spacer()
                                         
@@ -67,9 +66,9 @@ struct SaveToCollectionSheetView: View {
                                         }
                                     }
                                     .padding()
-                                    .background(Color.white.opacity(0.05))
+                                    .background(Color(UIColor.tertiarySystemFill))
                                 }
-                                Divider().background(Color.white.opacity(0.1))
+                                Divider().background(Color(UIColor.separator))
                             }
                         }
                         .cornerRadius(12)
@@ -81,14 +80,13 @@ struct SaveToCollectionSheetView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 }
             }
             .alert("New Collection", isPresented: $showNewCollectionAlert) {

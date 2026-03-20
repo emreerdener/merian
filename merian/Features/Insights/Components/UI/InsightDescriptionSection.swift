@@ -14,10 +14,10 @@ struct InsightDescriptionSection: View {
                         Text("Wikipedia snippet")
                             .font(.system(.subheadline))
                             .fontWeight(.bold)
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundColor(.primary)
                         Text(wikiExtract)
                             .font(.system(.footnote))
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(.secondary)
                     }
                 }
                     
@@ -34,15 +34,15 @@ struct InsightDescriptionSection: View {
                             Image(systemName: "chevron.right")
                         }
                         .padding()
-                        .background(Color.white.opacity(0.1))
+                        .background(Color(UIColor.secondarySystemFill))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                .stroke(Color(UIColor.separator), lineWidth: 1)
                         )
                         .cornerRadius(12)
                     }
                     .padding(.top, 4)
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 }
             }
             .glassCard()

@@ -19,9 +19,8 @@ struct ConfidenceBadgeView: View {
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(
                 Capsule()
-                    .stroke(score >= 0.85 ? Color.green.opacity(0.3) : Color.orange.opacity(0.3), lineWidth: 0.5)
+                    .stroke(score >= 0.85 ? Color.green.opacity(0.5) : Color.orange.opacity(0.5), lineWidth: 0.5)
             )
-            .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
         }
     }
 }

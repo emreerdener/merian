@@ -22,6 +22,5 @@ struct BadgeView: View {
             Capsule()
                 .stroke(color == .white || color == .gray || color == .secondary ? Color.white.opacity(0.3) : color.opacity(0.3), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
     }
 }
