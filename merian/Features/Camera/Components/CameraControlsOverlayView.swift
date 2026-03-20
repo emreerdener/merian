@@ -2,9 +2,12 @@ import SwiftUI
 import PhotosUI
 
 struct CameraControlsOverlayView: View {
-    @ObservedObject var viewModel: CameraViewModel
-    @EnvironmentObject var cameraManager: CameraManager
-    @EnvironmentObject var photoLibraryManager: PhotoLibraryManager
+    let latestThumbnail: UIImage?
+    let isFlashEnabled: Bool
+    @Binding var selectedPhotoItem: PhotosPickerItem?
+    @Binding var activeSheet: CameraViewModel.ActiveSheet?
+    let onCapture: () -> Void
+    let onToggleFlash: () -> Void
     
     var body: some View {
         VStack {
@@ -15,10 +18,9 @@ struct CameraControlsOverlayView: View {
             
             HStack(alignment: .bottom) {
                 // Photo Library Button
-                let thumb = photoLibraryManager.latestThumbnail
-                PhotosPicker(selection: $viewModel.selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
                     ZStack {
-                        if let thumbnail = thumb {
+                        if let thumbnail = latestThumbnail {
                             Image(uiImage: thumbnail)
                                 .resizable()
                                 .scaledToFill()
@@ -52,7 +54,7 @@ struct CameraControlsOverlayView: View {
                 .environment(\.colorScheme, .dark)
                 .onTapGesture {
                     UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-                    viewModel.executeCapture()
+                    onCapture()
                 }
                 .padding(.bottom, 32)
                 
@@ -61,11 +63,11 @@ struct CameraControlsOverlayView: View {
                 // Flash toggle
                 Button(action: {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    cameraManager.toggleFlash()
+                    onToggleFlash()
                 }) {
-                    Image(systemName: cameraManager.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                    Image(systemName: isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(cameraManager.isFlashEnabled ? .yellow : .white)
+                        .foregroundColor(isFlashEnabled ? .yellow : .white)
                         .frame(width: 50, height: 50)
                         .background(.ultraThinMaterial, in: Circle())
                         .environment(\.colorScheme, .dark)
@@ -77,12 +79,12 @@ struct CameraControlsOverlayView: View {
             
             MainTabBar(
                 isScansOpen: Binding(
-                    get: { viewModel.activeSheet == .scans }, 
-                    set: { if $0 { viewModel.activeSheet = .scans } else if viewModel.activeSheet == .scans { viewModel.activeSheet = nil } }
+                    get: { activeSheet == .scans }, 
+                    set: { if $0 { activeSheet = .scans } else if activeSheet == .scans { activeSheet = nil } }
                 ),
                 isUserProfileOpen: Binding(
-                    get: { viewModel.activeSheet == .profile }, 
-                    set: { if $0 { viewModel.activeSheet = .profile } else if viewModel.activeSheet == .profile { viewModel.activeSheet = nil } }
+                    get: { activeSheet == .profile }, 
+                    set: { if $0 { activeSheet = .profile } else if activeSheet == .profile { activeSheet = nil } }
                 )
             )
             .padding(.bottom, 24)

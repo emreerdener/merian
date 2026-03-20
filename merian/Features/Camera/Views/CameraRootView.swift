@@ -48,15 +48,10 @@ struct CameraRootView: View {
             .ignoresSafeArea()
             
             
-            if showFocusIndicator, let location = focusLocation {
-                Rectangle()
-                    .stroke(Color.yellow, lineWidth: 1.5)
-                    .frame(width: 72, height: 72)
-                    .position(x: location.x, y: location.y)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: location)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-            }
+            CameraFocusIndicatorView(
+                showFocusIndicator: showFocusIndicator,
+                focusLocation: focusLocation
+            )
             
             // Shutter Snap Animation
             Color.black
@@ -70,9 +65,13 @@ struct CameraRootView: View {
             // Action Overlay Context
             if !viewModel.isAnalyzingFullscreen {
                 // Extracted Shutter Button Overlay
-                // Extracted Shutter Button Overlay
                 CameraControlsOverlayView(
-                    viewModel: viewModel
+                    latestThumbnail: photoLibraryManager.latestThumbnail,
+                    isFlashEnabled: cameraManager.isFlashEnabled,
+                    selectedPhotoItem: $viewModel.selectedPhotoItem,
+                    activeSheet: $viewModel.activeSheet,
+                    onCapture: { viewModel.executeCapture() },
+                    onToggleFlash: { cameraManager.toggleFlash() }
                 )
             }
             
@@ -82,35 +81,10 @@ struct CameraRootView: View {
                     .transition(.opacity)
                     .zIndex(10)
             }
-            }
-        }
+            } // ZStack
+        } // NavigationStack
         // Unified Application Sheet Router Overlay
-        .sheet(item: $viewModel.activeSheet, onDismiss: {
-            viewModel.handleSheetDismiss()
-        }) { sheet in
-            Group {
-                switch sheet {
-                case .insight:
-                    InsightSheetView(isPresented: Binding(
-                        get: { viewModel.activeSheet == .insight },
-                        set: { if !$0 && viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
-                    ))
-                case .paywall:
-                    PaywallView()
-                case .profile:
-                    UserProfileView()
-                case .scans:
-                    ScansSearchView(isInsightSheetOpen: Binding(
-                        get: { viewModel.activeSheet == .insight },
-                        set: { if $0 { viewModel.activeSheet = .insight } else if viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
-                    ))
-                }
-            }
-            .presentationDragIndicator(.hidden)
-            .onAppear {
-                viewModel.handleSheetAppear()
-            }
-        }
+        .cameraSheetRouter(viewModel: viewModel)
         .onAppear {
             cameraManager.startSession()
             photoLibraryManager.startObservingAndFetch()

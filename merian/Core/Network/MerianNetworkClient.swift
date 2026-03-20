@@ -211,4 +211,18 @@ class MerianNetworkClient {
         
         return url
     }
+    
+    // Step 8: Flag Issue Logging
+    func submitFlagIssue(scanId: String, flagReason: String, userSuggestion: String, userId: String) async throws {
+        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/flag-issue")!
+        let payload: [String: Any] = [
+            "scanId": scanId,
+            "userId": userId,
+            "flagReason": flagReason,
+            "userSuggestion": userSuggestion.isEmpty ? "" : userSuggestion
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
 }

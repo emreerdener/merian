@@ -6,14 +6,17 @@ struct InsightBiologicalContentView: View {
     @Binding var selectedWikiURL: URL?
 
     var body: some View {
-        InsightTaxonomyHeader()
+        InsightTaxonomyHeader(speciesData: inferenceEngine.speciesData)
             .padding(.horizontal)
         
         InsightToxicityBanner()
             .padding(.horizontal)
             .padding(.top, 8)
             
-        InsightTaxonomyTree()
+        InsightTaxonomyTree(
+            taxonomyData: inferenceEngine.speciesData?.taxonomy,
+            scientificName: inferenceEngine.speciesData?.scientificName
+        )
             .padding(.horizontal)
             .padding(.top, 8)
 

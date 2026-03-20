@@ -1,18 +1,19 @@
 import SwiftUI
 
 struct WeatherBadgeView: View {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    let temperatureF: Double?
+    let condition: String?
     
     var body: some View {
         #if targetEnvironment(simulator)
-        let temp: Double? = inferenceEngine.speciesData?.weatherTemperatureF ?? 64.0
-        let condition: String? = inferenceEngine.speciesData?.weatherCondition ?? "Foggy"
+        let temp: Double? = temperatureF ?? 64.0
+        let cond: String? = condition ?? "Foggy"
         #else
-        let temp: Double? = inferenceEngine.speciesData?.weatherTemperatureF
-        let condition: String? = inferenceEngine.speciesData?.weatherCondition
+        let temp: Double? = temperatureF
+        let cond: String? = condition
         #endif
         
-        if let validTemp = temp, let validCondition = condition {
+        if let validTemp = temp, let validCondition = cond {
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 8) {
                     Image(systemName: weatherIcon(for: validCondition))

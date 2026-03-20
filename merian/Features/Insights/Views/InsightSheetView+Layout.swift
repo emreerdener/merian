@@ -53,65 +53,27 @@ extension InsightSheetView {
     
     @ViewBuilder
     var celebrationOverlay: some View {
-        if showCelebration {
-            VStack {
-                NewDiscoveryCelebrationView(
-                    commonName: commonName,
-                    onDismiss: {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            showCelebration = false
-                        }
-                    }
-                )
-                .padding(.top, 16)
-                Spacer()
-            }
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .zIndex(100)
-        }
+        InsightCelebrationOverlayView(
+            commonName: commonName,
+            showCelebration: $showCelebration
+        )
     }
     
     @ViewBuilder
     var addCollectionButton: some View {
-        Menu {
-            if let favorites = collections.first(where: { $0.name == "Favorites" }) {
-                let isFavorited = activeLocalRecord?.collections?.contains(where: { $0.id == favorites.id }) ?? false
-                Button(action: { toggleScanInCollection(favorites) }) {
-                    Label("Favorites", systemImage: isFavorited ? "heart.fill" : "heart")
-                }
-                Divider()
-            }
-            
-            ForEach(collections.filter { $0.name != "Favorites" }) { collection in
-                let isSelected = activeLocalRecord?.collections?.contains(where: { $0.id == collection.id }) ?? false
-                Button(action: { toggleScanInCollection(collection) }) {
-                    Label(collection.name, systemImage: isSelected ? "checkmark.circle.fill" : "folder")
-                }
-            }
-            Divider()
-            Button(action: { showNewCollectionAlert = true }) {
-                Label("New Collection...", systemImage: "folder.badge.plus")
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text("Add to collection")
-            }
-            .padding(.horizontal, 16)
-            .foregroundColor(.secondary)
-        }
-        .disabled(inferenceEngine.speciesData?.scanId == nil)
+        InsightAddCollectionButtonView(
+            collections: collections,
+            activeLocalRecord: activeLocalRecord,
+            toggleScanInCollection: { collection in toggleScanInCollection(collection) },
+            showNewCollectionAlert: $showNewCollectionAlert,
+            hasScanId: inferenceEngine.speciesData?.scanId != nil
+        )
     }
     
     @ViewBuilder
     var shareActionButton: some View {
-        Button(action: { shareDiscovery() }) {
-            HStack(spacing: 6) {
-                Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 16, weight: .semibold))
-                Text("Share")
-            }
-            .padding(.horizontal, 16)
-        }
-        .buttonStyle(.borderedProminent)
+        InsightShareActionButtonView(
+            shareDiscovery: { shareDiscovery() }
+        )
     }
 }

@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct CategoryFilterBar: View {
-    @ObservedObject var searchManager: ScansSearchManager
     let filterCategories: [String]
+    @Binding var activeCategory: String
+    let onCategorySelected: (String) -> Void
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -10,12 +11,8 @@ struct CategoryFilterBar: View {
                 ForEach(filterCategories, id: \.self) { category in
                     Button(action: {
                         withAnimation {
-                            if !searchManager.searchQuery.isEmpty {
-                                searchManager.activeCategoryFilter = category
-                                searchManager.searchQuery = "" // Triggers onChange debounced search
-                            } else {
-                                searchManager.performSearch(query: "", category: category)
-                            }
+                            activeCategory = category
+                            onCategorySelected(category)
                         }
                     }) {
                         Text(category)
@@ -23,8 +20,8 @@ struct CategoryFilterBar: View {
                             .fontWeight(.medium)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(searchManager.activeCategoryFilter == category ? Color.primary : Color.secondary.opacity(0.15))
-                            .foregroundColor(searchManager.activeCategoryFilter == category ? Color(UIColor.systemBackground) : .primary)
+                            .background(activeCategory == category ? Color.primary : Color.secondary.opacity(0.15))
+                            .foregroundColor(activeCategory == category ? Color(UIColor.systemBackground) : .primary)
                             .clipShape(Capsule())
                     }
                 }

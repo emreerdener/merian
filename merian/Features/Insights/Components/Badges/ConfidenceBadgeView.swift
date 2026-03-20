@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct ConfidenceBadgeView: View {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    let confidenceScore: Double?
     
     var body: some View {
-        if let score = inferenceEngine.speciesData?.confidenceScore, score > 0 {
+        if let score = confidenceScore, score > 0 {
             HStack(spacing: 4) {
                 Text("\(Int(score * 100))% CONFIDENCE")
                     .font(.system(.caption))

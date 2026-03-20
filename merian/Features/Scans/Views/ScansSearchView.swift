@@ -35,161 +35,24 @@ struct ScansSearchView: View {
         NavigationStack {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
-                VStack(spacing: 8) {
-                    if searchManager.searchQuery.isEmpty && !isSearchFocused {
-                        CategoryFilterBar(searchManager: searchManager, filterCategories: filterCategories)
-                    } else {
-                        HStack {
-                            Text(searchManager.searchQuery.isEmpty ? "Search library" : "Search results")
-                                .font(.title3)
-                                .fontWeight(.bold)
-                            
-                            Spacer()
-                            
-                            Text("\(searchManager.filteredScans.count) found")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 12)
-                        .padding(.bottom, 4)
+                ScansLibraryGridView(
+                    searchManager: searchManager,
+                    filterCategories: filterCategories,
+                    isSearchFocused: isSearchFocused,
+                    onSelect: { scan in
+                        selectedScanForInsight = scan
+                        inferenceEngine.load(from: scan)
+                    },
+                    onDelete: { scan in
+                        scanToDelete = scan
+                        showDeleteConfirmation = true
                     }
-                    
-                    ScrollView {
-                        if searchManager.filteredScans.isEmpty {
-                            EmptyStateView(
-                                iconName: "camera.macro",
-                                title: "No scans found",
-                                message: {
-                                    if !searchManager.searchQuery.isEmpty {
-                                        return "No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter)"
-                                    } else if searchManager.activeCategoryFilter != "All" {
-                                        return "You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet"
-                                    } else {
-                                        return "Start exploring and capture your first scan!"
-                                    }
-                                }()
-                            )
-                        } else {
-                            ScanGridMatrix(scans: searchManager.filteredScans, onSelect: { scan in
-                                selectedScanForInsight = scan
-                                inferenceEngine.load(from: scan)
-                            }, onDelete: { scan in
-                                scanToDelete = scan
-                                showDeleteConfirmation = true
-                            })
-                        }
-                    }
-                }
-                .containerRelativeFrame(.horizontal)
-                .id(ScansTab.library)
+                )
                 
-                ScrollView {
-                        let userCollections = collections.filter { $0.name != "Favorites" }
-                        if userCollections.isEmpty {
-                            EmptyStateView(
-                                iconName: "folder",
-                                title: "No collections",
-                                message: "Create your first collection to start organizing your scans."
-                            )
-                        } else {
-                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
-                                ForEach(userCollections) { collection in
-                                    NavigationLink {
-                                        CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
-                                    } label: {
-                                        ZStack {
-                                            if let firstScan = collection.scans?.first {
-                                                GeometryReader { geo in
-                                                    ScansThumbnailView(imagePath: firstScan.localImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
-                                                        .frame(width: geo.size.width, height: geo.size.width)
-                                                        .clipped()
-                                                }
-                                                .aspectRatio(1.0, contentMode: .fill)
-                                            } else {
-                                                Rectangle()
-                                                    .fill(Color.gray.opacity(0.3))
-                                                    .aspectRatio(1.0, contentMode: .fill)
-                                                    .overlay(
-                                                        Image(systemName: "photo.on.rectangle")
-                                                            .font(.system(size: 24))
-                                                            .foregroundColor(.secondary)
-                                                    )
-                                            }
-                                            
-                                            VStack {
-                                                Spacer()
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    Text(collection.name)
-                                                        .font(.subheadline)
-                                                        .fontWeight(.bold)
-                                                        .foregroundColor(.white)
-                                                        .lineLimit(1)
-                                                    Text("\(collection.scans?.count ?? 0) Scans")
-                                                        .font(.caption)
-                                                        .foregroundColor(.white.opacity(0.8))
-                                                }
-                                                .padding(8)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                                .background(.ultraThinMaterial)
-                                                .environment(\.colorScheme, .dark)
-                                            }
-                                        }
-                                        .cornerRadius(12)
-                                        .clipped()
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.top, 16)
-                        }
-                        
-                        if let favorites = collections.first(where: { $0.name == "Favorites" }) {
-                            NavigationLink {
-                                CollectionDetailView(collection: favorites, isInsightSheetOpen: $isInsightSheetOpen)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "heart.fill")
-                                        .foregroundColor(.red)
-                                    Text("Favorites")
-                                        .font(.headline)
-                                    Spacer()
-                                    Text("\(favorites.scans?.count ?? 0)")
-                                        .foregroundColor(.secondary)
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding()
-                                .background(Color.secondary.opacity(0.1))
-                                .cornerRadius(12)
-                                .padding(.horizontal)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.top, 16)
-                        }
-                        
-                        NavigationLink {
-                            NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
-                        } label: {
-                            HStack {
-                                Text("Non-biological")
-                                    .font(.headline)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding()
-                            .background(Color.secondary.opacity(0.1))
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 8)
-                }
-                .containerRelativeFrame(.horizontal)
-                .id(ScansTab.collections)
+                ScansCollectionsGridView(
+                    collections: collections,
+                    isInsightSheetOpen: $isInsightSheetOpen
+                )
                 }
                 .scrollTargetLayout()
             }
@@ -220,51 +83,13 @@ struct ScansSearchView: View {
                     }
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: {
-                        if !searchManager.searchQuery.isEmpty {
-                            searchManager.searchQuery = ""
-                        } else {
-                            dismiss()
-                        }
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                    }
-                }
-                
-                ToolbarItem(placement: .topBarTrailing) {
-                    if activeTab == .collections {
-                        Button(action: {
-                            showNewCollectionAlert = true
-                        }) {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 16, weight: .bold))
-                        }
-                    }
-                }
-                
-                ToolbarItem(placement: .principal) {
-                    Picker("View", selection: $activeTab) {
-                        Text("Scans").tag(ScansTab.library)
-                        Text("Collections").tag(ScansTab.collections)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 200)
-                }
-                
-                ToolbarItem(placement: .keyboard) {
-                    HStack {
-                        Spacer()
-                        Button("Done") {
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        }
-                    }
-                }
-                
-                //DefaultToolbarItem(kind: .search, placement: .bottomBar)
-            }
+            .scansSearchToolbar(
+                searchManager: searchManager,
+                activeTab: $activeTab,
+                showNewCollectionAlert: $showNewCollectionAlert,
+                dismiss: dismiss
+            )
+            //DefaultToolbarItem(kind: .search, placement: .bottomBar)
             .toolbarBackground(.hidden, for: .bottomBar)
             .alert("New collection", isPresented: $showNewCollectionAlert) {
                 TextField("Collection name", text: $newCollectionName)

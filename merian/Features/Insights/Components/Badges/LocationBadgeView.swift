@@ -1,13 +1,13 @@
 import SwiftUI
 
 struct LocationBadgeView: View {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    let locationName: String?
     
     var body: some View {
         #if targetEnvironment(simulator)
-        let name: String? = inferenceEngine.speciesData?.locationName ?? "Austin, TX"
+        let name: String? = locationName ?? "Austin, TX"
         #else
-        let name: String? = inferenceEngine.speciesData?.locationName
+        let name: String? = locationName
         #endif
         
         if let validName = name, !validName.trimmingCharacters(in: .whitespaces).isEmpty {

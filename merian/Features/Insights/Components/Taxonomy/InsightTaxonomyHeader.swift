@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct InsightTaxonomyHeader: View {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    let speciesData: SpeciesData?
     
     private var commonName: String {
-        inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning Subject..."
+        speciesData?.commonName.capitalized ?? "Scanning Subject..."
     }
     private var scientificName: String {
-        inferenceEngine.speciesData?.scientificName ?? "Awaiting Taxonomy"
+        speciesData?.scientificName ?? "Awaiting Taxonomy"
     }
     private var isPoisonous: Bool {
-        inferenceEngine.speciesData?.insightData.isPoisonous ?? false
+        speciesData?.insightData.isPoisonous ?? false
     }
     
     var body: some View {
@@ -30,7 +30,7 @@ struct InsightTaxonomyHeader: View {
                 .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
              }
 
-            if let species = inferenceEngine.speciesData {
+            if let species = speciesData {
                 // Badges Center Layout
                 CenterFlowLayout(spacing: 12) {
                     if species.isInvasive {

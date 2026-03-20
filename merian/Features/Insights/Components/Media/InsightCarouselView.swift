@@ -140,23 +140,28 @@ private extension InsightCarouselView {
     // MARK: - Metadata Straddle Overlay
     @ViewBuilder
     var metadataStraddleOverlay: some View {
+        let score = inferenceEngine.speciesData?.confidenceScore
+        let location = inferenceEngine.speciesData?.locationName
+        let temp = inferenceEngine.speciesData?.weatherTemperatureF
+        let cond = inferenceEngine.speciesData?.weatherCondition
+        
         // Sub-Image Overlay extracted purely physically into structural space
         HStack(alignment: .top) {
             if hasWeather {
                 // Left Side Confidence Badge and Location
                 VStack(alignment: .leading, spacing: 8) {
-                    ConfidenceBadgeView()
-                    LocationBadgeView()
+                    ConfidenceBadgeView(confidenceScore: score)
+                    LocationBadgeView(locationName: location)
                 }
                 Spacer()
                 // Right Side Weather
-                WeatherBadgeView()
+                WeatherBadgeView(temperatureF: temp, condition: cond)
             } else {
                 Spacer()
                 // Centered Orientation when Weather is unavailable
                 VStack(alignment: .center, spacing: 16) {
-                    ConfidenceBadgeView()
-                    LocationBadgeView()
+                    ConfidenceBadgeView(confidenceScore: score)
+                    LocationBadgeView(locationName: location)
                 }
                 Spacer()
             }

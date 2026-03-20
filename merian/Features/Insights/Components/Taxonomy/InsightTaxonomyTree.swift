@@ -1,10 +1,11 @@
 import SwiftUI
 
 struct InsightTaxonomyTree: View {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    let taxonomyData: TaxonomyData?
+    let scientificName: String?
     
     var body: some View {
-        if let taxonomy = inferenceEngine.speciesData?.taxonomy {
+        if let taxonomy = taxonomyData {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
                     Image(systemName: "square.stack.3d.down.right")
@@ -21,7 +22,7 @@ struct InsightTaxonomyTree: View {
                     if let order = taxonomy.order { taxonomyRow(rank: "ORDER", value: order) }
                     if let family = taxonomy.family { taxonomyRow(rank: "FAMILY", value: family) }
                     if let genus = taxonomy.genus { taxonomyRow(rank: "GENUS", value: genus) }
-                    if let species = inferenceEngine.speciesData?.scientificName { taxonomyRow(rank: "SPECIES", value: species, isSpecies: true) }
+                    if let species = scientificName { taxonomyRow(rank: "SPECIES", value: species, isSpecies: true) }
                 }
             }
             .glassCard()

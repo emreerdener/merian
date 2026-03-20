@@ -20,7 +20,7 @@ struct UserProfileView: View {
     @AppStorage("saveToCameraRoll") private var saveToCameraRoll = true
     
     // Privacy States
-    @State private var defaultGeoprivacy = "open"
+    @StateObject private var viewModel = UserProfileViewModel()
     @State private var isExporting = false
     @State private var exportUrl: URL?
     @State private var showSafari = false
@@ -71,7 +71,7 @@ struct UserProfileView: View {
                     isLiveInferencePaused: $isLiveInferencePaused,
                     isHapticsEnabled: $isHapticsEnabled,
                     saveToCameraRoll: $saveToCameraRoll,
-                    defaultGeoprivacy: $defaultGeoprivacy,
+                    defaultGeoprivacy: $viewModel.defaultGeoprivacy,
                     supabase: supabase
                 )
                 
@@ -109,22 +109,7 @@ struct UserProfileView: View {
                 }
             }
             .onAppear {
-                if !supabase.isGuestUser, let user = supabase.currentUser {
-                    Task {
-                        do {
-                            struct CurrentSettings: Decodable { let default_geoprivacy: String }
-                            let response: CurrentSettings = try await supabase.client.from("users")
-                                .select("default_geoprivacy")
-                                .eq("id", value: user.id)
-                                .single()
-                                .execute()
-                                .value
-                            self.defaultGeoprivacy = response.default_geoprivacy
-                        } catch {
-                            print("Error fetching geoprivacy: \(error)")
-                        }
-                    }
-                }
+                viewModel.fetchGeoprivacy(supabase: supabase)
                 isExpeditionModeActive = HardwareOrchestrator.shared.isExpeditionModeActive
                 isLiveInferencePaused = CameraManager.shared.isLiveInferencePaused
             }

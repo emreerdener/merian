@@ -52,31 +52,13 @@ struct FlagIssueView: View {
         
         Task {
             let userId = DeviceIdentityManager.shared.deviceId
-            let payload: [String: Any] = [
-                "scanId": scanId,
-                "userId": userId,
-                "flagReason": flagReason,
-                "userSuggestion": userSuggestion.isEmpty ? "" : userSuggestion
-            ]
-            
             do {
-                guard let url = URL(string: "\(MerianEnvironment.supabaseUrl)/functions/v1/flag-issue") else {
-                    throw URLError(.badURL)
-                }
-                
-                var request = URLRequest(url: url)
-                request.httpMethod = "POST"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                
-                let jwt = try await SupabaseManager.shared.getActiveJWT()
-                request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
-                request.setValue(MerianEnvironment.supabaseAnonKey, forHTTPHeaderField: "apikey")
-                request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-                
-                let (_, response) = try await URLSession.shared.data(for: request)
-                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                    throw URLError(.badServerResponse)
-                }
+                try await MerianNetworkClient.shared.submitFlagIssue(
+                    scanId: scanId,
+                    flagReason: flagReason,
+                    userSuggestion: userSuggestion,
+                    userId: userId
+                )
                 
                 await MainActor.run {
                     alertMessage = "Thank you! Your feedback helps us improve Merian's AI."
