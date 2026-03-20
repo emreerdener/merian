@@ -77,6 +77,7 @@ final class InferenceEngine: ObservableObject {
         let wikipedia_url: String?
         let wikipedia_extract: String?
         let reference_image_url: String?
+        let iucn_red_list_status: String?
     }    
 
     

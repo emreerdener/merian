@@ -1,0 +1,148 @@
+import SwiftUI
+import SwiftData
+
+// MARK: - Action Handlers
+extension InsightSheetView {
+    
+    func evaluateVoiceOverAndCelebration() {
+        if UIAccessibility.isVoiceOverRunning {
+            let announcement = isPoisonous ? "\(commonName). Warning: This subject is poisonous." : commonName
+            UIAccessibility.post(notification: .announcement, argument: announcement)
+        }
+        if let data = inferenceEngine.speciesData, data.isNewDiscovery {
+            let lowerName = data.commonName.lowercased()
+            if data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object" {
+                showCelebration = true
+            }
+        }
+    }
+    
+    func evaluateProcessingCompletion(isStillProcessing: Bool) {
+        if !isStillProcessing {
+            if let data = inferenceEngine.speciesData {
+                let lowerName = data.commonName.lowercased()
+                let isValidCelebration = data.isNewDiscovery && data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object"
+                
+                if !isValidCelebration {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+            }
+        }
+    }
+    
+    func saveUserPhotos() {
+        guard !isSavingPhotos else { return }
+        isSavingPhotos = true
+        
+        Task {
+            var photosSaved = 0
+            
+            // 1. Live photo payload
+            if let liveData = inferenceEngine.activeImageData {
+                let success = await PhotoLibraryManager.shared.saveImageManual(imageData: liveData)
+                if success { photosSaved += 1 }
+            }
+            
+            // 2. Local historical images securely cached on disk
+            for path in inferenceEngine.validHistoricImagePaths {
+                let url = URL.documentsDirectory.appendingPathComponent(path)
+                if let data = try? Data(contentsOf: url) {
+                    let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                    if success { photosSaved += 1 }
+                }
+            }
+            
+            // 3. Remote user uploads explicitly filtering out GBIF/Wiki bounds
+            let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+            for urlStr in refUrls {
+                let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
+                if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
+                    do {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                        if success { photosSaved += 1 }
+                    } catch {
+                        print("Failed to map R2 cloud payload for UI download: \(error)")
+                    }
+                }
+            }
+            
+            await MainActor.run {
+                isSavingPhotos = false
+                if photosSaved > 0 {
+                    HapticManager.shared.triggerSuccessPulse()
+                    showSaveSuccessAlert = true
+                }
+            }
+        }
+    }
+    
+    func eradicateCurrentScan() {
+        guard let targetId = inferenceEngine.speciesData?.scanId else { return }
+        
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == targetId })
+        let records = (try? modelContext.fetch(descriptor)) ?? []
+        
+        if let record = records.first {
+            HapticManager.shared.triggerErrorThump()
+            ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
+            dismiss()
+        }
+    }
+    
+    func shareDiscovery() {
+        var items: [Any] = [
+            "Check out this \(commonName) (\(scientificName)) I discovered using Merian! \nhttps://merian.app"
+        ]
+        
+        // Attempt to explicitly attach the physical photograph natively into the iOS Share Sheet payload
+        if let liveData = inferenceEngine.activeImageData, let image = UIImage(data: liveData) {
+            items.insert(image, at: 0)
+            presentShareSheet(items: items)
+            
+        } else if let validPath = inferenceEngine.validHistoricImagePaths.first, 
+                  let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),
+                  let image = UIImage(data: data) {
+            items.insert(image, at: 0)
+            presentShareSheet(items: items)
+            
+        } else {
+            // Unpack remote Cloudflare R2 string natively dropping any foreign wikipedia resources
+            let refUrls: [String] = inferenceEngine.speciesData?.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+            if let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") })?.trimmingCharacters(in: .whitespacesAndNewlines), let url = URL(string: safeCloudUrl) {
+                // Execute a decoupled fast background fetch for the remote image to prevent blocking the UI thread abruptly
+                Task {
+                    if let (data, _) = try? await URLSession.shared.data(from: url), let image = UIImage(data: data) {
+                        items.insert(image, at: 0)
+                    }
+                    await MainActor.run { presentShareSheet(items: items) }
+                }
+            } else {
+                presentShareSheet(items: items)
+            }
+        }
+    }
+    
+    func presentShareSheet(items: [Any]) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootVC = window.rootViewController else { return }
+        
+        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        
+        // Traverse safely up the stack to avoid overlapping presentation bounds
+        var topController = rootVC
+        while let presented = topController.presentedViewController {
+            topController = presented
+        }
+        
+        // Gracefully support iPad rendering anchors cleanly
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = topController.view
+            popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        
+        topController.present(activityVC, animated: true)
+    }
+}

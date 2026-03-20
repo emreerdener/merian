@@ -7,14 +7,14 @@ struct TaxonomyNode: View {
     var body: some View {
         VStack(spacing: 2) {
             Text(level)
-                .font(.caption2)
+                .font(.system(.caption2, design: .serif))
                 .bold()
-                .foregroundColor(.secondary)
+                .foregroundColor(.white.opacity(0.6))
                 .textCase(.uppercase)
             Text(name)
-                .font(.subheadline)
+                .font(.system(.subheadline, design: .serif))
                 .fontWeight(.semibold)
-                .foregroundColor(.primary)
+                .foregroundColor(.white)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)

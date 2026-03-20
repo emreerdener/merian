@@ -1,6 +1,6 @@
 import SwiftData
 
-typealias LocalScanRecord = MerianSchemaV9.LocalScanRecord
-typealias OfflineQueuedScan = MerianSchemaV9.OfflineQueuedScan
-typealias ScanCollection = MerianSchemaV9.ScanCollection
-typealias PendingCloudDeletionTask = MerianSchemaV9.PendingCloudDeletionTask
+typealias LocalScanRecord = MerianSchemaV10.LocalScanRecord
+typealias OfflineQueuedScan = MerianSchemaV10.OfflineQueuedScan
+typealias ScanCollection = MerianSchemaV10.ScanCollection
+typealias PendingCloudDeletionTask = MerianSchemaV10.PendingCloudDeletionTask

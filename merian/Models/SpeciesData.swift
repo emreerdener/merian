@@ -36,6 +36,7 @@ struct SpeciesData {
     var weatherCondition: String?
     var weatherTemperatureF: Double?
     var colors: [String]?
+    let iucnRedListStatus: String?
     
     // DRY Architectural Decoding Strategy Context
     init(fromEdgeResponse edgeRes: InferenceEngine.EdgeResponse, locationName: String?, weatherCondition: String?, weatherTemperatureF: Double?) {
@@ -81,6 +82,7 @@ struct SpeciesData {
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
         self.colors = edgeRes.colors
+        self.iucnRedListStatus = edgeRes.iucn_red_list_status
     }
     // Explicit Memberwise Initialization for Fallbacks and Offline Mocking
     init(
@@ -101,7 +103,8 @@ struct SpeciesData {
         locationName: String? = nil,
         weatherCondition: String? = nil,
         weatherTemperatureF: Double? = nil,
-        colors: [String]? = nil
+        colors: [String]? = nil,
+        iucnRedListStatus: String? = nil
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -121,6 +124,7 @@ struct SpeciesData {
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
         self.colors = colors
+        self.iucnRedListStatus = iucnRedListStatus
     }
 }
 

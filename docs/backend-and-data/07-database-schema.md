@@ -111,7 +111,7 @@ Tracks locally synchronized and unique species scans natively for the Scans libr
 - `locationName`, `weatherCondition`, `weatherTemperatureF`: String/Double? (Mapped in `MerianSchemaV5` wrapping historical environmental context via Apple's native MapKit MKReverseGeocodingRequest natively powering localized UI inside the `InsightSheetView`.)
 - `collections`: [ScanCollection]? (Mapped natively in `MerianSchemaV6` establishing referential boundaries into top-level custom user galleries, dynamically adding native iOS photo-album features without duplicating any raw data payloads directly.)
 - `diagnosticPrimaryRationale`, `diagnosticLookalikeName`, `diagnosticDifferentiatorsJson`: String? (Mapped cleanly in `MerianSchemaV9` explicitly persisting Gemini's raw low-confidence comparisons logic locally so the physical UI rehydrates cleanly offline without losing contextual diagnostic data bounds).
-
+- `iucnRedListStatus`: String? (Mapped in `MerianSchemaV10` explicitly tracking international species risk bounds natively, powering the offline state of the `InsightConservationCard`).
 ### `ScanCollection` (User Albums)
 
 A top-level album paradigm mapped logically against `LocalScanRecord` nodes safely isolated explicitly from `MerianSchemaV9` updates.

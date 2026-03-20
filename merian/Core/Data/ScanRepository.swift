@@ -64,6 +64,7 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
     let is_poisonous: Bool?
     let common_names: [String: String?]?
     let descriptions: [String: String?]?
+    let iucn_red_list_status: String?
 }
 
 struct HistoricalScanResponse: Decodable, Sendable {
@@ -126,7 +127,8 @@ actor HistoricalDatabaseActor {
                 taxonomyGenus: dict?.genus,
                 locationName: nil,
                 weatherCondition: scan.weather_condition,
-                weatherTemperatureF: scan.weather_temperature_f
+                weatherTemperatureF: scan.weather_temperature_f,
+                iucnRedListStatus: dict?.iucn_red_list_status
             )
             
             modelContext.insert(record)

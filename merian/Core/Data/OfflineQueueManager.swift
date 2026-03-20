@@ -521,7 +521,8 @@ actor BackgroundDatabaseActor {
                     diagnosticDifferentiatorsJson: {
                         guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = try? JSONEncoder().encode(diffs) else { return nil }
                         return String(data: data, encoding: .utf8)
-                    }()
+                    }(),
+                    iucnRedListStatus: mappedData.iucnRedListStatus
                 )
                 modelContext.insert(record)
                 try? modelContext.save()
@@ -602,7 +603,8 @@ actor BackgroundDatabaseActor {
                 diagnosticDifferentiatorsJson: {
                     guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = try? JSONEncoder().encode(diffs) else { return nil }
                     return String(data: data, encoding: .utf8)
-                }()
+                }(),
+                iucnRedListStatus: mappedData.iucnRedListStatus
             )
             modelContext.insert(record)
             try? modelContext.save()
