@@ -147,7 +147,8 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
             return await existingTask.value
         }
         
-        let task = Task { @MainActor () -> String? in
+        let task = Task { @MainActor [weak self] () -> String? in
+            guard let self = self else { return nil }
             let geocoder = CLGeocoder()
             let generatedString: String? = await withCheckedContinuation { continuation in
                 geocoder.reverseGeocodeLocation(location) { placemarks, error in

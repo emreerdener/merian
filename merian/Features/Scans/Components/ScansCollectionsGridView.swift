@@ -5,8 +5,8 @@ struct ScansCollectionsGridView: View {
     let collections: [ScanCollection]
     @Binding var isInsightSheetOpen: Bool
     
-    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false || $0.commonName == "Unknown Subject" }) 
-    private var nonBioRecords: [LocalScanRecord]
+    @Environment(\.modelContext) private var modelContext
+    @State private var nonBioCount: Int = 0
     
     var body: some View {
         ScrollView {
@@ -103,7 +103,7 @@ struct ScansCollectionsGridView: View {
                     Text("Non-biological")
                         .font(.headline)
                     Spacer()
-                    Text("\(nonBioRecords.count)")
+                    Text("\(nonBioCount)")
                         .foregroundColor(.secondary)
                     Image(systemName: "chevron.right")
                         .foregroundColor(.secondary)
@@ -118,5 +118,11 @@ struct ScansCollectionsGridView: View {
         }
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)
+        .task {
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.isBiological == false || $0.commonName == "Unknown Subject" })
+            if let count = try? modelContext.fetchCount(descriptor) {
+                nonBioCount = count
+            }
+        }
     }
 }

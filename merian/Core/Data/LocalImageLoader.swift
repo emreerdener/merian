@@ -36,18 +36,11 @@ actor LocalImageLoader {
                 let url = URL.documentsDirectory.appendingPathComponent(filename)
                 
                 if let decoded = await Task.detached(priority: .userInitiated, operation: { () -> UIImage? in
-                    let options: [CFString: Any] = [
-                        kCGImageSourceCreateThumbnailFromImageAlways: true,
-                        kCGImageSourceCreateThumbnailWithTransform: true,
-                        kCGImageSourceThumbnailMaxPixelSize: maxDimension
-                    ]
-                    
-                    guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
-                          let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-                        return nil
+                    if let cgImage = ImageDownsampler.downsample(url: url, maxSize: CGFloat(maxDimension)) {
+                        return UIImage(cgImage: cgImage)
                     }
                     
-                    return UIImage(cgImage: cgImage)
+                    return nil
                 }).value {
                     ImageCache.shared.set(decoded, forKey: cacheKey)
                     return decoded

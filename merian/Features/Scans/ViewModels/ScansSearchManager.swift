@@ -34,14 +34,15 @@ class ScansSearchManager: ObservableObject {
         for scan in allScans { newMap[scan.id] = scan }
         self.scanMap = newMap
         
-        indexingTask = Task.detached(priority: .userInitiated) {
+        indexingTask = Task.detached(priority: .userInitiated) { [weak self] in
             let dbActor = SearchDatabaseActor(modelContainer: container)
             let processed = await dbActor.extractSearchablePayloads(from: ids)
             
             if Task.isCancelled { return }
             
+            let capturedSelf = self
             await MainActor.run {
-                self.searchableData = processed
+                capturedSelf?.searchableData = processed
             }
         }
     }
@@ -59,16 +60,18 @@ class ScansSearchManager: ObservableObject {
         
         let currentCategory = self.activeCategoryFilter
         
-        searchTask = Task {
+        searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 150_000_000) // Debounce typing
             if Task.isCancelled { return }
+            
+            guard let self = self else { return }
             
             let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
             let catMatch = currentCategory.lowercased()
             
             if text.isEmpty && catMatch == "all" {
                 withAnimation {
-                    self.filteredScans = allScans
+                    self.filteredScans = self.allScans
                 }
                 return
             }

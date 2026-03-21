@@ -79,14 +79,22 @@ final class InsightMediaExportManager {
         }
     }
     
+    struct SavePhotosPayload: Sendable {
+        let localImagePath: String?
+        let additionalImagePaths: [String]?
+        let referenceImageUrl: String?
+    }
+
     func batchSaveUserPhotos(records: [LocalScanRecord], completion: @escaping (Int) -> Void) {
+        let payloads = records.map { SavePhotosPayload(localImagePath: $0.localImagePath, additionalImagePaths: $0.additionalImagePaths, referenceImageUrl: $0.referenceImageUrl) }
+        
         Task.detached(priority: .userInitiated) {
             var photosSaved = 0
             
-            for record in records {
+            for payload in payloads {
                 var validPaths: [String] = []
-                if let p = record.localImagePath { validPaths.append(p) }
-                if let extras = record.additionalImagePaths { validPaths.append(contentsOf: extras) }
+                if let p = payload.localImagePath { validPaths.append(p) }
+                if let extras = payload.additionalImagePaths { validPaths.append(contentsOf: extras) }
                 
                 // 1. Local historical images securely cached on disk
                 for path in validPaths {
@@ -96,7 +104,7 @@ final class InsightMediaExportManager {
                 }
                 
                 // 2. Remote user uploads explicitly filtering out GBIF/Wiki bounds
-                let refUrls = record.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+                let refUrls = payload.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
                 for urlStr in refUrls {
                     let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
                     if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
@@ -119,15 +127,24 @@ final class InsightMediaExportManager {
         }
     }
     
+    struct SharePayload: Sendable {
+        let commonName: String
+        let scientificName: String
+        let localImagePath: String?
+        let referenceImageUrl: String?
+    }
+
     func batchShareDiscovery(records: [LocalScanRecord], presentShareSheet: @escaping ([Any]) -> Void) {
+        let payloads = records.map { SharePayload(commonName: $0.commonName, scientificName: $0.scientificName, localImagePath: $0.localImagePath, referenceImageUrl: $0.referenceImageUrl) }
+        
         Task {
             var items: [Any] = []
             
-            for record in records {
-                items.append("Check out this \(record.commonName) (\(record.scientificName)) I discovered using Merian! \nhttps://merian.app")
+            for payload in payloads {
+                items.append("Check out this \(payload.commonName) (\(payload.scientificName)) I discovered using Merian! \nhttps://merian.app")
                 
                 let extractedImage = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-                    if let validPath = record.localImagePath,
+                    if let validPath = payload.localImagePath,
                        let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),
                        let image = UIImage(data: data) {
                         return image
@@ -138,7 +155,7 @@ final class InsightMediaExportManager {
                 if let image = extractedImage {
                     items.append(image)
                 } else {
-                    let refUrls = record.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+                    let refUrls = payload.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
                     if let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") })?.trimmingCharacters(in: .whitespacesAndNewlines), let url = URL(string: safeCloudUrl) {
                         // Limit batch RAM footprint by streaming and downsampling if it was massive, but here we fall back to generic data mapping since these are small cloud thumbnails
                         if let (data, _) = try? await URLSession.shared.data(from: url), let image = UIImage(data: data) {

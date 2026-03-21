@@ -152,28 +152,12 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             return
         }
         let device = deviceInput.device
-        queue.async {
+        queue.async { [weak self] in
+            guard let self = self else { return }
             do {
                 try device.lockForConfiguration()
-                var rate = CMTime(value: 1, timescale: Int32(fps))
-                
-                // Safeguard against physically unsupported frame rates to prevent NSException hardware crashing
-                if let range = device.activeFormat.videoSupportedFrameRateRanges.first {
-                    if CMTimeCompare(rate, range.minFrameDuration) < 0 {
-                        rate = range.minFrameDuration
-                    } else if CMTimeCompare(rate, range.maxFrameDuration) > 0 {
-                        rate = range.maxFrameDuration
-                    }
-                }
-                
-                let currentMin = device.activeVideoMinFrameDuration
-                if CMTimeCompare(rate, currentMin) > 0 {
-                    device.activeVideoMaxFrameDuration = rate
-                    device.activeVideoMinFrameDuration = rate
-                } else {
-                    device.activeVideoMinFrameDuration = rate
-                    device.activeVideoMaxFrameDuration = rate
-                }
+                let rate = CMTime(value: 1, timescale: Int32(fps))
+                self.applyFrameRate(rate, to: device)
                 device.unlockForConfiguration()
             } catch {
                 print("Failed to lock device for configuration: \(error)")
@@ -190,27 +174,12 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             return
         }
         let device = deviceInput.device
-        queue.async {
+        queue.async { [weak self] in
+            guard let self = self else { return }
             do {
                 try device.lockForConfiguration()
-                var idleRate = CMTime(value: 1, timescale: 1)
-                
-                if let range = device.activeFormat.videoSupportedFrameRateRanges.first {
-                    if CMTimeCompare(idleRate, range.minFrameDuration) < 0 {
-                        idleRate = range.minFrameDuration
-                    } else if CMTimeCompare(idleRate, range.maxFrameDuration) > 0 {
-                        idleRate = range.maxFrameDuration
-                    }
-                }
-                
-                let currentMin = device.activeVideoMinFrameDuration
-                if CMTimeCompare(idleRate, currentMin) > 0 {
-                    device.activeVideoMaxFrameDuration = idleRate
-                    device.activeVideoMinFrameDuration = idleRate
-                } else {
-                    device.activeVideoMinFrameDuration = idleRate
-                    device.activeVideoMaxFrameDuration = idleRate
-                }
+                let idleRate = CMTime(value: 1, timescale: 1)
+                self.applyFrameRate(idleRate, to: device)
                 device.unlockForConfiguration()
             } catch {
                 print("Failed to lock for configuration in idle state: \(error)")
@@ -228,6 +197,30 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
         applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
         ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
+    }
+    
+    // MARK: - DRY Frame Rate Helper
+    
+    nonisolated private func applyFrameRate(_ rate: CMTime, to device: AVCaptureDevice) {
+        var clampedRate = rate
+        
+        // Safeguard against physically unsupported frame rates to prevent NSException hardware crashing
+        if let range = device.activeFormat.videoSupportedFrameRateRanges.first {
+            if CMTimeCompare(clampedRate, range.minFrameDuration) < 0 {
+                clampedRate = range.minFrameDuration
+            } else if CMTimeCompare(clampedRate, range.maxFrameDuration) > 0 {
+                clampedRate = range.maxFrameDuration
+            }
+        }
+        
+        let currentMin = device.activeVideoMinFrameDuration
+        if CMTimeCompare(clampedRate, currentMin) > 0 {
+            device.activeVideoMaxFrameDuration = clampedRate
+            device.activeVideoMinFrameDuration = clampedRate
+        } else {
+            device.activeVideoMinFrameDuration = clampedRate
+            device.activeVideoMaxFrameDuration = clampedRate
+        }
     }
     
     nonisolated func depthDataOutput(_ output: AVCaptureDepthDataOutput, didOutput depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection) {
