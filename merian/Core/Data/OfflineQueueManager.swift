@@ -350,6 +350,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 let telemetry: CaptureTelemetry
                 let localImagePaths: [String]
                 let container: ModelContainer
+                let originalTimestamp: Date
             }
             
             guard let urlPath = originalRequestUrlPath, let range = urlPath.range(of: "staging/") else {
@@ -373,10 +374,11 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                     locationName: scan.locationName,
                     weatherCondition: scan.weatherCondition,
                     weatherTemperatureF: scan.weatherTemperatureF,
-                    timeOfDay: nil
+                    timeOfDay: nil,
+                    timestamp: ISO8601DateFormatter().string(from: scan.timestamp)
                 )
                 
-                return ExtractedScanData(telemetry: telemetry, localImagePaths: scan.localImagePaths, container: container)
+                return ExtractedScanData(telemetry: telemetry, localImagePaths: scan.localImagePaths, container: container, originalTimestamp: scan.timestamp)
             }
             
             guard let extracted = scanData else {
@@ -394,7 +396,9 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
                 await backgroundActor.processAndCleanupOfflineScan(
                     resultData: resultData,
                     originalImagePaths: extracted.localImagePaths,
-                    scanId: scanId
+                    scanId: scanId,
+                    originalTimestamp: extracted.originalTimestamp,
+                    telemetry: extracted.telemetry
                 )
                 
                 await MainActor.run {
@@ -477,12 +481,12 @@ actor BackgroundDatabaseActor {
     }
     
     /// Called by the Offline Queue explicitly to ensure deferred scans are processed mathematically back down into the User's biological index natively.
-    func processAndCleanupOfflineScan(resultData: Data, originalImagePaths: [String], scanId: String) {
+    func processAndCleanupOfflineScan(resultData: Data, originalImagePaths: [String], scanId: String, originalTimestamp: Date, telemetry: CaptureTelemetry? = nil) {
         let decoder = JSONDecoder()
         var inferenceFailed = true
         if let parsedWrapper = try? decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData) {
             let edgeRes = parsedWrapper.data
-            var mappedData = SpeciesData(fromEdgeResponse: edgeRes, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
+            var mappedData = SpeciesData(fromEdgeResponse: edgeRes, locationName: telemetry?.locationName, weatherCondition: telemetry?.weatherCondition, weatherTemperatureF: telemetry?.weatherTemperatureF, gpsElevation: telemetry?.gpsElevation)
             
             if mappedData.confidenceScore > 0.0 {
                 inferenceFailed = false
@@ -511,7 +515,7 @@ actor BackgroundDatabaseActor {
                     scientificName: mappedData.scientificName,
                     commonName: mappedData.commonName,
                     insightDescription: mappedData.insightData.description,
-                    timestamp: Date(),
+                    timestamp: originalTimestamp,
                     localImagePath: newlyCopiedPaths.first,
                     semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
                     isPoisonous: mappedData.insightData.isPoisonous,
@@ -529,13 +533,17 @@ actor BackgroundDatabaseActor {
                     taxonomyOrder: mappedData.taxonomy?.order,
                     taxonomyFamily: mappedData.taxonomy?.family,
                     taxonomyGenus: mappedData.taxonomy?.genus,
+                    locationName: mappedData.locationName,
+                    weatherCondition: mappedData.weatherCondition,
+                    weatherTemperatureF: mappedData.weatherTemperatureF,
                     diagnosticPrimaryRationale: mappedData.diagnosticComparison?.primaryMatchRationale,
                     diagnosticLookalikeName: mappedData.diagnosticComparison?.confusingLookalikeName,
                     diagnosticDifferentiatorsJson: {
                         guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = try? JSONEncoder().encode(diffs) else { return nil }
                         return String(data: data, encoding: .utf8)
                     }(),
-                    iucnRedListStatus: mappedData.iucnRedListStatus
+                    iucnRedListStatus: mappedData.iucnRedListStatus,
+                    gpsElevation: mappedData.gpsElevation
                 )
                 modelContext.insert(record)
                 try? modelContext.save()
@@ -619,7 +627,8 @@ actor BackgroundDatabaseActor {
                     guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = try? JSONEncoder().encode(diffs) else { return nil }
                     return String(data: data, encoding: .utf8)
                 }(),
-                iucnRedListStatus: mappedData.iucnRedListStatus
+                iucnRedListStatus: mappedData.iucnRedListStatus,
+                gpsElevation: mappedData.gpsElevation
             )
             modelContext.insert(record)
             try? modelContext.save()

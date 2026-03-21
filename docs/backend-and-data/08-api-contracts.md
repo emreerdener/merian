@@ -51,7 +51,8 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. Notably
   "weatherTemperatureF": 72.5,
   "deviceLocale": "en",
   "currentMonth": 3,
-  "timeOfDay": "2:00 PM"
+  "timeOfDay": "2:00 PM",
+  "timestamp": "2026-03-21T09:46:03.000Z"
 }
 ```
 

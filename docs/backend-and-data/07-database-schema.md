@@ -73,7 +73,7 @@ _Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `M
 
 ### `OfflineQueuedScan`
 
-Locally captures state when cell towers drop. `MerianSchemaV10` cleanly expands the cached telemetry payload securely caching explicit context boundaries locally when off-grid.
+Locally captures state when cell towers drop. `MerianSchemaV11` cleanly expands the cached telemetry payload securely caching explicit context boundaries locally when off-grid.
 
 - `id`: String (UUID)
 - `timestamp`: Date
@@ -112,6 +112,7 @@ Tracks locally synchronized and unique species scans natively for the Scans libr
 - `collections`: [ScanCollection]? (Mapped natively in `MerianSchemaV6` establishing referential boundaries into top-level custom user galleries, dynamically adding native iOS photo-album features without duplicating any raw data payloads directly.)
 - `diagnosticPrimaryRationale`, `diagnosticLookalikeName`, `diagnosticDifferentiatorsJson`: String? (Mapped cleanly in `MerianSchemaV9` explicitly persisting Gemini's raw low-confidence comparisons logic locally so the physical UI rehydrates cleanly offline without losing contextual diagnostic data bounds).
 - `iucnRedListStatus`: String? (Mapped in `MerianSchemaV10` explicitly tracking international species risk bounds natively, powering the offline state of the `InsightConservationCard`).
+- `gpsElevation`: Double? (Mapped natively in `MerianSchemaV11` syncing the identical capture altitude context seamlessly mapping exactly bounded out of the hardware directly onto the offline cache without throwing lossy boundaries off the offline `InsightLocationWeatherCard`).
 ### `ScanCollection` (User Albums)
 
 A top-level album paradigm mapped logically against `LocalScanRecord` nodes safely isolated explicitly from `MerianSchemaV9` updates.

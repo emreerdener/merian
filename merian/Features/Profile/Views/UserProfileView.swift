@@ -187,6 +187,7 @@ struct UserProfilePlanComponent: View {
                 .foregroundColor(Color(UIColor.systemBackground))
                 .cornerRadius(16)
             }
+            .buttonStyle(BorderlessButtonStyle())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)

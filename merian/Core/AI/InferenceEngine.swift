@@ -433,7 +433,8 @@ final class InferenceEngine: ObservableObject {
             ),
             locationName: record.locationName,
             weatherCondition: record.weatherCondition,
-            weatherTemperatureF: record.weatherTemperatureF
+            weatherTemperatureF: record.weatherTemperatureF,
+            gpsElevation: record.gpsElevation
         )
         self.isProcessing = false
         

@@ -99,8 +99,10 @@ final class InsightMediaExportManager {
                 // 1. Local historical images securely cached on disk
                 for path in validPaths {
                     let url = URL.documentsDirectory.appendingPathComponent(path)
-                    let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: url)
-                    if success { photosSaved += 1 }
+                    if let data = try? Data(contentsOf: url) {
+                        let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                        if success { photosSaved += 1 }
+                    }
                 }
                 
                 // 2. Remote user uploads explicitly filtering out GBIF/Wiki bounds
@@ -109,10 +111,9 @@ final class InsightMediaExportManager {
                     let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
                     if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
                         do {
-                            let (fileURL, _) = try await URLSession.shared.download(from: url)
-                            let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: fileURL)
+                            let (data, _) = try await URLSession.shared.data(from: url)
+                            let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
                             if success { photosSaved += 1 }
-                            try? FileManager.default.removeItem(at: fileURL)
                         } catch {
                             print("Failed to map R2 cloud payload for UI download: \(error)")
                         }
@@ -140,9 +141,25 @@ final class InsightMediaExportManager {
         Task {
             var items: [Any] = []
             
+            if payloads.count == 1 {
+                let p = payloads[0]
+                items.append("Check out this \(p.commonName) (\(p.scientificName)) I discovered using Merian!\nhttps://merian.app")
+            } else if payloads.count > 1 {
+                var message = "Check out these \(payloads.count) discoveries I made using Merian!\n"
+                let displayLimit = 10
+                for (index, p) in payloads.enumerated() {
+                    if index < displayLimit {
+                        message += "• \(p.commonName) (\(p.scientificName))\n"
+                    } else if index == displayLimit {
+                        message += "• ...and \(payloads.count - displayLimit) more!\n"
+                        break
+                    }
+                }
+                message += "\nhttps://merian.app"
+                items.append(message)
+            }
+            
             for payload in payloads {
-                items.append("Check out this \(payload.commonName) (\(payload.scientificName)) I discovered using Merian! \nhttps://merian.app")
-                
                 let extractedImage = await Task.detached(priority: .userInitiated) { () -> UIImage? in
                     if let validPath = payload.localImagePath,
                        let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),

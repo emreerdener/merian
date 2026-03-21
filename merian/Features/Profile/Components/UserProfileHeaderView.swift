@@ -154,6 +154,7 @@ private var persona: String {
                                         .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
                                 )
                         }
+                        .buttonStyle(BorderlessButtonStyle())
                         .confirmationDialog("Account Options", isPresented: $showSignOutConfirmation, titleVisibility: .hidden) {
                             Button("Sign Out", role: .destructive) {
                                 Task {

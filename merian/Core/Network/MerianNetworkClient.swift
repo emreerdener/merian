@@ -131,7 +131,8 @@ class MerianNetworkClient {
             "weatherTemperatureF": telemetry.weatherTemperatureF,
             "deviceLocale": deviceLocale,
             "currentMonth": currentMonth,
-            "timeOfDay": timeOfDay
+            "timeOfDay": timeOfDay,
+            "timestamp": telemetry.timestamp
         ]
         
         // Remove nils

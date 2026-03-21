@@ -31,7 +31,7 @@ struct MainTabBar: View {
             .overlay(
                 Group {
                     if showComingSoon {
-                        Text("Coming soon!")
+                        Text("Coming soon")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.white)
                             .fixedSize(horizontal: true, vertical: false)
@@ -39,7 +39,7 @@ struct MainTabBar: View {
                             .padding(.vertical, 6)
                             .background(
                                 Capsule()
-                                    .fill(Color.green)
+                                    .fill(Color.blue)
                                     .shadow(color: .black.opacity(0.3), radius: 5, y: 3)
                             )
                             .offset(y: -45)

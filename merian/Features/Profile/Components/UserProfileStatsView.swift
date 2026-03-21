@@ -44,10 +44,11 @@ actor ProfileDatabaseActor {
         descriptor.propertiesToFetch = [\.timestamp]
         
         guard let allRecords = try? modelContext.fetch(descriptor) else { 
-            return ProfileHeatmapData(totalCaptures: 0, yearString: "", weeks: [])
+            return ProfileHeatmapData(totalCaptures: 0, currentMonthCaptures: 0, yearString: "", weeks: [])
         }
         
         let calendar = Calendar.current
+        let now = Date()
         var counts: [Date: Int] = [:]
         
         for record in allRecords {
@@ -55,7 +56,7 @@ actor ProfileDatabaseActor {
             counts[startOfDay, default: 0] += 1
         }
         
-        let today = calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: now)
         let currentYear = calendar.component(.year, from: today)
         
         // Find the most recent Saturday (end of the current week)
@@ -63,13 +64,15 @@ actor ProfileDatabaseActor {
         let weekday = calendar.component(.weekday, from: today)
         let daysToSaturday = 7 - weekday
         guard let endOfWeek = calendar.date(byAdding: .day, value: daysToSaturday, to: today) else {
-            return ProfileHeatmapData(totalCaptures: counts.values.reduce(0, +), yearString: "\(currentYear)", weeks: [])
+            let total = counts.values.reduce(0, +)
+            return ProfileHeatmapData(totalCaptures: total, currentMonthCaptures: 0, yearString: "\(currentYear)", weeks: [])
         }
         
         let columns = 52
         let totalDays = columns * 7
         guard let startDate = calendar.date(byAdding: .day, value: -(totalDays - 1), to: endOfWeek) else {
-            return ProfileHeatmapData(totalCaptures: counts.values.reduce(0, +), yearString: "\(currentYear)", weeks: [])
+            let total = counts.values.reduce(0, +)
+            return ProfileHeatmapData(totalCaptures: total, currentMonthCaptures: 0, yearString: "\(currentYear)", weeks: [])
         }
         
         var weeks: [HeatmapWeek] = []
@@ -78,6 +81,7 @@ actor ProfileDatabaseActor {
         
         var currentMonth = -1
         var totalInHeatmap = 0
+        var currentMonthCaptures = 0
         
         for weekIndex in 0..<columns {
             var days: [HeatmapDay] = []
@@ -100,6 +104,9 @@ actor ProfileDatabaseActor {
                 } else {
                     count = counts[currentDate] ?? 0
                     totalInHeatmap += count
+                    if calendar.isDate(currentDate, equalTo: now, toGranularity: .month) {
+                        currentMonthCaptures += count
+                    }
                 }
                 
                 days.append(HeatmapDay(count: count, date: currentDate))
@@ -107,7 +114,7 @@ actor ProfileDatabaseActor {
             weeks.append(HeatmapWeek(days: days, monthLabel: monthLabel))
         }
         
-        return ProfileHeatmapData(totalCaptures: totalInHeatmap, yearString: "\(currentYear)", weeks: weeks)
+        return ProfileHeatmapData(totalCaptures: totalInHeatmap, currentMonthCaptures: currentMonthCaptures, yearString: "\(currentYear)", weeks: weeks)
     }
 }
 
@@ -125,6 +132,7 @@ public struct HeatmapWeek: Sendable, Identifiable {
 
 public struct ProfileHeatmapData: Sendable {
     public let totalCaptures: Int
+    public let currentMonthCaptures: Int
     public let yearString: String
     public let weeks: [HeatmapWeek]
 }

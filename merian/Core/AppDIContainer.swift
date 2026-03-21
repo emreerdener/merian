@@ -54,7 +54,8 @@ final class AppDIContainer: ObservableObject {
                         locationName: inferenceEngine.activeLocationName,
                         weatherCondition: inferenceEngine.activeWeatherCondition,
                         weatherTemperatureF: inferenceEngine.activeTemperatureF,
-                        timeOfDay: nil
+                        timeOfDay: nil,
+                        timestamp: ISO8601DateFormatter().string(from: Date())
                     ),
                     blurScore: nil
                 )

@@ -177,7 +177,8 @@ final class CameraViewModel: ObservableObject {
                 locationName: context.locationName,
                 weatherCondition: context.weatherCondition,
                 weatherTemperatureF: context.weatherTemperature,
-                timeOfDay: nil
+                timeOfDay: nil,
+                timestamp: ISO8601DateFormatter().string(from: context.location?.timestamp ?? Date())
             )
             
             self.diContainer.inferenceEngine.analyze(

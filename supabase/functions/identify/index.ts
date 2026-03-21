@@ -23,6 +23,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       currentMonth,
       semanticLocation,
       timeOfDay,
+      timestamp,
     } = body;
 
     if (!r2ObjectKey && !imageBase64) {
@@ -491,6 +492,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
             id: generatedScanId,
             user_id: user!.id,
             species_id: speciesId,
+            timestamp: timestamp ? timestamp : undefined,
             gps_lat_exact: gpsLatitude,
             gps_long_exact: gpsLongitude,
             gps_elevation: gpsElevation,

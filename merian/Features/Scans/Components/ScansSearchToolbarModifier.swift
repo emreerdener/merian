@@ -80,8 +80,11 @@ struct ScansSearchToolbarModifier: ViewModifier {
                                 showNewCollectionAlert = true
                             }) {
                                 Image(systemName: "folder.badge.plus")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.system(size: 14, weight: .bold))
                             }
+                            .buttonStyle(.borderedProminent)
+                            .buttonBorderShape(.circle)
+                            .tint(.blue)
                         } else if activeTab == .library {
                             Menu {
                                 Section {

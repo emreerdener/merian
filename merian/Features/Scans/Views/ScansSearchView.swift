@@ -31,6 +31,8 @@ struct ScansSearchView: View {
     @State private var showBatchDeleteConfirmation = false
     @State private var showSelectionLimitAlert = false
     @State private var isSearchFocused = false
+    @State private var toastMessage: String? = nil
+    @State private var isDownloading = false
     
 // Struct bounds maintained safely
     
@@ -119,10 +121,14 @@ struct ScansSearchView: View {
                 },
                 onDownload: {
                     let selectedItems = searchManager.filteredScans.filter { selectedScans.contains($0.id) }
+                    
+                    withAnimation { isDownloading = true }
                     InsightMediaExportManager.shared.batchSaveUserPhotos(records: selectedItems) { savedCount in
+                        withAnimation { isDownloading = false }
                         isSelectionMode = false
                         selectedScans.removeAll()
                         HapticManager.shared.triggerSuccessPulse()
+                        showToast(message: "Saved \(savedCount) photo\(savedCount == 1 ? "" : "s") to your Camera Roll")
                     }
                 },
                 onDelete: {
@@ -182,6 +188,15 @@ struct ScansSearchView: View {
         } message: {
             Text("You can only select up to 20 items at a time to ensure optimal system performance during export and deletion workloads.")
         }
+        .overlay(toastOverlay)
+        .overlay {
+            if isDownloading {
+                Color.black.opacity(0.3).ignoresSafeArea()
+                ProgressView("Downloading...")
+                    .padding()
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
     }
     
     private func presentShareSheet(items: [Any]) {
@@ -205,5 +220,33 @@ struct ScansSearchView: View {
         }
         
         topController.present(activityVC, animated: true)
+    }
+    
+    private func showToast(message: String) {
+        withAnimation(.spring()) { toastMessage = message }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            withAnimation(.easeInOut) { if toastMessage == message { toastMessage = nil } }
+        }
+    }
+    
+    @ViewBuilder
+    var toastOverlay: some View {
+        if let message = toastMessage {
+            VStack {
+                Spacer()
+                Text(message)
+                    .font(.footnote)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .colorScheme(.dark)
+                    .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+                    .padding(.bottom, 60)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(100)
+            }
+        }
     }
 }

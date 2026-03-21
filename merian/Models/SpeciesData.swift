@@ -11,6 +11,7 @@ struct CaptureTelemetry: Sendable {
     let weatherCondition: String?
     let weatherTemperatureF: Double?
     let timeOfDay: String?
+    let timestamp: String?
 }
 // MARK: - Primary Domain Models (Data received from InferenceEngine/Gemini Edge JSON)
 struct SpeciesData {
@@ -35,11 +36,12 @@ struct SpeciesData {
     var locationName: String?
     var weatherCondition: String?
     var weatherTemperatureF: Double?
+    var gpsElevation: Double?
     var colors: [String]?
     let iucnRedListStatus: String?
     
     // DRY Architectural Decoding Strategy Context
-    init(fromEdgeResponse edgeRes: InferenceEngine.EdgeResponse, locationName: String?, weatherCondition: String?, weatherTemperatureF: Double?) {
+    init(fromEdgeResponse edgeRes: InferenceEngine.EdgeResponse, locationName: String?, weatherCondition: String?, weatherTemperatureF: Double?, gpsElevation: Double? = nil) {
         let insight = InsightData(
             description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
             isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
@@ -81,6 +83,7 @@ struct SpeciesData {
         self.locationName = locationName
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
+        self.gpsElevation = gpsElevation
         self.colors = edgeRes.colors
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
     }
@@ -103,6 +106,7 @@ struct SpeciesData {
         locationName: String? = nil,
         weatherCondition: String? = nil,
         weatherTemperatureF: Double? = nil,
+        gpsElevation: Double? = nil,
         colors: [String]? = nil,
         iucnRedListStatus: String? = nil
     ) {
@@ -123,6 +127,7 @@ struct SpeciesData {
         self.locationName = locationName
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
+        self.gpsElevation = gpsElevation
         self.colors = colors
         self.iucnRedListStatus = iucnRedListStatus
     }

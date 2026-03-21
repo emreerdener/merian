@@ -85,6 +85,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let is_invasive: Bool?
     let is_live_capture: Bool?
     let colors: [String]?
+    let semantic_location: String?
     let species_dictionary: CloudSpeciesDictionary?
 }
 
@@ -148,7 +149,7 @@ actor HistoricalDatabaseActor {
                 taxonomyOrder: dict?.order,
                 taxonomyFamily: dict?.family,
                 taxonomyGenus: dict?.genus,
-                locationName: nil,
+                locationName: scan.semantic_location,
                 weatherCondition: scan.weather_condition,
                 weatherTemperatureF: scan.weather_temperature_f,
                 iucnRedListStatus: dict?.iucn_red_list_status
@@ -191,6 +192,11 @@ actor HistoricalDatabaseActor {
                     existing.referenceImageUrl = newRef
                     didUpdate = true
                 }
+                
+                if let newLoc = res.semantic_location, existing.locationName != newLoc {
+                    existing.locationName = newLoc
+                    didUpdate = true
+                }
             }
         }
         
@@ -208,7 +214,7 @@ actor HistoricalDatabaseActor {
         do {
             let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                 .from("scans")
-                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, species_dictionary(*)")
+                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, species_dictionary(*)")
                 .eq("user_id", value: userId)
                 .execute()
                 .value
