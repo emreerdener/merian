@@ -63,12 +63,8 @@ private var persona: String {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
-            
-            UserProfileStatsView()
-            
-            ProfileCaptureHeatmapView(heatmapData: heatmapData)
 
-            // Authentication / User Profile Block
+                // Authentication / User Profile Block
             VStack {
                 if supabase.isGuestUser {
                     // Sign In Flow
@@ -171,6 +167,12 @@ private var persona: String {
                     )
                 }
             }
+            
+            UserProfileStatsView()
+            
+            ProfileCaptureHeatmapView(heatmapData: heatmapData)
+
+        
             
             // Manage plan Action Component
             UserProfilePlanComponent(showPaywall: $showPaywall)

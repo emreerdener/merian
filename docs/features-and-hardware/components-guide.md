@@ -13,7 +13,7 @@ Merian embraces the `WindowGroup` logic seamlessly across `SwiftUI` avoiding `.x
 ### `CameraRootView`
 - The monolithic foundation mapping the complete UI hierarchy seamlessly across standard layout bindings globally natively across iPhones cleanly.
 - Responsible for presenting `MerianActionBar`, rendering `AsyncImage` carousels from the active `Discovery Feed`, and calling into `LocationManager` seamlessly requesting permissions seamlessly gracefully falling back cleanly.
-- Delegates user profile interactions cleanly out to `UserProfileView.swift` preventing monolithic Main Actor View bloat by natively embedding the entirety of the legacy Settings modules directly mapping `StatCardView` components under fluid List architecture without requiring sequential routing sheets.
+- Delegates user profile interactions cleanly out to `UserProfileView.swift` preventing monolithic Main Actor View bloat by natively encapsulating the underlying user states via a fluid, dual-pane horizontal pagination structural layout explicitly bypassing massive monolithic list hierarchies.
 
 ### `InsightSheetView` (The AI Resolution Context)
 - Displays the successfully parsed ML taxonomy arrays natively mapped out across a declarative, componentized layout (`InsightMainComponents` and `InsightComponents`).

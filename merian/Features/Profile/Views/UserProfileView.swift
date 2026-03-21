@@ -2,6 +2,11 @@ import SwiftUI
 import SwiftData
 import StoreKit
 
+enum ProfileTab {
+    case profile
+    case settings
+}
+
 struct UserProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -26,60 +31,74 @@ struct UserProfileView: View {
     @State private var exportUrl: URL?
     @State private var showSafari = false
     @State private var safariUrl: URL?
+    @State private var activeTab: ProfileTab = .profile
     
     var body: some View {
         NavigationStack {
-            List {
-                // MARK: - Core Profile Content
-                Section {
-                    VStack {
-                        UserProfileHeaderView(supabase: supabase, showPaywall: $showPaywall) {}
-                            .sheet(isPresented: $showPaywall) {
-                                PaywallView()
-                                    .environmentObject(RevenueCatManager.shared)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    // TAB 1: PROFILE
+                    List {
+                        // MARK: - Core Profile Content
+                        Section {
+                            VStack {
+                                UserProfileHeaderView(supabase: supabase, showPaywall: $showPaywall) {}
+                                    .sheet(isPresented: $showPaywall) {
+                                        PaywallView()
+                                            .environmentObject(RevenueCatManager.shared)
+                                    }
                             }
+                            .padding(.horizontal, 2)
+                            .padding(.bottom, 2)
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
-                    .padding(.horizontal, 2)
-                    .padding(.bottom, 2)
+                    .listStyle(InsetGroupedListStyle())
+                    .containerRelativeFrame(.horizontal)
+                    .id(ProfileTab.profile)
+                    
+                    // TAB 2: SETTINGS
+                    List {
+                        // Section 2: Field & Hardware Preferences
+                        ProfilePreferencesSection(
+                            isExpeditionModeActive: $isExpeditionModeActive,
+                            isLiveInferencePaused: $isLiveInferencePaused,
+                            isHapticsEnabled: $isHapticsEnabled,
+                            saveToCameraRoll: $saveToCameraRoll,
+                            defaultGeoprivacy: $viewModel.defaultGeoprivacy,
+                            supabase: supabase
+                        )
+                        
+                        // Section 3: Privacy & Citizen Science
+                        ProfileExportSection(
+                            supabase: supabase,
+                            isExporting: $isExporting,
+                            exportUrl: $exportUrl
+                        )
+                        
+                        // Section 5: Legal & Community
+                        ProfileCommunitySection(
+                            safariUrl: $safariUrl,
+                            showSafari: $showSafari
+                        )
+                        
+                        // Section 6: Danger Zone
+                        ProfileDangerZoneSection(
+                            supabase: supabase,
+                            isDeleting: $isDeleting,
+                            showDeleteConfirmation: $showDeleteConfirmation
+                        )
+                    }
+                    .listStyle(InsetGroupedListStyle())
+                    .containerRelativeFrame(.horizontal)
+                    .id(ProfileTab.settings)
                 }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                
-
-                
-                // Section 2: Field & Hardware Preferences
-                ProfilePreferencesSection(
-                    isExpeditionModeActive: $isExpeditionModeActive,
-                    isLiveInferencePaused: $isLiveInferencePaused,
-                    isHapticsEnabled: $isHapticsEnabled,
-                    saveToCameraRoll: $saveToCameraRoll,
-                    defaultGeoprivacy: $viewModel.defaultGeoprivacy,
-                    supabase: supabase
-                )
-                
-                // Section 3: Privacy & Citizen Science
-                ProfileExportSection(
-                    supabase: supabase,
-                    isExporting: $isExporting,
-                    exportUrl: $exportUrl
-                )
-                
-                // Section 5: Legal & Community
-                ProfileCommunitySection(
-                    safariUrl: $safariUrl,
-                    showSafari: $showSafari
-                )
-                
-                // Section 6: Danger Zone
-                ProfileDangerZoneSection(
-                    supabase: supabase,
-                    isDeleting: $isDeleting,
-                    showDeleteConfirmation: $showDeleteConfirmation
-                )
+                .scrollTargetLayout()
             }
-            .listStyle(InsetGroupedListStyle())
-            .navigationTitle("Profile")
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: Binding(get: { activeTab }, set: { if let val = $0 { activeTab = val } }))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -89,6 +108,15 @@ struct UserProfileView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
                     }
+                }
+                
+                ToolbarItem(placement: .principal) {
+                    Picker("View", selection: $activeTab) {
+                        Text("Profile").tag(ProfileTab.profile)
+                        Text("Settings").tag(ProfileTab.settings)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
                 }
             }
             .onAppear {
