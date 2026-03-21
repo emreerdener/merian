@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getS3Client } from "../_shared/aws.ts";
-import { decodeBase64 } from "@std/encoding/base64.ts";
+import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 export async function evaluateAndProcessPayload(
   userId: string,

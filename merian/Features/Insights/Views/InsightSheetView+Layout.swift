@@ -36,6 +36,7 @@ extension InsightSheetView {
                 .padding(.top, -32)
                 .zIndex(1)
             }
+            .frame(width: UIScreen.main.bounds.width)
             .background(
                 GeometryReader { geo in
                     Color.clear.preference(

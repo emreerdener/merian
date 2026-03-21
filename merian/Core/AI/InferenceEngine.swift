@@ -153,7 +153,8 @@ final class InferenceEngine: ObservableObject {
                         fromEdgeResponse: edgeRes,
                         locationName: telemetry.locationName,
                         weatherCondition: telemetry.weatherCondition,
-                        weatherTemperatureF: telemetry.weatherTemperatureF
+                        weatherTemperatureF: telemetry.weatherTemperatureF,
+                        gpsElevation: telemetry.gpsElevation
                     )
                     
                     // CRITICAL FIX: Prevent phantom DB inserts by strictly validating Task cancellation before inserting!
@@ -217,6 +218,7 @@ final class InferenceEngine: ObservableObject {
                         locationName: telemetry.locationName,
                         weatherCondition: telemetry.weatherCondition,
                         weatherTemperatureF: telemetry.weatherTemperatureF,
+                        gpsElevation: telemetry.gpsElevation,
                         colors: nil
                     )
                     self.isProcessing = false
@@ -256,7 +258,8 @@ final class InferenceEngine: ObservableObject {
                     taxonomy: nil,
                     locationName: telemetry.locationName,
                     weatherCondition: telemetry.weatherCondition,
-                    weatherTemperatureF: telemetry.weatherTemperatureF
+                    weatherTemperatureF: telemetry.weatherTemperatureF,
+                    gpsElevation: telemetry.gpsElevation
                 )
             }
             

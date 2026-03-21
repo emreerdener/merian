@@ -25,6 +25,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - The core processing unit inside `merian/Core/AI/`.
 - Dispatches securely decoupled sensor structures via `CaptureTelemetry`, explicitly forwarding `depthScaleText`, `deviceLocale`, `currentMonth`, and physical coordinate states natively out to the Supabase Node (`MerianNetworkClient.analyzeSubject`).
 - Automatically filters natively against `gemini-2.5-flash` or `gemini-2.5-pro` (dynamically allocated based on user subscription tier) payloads binding the structural taxonomy strings mapped specifically right back down to native local properties.
+- Strictly maps native ephemeral telemetry metadata (such as `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, and `locationName`) directly back into the parsed `SpeciesData` model, completely abstracting it from the Edge runtime and securely establishing layout geometries seamlessly for the UI layer identically across Live and Offline sweeps.
 - Responsible for mutating and triggering the "Graceful Degradation" UI bounds when network calls fail natively by dumping the payload explicitly down to `OfflineQueueManager`.
 
 ### `OfflineQueueManager`

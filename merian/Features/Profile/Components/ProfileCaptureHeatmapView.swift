@@ -131,10 +131,14 @@ struct ProfileCaptureHeatmapView: View {
         .background(
             GeometryReader { geo in
                 Color.clear
-                    .onAppear { gridContainerWidth = geo.size.width }
+                    .onAppear {
+                        Task { @MainActor in gridContainerWidth = geo.size.width }
+                    }
                     .onChange(of: geo.size.width) { _, newWidth in
                         if abs(gridContainerWidth - newWidth) > 1.0 {
-                            gridContainerWidth = newWidth
+                            Task { @MainActor in
+                                gridContainerWidth = newWidth
+                            }
                         }
                     }
             }
@@ -273,10 +277,14 @@ struct FadingScrollView<Content: View>: View {
                     GeometryReader { geo in
                         Color.clear
                             .onChange(of: geo.frame(in: .named("FadingScrollSpace")).minX, initial: true) { _, newX in
-                                offset = newX
+                                if abs(offset - newX) > 1.0 {
+                                    Task { @MainActor in offset = newX }
+                                }
                             }
                             .onChange(of: geo.size.width, initial: true) { _, newW in
-                                contentWidth = newW
+                                if abs(contentWidth - newW) > 1.0 {
+                                    Task { @MainActor in contentWidth = newW }
+                                }
                             }
                     }
                 )
@@ -287,7 +295,9 @@ struct FadingScrollView<Content: View>: View {
             GeometryReader { geo in
                 Color.clear
                     .onChange(of: geo.size.width, initial: true) { _, newW in
-                        containerWidth = newW
+                        if abs(containerWidth - newW) > 1.0 {
+                            Task { @MainActor in containerWidth = newW }
+                        }
                     }
             }
         )
