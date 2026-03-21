@@ -157,7 +157,7 @@ struct UserProfilePlanComponent: View {
                 if revenueCat.isProActive {
                     Image(systemName: "leaf")
                         .font(.system(size: 32))
-                        .foregroundColor(.green)
+                        .foregroundColor(.secondary.opacity(0.5))
                 } else {
                     Image(systemName: "leaf.circle")
                         .font(.system(size: 28))

@@ -6,29 +6,47 @@ extension InsightSheetView {
     
     @ViewBuilder
     var scrollableCanvas: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
                 InsightCarouselView()
+                    .aspectRatio(1.0, contentMode: .fill)
+                    .zIndex(0)
                 
-                if let speciesData = inferenceEngine.speciesData, !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
-                    nonBiologicalContent(for: speciesData)
-                } else {
-                    biologicalContent
+                VStack(alignment: .leading, spacing: 16) {
+                    if let speciesData = inferenceEngine.speciesData, !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
+                        nonBiologicalContent(for: speciesData)
+                    } else {
+                        biologicalContent
+                    }
+                    
+                    Spacer(minLength: 40)
                 }
-                
-                Spacer(minLength: 40)
+                .padding(.top, 32)
+                .frame(maxWidth: .infinity)
+                .background(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 32,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: 32
+                    )
+                    .fill(Color(uiColor: .systemBackground))
+                    .shadow(color: .black.opacity(0.12), radius: 12, y: -4)
+                )
+                .padding(.top, -32)
+                .zIndex(1)
             }
             .background(
                 GeometryReader { geo in
                     Color.clear.preference(
                         key: CommonNameScrollOffsetKey.self,
-                        value: geo.frame(in: .named("InsightScrollBoundary")).minY
+                        value: geo.frame(in: .scrollView).minY
                     )
                 },
                 alignment: .top
             )
         }
-        .coordinateSpace(name: "InsightScrollBoundary")
+        .contentMargins(.top, 0, for: .scrollContent)
         .textSelection(.enabled)
         .sheet(isPresented: $isSafariPresented) {
             if let safeUrl = selectedWikiURL {

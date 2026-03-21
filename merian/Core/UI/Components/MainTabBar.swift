@@ -7,7 +7,7 @@ struct MainTabBar: View {
     @State private var tooltipTask: Task<Void, Never>?
     
     var body: some View {
-        HStack(spacing: 40) {
+        HStack(spacing: 48) {
             TabBarButton(
                 iconName: "safari",
                 title: "Explore",

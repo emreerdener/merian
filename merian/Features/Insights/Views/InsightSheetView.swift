@@ -73,6 +73,7 @@ struct InsightSheetView: View {
                 toastOverlay
                 celebrationOverlay
             }
+            .ignoresSafeArea(edges: .top)
         }
         .onAppear { 
             evaluateVoiceOverAndCelebration()

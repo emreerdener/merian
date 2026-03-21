@@ -10,6 +10,7 @@ struct UserProfileHeaderView: View {
     
     @State private var uniqueSpeciesCount: Int = 0
     @State private var heatmapData: ProfileHeatmapData? = nil
+    @State private var showSignOutConfirmation = false
     
 private var persona: String {
         let count = uniqueSpeciesCount
@@ -138,6 +139,29 @@ private var persona: String {
                         }
                         
                         Spacer()
+                        
+                        Button {
+                            showSignOutConfirmation = true
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.primary)
+                                .frame(width: 36, height: 36)
+                                .background(Color.secondary.opacity(0.15))
+                                .background(.ultraThinMaterial, in: Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                                )
+                        }
+                        .confirmationDialog("Account Options", isPresented: $showSignOutConfirmation, titleVisibility: .hidden) {
+                            Button("Sign Out", role: .destructive) {
+                                Task {
+                                    await supabase.signOut()
+                                }
+                            }
+                            Button("Cancel", role: .cancel) { }
+                        }
                     }
                     .padding(12)
                     .background(

@@ -132,6 +132,7 @@ struct ProfileCaptureHeatmapView: View {
                 }
             }
         }
+        .padding(.vertical, 8)
     }
     
     private func color(for count: Int) -> Color {

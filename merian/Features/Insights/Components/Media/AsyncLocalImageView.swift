@@ -19,8 +19,8 @@ struct AsyncLocalImageView: View {
                     .clipped()
             } else if hasFailedToLoad {
                 ArchivedVisualsView()
-                .aspectRatio(1.0, contentMode: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .aspectRatio(1.0, contentMode: .fill)
                 .clipped()
             } else {
                 ProgressView()

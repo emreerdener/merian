@@ -21,7 +21,7 @@ struct InsightTaxonomyHeader: View {
                     .italic()
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.top, 16)
+                    // .padding(.top, 16)
             
                 Text(commonName)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
@@ -31,6 +31,23 @@ struct InsightTaxonomyHeader: View {
              }
 
             if let species = speciesData {
+                // Description
+                if !species.insightData.description.isEmpty {
+                    let paragraphs = species.insightData.description
+                        .components(separatedBy: .newlines)
+                        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                    
+                    VStack(spacing: 12) {
+                        ForEach(paragraphs, id: \.self) { paragraph in
+                            Text(paragraph)
+                                .font(.system(.body))
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(4)
+                        }
+                    }
+                }
+                
                 // Badges Center Layout
                 CenterFlowLayout(spacing: 12) {
                     if species.isInvasive {
@@ -52,23 +69,6 @@ struct InsightTaxonomyHeader: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                
-                // Description
-                if !species.insightData.description.isEmpty {
-                    let paragraphs = species.insightData.description
-                        .components(separatedBy: .newlines)
-                        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                    
-                    VStack(spacing: 12) {
-                        ForEach(paragraphs, id: \.self) { paragraph in
-                            Text(paragraph)
-                                .font(.system(.body))
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(4)
-                        }
-                    }
-                }
             }
         }
         .frame(maxWidth: .infinity)

@@ -29,10 +29,8 @@ struct InsightCarouselView: View {
         if totalImages > 0 {
             VStack(spacing: 0) {
                 imageTabs
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     .id("InsightCarousel_\(totalImages)_\(inferenceEngine.speciesData?.scanId ?? "null")")
-                    .aspectRatio(1.0, contentMode: .fill)
-
+                    .ignoresSafeArea(edges: .top) // Prevent internal TabView safe-area squashing!
                     .clipped() // Ensure the image layer natively truncates inside its own view logic alone
                     .overlay(alignment: .bottom) { paginationDots }
                     .overlay(alignment: .top) {
@@ -56,7 +54,6 @@ private extension InsightCarouselView {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .aspectRatio(1.0, contentMode: .fill)
                     .clipped()
                     .tag(0)
             }
@@ -94,6 +91,8 @@ private extension InsightCarouselView {
                 .tag(liveCount + validHistoricImagePaths.count + index)
             }
         }
+        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+        .aspectRatio(1.0, contentMode: .fill)
     }
     
     // MARK: - Pagination Dots
@@ -112,7 +111,7 @@ private extension InsightCarouselView {
             .padding(.vertical, 6)
             .background(Color.black.opacity(0.2))
             .background(.ultraThinMaterial, in: Capsule())
-            .padding(.bottom, 16)
+            .padding(.bottom, 40)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex)
         }
     }
