@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Lazy Loading Detached Image Renderer 
 struct AsyncLocalImageView: View {
-    let imagePath: String
+    let imagePath: String?
     var fallbackImageUrl: String? = nil
     var onImageLoadFailed: (() -> Void)? = nil
     

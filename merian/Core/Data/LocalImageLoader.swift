@@ -31,7 +31,7 @@ actor LocalImageLoader {
                 }
             } 
             // 4. Local File Extraction directly off Main Thread
-            else if let safePath = imagePath, !safePath.starts(with: "http") {
+            else if let safePath = imagePath, !safePath.isEmpty, !safePath.starts(with: "http") {
                 let filename = (safePath as NSString).lastPathComponent
                 let url = URL.documentsDirectory.appendingPathComponent(filename)
                 
@@ -55,9 +55,16 @@ actor LocalImageLoader {
             }
             
             // 5. Explicit Network Fallback explicitly routing legacy bounds
-            if let fallbackUrlString = fallbackUrl, let url = URL(string: fallbackUrlString) {
-                if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey) {
-                    return networkImage
+            if let fallbackUrlString = fallbackUrl {
+                let urls = fallbackUrlString.components(separatedBy: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .compactMap { URL(string: $0) }
+                
+                for url in urls {
+                    if Task.isCancelled { return nil }
+                    if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey) {
+                        return networkImage
+                    }
                 }
             }
             

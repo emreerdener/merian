@@ -98,37 +98,19 @@ private extension InsightCarouselView {
             
             // Tab 1+: Wikipedia / GBIF Reference Images
             ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
-                if let refUrl = URL(string: urlString) {
-                    AsyncImage(url: refUrl, transaction: Transaction(animation: .easeInOut(duration: 0.3))) { phase in
-                        switch phase {
-                        case .empty:
-                            Color.white.opacity(0.1)
-                                .aspectRatio(1.0, contentMode: .fill)
-                                .overlay(ProgressView())
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .aspectRatio(1.0, contentMode: .fill)
-                                .clipped()
-                                .transition(.opacity)
-                        case .failure:
-                            Color.clear
-                                .aspectRatio(1.0, contentMode: .fill)
-                                .onAppear {
-                                    if totalImages > 1 {
-                                        inferenceEngine.dropInvalidCarouselImage(urlString)
-                                        if selectedIndex >= totalImages - 1 {
-                                            selectedIndex = max(0, totalImages - 2)
-                                        }
-                                    }
-                                }
-                        @unknown default:
-                            EmptyView()
+                AsyncLocalImageView(
+                    imagePath: nil,
+                    fallbackImageUrl: urlString,
+                    onImageLoadFailed: {
+                        if totalImages > 1 {
+                            inferenceEngine.dropInvalidCarouselImage(urlString)
+                            if selectedIndex >= totalImages - 1 {
+                                selectedIndex = max(0, totalImages - 2)
+                            }
                         }
                     }
-                    .tag(liveCount + validHistoricImagePaths.count + index)
-                }
+                )
+                .tag(liveCount + validHistoricImagePaths.count + index)
             }
         }
     }

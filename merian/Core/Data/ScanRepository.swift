@@ -108,6 +108,20 @@ actor HistoricalDatabaseActor {
             // If it exists safely mapped in R2, explicitly ingest the clean public Cloudflare Web URL natively
             let rawR2Image = scan.image_storage_urls?.first
             
+            let dictRefImage = dict?.reference_image_url
+            let combinedRefUrls = [rawR2Image, dictRefImage]
+                .compactMap { $0 }
+                .flatMap { $0.components(separatedBy: ",") }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            
+            // Remove duplicates while preserving order
+            var uniqueFallbacks: [String] = []
+            for url in combinedRefUrls {
+                if !uniqueFallbacks.contains(url) { uniqueFallbacks.append(url) }
+            }
+            let finalReferenceString = uniqueFallbacks.joined(separator: ",")
+            
             let record = LocalScanRecord(
                 id: scan.id,
                 speciesId: UUID().uuidString,
@@ -124,7 +138,7 @@ actor HistoricalDatabaseActor {
                 ecologyType: scan.ecology_type ?? "unknown",
                 wikipediaUrl: dict?.wikipedia_url,
                 wikipediaExtract: wikiExtract,
-                referenceImageUrl: rawR2Image ?? dict?.reference_image_url,
+                referenceImageUrl: finalReferenceString.isEmpty ? nil : finalReferenceString,
                 additionalImagePaths: nil,
                 confidenceScore: scan.ai_confidence_score,
                 isLocallyArchived: false,
@@ -144,6 +158,45 @@ actor HistoricalDatabaseActor {
         }
         
         try? modelContext.save()
+    }
+    
+    func updateExistingScans(responses: [HistoricalScanResponse]) {
+        let descriptor = FetchDescriptor<LocalScanRecord>()
+        let existingScans = (try? modelContext.fetch(descriptor)) ?? []
+        var lookup: [String: LocalScanRecord] = [:]
+        for scan in existingScans {
+            lookup[scan.id] = scan
+        }
+        
+        var didUpdate = false
+        for res in responses {
+            if let existing = lookup[res.id] {
+                let rawR2Image = res.image_storage_urls?.first
+                let dictRefImage = res.species_dictionary?.reference_image_url
+                
+                let combinedRefUrls = [rawR2Image, dictRefImage]
+                    .compactMap { $0 }
+                    .flatMap { $0.components(separatedBy: ",") }
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                
+                var uniqueFallbacks: [String] = []
+                for url in combinedRefUrls {
+                    if !uniqueFallbacks.contains(url) { uniqueFallbacks.append(url) }
+                }
+                let finalReferenceString = uniqueFallbacks.joined(separator: ",")
+                let newRef = finalReferenceString.isEmpty ? nil : finalReferenceString
+                
+                if existing.referenceImageUrl != newRef {
+                    existing.referenceImageUrl = newRef
+                    didUpdate = true
+                }
+            }
+        }
+        
+        if didUpdate {
+            try? modelContext.save()
+        }
     }
 }
 
@@ -166,17 +219,24 @@ actor HistoricalDatabaseActor {
             let existingIds = Set(existingLocalScans.map { $0.id })
             
             let missingScans = response.filter { !existingIds.contains($0.id) }
-            guard !missingScans.isEmpty else { return }
             
-            print("🔄 Merian Sync: Restoring \(missingScans.count) historical scan payloads natively...")
+            if !missingScans.isEmpty {
+                print("🔄 Merian Sync: Restoring \(missingScans.count) historical scan payloads natively...")
+            }
             
             let container = modelContext.container
             await Task.detached(priority: .userInitiated) {
                 let dbActor = HistoricalDatabaseActor(modelContainer: container)
-                await dbActor.ingestHistoricalScans(missingScans: missingScans)
+                await dbActor.updateExistingScans(responses: response)
+                
+                if !missingScans.isEmpty {
+                    await dbActor.ingestHistoricalScans(missingScans: missingScans)
+                }
             }.value
             
-            print("✅ Merian Sync: Restored Historical payload records.")
+            if !missingScans.isEmpty {
+                print("✅ Merian Sync: Restored Historical payload records.")
+            }
             
         } catch {
             print("🚨 Failed strictly reconciling Offline Historical Scans from Edge bounds: \(error)")
