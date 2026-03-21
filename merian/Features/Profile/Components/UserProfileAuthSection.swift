@@ -12,7 +12,7 @@ struct UserProfileAuthSection: View {
                     await supabase.initializeGhostSession()
                 }
             }) {
-                Text("Sign Out")
+                Text("Sign out")
                     .foregroundColor(.red)
             }
         }

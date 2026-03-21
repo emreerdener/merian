@@ -59,7 +59,7 @@ When executing `saveUserPhotos()` concurrently across the historical file cache 
 ### SwiftUI Task Cancellation Swallowing
 When generating dynamic delays (like `toastMessage` banners) using SwiftUI's native `.task(id:)` modifier, utilizing `try? await Task.sleep()` fatally swallows the native `CancellationError` payload. If the `id` changes rapidly, the swallowed error prevents the active task from aborting correctly, creating race conditions where multiple toast timers overlap and prematurely clear the UI state. Merian enforces strictly executing `try await Task.sleep()` without the optional coalescing inside bounding `.task(id:)` structures (e.g., fixing `InsightSheetView` toast races) to guarantee SwiftUI cancels previous suspended timers instantly.
 
-### UI Thread Blocking (`SettingsView` Exports)
+### UI Thread Blocking (`UserProfileView` Exports)
 Generating a global Darwin Core Archive (DwC-A) over the `/export-dwca` Edge node forces native HTTP barriers to hold connections open for over 100+ seconds depending on user library sizing constraints natively. Emitting this asynchronous hook directly on the `@MainActor` thread would trigger severe scrolling stutters or complete Watchdog terminations. 
 The `MerianNetworkClient.shared.exportDwcA` task is explicitly hoisted away from the UI into an isolated `Task.detached(priority: .userInitiated)` shell seamlessly toggling an insulated `@MainActor` `isExporting` state. Only when the resulting `.zip` URL successfully returns does the system jump execution strictly back onto the Main Thread to render the iOS `ShareLink`, effortlessly defeating main thread starvation.
 

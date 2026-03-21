@@ -7,11 +7,21 @@ struct ProfilePreferencesSection: View {
     @Binding var saveToCameraRoll: Bool
     @Binding var defaultGeoprivacy: String
     
+    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
+    
     let supabase: SupabaseManager
     
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
+                 Picker("Theme", selection: $themeMode) {
+                ForEach(ThemeMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.bottom, 16)
+            
                 Toggle("Expedition Mode", isOn: $isExpeditionModeActive)
                     .onChange(of: isExpeditionModeActive) { _, newValue in
                         HardwareOrchestrator.shared.isExpeditionModeActive = newValue

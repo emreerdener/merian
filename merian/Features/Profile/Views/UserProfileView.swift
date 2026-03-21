@@ -18,6 +18,7 @@ struct UserProfileView: View {
     @AppStorage("isLiveInferencePaused") private var isLiveInferencePaused = UIDevice.current.isModernIPhone
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
     @AppStorage("saveToCameraRoll") private var saveToCameraRoll = true
+    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     
     // Privacy States
     @StateObject private var viewModel = UserProfileViewModel()
@@ -32,7 +33,11 @@ struct UserProfileView: View {
                 // MARK: - Core Profile Content
                 Section {
                     VStack {
-                        UserProfileHeaderView(supabase: supabase) {}
+                        UserProfileHeaderView(supabase: supabase, showPaywall: $showPaywall) {}
+                            .sheet(isPresented: $showPaywall) {
+                                PaywallView()
+                                    .environmentObject(RevenueCatManager.shared)
+                            }
                     }
                     .padding(.horizontal, 2)
                     .padding(.bottom, 2)
@@ -41,29 +46,7 @@ struct UserProfileView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 
-                // Manage plan
-                Section {
-                    Button(action: { showPaywall = true }) {
-                        HStack {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(revenueCat.isProActive ? .yellow : .primary)
-                            Text("Manage plan")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Text(revenueCat.isProActive ? "Merian Pro" : "Free")
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .sheet(isPresented: $showPaywall) {
-                        PaywallView()
-                            .environmentObject(RevenueCatManager.shared)
-                     }
-                }
+
                 
                 // Section 2: Field & Hardware Preferences
                 ProfilePreferencesSection(
@@ -140,5 +123,76 @@ struct UserProfileView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+        .preferredColorScheme(themeMode.colorScheme)
+    }
+}
+
+struct UserProfilePlanComponent: View {
+    @ObservedObject var revenueCat = RevenueCatManager.shared
+    @Binding var showPaywall: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: revenueCat.isProActive ? "lock.open.fill" : "lock.fill")
+                            .foregroundColor(revenueCat.isProActive ? .yellow : .secondary)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(revenueCat.isProActive ? "UNLIMITED SCANS" : "2 SCANS DAILY")
+                            .font(.system(.caption, design: .monospaced))
+                            .fontWeight(.bold)
+                            .foregroundColor(.secondary)
+                            .tracking(1)
+                    }
+                    
+                    Text(revenueCat.isProActive ? "Naturalist" : "Explorer")
+                        .font(.system(.title, design: .serif))
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                }
+                
+                Spacer()
+                
+                if revenueCat.isProActive {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.yellow)
+                        .shadow(color: .yellow.opacity(0.3), radius: 5, y: 2)
+                } else {
+                    Image(systemName: "leaf.circle")
+                        .font(.system(size: 28))
+                        .foregroundColor(.secondary.opacity(0.5))
+                }
+            }
+            
+            Text(revenueCat.isProActive ? "You have unlimited identifications, offline taxonomy packs, and the Apple Watch companion natively unlocked." : "You have 2 free scans daily. Upgrade to unlock more advanced AI reasoning, unlimited identifications, audio recording, Apple Watch logging, and offline Field Queue caching.")
+                .font(.system(.subheadline))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(2)
+            
+            Button(action: { showPaywall = true }) {
+                HStack {
+                    Image(systemName: revenueCat.isProActive ? "gearshape" : "arrow.up.circle")
+                        .font(.system(size: 20, weight: .semibold))
+                    Text(revenueCat.isProActive ? "Manage subscription" : "Upgrade for more")
+                        .fontWeight(.bold)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.primary)
+                .foregroundColor(Color(UIColor.systemBackground))
+                .cornerRadius(16)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
     }
 }

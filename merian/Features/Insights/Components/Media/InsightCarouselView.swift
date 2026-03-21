@@ -149,7 +149,7 @@ private extension InsightCarouselView {
             .padding(.vertical, 6)
             .background(Color.black.opacity(0.2))
             .background(.ultraThinMaterial, in: Capsule())
-            .padding(.bottom, 24)
+            .padding(.bottom, 16)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex)
         }
     }

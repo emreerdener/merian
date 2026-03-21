@@ -19,8 +19,9 @@ struct CameraRootView: View {
     @State private var focusLocation: CGPoint? = nil
     @State private var showFocusIndicator: Bool = false
     @State private var focusTask: Task<Void, Never>? = nil
-
     
+    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -131,6 +132,7 @@ struct CameraRootView: View {
         ) {
             viewModel.executeCapture()
         }
+        .preferredColorScheme(themeMode.colorScheme)
     }
 }
 

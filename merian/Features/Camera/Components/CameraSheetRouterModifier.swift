@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CameraSheetRouterModifier: ViewModifier {
     @ObservedObject var viewModel: CameraViewModel
+    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     
     func body(content: Content) -> some View {
         content
@@ -27,6 +28,7 @@ struct CameraSheetRouterModifier: ViewModifier {
                     }
                 }
                 .presentationDragIndicator(.hidden)
+                .preferredColorScheme(themeMode.colorScheme)
                 .onAppear {
                     viewModel.handleSheetAppear()
                 }

@@ -5,6 +5,7 @@ struct UserProfileHeaderView: View {
     @ObservedObject var supabase: SupabaseManager
     @Environment(\.modelContext) private var modelContext
     
+    @Binding var showPaywall: Bool
     var onSettingsTap: () -> Void
     
     @State private var uniqueSpeciesCount: Int = 0
@@ -67,7 +68,7 @@ private var persona: String {
             VStack {
                 if supabase.isGuestUser {
                     // Sign In Flow
-                    VStack(spacing: 12) {
+                    VStack(spacing: 16) {
                         Button(action: {
                             supabase.startAppleSignIn()
                         }) {
@@ -142,7 +143,9 @@ private var persona: String {
                     )
                 }
             }
-
+            
+            // Manage plan Action Component
+            UserProfilePlanComponent(showPaywall: $showPaywall)
         }
         .task {
             let container = modelContext.container

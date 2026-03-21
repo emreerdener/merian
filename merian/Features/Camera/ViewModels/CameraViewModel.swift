@@ -224,7 +224,11 @@ final class CameraViewModel: ObservableObject {
             withAnimation {
                 isAnalyzingFullscreen = false
             }
-            activeSheet = .insight
+            // Safely defer the insight sheet presentation strictly forcing SwiftUI to stabilize
+            // any hardware interactions from leaking `.paywall` checks concurrently
+            DispatchQueue.main.async { [weak self] in
+                self?.activeSheet = .insight
+            }
         }
     }
     
