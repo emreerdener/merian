@@ -109,10 +109,11 @@ struct ProfileCaptureHeatmapView: View {
                 if heatmapData != nil {
                     HStack {
                         Spacer()
-                        HStack(spacing: squareSpacing) {
-                            Text("Less")
+                        Text("Less")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
+                        HStack(spacing: squareSpacing) {
+                            
                             
                             ForEach([0, 1, 3, 5, 7], id: \.self) { count in
                                 RoundedRectangle(cornerRadius: 2)
@@ -120,10 +121,11 @@ struct ProfileCaptureHeatmapView: View {
                                     .frame(width: squareSize, height: squareSize)
                             }
                             
-                            Text("More")
+                           
+                        }
+                        Text("More")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                        }
                         Spacer()
                     }
                     .padding(.horizontal, 16)
@@ -163,8 +165,12 @@ struct FadingScrollView<Content: View>: View {
                 .background(
                     GeometryReader { geo in
                         Color.clear
-                            .preference(key: FadingScrollOffsetKey.self, value: geo.frame(in: .named("FadingScrollSpace")).minX)
-                            .preference(key: FadingScrollContentWidthKey.self, value: geo.size.width)
+                            .onChange(of: geo.frame(in: .named("FadingScrollSpace")).minX, initial: true) { _, newX in
+                                offset = newX
+                            }
+                            .onChange(of: geo.size.width, initial: true) { _, newW in
+                                contentWidth = newW
+                            }
                     }
                 )
         }
@@ -172,17 +178,17 @@ struct FadingScrollView<Content: View>: View {
         .defaultScrollAnchor(.trailing)
         .background(
             GeometryReader { geo in
-                Color.clear.preference(key: FadingScrollContainerWidthKey.self, value: geo.size.width)
+                Color.clear
+                    .onChange(of: geo.size.width, initial: true) { _, newW in
+                        containerWidth = newW
+                    }
             }
         )
-        .onPreferenceChange(FadingScrollOffsetKey.self) { offset = $0 }
-        .onPreferenceChange(FadingScrollContentWidthKey.self) { contentWidth = $0 }
-        .onPreferenceChange(FadingScrollContainerWidthKey.self) { containerWidth = $0 }
         .mask(
             HStack(spacing: 0) {
                 let showLeadingFade = offset < -10
                 LinearGradient(
-                    gradient: Gradient(colors: [showLeadingFade ? .clear : .black, .black]),
+                    gradient: Gradient(colors: [Color.black.opacity(showLeadingFade ? 0 : 1), .black]),
                     startPoint: .leading, endPoint: .trailing
                 )
                 .frame(width: 48)
@@ -193,24 +199,11 @@ struct FadingScrollView<Content: View>: View {
                 let showTrailingFade = offset > -maxScroll + 10
                 
                 LinearGradient(
-                    gradient: Gradient(colors: [.black, showTrailingFade ? .clear : .black]),
+                    gradient: Gradient(colors: [.black, Color.black.opacity(showTrailingFade ? 0 : 1)]),
                     startPoint: .leading, endPoint: .trailing
                 )
                 .frame(width: 48)
             }
         )
     }
-}
-
-private struct FadingScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-private struct FadingScrollContentWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-private struct FadingScrollContainerWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
