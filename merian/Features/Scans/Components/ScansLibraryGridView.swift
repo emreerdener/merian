@@ -4,6 +4,8 @@ struct ScansLibraryGridView: View {
     @ObservedObject var searchManager: ScansSearchManager
     let filterCategories: [String]
     let isSearchFocused: Bool
+    var isSelectionMode: Bool = false
+    var isSelected: ((LocalScanRecord) -> Bool)? = nil
     let onSelect: (LocalScanRecord) -> Void
     let onDelete: (LocalScanRecord) -> Void
     
@@ -58,7 +60,13 @@ struct ScansLibraryGridView: View {
                         }()
                     )
                 } else {
-                    ScanGridMatrix(scans: searchManager.filteredScans, onSelect: onSelect, onDelete: onDelete)
+                    ScanGridMatrix(
+                        scans: searchManager.filteredScans,
+                        onSelect: onSelect,
+                        onDelete: onDelete,
+                        isSelectionMode: isSelectionMode,
+                        isSelected: isSelected
+                    )
                 }
             }
         }

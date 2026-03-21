@@ -32,32 +32,13 @@ struct InsightCarouselView: View {
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     .id("InsightCarousel_\(totalImages)_\(inferenceEngine.speciesData?.scanId ?? "null")")
                     .aspectRatio(1.0, contentMode: .fill)
-                    .mask(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black, location: 0.0),   // Anchor opaque at top
-                                .init(color: .black, location: 0.7),   // Hold fully opaque down to exactly 80%
-                                .init(color: .clear, location: 1.0)    // Rapidly fade to clear only in the final 20%
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+
                     .clipped() // Ensure the image layer natively truncates inside its own view logic alone
                     .overlay(alignment: .bottom) { paginationDots }
                     .overlay(alignment: .top) {
-                        ZStack(alignment: .top) {
-                            // Layer 1: Protective Semantic Top Gradient
-                            LinearGradient(colors: [.black.opacity(0.4), .clear], startPoint: .top, endPoint: .bottom)
-                                .frame(height: 120)
-                                .allowsHitTesting(false)
-                                .zIndex(0)
-                            
-                            // Layer 2: Highest-Index Confidence Badge
-                            ConfidenceBadgeView(confidenceScore: inferenceEngine.speciesData?.confidenceScore)
-                                .padding(.top, 24)
-                                .zIndex(100) // Mathematically forces it completely outside the gradient render layer
-                        }
+                        LinearGradient(colors: [.black.opacity(0.4), .clear], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 120)
+                            .allowsHitTesting(false)
                     }
             }
         }

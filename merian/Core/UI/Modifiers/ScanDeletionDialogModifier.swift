@@ -9,10 +9,9 @@ struct ScanDeletionDialogModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .confirmationDialog(
-                "Delete scan",
-                isPresented: $isPresented,
-                titleVisibility: .visible
+            .alert(
+                "Delete scan?",
+                isPresented: $isPresented
             ) {
                 Button("Delete permanently", role: .destructive) {
                     guard let activeRecord = record else { return }

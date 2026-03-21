@@ -137,7 +137,7 @@ struct UserProfilePlanComponent: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
                         Image(systemName: revenueCat.isProActive ? "lock.open.fill" : "lock.fill")
-                            .foregroundColor(revenueCat.isProActive ? .yellow : .secondary)
+                            .foregroundColor(.secondary)
                             .font(.system(size: 14, weight: .semibold))
                         Text(revenueCat.isProActive ? "UNLIMITED SCANS" : "2 SCANS DAILY")
                             .font(.system(.caption, design: .monospaced))
@@ -155,10 +155,9 @@ struct UserProfilePlanComponent: View {
                 Spacer()
                 
                 if revenueCat.isProActive {
-                    Image(systemName: "checkmark.seal.fill")
+                    Image(systemName: "leaf")
                         .font(.system(size: 32))
-                        .foregroundColor(.yellow)
-                        .shadow(color: .yellow.opacity(0.3), radius: 5, y: 2)
+                        .foregroundColor(.green)
                 } else {
                     Image(systemName: "leaf.circle")
                         .font(.system(size: 28))

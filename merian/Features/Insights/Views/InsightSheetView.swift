@@ -26,6 +26,7 @@ struct InsightSheetView: View {
     @State var showSaveSuccessAlert = false
     @State var toastMessage: String? = nil
     @State private var showBottomBarTools = false
+    @State private var isCommonNameScrolledPast = false
     
     // MARK: Diagnostic Bounds
     var isPoisonous: Bool { inferenceEngine.speciesData?.insightData.isPoisonous ?? false }
@@ -44,7 +45,7 @@ struct InsightSheetView: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         // Dialogs
-        .confirmationDialog("Delete scan", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+        .alert("Delete scan?", isPresented: $showDeleteConfirmation) {
             Button("Delete scan permanently", role: .destructive) { eradicateCurrentScan() }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -84,6 +85,24 @@ struct InsightSheetView: View {
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             evaluateProcessingCompletion(isStillProcessing: isStillProcessing)
         }
+        .onPreferenceChange(CommonNameScrollOffsetKey.self) { minY in
+            // Fallback safely dropping `.infinity` out of the matrix
+            guard minY != .infinity else { return }
+            
+            // The image is exactly 1.0 aspect ratio (screen width).
+            // Scientific + Common Name blocks aggressively occupy approx ~80pts horizontally underneath.
+            // Ergo, when the global scroll minY dives past the negative offset threshold -> toggle headers!
+            let threshold = -(UIScreen.main.bounds.width + 80)
+            let isPast = minY < threshold
+            
+            if isCommonNameScrolledPast != isPast {
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isCommonNameScrolledPast = isPast
+                    }
+                }
+            }
+        }
         .task(id: inferenceEngine.speciesData?.scanId) {
             if let scanId = inferenceEngine.speciesData?.scanId {
                 fetchLocalRecord(for: scanId)
@@ -116,6 +135,8 @@ struct InsightSheetView: View {
     var sheetToolbarContent: some ToolbarContent {
         InsightSheetHeader(
             commonName: commonName,
+            confidenceScore: inferenceEngine.speciesData?.confidenceScore,
+            isCommonNameScrolledPast: isCommonNameScrolledPast,
             isFlagIssuePresented: $isFlagIssuePresented,
             isSavingPhotos: $isSavingPhotos,
             showDeleteConfirmation: $showDeleteConfirmation,

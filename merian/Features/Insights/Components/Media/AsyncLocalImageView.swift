@@ -20,13 +20,15 @@ struct AsyncLocalImageView: View {
             } else if hasFailedToLoad {
                 ArchivedVisualsView()
                 .aspectRatio(1.0, contentMode: .fill)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
             } else {
                 ProgressView()
-                    .aspectRatio(1.0, contentMode: .fill)
-                    .frame(maxWidth: .infinity)
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.white.opacity(0.1))
+                    .aspectRatio(1.0, contentMode: .fill)
+                    .clipped()
             }
         }
         .onAppear {

@@ -18,7 +18,17 @@ extension InsightSheetView {
                 
                 Spacer(minLength: 40)
             }
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: CommonNameScrollOffsetKey.self,
+                        value: geo.frame(in: .named("InsightScrollBoundary")).minY
+                    )
+                },
+                alignment: .top
+            )
         }
+        .coordinateSpace(name: "InsightScrollBoundary")
         .textSelection(.enabled)
         .sheet(isPresented: $isSafariPresented) {
             if let safeUrl = selectedWikiURL {

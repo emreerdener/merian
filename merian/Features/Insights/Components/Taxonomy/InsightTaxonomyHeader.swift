@@ -21,13 +21,13 @@ struct InsightTaxonomyHeader: View {
                     .italic()
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.top, 16)
             
                 Text(commonName)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
-                    // Tie header routing to the name if there's no active poison banner
-                .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
+                    .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
              }
 
             if let species = speciesData {
@@ -129,6 +129,17 @@ struct CenterFlowLayout: Layout {
                 x += size.width + spacing
             }
             y += lineHeight + spacing
+        }
+    }
+}
+
+// MARK: - Layout Preference Keys
+struct CommonNameScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = .infinity
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next != .infinity {
+            value = next
         }
     }
 }

@@ -7,11 +7,12 @@ struct ScanGridMatrix<MenuContent: View>: View {
     var isSelected: ((LocalScanRecord) -> Bool)? = nil
     @ViewBuilder var customMenuItems: ((LocalScanRecord) -> MenuContent)
     
-    private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
-    ]
+    var isSelectionMode: Bool = false
+    @AppStorage("gridColumns") private var gridColumns: Int = 3
+    
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 2), count: gridColumns)
+    }
     
     var body: some View {
         LazyVGrid(columns: columns, spacing: 2) {
@@ -23,7 +24,18 @@ struct ScanGridMatrix<MenuContent: View>: View {
                     ScansThumbnailView(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
                         .overlay(
                             ZStack {
-                                if isSelected?(scan) == true {
+                                if isSelectionMode {
+                                    if isSelected?(scan) == true {
+                                        Color.blue.opacity(0.6)
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.white)
+                                            .font(.system(size: 24))
+                                    } else {
+                                        Image(systemName: "circle")
+                                            .foregroundColor(.white.opacity(0.8))
+                                            .font(.system(size: 24))
+                                    }
+                                } else if isSelected?(scan) == true {
                                     Color.blue.opacity(0.6)
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundColor(.white)
@@ -49,10 +61,11 @@ struct ScanGridMatrix<MenuContent: View>: View {
 }
 
 extension ScanGridMatrix where MenuContent == EmptyView {
-    init(scans: [LocalScanRecord], onSelect: @escaping (LocalScanRecord) -> Void, onDelete: ((LocalScanRecord) -> Void)? = nil, isSelected: ((LocalScanRecord) -> Bool)? = nil) {
+    init(scans: [LocalScanRecord], onSelect: @escaping (LocalScanRecord) -> Void, onDelete: ((LocalScanRecord) -> Void)? = nil, isSelectionMode: Bool = false, isSelected: ((LocalScanRecord) -> Bool)? = nil) {
         self.scans = scans
         self.onSelect = onSelect
         self.onDelete = onDelete
+        self.isSelectionMode = isSelectionMode
         self.isSelected = isSelected
         self.customMenuItems = { _ in EmptyView() }
     }

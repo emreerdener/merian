@@ -23,12 +23,18 @@ struct ScansSearchView: View {
     @State private var showNewCollectionAlert = false
     @State private var newCollectionName = ""
     
+    @State private var isSelectionMode = false
+    @State private var selectedScans: Set<String> = []
+    
     @State private var scanToDelete: LocalScanRecord? = nil
     @State private var showDeleteConfirmation = false
+    @State private var showBatchDeleteConfirmation = false
+    @State private var showSelectionLimitAlert = false
     @State private var isSearchFocused = false
     
 // Struct bounds maintained safely
     
+    private let maxBatchSelectionLimit = 20
     private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles"]
     
     var body: some View {
@@ -39,9 +45,24 @@ struct ScansSearchView: View {
                     searchManager: searchManager,
                     filterCategories: filterCategories,
                     isSearchFocused: isSearchFocused,
+                    isSelectionMode: isSelectionMode,
+                    isSelected: { scan in selectedScans.contains(scan.id) },
                     onSelect: { scan in
-                        selectedScanForInsight = scan
-                        inferenceEngine.load(from: scan)
+                        if isSelectionMode {
+                            if selectedScans.contains(scan.id) {
+                                selectedScans.remove(scan.id)
+                            } else {
+                                if selectedScans.count >= maxBatchSelectionLimit {
+                                    HapticManager.shared.triggerErrorThump()
+                                    showSelectionLimitAlert = true
+                                } else {
+                                    selectedScans.insert(scan.id)
+                                }
+                            }
+                        } else {
+                            selectedScanForInsight = scan
+                            inferenceEngine.load(from: scan)
+                        }
                     },
                     onDelete: { scan in
                         scanToDelete = scan
@@ -87,10 +108,27 @@ struct ScansSearchView: View {
                 searchManager: searchManager,
                 activeTab: $activeTab,
                 showNewCollectionAlert: $showNewCollectionAlert,
-                dismiss: dismiss
+                isSelectionMode: $isSelectionMode,
+                selectedScans: $selectedScans,
+                dismiss: dismiss,
+                onShare: {
+                    let selectedItems = searchManager.filteredScans.filter { selectedScans.contains($0.id) }
+                    InsightMediaExportManager.shared.batchShareDiscovery(records: selectedItems) { items in
+                        presentShareSheet(items: items)
+                    }
+                },
+                onDownload: {
+                    let selectedItems = searchManager.filteredScans.filter { selectedScans.contains($0.id) }
+                    InsightMediaExportManager.shared.batchSaveUserPhotos(records: selectedItems) { savedCount in
+                        isSelectionMode = false
+                        selectedScans.removeAll()
+                        HapticManager.shared.triggerSuccessPulse()
+                    }
+                },
+                onDelete: {
+                    showBatchDeleteConfirmation = true
+                }
             )
-            //DefaultToolbarItem(kind: .search, placement: .bottomBar)
-            .toolbarBackground(.hidden, for: .bottomBar)
             .alert("New collection", isPresented: $showNewCollectionAlert) {
                 TextField("Collection name", text: $newCollectionName)
                 Button("Cancel", role: .cancel) { newCollectionName = "" }
@@ -120,5 +158,52 @@ struct ScansSearchView: View {
         ) {
             scanToDelete = nil
         }
+        .alert(
+            "Delete \(selectedScans.count) selected scans?",
+            isPresented: $showBatchDeleteConfirmation
+        ) {
+            Button("Delete permanently", role: .destructive) {
+                let itemsToDelete = searchManager.filteredScans.filter { selectedScans.contains($0.id) }
+                for item in itemsToDelete {
+                    AppDIContainer.shared.scanRepository.eradicateScan(record: item, modelContext: modelContext)
+                }
+                selectedScans.removeAll()
+                isSelectionMode = false
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will permanently remove these discoveries and all associated visuals from your history.")
+        }
+        .alert(
+            "Selection Limit Reached",
+            isPresented: $showSelectionLimitAlert
+        ) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("You can only select up to 20 items at a time to ensure optimal system performance during export and deletion workloads.")
+        }
+    }
+    
+    private func presentShareSheet(items: [Any]) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootVC = window.rootViewController else { return }
+        
+        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        
+        // Traverse safely up the stack to avoid overlapping presentation bounds
+        var topController = rootVC
+        while let presented = topController.presentedViewController {
+            topController = presented
+        }
+        
+        // Gracefully support iPad rendering anchors cleanly
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = topController.view
+            popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        
+        topController.present(activityVC, animated: true)
     }
 }
