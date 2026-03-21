@@ -106,22 +106,10 @@ actor HistoricalDatabaseActor {
             let desc = dict?.descriptions?["insight"]?.flatMap { $0 } ?? "No ecological description available for this subject."
             let wikiExtract = dict?.descriptions?["wikipedia"]?.flatMap { $0 }
             
-            // If it exists safely mapped in R2, explicitly ingest the clean public Cloudflare Web URL natively
             let rawR2Image = scan.image_storage_urls?.first
+            let additionalUrls = (scan.image_storage_urls?.count ?? 0) > 1 ? Array(scan.image_storage_urls!.dropFirst()) : nil
             
             let dictRefImage = dict?.reference_image_url
-            let combinedRefUrls = [rawR2Image, dictRefImage]
-                .compactMap { $0 }
-                .flatMap { $0.components(separatedBy: ",") }
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            
-            // Remove duplicates while preserving order
-            var uniqueFallbacks: [String] = []
-            for url in combinedRefUrls {
-                if !uniqueFallbacks.contains(url) { uniqueFallbacks.append(url) }
-            }
-            let finalReferenceString = uniqueFallbacks.joined(separator: ",")
             
             let record = LocalScanRecord(
                 id: scan.id,
@@ -130,7 +118,7 @@ actor HistoricalDatabaseActor {
                 commonName: cName,
                 insightDescription: desc,
                 timestamp: parsedDate,
-                localImagePath: nil, // We enforce physical absence here, dropping cleanly onto the R2 payload URL below natively
+                localImagePath: rawR2Image,
                 semanticTags: [cName, sciName] + (scan.colors ?? []),
                 isPoisonous: dict?.is_poisonous ?? false,
                 isBiological: true,
@@ -139,8 +127,8 @@ actor HistoricalDatabaseActor {
                 ecologyType: scan.ecology_type ?? "unknown",
                 wikipediaUrl: dict?.wikipedia_url,
                 wikipediaExtract: wikiExtract,
-                referenceImageUrl: finalReferenceString.isEmpty ? nil : finalReferenceString,
-                additionalImagePaths: nil,
+                referenceImageUrl: dictRefImage,
+                additionalImagePaths: additionalUrls,
                 confidenceScore: scan.ai_confidence_score,
                 isLocallyArchived: false,
                 taxonomyKingdom: dict?.kingdom,
@@ -173,23 +161,21 @@ actor HistoricalDatabaseActor {
         for res in responses {
             if let existing = lookup[res.id] {
                 let rawR2Image = res.image_storage_urls?.first
+                let additionalUrls = (res.image_storage_urls?.count ?? 0) > 1 ? Array(res.image_storage_urls!.dropFirst()) : nil
                 let dictRefImage = res.species_dictionary?.reference_image_url
                 
-                let combinedRefUrls = [rawR2Image, dictRefImage]
-                    .compactMap { $0 }
-                    .flatMap { $0.components(separatedBy: ",") }
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                
-                var uniqueFallbacks: [String] = []
-                for url in combinedRefUrls {
-                    if !uniqueFallbacks.contains(url) { uniqueFallbacks.append(url) }
+                if existing.localImagePath == nil && rawR2Image != nil {
+                    existing.localImagePath = rawR2Image
+                    didUpdate = true
                 }
-                let finalReferenceString = uniqueFallbacks.joined(separator: ",")
-                let newRef = finalReferenceString.isEmpty ? nil : finalReferenceString
                 
-                if existing.referenceImageUrl != newRef {
-                    existing.referenceImageUrl = newRef
+                if existing.additionalImagePaths == nil && additionalUrls != nil {
+                    existing.additionalImagePaths = additionalUrls
+                    didUpdate = true
+                }
+                
+                if existing.referenceImageUrl != dictRefImage {
+                    existing.referenceImageUrl = dictRefImage
                     didUpdate = true
                 }
                 

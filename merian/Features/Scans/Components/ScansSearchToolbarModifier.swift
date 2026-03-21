@@ -87,14 +87,19 @@ struct ScansSearchToolbarModifier: ViewModifier {
                             .tint(.blue)
                         } else if activeTab == .library {
                             Menu {
-                                Section {
-                                    Button(action: { gridColumns = 3 }) { Label("3x3 Grid", systemImage: "square.grid.3x3") }
-                                    Button(action: { gridColumns = 2 }) { Label("2x2 Grid", systemImage: "square.grid.2x2") }
-                                    Button(action: { gridColumns = 1 }) { Label("1x1 Grid", systemImage: "rectangle.grid.1x2") }
+                                ControlGroup {
+                                    Toggle(isOn: Binding(get: { gridColumns == 1 }, set: { if $0 { gridColumns = 1 } })) {
+                                        Label("1x1", systemImage: "rectangle.grid.1x2")
+                                    }
+                                    Toggle(isOn: Binding(get: { gridColumns == 2 }, set: { if $0 { gridColumns = 2 } })) {
+                                        Label("2x2", systemImage: "square.grid.2x2")
+                                    }
+                                    Toggle(isOn: Binding(get: { gridColumns == 3 }, set: { if $0 { gridColumns = 3 } })) {
+                                        Label("3x3", systemImage: "square.grid.3x3")
+                                    }
                                 }
-                                Section {
-                                    Button(action: { isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
-                                }
+                                
+                                Button(action: { isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
                             } label: {
                                 Image(systemName: "ellipsis")
                                     .font(.system(size: 16, weight: .bold))

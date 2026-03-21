@@ -94,8 +94,8 @@ Tracks locally synchronized and unique species scans natively for the Scans libr
 - `scientificName`: String
 - `commonName`: String
 - `confidenceScore`: Double?
-- `localImagePath`: String? (Thumbnail index pointing directly to the distinct physical capture binary)
-- `additionalImagePaths`: [String]? *(Deprecated: The Inference Engine no longer silently merges distinct photos under a random unified UUID, ensuring each shutter press spawns a clean mapping. Preserved for backwards compatibility with V5 nodes).*
+- `localImagePath`: String? (Path pointing directly to the distinct physical capture binary _or_ gracefully storing the primary historical Cloudflare remote URL to fully restore archived scans strictly independently).
+- `additionalImagePaths`: [String]? (Safely queues subsequent Cloudflare URL remote payloads securely, decoupling them away from general references to strictly avoid identical Image Carousel duplication loops).
 - `insightDescription`: String
 - `isPoisonous`: Bool
 - `isBiological`: Bool (from Edge)
@@ -105,7 +105,7 @@ Tracks locally synchronized and unique species scans natively for the Scans libr
 - `semanticTags`: [String] (AI-generated hidden array of contextual tags to power local, offline semantic search routing without requiring an internet connection).
 - `wikipediaUrl`: String? (Asynchronously hydrated by the `BackgroundDatabaseActor` after standalone REST execution resolving bounds offline)
 - `wikipediaExtract`: String? (Explicit text payload from REST API mapped iteratively by `updateScanWithWikipedia` natively into iOS persistent storage).
-- `referenceImageUrl`: String?
+- `referenceImageUrl`: String? (Strictly partitioned. Only stores Wikipedia/GBIF biological references. Explicitly prevents polluting the UI Image Carousel with duplicated records of the user's scan implicitly).
 - `isLocallyArchived`: Bool (Managed internally by the Archive Safety Protocol to track R2 payloads downloaded before the 90-day free tier expiration limit).
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`, `taxonomyFamily`, `taxonomyGenus`: String? (Explicitly stored Linnaean taxonomy fields mapped into `MerianSchemaV3` enabling rigid detached background semantic discovery loops natively bypassing arbitrary UI `ecology_type` bounds safely.)
 - `locationName`, `weatherCondition`, `weatherTemperatureF`: String/Double? (Mapped in `MerianSchemaV5` wrapping historical environmental context via Apple's native MapKit MKReverseGeocodingRequest natively powering localized UI inside the `InsightSheetView`.)
