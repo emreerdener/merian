@@ -77,6 +77,7 @@ actor ProfileDatabaseActor {
         df.dateFormat = "MMM"
         
         var currentMonth = -1
+        var totalInHeatmap = 0
         
         for weekIndex in 0..<columns {
             var days: [HeatmapDay] = []
@@ -98,6 +99,7 @@ actor ProfileDatabaseActor {
                     count = -1
                 } else {
                     count = counts[currentDate] ?? 0
+                    totalInHeatmap += count
                 }
                 
                 days.append(HeatmapDay(count: count, date: currentDate))
@@ -105,8 +107,7 @@ actor ProfileDatabaseActor {
             weeks.append(HeatmapWeek(days: days, monthLabel: monthLabel))
         }
         
-        let total = counts.values.reduce(0, +)
-        return ProfileHeatmapData(totalCaptures: total, yearString: "\(currentYear)", weeks: weeks)
+        return ProfileHeatmapData(totalCaptures: totalInHeatmap, yearString: "\(currentYear)", weeks: weeks)
     }
 }
 
