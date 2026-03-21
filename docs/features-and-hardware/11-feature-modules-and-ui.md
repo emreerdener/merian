@@ -88,6 +88,12 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 ### Aesthetic Customizations
 - Contains the `AppIconManager` allowing `Pro` users to natively swap their iOS Springboard Icon using `UIApplication.shared.setAlternateIconName` natively. This natively updates both the app boundary and the underlying `Config.xcconfig` bounds safely without requiring a restart.
 
+### Contribution Heatmap
+- **ProfileCaptureHeatmapView**: Natively visualizes user's biological scanning frequency over time via a pristine, GitHub-style 52-week contribution graph natively embedded directly onto the background canvas without heavy UI card wrappers.
+- **LazyHGrid Eradication**: Instead of using a standard `LazyHGrid` which introduces severe performance hits, jumping rendering, and stuttering layout recalculations during horizontal scrolling, the structural mapping explicitly uses a highly optimized `ScrollView(.horizontal)` packing a simple `HStack` of VStacks. This natively guarantees flawless 120Hz scrolling perfectly maintaining Y-Axis alignments. 
+- **Isolated Data Pipeline**: Render states are explicitly generated off-thread in the `ProfileDatabaseActor` as a flat Sendable array map and bound seamlessly directly into the view array matrix, guaranteeing absolutely no O(N) date-math blockages on the SwiftUI Main Actor thread.
+- **FadingScrollView Geometry Tracking**: To perfectly orchestrate seamless edge-to-edge scrolling natively without clipping or popping UI bounds, the matrix is enclosed inside an extracted `FadingScrollView`. This utilizes rigorous `GeometryReader` preference keys mapping content boundaries tracking `minX` offsets to mathematically compute dynamic `LinearGradient` masks completely fading the edges of the grid natively. Y-axis labels ("Mon, Wed, Fri") correctly float attached to the `.trailing` right column ensuring immediate visibility when anchored natively to today's history!
+
 ### Hardware Preferences
 - **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps and disables intensive visual blurs to preserve battery.
 - **Live Viewfinder Hints**: Allows users to manually disable real-time AI scanning hints before capturing to securely reduce thermal loads or minimize battery drain.

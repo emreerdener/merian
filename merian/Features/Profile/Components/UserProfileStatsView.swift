@@ -38,6 +38,94 @@ actor ProfileDatabaseActor {
         
         return (speciesCount, streak)
     }
+    
+    func calculateHeatmapData() -> ProfileHeatmapData {
+        var descriptor = FetchDescriptor<LocalScanRecord>()
+        descriptor.propertiesToFetch = [\.timestamp]
+        
+        guard let allRecords = try? modelContext.fetch(descriptor) else { 
+            return ProfileHeatmapData(totalCaptures: 0, yearString: "", weeks: [])
+        }
+        
+        let calendar = Calendar.current
+        var counts: [Date: Int] = [:]
+        
+        for record in allRecords {
+            let startOfDay = calendar.startOfDay(for: record.timestamp)
+            counts[startOfDay, default: 0] += 1
+        }
+        
+        let today = calendar.startOfDay(for: Date())
+        let currentYear = calendar.component(.year, from: today)
+        
+        // Find the most recent Saturday (end of the current week)
+        // In Gregorian, Sunday is 1, Saturday is 7.
+        let weekday = calendar.component(.weekday, from: today)
+        let daysToSaturday = 7 - weekday
+        guard let endOfWeek = calendar.date(byAdding: .day, value: daysToSaturday, to: today) else {
+            return ProfileHeatmapData(totalCaptures: counts.values.reduce(0, +), yearString: "\(currentYear)", weeks: [])
+        }
+        
+        let columns = 52
+        let totalDays = columns * 7
+        guard let startDate = calendar.date(byAdding: .day, value: -(totalDays - 1), to: endOfWeek) else {
+            return ProfileHeatmapData(totalCaptures: counts.values.reduce(0, +), yearString: "\(currentYear)", weeks: [])
+        }
+        
+        var weeks: [HeatmapWeek] = []
+        let df = DateFormatter()
+        df.dateFormat = "MMM"
+        
+        var currentMonth = -1
+        
+        for weekIndex in 0..<columns {
+            var days: [HeatmapDay] = []
+            var monthLabel: String? = nil
+            
+            for dayIndex in 0..<7 {
+                guard let currentDate = calendar.date(byAdding: .day, value: (weekIndex * 7) + dayIndex, to: startDate) else { continue }
+                
+                if dayIndex == 0 {
+                    let month = calendar.component(.month, from: currentDate)
+                    if month != currentMonth {
+                        currentMonth = month
+                        monthLabel = df.string(from: currentDate)
+                    }
+                }
+                
+                let count: Int
+                if currentDate > today {
+                    count = -1
+                } else {
+                    count = counts[currentDate] ?? 0
+                }
+                
+                days.append(HeatmapDay(count: count, date: currentDate))
+            }
+            weeks.append(HeatmapWeek(days: days, monthLabel: monthLabel))
+        }
+        
+        let total = counts.values.reduce(0, +)
+        return ProfileHeatmapData(totalCaptures: total, yearString: "\(currentYear)", weeks: weeks)
+    }
+}
+
+public struct HeatmapDay: Sendable, Identifiable {
+    public let id = UUID()
+    public let count: Int
+    public let date: Date
+}
+
+public struct HeatmapWeek: Sendable, Identifiable {
+    public let id = UUID()
+    public let days: [HeatmapDay]
+    public let monthLabel: String?
+}
+
+public struct ProfileHeatmapData: Sendable {
+    public let totalCaptures: Int
+    public let yearString: String
+    public let weeks: [HeatmapWeek]
 }
 
 struct UserProfileStatsView: View {

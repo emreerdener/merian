@@ -141,6 +141,7 @@
 		CEE1EFA5B51A287D1C362021 /* InsightCelebrationOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 596D57994C827B3FCBF881CE /* InsightCelebrationOverlayView.swift */; };
 		CF5FF69E1DD41C08D9AED13D /* AppTelemetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF124E8F88CCF61F4F474368 /* AppTelemetryTests.swift */; };
 		D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D57A8D01CDAF8E994655620 /* MerianApp.swift */; };
+		D28DB22580C63AF6CAD8153E /* ProfileCaptureHeatmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4B850508983D8308913B97 /* ProfileCaptureHeatmapView.swift */; };
 		D2DF3C5C01E8FDBE6CC1CDBB /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A270E569ECEE97C105C10EE3 /* ImageCache.swift */; };
 		D6E481A76EF11B3F287D0BA4 /* UserProfileStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5676B02D7EA12A5E5B95948C /* UserProfileStatsView.swift */; };
 		D7B04ED125E7B9999AE85FDF /* ScanSelectionSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A688C1C2158D27C7FD5230E5 /* ScanSelectionSheetView.swift */; };
@@ -205,6 +206,7 @@
 		0720EBFFB5BFB7C84CB20987 /* ConfidenceBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceBadgeView.swift; sourceTree = "<group>"; };
 		0B22DF9AD4A01736625549BE /* UserProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfileView.swift; sourceTree = "<group>"; };
 		0C6607CB16EDD46A55A81A3F /* MerianNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClient.swift; sourceTree = "<group>"; };
+		0D4B850508983D8308913B97 /* ProfileCaptureHeatmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileCaptureHeatmapView.swift; sourceTree = "<group>"; };
 		0E652CCE0FAC0BF9F429CB01 /* ThermalWarningOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalWarningOverlay.swift; sourceTree = "<group>"; };
 		1044C34325AE2EFB4EC21358 /* InferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEngine.swift; sourceTree = "<group>"; };
 		119B433DC21B3CBB5FBEBDA4 /* ViewfinderIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligence.swift; sourceTree = "<group>"; };
@@ -723,6 +725,7 @@
 		7D658649FCC3BFA12C09964F /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				0D4B850508983D8308913B97 /* ProfileCaptureHeatmapView.swift */,
 				F037639F9F2CF93766E4CB2F /* ProfileCommunitySection.swift */,
 				B52D70CD85205A21007CF8E4 /* ProfileDangerZoneSection.swift */,
 				6E51B4B0DB31FB6FA8723533 /* ProfileExportSection.swift */,
@@ -1305,6 +1308,7 @@
 				A0B8B0996BA36D9EB98E38DE /* PhotoLibraryManager.swift in Sources */,
 				4AD84777DB53DFAA6498A327 /* PhotoLibraryPermissionStepView.swift in Sources */,
 				BA78C2C67BF6607B3B020F2B /* PostHogManager.swift in Sources */,
+				D28DB22580C63AF6CAD8153E /* ProfileCaptureHeatmapView.swift in Sources */,
 				0FD6EED1C176ECDE8D8408EB /* ProfileCommunitySection.swift in Sources */,
 				15C16C14DE8D3E299C6AACA9 /* ProfileDangerZoneSection.swift in Sources */,
 				48385FD3C20569E3329B525F /* ProfileExportSection.swift in Sources */,

@@ -9,6 +9,7 @@ struct UserProfileHeaderView: View {
     var onSettingsTap: () -> Void
     
     @State private var uniqueSpeciesCount: Int = 0
+    @State private var heatmapData: ProfileHeatmapData? = nil
     
 private var persona: String {
         let count = uniqueSpeciesCount
@@ -63,6 +64,8 @@ private var persona: String {
             }
             
             UserProfileStatsView()
+            
+            ProfileCaptureHeatmapView(heatmapData: heatmapData)
 
             // Authentication / User Profile Block
             VStack {
@@ -151,8 +154,10 @@ private var persona: String {
             let container = modelContext.container
             let actor = ProfileDatabaseActor(modelContainer: container)
             let (species, _) = await actor.calculateProfileStats()
+            let heatmap = await actor.calculateHeatmapData()
             await MainActor.run {
                 self.uniqueSpeciesCount = species
+                self.heatmapData = heatmap
             }
         }
     }
