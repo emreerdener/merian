@@ -14,55 +14,31 @@ struct CollectionsView: View {
     
     var body: some View {
         ScrollView {
-            let userCollections = collections.filter { $0.name != "Favorites" }
-            
-            // MARK: - Promoted Links (Favorites & Non-biological)
-            if let favorites = collections.first(where: { $0.name == "Favorites" }) {
-                NavigationLink {
-                    CollectionDetailView(collection: favorites, isInsightSheetOpen: $isInsightSheetOpen)
-                } label: {
-                    HStack {
-                        Image(systemName: "heart")
-                            .foregroundColor(.secondary)    
-                        Text("Favorites")   
-                            .font(.headline)
-                        Spacer()
-                        Text("\(favorites.scans?.count ?? 0)")
-                            .foregroundColor(.secondary)
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
+            VStack(spacing: 16) {
+                let userCollections = collections.filter { $0.name != "Favorites" }
+                
+                // MARK: - Promoted Links (Favorites & Non-biological)
+                VStack(spacing: 16) {
+                if let favorites = collections.first(where: { $0.name == "Favorites" }) {
+                    DefaultCollectionLink(
+                        title: "Favorites",
+                        iconName: "heart",
+                        count: favorites.scans?.count ?? 0
+                    ) {
+                        CollectionDetailView(collection: favorites, isInsightSheetOpen: $isInsightSheetOpen)
                     }
-                    .padding()
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 16)
-            }
-            
-            NavigationLink {
-                NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
-            } label: {
-                HStack {
-                    Image(systemName: "cube")
-                        .foregroundColor(.secondary)
-                    Text("Non-biological")
-                        .font(.headline)
-                    Spacer()
-                    Text("\(nonBioCount)")
-                        .foregroundColor(.secondary)
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.secondary)
+                
+                DefaultCollectionLink(
+                    title: "Non-biological",
+                    iconName: "cube",
+                    count: nonBioCount
+                ) {
+                    NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
                 }
-                .padding()
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(12)
-                .padding(.horizontal)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 8)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
             
             // MARK: - User Custom Collections Grid
             if userCollections.isEmpty {
@@ -71,55 +47,13 @@ struct CollectionsView: View {
                     title: "No collections",
                     message: "Create your first collection to start organizing your scans."
                 )
-                .padding(.top, 32)
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
                     ForEach(userCollections) { collection in
                         NavigationLink {
                             CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
                         } label: {
-                            ZStack {
-                                if let firstScan = collection.scans?.first {
-                                    GeometryReader { geo in
-                                        ScanThumbnail(imagePath: firstScan.localImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
-                                            .frame(width: geo.size.width, height: geo.size.width)
-                                            .clipped()
-                                    }
-                                    .aspectRatio(1.0, contentMode: .fill)
-                                } else {
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .aspectRatio(1.0, contentMode: .fill)
-                                        .overlay(
-                                            Image(systemName: "photo.on.rectangle")
-                                                .font(.system(size: 24))
-                                                .foregroundColor(.secondary)
-                                                // Natively shifts the icon mathematically up exactly half the height
-                                                // of the bottom text panel, centering it perfectly within the visible area.
-                                                .offset(y: -24)
-                                        )
-                                }
-                                
-                                VStack {
-                                    Spacer()
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(collection.name)
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                            .lineLimit(1)
-                                        Text("\(collection.scans?.count ?? 0) Scans")
-                                            .font(.caption)
-                                            .foregroundColor(.white.opacity(0.8))
-                                    }
-                                    .padding(8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(.ultraThinMaterial)
-                                    .environment(\.colorScheme, .dark)
-                                }
-                            }
-                            .cornerRadius(12)
-                            .clipped()
+                            CollectionCard(collection: collection)
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -142,6 +76,8 @@ struct CollectionsView: View {
                 }
                 .padding(.horizontal)
             }
+            }
+            .padding(.bottom, 16) // Added a global bottom pad for scroll bounding.
         }
         .alert("Rename collection", isPresented: $showRenameAlert) {
             TextField("Collection name", text: $newCollectionName)

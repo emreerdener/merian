@@ -60,7 +60,6 @@ struct MediaModeToggle: View {
                         if activeMode == mode {
                             Capsule()
                                 .fill(Color.white)
-                                .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
                                 .matchedGeometryEffect(id: "ActiveModeIndicator", in: toggleAnimation)
                         }
                     }
@@ -76,7 +75,6 @@ struct MediaModeToggle: View {
                                     .background(
                                         Capsule()
                                             .fill(Color.blue)
-                                            .shadow(color: .black.opacity(0.3), radius: 5, y: 3)
                                     )
                                     // Pushes the toolip seamlessly DOWN explicitly avoiding the iOS notch boundaries
                                     .offset(y: 45)
@@ -104,6 +102,5 @@ struct MediaModeToggle: View {
                     lineWidth: 0.5
                 )
         )
-        .shadow(color: .black.opacity(0.2), radius: 10, y: 5)
     }
 }

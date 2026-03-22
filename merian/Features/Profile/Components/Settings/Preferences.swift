@@ -19,15 +19,13 @@ struct Preferences: View {
             VStack(alignment: .leading, spacing: 8) {
                 Picker("Theme", selection: $themeMode) {
                     ForEach(ThemeMode.allCases) { mode in
-                        let iconName = iconForTheme(mode)
-                        Text("\(Image(systemName: iconName)) \(mode.rawValue)")
+                        Text(mode.rawValue)
                             .tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
             }
             .padding(.vertical, 4)
-            .listRowSeparator(.hidden)
 
             // MARK: - Manage Plan
             VStack(alignment: .leading, spacing: 8) {
@@ -114,13 +112,4 @@ struct Preferences: View {
         }
     }
     
-    // MARK: - UI Computation
-    private func iconForTheme(_ mode: ThemeMode) -> String {
-        switch mode.rawValue.lowercased() {
-        case "system": return "circle.lefthalf.filled"
-        case "light": return "sun.max.fill"
-        case "dark": return "moon.fill"
-        default: return "paintpalette.fill"
-        }
-    }
 }
