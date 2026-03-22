@@ -12,58 +12,62 @@ struct ProfileTabView: View {
     
     // Natively isolated State variables dynamically mapped back from the background Actor mathematically.
     @State private var uniqueSpeciesCount: Int = 0
+    @State private var currentStreak: Int = 0
     @State private var heatmapData: ProfileHeatmapData? = nil
+    @State private var awards: [AwardPayload] = []
     
     var body: some View {
-        List {
+        ScrollView(showsIndicators: false) {
             // MARK: - Core Profile Content
-            Section {
-                VStack(spacing: 24) {
-                    // MARK: - Terrarium
-                    Terrarium()
-                    
-                    // MARK: - User Persona
-                    Persona(uniqueSpeciesCount: uniqueSpeciesCount)
+            VStack(spacing: 24) {
+                // MARK: - Terrarium
+                Terrarium()
+                
+                // MARK: - User Persona
+                Persona(uniqueSpeciesCount: uniqueSpeciesCount)
 
-                    // MARK: - User Profile
-                    UserProfile(supabase: supabase)
-                    
-                    // MARK: - Stats
-                    UserStats()
-
-                    // MARK: - Paywall & Subscriptions
-                    PlanCard(showPaywall: $showPaywall)
-                    
-                    // MARK: - Heatmap
-                    ScansHeatmap(heatmapData: heatmapData)
-                }
-                .padding(.horizontal, 2)
-                .padding(.bottom, 2)
-                .sheet(isPresented: $showPaywall) {
-                    PaywallView()
-                        .environment(RevenueCatManager.shared)
-                }
-                // MARK: - Off-Thread SQLite Data Generation
-                // Background actor execution is explicitly tied to the native SwiftUI view lifecycle natively, 
-                // guaranteeing absolute thread cancellation natively bounding memory leaks!
-                .task {
-                    // Decouples massive SwiftData queries explicitly into a `ModelActor` to completely 
-                    // prevent dropping frames on the physical UI Thread during millions of array computations.
-                    let container = modelContext.container
-                    let actor = ProfileDatabaseActor(modelContainer: container)
-                    let (species, _) = await actor.calculateProfileStats()
-                    let heatmap = await actor.calculateHeatmapData()
-                    await MainActor.run {
-                        self.uniqueSpeciesCount = species
-                        self.heatmapData = heatmap
-                    }
+                // MARK: - User Profile
+                UserProfile(supabase: supabase)
+                
+                // MARK: - Stats
+                UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
+                
+                // MARK: - Paywall & Subscriptions
+                PlanCard(showPaywall: $showPaywall)
+                
+                // MARK: - Heatmap
+                ScansHeatmap(heatmapData: heatmapData)
+                
+                // MARK: - Gamification Awards
+                if !awards.isEmpty {
+                    AwardsAndMilestones(awards: awards)
                 }
             }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
+            .padding(.horizontal, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 32)
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
+                    .environment(RevenueCatManager.shared)
+            }
+            // MARK: - Off-Thread SQLite Data Generation
+            .task {
+                // Decouples massive SwiftData queries explicitly into a `ModelActor` to completely 
+                // prevent dropping frames on the physical UI Thread during millions of array computations.
+                let container = modelContext.container
+                let actor = ProfileDatabaseActor(modelContainer: container)
+                let (species, streak) = await actor.calculateProfileStats()
+                let heatmap = await actor.calculateHeatmapData()
+                let fetchedAwards = await actor.calculateAwards()
+                await MainActor.run {
+                    self.uniqueSpeciesCount = species
+                    self.currentStreak = streak
+                    self.heatmapData = heatmap
+                    self.awards = fetchedAwards
+                }
+            }
         }
-        .listStyle(InsetGroupedListStyle())
+        .background(Color(uiColor: .systemGroupedBackground))
         // Explicitly binds this list to exactly 100% of the screen width securely, 
         // creating a perfect 1-to-1 swipeable "Page" geometry identical to SettingsTabView!
         .containerRelativeFrame(.horizontal)

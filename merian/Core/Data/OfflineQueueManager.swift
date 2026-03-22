@@ -260,6 +260,11 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                 }
             }
             
+            // CRITICAL FIX: Explicitly enforce the payload boundary limit natively to prevent HTTP 400 Array Length exceptions downstream.
+            fileNames = Array(fileNames.prefix(5))
+            fileURLs = Array(fileURLs.prefix(5))
+            scanIDs = Array(scanIDs.prefix(5))
+            
             guard !fileNames.isEmpty else {
                 await MainActor.run {
                     self.isSyncing = false
@@ -666,9 +671,10 @@ actor BackgroundDatabaseActor {
         }
         
         do {
+            let headers = try await SupabaseManager.shared.getValidAuthHeaders()
             try await SupabaseManager.shared.client.functions.invoke(
                 "sync-collections",
-                options: .init(body: SyncRequestPayload(collections: payloadList))
+                options: .init(headers: headers, body: SyncRequestPayload(collections: payloadList))
             )
             print("✅ Successfully pushed \(payloadList.count) Collections to Edge implicitly.")
         } catch {

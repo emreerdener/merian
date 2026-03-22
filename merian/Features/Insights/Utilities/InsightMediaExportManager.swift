@@ -168,10 +168,11 @@ final class InsightMediaExportManager {
             
             for payload in payloads {
                 let extractedImage = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-                    if let validPath = payload.localImagePath,
-                       let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),
-                       let image = UIImage(data: data) {
-                        return image
+                    if let validPath = payload.localImagePath {
+                        let fileURL = URL.documentsDirectory.appendingPathComponent(validPath)
+                        if let cgImage = ImageDownsampler.downsample(url: fileURL, maxSize: 1024) {
+                            return UIImage(cgImage: cgImage)
+                        }
                     }
                     return nil
                 }.value

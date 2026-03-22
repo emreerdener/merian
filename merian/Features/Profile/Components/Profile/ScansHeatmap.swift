@@ -179,13 +179,23 @@ struct HeatmapGridMatrix: View, Equatable {
     let colorScheme: ColorScheme
     let isMonthScale: Bool
     
+    private func shouldDropLabel(at index: Int) -> Bool {
+        if isMonthScale { return false }
+        for jump in 1...3 {
+            if index + jump < visibleWeeks.count, visibleWeeks[index + jump].monthLabel != nil {
+                return true
+            }
+        }
+        return false
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: squareSpacing) {
             // X-Axis Labels (Months)
             HStack(spacing: squareSpacing) {
-                ForEach(visibleWeeks) { week in
+                ForEach(Array(visibleWeeks.enumerated()), id: \.element.id) { index, week in
                     VStack(alignment: .leading) {
-                        if let monthLabel = week.monthLabel {
+                        if let monthLabel = week.monthLabel, !shouldDropLabel(at: index) {
                             Text(monthLabel)
                                 .font(.caption2)
                                 .foregroundColor(.primary)

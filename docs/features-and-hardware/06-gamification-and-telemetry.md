@@ -14,6 +14,26 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
 - Injects natively via `.environmentObject` into `Terrarium` passively reacting `.setInput("TotalSpeciesCount")` animating 3D model foliage, fireflies, and natural artifacts instantaneously using `RiveViewModel` states seamlessly.
 - **Erasure Mechanics (`decrement_user_species_count`)**: If a user permanently deletes a scan, and that specific scan happens to be their absolute final documented capture of a specific biological species, a strict PostgreSQL PL/pgSQL database trigger will silently intercept the erasure. It will perfectly decrement their unified `users.total_species_discovered` counter seamlessly maintaining accurate gamification counts regardless of offline delay. Locally, the SwiftData boundary instantly recalculates their Scans library natively seamlessly syncing UI states exactly.
 
+## Track B: The Awards & Milestones
+
+To diversify gamification away from pure numerical counts, the Awards track unlocks specific progression milestones based on authentic scientific taxonomy, extreme environmental conditions, and citizen science impact:
+- **The Observer**: Complete your first nature scan (1 Scan).
+- **The Naturalist**: Scan 5 different unique species.
+- **The Botanist**: Scan 10 different plant species.
+- **The Zoologist**: Scan 10 different animal (insect/arachnid) species.
+- **The Mycologist**: Scan 10 different fungi species.
+- **The Urban Ecologist**: Scan 10 species in urban environments.
+- **Environmental & Impact Tracking**:
+  - **The Frost Walker**: Scans recorded where `weatherTemperatureF < 32°`.
+  - **The Alpine Naturalist**: Scans recorded where `gpsElevation > 2500m`.
+  - **The Nocturnal Observer**: Scans taken strictly between 22:00 and 05:00.
+  - **The Guardian**: Tracing scans definitively tagged with `isInvasive`.
+  - **The Toxicologist**: Explicitly logging `isPoisonous` plants/fungi safely.
+  - **The Conservationist**: Documenting species protected by the IUCN Red List.
+  - **The Perfect Lens**: Capturing imagery obtaining `0.98+` Vision Confidence Score.
+
+**Zero-OOM Off-Thread Bounds**: Instead of polluting the `AwardsAndMilestones` renders with synchronous O(N) database arrays natively, the system explicitly pushes `calculateAwards()` deeply inside an `@ModelActor ProfileDatabaseActor` extension mapped structurally inside the UI component file cleanly. It executes a targeted `FetchDescriptor` exclusively fetching taxonomy layers (`\.scientificName`, `\.taxonomyKingdom`), environmental bounds (`\.isPoisonous`, `\.isInvasive`), and offline temporal metadata (`\.gpsElevation`, `\.weatherTemperatureF`). It aggregates bounds purely offline out of V8 memory bounds—specifically utilizing `Set<String>` arrays on `scientificName` to accurately derive unique biological diversity per category—and resolves an entire matrix of lightweight, primitive `Sendable` structs (`AwardPayload`) to the UI successfully. To permanently guarantee absolute Domain-Driven separation, these primitives natively live fundamentally disconnected from UI loops exclusively within `Features/Profile/Models/GamificationModels.swift`.
+
 ## Secure Telemetry Ecosystem
 
 To guarantee a sub-1-second "Instant-On" camera boot experience, **both Apple TelemetryDeck and PostHog tracking SDKs explicitly initialize off the iOS Main Thread.** The `MerianApp` root strictly delegates their configurations to a `Task.detached(priority: .background)` block with a forced `500ms` sleep, allowing the primary UI render pass undisturbed access to the CPU frame buffer natively.

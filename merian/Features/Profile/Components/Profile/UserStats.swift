@@ -119,6 +119,8 @@ actor ProfileDatabaseActor {
         
         return ProfileHeatmapData(totalCaptures: totalInHeatmap, currentMonthCaptures: currentMonthCaptures, yearString: "\(currentYear)", weeks: weeks)
     }
+    
+
 }
 
 // MARK: - Native Thread-Safe Architectures
@@ -143,27 +145,16 @@ public struct ProfileHeatmapData: Sendable {
     public let weeks: [HeatmapWeek]
 }
 
+
+
 struct UserStats: View {
-    @Environment(\.modelContext) private var modelContext
-    
-    @State private var computedSpeciesCount: Int = 0
-    @State private var computedStreak: Int = 0
+    let speciesCount: Int
+    let streak: Int
     
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 24), GridItem(.flexible())], spacing: 16) {
-            StatCard(title: "Species discovered", value: "\(computedSpeciesCount)", icon: "leaf.fill", color: .green)
-            StatCard(title: "Current streak", value: "\(computedStreak) day\(computedStreak == 1 ? "" : "s")", icon: "flame.fill", color: .orange)
-        }
-        .task {
-            // Isolates intense logic natively
-            let container = modelContext.container
-            let actor = ProfileDatabaseActor(modelContainer: container)
-            let (species, streak) = await actor.calculateProfileStats()
-            
-            await MainActor.run {
-                self.computedSpeciesCount = species
-                self.computedStreak = streak
-            }
+            StatCard(title: "Species discovered", value: "\(speciesCount)", icon: "leaf.fill", color: .green)
+            StatCard(title: "Current streak", value: "\(streak) day\(streak == 1 ? "" : "s")", icon: "flame.fill", color: .orange)
         }
     }
 }
