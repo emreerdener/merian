@@ -36,7 +36,7 @@ struct ScansSheetView: View {
     
     // MARK: - Static Bounds
     private let maxBatchSelectionLimit = 20
-    private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles"]
+    private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles", "Other"]
     
     // MARK: - Core View Builder
     var body: some View {
@@ -68,7 +68,14 @@ struct ScansSheetView: View {
                 )
                 
                 CollectionsView(
-                    collections: collections,
+                    collections: collections.sorted { c1, c2 in
+                        switch searchManager.collectionSortOption {
+                        case .newest: return c1.createdAt > c2.createdAt
+                        case .oldest: return c1.createdAt < c2.createdAt
+                        case .aToZ: return c1.name.localizedCaseInsensitiveCompare(c2.name) == .orderedAscending
+                        case .zToA: return c1.name.localizedCaseInsensitiveCompare(c2.name) == .orderedDescending
+                        }
+                    },
                     isInsightSheetOpen: $isInsightSheetOpen
                 )
                 }

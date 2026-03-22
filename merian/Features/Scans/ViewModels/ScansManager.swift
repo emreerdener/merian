@@ -3,6 +3,14 @@ import SwiftData
 import SwiftUI
 import ImageIO
 
+enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
+    case newest = "Newest"
+    case oldest = "Oldest"
+    case aToZ = "A to Z"
+    case zToA = "Z to A"
+    var id: String { self.rawValue }
+}
+
 @MainActor
 @Observable class ScansManager {
     // MARK: - UI Published State
@@ -11,6 +19,14 @@ import ImageIO
     var activeCategoryFilter: String = "All"
     var isSelectionMode: Bool = false
     var selectedScans: Set<String> = []
+    
+    var sortOption: ScanSortOption = .newest {
+        didSet { 
+            if oldValue != sortOption { applySort() }
+        }
+    }
+    
+    var collectionSortOption: ScanSortOption = .newest
     
     // MARK: - Static Bounds
     let maxBatchSelectionLimit = 20
@@ -80,8 +96,10 @@ import ImageIO
             let catMatch = currentCategory.lowercased()
             
             if text.isEmpty && catMatch == "all" {
+                let sortedAll = self.executeSort(on: self.allScans)
+                
                 withAnimation {
-                    self.filteredScans = self.allScans
+                    self.filteredScans = sortedAll
                 }
                 return
             }
@@ -116,6 +134,14 @@ import ImageIO
                             matchesCategory = scan.className == "mammalia"
                         case "reptiles": 
                             matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
+                        case "other":
+                            let isP = scan.kingdom == "plantae"
+                            let isF = scan.kingdom == "fungi"
+                            let isI = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
+                            let isB = scan.className == "aves"
+                            let isM = scan.className == "mammalia"
+                            let isR = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
+                            matchesCategory = !(isP || isF || isI || isB || isM || isR)
                         default: 
                             matchesCategory = false
                     }
@@ -138,9 +164,28 @@ import ImageIO
             // Decouple native UI starvation by extracting perfectly O(1) subset arrays completely securely
             let filteredSubset = matchingIds.compactMap { self.scanMap[$0] }
             
+            let sortedSubset = self.executeSort(on: filteredSubset)
+            
             withAnimation {
-                self.filteredScans = filteredSubset
+                self.filteredScans = sortedSubset
             }
+        }
+    }
+    
+    // MARK: - Dedicated Sorting Execution
+    private func executeSort(on subset: [LocalScanRecord]) -> [LocalScanRecord] {
+        switch self.sortOption {
+            case .newest: return subset.sorted { $0.timestamp > $1.timestamp }
+            case .oldest: return subset.sorted { $0.timestamp < $1.timestamp }
+            case .aToZ: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedAscending }
+            case .zToA: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedDescending }
+        }
+    }
+    
+    private func applySort() {
+        let sorted = executeSort(on: self.filteredScans)
+        withAnimation {
+            self.filteredScans = sorted
         }
     }
     

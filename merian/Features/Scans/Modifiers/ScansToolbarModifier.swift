@@ -71,18 +71,24 @@ struct ScansToolbarModifier: ViewModifier {
                     }
                     
                     ToolbarItem(placement: .topBarTrailing) {
-                        if activeTab == .collections {
-                            Button(action: {
-                                showNewCollectionAlert = true
-                            }) {
-                                Image(systemName: "folder.badge.plus")
-                                    .font(.system(size: 14, weight: .bold))
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .buttonBorderShape(.circle)
-                            .tint(.blue)
-                        } else if activeTab == .library {
-                            Menu {
+                        Menu {
+                            if activeTab == .collections {
+                                Button(action: {
+                                    showNewCollectionAlert = true
+                                }) {
+                                    Label("New collection", systemImage: "folder.badge.plus")
+                                }
+                                
+                                Picker(selection: $searchManager.collectionSortOption) {
+                                    ForEach(ScanSortOption.allCases) { option in
+                                        Text(option.rawValue).tag(option)
+                                    }
+                                } label: {
+                                    Label("Sort by", systemImage: "arrow.up.arrow.down")
+                                }
+                                .pickerStyle(.menu)
+                                
+                            } else if activeTab == .library {
                                 ControlGroup {
                                     Toggle(isOn: Binding(get: { gridColumns == 1 }, set: { if $0 { gridColumns = 1 } })) {
                                         Label("1x1", systemImage: "rectangle.grid.1x2")
@@ -95,11 +101,22 @@ struct ScansToolbarModifier: ViewModifier {
                                     }
                                 }
                                 
+                                Picker(selection: $searchManager.sortOption) {
+                                    ForEach(ScanSortOption.allCases) { option in
+                                        Text(option.rawValue).tag(option)
+                                    }
+                                } label: {
+                                    Label("Sort by", systemImage: "arrow.up.arrow.down")
+                                }
+                                .pickerStyle(.menu)
+                                
                                 Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
-                            } label: {
-                                Image(systemName: "ellipsis")
-                                    .font(.system(size: 16, weight: .bold))
                             }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .bold))
+                                .padding(6)
+                                .background(Circle().fill(.blue.opacity(0.15)))
                         }
                     }
                     

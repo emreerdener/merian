@@ -8,7 +8,9 @@ struct ScanInformationCard: View {
         guard let sd = speciesData else { return false }
         let nameValid = sd.locationName != nil && !sd.locationName!.trimmingCharacters(in: .whitespaces).isEmpty
         let weatherValid = sd.weatherTemperatureF != nil && sd.weatherCondition != nil
-        let elevationValid = sd.gpsElevation != nil
+        // A mathematically exact `0.0` output from CoreLocation natively denotes a missing 
+        // vertical altitude fix. Authentic sea-level topological readings always float (e.g., 0.3m, -1.2m).
+        let elevationValid = sd.gpsElevation != nil && sd.gpsElevation != 0
         return nameValid || weatherValid || elevationValid || timestamp != nil
     }
     
@@ -33,7 +35,7 @@ struct ScanInformationCard: View {
                         featureRow(title: "LOCATION", value: validName)
                     }
                     
-                    if let elev = elevation {
+                    if let elev = elevation, elev != 0 {
                         featureRow(title: "ELEVATION", value: "\(Int(elev))m")
                     }
                     

@@ -67,6 +67,10 @@ Registers blocked actors so they vanish securely completely detached natively fr
 - `blocker_id` (UUID - Foreign Key): The actor executing the block.
 - `blocked_id` (UUID - Foreign Key): The UUID of the offender mapping seamlessly inside the array boundary logically safely blocking them directly mapping.
 
+### `00007_auto_purge_nonbio_cron.sql` (Lifecycle Sync)
+
+Configures the automated garbage collection pipeline mapping `pg_cron` and `pg_net` natively. It formally schedules an HTTP POST to the `/functions/v1/auto-purge-nonbio` Deno node running reliably at 03:00 UTC securely authenticating via `SUPABASE_SERVICE_ROLE_KEY` derived directly from `vault.decrypted_secrets`. This cleanly bridges logical database `is_biological_subject = false` purges spanning S3 Cloudflare bytes flawlessly out-of-band preventing gigabytes of S3 footprint leakage forever.
+
 ## SwiftData Schema (Local Offline Queue)
 
 _Note: The iOS persistence layer is strictly enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application will now intentionally execute a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian employs `MerianMigrationPlan` globally mapping `SchemaVersions.swift` configurations dynamically allowing lightweight and custom `.migrationStage` closures to safely transpose old structures (e.g. `MerianSchemaV8` jumping to `MerianSchemaV9`) keeping Local Scanss perfectly intact without corrupting biological caches._

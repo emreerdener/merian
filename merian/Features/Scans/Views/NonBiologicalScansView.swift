@@ -10,9 +10,11 @@ struct NonBiologicalScansView: View {
     @Binding var isInsightSheetOpen: Bool
     
     // MARK: - Interface State
-    @State private var selectedScanForInsight: LocalScanRecord? = nil
+    @State private var scanToRescue: LocalScanRecord? = nil
     @State private var scanToDelete: LocalScanRecord? = nil
     @State private var showDeleteConfirmation = false
+    @State private var showClearAllConfirmation = false
+    @State private var isClearingAll = false
     
     // MARK: - View Layout
     
@@ -21,28 +23,83 @@ struct NonBiologicalScansView: View {
             if nonBioRecords.isEmpty {
                 EmptyStateView(
                     iconName: "photo.on.rectangle.angled",
-                    title: "No non-biological scans",
-                    message: "You haven't documented any non-biological subjects yet."
+                    title: "Empty",
+                    message: "This collection is currently empty. Non-biological items are automatically purged here after 30 days."
                 )
             } else {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.red)
+                        .font(.system(size: 18))
+                    
+                    Text("Items in this collection are permanently deleted after 30 days to free up space.")
+                        .font(.footnote)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                    
+                    Spacer()
+                }
+                .padding(16)
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                
                 ScansGrid(scans: nonBioRecords, onSelect: { scan in
-                    selectedScanForInsight = scan
-                    inferenceEngine.load(from: scan)
+                    scanToRescue = scan
                 }, onDelete: { scan in
                     scanToDelete = scan
                     showDeleteConfirmation = true
-                })
+                }) { scan in
+                    Button {
+                        markAsBiological(scan)
+                    } label: {
+                        Label("Mark as biological", systemImage: "leaf.arrow.triangle.circlepath")
+                    }
+                }
+            }
+        }
+        .overlay {
+            if isClearingAll {
+                ProgressView("Clearing vault...")
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(12)
             }
         }
         
         // MARK: - View Modifiers
         .navigationTitle("Non-biological")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $selectedScanForInsight) { scan in
-            InsightSheetView(isPresented: Binding(
-                get: { selectedScanForInsight != nil },
-                set: { if !$0 { selectedScanForInsight = nil } }
-            ))
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if !nonBioRecords.isEmpty {
+                    Button(action: {
+                        showClearAllConfirmation = true
+                    }) {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .buttonBorderShape(.circle)
+                }
+            }
+        }
+        .alert(
+            "Mark this item as biological?",
+            isPresented: Binding(
+                get: { scanToRescue != nil },
+                set: { if !$0 { scanToRescue = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Mark as biological") {
+                if let scan = scanToRescue {
+                    markAsBiological(scan)
+                }
+            }
+        } message: {
+            Text("This will move the scan back into your main library and prevent it from being auto-deleted.")
         }
         .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
@@ -51,5 +108,112 @@ struct NonBiologicalScansView: View {
         ) {
             scanToDelete = nil
         }
+        .alert(
+            "Delete \(nonBioRecords.count) non-biological scans?",
+            isPresented: $showClearAllConfirmation
+        ) {
+            Button("Delete all", role: .destructive) {
+                clearAllNonBiologicalScans()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This action cannot be undone.")
+        }
+    }
+    
+    // MARK: - Action Handlers
+    private func clearAllNonBiologicalScans() {
+        isClearingAll = true
+        let payloads = nonBioRecords.map { scan in
+            let paths = [scan.localImagePath].compactMap { $0 } + (scan.additionalImagePaths ?? [])
+            return BackgroundDatabaseActor.ScanErasurePayload(id: scan.id, imagePaths: paths)
+        }
+        let container = modelContext.container
+        
+        Task.detached(priority: .userInitiated) {
+            let backgroundActor = BackgroundDatabaseActor(modelContainer: container)
+            await backgroundActor.bulkDeleteNonBiologicalScans(payloads: payloads)
+            
+            await MainActor.run {
+                isClearingAll = false
+                HapticManager.shared.triggerSuccessPulse()
+                Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
+            }
+        }
+    }
+    
+    private func markAsBiological(_ scan: LocalScanRecord) {
+        // Local Optimistic UI - Re-fetch explicitly on the MainActor context to guarantee SwiftData UI observers fire!
+        guard let activeRecord = modelContext.model(for: scan.persistentModelID) as? LocalScanRecord else {
+            print("Failed to re-fetch scan for mutation.")
+            return
+        }
+        
+        activeRecord.isBiological = true
+        activeRecord.ecologyType = "unknown"
+        activeRecord.insightDescription = ""
+        
+        // Crucially mutates the semantic bounds to escape the `commonName == "Unknown Subject"` queries
+        // which inherently routes it completely out of the Non-Bio vault and straight into the Main Scans Library!
+        if activeRecord.commonName == "Unknown Subject" {
+            activeRecord.commonName = "Unidentified Specimen"
+        }
+        
+        do {
+            try modelContext.save()
+            print("Successfully rescued scan back to biological library!")
+        } catch {
+            print("🚨 Local SwiftData Save Failed: \(error)")
+        }
+        
+        let scanId = activeRecord.id
+        // Remote Synchronization
+        Task.detached {
+            struct BiologicalOverridePayload: Encodable, Sendable {
+                let is_biological_subject: Bool
+                let ecology_type: String
+            }
+            let payload = BiologicalOverridePayload(is_biological_subject: true, ecology_type: "unknown")
+            
+            do {
+                try await AppDIContainer.shared.supabaseManager.client.from("scans").update(payload).eq("id", value: scanId).execute()
+            } catch {
+                print("Failed remote markAsBiological sync: \(error)")
+            }
+        }
+        
+        HapticManager.shared.triggerSelectionPulse()
+    }
+}
+
+// MARK: - Actor Extensions
+extension BackgroundDatabaseActor {
+    struct ScanErasurePayload: Sendable {
+        let id: String
+        let imagePaths: [String]
+    }
+    
+    func bulkDeleteNonBiologicalScans(payloads: [ScanErasurePayload]) {
+        let documentsDirectory = URL.documentsDirectory
+        for payload in payloads {
+            // Delete the raw .jpg bytes physically
+            for path in payload.imagePaths {
+                let fileURL = documentsDirectory.appendingPathComponent(path)
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+            
+            // Delete the LocalScanRecord natively
+            let scanId = payload.id
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+            if let record = (try? modelContext.fetch(descriptor))?.first {
+                modelContext.delete(record)
+            }
+            
+            // Insert PendingCloudDeletionTask queueing remote Edge deletion
+            let pendingTask = PendingCloudDeletionTask(scanId: scanId, timestamp: Date())
+            modelContext.insert(pendingTask)
+        }
+        
+        try? modelContext.save()
     }
 }
