@@ -96,7 +96,7 @@ serve((req: Request) =>
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-    const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case.`;
+    const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case. 4) CRITICAL: If the subject is non-biological (is_biological_subject = false), you MUST completely OMIT all taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, and colors fields to conserve output tokens.`;
 
     const targetModel = userTier === "pro"
       ? "gemini-2.5-pro"
@@ -208,16 +208,9 @@ serve((req: Request) =>
       required: [
         "is_biological_subject",
         "is_live_capture",
-        "ecology_type",
-        "scientific_name",
         "common_name",
         "confidence_score",
         "blur_score",
-        "is_invasive",
-        "iucn_red_list_status",
-        "taxonomy",
-        "insight_data",
-        "colors",
       ],
     };
 
