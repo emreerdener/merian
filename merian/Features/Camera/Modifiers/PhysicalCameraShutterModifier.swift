@@ -1,5 +1,7 @@
 import SwiftUI
 import AVFoundation
+import AVKit
+import UIKit
 
 @available(iOS 17.2, *)
 struct HardwareCaptureInteraction: UIViewRepresentable {

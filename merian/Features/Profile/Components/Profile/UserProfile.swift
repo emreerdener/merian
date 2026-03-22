@@ -3,7 +3,7 @@ import SwiftUI
 /// Abstracted Profile identity component natively interpreting both Ghost mode states
 /// and dynamically rendering high-fidelity Auth provider payloads seamlessly.
 struct UserProfile: View {
-    @ObservedObject var supabase: SupabaseManager
+    var supabase: SupabaseManager
     
     @State private var showSignOutConfirmation = false
     
@@ -24,7 +24,7 @@ struct UserProfile: View {
         return nil
     }
     
-    var var body: some View {
+    var body: some View {
         VStack {
             if supabase.isGuestUser {
                 // Ghost Mode: Sign In Flow

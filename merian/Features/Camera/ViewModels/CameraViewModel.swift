@@ -17,7 +17,7 @@ final class CameraViewModel {
     }
     
     // MARK: - Dependencies
-    @ObservationIgnored private let diContainer = AppDIContainer.shared
+    @ObservationIgnored let diContainer = AppDIContainer.shared
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     
     // MARK: - UI & Navigation State
@@ -104,6 +104,10 @@ final class CameraViewModel {
                 }
             }
         }
+    }
+    
+    func handleSheetAppear() {
+        diContainer.cameraManager.stopSession()
     }
     
     func handleSheetDismiss() {

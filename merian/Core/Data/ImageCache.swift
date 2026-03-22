@@ -11,6 +11,7 @@ final class ImageCache: @unchecked Sendable {
     private let cache = NSCache<NSString, UIImage>()
     
     // MARK: - Lifecycle
+    private init() {
         // Limit cache to ~100 items to guarantee we never trigger OOM constraints (roughly 15MB)
         cache.countLimit = 100
     }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PlanCard: View {
-    @ObservedObject var revenueCat = RevenueCatManager.shared
+    @Environment(RevenueCatManager.self) var revenueCat
     @Binding var showPaywall: Bool
     
     var body: some View {

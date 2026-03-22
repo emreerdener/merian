@@ -14,6 +14,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     static let shared = CameraManager()
     
     // MARK: - AVFoundation Stack
+    nonisolated let session = AVCaptureSession()
     nonisolated private let videoOutput = AVCaptureVideoDataOutput()
     nonisolated private let depthOutput = AVCaptureDepthDataOutput()
     nonisolated private let photoOutput = AVCapturePhotoOutput()

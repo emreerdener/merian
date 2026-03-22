@@ -16,8 +16,8 @@ struct InsightSheetView: View {
     
     // MARK: - Interface State
     @State var showCelebration = false
-    @State private var showBottomBarTools = false
-    @State private var isCommonNameScrolledPast = false
+    @State var showBottomBarTools = false
+    @State var isCommonNameScrolledPast = false
     
     // MARK: - Alert & Modal Flags
     @State var isFlagIssuePresented = false

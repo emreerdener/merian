@@ -159,7 +159,7 @@ struct ScansSheetView: View {
             scanToDelete = nil
         }
         .alert(
-            "Delete \(selectedScans.count) selected scans?",
+            "Delete \(searchManager.selectedScans.count) selected scans?",
             isPresented: $showBatchDeleteConfirmation
         ) {
             Button("Delete permanently", role: .destructive) {
@@ -221,7 +221,6 @@ struct ScansSheetView: View {
         withAnimation(.spring()) { toastMessage = message }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             withAnimation(.easeInOut) { if toastMessage == message { toastMessage = nil } }
-        }
         }
     }
     

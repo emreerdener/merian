@@ -7,8 +7,8 @@ import SwiftData
 struct SettingsTabView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @ObservedObject var supabase: SupabaseManager
-    var viewModel: ProfileViewModel
+    var supabase: SupabaseManager
+    @Bindable var viewModel: ProfileViewModel
     
     // Feature Toggles (AppStorage)
     @AppStorage("isExpeditionModeActive") private var isExpeditionModeActive = false

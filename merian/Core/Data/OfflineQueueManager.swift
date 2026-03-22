@@ -65,6 +65,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "MerianOfflineSyncQueue")
     
+    @ObservationIgnored
     private lazy var backgroundSession: URLSession = {
         let config = URLSessionConfiguration.background(withIdentifier: "com.merian.OfflineSyncBackground")
         config.isDiscretionary = false
@@ -84,6 +85,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     private var syncTask: Task<Void, Never>?
     
     // MARK: - Lifecycle Bootstrapping
+    private override init() {
         super.init()
         _ = backgroundSession // Force initialization so iOS can re-attach background tasks on wake
         startMonitoring()

@@ -6,7 +6,7 @@ import SwiftData
 /// visual data visualizations (Terrarium, Heatmap) and abstracts intense offline SQLite
 /// hardware calculations completely away from the orchestrator logic natively.
 struct ProfileTabView: View {
-    @ObservedObject var supabase: SupabaseManager
+    var supabase: SupabaseManager
     @Environment(\.modelContext) private var modelContext
     @Binding var showPaywall: Bool
     

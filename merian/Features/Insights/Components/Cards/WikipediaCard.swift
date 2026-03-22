@@ -49,6 +49,7 @@ struct WikipediaCard: View {
                         .cornerRadius(12)
                     }
                     .padding(.top, 4)
+                }
             }
             .card()
         }

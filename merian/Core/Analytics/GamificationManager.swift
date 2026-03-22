@@ -15,6 +15,7 @@ import Observation
     var showTerrariumSheet: Bool = false
     
     // MARK: - Persistent Storage Keys
+    private let defaults = UserDefaults.standard
     private let speciesCountKey = "Merian_UnlockedSpeciesCount"
     private let fireflyBadgeKey = "Merian_HasFireflyBadge"
     

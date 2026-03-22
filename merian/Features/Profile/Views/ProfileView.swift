@@ -14,7 +14,7 @@ struct ProfileView: View {
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     
     // MARK: - View Models & Managers
-    @ObservedObject private var supabase = SupabaseManager.shared
+    var supabase = SupabaseManager.shared
     @State private var viewModel = ProfileViewModel()
     
     // MARK: - UI State
