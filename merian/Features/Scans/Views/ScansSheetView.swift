@@ -68,6 +68,8 @@ struct ScansSheetView: View {
                 )
                 
                 CollectionsView(
+                    searchQuery: searchManager.searchQuery,
+                    isSearchFocused: isSearchFocused,
                     collections: collections.sorted { c1, c2 in
                         switch searchManager.collectionSortOption {
                         case .newest: return c1.createdAt > c2.createdAt
@@ -84,6 +86,15 @@ struct ScansSheetView: View {
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: Binding(get: { activeTab }, set: { if let val = $0 { activeTab = val } }))
             .ignoresSafeArea(.keyboard, edges: .bottom)
+            .onChange(of: activeTab) { _, newValue in
+                if !searchManager.searchQuery.isEmpty {
+                    searchManager.searchQuery = ""
+                    isSearchFocused = false
+                    if newValue == .library {
+                        searchManager.performSearch(query: "")
+                    }
+                }
+            }
             
             // MARK: - View Modifiers
             .sheet(item: $selectedScanForInsight) { scan in
@@ -93,21 +104,11 @@ struct ScansSheetView: View {
                 ))
             }
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: "Search tags, habitats, colors...")
+            .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: activeTab == .library ? "Search keywords, habitats, colors..." : "Search collections...")
             //.searchDictationBehavior(.inline(activation: .onSelect))
             .onChange(of: searchManager.searchQuery) { _, newValue in
-                searchManager.performSearch(query: newValue)
-                if !newValue.isEmpty && activeTab != .library {
-                    withAnimation {
-                        activeTab = .library
-                    }
-                }
-            }
-            .onChange(of: isSearchFocused) { _, isFocused in
-                if isFocused && activeTab != .library {
-                    withAnimation {
-                        activeTab = .library
-                    }
+                if activeTab == .library {
+                    searchManager.performSearch(query: newValue)
                 }
             }
             .scansToolbar(
@@ -174,7 +175,7 @@ struct ScansSheetView: View {
             Text("This will permanently remove these discoveries and all associated visuals from your history.")
         }
         .alert(
-            "Selection Limit Reached",
+            "Selection limit reached",
             isPresented: $showSelectionLimitAlert
         ) {
             Button("OK", role: .cancel) { }

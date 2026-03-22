@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct CollectionsView: View {
+    let searchQuery: String
+    let isSearchFocused: Bool
     let collections: [ScanCollection]
     @Binding var isInsightSheetOpen: Bool
     
@@ -15,11 +17,36 @@ struct CollectionsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                let userCollections = collections.filter { $0.name != "Favorites" }
+                let isSearching = !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
+                let query = searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
+                
+                let userCollections = collections.filter { $0.name != "Favorites" && (!isSearching || $0.name.localizedCaseInsensitiveContains(query)) }
+                
+                let showFavorites = !isSearching || "favorites".contains(query)
+                let showNonBio = !isSearching || "non-biological".contains(query) || "non biological".contains(query)
+                let totalFound = userCollections.count + (showFavorites ? 1 : 0) + (showNonBio ? 1 : 0)
+                
+                if isSearching || isSearchFocused {
+                    HStack {
+                        Text(isSearching ? "Search results" : "Search collections")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                        
+                        Spacer()
+                        
+                        Text("\(totalFound) found")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                    .padding(.bottom, 0) // Adjusted since the parent VStack has spacing: 16
+                }
                 
                 // MARK: - Promoted Links (Favorites & Non-biological)
                 VStack(spacing: 16) {
-                if let favorites = collections.first(where: { $0.name == "Favorites" }) {
+                if showFavorites, let favorites = collections.first(where: { $0.name == "Favorites" }) {
                     DefaultCollectionLink(
                         title: "Favorites",
                         iconName: "heart",
@@ -29,19 +56,27 @@ struct CollectionsView: View {
                     }
                 }
                 
-                DefaultCollectionLink(
-                    title: "Non-biological",
-                    iconName: "cube",
-                    count: nonBioCount
-                ) {
-                    NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
+                if showNonBio {
+                    DefaultCollectionLink(
+                        title: "Non-biological",
+                        iconName: "cube",
+                        count: nonBioCount
+                    ) {
+                        NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
+                    }
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
             
             // MARK: - User Custom Collections Grid
-            if userCollections.isEmpty {
+            if isSearching && userCollections.isEmpty && !showFavorites && !showNonBio {
+                EmptyStateView(
+                    iconName: "magnifyingglass",
+                    title: "No results found",
+                    message: "No collections match \"\(searchQuery)\"."
+                )
+            } else if !isSearching && userCollections.isEmpty {
                 EmptyStateView(
                     iconName: "folder",
                     title: "No collections",
