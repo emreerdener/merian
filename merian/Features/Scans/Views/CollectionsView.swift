@@ -7,6 +7,10 @@ struct CollectionsView: View {
     
     @Environment(\.modelContext) private var modelContext
     @State private var nonBioCount: Int = 0
+    @State private var collectionToEdit: ScanCollection?
+    @State private var showRenameAlert = false
+    @State private var showDeleteConfirmation = false
+    @State private var newCollectionName = ""
     
     var body: some View {
         ScrollView {
@@ -118,10 +122,50 @@ struct CollectionsView: View {
                             .clipped()
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                collectionToEdit = collection
+                                newCollectionName = collection.name
+                                showRenameAlert = true
+                            } label: {
+                                Label("Rename collection", systemImage: "pencil")
+                            }
+                            
+                            Button(role: .destructive) {
+                                collectionToEdit = collection
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("Delete collection", systemImage: "trash")
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal)
             }
+        }
+        .alert("Rename collection", isPresented: $showRenameAlert) {
+            TextField("Collection name", text: $newCollectionName)
+            Button("Cancel", role: .cancel) { }
+            Button("Save") {
+                let trimmed = newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty, let collection = collectionToEdit {
+                    collection.name = trimmed
+                    try? modelContext.save()
+                    HapticManager.shared.triggerSuccessPulse()
+                }
+            }
+        }
+        .alert("Delete collection?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                if let collection = collectionToEdit {
+                    HapticManager.shared.triggerErrorThump()
+                    modelContext.delete(collection)
+                    try? modelContext.save()
+                }
+            }
+        } message: {
+            Text("This will delete the collection folder. The scans inside will not be deleted and will remain safely in your library.")
         }
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)

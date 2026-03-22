@@ -14,6 +14,10 @@ struct CollectionDetailView: View {
     @State private var selectedScanForInsight: LocalScanRecord? = nil
     @State private var showScanSelection = false
     @State private var showDeleteConfirmation = false
+    @State private var newCollectionName: String = ""
+    @State private var showRenameAlert = false
+    @State private var showCollectionDeleteConfirmation = false
+    @Environment(\.dismiss) private var dismiss
     
     // MARK: - View Layout
     var body: some View {
@@ -74,20 +78,72 @@ struct CollectionDetailView: View {
         ) {
             scanToDelete = nil
         }
+        .alert("Rename collection", isPresented: $showRenameAlert) {
+            TextField("Collection name", text: $newCollectionName)
+            Button("Cancel", role: .cancel) { }
+            Button("Save") {
+                let trimmed = newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    collection.name = trimmed
+                    try? modelContext.save()
+                    HapticManager.shared.triggerSuccessPulse()
+                }
+            }
+        }
+        .alert("Delete collection?", isPresented: $showCollectionDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                dismiss()
+                HapticManager.shared.triggerErrorThump()
+                modelContext.delete(collection)
+                try? modelContext.save()
+            }
+        } message: {
+            Text("This will delete the collection folder. The scans inside will not be deleted and will remain safely in your library.")
+        }
     }
     
     // MARK: - Layout Subcomponents
     @ToolbarContentBuilder
     private var trailingToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button(action: {
-                showScanSelection = true
-            }) {
-                Image(systemName: "plus")
+            if collection.name == "Favorites" {
+                Button(action: {
+                    showScanSelection = true
+                }) {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
+            } else {
+                Menu {
+                    Button {
+                        showScanSelection = true
+                    } label: {
+                        Label("Add scans", systemImage: "plus")
+                    }
+                    
+                    Divider()
+                    
+                    Button {
+                        newCollectionName = collection.name
+                        showRenameAlert = true
+                    } label: {
+                        Label("Rename collection", systemImage: "pencil")
+                    }
+                    
+                    Button(role: .destructive) {
+                        showCollectionDeleteConfirmation = true
+                    } label: {
+                        Label("Delete collection", systemImage: "trash")
+                        .foregroundColor(.red)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
-            .buttonBorderShape(.circle)
         }
     }
     
