@@ -3,6 +3,7 @@ import Network
 import Combine
 import SwiftData
 import ImageIO
+import CoreLocation
 #if canImport(UIKit)
 import UIKit
 import Observation
@@ -387,13 +388,38 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     return
                 }
                 
+                var finalTelemetry = extracted.telemetry
+                
+                // CRITICAL FIX: Offline Wilderness Recovery
+                // If the scan was taken deep offline, WeatherKit would have failed aggressively.
+                // We retroactively spin up a historical weather context strictly bound to the exact hour they originally pressed the shutter.
+                if finalTelemetry.weatherCondition == nil,
+                    let lat = finalTelemetry.gpsLatitude,
+                    let lon = finalTelemetry.gpsLongitude {
+                    let pastLocation = CLLocation(latitude: lat, longitude: lon)
+                    let historicalContext = await EnvironmentContextManager.shared.fetchHistoricalContext(location: pastLocation, date: extracted.originalTimestamp)
+                    
+                    finalTelemetry = CaptureTelemetry(
+                        subjectDistanceInMeters: finalTelemetry.subjectDistanceInMeters,
+                        gpsLatitude: finalTelemetry.gpsLatitude,
+                        gpsLongitude: finalTelemetry.gpsLongitude,
+                        gpsElevation: finalTelemetry.gpsElevation,
+                        locationName: finalTelemetry.locationName ?? historicalContext.locationName,
+                        weatherCondition: historicalContext.weatherCondition,
+                        weatherTemperatureF: historicalContext.weatherTemperature,
+                        timeOfDay: finalTelemetry.timeOfDay,
+                        timestamp: finalTelemetry.timestamp
+                    )
+                    print("🌤️ Hydrated offline wilderness scan with historical weather: \(historicalContext.weatherCondition ?? "Unknown")")
+                }
+                
                 do {
                     let inferenceStartTime = CFAbsoluteTimeGetCurrent()
                     
                     let resultData = try await MerianNetworkClient.shared.analyzeSubject(
                         r2ObjectKey: r2ObjectKey,
                         base64ImageData: nil,
-                        telemetry: extracted.telemetry
+                        telemetry: finalTelemetry
                     )
                     
                     let inferenceTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
@@ -405,7 +431,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         originalImagePaths: extracted.localImagePaths,
                         scanId: scanId,
                         originalTimestamp: extracted.originalTimestamp,
-                        telemetry: extracted.telemetry
+                        telemetry: finalTelemetry
                     )
                     
                     let totalPipelineTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime

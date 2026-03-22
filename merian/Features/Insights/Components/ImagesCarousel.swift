@@ -62,43 +62,39 @@ private extension ImagesCarousel {
     
     @ViewBuilder
     var imageTabs: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 0) {
-                // Priority: Live Capture actively evaluated (Data payload)
-                if hasLive, let livePayload = inferenceEngine.activeImageData, let uiImage = UIImage(data: livePayload) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .clipped()
-                        .containerRelativeFrame(.horizontal)
-                        .id(0)
-                }
-                
-                // User's Uploaded Images
-                ForEach(Array(validHistoricImagePaths.enumerated()), id: \.offset) { index, path in
-                    AsyncLocalImageView(
-                        imagePath: path,
-                        onImageLoadFailed: { handleImageFailure(identifier: path) }
-                    )
-                    .containerRelativeFrame(.horizontal)
-                    .id(liveCount + index)
-                }
-                
-                // Tab 1+: Wikipedia / GBIF Reference Images
-                ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
-                    AsyncLocalImageView(
-                        imagePath: nil,
-                        fallbackImageUrl: urlString,
-                        onImageLoadFailed: { handleImageFailure(identifier: urlString) }
-                    )
-                    .containerRelativeFrame(.horizontal)
-                    .id(liveCount + validHistoricImagePaths.count + index)
-                }
+        TabView(selection: Binding(
+            get: { selectedIndex ?? 0 },
+            set: { selectedIndex = $0 }
+        )) {
+            // Priority: Live Capture actively evaluated (Data payload)
+            if hasLive, let livePayload = inferenceEngine.activeImageData, let uiImage = UIImage(data: livePayload) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .clipped()
+                    .tag(0)
             }
-            .scrollTargetLayout()
+            
+            // User's Uploaded Images
+            ForEach(Array(validHistoricImagePaths.enumerated()), id: \.offset) { index, path in
+                AsyncLocalImageView(
+                    imagePath: path,
+                    onImageLoadFailed: { handleImageFailure(identifier: path) }
+                )
+                .tag(liveCount + index)
+            }
+            
+            // Tab 1+: Wikipedia / GBIF Reference Images
+            ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
+                AsyncLocalImageView(
+                    imagePath: nil,
+                    fallbackImageUrl: urlString,
+                    onImageLoadFailed: { handleImageFailure(identifier: urlString) }
+                )
+                .tag(liveCount + validHistoricImagePaths.count + index)
+            }
         }
-        .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $selectedIndex)
+        .tabViewStyle(.page(indexDisplayMode: .never))
     }
     
     // MARK: - Pagination Dots

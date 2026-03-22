@@ -54,11 +54,17 @@ extension CameraViewModel {
             
             // 5. Generative Telemetry Parsing
             // Bundles context strictly scoped via ISO standards mapped directly into ML prompt sequences
+            // Filter elevation based on hardware confidence to prevent 10m+ indoor drifts
+            var reliableElevation: Double? = nil
+            if let location = context.location, location.verticalAccuracy >= 0 && location.verticalAccuracy <= 25 {
+                reliableElevation = location.altitude
+            }
+            
             let telemetry = CaptureTelemetry(
                 subjectDistanceInMeters: capturedDistance,
                 gpsLatitude: context.location?.coordinate.latitude,
                 gpsLongitude: context.location?.coordinate.longitude,
-                gpsElevation: context.location?.altitude,
+                gpsElevation: reliableElevation,
                 locationName: context.locationName,
                 weatherCondition: context.weatherCondition,
                 weatherTemperatureF: context.weatherTemperature,

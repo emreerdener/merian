@@ -36,6 +36,7 @@ struct EnvironmentContext {
     private var activeContinuations: [CheckedContinuation<CLLocation?, Never>] = []
     private var timeoutTask: Task<Void, Never>?
     private(set) var cachedLocation: CLLocation?
+    private var fallbackInaccurateLocation: CLLocation?
     
     private var geocodeCache: [String: String] = [:]
     private var geocodeKeys: [String] = []
@@ -215,7 +216,13 @@ struct EnvironmentContext {
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
                     
                     guard !Task.isCancelled, let self = self else { return }
-                    _ = self.resolvePendingContinuations(with: self.cachedLocation)
+                    
+                    // Fallback Resolution:
+                    // If we never got a highly accurate <30m location in those 2 seconds, 
+                    // gracefully degrade to whatever loose lock the antenna managed to find (e.g., 500m cellular bounds),
+                    // to ensure they have at least *some* macro-region environment data.
+                    let bestAvailableFallback = self.cachedLocation ?? self.fallbackInaccurateLocation
+                    _ = self.resolvePendingContinuations(with: bestAvailableFallback)
                 }
             }
         }
@@ -233,8 +240,18 @@ struct EnvironmentContext {
         guard let location = locations.last else { return }
         Task { @MainActor [weak self] in
             guard let self = self else { return }
-            if self.resolvePendingContinuations(with: location) {
-                 self.cachedLocation = location
+            
+            // Prioritize reliable outdoor coordinate locks (< 30m accuracy)
+            let isAccurate = location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= 30
+            
+            if isAccurate {
+                self.cachedLocation = location
+                // End the search early because we hit our gold standard accuracy!
+                _ = self.resolvePendingContinuations(with: location)
+            } else {
+                // Not accurate enough. Store it as a safety net in case we hit the 2.0s timeout limit 
+                // and never find a strong precision lock.
+                self.fallbackInaccurateLocation = location
             }
         }
     }

@@ -30,12 +30,12 @@ struct ProfileTabView: View {
                     
                     // MARK: - Stats
                     UserStats()
+
+                    // MARK: - Paywall & Subscriptions
+                    PlanCard(showPaywall: $showPaywall)
                     
                     // MARK: - Heatmap
                     ScansHeatmap(heatmapData: heatmapData)
-          
-                    // MARK: - Paywall & Subscriptions
-                    PlanCard(showPaywall: $showPaywall)
                 }
                 .padding(.horizontal, 2)
                 .padding(.bottom, 2)
