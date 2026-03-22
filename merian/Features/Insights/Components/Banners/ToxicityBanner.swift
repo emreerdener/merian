@@ -10,27 +10,27 @@ struct ToxicityBanner: View {
     var body: some View {
         if isPoisonous {
             HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: "exclamationmark.circle")
                     .font(.title)
                 VStack(alignment: .leading) {
-                    Text("TOXIC")
+                    Text("Toxic")
                         .font(.system(.headline))
-                    Text("This subject is known to be poisonous.")
+                    Text("This subject could be poisonous.")
                         .font(.system(.subheadline))
                 }
                 Spacer()
             }
             .padding()
-            .background(Color.red.opacity(0.8))
-            .foregroundColor(.white)
+            .background(Color.yellow.opacity(0.8))
+            .foregroundColor(.primary)
             .cornerRadius(16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.red.opacity(0.4), lineWidth: 1)
+                    .stroke(Color.yellow.opacity(0.4), lineWidth: 1)
             )
             // Accessibility: Explicitly anchor screen readers to the threat first
             .accessibilityAddTraits(.isHeader)
-            .shadow(color: .red.opacity(0.5), radius: 10, y: 5)
+            .shadow(color: .yellow.opacity(0.5), radius: 10, y: 5)
         }
     }
 }

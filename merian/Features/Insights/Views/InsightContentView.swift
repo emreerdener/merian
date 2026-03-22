@@ -20,10 +20,13 @@ struct InsightContentView: View {
                 // Embeds firmly inside the native ScrollView to bypass NavigationStack safe area clipping perfectly.
                 GeometryReader { proxy in
                     let scrollY = proxy.frame(in: .named("InsightScrollSpace")).minY
+                    // MASSIVE FIX: The 'bleedBuffer' forces the image to natively render 50px taller and shifted 50px upward out of viewport.
+                    // This creates a physical pixel bridge seamlessly masking `TabView` vertical pan-gesture framework synchronization tearing.
+                    let bleedBuffer: CGFloat = 50 
                     
                     ImagesCarousel()
-                        .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY : imageSize)
-                        .offset(y: scrollY > 0 ? -scrollY : 0)
+                        .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
+                        .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
                         .ignoresSafeArea(.all, edges: .top) // CRUESCIAL: Kills the 16pt sheet native dragging padding!
                 }
                 .frame(height: imageSize)
@@ -45,6 +48,7 @@ struct InsightContentView: View {
         .coordinateSpace(name: "InsightScrollSpace")
         // Forces native underlap of the translucent NavigationBar completely!
         .ignoresSafeArea(.container, edges: .top)
+        .contentMargins(.top, 0, for: .scrollContent) // CRITICAL: Eradicates hidden iOS 17 interior scroll canvas offsets!
         .textSelection(.enabled)
         
         // Modal Routings
@@ -100,6 +104,8 @@ private extension InsightContentView {
         )
         .fill(Color(uiColor: .systemBackground))
         .shadow(color: .black.opacity(0.12), radius: 12, y: -4)
+        // OVERSCROLL PROTECTION: Physically expands the drawn background infinitely downwards without affecting structural layout height, sealing any visual gaps when the user pulls up past the bottom natively!
+        .padding(.bottom, -1000)
     }
     
     /// Silent transparent Geometry tracker routing scroll physics mathematically to the Navigation Bar offset.

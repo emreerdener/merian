@@ -15,7 +15,7 @@ struct WikipediaCard: View {
                         HStack(spacing: 8) {
                             Image(systemName: "book")
                                 .foregroundColor(.secondary)
-                            Text("More information")
+                            Text("Overview")
                                 .font(.system(.headline))
                                 .foregroundColor(.primary)
                         }

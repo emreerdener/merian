@@ -5,7 +5,7 @@ struct ImagesCarousel: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     
     // MARK: - State
-    @State private var selectedIndex: Int = 0
+    @State private var selectedIndex: Int? = 0
     
     // MARK: - Computed Boundaries
     private var refUrls: [String] {
@@ -50,7 +50,7 @@ struct ImagesCarousel: View {
     private func handleImageFailure(identifier: String) {
         if totalImages > 1 {
             inferenceEngine.dropInvalidCarouselImage(identifier)
-            if selectedIndex >= totalImages - 1 {
+            if (selectedIndex ?? 0) >= totalImages - 1 {
                 selectedIndex = max(0, totalImages - 2)
             }
         }
@@ -62,37 +62,43 @@ private extension ImagesCarousel {
     
     @ViewBuilder
     var imageTabs: some View {
-        TabView(selection: $selectedIndex) {
-            // Priority: Live Capture actively evaluated (Data payload)
-            if hasLive, let livePayload = inferenceEngine.activeImageData, let uiImage = UIImage(data: livePayload) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .clipped()
-                    .tag(0)
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 0) {
+                // Priority: Live Capture actively evaluated (Data payload)
+                if hasLive, let livePayload = inferenceEngine.activeImageData, let uiImage = UIImage(data: livePayload) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .clipped()
+                        .containerRelativeFrame(.horizontal)
+                        .id(0)
+                }
+                
+                // User's Uploaded Images
+                ForEach(Array(validHistoricImagePaths.enumerated()), id: \.offset) { index, path in
+                    AsyncLocalImageView(
+                        imagePath: path,
+                        onImageLoadFailed: { handleImageFailure(identifier: path) }
+                    )
+                    .containerRelativeFrame(.horizontal)
+                    .id(liveCount + index)
+                }
+                
+                // Tab 1+: Wikipedia / GBIF Reference Images
+                ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
+                    AsyncLocalImageView(
+                        imagePath: nil,
+                        fallbackImageUrl: urlString,
+                        onImageLoadFailed: { handleImageFailure(identifier: urlString) }
+                    )
+                    .containerRelativeFrame(.horizontal)
+                    .id(liveCount + validHistoricImagePaths.count + index)
+                }
             }
-            
-            // User's Uploaded Images
-            ForEach(Array(validHistoricImagePaths.enumerated()), id: \.offset) { index, path in
-                AsyncLocalImageView(
-                    imagePath: path,
-                    onImageLoadFailed: { handleImageFailure(identifier: path) }
-                )
-                .tag(liveCount + index)
-            }
-            
-            // Tab 1+: Wikipedia / GBIF Reference Images
-            ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
-                AsyncLocalImageView(
-                    imagePath: nil,
-                    fallbackImageUrl: urlString,
-                    onImageLoadFailed: { handleImageFailure(identifier: urlString) }
-                )
-                .tag(liveCount + validHistoricImagePaths.count + index)
-            }
+            .scrollTargetLayout()
         }
-        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-        .aspectRatio(1.0, contentMode: .fill)
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $selectedIndex)
     }
     
     // MARK: - Pagination Dots
@@ -102,7 +108,7 @@ private extension ImagesCarousel {
             HStack(spacing: 8) {
                 ForEach(0..<totalImages, id: \.self) { index in
                     Circle()
-                        .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.4))
+                        .fill(index == (selectedIndex ?? 0) ? Color.white : Color.white.opacity(0.4))
                         .frame(width: 6, height: 6)
                         .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
                 }
@@ -112,7 +118,7 @@ private extension ImagesCarousel {
             .background(Color.black.opacity(0.2))
             .background(.ultraThinMaterial, in: Capsule())
             .padding(.bottom, 40)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex ?? 0)
         }
     }
 }
@@ -132,19 +138,16 @@ private struct AsyncLocalImageView: View {
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFill()
-                    .aspectRatio(1.0, contentMode: .fill)
                     .clipped()
             } else if hasFailedToLoad {
                 ArchivedVisualsView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .aspectRatio(1.0, contentMode: .fill)
                 .clipped()
             } else {
                 ProgressView()
                     .controlSize(.large)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.white.opacity(0.1))
-                    .aspectRatio(1.0, contentMode: .fill)
                     .clipped()
             }
         }
