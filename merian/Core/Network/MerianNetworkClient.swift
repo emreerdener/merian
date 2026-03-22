@@ -152,13 +152,17 @@ final class MerianNetworkClient {
         request.setValue(mimeType, forHTTPHeaderField: "Content-Type")
         request.httpBody = data
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let uploadStartTime = CFAbsoluteTimeGetCurrent()
+        let (responseData, response) = try await URLSession.shared.data(for: request)
+        let uploadTime = CFAbsoluteTimeGetCurrent() - uploadStartTime
+        print("⏱️ [Performance] Cloudflare R2 Upload completed in \(String(format: "%.3f", uploadTime)) seconds.")
+        
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.uploadFailed
         }
         
         if httpResponse.statusCode != 200 {
-            let errString = String(data: data, encoding: .utf8) ?? "Unknown"
+            let errString = String(data: responseData, encoding: .utf8) ?? "Unknown"
             print("🚨 R2 UPLOAD FAILED [\(httpResponse.statusCode)]: \(errString)")
             throw NetworkError.uploadFailed
         }

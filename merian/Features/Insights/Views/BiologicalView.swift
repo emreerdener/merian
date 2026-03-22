@@ -16,22 +16,22 @@ struct BiologicalView: View {
             // 1. Primary Identifiers
             InsightHeader(speciesData: inferenceEngine.speciesData)
             ToxicityBanner()
+
+            // 2. Global Footprint
+            ConservationBanner()
             
-            // 2. Biological Classification
+            // 3. Biological Classification
             TaxonomyCard(
                 taxonomyData: inferenceEngine.speciesData?.taxonomy,
                 scientificName: inferenceEngine.speciesData?.scientificName
             )
             
-            // 3. Spatiotemporal Context
+            // 4. Spatiotemporal Context
             ScanInformationCard(
                 speciesData: inferenceEngine.speciesData, 
                 timestamp: timestamp
             )
-
-            // 4. Global Footprint
-            ConservationBanner()
-                
+  
             // 5. Educational Reference
             WikipediaCard(
                 isSafariPresented: $isSafariPresented, 

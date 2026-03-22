@@ -388,11 +388,16 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                 }
                 
                 do {
+                    let inferenceStartTime = CFAbsoluteTimeGetCurrent()
+                    
                     let resultData = try await MerianNetworkClient.shared.analyzeSubject(
                         r2ObjectKey: r2ObjectKey,
                         base64ImageData: nil,
                         telemetry: extracted.telemetry
                     )
+                    
+                    let inferenceTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
+                    print("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime)) seconds.")
                     
                     let backgroundActor = BackgroundDatabaseActor(modelContainer: extracted.container)
                     await backgroundActor.processAndCleanupOfflineScan(
@@ -402,6 +407,9 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         originalTimestamp: extracted.originalTimestamp,
                         telemetry: extracted.telemetry
                     )
+                    
+                    let totalPipelineTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
+                    print("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime)) seconds!")
                     
                     await MainActor.run {
                         OfflineQueueManager.shared.updateUnsyncedItemCount()
