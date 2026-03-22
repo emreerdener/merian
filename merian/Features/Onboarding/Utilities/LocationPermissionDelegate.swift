@@ -2,14 +2,19 @@ import Foundation
 import CoreLocation
 
 class LocationPermissionDelegate: NSObject, ObservableObject, CLLocationManagerDelegate {
+    // MARK: - Core Dependencies
     let manager = CLLocationManager()
+    
+    // MARK: - State Callbacks
     var onAuthorizationDetermined: (() -> Void)?
     
+    // MARK: - Initialization Engine
     override init() {
         super.init()
         manager.delegate = self
     }
     
+    // MARK: - Permission Handlers
     func requestWhenInUse() {
         if manager.authorizationStatus == .notDetermined {
             manager.requestWhenInUseAuthorization()
@@ -20,6 +25,7 @@ class LocationPermissionDelegate: NSObject, ObservableObject, CLLocationManagerD
         }
     }
     
+    // MARK: - CLLocationManagerDelegate Events
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         if manager.authorizationStatus != .notDetermined {
             DispatchQueue.main.async {

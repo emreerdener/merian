@@ -1,24 +1,33 @@
 import Foundation
 import Combine
+import Observation
 
+// MARK: - Core Quota Enforcement
 /// Enforces the Explorer Tier (Free) strict limitations. Tracks scan counts against the physical device constraints (DeviceCheck prep).
 @MainActor
-final class UsageManager: ObservableObject {
+@Observable final class UsageManager {
+    // MARK: - Singleton Architecture
     static let shared = UsageManager()
+    
+    // MARK: - Quota Thresholds
     private let maxFreeScansPerDay = 2
     
-    @Published var freeScansRemaining: Int
-    @Published var showPaywall: Bool = false
+    // MARK: - State Management
+    var freeScansRemaining: Int = 0
+    var showPaywall: Bool = false
     
+    // MARK: - Persistent Storage Keys
     private let defaults = UserDefaults.standard
     private var lastScanDateKey: String { "Merian_LastScanDate_\(DeviceIdentityManager.shared.deviceId)" }
     private var scansUsedKey: String { "Merian_ScansUsedToday_\(DeviceIdentityManager.shared.deviceId)" }
     
+    // MARK: - Lifecycle Bootstrapping
     private init() {
         self.freeScansRemaining = maxFreeScansPerDay
         evaluateDailyRefresh()
     }
     
+    // MARK: - Quota Validation Engine
     /// Called passively on App Boot or during an active session to resolve the 24-hour UTC rollover boundary
     func evaluateDailyRefresh() {
         let calendar = Calendar.current
@@ -35,6 +44,7 @@ final class UsageManager: ObservableObject {
         }
     }
     
+    // MARK: - Execution & Refund Mutators
     /// Explicitly called the exact moment the user triggers an iOS Camera Shutter capture sequence natively.
     /// Returns true if the architecture legally allows the AI payload to jump up to Supabase.
     func canPerformScan(isProActive: Bool) -> Bool {

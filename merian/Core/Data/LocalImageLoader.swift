@@ -2,12 +2,16 @@ import Foundation
 import SwiftUI
 import CoreImage
 
+// MARK: - Core Image Processing Engine
 /// Unifies APFS file rendering, sandbox extractions, and Cloudflare R2 loading autonomously handling physical cache networks natively.
 actor LocalImageLoader {
+    // MARK: - Singleton Architecture
     static let shared = LocalImageLoader()
     
+    // MARK: - Thread-Safe Task Queues
     private var activeTasks: [String: Task<UIImage?, Never>] = [:]
     
+    // MARK: - Asset Orchestration
     func loadImage(fromPath imagePath: String?, fallbackUrl: String? = nil, maxDimension: Int = 1024) async -> UIImage? {
         guard let cacheKey = imagePath ?? fallbackUrl else {
             return nil
@@ -73,6 +77,7 @@ actor LocalImageLoader {
         return await fetchTask.value
     }
     
+    // MARK: - Network Edge Loaders
     // Explicit network fallback natively isolated off Main Thread
     private nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIImage? {
         if Task.isCancelled { return nil }

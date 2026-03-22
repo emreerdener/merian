@@ -5,7 +5,9 @@ import SwiftData
 import ImageIO
 #if canImport(UIKit)
 import UIKit
+import Observation
 
+// MARK: - Core Concurrency Wrapper
 /// A generic, thread-safe wrapper for managing UIBackgroundTaskIdentifier
 /// Ensures strict Sendable conformance avoiding iOS strict concurrency crashes natively.
 public final class BackgroundTaskWrapper: @unchecked Sendable {
@@ -52,11 +54,14 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
 }
 #endif
 
+// MARK: - Persistent Background Sync Engine
 /// Uses NWPathMonitor for a zero-data loss offline queue automatically syncing securely when a link is confirmed.
 @MainActor
-final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDelegate {
+@Observable final class OfflineQueueManager: NSObject, URLSessionTaskDelegate {
+    // MARK: - Singleton Architecture
     static let shared = OfflineQueueManager()
     
+    // MARK: - Networking Infrastructure
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "MerianOfflineSyncQueue")
     
@@ -67,22 +72,24 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
     
-    @Published var isOnline: Bool = false
-    @Published var unsyncedItemsCount: Int = 0
+    // MARK: - State Management
+    var isOnline: Bool = false
+    var unsyncedItemsCount: Int = 0
     
     var backgroundCompletionHandler: (() -> Void)?
-    
-    private var isSyncing: Bool = false
-    private var syncTask: Task<Void, Never>?
-    
+    var isSyncing: Bool = false
     var modelContext: ModelContext?
     
-    private override init() {
+    // MARK: - Asynchronous Execution
+    private var syncTask: Task<Void, Never>?
+    
+    // MARK: - Lifecycle Bootstrapping
         super.init()
         _ = backgroundSession // Force initialization so iOS can re-attach background tasks on wake
         startMonitoring()
     }
     
+    // MARK: - Network Status Polling
     private func startMonitoring() {
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -110,6 +117,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         monitor.start(queue: queue)
     }
     
+    // MARK: - Background Sync Loops
     func syncPendingDeletions() async {
         guard isOnline, let context = modelContext else { return }
         
@@ -137,6 +145,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
     }
     
+    // MARK: - UI Queue Push
     func enqueueCapture(imageData: Data, telemetry: CaptureTelemetry, blurScore: Double? = nil) {
         let fileName = "\(UUID().uuidString).jpg"
         let documentsDirectory = URL.documentsDirectory
@@ -184,6 +193,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
     }
     
+    // MARK: - Background Upload Dispatcher
     func syncPendingScans() {
         guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }
@@ -290,6 +300,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
             }
     }
     
+    // MARK: - URLSession Delegates
     /// Triggered exclusively when the Background Networking Queue finishes physical transmission of the bytes natively
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         // Extract non-Sendable properties safely before bridging context
@@ -419,8 +430,7 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
         }
     }
     
-
-    
+    // MARK: - Soft Delete Mechanics
     func updateUnsyncedItemCount() {
         guard let context = modelContext else { return }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == false })
@@ -464,8 +474,10 @@ final class OfflineQueueManager: NSObject, ObservableObject, URLSessionTaskDeleg
     
 }
 
+// MARK: - Async SwiftData Engine
 @ModelActor
 actor BackgroundDatabaseActor {
+    // MARK: - DTO Map
     struct PendingScanPayload: Sendable {
         let id: String
         let localImagePaths: [String]
@@ -480,6 +492,7 @@ actor BackgroundDatabaseActor {
         return pending.map { PendingScanPayload(id: $0.id, localImagePaths: $0.localImagePaths) }
     }
     
+    // MARK: - Deferred Inference Mapper
     /// Called by the Offline Queue explicitly to ensure deferred scans are processed mathematically back down into the User's biological index natively.
     func processAndCleanupOfflineScan(resultData: Data, originalImagePaths: [String], scanId: String, originalTimestamp: Date, telemetry: CaptureTelemetry? = nil) {
         let decoder = JSONDecoder()
@@ -575,6 +588,7 @@ actor BackgroundDatabaseActor {
         }
     }
     
+    // MARK: - Realtime Inference Mapper
     /// Handles native UI ingestions safely inside the Actor Thread isolated entirely away from UI and Detached Task loops
     func saveLiveScanRecord(mappedData: SpeciesData, compressedData: Data) -> Bool {
         var newDiscovery = false
@@ -636,6 +650,7 @@ actor BackgroundDatabaseActor {
         return newDiscovery
     }
     
+    // MARK: - Wiki Extraction Update
     /// Autonomously updates the SwiftData struct securely on an actor thread post-inference to retroactively hydrate Wikipedia data.
     func updateScanWithWikipedia(scanId: String, extract: String, url: String, imageUrl: String?) {
         let fetchDescriptor = FetchDescriptor<LocalScanRecord>(

@@ -1,25 +1,30 @@
 import Foundation
 import Combine
+import Observation
 
+// MARK: - Core Gamification Engine
 /// Tracks Gamification mechanics like Streaks, Badges, and Unlocked Species to drive the Digital Terrarium state.
 @MainActor
-final class GamificationManager: ObservableObject {
+@Observable final class GamificationManager {
+    // MARK: - Singleton Architecture
     static let shared = GamificationManager()
     
-    @Published var unlockedSpeciesCount: Int
-    @Published var hasFireflyBadge: Bool
+    // MARK: - State Management
+    var unlockedSpeciesCount: Int
+    var hasFireflyBadge: Bool
+    var showTerrariumSheet: Bool = false
     
-    @Published var showTerrariumSheet: Bool = false
-    
-    private let defaults = UserDefaults.standard
+    // MARK: - Persistent Storage Keys
     private let speciesCountKey = "Merian_UnlockedSpeciesCount"
     private let fireflyBadgeKey = "Merian_HasFireflyBadge"
     
+    // MARK: - Lifecycle Bootstrapping
     private init() {
         self.unlockedSpeciesCount = defaults.integer(forKey: speciesCountKey)
         self.hasFireflyBadge = defaults.bool(forKey: fireflyBadgeKey)
     }
     
+    // MARK: - Badge Execution Triggers
     /// Called when a taxonomic scan validates natively or offline queue hits 200 OK
     func recordNewSpeciesDiscovered() {
         unlockedSpeciesCount += 1

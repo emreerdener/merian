@@ -4,7 +4,9 @@ import WeatherKit
 import Combine
 import CoreMotion
 import MapKit
+import Observation
 
+// MARK: - Environmental Telemetry Payload
 /// A data model representing the unified environmental payload extracted at the exact moment of a scan.
 struct EnvironmentContext {
     let location: CLLocation?
@@ -13,17 +15,23 @@ struct EnvironmentContext {
     var weatherTemperature: Double? = nil
 }
 
+// MARK: - Core Contextual Hardware Engine
 /// A centralized singleton that lazily retrieves GPS locations and WeatherKit payloads only when explicitly triggered.
 /// Adheres to the "Deferred Context Fetch" philosophy to prevent battery drain.
 @MainActor
-final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+@Observable final class EnvironmentContextManager: NSObject, CLLocationManagerDelegate {
+    // MARK: - Singleton Architecture
     static let shared = EnvironmentContextManager()
     
+    // MARK: - Hardware Controllers
     private let locationManager = CLLocationManager()
     private let weatherService = WeatherService.shared
     private let motionManager = CMMotionManager()
     
-    @Published var isAuthorized: Bool = false
+    // MARK: - State Management
+    var isAuthorized: Bool = false
+    
+    // MARK: - Cache Maps
     
     private var activeContinuations: [CheckedContinuation<CLLocation?, Never>] = []
     private var timeoutTask: Task<Void, Never>?
@@ -34,6 +42,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
     private let geocodeCacheLimit = 200
     private var activeGeocodeTasks: [String: Task<String?, Never>] = [:]
     
+    // MARK: - Hardware Initialization
     private override init() {
         super.init()
         locationManager.delegate = self
@@ -56,6 +65,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         }
     }
     
+    // MARK: - Live Location Tracking
     func startLiveLocationTracking() {
         guard isAuthorized else { return }
         locationManager.startUpdatingLocation()
@@ -75,6 +85,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         }
     }
     
+    // MARK: - Deferred Inference Triggers
     /// Executes the "Deferred Context Fetch", locking the location pinpoint to the exact time of the shutter press
     func fetchDeferredContext(preLockedLocation: CLLocation? = nil) async -> EnvironmentContext {
         // If not authorized, gracefully degrade and return empty context
@@ -136,6 +147,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         }
     }
     
+    // MARK: - Context Resolvers
     private func reverseGeocode(location: CLLocation) async -> String? {
         let key = String(format: "%.3f,%.3f", location.coordinate.latitude, location.coordinate.longitude)
         if let cached = geocodeCache[key] {
@@ -215,6 +227,7 @@ final class EnvironmentContextManager: NSObject, ObservableObject, CLLocationMan
         }
     }
     
+    // MARK: - CLLocationManagerDelegate
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
             self.checkAuthorization()

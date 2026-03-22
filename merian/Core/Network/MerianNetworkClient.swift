@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Core Networking Protocols
 enum NetworkError: Error {
     case invalidURL
     case uploadFailed
@@ -7,10 +8,7 @@ enum NetworkError: Error {
     case decodingFailed
 }
 
-// Removed GeminiFile structures as we are no longer using the Gemini File API directly.
-
-// Removed IdentifyResponse as payloads securely decode via nested JSON mapping natively downstream.
-
+// MARK: - API Payloads
 struct PreSignedURLResponse: Codable {
     let urls: [PreSignedURL]
 }
@@ -21,14 +19,17 @@ struct PreSignedURL: Codable {
     let objectKey: String
 }
 
-class MerianNetworkClient {
+// MARK: - Core Cloud Infrastructure
+final class MerianNetworkClient {
+    // MARK: - Singleton Architecture
     static let shared = MerianNetworkClient()
     
+    // MARK: - Environment Architecture
     // Configurable endpoints structurally pulled from explicit targets rather than ProcessInfo on iOS
     private let supabaseUrl = MerianEnvironment.supabaseUrl
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
-    // Step 1.5: Generic Request Abstraction
+    // MARK: - API Gateway Abstraction
     private func performAuthenticatedRequest(
         url: URL,
         method: String,
@@ -90,22 +91,9 @@ class MerianNetworkClient {
         return (data, httpResponse)
     }
     
-    // Step 2: Supabase Inference
+    // MARK: - AI & Inference Requests
     func analyzeSubject(r2ObjectKey: String?, base64ImageData: String?, telemetry: CaptureTelemetry) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
-        
-        // CRITICAL: Prevent iOS from returning cached 401s during the self-healing retry loop
-        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30.0)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        guard let authHeaders = try? await SupabaseManager.shared.getValidAuthHeaders() else {
-            print("⚠️ MerianNetworkClient: Critical Auth Failure or Disconnected OAuth User natively resolving bounds.")
-            throw NetworkError.invalidResponse
-        }
-        for (key, val) in authHeaders {
-            request.setValue(val, forHTTPHeaderField: key)
-        }
         
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
         let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
@@ -143,7 +131,7 @@ class MerianNetworkClient {
         return data
     }
     
-    // Step 3: Pre-Signed URLs
+    // MARK: - S3 / R2 Pipeline Engine
     func generateUploadURLs(fileNames: [String]) async throws -> [PreSignedURL] {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/generate-upload-urls")!
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
@@ -156,7 +144,6 @@ class MerianNetworkClient {
         return res.urls
     }
     
-    // Step 4: Permanent Archive
     func uploadToR2(url: String, data: Data, mimeType: String = "image/jpeg") async throws {
         guard let signedUrl = URL(string: url) else { throw NetworkError.invalidURL }
         
@@ -177,7 +164,7 @@ class MerianNetworkClient {
         }
     }
     
-    // Step 5: Data Deletion
+    // MARK: - Physical Data Mutation
     func deleteScan(scanId: String) async throws {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/delete-scan")!
         let payload: [String: Any] = ["scanId": scanId]
@@ -187,14 +174,13 @@ class MerianNetworkClient {
         print("✅ Scan deleted sequentially successfully from Cloud Edge")
     }
     
-    // Step 6: Full Account Erasure
     func safeDeleteAccount() async throws {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/safe-delete")!
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST")
         print("✅ Account physically destroyed across PostgreSQL and Cloudflare R2")
     }
     
-    // Step 7: Export Darwin Core Archive
+    // MARK: - Darwin Core (DwC) Archives
     func exportDwcA(scope: String = "user") async throws -> URL {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/export-dwca")!
         let payload: [String: Any] = ["exportScope": scope, "includePreciseCoordinates": true]
@@ -213,7 +199,7 @@ class MerianNetworkClient {
         return url
     }
     
-    // Step 8: Flag Issue Logging
+    // MARK: - Core Moderation Triggers
     func submitFlagIssue(scanId: String, flagReason: String, userSuggestion: String, userId: String) async throws {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/flag-issue")!
         let payload: [String: Any] = [

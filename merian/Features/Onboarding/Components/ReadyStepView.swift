@@ -1,9 +1,12 @@
 import SwiftUI
 
 struct ReadyStepView: View {
+    // MARK: - Callbacks
     let onFinish: () -> Void
+    
+    // MARK: - Visual Layout
     var body: some View {
-        BaseOnboardingStepView(
+        OnboardingStepWrapper(
             iconColor: Color.yellow.opacity(0.1),
             iconText: "Success Rive Animation",
             iconCornerRadius: 32,

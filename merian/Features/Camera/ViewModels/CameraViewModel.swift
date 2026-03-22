@@ -4,50 +4,43 @@ import PhotosUI
 import SwiftData
 import Photos
 import Combine
+import Observation
 
-struct ImageFileWrapper: Transferable, Sendable {
-    let url: URL
-    
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(contentType: .image) { wrapper in
-            SentTransferredFile(wrapper.url)
-        } importing: { received in
-            let tempDir = FileManager.default.temporaryDirectory
-            let tempDst = tempDir.appendingPathComponent(UUID().uuidString).appendingPathExtension(received.file.pathExtension)
-            try FileManager.default.copyItem(at: received.file, to: tempDst)
-            return Self(url: tempDst)
-        }
-    }
-}
-
+@Observable
 @MainActor
-final class CameraViewModel: ObservableObject {
+final class CameraViewModel {
+    
+    // MARK: - Types
     enum ActiveSheet: String, Identifiable {
-        case insight
-        case paywall
-        case scans
-        case profile
-        
+        case insight, paywall, scans, profile
         var id: String { rawValue }
     }
     
-    // UI Navigation & Sheet State
-    @Published var activeSheet: ActiveSheet? = nil
-    @Published var imageToCrop: IdentifiableImage? = nil
+    // MARK: - Dependencies
+    @ObservationIgnored private let diContainer = AppDIContainer.shared
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     
-    // Camera & Capture State
-    @Published var selectedPhotoItem: PhotosPickerItem? = nil
-    @Published var flashOpacity: Double = 0.0
-    @Published var isCapturing: Bool = false
+    // MARK: - UI & Navigation State
+    var activeSheet: ActiveSheet? = nil
+    var imageToCrop: IdentifiableImage? = nil
+    var selectedPhotoItem: PhotosPickerItem? = nil
     
-    private var cancellables = Set<AnyCancellable>()
+    // MARK: - Camera & Scanning State
+    var isCapturing: Bool = false
+    var flashOpacity: Double = 0.0
+    var isAnalyzingFullscreen: Bool = false
+    var scanningPhaseText: String = "Analyzing subject..."
+    var analysisImage: UIImage? = nil
     
+    // MARK: - Asynchronous Jobs
+    @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>? = nil
+    @ObservationIgnored private var focusTask: Task<Void, Never>? = nil
+    
+    // MARK: - Lifecycle
     init() {
         NotificationCenter.default.publisher(for: NSNotification.Name("AppDidEnterInactivePhase"))
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.resetModalsForBackground()
-            }
+            .sink { [weak self] _ in self?.resetModalsForBackground() }
             .store(in: &cancellables)
             
         NotificationCenter.default.publisher(for: NSNotification.Name("TriggerPaywall"))
@@ -63,32 +56,17 @@ final class CameraViewModel: ObservableObject {
         // Reset sheet boundaries so the user always returns to a clean camera view
         activeSheet = nil
         imageToCrop = nil
-        diContainer.gamificationManager.showTerrariumSheet = false
         
         // Do not violently kill the analyzing overlay natively if the Inference Engine is actively mid-scan in the background thread.
-        // Otherwise, the user returns to empty UI while `isProcessing` silently completes offscreen dropping the UI presentation logic entirely.
         if isAnalyzingFullscreen && !diContainer.inferenceEngine.isProcessing {
             isAnalyzingFullscreen = false
             scanningPhaseText = "Analyzing subject..."
             analysisImage = nil
             // Note: We deliberately DO NOT call `diContainer.inferenceEngine.cancelActiveRequest()` here.
-            // If we did, it would nil out the active payload before `AppDIContainer.handleBackgroundPhase`
-            // could actually securely rescue the payload into the OfflineQueueManager natively.
         }
     }
     
-    // Analysis State
-    @Published var isAnalyzingFullscreen: Bool = false
-    @Published var scanningPhaseText: String = "Analyzing subject..."
-    @Published var analysisImage: UIImage? = nil
-    
-    // Asynchronous Context Pipeline
-    var preFetchTask: Task<EnvironmentContext, Never>? = nil
-    
-    private var focusTask: Task<Void, Never>?
-    
-    // Dependencies
-    private let diContainer = AppDIContainer.shared
+    // MARK: - User Intents
     
     func handlePhotoPickerSelection(newItem: PhotosPickerItem?, modelContext: ModelContext) {
         Task { [weak self] in
@@ -128,190 +106,7 @@ final class CameraViewModel: ObservableObject {
         }
     }
     
-    func handleCropCompletion(croppedData: Data, modelContext: ModelContext) {
-        let historicalContext = imageToCrop?.environmentContext
-        let isFromGallery = imageToCrop?.isFromGallery == true
-        let capturedDistance = imageToCrop?.subjectDistanceInMeters
-        imageToCrop = nil
-        
-        Task { [weak self] in
-            guard let self = self else { return }
-            
-            // FIX: Instantly trigger scanning UI so the user doesn't see a frozen camera feed
-            await MainActor.run {
-                if let rawImage = UIImage(data: croppedData) {
-                    self.analysisImage = rawImage
-                }
-                self.scanningPhaseText = "Acquiring coordinates..."
-                self.isAnalyzingFullscreen = true
-            }
-            
-            let context: EnvironmentContext
-            if let historical = historicalContext, isFromGallery {
-                context = historical
-            } else if isFromGallery {
-                // Prevent current GPS from overwriting a gallery photo lacking EXIF data
-                context = EnvironmentContext(location: nil, weatherCondition: nil, weatherTemperature: nil)
-            } else {
-                if let activeTask = self.preFetchTask {
-                    context = await activeTask.value
-                    self.preFetchTask = nil
-                } else {
-                    let lockedLocation = historicalContext?.location
-                    context = await self.diContainer.environmentContextManager.fetchDeferredContext(preLockedLocation: lockedLocation)
-                }
-            }
-            
-            await MainActor.run {
-                self.scanningPhaseText = "Analyzing subject..."
-            }
-            
-            // Consume the strict free quota immediately upon commitment to prevent offline hoarding 
-            self.diContainer.usageManager.consumeScan()
-            
-            let telemetry = CaptureTelemetry(
-                subjectDistanceInMeters: capturedDistance,
-                gpsLatitude: context.location?.coordinate.latitude,
-                gpsLongitude: context.location?.coordinate.longitude,
-                gpsElevation: context.location?.altitude,
-                locationName: context.locationName,
-                weatherCondition: context.weatherCondition,
-                weatherTemperatureF: context.weatherTemperature,
-                timeOfDay: nil,
-                timestamp: ISO8601DateFormatter().string(from: context.location?.timestamp ?? Date())
-            )
-            
-            self.diContainer.inferenceEngine.analyze(
-                imageData: croppedData,
-                telemetry: telemetry,
-                modelContext: modelContext
-            )
-        }
-    }
-    
-    func synchronizeAnalysisState(isFullscreen: Bool) {
-        if isFullscreen {
-            diContainer.cameraManager.stopSession() // Revert viewport to off while analyzing over it
-            
-            // Dynamically rotate processing labels natively so the user feels active execution pacing during long 5-10 second global inference requests
-            let engagingPrompts = [
-                "Scanning image...",
-                "Analyzing subject...",
-                "Processing context...",
-                "Evaluating matches...",
-                "Identifying species...",
-                "Finalizing result..."
-            ]
-            
-            for (index, prompt) in engagingPrompts.enumerated() {
-                DispatchQueue.main.asyncAfter(deadline: .now() + Double(index + 1) * 1.6) {
-                    if self.isAnalyzingFullscreen {
-                        withAnimation(.easeIn(duration: 0.35)) {
-                            self.scanningPhaseText = prompt
-                        }
-                    }
-                }
-            }
-        } else {
-            analysisImage = nil
-            if activeSheet != .insight {
-                diContainer.cameraManager.startSession()
-            }
-        }
-    }
-    
-    func handleInferenceProcessingChange(isStillProcessing: Bool) {
-        if !isStillProcessing && isAnalyzingFullscreen {
-            withAnimation {
-                isAnalyzingFullscreen = false
-            }
-            // Safely defer the insight sheet presentation strictly forcing SwiftUI to stabilize
-            // any hardware interactions from leaking `.paywall` checks concurrently
-            DispatchQueue.main.async { [weak self] in
-                self?.activeSheet = .insight
-            }
-        }
-    }
-    
-    func handleSheetAppear() {
-        diContainer.cameraManager.stopSession()
-    }
-    
     func handleSheetDismiss() {
         diContainer.cameraManager.startSession()
-    }
-    
-    func triggerFlash() {
-        flashOpacity = 1.0
-        withAnimation(.easeOut(duration: 0.15)) {
-            flashOpacity = 0.0
-        }
-    }
-    
-    func handleFocusTap(devicePoint: CGPoint) {
-        diContainer.cameraManager.setFocusPoint(devicePoint)
-        diContainer.hapticManager.triggerSelectionPulse()
-    }
-    
-    func executeCapture() {
-        // Prevent accidental hardware captures while a modal, sheet, or crop view is actively presented
-        guard activeSheet == nil,
-              !isAnalyzingFullscreen, 
-              !isCapturing,
-              imageToCrop == nil else { return }
-              
-        isCapturing = true
-              
-        if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
-            // Instant tactile UI response mirroring the Apple Camera app
-            AppDIContainer.shared.hapticManager.triggerMediumPulse()
-            
-            triggerFlash()
-            
-            Task {
-                do {
-                    let instantLocation = diContainer.environmentContextManager.cachedLocation
-                    let captureData = try await diContainer.cameraManager.captureImage()
-                    
-                    // Actively push the original 12MP buffer down natively into the user's Camera Roll securely without blocking UI sweeps natively
-                    Task.detached(priority: .utility) {
-                        await AppDIContainer.shared.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
-                    }
-                    let capturedDistance = diContainer.cameraManager.subjectDistanceInMeters
-                    
-                    let detachedDownsample = await Task.detached(priority: .userInitiated) {
-                        ImageDownsampler.downsample(data: captureData, maxSize: 4000)
-                    }.value
-                    
-                    if let cgImage = detachedDownsample {
-                        let rawImage = UIImage(cgImage: cgImage)
-                        
-                        let task = Task.detached(priority: .userInitiated) {
-                            return await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
-                        }
-                        
-                        await MainActor.run {
-                            self.preFetchTask = task
-                            self.imageToCrop = IdentifiableImage(
-                                image: rawImage,
-                                environmentContext: instantLocation != nil ? EnvironmentContext(location: instantLocation) : nil,
-                                isFromGallery: false,
-                                subjectDistanceInMeters: capturedDistance
-                            )
-                        }
-                    }
-                } catch {
-                    print("⚠️ Hardware Shutter failure: \(error.localizedDescription)")
-                }
-                
-                await MainActor.run {
-                    self.isCapturing = false
-                }
-            }
-        } else {
-            AppTelemetry.trackPaywallImpression()
-            self.activeSheet = .paywall
-            self.isCapturing = false
-        }
     }
 }

@@ -1,19 +1,23 @@
 import Foundation
 import Combine
 import SwiftUI
+import Observation
 
-
+// MARK: - Core Trust & Safety Engine
 @MainActor
-final class SocialGuardManager: ObservableObject {
+@Observable final class SocialGuardManager {
+    // MARK: - Singleton Architecture
     static let shared = SocialGuardManager()
+    private init() {}
     
-    @Published var blockedUserIds: Set<String> = []
+    // MARK: - State Management
+    var blockedUserIds: Set<String> = []
     
+    // MARK: - Environment Keys
     private let supabaseUrl = MerianEnvironment.supabaseUrl
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
     
-    private init() {}
-    
+    // MARK: - Public Moderation Actions
     func blockUser(targetUserId: String) async {
         // Step 1: Execute Optimistic Insertion so UI bounds immediately react
         blockedUserIds.insert(targetUserId)
@@ -33,6 +37,7 @@ final class SocialGuardManager: ObservableObject {
         }
     }
     
+    // MARK: - Private API Sync Logic
     private func syncBlockWithBackend(targetUserId: String) async -> Bool {
         guard let url = URL(string: "\(supabaseUrl)/functions/v1/block-user") else { return false }
         

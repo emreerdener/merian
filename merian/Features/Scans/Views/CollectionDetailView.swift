@@ -2,26 +2,27 @@ import SwiftUI
 import SwiftData
 
 struct CollectionDetailView: View {
+    // MARK: - State Dependencies
     @Bindable var collection: ScanCollection
     @Binding var isInsightSheetOpen: Bool
     
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var inferenceEngine: InferenceEngine
     
+    // MARK: - Interface State
     @State private var scanToDelete: LocalScanRecord? = nil
     @State private var selectedScanForInsight: LocalScanRecord? = nil
     @State private var showScanSelection = false
     @State private var showDeleteConfirmation = false
     
-// Generic grid handles struct spacing
-    
+    // MARK: - View Layout
     var body: some View {
         ScrollView {
             if let scans = collection.scans, !scans.isEmpty {
                 // To ensure visually consistent ordering, sort by timestamp
                 let sortedScans = scans.sorted(by: { $0.timestamp > $1.timestamp })
                 
-                ScanGridMatrix(scans: sortedScans, onSelect: { scan in
+                ScansGrid(scans: sortedScans, onSelect: { scan in
                     selectedScanForInsight = scan
                     inferenceEngine.load(from: scan)
                 }, onDelete: { scan in
@@ -53,19 +54,10 @@ struct CollectionDetailView: View {
                 }
             }
         }
+
+        // MARK: - View Modifiers
         .navigationTitle(collection.name)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: {
-                    showScanSelection = true
-                }) {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-                .buttonBorderShape(.circle)
-            }
-        }
+        .toolbar { trailingToolbar }
         .sheet(item: $selectedScanForInsight) { scan in
             InsightSheetView(isPresented: Binding(
                 get: { selectedScanForInsight != nil },
@@ -73,7 +65,7 @@ struct CollectionDetailView: View {
             ))
         }
         .sheet(isPresented: $showScanSelection) {
-            ScanSelectionSheetView(collection: collection)
+            SelectMultipleScansView(collection: collection)
         }
         .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
@@ -84,6 +76,22 @@ struct CollectionDetailView: View {
         }
     }
     
+    // MARK: - Layout Subcomponents
+    @ToolbarContentBuilder
+    private var trailingToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button(action: {
+                showScanSelection = true
+            }) {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+            .buttonBorderShape(.circle)
+        }
+    }
+    
+    // MARK: - Action Handlers
     private func removeFromCollection(scan: LocalScanRecord) {
         scan.collections?.removeAll(where: { $0.id == collection.id })
         try? modelContext.save()

@@ -1,29 +1,35 @@
 import Foundation
 import CoreImage
 import AVFoundation
+import Observation
 
+// MARK: - Viewfinder Constants
 enum VUIHint: String {
     case tooDark = "Too dark"
     case moveCloser = "Move closer"
     case optimal = "Optimal"
 }
 
-
-
+// MARK: - Core Artificial Intelligence Engine
 /// Viewfinder Intelligence (VUI) Manager
 /// Evaluates incoming camera buffers asynchronously utilizing CoreImage statistics to prevent wasted AI inference API calls on flawed imagery.
 @MainActor
-final class ViewfinderIntelligence: ObservableObject {
+@Observable final class ViewfinderIntelligence {
+    // MARK: - Singleton Architecture
     static let shared = ViewfinderIntelligence()
     
-    @Published var currentHint: VUIHint = .optimal
-    @Published var isOptimal: Bool = true
+    // MARK: - State Management
+    var currentHint: VUIHint = .optimal
+    var isOptimal: Bool = true
     
+    // MARK: - Asynchronous Trackers
     private var isAnalyzing = false
     private var pauseUntil: Date = .distantPast
     
+    // MARK: - Lifecycle Bootstrapping
     private init() {}
     
+    // MARK: - Analysis Controls
     func pauseAnalysis(for duration: TimeInterval) {
         pauseUntil = Date().addingTimeInterval(duration)
         Task { await updateHint(.optimal) }
@@ -63,6 +69,7 @@ final class ViewfinderIntelligence: ObservableObject {
         }
     }
     
+    // MARK: - Property Mutators
     private func updateHint(_ hint: VUIHint) async {
         await MainActor.run {
             if self.currentHint != hint {

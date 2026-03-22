@@ -243,7 +243,7 @@ Executes a rigid moderation block, instantly dropping the specified offender fro
 
 ## Deno `/flag-issue` Edge Node
 
-Generates an ecosystem report against AI inferences mapped aggressively within the native UI (`FlagIssueView`), injecting raw data safely into `00005_flagged_reviews.sql`.
+Generates an ecosystem report against AI inferences mapped aggressively within the native UI (`ReportInsightView`), injecting raw data safely into `00005_flagged_reviews.sql`.
 
 ### Request Payload
 

@@ -1,14 +1,18 @@
 import Foundation
 import SwiftData
 
+// MARK: - Core Database Orchestrator
 /// The generic logical abstraction over Database operations.
-/// Prevents UI Components and VIewModels from directly importing SwiftData ModelContext or OfflineQueue singletons.
+/// Prevents UI Components and ViewModels from directly importing SwiftData ModelContext or OfflineQueue singletons.
 @MainActor
 final class ScanRepository {
+    // MARK: - Singleton Architecture
     static let shared = ScanRepository()
     
+    // MARK: - Core Dependencies
     private let offlineQueue = OfflineQueueManager.shared
     
+    // MARK: - Lifecycle
     private init() {}
     
     func configure(with modelContext: ModelContext) {
@@ -23,6 +27,7 @@ final class ScanRepository {
         }
     }
     
+    // MARK: - Local Context Fetching
     /// Resolves and fetches all local scans explicitly matching a given filter scope
     func fetchLocalScans(modelContext: ModelContext, filter: String? = nil) -> [LocalScanRecord] {
         var descriptor = FetchDescriptor<LocalScanRecord>()
@@ -45,6 +50,7 @@ final class ScanRepository {
         }
     }
     
+    // MARK: - Async Capture Persistence
     /// Securely bridges the bytes directly to the networking infrastructure seamlessly buffering them offline if the network is absent
     func saveScan(
         imageData: Data,
@@ -58,6 +64,109 @@ final class ScanRepository {
         )
     }
 
+    // MARK: - Remote Edge Syncing
+    /// Re-hydration protocol binding historical Ghost/Pro cloud scans back down onto the iOS SwiftData Scans locally natively
+    func syncHistoricalScansDown(modelContext: ModelContext) async {
+        guard SupabaseManager.shared.isAuthenticated, 
+              let userId = SupabaseManager.shared.currentUser?.id.uuidString else { return }
+        
+        do {
+            let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
+                .from("scans")
+                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, species_dictionary(*)")
+                .eq("user_id", value: userId)
+                .execute()
+                .value
+            
+            // Reconcile and buffer diff bounds cleanly out of SwiftData
+            let descriptor = FetchDescriptor<LocalScanRecord>()
+            let existingLocalScans = (try? modelContext.fetch(descriptor)) ?? []
+            let existingIds = Set(existingLocalScans.map { $0.id })
+            
+            let missingScans = response.filter { !existingIds.contains($0.id) }
+            
+            if !missingScans.isEmpty {
+                print("🔄 Merian Sync: Restoring \(missingScans.count) historical scan payloads natively...")
+            }
+            
+            let container = modelContext.container
+            await Task.detached(priority: .userInitiated) {
+                let dbActor = HistoricalDatabaseActor(modelContainer: container)
+                await dbActor.updateExistingScans(responses: response)
+                
+                if !missingScans.isEmpty {
+                    await dbActor.ingestHistoricalScans(missingScans: missingScans)
+                }
+            }.value
+            
+            if !missingScans.isEmpty {
+                print("✅ Merian Sync: Restored Historical payload records.")
+            }
+            
+        } catch {
+            print("🚨 Failed strictly reconciling Offline Historical Scans from Edge bounds: \(error)")
+        }
+    }
+    
+    // MARK: - Queue Orchestration
+    /// Prompts a force flush of any local queues. Typically managed automatically via Network observing limits.
+    func syncPendingScans() {
+        offlineQueue.syncPendingScans()
+    }
+    
+    /// Purge any dynamically soft-deleted records from Local Storage persistently
+    func purgeSoftDeletedRecords() {
+        offlineQueue.purgeSoftDeletedRecords()
+    }
+    
+    // MARK: - Destructive Hard Erasure
+    /// Brutally obliterates a physical scan entirely from the local disk, Local Scans, and guarantees eventual execution against Cloudflare and Postgres instances natively.
+    func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) {
+        // 1. Wipe local image bytes physically from DocumentDirectory
+        let docs = URL.documentsDirectory
+        var imagesToErase: [String] = []
+        if let primaryPath = record.localImagePath { imagesToErase.append(primaryPath) }
+        if let extras = record.additionalImagePaths { imagesToErase.append(contentsOf: extras) }
+        
+        for p in imagesToErase {
+            let fp = docs.appendingPathComponent(p)
+            try? FileManager.default.removeItem(at: fp)
+        }
+        
+        // 2. Halt an upload if it's unfortunately caught midway in the upload buffer queue
+        offlineQueue.softDeleteQueuedScan(scanId: record.id)
+        
+        // 3. Queue a Task bound for the `delete-scan` Edge function securely purging Postgres/R2 bytes natively
+        let backgroundErasure = PendingCloudDeletionTask(scanId: record.id)
+        modelContext.insert(backgroundErasure)
+        
+        // 4. Destroy the immediate core SwiftData record for an optimistic-UI instantaneous disappear
+        modelContext.delete(record)
+        
+        try? modelContext.save()
+        
+        // Push the delete-scan execution immediately
+        Task {
+            await offlineQueue.syncPendingDeletions()
+        }
+    }
+    
+    /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
+    func purgeAllData(modelContext: ModelContext) {
+        do {
+            try modelContext.delete(model: LocalScanRecord.self)
+            try modelContext.delete(model: ScanCollection.self)
+            try modelContext.delete(model: OfflineQueuedScan.self)
+            try modelContext.delete(model: PendingCloudDeletionTask.self)
+            try modelContext.save()
+            print("✅ Successfully purged all SwiftData records natively.")
+        } catch {
+            print("🚨 Failed to erase local ModelContainer: \(error.localizedDescription)")
+        }
+    }
+}
+
+// MARK: - Cloud Data Transfer Objects (DTOs)
 struct CloudSpeciesDictionary: Decodable, Sendable {
     let scientific_name: String?
     let kingdom: String?
@@ -89,6 +198,8 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let species_dictionary: CloudSpeciesDictionary?
 }
 
+// MARK: - SwiftData Asynchronous Actors
+/// Executes massive background SwiftData sync boundaries entirely detached from the Main UI Thread 
 @ModelActor
 actor HistoricalDatabaseActor {
     func ingestHistoricalScans(missingScans: [HistoricalScanResponse]) {
@@ -188,105 +299,6 @@ actor HistoricalDatabaseActor {
         
         if didUpdate {
             try? modelContext.save()
-        }
-    }
-}
-
-    /// Re-hydration protocol binding historical Ghost/Pro cloud scans back down onto the iOS SwiftData Scans locally natively
-    func syncHistoricalScansDown(modelContext: ModelContext) async {
-        guard SupabaseManager.shared.isAuthenticated, 
-              let userId = SupabaseManager.shared.currentUser?.id.uuidString else { return }
-        
-        do {
-            let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
-                .from("scans")
-                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, species_dictionary(*)")
-                .eq("user_id", value: userId)
-                .execute()
-                .value
-            
-            // Reconcile and buffer diff bounds cleanly out of SwiftData
-            let descriptor = FetchDescriptor<LocalScanRecord>()
-            let existingLocalScans = (try? modelContext.fetch(descriptor)) ?? []
-            let existingIds = Set(existingLocalScans.map { $0.id })
-            
-            let missingScans = response.filter { !existingIds.contains($0.id) }
-            
-            if !missingScans.isEmpty {
-                print("🔄 Merian Sync: Restoring \(missingScans.count) historical scan payloads natively...")
-            }
-            
-            let container = modelContext.container
-            await Task.detached(priority: .userInitiated) {
-                let dbActor = HistoricalDatabaseActor(modelContainer: container)
-                await dbActor.updateExistingScans(responses: response)
-                
-                if !missingScans.isEmpty {
-                    await dbActor.ingestHistoricalScans(missingScans: missingScans)
-                }
-            }.value
-            
-            if !missingScans.isEmpty {
-                print("✅ Merian Sync: Restored Historical payload records.")
-            }
-            
-        } catch {
-            print("🚨 Failed strictly reconciling Offline Historical Scans from Edge bounds: \(error)")
-        }
-    }
-    
-    /// Prompts a force flush of any local queues. Typically managed automatically via Network observing limits.
-    func syncPendingScans() {
-        offlineQueue.syncPendingScans()
-    }
-    
-    /// Purge any dynamically soft-deleted records from Local Storage persistently
-    func purgeSoftDeletedRecords() {
-        offlineQueue.purgeSoftDeletedRecords()
-    }
-    
-    /// Brutally obliterates a physical scan entirely from the local disk, Local Scans, and guarantees eventual execution against Cloudflare and Postgres instances natively.
-    func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) {
-        // 1. Wipe local image bytes physically from DocumentDirectory
-        let docs = URL.documentsDirectory
-        var imagesToErase: [String] = []
-        if let primaryPath = record.localImagePath { imagesToErase.append(primaryPath) }
-        if let extras = record.additionalImagePaths { imagesToErase.append(contentsOf: extras) }
-        
-        for p in imagesToErase {
-            let fp = docs.appendingPathComponent(p)
-            try? FileManager.default.removeItem(at: fp)
-        }
-        
-        // 2. Halt an upload if it's unfortunately caught midway in the upload buffer queue
-        offlineQueue.softDeleteQueuedScan(scanId: record.id)
-        
-        // 3. Queue a Task bound for the `delete-scan` Edge function securely purging Postgres/R2 bytes natively
-        let backgroundErasure = PendingCloudDeletionTask(scanId: record.id)
-        modelContext.insert(backgroundErasure)
-        
-        // 4. Destroy the immediate core SwiftData record for an optimistic-UI instantaneous disappear
-        modelContext.delete(record)
-        
-        try? modelContext.save()
-        
-        // Push the delete-scan execution immediately
-        Task {
-            await offlineQueue.syncPendingDeletions()
-        }
-    }
-    
-    /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
-    func purgeAllData(modelContext: ModelContext) {
-        do {
-            try modelContext.delete(model: LocalScanRecord.self)
-            try modelContext.delete(model: ScanCollection.self)
-            try modelContext.delete(model: OfflineQueuedScan.self)
-            try modelContext.delete(model: PendingCloudDeletionTask.self)
-            try modelContext.save()
-            print("✅ Successfully purged all SwiftData records natively.")
-        } catch {
-            print("🚨 Failed to erase local ModelContainer: \(error.localizedDescription)")
         }
     }
 }

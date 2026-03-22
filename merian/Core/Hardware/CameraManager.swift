@@ -6,41 +6,45 @@ import Combine
 import CoreLocation
 import Accelerate
 
+// MARK: - Core Hardware Engine
 /// Manages AVFoundation stack and depth mapping memory-safely
 @MainActor
 final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate {
+    // MARK: - Singleton Architecture
     static let shared = CameraManager()
     
-    nonisolated let session = AVCaptureSession()
+    // MARK: - AVFoundation Stack
     nonisolated private let videoOutput = AVCaptureVideoDataOutput()
     nonisolated private let depthOutput = AVCaptureDepthDataOutput()
     nonisolated private let photoOutput = AVCapturePhotoOutput()
     
+    // MARK: - Threading & Observation
     private let queue = DispatchQueue(label: "com.merian.camera")
     private var cancellables = Set<AnyCancellable>()
     
+    // MARK: - Render Throttling Logic
     nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
     nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
     nonisolated(unsafe) private var activeHistogram = [vImagePixelCount](repeating: 0, count: 256)
     
+    // MARK: - State Management
     @Published private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
     
     @Published var isSessionRunning = false
     @Published var subjectDistanceInMeters: Float? = nil
     @Published var isFlashEnabled = false
     
-
-    
-    // CoreML inferred state
+    // MARK: - CoreML Inferences & Trackers
     var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: "isLiveInferencePaused") as? Bool ?? UIDevice.current.isModernIPhone
     
     // VUI Throttle parameters
     private var cachedInferencePreferenceTracker: Bool?
     
-    // Photo capture state
+    // MARK: - Asynchronous Capture Continuations
     private var activePhotoContinuation: CheckedContinuation<Data, Error>?
     private var activeTimeoutTask: Task<Void, Error>?
     
+    // MARK: - Hardware Initialization
     private override init() {
         super.init()
         
@@ -61,6 +65,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             .store(in: &cancellables)
     }
     
+    // MARK: - Session Configuration
     nonisolated private func setupSession() {
         session.beginConfiguration()
         session.sessionPreset = .photo
@@ -119,6 +124,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     
     nonisolated(unsafe) private var isSessionConfigured = false
 
+    // MARK: - Hardware Power Controllers
     func startSession() {
         guard !session.isRunning else { return }
         queue.async {
@@ -200,7 +206,6 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     }
     
     // MARK: - DRY Frame Rate Helper
-    
     nonisolated private func applyFrameRate(_ rate: CMTime, to device: AVCaptureDevice) {
         var clampedRate = rate
         
@@ -223,8 +228,8 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
     }
     
+    // MARK: - LIDAR Depth Engine
     nonisolated func depthDataOutput(_ output: AVCaptureDepthDataOutput, didOutput depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection) {
-        
         // CPU FLOOD FIX: Throttle the heavy Depth Map calculation natively before locking the CPU
         let now = CFAbsoluteTimeGetCurrent()
         if now - lastDepthTime < 0.3 {
@@ -295,6 +300,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
     }
     
+    // MARK: - Hardware Controllers (Flash & Focus)
     func toggleFlash() {
         guard let deviceInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
             return
@@ -374,6 +380,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
     }
     
+    // MARK: - Video Frame Processing Delegate
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
@@ -430,6 +437,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
     }
     
+    // MARK: - Asset Capture Engine
     func captureImage() async throws -> Data {
         // safely extract the MainActor state natively passing into the sendable closure
         let flashStatus = self.isFlashEnabled
@@ -501,6 +509,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         }
     }
     
+    // MARK: - Photo Output Delegate
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         Task { @MainActor in
             self.activeTimeoutTask?.cancel()

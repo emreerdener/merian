@@ -2,9 +2,11 @@ import Foundation
 import CoreGraphics
 import ImageIO
 
+// MARK: - System Hardware Image Downsampler
 /// Safely downsamples massive native 12MP photos natively within CoreGraphics bounds preventing SwiftUI from triggering Out of Memory (OOM) JetSam crashes natively.
 public struct ImageDownsampler {
     
+    // MARK: - Disk Bound Operations
     /// Downsamples a physical file payload natively into a constrained CGImage bound
     public static func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
         let options: [CFString: Any] = [
@@ -22,6 +24,7 @@ public struct ImageDownsampler {
         return cgImage
     }
     
+    // MARK: - Memory Bound Operations
     /// Downsamples raw binary bytes natively into a constrained CGImage bound
     public static func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
         let options: [CFString: Any] = [

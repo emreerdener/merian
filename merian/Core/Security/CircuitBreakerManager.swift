@@ -1,16 +1,23 @@
 import Foundation
 import Combine
+import Observation
 
+// MARK: - Core Fault Tolerance Engine
 @MainActor
-class CircuitBreakerManager: ObservableObject {
+@Observable final class CircuitBreakerManager {
+    // MARK: - Singleton Architecture
     static let shared = CircuitBreakerManager()
     
-    @Published var isCircuitTripped: Bool = false
+    // MARK: - State Management
+    var isCircuitTripped: Bool = false
+    
+    // MARK: - Telemetry Thresholds
     private var consecutiveFailures: Int = 0
     private let failureThreshold: Int = 2
     private let cooldownPeriod: TimeInterval = 900 // 15 minutes
     private var cooldownTimer: Timer?
 
+    // MARK: - Public API Telemetry
     func recordFailure() {
         consecutiveFailures += 1
         if consecutiveFailures >= failureThreshold && !isCircuitTripped { tripCircuit() }
@@ -21,6 +28,7 @@ class CircuitBreakerManager: ObservableObject {
         if isCircuitTripped { resetCircuit() }
     }
 
+    // MARK: - Private Circuit Breaker Logic
     private func tripCircuit() {
         isCircuitTripped = true
         print("CircuitBreakerManager: Circuit Tripped! Routing all network requests to local Field Queue.")

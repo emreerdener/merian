@@ -5,68 +5,71 @@ import PhotosUI
 import SwiftData
 
 struct CameraRootView: View {
+    // MARK: - Environment & Dependencies
     @EnvironmentObject var cameraManager: CameraManager
     @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
-    @EnvironmentObject var vui: ViewfinderIntelligence
-    @EnvironmentObject var photoLibraryManager: PhotoLibraryManager
-    @EnvironmentObject var gamificationManager: GamificationManager
+    @Environment(ViewfinderIntelligence.self) var vui
+    @Environment(PhotoLibraryManager.self) var photoLibraryManager
     @EnvironmentObject var inferenceEngine: InferenceEngine
-    
     @Environment(\.modelContext) private var modelContext
     
-    @StateObject private var viewModel = CameraViewModel()
+    // MARK: - App Storage
+    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     
+    // MARK: - View Model & State
+    @State private var viewModel = CameraViewModel()
+    
+    // MARK: - Focus Interactions
     @State private var focusLocation: CGPoint? = nil
     @State private var showFocusIndicator: Bool = false
     @State private var focusTask: Task<Void, Never>? = nil
-    
-    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
 
+    // MARK: - View Hierarchy
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                // Full-bleed camera feed
-            CameraPreviewView(
-                session: cameraManager.session,
-                onTap: { layerPoint, devicePoint in
-                    viewModel.handleFocusTap(devicePoint: devicePoint)
-                    focusLocation = layerPoint
-                    showFocusIndicator = true
-                    
-                    focusTask?.cancel()
-                    focusTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        if !Task.isCancelled {
-                            withAnimation(.easeOut) {
-                                showFocusIndicator = false
+                // MARK: - Optical Bridge
+                CameraPreviewView(
+                    session: cameraManager.session,
+                    onTap: { layerPoint, devicePoint in
+                        viewModel.handleFocusTap(devicePoint: devicePoint)
+                        focusLocation = layerPoint
+                        showFocusIndicator = true
+                        
+                        focusTask?.cancel()
+                        focusTask = Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            if !Task.isCancelled {
+                                withAnimation(.easeOut) {
+                                    showFocusIndicator = false
+                                }
                             }
                         }
                     }
-                }
-            )
-            .ignoresSafeArea()
-            
-            
-            CameraFocusIndicatorView(
-                showFocusIndicator: showFocusIndicator,
-                focusLocation: focusLocation
-            )
-            
-            // Shutter Snap Animation
-            Color.black
+                )
                 .ignoresSafeArea()
-                .opacity(viewModel.flashOpacity)
-                .allowsHitTesting(false)
+                
+                FocusIndicator(
+                    showFocusIndicator: showFocusIndicator,
+                    focusLocation: focusLocation
+                )
             
-            // Thermal Warning Indicator overlay
-            ThermalWarningOverlay()
-            
-            // Action Overlay Context
-            if !viewModel.isAnalyzingFullscreen {
+                // MARK: - Hardware Effects
+                // Shutter Snap Animation
+                Color.black
+                    .ignoresSafeArea()
+                    .opacity(viewModel.flashOpacity)
+                    .allowsHitTesting(false)
+                
+                // Thermal Warning Indicator overlay
+                ThermalWarningView()
+                
+                // MARK: - Interface Overlays
+                if !viewModel.isAnalyzingFullscreen {
                 // Extracted Shutter Button Overlay
-                CameraControlsOverlayView(
+                MainOverlayView(
                     latestThumbnail: photoLibraryManager.latestThumbnail,
                     isFlashEnabled: cameraManager.isFlashEnabled,
                     selectedPhotoItem: $viewModel.selectedPhotoItem,
@@ -84,6 +87,8 @@ struct CameraRootView: View {
             }
             } // ZStack
         } // NavigationStack
+        
+        // MARK: - View Modifiers
         // Unified Application Sheet Router Overlay
         .cameraSheetRouter(viewModel: viewModel)
         .onAppear {
@@ -110,15 +115,7 @@ struct CameraRootView: View {
                 }
             )
         }
-        .sheet(isPresented: $gamificationManager.showTerrariumSheet, onDismiss: {
-            viewModel.handleSheetDismiss()
-        }) {
-            TerrariumView()
-                .presentationDragIndicator(.hidden)
-                .onAppear {
-                    viewModel.handleSheetAppear()
-                }
-        }
+
         .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
             viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
         }
@@ -135,57 +132,4 @@ struct CameraRootView: View {
         .preferredColorScheme(themeMode.colorScheme)
     }
 }
-
-@available(iOS 17.2, *)
-struct HardwareCaptureInteraction: UIViewRepresentable {
-    var isEnabled: Bool
-    let action: () -> Void
-    
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false // Allow touches to pass safely through to the viewfinder
-        
-        let interaction = AVCaptureEventInteraction { event in
-            // .began guarantees instant zero-latency capture mirroring the native Camera app
-            if event.phase == .began {
-                DispatchQueue.main.async {
-                    action()
-                }
-            }
-        }
-        interaction.isEnabled = isEnabled
-        view.addInteraction(interaction)
-        
-        context.coordinator.interaction = interaction
-        return view
-    }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {
-        context.coordinator.interaction?.isEnabled = isEnabled
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-    
-    class Coordinator {
-        var interaction: AVCaptureEventInteraction?
-    }
-}
-
-extension View {
-    /// Natively binds the physical Volume, Action, and Camera Control buttons to the shutter action
-    @ViewBuilder
-    func onPhysicalCameraShutter(isEnabled: Bool, perform action: @escaping () -> Void) -> some View {
-        if #available(iOS 17.2, *) {
-            self.background(HardwareCaptureInteraction(isEnabled: isEnabled, action: action))
-        } else {
-            // iOS 17.0 and 17.1 gracefully fallback to the on-screen UI button safely
-            self
-        }
-    }
-}
-
-
 

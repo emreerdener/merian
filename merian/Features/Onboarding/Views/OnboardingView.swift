@@ -3,50 +3,46 @@ import AVFoundation
 import CoreLocation
 import RiveRuntime
 
-
-
 struct OnboardingView: View {
+    // MARK: - State Dependencies
     @StateObject private var viewModel = OnboardingViewModel()
     @StateObject private var locationManagerDelegate = LocationPermissionDelegate()
     
+    // MARK: - Visual Layout
     var body: some View {
         ZStack {
-            // Background Layer
+            // 1. Background Layer
             Color.black.ignoresSafeArea()
             
-            // Programmatic Step Control (Disables arbitrary swiping)
-            switch viewModel.currentStep {
-            case .welcome:
-                WelcomeStepView { advanceStep() }
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                            removal: .move(edge: .leading).combined(with: .opacity)))
-            case .camera:
-                CameraPermissionStepView { advanceStep() }
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                            removal: .move(edge: .leading).combined(with: .opacity)))
-            case .location:
-                LocationPermissionStepView(locationManagerDelegate: locationManagerDelegate) { advanceStep() }
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                            removal: .move(edge: .leading).combined(with: .opacity)))
-            case .photoLibrary:
-                PhotoLibraryPermissionStepView { advanceStep() }
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                            removal: .move(edge: .leading).combined(with: .opacity)))
-            case .ready:
-                ReadyStepView {
-                    viewModel.completeOnboarding() // Triggers root view teardown safely without zero-frame animation artifacts
+            // 2. Programmatic Step Control (Disables arbitrary swiping)
+            Group {
+                switch viewModel.currentStep {
+                case .welcome:
+                    WelcomeStepView { advanceStep() }
+                case .camera:
+                    CameraPermissionStepView { advanceStep() }
+                case .location:
+                    LocationPermissionStepView(locationManagerDelegate: locationManagerDelegate) { advanceStep() }
+                case .photoLibrary:
+                    PhotoLibraryPermissionStepView { advanceStep() }
+                case .ready:
+                    ReadyStepView {
+                        viewModel.completeOnboarding() // Triggers root view teardown safely without zero-frame animation artifacts
+                    }
                 }
-                .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                        removal: .move(edge: .leading).combined(with: .opacity)))
             }
+            .id(viewModel.currentStep)
+            .transition(.asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            ))
         }
     }
     
+    // MARK: - Action Handlers
     private func advanceStep() {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             viewModel.advanceStep()
         }
     }
 }
-
-

@@ -1,16 +1,20 @@
 import Foundation
 @_spi(Internal) import RevenueCat
+import Observation
 
+// MARK: - Core Subscription Engine
 @MainActor
-final class RevenueCatManager: ObservableObject {
+@Observable final class RevenueCatManager {
+    // MARK: - Singleton Architecture
     static let shared = RevenueCatManager()
-    
-    @Published var isProActive: Bool = false
-    @Published var currentOfferings: Offerings?
-    @Published var isFetchingOfferings: Bool = false
-    
     private init() {}
     
+    // MARK: - State Management
+    var isProActive: Bool = false
+    var currentOfferings: Offerings?
+    var isFetchingOfferings: Bool = false
+    
+    // MARK: - Component Initialization
     /// Initializes checking RevenueCat for active telemetry tokens
     func configure() {
         Purchases.logLevel = .debug
@@ -42,6 +46,7 @@ final class RevenueCatManager: ObservableObject {
         }
     }
     
+    // MARK: - Identity Synchronization
     /// Establishes the link between RevenueCat's UUID constraint and the Supabase Identity, synchronizing optional User Metadata 
     func linkWithSupabase(userId: String, email: String? = nil, displayName: String? = nil, avatarUrl: String? = nil) async {
         do {
@@ -65,6 +70,7 @@ final class RevenueCatManager: ObservableObject {
         }
     }
     
+    // MARK: - Entitlement Processing
     /// Evaluates if the user actively holds the `Naturalist` or `Weekend Warrior` pass bounds
     func refreshCustomerInfo() async {
         do {
@@ -96,6 +102,7 @@ final class RevenueCatManager: ObservableObject {
         }
     }
     
+    // MARK: - Native Apple Transactions
     /// Safely triggers the Apple native checkout sheet locking into RevenueCat asynchronously
     func purchase(_ package: Package) async throws {
         let result = try await Purchases.shared.purchase(package: package)

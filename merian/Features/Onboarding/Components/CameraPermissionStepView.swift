@@ -2,9 +2,12 @@ import SwiftUI
 import AVFoundation
 
 struct CameraPermissionStepView: View {
+    // MARK: - Callbacks
     let onNext: () -> Void
+    
+    // MARK: - Visual Layout
     var body: some View {
-        BaseOnboardingStepView(
+        OnboardingStepWrapper(
             iconColor: Color.blue.opacity(0.1),
             iconText: "Camera Rive Animation",
             iconCornerRadius: 125, // 250/2 evaluates perfectly to a Circle

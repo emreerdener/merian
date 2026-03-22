@@ -2,11 +2,15 @@ import SwiftUI
 import AVFoundation
 import AVKit
 
+// MARK: - Hardware Video Bridge
 // SwiftUI bridging of AVCaptureVideoPreviewLayer
 struct CameraPreviewView: UIViewRepresentable {
+    // MARK: - Dependencies
     var session: AVCaptureSession
     var onTap: (CGPoint, CGPoint) -> Void
     
+    // MARK: - UIKit Substrate Layer
+    // The literal backing geometry that receives AVFoundation visual frames.
     class PreviewView: UIView {
         override class var layerClass: AnyClass {
             return AVCaptureVideoPreviewLayer.self
@@ -17,6 +21,7 @@ struct CameraPreviewView: UIViewRepresentable {
         }
     }
     
+    // MARK: - SwiftUI Lifecycle Bridging
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.videoPreviewLayer.session = session
@@ -29,11 +34,14 @@ struct CameraPreviewView: UIViewRepresentable {
         return view
     }
     
+    // MARK: - View Update Lifecycle
     func updateUIView(_ uiView: PreviewView, context: Context) {
         uiView.videoPreviewLayer.session = session
         context.coordinator.parent = self
     }
     
+    // MARK: - Gesture Coordinator & Delegates
+    // Translates legacy imperative UITapGestureRecognizer events cleanly back out to SwiftUI closures.
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }

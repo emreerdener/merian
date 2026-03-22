@@ -2,10 +2,12 @@ import SwiftUI
 import Photos
 
 struct PhotoLibraryPermissionStepView: View {
+    // MARK: - Callbacks
     let onNext: () -> Void
     
+    // MARK: - Visual Layout
     var body: some View {
-        BaseOnboardingStepView(
+        OnboardingStepWrapper(
             iconColor: Color.purple.opacity(0.1),
             iconText: "Photos Rive Animation",
             iconCornerRadius: 64,

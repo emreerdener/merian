@@ -2,20 +2,27 @@ import SwiftUI
 import SwiftData
 import GoogleSignIn
 
+// MARK: - Core Application Delegation
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
         OfflineQueueManager.shared.backgroundCompletionHandler = completionHandler
     }
 }
 
+// MARK: - Main Execution Point
 @main
 struct MerianApp: App {
+    // MARK: - Lifecycle Hooks
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    
+    // MARK: - App Dependencies
     let diContainer = AppDIContainer.shared
-
+    
+    // MARK: - SwiftData Container
     let container: ModelContainer
     
+    // MARK: - Lifecycle Bootstrapping
     init() {
         do {
             let schema = Schema(versionedSchema: MerianSchemaV11.self)
@@ -34,9 +41,11 @@ struct MerianApp: App {
         }
     }
 
+    // MARK: - State Management
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
 
+    // MARK: - Scene Hierarchy
     var body: some Scene {
         WindowGroup {
             Group {
@@ -69,6 +78,7 @@ struct MerianApp: App {
                 }
             }
         }
+        // MARK: - Scene Phases
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background:
@@ -83,6 +93,7 @@ struct MerianApp: App {
         }
     }
     
+    // MARK: - Application Theming
     private func applyTheme(_ theme: ThemeMode) {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
         

@@ -1,13 +1,19 @@
 import Foundation
 import Photos
 import UIKit
+import Observation
 
+// MARK: - Core Camera Roll Bridge
 /// Manages fetching the most recent photo thumbnail from the user's camera roll securely without extracting PII.
 @MainActor
-final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
+@Observable final class PhotoLibraryManager: NSObject, PHPhotoLibraryChangeObserver {
+    // MARK: - Singleton Architecture
     static let shared = PhotoLibraryManager()
     
-    @Published var latestThumbnail: UIImage? = nil
+    // MARK: - State Management
+    var latestThumbnail: UIImage? = nil
+    
+    // MARK: - Hardware Lifecycle
     private var isObserving = false
     
     private override init() {
@@ -18,6 +24,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         PHPhotoLibrary.shared().unregisterChangeObserver(self)
     }
     
+    // MARK: - Library Polling Engine
     func startObservingAndFetch() {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         
@@ -68,6 +75,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         }
     }
     
+    // MARK: - PHPhotoLibraryChangeObserver
     nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
         // Run back on the main thread to grab the newly added image if the library changes (e.g., they took a photo)
         Task { @MainActor in
@@ -75,6 +83,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         }
     }
     
+    // MARK: - Hardware Write Orchestration
     private func executePhotoLibraryWrite(imageData: Data, location: CLLocation?, accessLevel: PHAccessLevel) async -> Bool {
         let currentStatus = PHPhotoLibrary.authorizationStatus(for: accessLevel)
         let status: PHAuthorizationStatus

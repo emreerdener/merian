@@ -2,7 +2,7 @@ import SwiftUI
 import RevenueCat
 
 struct PaywallView: View {
-    @EnvironmentObject var revenueCatManager: RevenueCatManager
+    @Environment(RevenueCatManager.self) var revenueCatManager
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
@@ -94,7 +94,7 @@ struct PaywallView: View {
 
 // SwiftUI UI Representation isolating the structural Package button
 struct PackageCardButton: View {
-    @EnvironmentObject var revenueCatManager: RevenueCatManager
+    @Environment(RevenueCatManager.self) var revenueCatManager
     @Environment(\.dismiss) var dismiss
     
     let package: Package

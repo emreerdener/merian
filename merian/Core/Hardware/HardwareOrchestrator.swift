@@ -1,6 +1,8 @@
 import Foundation
 import UIKit
+import Combine
 
+// MARK: - Core UIDevice Architecture
 extension UIDevice {
     /// Determines whether the device is considered a "modern iPhone" (iPhone 14 series or newer).
     /// Used globally to default heavy AI features to off on modern bounds due to rapid thermal heat warnings natively.
@@ -33,13 +35,15 @@ extension UIDevice {
         return false
     }
 }
-import Combine
 
+// MARK: - Core Hardware Engine
 /// HardwareOrchestrator acts as the thermal management and concurrency bridge for hardware elements.
 @MainActor
 final class HardwareOrchestrator: ObservableObject {
+    // MARK: - Singleton Architecture
     static let shared = HardwareOrchestrator()
     
+    // MARK: - State Management
     @Published var targetFPS: Int = 60
     @Published var isGlassmorphismEnabled: Bool = true
     @Published var isCriticalHeatWarningActive: Bool = false
@@ -54,6 +58,7 @@ final class HardwareOrchestrator: ObservableObject {
         }
     }
     
+    // MARK: - Publisher Bounds
     private var cancellables = Set<AnyCancellable>()
     
     private init() {
@@ -77,6 +82,7 @@ final class HardwareOrchestrator: ObservableObject {
             .store(in: &cancellables)
     }
     
+    // MARK: - Thermal Algorithms
     // Default parameters accept nil to map dynamically to native boundaries, or accept explicitly injected test values
     func evaluateConstraints(isLowPowerModeEnabled: Bool? = nil, thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
@@ -119,6 +125,7 @@ final class HardwareOrchestrator: ObservableObject {
         }
     }
     
+    // MARK: - OS Foreground Orchestration
     func onAppWillResignActive() {
         CameraManager.shared.stopSession()
     }

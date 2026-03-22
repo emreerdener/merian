@@ -48,7 +48,7 @@ flowchart TD
 
 ### 4. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)
 
-- Tracks device-native state (`UserDefaults`) tying species identifications instantly into `.riv` visual triggers cleanly inside interactive glassmorphic view modifiers (`TerrariumView`).
+- Tracks device-native state (`UserDefaults`) tying species identifications instantly into `.riv` visual triggers cleanly inside interactive glassmorphic view modifiers (`Terrarium`).
 - Binds global haptics seamlessly mapping success triggers and interactions synchronously.
 
 ### 5. Private Analytics (`AppTelemetry`, `PostHog`)
@@ -60,7 +60,7 @@ flowchart TD
 
 - **Instant Cold Boot:** SDK injections (`AppTelemetry`, `PostHog`) and heavy `CameraManager` hardware initializations (`AVCaptureSession.beginConfiguration`) are rigidly deferred onto a `Task.detached(priority: .background)` executor cleanly preventing the Main Actor from locking, ensuring a strict sub-1-second boot for the Camera pipeline.
 - **RAM Image Cache (`ImageCache`):** A strictly typed `@unchecked Sendable` thread-safe `NSCache` bounds downsampled Scans thumbnails in RAM instantly avoiding massive disk I/O thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM (Out-of-Memory) crashes and micro-stutters by limiting to ~100 thumbnail chunks natively controlled by iOS memory pressure limits.
-- **Asynchronous Grid Downsampling:** Displays mapping heavy physical Local File caches (`ScansSearchView`, `InsightSheetView`, and `InsightCarouselView`) offload physical image decoding strictly onto a CPU pool prioritizing `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex` logic dynamically bounds-checking 12-Megapixel file memory dynamically. Streaming explicit byte headers recursively without allocating generic structural `.Data()` blocks strictly locks iOS OOM (Out-of-Memory) bounds dynamically ensuring scrolling remains seamlessly locked to 60fps on edge devices.
+- **Asynchronous Grid Downsampling:** Displays mapping heavy physical Local File caches (`ScansSearchView`, `InsightSheetView`, and `InsightCarousel`) offload physical image decoding strictly onto a CPU pool prioritizing `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex` logic dynamically bounds-checking 12-Megapixel file memory dynamically. Streaming explicit byte headers recursively without allocating generic structural `.Data()` blocks strictly locks iOS OOM (Out-of-Memory) bounds dynamically ensuring scrolling remains seamlessly locked to 60fps on edge devices.
 
 ### 7. watchOS Extension (`MerianWatch`)
 

@@ -4,21 +4,27 @@ import CryptoKit
 import Supabase
 import GoogleSignIn
 import RevenueCat
+import Observation
 
+// MARK: - Core Auth & Network Engine
 /// Manages the global Supabase connection and core Authentication states for Ghost Users
 @MainActor
-final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
+@Observable final class SupabaseManager: NSObject, ASWebAuthenticationPresentationContextProviding {
+    // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
     
+    // MARK: - Auth Client Pipeline
     let client: SupabaseClient
     
-    @Published var currentUser: User?
-    @Published var isAuthenticated: Bool = false
+    // MARK: - State Management
+    var currentUser: User?
+    var isAuthenticated: Bool = false
     
     var isGuestUser: Bool {
         currentUser?.isAnonymous ?? true
     }
     
+    // MARK: - Cryptographic Signatures
     private var currentNonce: String?
     private var activeAppleAuth: ASAuthorizationController?
     
@@ -42,6 +48,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
         }
     }
     
+    // MARK: - Session Orchestration
     /// Monitors Session tokens and updates the UI layer reactively
     private func setupAuthStateListener() async {
         for await state in client.auth.authStateChanges {
@@ -79,6 +86,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
         PostHogManager.shared.identifyUser(userId: userId)
     }
     
+    // MARK: - Ghost Profile Architecture
     /// Initializes an Anonymous session for new users prior to any sign-in. Matches the "Ghost User / Explorer Tier" architecture.
     func initializeGhostSession() async {
         do {
@@ -113,6 +121,7 @@ final class SupabaseManager: NSObject, ObservableObject, ASWebAuthenticationPres
         }
     }
     
+    // MARK: - Secure Authentication Utilities
     /// Signs a user out of their session, defaulting them back to an unauthenticated physical state
     func signOut() async {
         do {

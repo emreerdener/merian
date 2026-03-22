@@ -3,7 +3,9 @@ import SwiftData
 
 // MARK: - Action Handlers
 extension InsightSheetView {
+    // MARK: - Lifecycle Handlers
     
+    /// Triggers accessibility readout and initiates the New Discovery celebration UI if valid
     func evaluateVoiceOverAndCelebration() {
         if UIAccessibility.isVoiceOverRunning {
             let announcement = isPoisonous ? "\(commonName). Warning: This subject is poisonous." : commonName
@@ -16,7 +18,7 @@ extension InsightSheetView {
             }
         }
     }
-    
+    /// Evaluates the end of an AI processing tick and drops standard haptic feedback if the scan isn't a "New Discovery" celebration instance
     func evaluateProcessingCompletion(isStillProcessing: Bool) {
         if !isStillProcessing {
             if let data = inferenceEngine.speciesData {
@@ -30,6 +32,26 @@ extension InsightSheetView {
         }
     }
     
+    // MARK: - Layout Computations
+    
+    /// Evaluates dynamic coordinate thresholds actively against negative scroll intersections, routing structural top-bar offsets.
+    func evaluateScrollOffset(minY: CGFloat) {
+        guard minY != .infinity else { return }
+        
+        let threshold = -(UIScreen.main.bounds.width + 80)
+        let isPast = minY < threshold
+        
+        if isCommonNameScrolledPast != isPast {
+            DispatchQueue.main.async {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    self.isCommonNameScrolledPast = isPast
+                }
+            }
+        }
+    }
+    // MARK: - Media & Share Exports
+    
+    /// Pulls raw image data from memory, sandbox, and remote references, compiling them asynchronously to the user's iOS Photo Library
     func saveUserPhotos() {
         guard !isSavingPhotos else { return }
         isSavingPhotos = true
@@ -51,19 +73,7 @@ extension InsightSheetView {
         }
     }
     
-    func eradicateCurrentScan() {
-        guard let targetId = inferenceEngine.speciesData?.scanId else { return }
-        
-        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == targetId })
-        let records = (try? modelContext.fetch(descriptor)) ?? []
-        
-        if let record = records.first {
-            HapticManager.shared.triggerErrorThump()
-            ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
-            dismiss()
-        }
-    }
-    
+    /// Compiles all scan attributes and calls the system `UIActivityViewController` pipeline
     func shareDiscovery() {
         let liveData = inferenceEngine.activeImageData
         let historicPath = inferenceEngine.validHistoricImagePaths.first
@@ -81,6 +91,7 @@ extension InsightSheetView {
         )
     }
     
+    /// Recursively isolates the active `UIWindow` controller hierarchy to mount UIKit sheets safely above SwiftUI environments
     func presentShareSheet(items: [Any]) {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first,
@@ -104,6 +115,23 @@ extension InsightSheetView {
         topController.present(activityVC, animated: true)
     }
     
+    // MARK: - SwiftData Operations
+    
+    /// Fully eradicates the local scan instance from SwiftData, executing teardown of visual sandbox references natively
+    func eradicateCurrentScan() {
+        guard let targetId = inferenceEngine.speciesData?.scanId else { return }
+        
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == targetId })
+        let records = (try? modelContext.fetch(descriptor)) ?? []
+        
+        if let record = records.first {
+            HapticManager.shared.triggerErrorThump()
+            ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
+            dismiss()
+        }
+    }
+    
+    /// Reversibly mounts or drops a relational binding between the current `LocalScanRecord` and a targeted `ScanCollection`
     func toggleScanInCollection(_ collection: ScanCollection) {
         guard let record = activeLocalRecord else { return }
         
@@ -127,6 +155,7 @@ extension InsightSheetView {
         HapticManager.shared.triggerSelectionPulse()
     }
     
+    /// Instantiates a completely new `ScanCollection` container natively in SwiftData and inherently maps the active scan to it immediately
     func createNewCollection() {
         let collectionName = newCollectionName.isEmpty ? "Untitled" : newCollectionName
         let collection = ScanCollection(name: collectionName)
@@ -145,5 +174,11 @@ extension InsightSheetView {
             toastMessage = "Created \(collectionName) and added scan"
         }
         HapticManager.shared.triggerSuccessPulse()
+    }
+    
+    /// Isolates SwiftData query executions to actively hydrate relational attributes like custom user Folders/Collections dynamically.
+    func fetchLocalRecord(for scanId: String) {
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        activeLocalRecord = (try? modelContext.fetch(descriptor))?.first
     }
 }

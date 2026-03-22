@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+// MARK: - Core Schema Version 1
 enum MerianSchemaV1: VersionedSchema {
     static var versionIdentifier = Schema.Version(1, 0, 0)
     
@@ -107,6 +108,7 @@ enum MerianSchemaV1: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 2
 enum MerianSchemaV2: VersionedSchema {
     static var versionIdentifier = Schema.Version(2, 0, 0)
     
@@ -179,6 +181,7 @@ enum MerianSchemaV2: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 3
 enum MerianSchemaV3: VersionedSchema {
     static var versionIdentifier = Schema.Version(3, 0, 0)
     
@@ -271,6 +274,7 @@ enum MerianSchemaV3: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 4
 enum MerianSchemaV4: VersionedSchema {
     static var versionIdentifier = Schema.Version(4, 0, 0)
     
@@ -366,6 +370,7 @@ enum MerianSchemaV4: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 5
 enum MerianSchemaV5: VersionedSchema {
     static var versionIdentifier = Schema.Version(5, 0, 0)
     
@@ -472,6 +477,7 @@ enum MerianSchemaV5: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 6
 enum MerianSchemaV6: VersionedSchema {
     static var versionIdentifier = Schema.Version(6, 0, 0)
     
@@ -642,6 +648,7 @@ enum MerianSchemaV6: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 7
 enum MerianSchemaV7: VersionedSchema {
     static var versionIdentifier = Schema.Version(7, 0, 0)
     
@@ -823,6 +830,7 @@ enum MerianSchemaV7: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 8
 enum MerianSchemaV8: VersionedSchema {
     static var versionIdentifier = Schema.Version(8, 0, 0)
     
@@ -895,6 +903,7 @@ enum MerianSchemaV8: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 9
 enum MerianSchemaV9: VersionedSchema {
     static var versionIdentifier = Schema.Version(9, 0, 0)
     
@@ -1034,6 +1043,7 @@ enum MerianSchemaV9: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 10
 enum MerianSchemaV10: VersionedSchema {
     static var versionIdentifier = Schema.Version(10, 0, 0)
     
@@ -1177,6 +1187,7 @@ enum MerianSchemaV10: VersionedSchema {
     }
 }
 
+// MARK: - Core Schema Version 11 (Active)
 enum MerianSchemaV11: VersionedSchema {
     static var versionIdentifier = Schema.Version(11, 0, 0)
     
@@ -1323,6 +1334,7 @@ enum MerianSchemaV11: VersionedSchema {
     }
 }
 
+// MARK: - Merian Native Migration Plan
 enum MerianMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [MerianSchemaV1.self, MerianSchemaV2.self, MerianSchemaV3.self, MerianSchemaV4.self, MerianSchemaV5.self, MerianSchemaV6.self, MerianSchemaV7.self, MerianSchemaV8.self, MerianSchemaV9.self, MerianSchemaV10.self, MerianSchemaV11.self]

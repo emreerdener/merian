@@ -2,11 +2,15 @@ import SwiftUI
 import CoreLocation
 
 struct LocationPermissionStepView: View {
+    // MARK: - State Dependencies
     @ObservedObject var locationManagerDelegate: LocationPermissionDelegate
+    
+    // MARK: - Callbacks
     let onNext: () -> Void
     
+    // MARK: - Visual Layout
     var body: some View {
-        BaseOnboardingStepView(
+        OnboardingStepWrapper(
             iconColor: Color.green.opacity(0.1),
             iconText: "Location Rive Animation",
             iconCornerRadius: 100,

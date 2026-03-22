@@ -7,38 +7,40 @@ import SwiftData
 final class AppDIContainer: ObservableObject {
     static let shared = AppDIContainer()
 
-    // Environment & Hardware
+    // MARK: - Dependencies (Environment & Hardware)
     lazy var hardwareOrchestrator = HardwareOrchestrator.shared
     lazy var cameraManager = CameraManager.shared
     lazy var hapticManager = HapticManager.shared
 
-    // AI & Intelligence
+    // MARK: - Dependencies (AI & Intelligence)
     lazy var inferenceEngine = InferenceEngine()
     lazy var vui = ViewfinderIntelligence.shared
     
-    // Core Services
+    // MARK: - Dependencies (Core Services)
     lazy var environmentContextManager = EnvironmentContextManager.shared
 
-    // Data & Sync
+    // MARK: - Dependencies (Data & Sync)
     lazy var scanRepository = ScanRepository.shared
     lazy var offlineQueueManager = OfflineQueueManager.shared
     lazy var syncStateManager = SyncStateManager.shared
     lazy var archiveManager = ArchiveManager.shared
     lazy var photoLibraryManager = PhotoLibraryManager.shared
 
-    // Network & Backend
+    // MARK: - Dependencies (Network & Backend)
     lazy var supabaseManager = SupabaseManager.shared
     
-    // Analytics & Security
+    // MARK: - Dependencies (Analytics & Security)
     lazy var revenueCatManager = RevenueCatManager.shared
     lazy var usageManager = UsageManager.shared
     lazy var gamificationManager = GamificationManager.shared
     lazy var circuitBreakerManager = CircuitBreakerManager.shared
 
+    // MARK: - Initialization Engine
     private init() {
         // Private initialization for singleton
     }
     
+    // MARK: - App Lifecycle: Background Phase
     /// Handles application transition to background gracefully
     func handleBackgroundPhase() {
         // Safely intercept mid-flight networks limits rescuing images asynchronously before standard app suspension
@@ -64,6 +66,7 @@ final class AppDIContainer: ObservableObject {
         }
     }
     
+    // MARK: - App Lifecycle: Inactive Phase
     /// Handles application transition to inactive (like app switcher)
     func handleInactivePhase() {
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -78,6 +81,7 @@ final class AppDIContainer: ObservableObject {
         NotificationCenter.default.post(name: NSNotification.Name("AppDidEnterInactivePhase"), object: nil)
     }
     
+    // MARK: - App Lifecycle: Active Phase
     /// Handles application transition to active foreground
     func handleActivePhase() {
         // Structurally prevent the OS from booting camera sessions implicitly or hitting API quotas actively natively during the Onboarding flow securely.
@@ -109,6 +113,8 @@ final class AppDIContainer: ObservableObject {
     }
 }
 
+// MARK: - DI Injection Modifiers
+
 /// View modifier to easily inject all dependent EnvironmentObjects
 struct DIContainerModifier: ViewModifier {
     @ObservedObject var container: AppDIContainer
@@ -118,19 +124,21 @@ struct DIContainerModifier: ViewModifier {
             .environmentObject(container.hardwareOrchestrator)
             .environmentObject(container.cameraManager)
             .environmentObject(container.inferenceEngine)
-            .environmentObject(container.vui)
-            .environmentObject(container.offlineQueueManager)
-            .environmentObject(container.syncStateManager)
-            .environmentObject(container.archiveManager)
-            .environmentObject(container.photoLibraryManager)
-            .environmentObject(container.supabaseManager)
-            .environmentObject(container.revenueCatManager)
-            .environmentObject(container.usageManager)
-            .environmentObject(container.gamificationManager)
-            .environmentObject(container.circuitBreakerManager)
-            .environmentObject(container.environmentContextManager)
+            .environment(container.vui)
+            .environment(container.offlineQueueManager)
+            .environment(container.syncStateManager)
+            .environment(container.archiveManager)
+            .environment(container.photoLibraryManager)
+            .environment(container.supabaseManager)
+            .environment(container.revenueCatManager)
+            .environment(container.usageManager)
+            .environment(container.gamificationManager)
+            .environment(container.circuitBreakerManager)
+            .environment(container.environmentContextManager)
     }
 }
+
+// MARK: - View Environment Extensions
 
 extension View {
     func injectAppDependencies(container: AppDIContainer) -> some View {

@@ -5,20 +5,25 @@ import SwiftUI
 import SwiftData
 import ImageIO
 
+// MARK: - Engine Boundaries
 enum APIError: Error {
     case proRequiredForOfflineTracking
     case decodingFailed
 }
 
+// MARK: - Core Cloud Inference Engine
 /// Manages real-time AI taxonomy processing via Supabase Edge Functions
 @MainActor
 final class InferenceEngine: ObservableObject {
+    // MARK: - Active Pipeline State
     @Published var isProcessing: Bool = false
     @Published var activeImageData: Data? = nil
     @Published var activeCompressedImageData: Data? = nil
     @Published var activeImageDatas: [String] = []
     @Published var validHistoricImagePaths: [String] = []
     @Published var speciesData: SpeciesData? = nil
+    
+    // MARK: - Environmental Telemetry State
     private(set) var activeLatitude: Double? = nil
     private(set) var activeLongitude: Double? = nil
     private(set) var activeElevation: Double? = nil
@@ -31,9 +36,11 @@ final class InferenceEngine: ObservableObject {
     private(set) var activeFlashFired: Bool? = nil
     private(set) var activeDistanceInMeters: Float? = nil
     
+    // MARK: - Asynchronous Execution Controllers
     private var inferenceTask: Task<Void, Error>?
     public var isBackgroundRescued = false
     
+    // MARK: - Network Edge DTOs
     /// Wrapper preventing double string decoding JSON extraction logic
     struct EdgeResponseWrapper: Codable {
         let success: Bool?
@@ -80,7 +87,7 @@ final class InferenceEngine: ObservableObject {
         let iucn_red_list_status: String?
     }    
 
-    
+    // MARK: - Main Pipeline Triggers
     func analyze(imageData: Data, telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
         self.inferenceTask?.cancel()
         
@@ -268,6 +275,7 @@ final class InferenceEngine: ObservableObject {
         }
     }
     
+    // MARK: - Background Hydration Syncs
     /// Hits the Wikimedia Desktop Summary framework independently skipping the Inference loop latency cost natively.
     private func asynchronouslyFetchWikipediaAndHydrate(for species: String, scanId: String?, modelContext: ModelContext?) async {
         guard !species.isEmpty, species.lowercased() != "taxonomy unavailable", species.lowercased() != "unknown subject" else { return }
@@ -321,9 +329,7 @@ final class InferenceEngine: ObservableObject {
         }
     }
     
-
-
-    
+    // MARK: - Active Pipeline Modifiers
     func cancelActiveRequest() {
         print("Cancelled active inference request to prevent watchdog termination.")
         isBackgroundRescued = true
@@ -360,6 +366,7 @@ final class InferenceEngine: ObservableObject {
         }
     }
     
+    // MARK: - Local Hardware Loaders
     /// Rehydrates the SpeciesData and UI payloads natively from an offline Scans record
     func load(from record: LocalScanRecord) {
         self.isProcessing = true

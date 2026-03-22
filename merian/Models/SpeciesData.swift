@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Sensor Telemetry Context
 /// Encapsulates the complete global physical context at the exact moment of shutter press.
 /// Consolidates 13 separate sensory parameters cleanly mapping directly across Offline Queue, Core AI loop, and Merian's backend boundary flawlessly!
 struct CaptureTelemetry: Sendable {
@@ -13,7 +14,9 @@ struct CaptureTelemetry: Sendable {
     let timeOfDay: String?
     let timestamp: String?
 }
-// MARK: - Primary Domain Models (Data received from InferenceEngine/Gemini Edge JSON)
+
+// MARK: - Primary AI Knowledge Domain
+/// Defines the explicit parsed biological constraints mapped natively from the Gemini Edge JSON Engine.
 struct SpeciesData {
     let scanId: String?
     let commonName: String
@@ -40,7 +43,8 @@ struct SpeciesData {
     var colors: [String]?
     let iucnRedListStatus: String?
     
-    // DRY Architectural Decoding Strategy Context
+    // MARK: - JSON Decoding Deserializer
+    /// DRY Architectural Decoding Strategy Context explicitly mapping standard dictionaries natively to struct bounds securely
     init(fromEdgeResponse edgeRes: InferenceEngine.EdgeResponse, locationName: String?, weatherCondition: String?, weatherTemperatureF: Double?, gpsElevation: Double? = nil) {
         let insight = InsightData(
             description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
@@ -87,7 +91,9 @@ struct SpeciesData {
         self.colors = edgeRes.colors
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
     }
-    // Explicit Memberwise Initialization for Fallbacks and Offline Mocking
+    
+    // MARK: - Manual Struct Injectors
+    /// Explicit Memberwise Initialization for Fallbacks and Offline Mocking explicitly bypassing standard Decoding bounds seamlessly
     init(
         scanId: String? = nil,
         commonName: String,
@@ -133,6 +139,7 @@ struct SpeciesData {
     }
 }
 
+// MARK: - Biological Taxonomies
 struct TaxonomyData {
     let kingdom: String?
     let phylum: String?
@@ -142,12 +149,14 @@ struct TaxonomyData {
     let genus: String?
 }
 
+// MARK: - Ecological Insights
 struct InsightData {
     let description: String
     let isPoisonous: Bool
     let regionalStatusRationale: String?
 }
 
+// MARK: - Analytical Diagnostics
 struct DiagnosticComparison {
     let primaryMatchRationale: String
     let confusingLookalikeName: String

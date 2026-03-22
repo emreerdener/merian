@@ -4,11 +4,85 @@ import SafariServices
 // MARK: - Layout Subcomponents
 extension InsightSheetView {
     
+    // MARK: - Decoupled UI Sub-Components
+    
+    /// The declarative pipeline routing layout overlaps, triggering haptics on `.onChange`, firing gamification routines mathematically, and capturing scroll coordinates efficiently via `GeometryReader`.
+    @ViewBuilder
+    var mainContent: some View {
+        Group {
+            ZStack(alignment: .top) {
+                scrollableCanvas
+                if let message = toastMessage {
+                    Toast(message: message)
+                }
+                celebrationOverlay
+            }
+            .ignoresSafeArea(edges: .top)
+        }
+        .onAppear { 
+            evaluateVoiceOverAndCelebration()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    showBottomBarTools = true
+                }
+            }
+        }
+        .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
+            evaluateProcessingCompletion(isStillProcessing: isStillProcessing)
+        }
+        .onPreferenceChange(CommonNameScrollOffsetKey.self) { minY in
+            evaluateScrollOffset(minY: minY)
+        }
+        .task(id: inferenceEngine.speciesData?.scanId) {
+            if let scanId = inferenceEngine.speciesData?.scanId {
+                fetchLocalRecord(for: scanId)
+            }
+        }
+        .task(id: toastMessage) {
+            if toastMessage != nil {
+                do {
+                    try await Task.sleep(nanoseconds: 2_500_000_000)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        toastMessage = nil
+                    }
+                } catch { } // absorb CancellationError elegantly
+            }
+        }
+    }
+    
+    // MARK: - Toolbar Logic
+    
+    /// Fully offloads rendering toolbar icons while piping the master orchestrator functions (save, trash, share) neatly as `action:` closures downstream. 
+    @ToolbarContentBuilder
+    var sheetToolbarContent: some ToolbarContent {
+        TopToolbar(
+            commonName: commonName,
+            confidenceScore: inferenceEngine.speciesData?.confidenceScore,
+            isCommonNameScrolledPast: isCommonNameScrolledPast,
+            isFlagIssuePresented: $isFlagIssuePresented,
+            isSavingPhotos: $isSavingPhotos,
+            showDeleteConfirmation: $showDeleteConfirmation,
+            onSavePhotos: saveUserPhotos
+        )
+        
+        InsightBottomToolbar(
+            showBottomBarTools: showBottomBarTools,
+            collections: collections,
+            activeLocalRecord: activeLocalRecord,
+            toggleScanInCollection: { collection in toggleScanInCollection(collection) },
+            showNewCollectionAlert: $showNewCollectionAlert,
+            shareDiscovery: shareDiscovery
+        )
+    }
+    
+    // MARK: - Core Structural Canvas
+    
+    /// The master scrolling viewport mounting the ImagesCarousel at `index(0)` permanently fixed behind the dynamically padded `.systemBackground` layout bounds at `index(1)`. This enforces physical UI overlapping on edge-swiping. 
     @ViewBuilder
     var scrollableCanvas: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
-                InsightCarouselView()
+                ImagesCarousel()
                     .aspectRatio(1.0, contentMode: .fill)
                     .zIndex(0)
                 
@@ -57,49 +131,42 @@ extension InsightSheetView {
         }
         .sheet(isPresented: $isFlagIssuePresented) {
             if let scanId = inferenceEngine.speciesData?.scanId {
-                FlagIssueView(scanId: scanId)
+                ReportInsightView(scanId: scanId)
             }
         }
         .ignoresSafeArea(edges: .top)
     }
     
+    // MARK: - Fallback Topography States
+    
+    /// Dynamically routes to the purely typography-driven view array. It entirely strips Taxonomy/Toxicity badges for safe, inanimate object scanning outputs.
     @ViewBuilder
     func nonBiologicalContent(for species: SpeciesData) -> some View {
-        InsightNonBiologicalContentView(species: species, commonName: commonName)
+        NonBiologicalView(species: species, commonName: commonName)
     }
     
+    // MARK: - Standard Biological Pipeline
+    
+    /// The master root injector mapping the full Taxonomy, Wiki Rationale array, and complex environmental geometry cascades recursively down the SwiftUI view engine bounds.
     @ViewBuilder
     var biologicalContent: some View {
-        InsightBiologicalContentView(
+        BiologicalView(
             isSafariPresented: $isSafariPresented, 
             selectedWikiURL: $selectedWikiURL,
             timestamp: activeLocalRecord?.timestamp
         )
     }
     
+    // MARK: - Decoupled Gamification Overlays
+    
+    /// Orchestrates native New Discovery toast pills purely logically detached dynamically above the main Scroll bounds
     @ViewBuilder
     var celebrationOverlay: some View {
-        InsightCelebrationOverlayView(
+        CelebrationBanner(
             commonName: commonName,
             showCelebration: $showCelebration
         )
     }
     
-    @ViewBuilder
-    var addCollectionButton: some View {
-        InsightAddCollectionButtonView(
-            collections: collections,
-            activeLocalRecord: activeLocalRecord,
-            toggleScanInCollection: { collection in toggleScanInCollection(collection) },
-            showNewCollectionAlert: $showNewCollectionAlert,
-            hasScanId: inferenceEngine.speciesData?.scanId != nil
-        )
-    }
-    
-    @ViewBuilder
-    var shareActionButton: some View {
-        InsightShareActionButtonView(
-            shareDiscovery: { shareDiscovery() }
-        )
-    }
+
 }

@@ -2,17 +2,19 @@ import SwiftUI
 import SwiftData
 
 struct NonBiologicalScansView: View {
+    // MARK: - State Dependencies
     @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false || $0.commonName == "Unknown Subject" }, sort: \.timestamp, order: .reverse) private var nonBioRecords: [LocalScanRecord]
     
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var inferenceEngine: InferenceEngine
     @Binding var isInsightSheetOpen: Bool
     
+    // MARK: - Interface State
     @State private var selectedScanForInsight: LocalScanRecord? = nil
     @State private var scanToDelete: LocalScanRecord? = nil
     @State private var showDeleteConfirmation = false
     
-// Layout abstracted into generic component
+    // MARK: - View Layout
     
     var body: some View {
         ScrollView {
@@ -23,7 +25,7 @@ struct NonBiologicalScansView: View {
                     message: "You haven't documented any non-biological subjects yet."
                 )
             } else {
-                ScanGridMatrix(scans: nonBioRecords, onSelect: { scan in
+                ScansGrid(scans: nonBioRecords, onSelect: { scan in
                     selectedScanForInsight = scan
                     inferenceEngine.load(from: scan)
                 }, onDelete: { scan in
@@ -32,6 +34,8 @@ struct NonBiologicalScansView: View {
                 })
             }
         }
+        
+        // MARK: - View Modifiers
         .navigationTitle("Non-biological")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedScanForInsight) { scan in

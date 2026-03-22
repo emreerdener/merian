@@ -2,21 +2,28 @@ import Foundation
 import Photos
 import SwiftUI
 import SwiftData
+import Observation
 
+// MARK: - Core Archival Orchestrator
 @MainActor
-class ArchiveManager: ObservableObject {
+@Observable final class ArchiveManager {
+    // MARK: - Singleton Architecture
     static let shared = ArchiveManager()
     
-    @Published var isStorageCriticallyLow: Bool = false
-    @Published var isAuthorized: Bool = false
+    // MARK: - State Management
+    var isStorageCriticallyLow: Bool = false
+    var isAuthorized: Bool = false
     
+    // MARK: - Core Limits
     private let diskSpaceThreshold: Int64 = 500 * 1024 * 1024 // 500MB
     private let albumName = "Merian"
     
+    // MARK: - Lifecycle Bootstrapping
     private init() {
         checkPermissions()
     }
     
+    // MARK: - Photo Library Bridges
     private func checkPermissions() {
         let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         self.isAuthorized = (status == .authorized || status == .limited)
@@ -56,6 +63,7 @@ class ArchiveManager: ObservableObject {
         }
     }
     
+    // MARK: - File System Analytics
     func getAvailableDiskSpace() -> Int64 {
         do {
             let fileURL = URL(fileURLWithPath: NSHomeDirectory())
@@ -102,6 +110,7 @@ class ArchiveManager: ObservableObject {
         print("ArchiveManager: Successfully archived image to device Photos.")
     }
     
+    // MARK: - Cold Storage Re-Hydration
     /// Evaluates aging Free Tier scans between 80-88 days old to permanently rescue payloads natively dropping from R2
     func evaluateAndRescueAgingScans(modelContext: ModelContext) {
         // Enforce the Free Tier constraint natively
@@ -141,6 +150,7 @@ class ArchiveManager: ObservableObject {
             print("ArchiveManager: Failed to evaluate offline sweeps bounds: \(error.localizedDescription)")
         }
     }
+    
     /// Downloads global dataset backups natively protecting cellular bandwidth via strict file caching
     func downloadArchive(id: String, url: URL) async throws -> URL {
         guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
@@ -164,8 +174,10 @@ class ArchiveManager: ObservableObject {
     }
 }
 
+// MARK: - Async SwiftData Engine
 @ModelActor
 actor ArchiveDatabaseActor {
+    // MARK: - Background Processing
     func rescueTransfers(resourceIDs: [PersistentIdentifier]) async {
         guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         

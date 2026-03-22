@@ -5,19 +5,25 @@ import UIKit
 import WatchKit
 #endif
 import Security
+import Observation
 
+// MARK: - Core Identity Engine
 @MainActor
-final class DeviceIdentityManager: ObservableObject {
+@Observable final class DeviceIdentityManager {
+    // MARK: - Singleton Architecture
     static let shared = DeviceIdentityManager()
-    
-    private let keychainKey = "Merian_Device_IDFV"
-    
-    @Published var deviceId: String = ""
     
     private init() {
         self.deviceId = getOrGeneratePersistentIDFV()
     }
     
+    // MARK: - Keychain Identifiers
+    private let keychainKey = "Merian_Device_IDFV"
+    
+    // MARK: - State Management
+    var deviceId: String = ""
+    
+    // MARK: - Hardware Fingerprint Generation
     func getOrGeneratePersistentIDFV() -> String {
         let (existingID, status) = loadFromKeychain()
         
@@ -48,6 +54,7 @@ final class DeviceIdentityManager: ObservableObject {
         return newID
     }
     
+    // MARK: - Native Keychain Persistence
     private func saveToKeychain(value: String) {
         guard let data = value.data(using: .utf8) else { return }
         

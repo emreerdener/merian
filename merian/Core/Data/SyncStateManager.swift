@@ -1,14 +1,20 @@
 import Foundation
+import Observation
 
+// MARK: - Core Cloud Synchronization State
 @MainActor
-final class SyncStateManager: ObservableObject {
+@Observable final class SyncStateManager {
+    // MARK: - Singleton Architecture
     static let shared = SyncStateManager()
     
-    @Published var isSyncing: Bool = false
-    @Published var pendingUploadCount: Int = 0
+    // MARK: - State Management
+    var isSyncing: Bool = false
+    var pendingUploadCount: Int = 0
     
+    // MARK: - Lifecycle
     private init() {}
     
+    // MARK: - Sync Pipelines
     func beginSync(itemCount: Int) {
         self.pendingUploadCount = itemCount
         self.isSyncing = true

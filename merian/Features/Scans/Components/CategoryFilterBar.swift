@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct CategoryFilterBar: View {
+    // MARK: - State Dependencies
     let filterCategories: [String]
     @Binding var activeCategory: String
+    
+    // MARK: - Callbacks
     let onCategorySelected: (String) -> Void
     
+    // MARK: - Component Layout
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {

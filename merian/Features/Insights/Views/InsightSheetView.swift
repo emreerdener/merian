@@ -3,7 +3,10 @@ import SwiftData
 import SafariServices
 
 // MARK: - Insight Sheet View
+
+/// The master state orchestrator routing biological inference metadata, navigation bounds, and hardware logic cleanly down into the decoupled `InsightLayout` tree.
 struct InsightSheetView: View {
+    // MARK: - Environment & Dependencies
     @EnvironmentObject var inferenceEngine: InferenceEngine
     @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
     @Environment(\.modelContext) var modelContext
@@ -11,28 +14,37 @@ struct InsightSheetView: View {
 
     @Binding var isPresented: Bool
     
-    // MARK: Component State
-    @State var isSafariPresented = false
-    @State var selectedWikiURL: URL?
-    @State var isFlagIssuePresented = false
+    // MARK: - Interface State
     @State var showCelebration = false
-    @Query(sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
-    @State var activeLocalRecord: LocalScanRecord? = nil
-    @State var showNewCollectionAlert = false
-    @State var newCollectionName = ""
-    
-    @State var showDeleteConfirmation = false
-    @State var isSavingPhotos = false
-    @State var showSaveSuccessAlert = false
-    @State var toastMessage: String? = nil
     @State private var showBottomBarTools = false
     @State private var isCommonNameScrolledPast = false
     
-    // MARK: Diagnostic Bounds
+    // MARK: - Alert & Modal Flags
+    @State var isFlagIssuePresented = false
+    @State var showDeleteConfirmation = false
+    @State var showSaveSuccessAlert = false
+    @State var showNewCollectionAlert = false
+    @State var toastMessage: String? = nil
+    @State var newCollectionName = ""
+    
+    // MARK: - Navigation State
+    @State var isSafariPresented = false
+    @State var selectedWikiURL: URL?
+    
+    // MARK: - Hardware Tasks
+    @State var isSavingPhotos = false
+    
+    // MARK: - SwiftData Layer
+    @Query(sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
+    @State var activeLocalRecord: LocalScanRecord? = nil
+    
+    // MARK: - Diagnostic Bounds
     var isPoisonous: Bool { inferenceEngine.speciesData?.insightData.isPoisonous ?? false }
     var commonName: String { inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..." }
     var scientificName: String { inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy" }
+    // MARK: - Root Presentation Logic
     
+    /// Establishes the `NavigationStack` environment and binds native iOS dialogue popups globally. Modifiers sit strictly at this node to avoid messy `@Binding` drilling.
     var body: some View {
         NavigationStack {
             mainContent
@@ -63,115 +75,4 @@ struct InsightSheetView: View {
         }
     }
     
-    // MARK: - Decoupled UI Sub-Components
-    
-    @ViewBuilder
-    var mainContent: some View {
-        Group {
-            ZStack(alignment: .top) {
-                scrollableCanvas
-                toastOverlay
-                celebrationOverlay
-            }
-            .ignoresSafeArea(edges: .top)
-        }
-        .onAppear { 
-            evaluateVoiceOverAndCelebration()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                withAnimation(.easeIn(duration: 0.2)) {
-                    showBottomBarTools = true
-                }
-            }
-        }
-        .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
-            evaluateProcessingCompletion(isStillProcessing: isStillProcessing)
-        }
-        .onPreferenceChange(CommonNameScrollOffsetKey.self) { minY in
-            // Fallback safely dropping `.infinity` out of the matrix
-            guard minY != .infinity else { return }
-            
-            // The image is exactly 1.0 aspect ratio (screen width).
-            // Scientific + Common Name blocks aggressively occupy approx ~80pts horizontally underneath.
-            // Ergo, when the global scroll minY dives past the negative offset threshold -> toggle headers!
-            let threshold = -(UIScreen.main.bounds.width + 80)
-            let isPast = minY < threshold
-            
-            if isCommonNameScrolledPast != isPast {
-                DispatchQueue.main.async {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isCommonNameScrolledPast = isPast
-                    }
-                }
-            }
-        }
-        .task(id: inferenceEngine.speciesData?.scanId) {
-            if let scanId = inferenceEngine.speciesData?.scanId {
-                fetchLocalRecord(for: scanId)
-            }
-        }
-        .task(id: toastMessage) {
-            if toastMessage != nil {
-                do {
-                    try await Task.sleep(nanoseconds: 2_500_000_000)
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        toastMessage = nil
-                    }
-                } catch {
-                    // Elegantly absorb the CancellationError natively.
-                    // This explicitly ensures the task properly aborts upon overlap without 
-                    // inadvertently firing the internal `withAnimation` block (which `try?` fatally causes).
-                }
-            }
-        }
-    }
-    
-    private func fetchLocalRecord(for scanId: String) {
-        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        activeLocalRecord = (try? modelContext.fetch(descriptor))?.first
-    }
-    
-    
-    
-    @ToolbarContentBuilder
-    var sheetToolbarContent: some ToolbarContent {
-        InsightSheetHeader(
-            commonName: commonName,
-            confidenceScore: inferenceEngine.speciesData?.confidenceScore,
-            isCommonNameScrolledPast: isCommonNameScrolledPast,
-            isFlagIssuePresented: $isFlagIssuePresented,
-            isSavingPhotos: $isSavingPhotos,
-            showDeleteConfirmation: $showDeleteConfirmation,
-            onSavePhotos: saveUserPhotos
-        )
-        
-        if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
-            ToolbarItemGroup(placement: .bottomBar) {
-                addCollectionButton
-                Spacer()
-                shareActionButton
-            }
-        }
-    }
-    
-    // MARK: - Toast Overlay
-    @ViewBuilder
-    var toastOverlay: some View {
-        if let message = toastMessage {
-            VStack {
-                Spacer()
-                Text(message)
-                    .font(.footnote)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .colorScheme(.dark)
-                    .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
-                    .padding(.bottom, 60)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(100)
-            }
-        }
-    }
 }

@@ -4,14 +4,14 @@ Merian gamifies exploration natively while respecting user privacy intrinsically
 
 ## Gamification Architecture (`GamificationManager`)
 
-Powers the interactive `.riv` Rive model rendered by `TerrariumView`.
+Powers the interactive `.riv` Rive model rendered by `Terrarium`.
 
 - Logs globally passing taxonomy boundaries into `$unlockedSpeciesCount`, persistently updating `.set(unlocked, forKey:)` natively.
 - Evaluates novel biological insertions natively intercepting `LocalScanRecord` writes; if a species has never been cached locally, routes a strict `isNewDiscovery = true` payload mapping directly to `InsightSheetView`.
 - **Targeted Non-Biological Suppression**: Even if `isNewDiscovery = true` is passed downstream natively, the UI layer strictly filters out dead strings (e.g., `not applicable`, `unknown subject`, `inanimate object`) and unconditionally requires `isBiological == true`. This rigidly prevents the app from cheering the user for scanning gravel, car tires, or blurry floors.
 - Instantiates `NewDiscoveryCelebrationView.swift` (when biologically validated), enforcing a premium, glassmorphic floating pill-shaped "Toast" notification docked at the top of the interface. It scales natively and tears down automatically via a state-retained `Task.sleep` without blocking user touches (it also supports manual swipe/tap-to-dismiss via `DragGesture`). Generates `HapticManager.shared.triggerSuccessPulse()` callbacks and tracks Apple-native `TelemetryManager.send("NewSpeciesDiscovered")` strictly observing Zero-PII offline rules.
 - Executes Apple native hardware `HapticManager.shared.triggerSelectionPulse()` the second an achievement (`hasFireflyBadge`) natively triggers over 5 taxonomic finds natively.
-- Injects natively via `.environmentObject` into `TerrariumView` passively reacting `.setInput("TotalSpeciesCount")` animating 3D model foliage, fireflies, and natural artifacts instantaneously using `RiveViewModel` states seamlessly.
+- Injects natively via `.environmentObject` into `Terrarium` passively reacting `.setInput("TotalSpeciesCount")` animating 3D model foliage, fireflies, and natural artifacts instantaneously using `RiveViewModel` states seamlessly.
 - **Erasure Mechanics (`decrement_user_species_count`)**: If a user permanently deletes a scan, and that specific scan happens to be their absolute final documented capture of a specific biological species, a strict PostgreSQL PL/pgSQL database trigger will silently intercept the erasure. It will perfectly decrement their unified `users.total_species_discovered` counter seamlessly maintaining accurate gamification counts regardless of offline delay. Locally, the SwiftData boundary instantly recalculates their Scans library natively seamlessly syncing UI states exactly.
 
 ## Secure Telemetry Ecosystem
