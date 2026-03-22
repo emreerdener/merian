@@ -13,7 +13,7 @@ When the user physically captures an image within the application, the architect
 
 ## Core Decoupling (AppDIContainer)
 
-Merian actively rejects standard `@EnvironmentObject` propagation for complex business logic, to completely shield the `View` lifecycle from triggering recursive structural updates or `EXC_BAD_ACCESS` memory warnings.
+Merian actively rejects legacy `@EnvironmentObject` propagation across its core architectural engines. To completely shield the `View` lifecycle from triggering recursive structural updates or `EXC_BAD_ACCESS` memory warnings, all complex business logic environments are bound using modern Swift 17+ `@Observable` macros and `@Environment()` injection constraints natively.
 
 Everything is statically bound within `AppDIContainer.swift`:
 
