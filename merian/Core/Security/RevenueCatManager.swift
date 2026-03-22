@@ -17,7 +17,7 @@ import Observation
     // MARK: - Component Initialization
     /// Initializes checking RevenueCat for active telemetry tokens
     func configure() {
-        Purchases.logLevel = .debug
+        Purchases.logLevel = .warn
         
         let apiKey = MerianEnvironment.revenueCatApiKey
         
