@@ -1,13 +1,16 @@
 import SwiftUI
 
 @MainActor
-class OnboardingViewModel: ObservableObject {
+@Observable class OnboardingViewModel {
     // MARK: - Published State
-    @Published var currentStep: OnboardingStep = .welcome
+    var currentStep: OnboardingStep = .welcome
     
     // MARK: - App Storage
     // Isolated for strict unit testing without requiring SwiftUI view hosts
-    @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
+    var hasCompletedOnboarding: Bool {
+        get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
+        set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
+    }
     
     // MARK: - State Transitions
     func advanceStep() {

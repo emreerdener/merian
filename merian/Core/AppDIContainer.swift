@@ -4,36 +4,36 @@ import SwiftData
 /// Centralized Dependency Injection Container for Merian
 /// Holds all core services and managers to prevent massive `@StateObject` pollution in App entry.
 @MainActor
-final class AppDIContainer: ObservableObject {
+@Observable final class AppDIContainer {
     static let shared = AppDIContainer()
 
     // MARK: - Dependencies (Environment & Hardware)
-    lazy var hardwareOrchestrator = HardwareOrchestrator.shared
-    lazy var cameraManager = CameraManager.shared
-    lazy var hapticManager = HapticManager.shared
+    var hardwareOrchestrator = HardwareOrchestrator.shared
+    var cameraManager = CameraManager.shared
+    var hapticManager = HapticManager.shared
 
     // MARK: - Dependencies (AI & Intelligence)
-    lazy var inferenceEngine = InferenceEngine()
-    lazy var vui = ViewfinderIntelligence.shared
+    var inferenceEngine = InferenceEngine()
+    var vui = ViewfinderIntelligence.shared
     
     // MARK: - Dependencies (Core Services)
-    lazy var environmentContextManager = EnvironmentContextManager.shared
+    var environmentContextManager = EnvironmentContextManager.shared
 
     // MARK: - Dependencies (Data & Sync)
-    lazy var scanRepository = ScanRepository.shared
-    lazy var offlineQueueManager = OfflineQueueManager.shared
-    lazy var syncStateManager = SyncStateManager.shared
-    lazy var archiveManager = ArchiveManager.shared
-    lazy var photoLibraryManager = PhotoLibraryManager.shared
+    var scanRepository = ScanRepository.shared
+    var offlineQueueManager = OfflineQueueManager.shared
+    var syncStateManager = SyncStateManager.shared
+    var archiveManager = ArchiveManager.shared
+    var photoLibraryManager = PhotoLibraryManager.shared
 
     // MARK: - Dependencies (Network & Backend)
-    lazy var supabaseManager = SupabaseManager.shared
+    var supabaseManager = SupabaseManager.shared
     
     // MARK: - Dependencies (Analytics & Security)
-    lazy var revenueCatManager = RevenueCatManager.shared
-    lazy var usageManager = UsageManager.shared
-    lazy var gamificationManager = GamificationManager.shared
-    lazy var circuitBreakerManager = CircuitBreakerManager.shared
+    var revenueCatManager = RevenueCatManager.shared
+    var usageManager = UsageManager.shared
+    var gamificationManager = GamificationManager.shared
+    var circuitBreakerManager = CircuitBreakerManager.shared
 
     // MARK: - Initialization Engine
     private init() {
@@ -117,12 +117,12 @@ final class AppDIContainer: ObservableObject {
 
 /// View modifier to easily inject all dependent EnvironmentObjects
 struct DIContainerModifier: ViewModifier {
-    @ObservedObject var container: AppDIContainer
+    var container: AppDIContainer
     
     func body(content: Content) -> some View {
         content
-            .environmentObject(container.hardwareOrchestrator)
-            .environmentObject(container.cameraManager)
+            .environment(container.hardwareOrchestrator)
+            .environment(container.cameraManager)
             .environment(container.inferenceEngine)
             .environment(container.vui)
             .environment(container.offlineQueueManager)

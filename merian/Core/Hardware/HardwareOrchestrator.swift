@@ -39,15 +39,15 @@ extension UIDevice {
 // MARK: - Core Hardware Engine
 /// HardwareOrchestrator acts as the thermal management and concurrency bridge for hardware elements.
 @MainActor
-final class HardwareOrchestrator: ObservableObject {
+@Observable final class HardwareOrchestrator {
     // MARK: - Singleton Architecture
     static let shared = HardwareOrchestrator()
     
     // MARK: - State Management
-    @Published var targetFPS: Int = 60
-    @Published var isGlassmorphismEnabled: Bool = true
-    @Published var isCriticalHeatWarningActive: Bool = false
-    @Published var isExpeditionModeActive: Bool = false
+    var targetFPS: Int = 60
+    var isGlassmorphismEnabled: Bool = true
+    var isCriticalHeatWarningActive: Bool = false
+    var isExpeditionModeActive: Bool = false
     
     var isIdleLocked: Bool = false {
         didSet {
@@ -59,7 +59,7 @@ final class HardwareOrchestrator: ObservableObject {
     }
     
     // MARK: - Publisher Bounds
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     
     private init() {
         setupMonitors()

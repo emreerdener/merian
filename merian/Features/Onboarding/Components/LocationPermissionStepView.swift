@@ -3,7 +3,7 @@ import CoreLocation
 
 struct LocationPermissionStepView: View {
     // MARK: - State Dependencies
-    @ObservedObject var locationManagerDelegate: LocationPermissionDelegate
+    var locationManagerDelegate: LocationPermissionDelegate
     
     // MARK: - Callbacks
     let onNext: () -> Void

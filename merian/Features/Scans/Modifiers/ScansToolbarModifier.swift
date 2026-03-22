@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ScansToolbarModifier: ViewModifier {
     // MARK: - State Dependencies
-    @ObservedObject var searchManager: ScansManager
+    @Bindable var searchManager: ScansManager
     @Binding var activeTab: ScansTab
     @Binding var showNewCollectionAlert: Bool
     let dismiss: DismissAction

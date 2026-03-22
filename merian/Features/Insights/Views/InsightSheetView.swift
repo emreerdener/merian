@@ -8,7 +8,7 @@ import SafariServices
 struct InsightSheetView: View {
     // MARK: - Environment & Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
-    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
+    @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
 

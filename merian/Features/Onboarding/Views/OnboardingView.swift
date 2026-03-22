@@ -5,8 +5,8 @@ import RiveRuntime
 
 struct OnboardingView: View {
     // MARK: - State Dependencies
-    @StateObject private var viewModel = OnboardingViewModel()
-    @StateObject private var locationManagerDelegate = LocationPermissionDelegate()
+    @State private var viewModel = OnboardingViewModel()
+    @State private var locationManagerDelegate = LocationPermissionDelegate()
     
     // MARK: - Visual Layout
     var body: some View {

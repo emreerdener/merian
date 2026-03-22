@@ -9,31 +9,31 @@ import Accelerate
 // MARK: - Core Hardware Engine
 /// Manages AVFoundation stack and depth mapping memory-safely
 @MainActor
-final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate {
+@Observable final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate {
     // MARK: - Singleton Architecture
     static let shared = CameraManager()
     
     // MARK: - AVFoundation Stack
-    nonisolated let session = AVCaptureSession()
-    nonisolated private let videoOutput = AVCaptureVideoDataOutput()
-    nonisolated private let depthOutput = AVCaptureDepthDataOutput()
-    nonisolated private let photoOutput = AVCapturePhotoOutput()
+    @ObservationIgnored nonisolated let session = AVCaptureSession()
+    @ObservationIgnored nonisolated private let videoOutput = AVCaptureVideoDataOutput()
+    @ObservationIgnored nonisolated private let depthOutput = AVCaptureDepthDataOutput()
+    @ObservationIgnored nonisolated private let photoOutput = AVCapturePhotoOutput()
     
     // MARK: - Threading & Observation
-    private let queue = DispatchQueue(label: "com.merian.camera")
-    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private let queue = DispatchQueue(label: "com.merian.camera")
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Render Throttling Logic
-    nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
-    nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
-    nonisolated(unsafe) private var activeHistogram = [vImagePixelCount](repeating: 0, count: 256)
+    @ObservationIgnored nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
+    @ObservationIgnored nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
+    @ObservationIgnored nonisolated(unsafe) private var activeHistogram = [vImagePixelCount](repeating: 0, count: 256)
     
     // MARK: - State Management
-    @Published private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
+    private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
     
-    @Published var isSessionRunning = false
-    @Published var subjectDistanceInMeters: Float? = nil
-    @Published var isFlashEnabled = false
+    var isSessionRunning = false
+    var subjectDistanceInMeters: Float? = nil
+    var isFlashEnabled = false
     
     // MARK: - CoreML Inferences & Trackers
     var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: "isLiveInferencePaused") as? Bool ?? UIDevice.current.isModernIPhone
@@ -49,15 +49,10 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     private override init() {
         super.init()
         
-        HardwareOrchestrator.shared.$targetFPS
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] fps in
-                self?.applyTargetFPS(fps)
-            }
-            .store(in: &cancellables)
+        trackFPS()
             
         // Explicitly decoupled setupSession() off the init boundary perfectly delaying AVCaptureDevice instantiation natively until startSession is called, eliminating early permission popup triggers completely!
+
         
         NotificationCenter.default.publisher(for: AVCaptureDevice.subjectAreaDidChangeNotification)
             .sink { [weak self] _ in
@@ -66,6 +61,18 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             .store(in: &cancellables)
     }
     
+    // MARK: - App Lifecycle Observers
+    private func trackFPS() {
+        withObservationTracking {
+            _ = HardwareOrchestrator.shared.targetFPS
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
+                self?.trackFPS()
+            }
+        }
+    }
+
     // MARK: - Session Configuration
     nonisolated private func setupSession() {
         session.beginConfiguration()
@@ -123,7 +130,7 @@ final class CameraManager: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         session.commitConfiguration()
     }
     
-    nonisolated(unsafe) private var isSessionConfigured = false
+    @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
 
     // MARK: - Hardware Power Controllers
     func startSession() {

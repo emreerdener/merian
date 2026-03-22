@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ThermalWarningView: View {
-    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
+    @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
     
     var body: some View {
         if hardwareOrchestrator.isCriticalHeatWarningActive {

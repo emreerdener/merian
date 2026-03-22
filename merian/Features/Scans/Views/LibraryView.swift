@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LibraryView: View {
     // MARK: - State Dependencies
-    @ObservedObject var searchManager: ScansManager
+    @Bindable var searchManager: ScansManager
     
     // MARK: - App State Context
     let filterCategories: [String]

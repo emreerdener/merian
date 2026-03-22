@@ -26,7 +26,7 @@ struct CelebrationBanner: View {
 
 // MARK: - Internal Animated Discovery Pill
 private struct NewDiscoveryCelebrationView: View {
-    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
+    @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
     
     let commonName: String
     let onDismiss: () -> Void

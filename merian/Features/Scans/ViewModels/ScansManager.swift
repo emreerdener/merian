@@ -4,13 +4,13 @@ import SwiftUI
 import ImageIO
 
 @MainActor
-class ScansManager: ObservableObject {
+@Observable class ScansManager {
     // MARK: - UI Published State
-    @Published var searchQuery: String = ""
-    @Published var filteredScans: [LocalScanRecord] = []
-    @Published var activeCategoryFilter: String = "All"
-    @Published var isSelectionMode: Bool = false
-    @Published var selectedScans: Set<String> = []
+    var searchQuery: String = ""
+    var filteredScans: [LocalScanRecord] = []
+    var activeCategoryFilter: String = "All"
+    var isSelectionMode: Bool = false
+    var selectedScans: Set<String> = []
     
     // MARK: - Static Bounds
     let maxBatchSelectionLimit = 20
@@ -21,10 +21,10 @@ class ScansManager: ObservableObject {
     }
     
     // MARK: - Cache & Threading State
-    private var scanMap: [String: LocalScanRecord] = [:]
-    private var searchableData: [SearchableScan] = []
-    private var searchTask: Task<Void, Never>?
-    private var indexingTask: Task<Void, Never>?
+    @ObservationIgnored private var scanMap: [String: LocalScanRecord] = [:]
+    @ObservationIgnored private var searchableData: [SearchableScan] = []
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var indexingTask: Task<Void, Never>?
     
     // MARK: - Data Indexing Pipeline
     private func updateSearchableData() {

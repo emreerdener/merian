@@ -1,23 +1,27 @@
 import Foundation
 import CoreLocation
+import SwiftUI
 
-class LocationPermissionDelegate: NSObject, ObservableObject, CLLocationManagerDelegate {
+@Observable class LocationPermissionDelegate: NSObject, CLLocationManagerDelegate {
     // MARK: - Core Dependencies
-    let manager = CLLocationManager()
+    @ObservationIgnored var locationManager = CLLocationManager()
     
-    // MARK: - State Callbacks
-    var onAuthorizationDetermined: (() -> Void)?
+    // MARK: - State
+    var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    @ObservationIgnored var onAuthorizationDetermined: (() -> Void)?
     
     // MARK: - Initialization Engine
     override init() {
         super.init()
-        manager.delegate = self
+        locationManager.delegate = self
+        // Initialize authorizationStatus with the current status
+        self.authorizationStatus = locationManager.authorizationStatus
     }
     
     // MARK: - Permission Handlers
     func requestWhenInUse() {
-        if manager.authorizationStatus == .notDetermined {
-            manager.requestWhenInUseAuthorization()
+        if locationManager.authorizationStatus == .notDetermined {
+            locationManager.requestWhenInUseAuthorization()
         } else {
             DispatchQueue.main.async {
                 self.onAuthorizationDetermined?()

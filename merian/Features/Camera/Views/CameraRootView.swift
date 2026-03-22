@@ -6,8 +6,8 @@ import SwiftData
 
 struct CameraRootView: View {
     // MARK: - Environment & Dependencies
-    @EnvironmentObject var cameraManager: CameraManager
-    @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
+    @Environment(CameraManager.self) var cameraManager
+    @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
     @Environment(ViewfinderIntelligence.self) var vui
     @Environment(PhotoLibraryManager.self) var photoLibraryManager
     @Environment(InferenceEngine.self) var inferenceEngine

@@ -11,7 +11,7 @@ struct BiologicalView: View {
 
     // MARK: - Visual Layout
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 24) {
             
             // 1. Primary Identifiers
             InsightHeader(speciesData: inferenceEngine.speciesData)
