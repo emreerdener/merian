@@ -36,11 +36,18 @@ struct Badge: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .fixedSize(horizontal: true, vertical: false) // Auto-hug layout lock
-        // Natively applies color fill or gracefully falls back to device-tinted glassmorphism
-        .background(
-            isFilled ? AnyShapeStyle(color) : AnyShapeStyle(.ultraThinMaterial),
-            in: Capsule()
-        )
+        // Combines pristine system glass materials with a 15% dynamic color wash for heavily saturated, vibrant Apple-tier tinted background aesthetics natively.
+        .background {
+            if isFilled {
+                Capsule()
+                    .fill(color)
+            } else {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                Capsule()
+                    .fill(color.opacity(0.15))
+            }
+        }
         .overlay(
             Capsule()
                 .stroke(activeStrokeColor, lineWidth: 1)

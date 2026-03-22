@@ -4,6 +4,8 @@ struct ConfidenceBadge: View {
     let confidenceScore: Double?
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isShowingExplanation = false
+    @State private var activeDetent: PresentationDetent = .fraction(0.65)
+    @State private var allowedDetents: Set<PresentationDetent> = [.fraction(0.65), .large]
     
     // Natively interprets raw Float outputs into deeply semantic structural thresholds
     private var badgeData: (label: String, color: Color, icon: String) {
@@ -26,6 +28,8 @@ struct ConfidenceBadge: View {
             
             Button(action: {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                activeDetent = .fraction(0.65)
+                allowedDetents = [.fraction(0.65), .large]
                 isShowingExplanation = true
             }) {
                 Badge(
@@ -72,10 +76,16 @@ struct ConfidenceBadge: View {
             }
             .sheet(isPresented: $isShowingExplanation) {
                 ConfidenceExplanationSheet()
-                    .presentationDetents([.fraction(0.65), .large])
+                    .presentationDetents(allowedDetents, selection: $activeDetent)
                     .presentationCornerRadius(32)
                     .presentationBackground(.ultraThinMaterial)
                     .presentationDragIndicator(.visible)
+                    // Dynamically strips the mid-way detent once fully expanded native Apple hack!
+                    .onChange(of: activeDetent) { _, newDetent in
+                        if newDetent == .large {
+                            allowedDetents = [.large]
+                        }
+                    }
             }
         }
     }

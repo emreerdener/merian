@@ -7,7 +7,7 @@ struct ConfidenceExplanationSheet: View {
                 // MARK: - Vibrant Header
                 VStack(spacing: 16) {
                     VStack(spacing: 8) {
-                        Text("AI confidence")
+                        Text("Identification confidence")
                             .font(.system(.title, weight: .bold))
                             .foregroundStyle(.primary)
                         

@@ -88,6 +88,7 @@
 		76DB36DCFB92D9A10239CFDA /* LocationPermissionStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9347506400484B17522F07B /* LocationPermissionStepView.swift */; };
 		779400A9CDCA13C818524D5E /* ArchivedVisualsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59DF526286C247EAD0760E55 /* ArchivedVisualsView.swift */; };
 		7928570DA5183335785A4B7F /* ViewfinderHints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DDC2C50B9698BA06E739DC8 /* ViewfinderHints.swift */; };
+		79A6064EF7384D6952E8737A /* ConfidenceExplanationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EC0DF63D536C5591673A64 /* ConfidenceExplanationSheet.swift */; };
 		7AC97E8AB2C2FFDC53E80273 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F84A81FBB58DF8C63D7C16 /* SupabaseManager.swift */; };
 		7B23F38EA404965F37D58945 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9285EE0B0FE1C0F39EC42533 /* OnboardingViewModel.swift */; };
 		7BD95B2DD8A3489950F5DE7A /* MerianAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD1CD4175445A49F1FC0C0E /* MerianAppIntents.swift */; };
@@ -137,7 +138,6 @@
 		BCB8D65F3297E85504EF22D9 /* ScanDeletionDialogModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8725C15EA2D38C3661ED9B0 /* ScanDeletionDialogModifier.swift */; };
 		BEBFB4315EC9C6F2FC1F9F09 /* ScansManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31EF2AEBAC55EB3C7E7AC29A /* ScansManager.swift */; };
 		BFF93DF1D25E3803289B77A9 /* UserStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E51B23EDB2E21F15F9B6667 /* UserStats.swift */; };
-		C37486EE2F119EE5BFC9ED37 /* ConfidenceExplanationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41058639FB601C4A37B6796 /* ConfidenceExplanationSheet.swift */; };
 		C4C61714C0BCBBC64466253F /* OnboardingStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7C79DCC709A10AF23BB62E /* OnboardingStep.swift */; };
 		C59DB30428863BF93FD72C77 /* CelebrationBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215B78224B555E2EA538C476 /* CelebrationBanner.swift */; };
 		C68E1DEEF4B031DA0C9F3E8C /* EnvironmentContextManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */; };
@@ -275,6 +275,7 @@
 		6B82BC3E7C3818F306100CE3 /* merianUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = merianUITests.swift; sourceTree = "<group>"; };
 		6EF4E6E4D2EF9069B637A10B /* CollectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionsView.swift; sourceTree = "<group>"; };
 		72B6122F2DCEB5D8D727A05E /* ArchiveManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveManagerTests.swift; sourceTree = "<group>"; };
+		72EC0DF63D536C5591673A64 /* ConfidenceExplanationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceExplanationSheet.swift; sourceTree = "<group>"; };
 		78375CD55F4173FF02D793A7 /* CameraRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraRootView.swift; sourceTree = "<group>"; };
 		785A0F800483B96F6D23FDBA /* ExportScans.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportScans.swift; sourceTree = "<group>"; };
 		7A49C9ED18B1015B36EB9C2F /* MerianEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianEnvironment.swift; sourceTree = "<group>"; };
@@ -297,7 +298,6 @@
 		9CF4310C486E92D52A201511 /* EnvironmentContextManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContextManagerTests.swift; sourceTree = "<group>"; };
 		A270E569ECEE97C105C10EE3 /* ImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
 		A33781A4087102CB18738303 /* merianTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = merianTests.swift; sourceTree = "<group>"; };
-		A41058639FB601C4A37B6796 /* ConfidenceExplanationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceExplanationSheet.swift; sourceTree = "<group>"; };
 		A55AB8F9BFE56463CBA14FBB /* PhotoLibraryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryButton.swift; sourceTree = "<group>"; };
 		A55ACF0762DB241F1337AF42 /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
 		A5E93D7ECCBF40522662D41C /* DefaultCollectionLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultCollectionLink.swift; sourceTree = "<group>"; };
@@ -960,7 +960,6 @@
 			children = (
 				625ABB8704998AD21D9B6CD2 /* Badge.swift */,
 				ECF124F7FA70972A4E790EDA /* ConfidenceBadge.swift */,
-				A41058639FB601C4A37B6796 /* ConfidenceExplanationSheet.swift */,
 				5AEA7F63A42F635D44F99657 /* SpeciesBadges.swift */,
 			);
 			path = Badges;
@@ -979,6 +978,7 @@
 		CA7F3904BA990088DB7AD4A8 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				72EC0DF63D536C5591673A64 /* ConfidenceExplanationSheet.swift */,
 				46AB32E6FF5391F18D6200E7 /* ImagesCarousel.swift */,
 				DF91598A9C75D0F61E7DCB69 /* InsightHeader.swift */,
 				C2E52B602F338028B483069C /* Badges */,
@@ -1395,7 +1395,7 @@
 				D73DBC6608F0313E6A12C87E /* CollectionsView.swift in Sources */,
 				8826B19268129624F2D87D25 /* Community.swift in Sources */,
 				99D0A8CD3E764E300F49271E /* ConfidenceBadge.swift in Sources */,
-				C37486EE2F119EE5BFC9ED37 /* ConfidenceExplanationSheet.swift in Sources */,
+				79A6064EF7384D6952E8737A /* ConfidenceExplanationSheet.swift in Sources */,
 				1B0300BD0BB1C04B910D7ECC /* ConservationBanner.swift in Sources */,
 				AAC10235098E82DDCDD28E4D /* DangerZone.swift in Sources */,
 				349EFD43894A467824F7018A /* DefaultCollectionLink.swift in Sources */,
