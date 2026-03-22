@@ -15,7 +15,7 @@ struct ExportScans: View {
                     ShareLink(item: url) {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
-                            Text("Download Scans (DwC-A)")
+                            Text("Download scans (DwC-A)")
                         }
                     }
                 } else {
@@ -42,13 +42,13 @@ struct ExportScans: View {
                             if isExporting {
                                 ProgressView().padding(.trailing, 8)
                             }
-                            Text("Export Scans (DwC-A)")
+                            Text("Export scans (DwC-A)")
                         }
                     }
                     .disabled(isExporting)
                 }
             } else {
-                Text("Sign in with Apple to export data")
+                Text("Sign in to export data")
                     .font(.callout)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)

@@ -10,6 +10,9 @@ struct MainOverlayView: View {
     let onCapture: () -> Void
     let onToggleFlash: () -> Void
     
+    // MARK: - Local Staging State
+    @State private var activeMode: CaptureMode = .visual
+    
     // MARK: - Navigation Encoders
     // Computes bidirectional view states natively mapped directly into CameraSheetRouter
     private var isScansOpen: Binding<Bool> {
@@ -29,6 +32,10 @@ struct MainOverlayView: View {
     // MARK: - Interface Layout
     var body: some View {
         VStack {
+            // MARK: - Media Mode Scoping (Staging)
+            MediaModeToggle(activeMode: $activeMode)
+                .padding(.top, 16) // Natively clears the safe area boundaries
+            
             Spacer()
             
             // MARK: - Dynamic Intelligence

@@ -7,6 +7,7 @@ struct Preferences: View {
     @Binding var isHapticsEnabled: Bool
     @Binding var saveToCameraRoll: Bool
     @Binding var defaultGeoprivacy: String
+    @Binding var showPaywall: Bool
     
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     
@@ -14,6 +15,20 @@ struct Preferences: View {
     
     var body: some View {
         Section {
+            Button(action: {
+                showPaywall = true
+            }) {
+                HStack {
+                    Text("Manage plan")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 14, weight: .semibold))
+                }
+            }
+            .padding(.vertical, 4)
+            
             VStack(alignment: .leading, spacing: 8) {
                  Picker("Theme", selection: $themeMode) {
                 ForEach(ThemeMode.allCases) { mode in
@@ -23,7 +38,7 @@ struct Preferences: View {
             .pickerStyle(.segmented)
             .padding(.bottom, 16)
             
-                Toggle("Expedition Mode", isOn: $isExpeditionModeActive)
+                Toggle("Expedition mode", isOn: $isExpeditionModeActive)
                     .onChange(of: isExpeditionModeActive) { _, newValue in
                         // Natively intercepts the toggle layout and radically restricts hardware physical limits instantly.
                         HardwareOrchestrator.shared.isExpeditionModeActive = newValue
@@ -38,7 +53,7 @@ struct Preferences: View {
             VStack(alignment: .leading, spacing: 8) {
                 // Synthetically reverses the binding syntax cleanly mapping User-Intent ("Hints ON")
                 // directly into the backend logical equivalent (`isLiveInferencePaused == false`)
-                Toggle("Live Viewfinder Hints", isOn: Binding(
+                Toggle("Live viewfinder hints", isOn: Binding(
                     get: { !isLiveInferencePaused },
                     set: { newValue in
                         isLiveInferencePaused = !newValue
@@ -51,8 +66,8 @@ struct Preferences: View {
             }
             .padding(.vertical, 4)
             
-            Toggle("System Haptics", isOn: $isHapticsEnabled)
-            Toggle("Save to Camera Roll", isOn: $saveToCameraRoll)
+            Toggle("System haptics", isOn: $isHapticsEnabled)
+            Toggle("Save to camera roll", isOn: $saveToCameraRoll)
             
             Picker("Geoprivacy", selection: $defaultGeoprivacy) {
                 Text("Open").tag("open")

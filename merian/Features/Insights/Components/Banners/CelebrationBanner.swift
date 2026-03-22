@@ -15,7 +15,8 @@ struct CelebrationBanner: View {
                         }
                     }
                 )
-                .padding(.top, 16)
+                // 72pt guarantees clearance perfectly bypassing the physical UIKit NavigationBar and floating exactly below the Confidence Badge
+                .padding(.top, 72)
                 Spacer()
             }
             .transition(.move(edge: .top).combined(with: .opacity))

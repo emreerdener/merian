@@ -21,18 +21,15 @@ struct InsightHeader: View {
                     .italic()
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
-                    // .padding(.top, 16)
             
                 Text(commonName)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
-             }
 
-            if let species = speciesData {
-                // Description
-                if !species.insightData.description.isEmpty {
+                // Description tightly coupled with semantic taxonomy traits
+                if let species = speciesData, !species.insightData.description.isEmpty {
                     let paragraphs = species.insightData.description
                         .components(separatedBy: .newlines)
                         .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -46,11 +43,14 @@ struct InsightHeader: View {
                                 .lineSpacing(4)
                         }
                     }
+                    .padding(.top, 8) // Separates the text distinctively from the bold title
                 }
-                
-                // Species Badges
+             }
+
+            if let species = speciesData {
+                // Species Badges geometrically decoupled
                 SpeciesBadges(species: species)
-                .padding(.horizontal, 16)
+                    .padding(.horizontal, 16)
             }
         }
         .frame(maxWidth: .infinity)

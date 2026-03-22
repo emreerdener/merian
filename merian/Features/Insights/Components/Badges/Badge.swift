@@ -3,48 +3,48 @@ import SwiftUI
 // MARK: - Helper Views
 struct Badge: View {
     let text: String
-    let color: Color
-    let icon: String
+    var color: Color = .primary
+    var icon: String? = nil
     var isFilled: Bool = false
     
     private var isNeutralColor: Bool {
-        color == .white || color == .gray || color == .secondary
+        color == .white || color == .gray || color == .secondary || color == .primary
     }
     
-    private var foregroundColor: Color {
+    private var activeForegroundColor: Color {
         if isFilled { return .white } // Inverse typography
-        return isNeutralColor ? .white : color.opacity(0.95)
+        return isNeutralColor ? .primary : color.opacity(0.95)
     }
     
-    private var backgroundColor: Color {
-        if isFilled { return color.opacity(0.6) } // Synthesized Colored Liquid Glass
-        return isNeutralColor ? Color.white.opacity(0.15) : color.opacity(0.2)
-    }
-    
-    private var strokeColor: Color {
-        if isFilled { return Color.white.opacity(0.3) } // Apply a sleek white boundary so it pops!
-        return isNeutralColor ? Color.white.opacity(0.3) : color.opacity(0.3)
+    private var activeStrokeColor: Color {
+        if isFilled { return Color.white.opacity(0.3) } // Apply a sleek white boundary globally
+        return isNeutralColor ? Color.primary.opacity(0.15) : color.opacity(0.3)
     }
     
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .frame(width: 16, height: 16)
+            if let validIcon = icon {
+                Image(systemName: validIcon)
+                    .imageScale(.medium)
+            }
             Text(text)
+                .lineLimit(1) 
+                .truncationMode(.tail)
         }
-        .font(.system(.footnote))
-        .fontWeight(.bold)
-        .foregroundColor(foregroundColor)
-        .padding(.horizontal, 14)
+        .font(.system(.subheadline, weight: .bold))
+        .foregroundColor(activeForegroundColor)
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .fixedSize(horizontal: true, vertical: false) // Auto-hug layout lock
+        // Natively applies color fill or gracefully falls back to device-tinted glassmorphism
         .background(
-            isFilled ? AnyShapeStyle(color) : AnyShapeStyle(backgroundColor),
+            isFilled ? AnyShapeStyle(color) : AnyShapeStyle(.ultraThinMaterial),
             in: Capsule()
         )
-        .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule()
-                .stroke(strokeColor, lineWidth: 0.5)
+                .stroke(activeStrokeColor, lineWidth: 1)
         )
+        .transition(.opacity.combined(with: .scale(scale: 0.85)))
     }
 }

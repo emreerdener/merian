@@ -7,6 +7,8 @@ struct DangerZone: View {
     @Binding var isDeleting: Bool
     @Binding var showDeleteConfirmation: Bool
     
+    @State private var showSignOutConfirmation = false
+    
     var body: some View {
         Section {
             Button(action: {
@@ -29,10 +31,31 @@ struct DangerZone: View {
                     }
                 }
             }) {
-                Text("Clear Local Cache")
+                Text("Clear local cache")
                     .foregroundColor(.red)
             }
             
+            Button(action: {
+                showSignOutConfirmation = true
+            }) {
+                Text("Sign out")
+                    .foregroundColor(.red)
+            }
+            .confirmationDialog(
+                "Are you sure you want to sign out?",
+                isPresented: $showSignOutConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Sign out", role: .destructive) {
+                    Task {
+                        // Forces a clean physical JWT removal across the device securely
+                        // instantly rehydrating back into a zero-bound Ghost mode state.
+                        await supabase.signOut()
+                        await supabase.initializeGhostSession()
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            }
 
             Button(action: {
                 // Bubbles the destructive confirmation strictly up to `SettingsTabView` safely orchestrating changes!
@@ -43,7 +66,7 @@ struct DangerZone: View {
                         ProgressView()
                             .tint(.red)
                     } else {
-                        Text("Delete Account & Data")
+                        Text("Delete account & data")
                     }
                 }
                 .foregroundColor(.red)

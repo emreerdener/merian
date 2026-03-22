@@ -11,65 +11,8 @@ struct CollectionsView: View {
     var body: some View {
         ScrollView {
             let userCollections = collections.filter { $0.name != "Favorites" }
-            if userCollections.isEmpty {
-                EmptyStateView(
-                    iconName: "folder",
-                    title: "No collections",
-                    message: "Create your first collection to start organizing your scans."
-                )
-            } else {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
-                    ForEach(userCollections) { collection in
-                        NavigationLink {
-                            CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
-                        } label: {
-                            ZStack {
-                                if let firstScan = collection.scans?.first {
-                                    GeometryReader { geo in
-                                        ScanThumbnail(imagePath: firstScan.localImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
-                                            .frame(width: geo.size.width, height: geo.size.width)
-                                            .clipped()
-                                    }
-                                    .aspectRatio(1.0, contentMode: .fill)
-                                } else {
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .aspectRatio(1.0, contentMode: .fill)
-                                        .overlay(
-                                            Image(systemName: "photo.on.rectangle")
-                                                .font(.system(size: 24))
-                                                .foregroundColor(.secondary)
-                                        )
-                                }
-                                
-                                VStack {
-                                    Spacer()
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(collection.name)
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                            .lineLimit(1)
-                                        Text("\(collection.scans?.count ?? 0) Scans")
-                                            .font(.caption)
-                                            .foregroundColor(.white.opacity(0.8))
-                                    }
-                                    .padding(8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(.ultraThinMaterial)
-                                    .environment(\.colorScheme, .dark)
-                                }
-                            }
-                            .cornerRadius(12)
-                            .clipped()
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 16)
-            }
             
+            // MARK: - Promoted Links (Favorites & Non-biological)
             if let favorites = collections.first(where: { $0.name == "Favorites" }) {
                 NavigationLink {
                     CollectionDetailView(collection: favorites, isInsightSheetOpen: $isInsightSheetOpen)
@@ -114,7 +57,71 @@ struct CollectionsView: View {
                 .padding(.horizontal)
             }
             .buttonStyle(.plain)
-            .padding(.vertical, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+            
+            // MARK: - User Custom Collections Grid
+            if userCollections.isEmpty {
+                EmptyStateView(
+                    iconName: "folder",
+                    title: "No collections",
+                    message: "Create your first collection to start organizing your scans."
+                )
+                .padding(.top, 32)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
+                    ForEach(userCollections) { collection in
+                        NavigationLink {
+                            CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
+                        } label: {
+                            ZStack {
+                                if let firstScan = collection.scans?.first {
+                                    GeometryReader { geo in
+                                        ScanThumbnail(imagePath: firstScan.localImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
+                                            .frame(width: geo.size.width, height: geo.size.width)
+                                            .clipped()
+                                    }
+                                    .aspectRatio(1.0, contentMode: .fill)
+                                } else {
+                                    Rectangle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .aspectRatio(1.0, contentMode: .fill)
+                                        .overlay(
+                                            Image(systemName: "photo.on.rectangle")
+                                                .font(.system(size: 24))
+                                                .foregroundColor(.secondary)
+                                                // Natively shifts the icon mathematically up exactly half the height
+                                                // of the bottom text panel, centering it perfectly within the visible area.
+                                                .offset(y: -24)
+                                        )
+                                }
+                                
+                                VStack {
+                                    Spacer()
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(collection.name)
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                            .lineLimit(1)
+                                        Text("\(collection.scans?.count ?? 0) Scans")
+                                            .font(.caption)
+                                            .foregroundColor(.white.opacity(0.8))
+                                    }
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(.ultraThinMaterial)
+                                    .environment(\.colorScheme, .dark)
+                                }
+                            }
+                            .cornerRadius(12)
+                            .clipped()
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
         }
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)
