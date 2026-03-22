@@ -58,9 +58,9 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. Notably
 
 ### The JSON Response Schema (From Gemini Back to Swift)
 
-To drastically optimize API expenditures, the `identify` Deno Edge node employs a **Tiered Token Usage Strategy**:
-- **Pro Tier**: The `merianResponseSchema` structural map is explicitly passed inside the Gemini payload forcing the exact JSON schema defined below. While highly accurate, this incurs an artificial ~1,000 token system overhead strictly establishing keys.
-- **Free Tier**: The schema restriction is entirely dropped. Instead, the `systemInstruction` receives a lightweight text-prompt supplying a simple JSON example of the expected shape to massively reduce token ingestion bounds.
+To drastically optimize API expenditures, the `identify` Deno Edge node employs two fundamental strategies:
+- **Model Routing**: The system physically isolates Gemini clusters natively mapping `isProActive` subscriptions directly to `gemini-2.5-pro`, dynamically degrading base layer users optimally cleanly to `gemini-2.5-flash`. Both physical tiers unconditionally execute the strict `merianResponseSchema` bound to protect SQLite UI logic safely. 
+- **Dynamic Token Truncation (Non-biological targets)**: To inherently drop output limits securely when processing non-biological data, the Deno node actively strips objects like `taxonomy`, `insight_data`, `diagnostic_comparison`, and `ecology_type` out of the global `required: []` payload natively passing `is_biological_subject: false` instead. The iOS Swift layer gracefully receives the exact null pointer bindings seamlessly resolving down to Native Optionals natively!
 
 If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to simultaneously support both the Pro schema and Free text-prompt shapes equally without throwing `JSONDecoder()` crashing states!
 
