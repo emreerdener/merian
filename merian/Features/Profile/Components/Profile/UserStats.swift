@@ -85,13 +85,13 @@ actor ProfileDatabaseActor {
         var totalInHeatmap = 0
         var currentMonthCaptures = 0
         
-        for weekIndex in 0..<columns {
+        var currentDate = startDate
+        
+        for _ in 0..<columns {
             var days: [HeatmapDay] = []
             var monthLabel: String? = nil
             
             for dayIndex in 0..<7 {
-                guard let currentDate = calendar.date(byAdding: .day, value: (weekIndex * 7) + dayIndex, to: startDate) else { continue }
-                
                 if dayIndex == 0 {
                     let month = calendar.component(.month, from: currentDate)
                     if month != currentMonth {
@@ -112,6 +112,7 @@ actor ProfileDatabaseActor {
                 }
                 
                 days.append(HeatmapDay(count: count, date: currentDate))
+                currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
             }
             weeks.append(HeatmapWeek(days: days, monthLabel: monthLabel))
         }

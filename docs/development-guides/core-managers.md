@@ -8,6 +8,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Direct AVFoundation abstraction explicitly tied to `.builtInLiDARDepthCamera` arrays on physical devices.
 - Triggers strictly when `.handleActivePhase()` calls within `MerianApp.swift`.
 - Governs `subjectDistanceInMeters`, auto-focus thresholds, thermal bounds, and frame drops safely natively inside a `DispatchQueue(label: "camera.session")`.
+- Eradicates severe Accelerate `vImage` CPU starvation during paused contexts natively. It deploys an atomic `nonisolated(unsafe) private var activeInferencePaused` boolean structurally synced with the `@MainActor` preference boundary explicitly. This strictly forces an immediate short-circuit early return completely halting the massive hardware histogram allocation pipeline inside `captureOutput`, violently preserving extreme physical battery thermals efficiently whenever the Viewfinder AI is halted.
 
 ### `EnvironmentContextManager`
 - Explicit mapping for configuring dual properties natively inside the `EnvironmentContext` dependency graph without invoking UI rerenders:

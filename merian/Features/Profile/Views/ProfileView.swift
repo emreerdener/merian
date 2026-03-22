@@ -11,7 +11,6 @@ enum ProfileTab {
 struct ProfileView: View {
     // MARK: - Environment & State
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     
     // MARK: - View Models & Managers
     var supabase = SupabaseManager.shared
@@ -57,7 +56,6 @@ struct ProfileView: View {
                 viewModel.fetchGeoprivacy(supabase: supabase)
             }
         }
-        .preferredColorScheme(themeMode.colorScheme)
     }
     
     // MARK: - Toolbar Construction

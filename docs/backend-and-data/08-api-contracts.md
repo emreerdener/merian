@@ -111,6 +111,10 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
 
 To completely eliminate network bottleneck latency, the `/identify` Edge Function generates the `scan_id` locally using `crypto.randomUUID()` and **instantaneously returns the `data` payload natively** to the iOS application as soon as the Gemini inference completes. It permanently abstracts all relational PostgreSQL insertions, background R2 uploads, and parallel API scrapers (GBIF/Wikipedia) securely behind an asynchronous `EdgeRuntime.waitUntil` boundary preventing UI threading locks implicitly.
 
+### Gemini Parsing and Error Mitigation
+
+To prevent Deno V8 Container crashes due to Catastrophic Backtracking (ReDoS) from hallucinated markdown payloads, the endpoint parses raw Gemini output using a strictly enforced lightweight string mapping `substring(indexOf)` methodology instead of unbounded regex. If `JSON.parse` fails these physical bounds, it explicitly traps the exception natively returning an `HTTP 422 Unprocessable Entity`. Because `422` is intentionally excluded from the iOS `OfflineQueueManager`'s list of recoverable `.networkError` codes, the host client natively drops the corrupted queue dependency gracefully mapping avoiding infinitely deadlocking background requests and protecting user bandwidth limits.
+
 > **Note on Wikipedia Extraction:** Because the server asynchronously fetches Wikipedia payload metadata natively inside of PostgreSQL *after* delivering the active response down to iOS, live scans will execute instantaneously but omit Wikipedia references structurally. The iOS client intentionally triggers a secondary `fetch` to `en.wikipedia.org/api/rest_v1/page/summary/` synchronously with the rendering timeline to backfill the `InsightSheetView` UI organically via `@Published` property wrapper mutations without compromising initial AI performance.
 
 ```json

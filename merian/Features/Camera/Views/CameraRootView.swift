@@ -13,8 +13,6 @@ struct CameraRootView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     
-    // MARK: - App Storage
-    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     
     // MARK: - View Model & State
     @State private var viewModel = CameraViewModel()
@@ -129,7 +127,6 @@ struct CameraRootView: View {
         ) {
             viewModel.executeCapture()
         }
-        .preferredColorScheme(themeMode.colorScheme)
     }
 }
 

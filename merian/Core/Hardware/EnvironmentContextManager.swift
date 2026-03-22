@@ -211,17 +211,11 @@ struct EnvironmentContext {
             
             // Anti-Deadlock timeout: Force-resume after 2.0s if hardware fails to lock satellites
             if self.timeoutTask == nil {
-                self.timeoutTask = Task { @MainActor in
+                self.timeoutTask = Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
                     
-                    guard !Task.isCancelled else { return }
-                    
-                    let pending = self.activeContinuations
-                    self.activeContinuations.removeAll()
-                    for active in pending {
-                        active.resume(returning: self.cachedLocation)
-                    }
-                    self.timeoutTask = nil
+                    guard !Task.isCancelled, let self = self else { return }
+                    _ = self.resolvePendingContinuations(with: self.cachedLocation)
                 }
             }
         }
@@ -229,41 +223,40 @@ struct EnvironmentContext {
     
     // MARK: - CLLocationManagerDelegate
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
             self.checkAuthorization()
         }
     }
     
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        Task { @MainActor in
-            self.timeoutTask?.cancel()
-            self.timeoutTask = nil
-            
-            let pending = self.activeContinuations
-            self.activeContinuations.removeAll()
-            
-            for continuation in pending {
-                continuation.resume(returning: location)
-            }
-            
-            if pending.isEmpty {
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            if self.resolvePendingContinuations(with: location) {
                  self.cachedLocation = location
             }
         }
     }
     
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor in
-            self.timeoutTask?.cancel()
-            self.timeoutTask = nil
-            
-            let pending = self.activeContinuations
-            self.activeContinuations.removeAll()
-            
-            for continuation in pending {
-                continuation.resume(returning: nil)
-            }
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            _ = self.resolvePendingContinuations(with: nil)
         }
+    }
+    
+    private func resolvePendingContinuations(with location: CLLocation?) -> Bool {
+        self.timeoutTask?.cancel()
+        self.timeoutTask = nil
+        
+        let pending = self.activeContinuations
+        self.activeContinuations.removeAll()
+        
+        for continuation in pending {
+            continuation.resume(returning: location)
+        }
+        
+        return pending.isEmpty
     }
 }

@@ -84,7 +84,12 @@ import Observation
     }
     
     // MARK: - Hardware Write Orchestration
-    private func executePhotoLibraryWrite(imageData: Data, location: CLLocation?, accessLevel: PHAccessLevel) async -> Bool {
+    private enum ResourcePayload {
+        case data(Data)
+        case url(URL)
+    }
+
+    private func executePhotoLibraryWrite(payload: ResourcePayload, location: CLLocation?, accessLevel: PHAccessLevel) async -> Bool {
         let currentStatus = PHPhotoLibrary.authorizationStatus(for: accessLevel)
         let status: PHAuthorizationStatus
         
@@ -103,7 +108,12 @@ import Observation
             try await PHPhotoLibrary.shared().performChanges {
                 let request = PHAssetCreationRequest.forAsset()
                 // Directly pass the raw physics buffers seamlessly natively maintaining EXIF data dynamically.
-                request.addResource(with: .photo, data: imageData, options: nil)
+                switch payload {
+                case .data(let data):
+                    request.addResource(with: .photo, data: data, options: nil)
+                case .url(let url):
+                    request.addResource(with: .photo, fileURL: url, options: nil)
+                }
                 
                 if let validLocation = location {
                     request.location = validLocation
@@ -120,38 +130,17 @@ import Observation
         let shouldSave = UserDefaults.standard.object(forKey: "saveToCameraRoll") as? Bool ?? true
         guard shouldSave else { return }
         
-        let success = await executePhotoLibraryWrite(imageData: imageData, location: location, accessLevel: .readWrite)
+        let success = await executePhotoLibraryWrite(payload: .data(imageData), location: location, accessLevel: .readWrite)
         if success {
             print("📸 Captured image efficiently pushed down into native Camera Roll.")
         }
     }
     
     func saveImageManual(imageData: Data) async -> Bool {
-        return await executePhotoLibraryWrite(imageData: imageData, location: nil, accessLevel: .addOnly)
+        return await executePhotoLibraryWrite(payload: .data(imageData), location: nil, accessLevel: .addOnly)
     }
     
     func saveImageManual(fileURL: URL) async -> Bool {
-        let currentStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
-        let status: PHAuthorizationStatus
-        if currentStatus == .notDetermined {
-            status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-        } else {
-            status = currentStatus
-        }
-        guard status == .authorized || status == .limited else {
-            print("⚠️ Insufficient permissions to securely persist array into Camera Roll.")
-            return false
-        }
-        do {
-            try await PHPhotoLibrary.shared().performChanges {
-                let request = PHAssetCreationRequest.forAsset()
-                // Directly pass the raw physics buffers seamlessly natively maintaining EXIF data dynamically.
-                request.addResource(with: .photo, fileURL: fileURL, options: nil)
-            }
-            return true
-        } catch {
-            print("⚠️ Failed to natively save image to photo library bounds: \(error)")
-            return false
-        }
+        return await executePhotoLibraryWrite(payload: .url(fileURL), location: nil, accessLevel: .addOnly)
     }
 }

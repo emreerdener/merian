@@ -268,13 +268,21 @@ serve((req: Request) =>
     }
 
     // Strip markdown formatting if Gemini hallucinates markdown blocks or conversational text
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const startIndex = responseText.indexOf('{');
+    const endIndex = responseText.lastIndexOf('}');
+    
+    if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
         console.error("Failed to extract JSON structure from Gemini response:", responseText);
         return jsonResponse({ error: "Gemini Hallucination: Missing JSON payload" }, 422);
     }
-    const cleanJsonString = jsonMatch[0];
-    const parsedData = JSON.parse(cleanJsonString);
+    const cleanJsonString = responseText.substring(startIndex, endIndex + 1);
+    let parsedData;
+    try {
+        parsedData = JSON.parse(cleanJsonString);
+    } catch (parseError) {
+        console.error("Failed to parse extracted JSON structure:", parseError);
+        return jsonResponse({ error: "Gemini Hallucination: Malformed JSON payload" }, 422);
+    }
 
     const userId = user!.id;
     if (!userId) {

@@ -36,7 +36,13 @@ import Accelerate
     var isFlashEnabled = false
     
     // MARK: - CoreML Inferences & Trackers
-    var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: "isLiveInferencePaused") as? Bool ?? UIDevice.current.isModernIPhone
+    @ObservationIgnored nonisolated(unsafe) private var activeInferencePaused: Bool = false
+    
+    var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: "isLiveInferencePaused") as? Bool ?? UIDevice.current.isModernIPhone {
+        didSet {
+            activeInferencePaused = isLiveInferencePaused
+        }
+    }
     
     // VUI Throttle parameters
     private var cachedInferencePreferenceTracker: Bool?
@@ -48,6 +54,7 @@ import Accelerate
     // MARK: - Hardware Initialization
     private override init() {
         super.init()
+        self.activeInferencePaused = self.isLiveInferencePaused
         
         trackFPS()
             
@@ -390,6 +397,8 @@ import Accelerate
     
     // MARK: - Video Frame Processing Delegate
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        if activeInferencePaused { return }
+        
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
         // Optimize: Throttle natively on the background queue BEFORE jumping to the Main Thread
