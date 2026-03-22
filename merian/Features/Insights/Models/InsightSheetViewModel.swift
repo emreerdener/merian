@@ -1,16 +1,63 @@
 import SwiftUI
 import SwiftData
+import SafariServices
 
-// MARK: - Action Handlers
-extension InsightSheetView {
+/// Defines the unified local state graph and primary business logic orchestrating the `InsightSheetView` presentation and data actions.
+@MainActor
+@Observable
+final class InsightSheetViewModel {
+    
+    // MARK: - Interface State
+    var showCelebration = false
+    var showBottomBarTools = false
+    var isCommonNameScrolledPast = false
+    
+    // MARK: - Alert & Modal Flags
+    var isFlagIssuePresented = false
+    var showDeleteConfirmation = false
+    var showSaveSuccessAlert = false
+    var showNewCollectionAlert = false
+    var toastMessage: String? = nil
+    var newCollectionName = ""
+    
+    // MARK: - Navigation State
+    var isSafariPresented = false
+    var selectedWikiURL: URL? = nil
+    
+    // MARK: - Hardware Tasks
+    var isSavingPhotos = false
+    
+    // MARK: - SwiftData Status
+    var activeLocalRecord: LocalScanRecord? = nil
+    
+    // MARK: - Layout Computations
+    
+    /// Evaluates dynamic coordinate thresholds actively against negative scroll intersections, routing structural top-bar offsets.
+    func evaluateScrollOffset(minY: CGFloat) {
+        guard minY != .infinity else { return }
+        let threshold = -(UIScreen.main.bounds.width + 80)
+        let isPast = minY < threshold
+        
+        if isCommonNameScrolledPast != isPast {
+            DispatchQueue.main.async {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    self.isCommonNameScrolledPast = isPast
+                }
+            }
+        }
+    }
+    
     // MARK: - Lifecycle Handlers
     
-    /// Triggers accessibility readout and initiates the New Discovery celebration UI if valid
-    func evaluateVoiceOverAndCelebration() {
+    func evaluateVoiceOverAndCelebration(inferenceEngine: InferenceEngine) {
+        let isPoisonous = inferenceEngine.speciesData?.insightData.isPoisonous ?? false
+        let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
+        
         if UIAccessibility.isVoiceOverRunning {
             let announcement = isPoisonous ? "\(commonName). Warning: This subject is poisonous." : commonName
             UIAccessibility.post(notification: .announcement, argument: announcement)
         }
+        
         if let data = inferenceEngine.speciesData, data.isNewDiscovery {
             let lowerName = data.commonName.lowercased()
             if data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object" {
@@ -18,8 +65,8 @@ extension InsightSheetView {
             }
         }
     }
-    /// Evaluates the end of an AI processing tick and drops standard haptic feedback if the scan isn't a "New Discovery" celebration instance
-    func evaluateProcessingCompletion(isStillProcessing: Bool) {
+    
+    func evaluateProcessingCompletion(isStillProcessing: Bool, inferenceEngine: InferenceEngine) {
         if !isStillProcessing {
             if let data = inferenceEngine.speciesData {
                 let lowerName = data.commonName.lowercased()
@@ -32,27 +79,9 @@ extension InsightSheetView {
         }
     }
     
-    // MARK: - Layout Computations
-    
-    /// Evaluates dynamic coordinate thresholds actively against negative scroll intersections, routing structural top-bar offsets.
-    func evaluateScrollOffset(minY: CGFloat) {
-        guard minY != .infinity else { return }
-        
-        let threshold = -(UIScreen.main.bounds.width + 80)
-        let isPast = minY < threshold
-        
-        if isCommonNameScrolledPast != isPast {
-            DispatchQueue.main.async {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    self.isCommonNameScrolledPast = isPast
-                }
-            }
-        }
-    }
     // MARK: - Media & Share Exports
     
-    /// Pulls raw image data from memory, sandbox, and remote references, compiling them asynchronously to the user's iOS Photo Library
-    func saveUserPhotos() {
+    func saveUserPhotos(inferenceEngine: InferenceEngine) {
         guard !isSavingPhotos else { return }
         isSavingPhotos = true
         
@@ -73,8 +102,9 @@ extension InsightSheetView {
         }
     }
     
-    /// Compiles all scan attributes and calls the system `UIActivityViewController` pipeline
-    func shareDiscovery() {
+    func shareDiscovery(inferenceEngine: InferenceEngine) {
+        let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
+        let scientificName = inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy"
         let liveData = inferenceEngine.activeImageData
         let historicPath = inferenceEngine.validHistoricImagePaths.first
         let refUrls = inferenceEngine.speciesData?.referenceImageUrl
@@ -91,21 +121,17 @@ extension InsightSheetView {
         )
     }
     
-    /// Recursively isolates the active `UIWindow` controller hierarchy to mount UIKit sheets safely above SwiftUI environments
     func presentShareSheet(items: [Any]) {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first,
               let rootVC = window.rootViewController else { return }
         
         let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        
-        // Traverse safely up the stack to avoid overlapping presentation bounds
         var topController = rootVC
         while let presented = topController.presentedViewController {
             topController = presented
         }
         
-        // Gracefully support iPad rendering anchors cleanly
         if let popover = activityVC.popoverPresentationController {
             popover.sourceView = topController.view
             popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)
@@ -117,8 +143,7 @@ extension InsightSheetView {
     
     // MARK: - SwiftData Operations
     
-    /// Fully eradicates the local scan instance from SwiftData, executing teardown of visual sandbox references natively
-    func eradicateCurrentScan() {
+    func eradicateCurrentScan(modelContext: ModelContext, inferenceEngine: InferenceEngine, dismiss: DismissAction) {
         guard let targetId = inferenceEngine.speciesData?.scanId else { return }
         
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == targetId })
@@ -131,8 +156,7 @@ extension InsightSheetView {
         }
     }
     
-    /// Reversibly mounts or drops a relational binding between the current `LocalScanRecord` and a targeted `ScanCollection`
-    func toggleScanInCollection(_ collection: ScanCollection) {
+    func toggleScanInCollection(_ collection: ScanCollection, modelContext: ModelContext) {
         guard let record = activeLocalRecord else { return }
         
         if record.collections == nil {
@@ -155,8 +179,7 @@ extension InsightSheetView {
         HapticManager.shared.triggerSelectionPulse()
     }
     
-    /// Instantiates a completely new `ScanCollection` container natively in SwiftData and inherently maps the active scan to it immediately
-    func createNewCollection() {
+    func createNewCollection(modelContext: ModelContext) {
         let collectionName = newCollectionName.isEmpty ? "Untitled" : newCollectionName
         let collection = ScanCollection(name: collectionName)
         
@@ -176,8 +199,7 @@ extension InsightSheetView {
         HapticManager.shared.triggerSuccessPulse()
     }
     
-    /// Isolates SwiftData query executions to actively hydrate relational attributes like custom user Folders/Collections dynamically.
-    func fetchLocalRecord(for scanId: String) {
+    func fetchLocalRecord(for scanId: String, modelContext: ModelContext) {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         activeLocalRecord = (try? modelContext.fetch(descriptor))?.first
     }

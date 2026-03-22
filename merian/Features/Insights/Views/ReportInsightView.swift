@@ -1,77 +1,48 @@
 import SwiftUI
 
 struct ReportInsightView: View {
+    // MARK: - Dependencies
     @Environment(\.dismiss) var dismiss
     
+    // MARK: - State
     let scanId: String
-    
-    @State private var flagReason: String = "Incorrect Species"
-    @State private var userSuggestion: String = ""
-    @State private var isSubmitting: Bool = false
-    @State private var showAlert: Bool = false
-    @State private var alertMessage: String = ""
+    @State private var viewModel = ReportInsightViewModel()
 
-    let reasons = ["Incorrect Species", "Inappropriate Content", "Bad Image Quality", "Other"]
-
+    // MARK: - View
     var body: some View {
         NavigationStack {
             Form {
                 Section(header: Text("What went wrong?")) {
-                    Picker("Reason", selection: $flagReason) {
-                        ForEach(reasons, id: \.self) { reason in
+                    Picker("Reason", selection: $viewModel.flagReason) {
+                        ForEach(viewModel.reasons, id: \.self) { reason in
                             Text(reason).tag(reason)
                         }
                     }
                 }
                 
                 Section(header: Text("Your Suggestion (Optional)"), footer: Text("Help us improve Merian by suggesting what you think it actually is.")) {
-                    TextField("E.g. Monarch Butterfly", text: $userSuggestion)
+                    TextField("E.g. Monarch Butterfly", text: $viewModel.userSuggestion)
                 }
             }
             .navigationTitle("Report Incorrect ID")
             .navigationBarTitleDisplayMode(.inline)
+            
+            // MARK: Actions
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Submit") { submitFlag() }
-                        .disabled(isSubmitting)
+                    Button("Submit") { 
+                        Task { await viewModel.submitFlag(scanId: scanId) }
+                    }
+                    .disabled(viewModel.isSubmitting)
                 }
             }
-            .alert("Report Status", isPresented: $showAlert) {
+            .alert("Report Status", isPresented: $viewModel.showAlert) {
                 Button("OK") { dismiss() }
             } message: {
-                Text(alertMessage)
-            }
-        }
-    }
-    
-    private func submitFlag() {
-        isSubmitting = true
-        
-        Task {
-            let userId = DeviceIdentityManager.shared.deviceId
-            do {
-                try await MerianNetworkClient.shared.submitFlagIssue(
-                    scanId: scanId,
-                    flagReason: flagReason,
-                    userSuggestion: userSuggestion,
-                    userId: userId
-                )
-                
-                await MainActor.run {
-                    alertMessage = "Thank you! Your feedback helps us improve Merian's AI."
-                    showAlert = true
-                    isSubmitting = false
-                }
-                
-            } catch {
-                await MainActor.run {
-                    alertMessage = "Failed to submit report. Please try again later."
-                    showAlert = true
-                    isSubmitting = false
-                }
+                Text(viewModel.alertMessage)
             }
         }
     }

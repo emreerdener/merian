@@ -42,6 +42,7 @@ struct ImagesCarousel: View {
                             .allowsHitTesting(false)
                     }
             }
+            .ignoresSafeArea(.all, edges: .top) // CRUESCIAL: Enables the VStack to puncture the sheet padding exactly where the parent geometry reader calls it!
         }
     }
     

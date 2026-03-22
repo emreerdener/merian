@@ -1,12 +1,10 @@
 import SwiftUI
 import SwiftData
-import SafariServices
 
-// MARK: - Insight Sheet View
-
-/// The master state orchestrator routing biological inference metadata, navigation bounds, and hardware logic cleanly down into the decoupled `InsightLayout` tree.
+/// The master state orchestrator routing biological inference metadata and hardware logic 
+/// safely down into the decoupled visual tree via the `InsightSheetViewModel`.
 struct InsightSheetView: View {
-    // MARK: - Environment & Dependencies
+    // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
     @Environment(\.modelContext) var modelContext
@@ -14,65 +12,119 @@ struct InsightSheetView: View {
 
     @Binding var isPresented: Bool
     
-    // MARK: - Interface State
-    @State var showCelebration = false
-    @State var showBottomBarTools = false
-    @State var isCommonNameScrolledPast = false
+    // MARK: - State
+    @State private var viewModel = InsightSheetViewModel()
     
-    // MARK: - Alert & Modal Flags
-    @State var isFlagIssuePresented = false
-    @State var showDeleteConfirmation = false
-    @State var showSaveSuccessAlert = false
-    @State var showNewCollectionAlert = false
-    @State var toastMessage: String? = nil
-    @State var newCollectionName = ""
-    
-    // MARK: - Navigation State
-    @State var isSafariPresented = false
-    @State var selectedWikiURL: URL?
-    
-    // MARK: - Hardware Tasks
-    @State var isSavingPhotos = false
-    
-    // MARK: - SwiftData Layer
+    // MARK: - Data Layer
     @Query(sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
-    @State var activeLocalRecord: LocalScanRecord? = nil
     
-    // MARK: - Diagnostic Bounds
-    var isPoisonous: Bool { inferenceEngine.speciesData?.insightData.isPoisonous ?? false }
-    var commonName: String { inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..." }
-    var scientificName: String { inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy" }
-    // MARK: - Root Presentation Logic
-    
-    /// Establishes the `NavigationStack` environment and binds native iOS dialogue popups globally. Modifiers sit strictly at this node to avoid messy `@Binding` drilling.
+    // MARK: - View
     var body: some View {
         NavigationStack {
-            mainContent
+            mainContentStack
                 .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbar { sheetToolbarContent }
+                .toolbar { sheetToolbar }
                 .toolbarBackground(.visible, for: .bottomBar)
                 .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
+                
+                // MARK: Lifecycle Bindings
+                .onAppear { 
+                    viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        withAnimation(.easeIn(duration: 0.2)) {
+                            viewModel.showBottomBarTools = true
+                        }
+                    }
+                }
+                .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
+                    viewModel.evaluateProcessingCompletion(isStillProcessing: isStillProcessing, inferenceEngine: inferenceEngine)
+                }
+                .onPreferenceChange(CommonNameScrollOffsetKey.self) { minY in
+                    viewModel.evaluateScrollOffset(minY: minY)
+                }
+                .task(id: inferenceEngine.speciesData?.scanId) {
+                    if let scanId = inferenceEngine.speciesData?.scanId {
+                        viewModel.fetchLocalRecord(for: scanId, modelContext: modelContext)
+                    }
+                }
+                .task(id: viewModel.toastMessage) {
+                    if viewModel.toastMessage != nil {
+                        do {
+                            try await Task.sleep(nanoseconds: 2_500_000_000)
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                viewModel.toastMessage = nil
+                            }
+                        } catch { } // absorb CancellationError elegantly
+                    }
+                }
         }
         // Presentation Logic Hook
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
+        
         // Dialogs
-        .alert("Delete scan?", isPresented: $showDeleteConfirmation) {
-            Button("Delete scan permanently", role: .destructive) { eradicateCurrentScan() }
+        .alert("Delete scan?", isPresented: $viewModel.showDeleteConfirmation) {
+            Button("Delete scan permanently", role: .destructive) { 
+                viewModel.eradicateCurrentScan(modelContext: modelContext, inferenceEngine: inferenceEngine, dismiss: dismiss) 
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
-        .alert("Photos Saved", isPresented: $showSaveSuccessAlert) {
+        .alert("Photos Saved", isPresented: $viewModel.showSaveSuccessAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Your photos have been securely saved to your Camera Roll.")
         }
-        .alert("New Collection", isPresented: $showNewCollectionAlert) {
-            TextField("Collection Name", text: $newCollectionName)
+        .alert("New Collection", isPresented: $viewModel.showNewCollectionAlert) {
+            TextField("Collection Name", text: $viewModel.newCollectionName)
             Button("Cancel", role: .cancel) { }
-            Button("Create", action: createNewCollection)
+            Button("Create", action: { viewModel.createNewCollection(modelContext: modelContext) })
         }
     }
+}
+
+// MARK: - Layout Extensions
+private extension InsightSheetView {
     
+    @ViewBuilder
+    var mainContentStack: some View {
+        ZStack(alignment: .top) {
+            InsightContentView(viewModel: viewModel)
+            
+            if let message = viewModel.toastMessage {
+                Toast(message: message)
+            }
+            
+            CelebrationBanner(
+                commonName: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject...",
+                showCelebration: $viewModel.showCelebration
+            )
+        }
+        .ignoresSafeArea(edges: .top)
+    }
+    
+    @ToolbarContentBuilder
+    var sheetToolbar: some ToolbarContent {
+        TopToolbar(
+            commonName: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject...",
+            confidenceScore: inferenceEngine.speciesData?.confidenceScore,
+            isCommonNameScrolledPast: viewModel.isCommonNameScrolledPast,
+            isFlagIssuePresented: $viewModel.isFlagIssuePresented,
+            isSavingPhotos: $viewModel.isSavingPhotos,
+            showDeleteConfirmation: $viewModel.showDeleteConfirmation,
+            onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) }
+        )
+        
+        InsightBottomToolbar(
+            showBottomBarTools: viewModel.showBottomBarTools,
+            collections: collections,
+            activeLocalRecord: viewModel.activeLocalRecord,
+            toggleScanInCollection: { collection in 
+                viewModel.toggleScanInCollection(collection, modelContext: modelContext) 
+            },
+            showNewCollectionAlert: $viewModel.showNewCollectionAlert,
+            shareDiscovery: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) }
+        )
+    }
 }

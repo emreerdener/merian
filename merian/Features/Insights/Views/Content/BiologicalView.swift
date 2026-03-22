@@ -46,5 +46,3 @@ struct BiologicalView: View {
         .padding(.horizontal)
     }
 }
-
-
