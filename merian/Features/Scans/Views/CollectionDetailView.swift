@@ -80,29 +80,18 @@ struct CollectionDetailView: View {
         ) {
             scanToDelete = nil
         }
-        .alert("Rename collection", isPresented: $showRenameAlert) {
-            TextField("Collection name", text: $newCollectionName)
-            Button("Cancel", role: .cancel) { }
-            Button("Save") {
-                let trimmed = newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    collection.name = trimmed
-                    try? modelContext.save()
-                    HapticManager.shared.triggerSuccessPulse()
-                }
-            }
-        }
-        .alert("Delete collection?", isPresented: $showCollectionDeleteConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                dismiss()
-                HapticManager.shared.triggerErrorThump()
-                modelContext.delete(collection)
-                try? modelContext.save()
-            }
-        } message: {
-            Text("This will delete the collection folder. The scans inside will not be deleted and will remain safely in your library.")
-        }
+        .collectionRenameAlert(
+            isPresented: $showRenameAlert,
+            newCollectionName: $newCollectionName,
+            collection: collection,
+            modelContext: modelContext
+        )
+        .collectionDeleteAlert(
+            isPresented: $showCollectionDeleteConfirmation,
+            collection: collection,
+            modelContext: modelContext,
+            onDeleted: { dismiss() }
+        )
     }
     
     // MARK: - Layout Subcomponents

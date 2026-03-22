@@ -25,3 +25,7 @@ export function getR2Config(): R2Config {
     endpoint
   };
 }
+
+export function getInternalS3Url(publicUrl: string, config: R2Config): string {
+  return publicUrl.replace("https://media.merian.app/", `${config.endpoint}/${config.bucketName}/`);
+}

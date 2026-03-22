@@ -118,7 +118,7 @@ struct ScansSheetView: View {
                 onShare: {
                     let selectedItems = searchManager.getSelectedLocalRecords()
                     InsightMediaExportManager.shared.batchShareDiscovery(records: selectedItems) { items in
-                        presentShareSheet(items: items)
+                        ShareSheetUtility.present(items: items)
                     }
                 },
                 onDownload: {
@@ -136,18 +136,11 @@ struct ScansSheetView: View {
                     showBatchDeleteConfirmation = true
                 }
             )
-            .alert("New collection", isPresented: $showNewCollectionAlert) {
-                TextField("Collection name", text: $newCollectionName)
-                Button("Cancel", role: .cancel) { newCollectionName = "" }
-                Button("Create") {
-                    let collection = ScanCollection(name: newCollectionName.isEmpty ? "Untitled" : newCollectionName)
-                    modelContext.insert(collection)
-                    try? modelContext.save()
-                    newCollectionName = ""
-                }
-            } message: {
-                Text("Enter a name for this new collection.")
-            }
+            .newCollectionAlert(
+                isPresented: $showNewCollectionAlert,
+                newCollectionName: $newCollectionName,
+                modelContext: modelContext
+            )
         }
         .onAppear {
             searchManager.allScans = allRecords
@@ -201,28 +194,7 @@ struct ScansSheetView: View {
     
     // MARK: - Action Handlers & Logic Blocks
     
-    private func presentShareSheet(items: [Any]) {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first,
-              let rootVC = window.rootViewController else { return }
-        
-        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        
-        // Traverse safely up the stack to avoid overlapping presentation bounds
-        var topController = rootVC
-        while let presented = topController.presentedViewController {
-            topController = presented
-        }
-        
-        // Gracefully support iPad rendering anchors cleanly
-        if let popover = activityVC.popoverPresentationController {
-            popover.sourceView = topController.view
-            popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)
-            popover.permittedArrowDirections = []
-        }
-        
-        topController.present(activityVC, animated: true)
-    }
+// Removed presentShareSheet as this logic was extracted into ShareSheetUtility
     
     private func showToast(message: String) {
         withAnimation(.spring()) { toastMessage = message }

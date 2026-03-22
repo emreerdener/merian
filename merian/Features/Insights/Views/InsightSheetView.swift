@@ -76,11 +76,17 @@ struct InsightSheetView: View {
         } message: {
             Text("Your photos have been securely saved to your Camera Roll.")
         }
-        .alert("New Collection", isPresented: $viewModel.showNewCollectionAlert) {
-            TextField("Collection Name", text: $viewModel.newCollectionName)
-            Button("Cancel", role: .cancel) { }
-            Button("Create", action: { viewModel.createNewCollection(modelContext: modelContext) })
-        }
+        .newCollectionAlert(
+            isPresented: $viewModel.showNewCollectionAlert,
+            newCollectionName: $viewModel.newCollectionName,
+            modelContext: modelContext,
+            relatedRecord: viewModel.activeLocalRecord,
+            onCreated: { collection in
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    viewModel.toastMessage = "Created \(collection.name) and added scan"
+                }
+            }
+        )
     }
 }
 

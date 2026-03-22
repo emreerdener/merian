@@ -79,30 +79,17 @@ struct CollectionsView: View {
             }
             .padding(.bottom, 16) // Added a global bottom pad for scroll bounding.
         }
-        .alert("Rename collection", isPresented: $showRenameAlert) {
-            TextField("Collection name", text: $newCollectionName)
-            Button("Cancel", role: .cancel) { }
-            Button("Save") {
-                let trimmed = newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty, let collection = collectionToEdit {
-                    collection.name = trimmed
-                    try? modelContext.save()
-                    HapticManager.shared.triggerSuccessPulse()
-                }
-            }
-        }
-        .alert("Delete collection?", isPresented: $showDeleteConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                if let collection = collectionToEdit {
-                    HapticManager.shared.triggerErrorThump()
-                    modelContext.delete(collection)
-                    try? modelContext.save()
-                }
-            }
-        } message: {
-            Text("This will delete the collection folder. The scans inside will not be deleted and will remain safely in your library.")
-        }
+        .collectionRenameAlert(
+            isPresented: $showRenameAlert,
+            newCollectionName: $newCollectionName,
+            collection: collectionToEdit,
+            modelContext: modelContext
+        )
+        .collectionDeleteAlert(
+            isPresented: $showDeleteConfirmation,
+            collection: collectionToEdit,
+            modelContext: modelContext
+        )
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)
         .task {

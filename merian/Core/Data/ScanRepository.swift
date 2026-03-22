@@ -89,6 +89,13 @@ final class ScanRepository {
                 print("🔄 Merian Sync: Restoring \(missingScans.count) historical scan payloads natively...")
             }
             
+            let collectionsResponse: [CloudCollectionResponse] = try await SupabaseManager.shared.client
+                .from("collections")
+                .select("id, name, created_at, collection_scans(scan_id)")
+                .eq("user_id", value: userId)
+                .execute()
+                .value
+
             let container = modelContext.container
             await Task.detached(priority: .userInitiated) {
                 let dbActor = HistoricalDatabaseActor(modelContainer: container)
@@ -97,6 +104,8 @@ final class ScanRepository {
                 if !missingScans.isEmpty {
                     await dbActor.ingestHistoricalScans(missingScans: missingScans)
                 }
+                
+                await dbActor.syncCollectionsDown(remoteCollections: collectionsResponse)
             }.value
             
             if !missingScans.isEmpty {
@@ -198,18 +207,25 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let species_dictionary: CloudSpeciesDictionary?
 }
 
+struct CloudCollectionResponse: Decodable, Sendable {
+    let id: String
+    let name: String
+    let created_at: String
+    let collection_scans: [CloudCollectionScan]?
+}
+
+struct CloudCollectionScan: Decodable, Sendable {
+    let scan_id: String
+}
+
 // MARK: - SwiftData Asynchronous Actors
 /// Executes massive background SwiftData sync boundaries entirely detached from the Main UI Thread 
 @ModelActor
 actor HistoricalDatabaseActor {
     func ingestHistoricalScans(missingScans: [HistoricalScanResponse]) {
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallbackFormatter = ISO8601DateFormatter()
-        
         for scan in missingScans {
             if Task.isCancelled { break }
-            let parsedDate = scan.timestamp.flatMap { isoFormatter.date(from: $0) ?? fallbackFormatter.date(from: $0) } ?? Date()
+            let parsedDate = scan.timestamp.flatMap { DateUtilities.iso8601FractionalFormatter.date(from: $0) ?? DateUtilities.iso8601Formatter.date(from: $0) } ?? Date()
             
             let dict = scan.species_dictionary
             let sciName = dict?.scientific_name ?? "Unknown Subject"
@@ -300,5 +316,51 @@ actor HistoricalDatabaseActor {
         if didUpdate {
             try? modelContext.save()
         }
+    }
+    
+    func syncCollectionsDown(remoteCollections: [CloudCollectionResponse]) {
+        let descriptor = FetchDescriptor<ScanCollection>()
+        let existingCollections = (try? modelContext.fetch(descriptor)) ?? []
+        var existingLookup = Dictionary(uniqueKeysWithValues: existingCollections.map { ($0.id, $0) })
+        
+        let allScansDescriptor = FetchDescriptor<LocalScanRecord>()
+        let localScans = (try? modelContext.fetch(allScansDescriptor)) ?? []
+        let localScansLookup = Dictionary(uniqueKeysWithValues: localScans.map { ($0.id, $0) })
+        
+        for remote in remoteCollections {
+            if Task.isCancelled { break }
+            let col: ScanCollection
+            if let existing = existingLookup[remote.id] {
+                col = existing
+                existingLookup.removeValue(forKey: remote.id)
+            } else {
+                col = ScanCollection(name: remote.name)
+                col.id = remote.id
+                if let parsedDate = DateUtilities.iso8601FractionalFormatter.date(from: remote.created_at) ?? DateUtilities.iso8601Formatter.date(from: remote.created_at) {
+                    col.createdAt = parsedDate
+                }
+                modelContext.insert(col)
+            }
+            
+            col.name = remote.name
+            
+            col.scans?.removeAll()
+            if let scans = remote.collection_scans {
+                for scanMapping in scans {
+                    if let localScan = localScansLookup[scanMapping.scan_id] {
+                        if col.scans == nil { col.scans = [] }
+                        col.scans?.append(localScan)
+                    }
+                }
+            }
+        }
+        
+        for remainingId in existingLookup.keys {
+            if let obsoleteCollection = existingLookup[remainingId], obsoleteCollection.name != "Favorites" {
+                modelContext.delete(obsoleteCollection)
+            }
+        }
+        
+        try? modelContext.save()
     }
 }

@@ -16,35 +16,18 @@ struct TaxonomyCard: View {
                 }
                 
                 VStack(spacing: 12) {
-                    if let kingdom = taxonomy.kingdom { taxonomyRow(rank: "KINGDOM", value: kingdom) }
-                    if let phylum = taxonomy.phylum { taxonomyRow(rank: "PHYLUM", value: phylum) }
-                    if let cls = taxonomy.className { taxonomyRow(rank: "CLASS", value: cls) }
-                    if let order = taxonomy.order { taxonomyRow(rank: "ORDER", value: order) }
-                    if let family = taxonomy.family { taxonomyRow(rank: "FAMILY", value: family) }
-                    if let genus = taxonomy.genus { taxonomyRow(rank: "GENUS", value: genus) }
-                    if let species = scientificName { taxonomyRow(rank: "SPECIES", value: species, isSpecies: true) }
+                    if let kingdom = taxonomy.kingdom { KeyValueRow(title: "KINGDOM", value: kingdom, isValueItalic: true) }
+                    if let phylum = taxonomy.phylum { KeyValueRow(title: "PHYLUM", value: phylum, isValueItalic: true) }
+                    if let cls = taxonomy.className { KeyValueRow(title: "CLASS", value: cls, isValueItalic: true) }
+                    if let order = taxonomy.order { KeyValueRow(title: "ORDER", value: order, isValueItalic: true) }
+                    if let family = taxonomy.family { KeyValueRow(title: "FAMILY", value: family, isValueItalic: true) }
+                    if let genus = taxonomy.genus { KeyValueRow(title: "GENUS", value: genus, isValueItalic: true) }
+                    if let species = scientificName { KeyValueRow(title: "SPECIES", value: species, valueFontWeight: .semibold, isValueItalic: false) }
                 }
             }
             .card()
         }
     }
     
-    @ViewBuilder
-    private func taxonomyRow(rank: String, value: String, isSpecies: Bool = false) -> some View {
-        HStack {
-            Text(rank)
-                .font(.system(.caption, design: .monospaced))
-                .fontWeight(.bold)
-                .tracking(1)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            Text(value)
-                .font(.system(.subheadline))
-                .italic(!isSpecies)
-                .fontWeight(isSpecies ? .semibold : .regular)
-                .foregroundColor(.primary)
-        }
-    }
+// Removed taxonomyRow since KeyValueRow was extracted
 }

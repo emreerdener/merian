@@ -30,7 +30,6 @@ struct ToxicityBanner: View {
             )
             // Accessibility: Explicitly anchor screen readers to the threat first
             .accessibilityAddTraits(.isHeader)
-            .shadow(color: .yellow.opacity(0.5), radius: 10, y: 5)
         }
     }
 }

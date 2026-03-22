@@ -32,15 +32,15 @@ struct ScanInformationCard: View {
                 
                 VStack(spacing: 12) {
                     if let validName = name, !validName.trimmingCharacters(in: .whitespaces).isEmpty {
-                        featureRow(title: "LOCATION", value: validName)
+                        KeyValueRow(title: "LOCATION", value: validName)
                     }
                     
                     if let elev = elevation, elev != 0 {
-                        featureRow(title: "ELEVATION", value: "\(Int(elev))m")
+                        KeyValueRow(title: "ELEVATION", value: "\(Int(elev))m")
                     }
                     
                     if let validTemp = temp, let validCondition = cond {
-                        featureRow(
+                        KeyValueRow(
                             title: "WEATHER", 
                             value: "\(Int(validTemp))°F \(validCondition.capitalized)",
                             valueIcon: weatherIcon(for: validCondition)
@@ -48,7 +48,12 @@ struct ScanInformationCard: View {
                     }
                     
                     if let ts = timestamp {
-                        featureRow(
+                        KeyValueRow(
+                            title: "DATE",
+                            value: ts.formatted(date: .abbreviated, time: .omitted)
+                        )
+                        
+                        KeyValueRow(
                             title: "TIME",
                             value: ts.formatted(date: .omitted, time: .shortened)
                         )
@@ -59,30 +64,7 @@ struct ScanInformationCard: View {
         }
     }
     
-    @ViewBuilder
-    private func featureRow(title: String, value: String, valueIcon: String? = nil) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(.caption, design: .monospaced))
-                .fontWeight(.bold)
-                .tracking(1)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            HStack(spacing: 6) {
-                if let vIcon = valueIcon {
-                    Image(systemName: vIcon)
-                        .foregroundColor(.secondary)
-                }
-                Text(value)
-            }
-            .font(.system(.subheadline))
-            .fontWeight(.medium)
-            .foregroundColor(.primary)
-            .multilineTextAlignment(.trailing)
-        }
-    }
+// Removed featureRow since KeyValueRow was extracted
     
     private func weatherIcon(for condition: String) -> String {
         let lower = condition.lowercased()

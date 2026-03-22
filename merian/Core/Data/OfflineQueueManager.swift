@@ -2,6 +2,7 @@ import Foundation
 import Network
 import Combine
 import SwiftData
+import Supabase
 import ImageIO
 import CoreLocation
 #if canImport(UIKit)
@@ -108,6 +109,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         try? await Task.sleep(nanoseconds: 1_000_000_000)
                         self?.syncPendingScans()
                         await self?.syncPendingDeletions()
+                        self?.syncCollections()
                     } else {
                         // Immediately circuit-break any active uploads if we drop off-grid
                         self?.syncTask?.cancel()
@@ -145,6 +147,17 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
             }
         } catch {
             print("Failed fetching cloud deletion tasks: \(error)")
+        }
+    }
+    
+    // MARK: - Collections Sync Driver
+    func syncCollections() {
+        guard isOnline, SupabaseManager.shared.isAuthenticated else { return }
+        guard let container = modelContext?.container else { return }
+        
+        Task.detached(priority: .background) {
+            let dbActor = BackgroundDatabaseActor(modelContainer: container)
+            await dbActor.pushCollectionsToEdge()
         }
     }
     
@@ -378,7 +391,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         weatherCondition: scan.weatherCondition,
                         weatherTemperatureF: scan.weatherTemperatureF,
                         timeOfDay: nil,
-                        timestamp: ISO8601DateFormatter().string(from: scan.timestamp)
+                        timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
                     )
                     
                     return ExtractedScanData(telemetry: telemetry, localImagePaths: scan.localImagePaths, container: container, originalTimestamp: scan.timestamp)
@@ -621,6 +634,45 @@ actor BackgroundDatabaseActor {
             
         } catch {
             print("Background cleanup logic explicitly failed out of process offline trace natively: \(error)")
+        }
+    }
+    
+    // MARK: - Collections Edge Uplink Sync
+    struct SyncCollectionPayload: Encodable {
+        let id: String
+        let name: String
+        let created_at: String
+        let scan_ids: [String]
+    }
+    
+    struct SyncRequestPayload: Encodable {
+        let collections: [SyncCollectionPayload]
+    }
+    
+    func pushCollectionsToEdge() async {
+        let descriptor = FetchDescriptor<ScanCollection>()
+        let collections = (try? modelContext.fetch(descriptor)) ?? []
+        
+        var payloadList: [SyncCollectionPayload] = []
+        for col in collections {
+            if col.name == "Favorites" { continue } // Managed natively
+            let scanIds = col.scans?.compactMap { $0.id } ?? []
+            payloadList.append(SyncCollectionPayload(
+                id: col.id,
+                name: col.name,
+                created_at: DateUtilities.iso8601Formatter.string(from: col.createdAt),
+                scan_ids: scanIds
+            ))
+        }
+        
+        do {
+            try await SupabaseManager.shared.client.functions.invoke(
+                "sync-collections",
+                options: .init(body: SyncRequestPayload(collections: payloadList))
+            )
+            print("✅ Successfully pushed \(payloadList.count) Collections to Edge implicitly.")
+        } catch {
+            print("Failed to sync collections downstream natively: \(error)")
         }
     }
     

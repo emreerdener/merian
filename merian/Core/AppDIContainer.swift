@@ -57,7 +57,7 @@ import SwiftData
                         weatherCondition: inferenceEngine.activeWeatherCondition,
                         weatherTemperatureF: inferenceEngine.activeTemperatureF,
                         timeOfDay: nil,
-                        timestamp: ISO8601DateFormatter().string(from: Date())
+                        timestamp: DateUtilities.iso8601Formatter.string(from: Date())
                     ),
                     blurScore: nil
                 )
