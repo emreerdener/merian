@@ -3,8 +3,7 @@ import JSZip from "https://esm.sh/jszip@3.10.1";
 import { encodeHex } from "https://deno.land/std@0.224.0/encoding/hex.ts";
 
 import { getR2Config } from "../_shared/aws.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -234,9 +233,6 @@ serve((req: Request) =>
       aws: { signQuery: true },
     });
 
-    return new Response(JSON.stringify({ downloadUrl: signedGet.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ exportUrl: signedGet.url }, 200);
   })
 );
