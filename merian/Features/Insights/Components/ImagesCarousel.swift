@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ImagesCarousel: View {
     // MARK: - Dependencies
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     
     // MARK: - State
     @State private var selectedIndex: Int = 0

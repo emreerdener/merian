@@ -14,7 +14,7 @@ struct ScansSheetView: View {
     @Query(sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
     
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(\.dismiss) var dismiss
     @Binding var isInsightSheetOpen: Bool
     

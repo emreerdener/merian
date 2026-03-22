@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ConservationBanner: View {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     
     private var formattedStatus: String? {
         guard let rawStatus = inferenceEngine.speciesData?.iucnRedListStatus?.lowercased() else { return nil }

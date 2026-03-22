@@ -7,7 +7,7 @@ struct CollectionDetailView: View {
     @Binding var isInsightSheetOpen: Bool
     
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     
     // MARK: - Interface State
     @State private var scanToDelete: LocalScanRecord? = nil

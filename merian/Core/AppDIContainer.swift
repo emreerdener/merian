@@ -123,7 +123,7 @@ struct DIContainerModifier: ViewModifier {
         content
             .environmentObject(container.hardwareOrchestrator)
             .environmentObject(container.cameraManager)
-            .environmentObject(container.inferenceEngine)
+            .environment(container.inferenceEngine)
             .environment(container.vui)
             .environment(container.offlineQueueManager)
             .environment(container.syncStateManager)

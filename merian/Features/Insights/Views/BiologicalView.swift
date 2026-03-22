@@ -2,7 +2,7 @@ import SwiftUI
 
 struct BiologicalView: View {
     // MARK: - Dependencies
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?
     

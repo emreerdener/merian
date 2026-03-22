@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct InsightBottomToolbar: ToolbarContent {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     
     let showBottomBarTools: Bool
     let collections: [ScanCollection]

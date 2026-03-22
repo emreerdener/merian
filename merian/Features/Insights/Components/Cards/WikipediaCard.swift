@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WikipediaCard: View {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?

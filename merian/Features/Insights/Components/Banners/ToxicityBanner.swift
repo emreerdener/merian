@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ToxicityBanner: View {
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     
     private var isPoisonous: Bool {
         inferenceEngine.speciesData?.insightData.isPoisonous ?? false

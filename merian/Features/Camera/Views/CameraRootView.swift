@@ -10,7 +10,7 @@ struct CameraRootView: View {
     @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
     @Environment(ViewfinderIntelligence.self) var vui
     @Environment(PhotoLibraryManager.self) var photoLibraryManager
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     
     // MARK: - App Storage

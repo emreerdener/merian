@@ -14,14 +14,14 @@ enum APIError: Error {
 // MARK: - Core Cloud Inference Engine
 /// Manages real-time AI taxonomy processing via Supabase Edge Functions
 @MainActor
-final class InferenceEngine: ObservableObject {
+@Observable final class InferenceEngine {
     // MARK: - Active Pipeline State
-    @Published var isProcessing: Bool = false
-    @Published var activeImageData: Data? = nil
-    @Published var activeCompressedImageData: Data? = nil
-    @Published var activeImageDatas: [String] = []
-    @Published var validHistoricImagePaths: [String] = []
-    @Published var speciesData: SpeciesData? = nil
+    var isProcessing: Bool = false
+    var activeImageData: Data? = nil
+    var activeCompressedImageData: Data? = nil
+    var activeImageDatas: [String] = []
+    var validHistoricImagePaths: [String] = []
+    var speciesData: SpeciesData? = nil
     
     // MARK: - Environmental Telemetry State
     private(set) var activeLatitude: Double? = nil

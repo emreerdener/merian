@@ -7,7 +7,7 @@ import SafariServices
 /// The master state orchestrator routing biological inference metadata, navigation bounds, and hardware logic cleanly down into the decoupled `InsightLayout` tree.
 struct InsightSheetView: View {
     // MARK: - Environment & Dependencies
-    @EnvironmentObject var inferenceEngine: InferenceEngine
+    @Environment(InferenceEngine.self) var inferenceEngine
     @EnvironmentObject var hardwareOrchestrator: HardwareOrchestrator
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
