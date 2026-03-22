@@ -32,6 +32,8 @@ struct CollectionDetailView: View {
                 }, onDelete: { scan in
                     scanToDelete = scan
                     showDeleteConfirmation = true
+                }, onAddScans: {
+                    showScanSelection = true
                 }) { scan in
                     Button(role: .destructive) {
                         removeFromCollection(scan: scan)
@@ -141,8 +143,6 @@ struct CollectionDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.circle)
             }
         }
     }

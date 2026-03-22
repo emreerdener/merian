@@ -9,6 +9,7 @@ struct ScansGrid<MenuContent: View>: View {
     let onSelect: (LocalScanRecord) -> Void
     var onDelete: ((LocalScanRecord) -> Void)? = nil
     var isSelected: ((LocalScanRecord) -> Bool)? = nil
+    var onAddScans: (() -> Void)? = nil
     
     // MARK: - Generic View Builders
     @ViewBuilder var customMenuItems: ((LocalScanRecord) -> MenuContent)
@@ -65,6 +66,22 @@ struct ScansGrid<MenuContent: View>: View {
                 }
                 .buttonStyle(.plain) // Prevent underlying iOS UI button highlight hijacking natively
             }
+            
+            if let onAddScans = onAddScans {
+                Button(action: {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onAddScans()
+                }) {
+                    ZStack {
+                        Color(uiColor: .secondarySystemFill)
+                        Image(systemName: "plus")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                    .aspectRatio(1.0, contentMode: .fill)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }
@@ -72,12 +89,13 @@ struct ScansGrid<MenuContent: View>: View {
 // MARK: - Empty Context Menu Extensions
 
 extension ScansGrid where MenuContent == EmptyView {
-    init(scans: [LocalScanRecord], onSelect: @escaping (LocalScanRecord) -> Void, onDelete: ((LocalScanRecord) -> Void)? = nil, isSelectionMode: Bool = false, isSelected: ((LocalScanRecord) -> Bool)? = nil) {
+    init(scans: [LocalScanRecord], onSelect: @escaping (LocalScanRecord) -> Void, onDelete: ((LocalScanRecord) -> Void)? = nil, isSelectionMode: Bool = false, isSelected: ((LocalScanRecord) -> Bool)? = nil, onAddScans: (() -> Void)? = nil) {
         self.scans = scans
         self.onSelect = onSelect
         self.onDelete = onDelete
         self.isSelectionMode = isSelectionMode
         self.isSelected = isSelected
+        self.onAddScans = onAddScans
         self.customMenuItems = { _ in EmptyView() }
     }
 }
