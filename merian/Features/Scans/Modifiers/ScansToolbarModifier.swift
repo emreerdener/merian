@@ -94,6 +94,7 @@ struct ScansToolbarModifier: ViewModifier {
                                         Label("3x3", systemImage: "square.grid.3x3")
                                     }
                                 }
+                                .labelStyle(.iconOnly)
                                 
                                 Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
                             } label: {
