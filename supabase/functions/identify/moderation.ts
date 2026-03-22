@@ -1,14 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getS3Client } from "../_shared/aws.ts";
 import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import { SafetyRating } from "https://esm.sh/@google/generative-ai@0.24.1";
 
 export async function evaluateAndProcessPayload(
   userId: string,
   r2ObjectKey: string,
   imageBase64: string | undefined,
   geminiFinishReason: string | undefined,
-  // deno-lint-ignore no-explicit-any
-  safetyRatings: any[] | undefined,
+  safetyRatings: SafetyRating[] | undefined,
   userTier: string,
 ): Promise<{ status: string; publicUrl?: string }> {
   try {

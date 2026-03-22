@@ -6,7 +6,8 @@ import { getR2Config } from "../_shared/aws.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
+serve((req: Request) =>
+  withEdgeHandler(req, async (user, supabaseAdmin) => {
     const { includePreciseCoordinates = false, exportScope = "user" } = await req.json();
     const userId = user.id;
 
@@ -48,7 +49,9 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     const secretHashSalt = Deno.env.get("SUPABASE_JWT_SECRET") || "salt";
     
     // Initialize headers and progressive array accumulators out of loop scope
-    const occurrenceRows = ["coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters"];
+    const occurrenceRows = [
+      "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters"
+    ];
     
     const multimediaRows = ["coreid,identifier,format"];
     
@@ -58,6 +61,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
 
     while (hasMore) {
       const { data, error } = await query.range(start, start + PAGE_SIZE - 1);
+      
       if (error) {
         throw new Error(`Failed to fetch academic records: ${error.message}`);
       }
@@ -71,19 +75,43 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       // Instead of explicitly blasting 1,000 concurrent cryptographic digests synchronously starving V8, process them sequentially
       const batchResults = [];
       const SUB_BATCH_SIZE = 50;
+      
+      interface SpeciesDictionary {
+        scientific_name?: string;
+        kingdom?: string;
+        phylum?: string;
+        class?: string;
+        order?: string;
+        family?: string;
+        genus?: string;
+        iucn_red_list_status?: string;
+      }
+      
+      interface ScanRow {
+        id: string;
+        user_id: string;
+        timestamp?: string;
+        gps_lat_exact?: number;
+        gps_long_exact?: number;
+        gps_lat_public?: number;
+        gps_long_public?: number;
+        coordinate_uncertainty_in_meters?: number;
+        image_storage_urls?: string[];
+        species_dictionary?: SpeciesDictionary;
+      }
+
       for (let i = 0; i < data.length; i += SUB_BATCH_SIZE) {
         const subBatch = data.slice(i, i + SUB_BATCH_SIZE);
-        const subBatchResults = await Promise.all(subBatch.map(async (row) => {
-          // deno-lint-ignore no-explicit-any
-          const scan = row as any;
-          // deno-lint-ignore no-explicit-any
-          const species = (scan.species_dictionary || {}) as any;
-          const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
-          
-          const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
-          let recordedBy = "Merian Citizen Scientist";
-          
-          if (!isTombstoned) {
+        const subBatchResults = await Promise.all(
+          subBatch.map(async (row) => {
+            const scan = row as ScanRow;
+            const species = scan.species_dictionary || {};
+            const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
+            
+            const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
+            let recordedBy = "Merian Citizen Scientist";
+            
+            if (!isTombstoned) {
               if (exportScope === "global") {
                  // Hash to maintain contributor isolation anonymously
                  const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
@@ -92,34 +120,34 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
               } else {
                  recordedBy = scan.user_id;
               }
-          }
+            }
 
-          const isProtected = species.iucn_red_list_status === "vulnerable" || 
-                              species.iucn_red_list_status === "endangered" || 
-                              species.iucn_red_list_status === "critically_endangered" || 
-                              species.iucn_red_list_status === "near_threatened";
+            const isProtected = ["vulnerable", "endangered", "critically_endangered", "near_threatened"]
+              .includes(species.iucn_red_list_status || "");
 
-          const canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId);
+            const canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId);
 
-          let lat = canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
-          let lon = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
-          const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
+            let lat: number | string | undefined | null = canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
+            let lon: number | string | undefined | null = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
+            const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
 
-          if (isProtected && lat !== null && lon !== null) {
-            lat = Math.round(lat * 10) / 10;
-            lon = Math.round(lon * 10) / 10;
-          }
+            // Enforce explicit float truncation for protected species blurring
+            if (isProtected && typeof lat === "number" && typeof lon === "number") {
+              lat = Math.round(lat * 10) / 10;
+              lon = Math.round(lon * 10) / 10;
+            }
 
-          if (lat === null || lat === undefined) lat = "";
-          if (lon === null || lon === undefined) lon = "";
+            if (lat === null || lat === undefined) lat = "";
+            if (lon === null || lon === undefined) lon = "";
 
-          const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
-          
-          const urls = scan.image_storage_urls || [];
-          const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
+            const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
+            
+            const urls = scan.image_storage_urls || [];
+            const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
 
-          return { occurrenceRow, mRows };
-        }));
+            return { occurrenceRow, mRows };
+          })
+        );
         batchResults.push(...subBatchResults);
       }
       
@@ -200,6 +228,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
 
     const getUrl = new URL(urlString);
     getUrl.searchParams.set("X-Amz-Expires", "86400");
+    
     const signedGet = await s3Client.sign(getUrl.toString(), {
       method: "GET",
       aws: { signQuery: true },
@@ -209,4 +238,5 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-}));
+  })
+);

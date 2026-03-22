@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getR2Config } from "../_shared/aws.ts";
+import { jsonResponse } from "../_shared/edgeHandler.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -113,30 +114,21 @@ serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
 
     if (!WEBHOOK_SECRET || authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     const body = await req.json();
     const event = body.event;
 
     if (!event) {
-      return new Response(JSON.stringify({ error: "No event found" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "No event found" }, 400);
     }
 
     const eventType = event.type;
     const userId = event.app_user_id;
 
     if (!userId) {
-      return new Response(JSON.stringify({ error: "No app_user_id found" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "No app_user_id found" }, 400);
     }
 
     console.log(`Received Webhook: ${eventType} for User: ${userId}`);
@@ -145,6 +137,16 @@ serve(async (req: Request) => {
     await supabaseAdmin
       .from("users")
       .upsert({ id: userId, subscription_tier: "free" }, { onConflict: "id", ignoreDuplicates: true });
+
+    // Safely extract the native EdgeRuntime execution bounds
+    const globalObj = globalThis as unknown as { EdgeRuntime?: { waitUntil: (p: Promise<void>) => void } };
+    const runBackground = (task: Promise<void>) => {
+      if (typeof globalObj.EdgeRuntime === "object" && typeof globalObj.EdgeRuntime.waitUntil === "function") {
+        globalObj.EdgeRuntime.waitUntil(task);
+      } else {
+        task.catch(console.error);
+      }
+    };
 
     if (["INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION"].includes(eventType)) {
       // 1. Upgrade user tier to 'pro'
@@ -158,8 +160,7 @@ serve(async (req: Request) => {
       }
 
       // Phase 2: Decoupled S3 Migration
-      // @ts-ignore: EdgeRuntime is a global context native to Supabase Edge execution
-      EdgeRuntime.waitUntil(migrateUserStorage(userId, "free", "pro"));
+      runBackground(migrateUserStorage(userId, "free", "pro"));
     } else if (["EXPIRATION"].includes(eventType)) {
       // Revert user tier strictly back to 'free'
       const { error: downgradeError } = await supabaseAdmin
@@ -172,19 +173,13 @@ serve(async (req: Request) => {
       }
       
       // Phase 2: Decoupled S3 Expiration Migration bridging payload natively over bounds
-      // @ts-ignore: EdgeRuntime is a global context native to Supabase Edge execution
-      EdgeRuntime.waitUntil(migrateUserStorage(userId, "pro", "free"));
+      runBackground(migrateUserStorage(userId, "pro", "free"));
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ success: true }, 200);
   } catch (error: Error | unknown) {
     console.error("Webhook processing failed:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 500,
-    });
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    return jsonResponse({ error: msg }, 500);
   }
 });

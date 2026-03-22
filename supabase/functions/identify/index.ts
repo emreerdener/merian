@@ -1,13 +1,13 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
-import { GoogleGenerativeAI, SchemaType } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { GoogleGenerativeAI, SchemaType, SafetyRating } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config } from "../_shared/aws.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 
-serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
+serve((req: Request) =>
+  withEdgeHandler(req, async (user, supabaseAdmin) => {
     const body = await req.json();
     const {
       r2ObjectKey,
@@ -27,9 +27,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     } = body;
 
     if (!r2ObjectKey && !imageBase64) {
-      throw new Error(
-        "Missing structural boundary (neither r2ObjectKey nor imageBase64 provided).",
-      );
+      throw new Error("Missing structural boundary (neither r2ObjectKey nor imageBase64 provided).");
     }
 
     if (r2ObjectKey) {
@@ -37,27 +35,15 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       // If `imageBase64` is present, the key is strictly used for destination filename creation and is securely force-prefixed in `moderation.ts`!
       if (!imageBase64 && !r2ObjectKey.startsWith(`staging/${user.id}/`)) {
         console.error(`IDOR MISMATCH: r2ObjectKey was ${r2ObjectKey} but user.id is ${user.id}`);
-        return new Response(
-          JSON.stringify({ error: "SECURITY VIOLATION (IDOR): Attempting to scrape foreign r2ObjectKey bounds." }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ error: "SECURITY VIOLATION (IDOR): Attempting to scrape foreign r2ObjectKey bounds." }, 403);
       }
       if (r2ObjectKey.includes("..")) {
-        return new Response(
-          JSON.stringify({ error: "SECURITY VIOLATION: Path traversal detected inside payload boundaries." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ error: "SECURITY VIOLATION: Path traversal detected inside payload boundaries." }, 400);
       }
     }
 
     if (!user_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing user_id parameter in body" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return jsonResponse({ error: "Missing user_id parameter in body" }, 400);
     }
 
     let base64Payload = "";
@@ -80,15 +66,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
       if (contentLengthStr) {
         const bytes = parseInt(contentLengthStr, 10);
         if (bytes > 5 * 1024 * 1024) {
-          return new Response(
-            JSON.stringify({
-              error: "Payload Too Large: Exceeds 5MB boundary.",
-            }),
-            {
-              status: 413,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            },
-          );
+          return jsonResponse({ error: "Payload Too Large: Exceeds 5MB boundary." }, 413);
         }
       }
       const arrayBuffer = await r2Response.arrayBuffer();
@@ -254,7 +232,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     ];
 
     let finishReason: string | undefined;
-    let safetyRatings: unknown[] | undefined;
+    let safetyRatings: SafetyRating[] | undefined;
     let responseText = "";
     
     // Telemetry pointers securely initialized natively
@@ -266,6 +244,7 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
             contents: [{ role: "user", parts }],
             generationConfig: {
                 responseMimeType: "application/json",
+                // Route through explicit cast to bypass Deno structural constraint mappings securely
                 // deno-lint-ignore no-explicit-any
                 responseSchema: merianResponseSchema as any,
             },
@@ -285,14 +264,14 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
         }
     } catch (genError) {
         console.error("Gemini Critical Extraction Failure:", genError);
-        return new Response(JSON.stringify({ error: `Gemini Validation Error: ${(genError as Error).message}` }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+        return jsonResponse({ error: `Gemini Validation Error: ${(genError as Error).message}` }, 400);
     }
 
     // Strip markdown formatting if Gemini hallucinates markdown blocks or conversational text
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
         console.error("Failed to extract JSON structure from Gemini response:", responseText);
-        return new Response(JSON.stringify({ error: "Gemini Hallucination: Missing JSON payload" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 422 });
+        return jsonResponse({ error: "Gemini Hallucination: Missing JSON payload" }, 422);
     }
     const cleanJsonString = jsonMatch[0];
     const parsedData = JSON.parse(cleanJsonString);
@@ -534,18 +513,16 @@ serve((req: Request) => withEdgeHandler(req, async (user, supabaseAdmin) => {
     })();
 
     // Supabase Edge Functions native execution handler 
-    // deno-lint-ignore no-explicit-any
-    if (typeof (globalThis as any).EdgeRuntime === "object" && typeof (globalThis as any).EdgeRuntime.waitUntil === "function") {
-      // deno-lint-ignore no-explicit-any
-      (globalThis as any).EdgeRuntime.waitUntil(backgroundTask);
+    const globalObj = globalThis as unknown as { EdgeRuntime?: { waitUntil: (p: Promise<void>) => void } };
+    
+    if (typeof globalObj.EdgeRuntime === "object" && typeof globalObj.EdgeRuntime.waitUntil === "function") {
+      globalObj.EdgeRuntime.waitUntil(backgroundTask);
     } else {
       // Graceful fallback for local development or Deno Core isolated workers
       backgroundTask.catch(console.error);
     }
 
     // Return standard nested JSON array to prevent iOS decoding double-escaped strings
-    return new Response(JSON.stringify({ success: true, data: parsedData }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
-}));
+    return jsonResponse({ success: true, data: parsedData }, 200);
+  })
+);
