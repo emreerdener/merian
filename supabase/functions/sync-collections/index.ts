@@ -59,9 +59,10 @@ serve((req: Request) =>
       }
 
       if (allMappings.length > 0) {
-        // We iterate specifically to prevent one missing offline UUID breaking the entire batch block cleanly
-        for (const map of allMappings) {
-           await supabaseAdmin.from("collection_scans").insert(map);
+        // Execute a native Postgres bulk-insertion to definitively prevent N+1 query meltdowns!
+        const { error: insertError } = await supabaseAdmin.from("collection_scans").insert(allMappings);
+        if (insertError) {
+          console.error("Bulk mapping insert error: ", insertError);
         }
       }
     }

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { getR2Config } from "../_shared/aws.ts";
+import { getR2Config, copyR2Object, deleteR2Object } from "../_shared/aws.ts";
 import { jsonResponse } from "../_shared/edgeHandler.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -9,7 +9,6 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 async function migrateUserStorage(userId: string, sourcePrefix: string, targetPrefix: string) {
   try {
-    const { s3Client, bucketName, endpoint } = getR2Config();
 
     let totalMigrated = 0;
     let hasMore = true;
@@ -57,18 +56,11 @@ async function migrateUserStorage(userId: string, sourcePrefix: string, targetPr
               const sourceKey = `public_uploads/${sourcePrefix}/${originalUserId}/${fileName}`;
               const targetKey = `public_uploads/${targetPrefix}/${userId}/${fileName}`;
 
-              const copyUrl = `${endpoint}/${bucketName}/${targetKey}`;
-              const deleteUrl = `${endpoint}/${bucketName}/${sourceKey}`;
-
-              const copyResponse = await s3Client.fetch(copyUrl, {
-                method: "PUT",
-                headers: {
-                  "x-amz-copy-source": encodeURI(`/${bucketName}/${sourceKey}`)
-                }
-              });
+              const r2Config = getR2Config();
+              const copyResponse = await copyR2Object(sourceKey, targetKey, r2Config);
 
               if (copyResponse.ok) {
-                await s3Client.fetch(deleteUrl, { method: "DELETE" });
+                await deleteR2Object(sourceKey, r2Config);
                 
                 const cleanMapUrl = `https://media.merian.app/${targetKey}`;
                 migrated = true;

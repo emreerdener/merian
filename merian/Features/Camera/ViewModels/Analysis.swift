@@ -32,26 +32,31 @@ extension CameraViewModel {
             
             // NEW: Enforce crop constraints cleanly before analysis!
             // We lazily defer cropping until submission or manual edit to dramatically accelerate the Camera Shutter UX!
-            var inferenceDatas: [Data] = []
-            var finalUIImages: [UIImage] = []
-            
-            for (index, image) in displayImages.enumerated() {
-                // If it was manually cropped via ImageCropperView, it's saved strictly capped at 768px bounds
-                let physicalMax = max(image.size.width, image.size.height) * image.scale
-                if physicalMax <= 800 && index < capturedDatas.count {
-                    inferenceDatas.append(capturedDatas[index])
-                    finalUIImages.append(image)
-                } else {
-                    // It's still a raw 4000px uncropped capture and needs perfectly 1:1 auto-bounding right now
-                    let centerCropped = await ImageCropProcessor.generateAutoCenterCrop(image: image)
-                    inferenceDatas.append(centerCropped)
-                    if let croppedThumb = UIImage(data: centerCropped) {
-                        finalUIImages.append(croppedThumb)
-                    } else {
-                        finalUIImages.append(image)
+            let results = await withTaskGroup(of: (Int, Data, UIImage).self) { group in
+                for (index, image) in displayImages.enumerated() {
+                    let uncroppedData = index < capturedDatas.count ? capturedDatas[index] : Data()
+                    
+                    group.addTask {
+                        let physicalMax = max(image.size.width, image.size.height) * image.scale
+                        if physicalMax <= 800 {
+                            return (index, uncroppedData, image)
+                        } else {
+                            let centerCropped = await ImageCropProcessor.generateAutoCenterCrop(image: image)
+                            let thumb = UIImage(data: centerCropped) ?? image
+                            return (index, centerCropped, thumb)
+                        }
                     }
                 }
+                
+                var collected: [(Int, Data, UIImage)] = []
+                for await result in group {
+                    collected.append(result)
+                }
+                return collected.sorted(by: { $0.0 < $1.0 })
             }
+            
+            let inferenceDatas = results.map { $0.1 }
+            let finalUIImages = results.map { $0.2 }
             
             await MainActor.run {
                 // Instantly snap the visual Optical bounds to exactly what Gemini is looking at organically

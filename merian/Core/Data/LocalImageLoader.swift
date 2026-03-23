@@ -71,7 +71,9 @@ actor LocalImageLoader {
         activeTasks[cacheKey] = fetchTask
         
         defer {
-            activeTasks.removeValue(forKey: cacheKey)
+            if activeTasks[cacheKey] == fetchTask {
+                activeTasks.removeValue(forKey: cacheKey)
+            }
         }
         
         return await fetchTask.value

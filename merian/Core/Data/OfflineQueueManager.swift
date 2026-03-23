@@ -314,7 +314,13 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         
                         // CRITICAL FIX: Explicitly remove orphaned files to prevent copyItem from silently failing
                         try? FileManager.default.removeItem(at: tempFileURL)
-                        try? FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
+                        
+                        do {
+                            try FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
+                        } catch {
+                            print("Offline Queue: Failed to copy physical payload, aborting: \(error)")
+                            continue
+                        }
                         
                         // Enqueue to the iOS Background URLSession cleanly using the physical file
                         let uploadTask = backgroundSession.uploadTask(with: request, fromFile: tempFileURL)
@@ -358,8 +364,15 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                 let tempFileURL = URL.cachesDirectory.appendingPathComponent(indexPart.isEmpty ? "\(scanId)_temp_upload.jpg" : "\(scanId)_\(indexPart)_temp_upload.jpg")
                 try? FileManager.default.removeItem(at: tempFileURL)
                 
-                guard error == nil else {
-                    print("Background upload hard failed: \(error!)")
+                if let error = error {
+                    print("Background upload hard failed: \(error)")
+                    let nsError = error as NSError
+                    if nsError.domain == NSURLErrorDomain && (nsError.code == NSURLErrorFileDoesNotExist || nsError.code == NSURLErrorCannotOpenFile) {
+                        print("⚠️ Offline Queue: Terminal file-system corruption detected. Tombstoning scan \(scanId).")
+                        await MainActor.run {
+                            OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+                        }
+                    }
                     return
                 }
                 

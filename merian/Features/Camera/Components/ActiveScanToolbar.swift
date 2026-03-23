@@ -6,13 +6,16 @@ struct ActiveScanToolbar: View {
     let images: [UIImage]
     @Binding var selectedPhotoItems: [PhotosPickerItem]
     
+    @State private var showTooltip: Bool = !ActiveScanToolbar.hasShownTooltipThisSession
+    private static var hasShownTooltipThisSession: Bool = false
+    
     // MARK: - Callbacks
     let onThumbnailTap: (Int) -> Void
     let onCancel: () -> Void
     let onSubmit: () -> Void
     
     private var tooltipText: some View {
-        Text("Edit images or analyze")
+        Text("Tap an image to edit")
             .symbolRenderingMode(.palette)
             .foregroundStyle(.white.opacity(0.9), .blue)
     }
@@ -21,7 +24,7 @@ struct ActiveScanToolbar: View {
     var body: some View {
         VStack(spacing: 12) {
             // Hovering Instructions Tooltip
-            if images.count >= 2 {
+            if showTooltip {
                 tooltipText
                     .font(.caption.weight(.medium))
                     .multilineTextAlignment(.center)
@@ -56,6 +59,14 @@ struct ActiveScanToolbar: View {
         }
         .padding(.bottom, 24) // Accommodate the physical iPhone home indicator explicitly
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: images.count)
+        .task {
+            if showTooltip {
+                ActiveScanToolbar.hasShownTooltipThisSession = true
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard !Task.isCancelled else { return }
+                withAnimation { showTooltip = false }
+            }
+        }
     }
 }
 

@@ -44,3 +44,21 @@ export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
     })
   );
 };
+
+export async function copyR2Object(sourceKey: string, targetKey: string, config: R2Config): Promise<Response> {
+  const { s3Client, bucketName, endpoint } = config;
+  const copyUrl = `${endpoint}/${bucketName}/${targetKey}`;
+  
+  return await s3Client.fetch(copyUrl, {
+    method: "PUT",
+    headers: {
+      "x-amz-copy-source": encodeURI(`/${bucketName}/${sourceKey}`)
+    }
+  });
+}
+
+export async function deleteR2Object(key: string, config: R2Config): Promise<Response> {
+  const { s3Client, bucketName, endpoint } = config;
+  const deleteUrl = `${endpoint}/${bucketName}/${key}`;
+  return await s3Client.fetch(deleteUrl, { method: "DELETE" });
+}

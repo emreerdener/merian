@@ -33,7 +33,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     
     // MARK: - Data Ingestion
     var allScans: [LocalScanRecord] = [] {
-        didSet { updateSearchableData() }
+        didSet { updateSearchableData(oldScans: oldValue) }
     }
     
     // MARK: - Cache & Threading State
@@ -43,7 +43,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     @ObservationIgnored private var indexingTask: Task<Void, Never>?
     
     // MARK: - Data Indexing Pipeline
-    private func updateSearchableData() {
+    private func updateSearchableData(oldScans: [LocalScanRecord]) {
         indexingTask?.cancel()
         
         guard let firstScan = allScans.first, let container = firstScan.modelContext?.container else {
@@ -52,22 +52,48 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             return
         }
         
-        // Critically extract lightweight persistent identifiers natively keeping O(N) evaluations blazingly fast on UI bounds
-        let ids = allScans.map { $0.persistentModelID }
-        
         var newMap: [String: LocalScanRecord] = [:]
         for scan in allScans { newMap[scan.id] = scan }
         self.scanMap = newMap
         
+        let oldIds = Set(oldScans.map { $0.id })
+        let newIds = Set(allScans.map { $0.id })
+        
+        let addedScans = allScans.filter { !oldIds.contains($0.id) }
+        let removedIds = oldIds.subtracting(newIds)
+        
+        // 1. Instantly prune deleted UUIDs out of the string cache natively without touching the background thread!
+        if !removedIds.isEmpty {
+            self.searchableData.removeAll { removedIds.contains($0.id) }
+        }
+        
+        // 2. Short circuit if there are no new scans explicitly needing heavy String Extraction!
+        if addedScans.isEmpty && self.searchableData.count == allScans.count {
+            return
+        }
+        
+        // If we have an initial load mismatch, execute a unified global sync organically!
+        let needsFullRebuild = self.searchableData.isEmpty && !allScans.isEmpty
+        let targetScans = needsFullRebuild ? allScans : addedScans
+        
+        // Critically extract ONLY lightweight persistent identifiers from the delta, bounding CPU execution down to practically zero!
+        let idsToExtract = targetScans.map { $0.persistentModelID }
+        
+        if idsToExtract.isEmpty { return }
+        
         indexingTask = Task.detached(priority: .userInitiated) { [weak self] in
             let dbActor = SearchDatabaseActor(modelContainer: container)
-            let processed = await dbActor.extractSearchablePayloads(from: ids)
+            let processedNewScans = await dbActor.extractSearchablePayloads(from: idsToExtract)
             
             if Task.isCancelled { return }
             
             let capturedSelf = self
             await MainActor.run {
-                capturedSelf?.searchableData = processed
+                if needsFullRebuild {
+                    capturedSelf?.searchableData = processedNewScans
+                } else {
+                    capturedSelf?.searchableData.append(contentsOf: processedNewScans)
+                }
             }
         }
     }

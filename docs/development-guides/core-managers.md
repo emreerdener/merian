@@ -43,6 +43,11 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Utilizes a unified static abstraction `BackgroundTaskWrapper.execute(name:operation:)` natively to rigidly encapsulate active memory environments binding OS threat loops securely to `UIBackgroundTaskIdentifier` instances gracefully preventing system leaks under suspension natively.
 - **Array Execution Persistence**: Safely iterates arrays of image binaries (`[Data]`) asynchronously, writing each physical file sequentially directly to `.documentsDirectory` and appending discrete `localImagePaths` paths organically. This robust loop ensures aggressive iOS suspension constraints do not structurally corrupt multi-image queued bundles prior to resolving cell reception natively!
 
+### `ScansManager` (Search Indexing Isolation)
+- Strictly bounds memory starvation globally across 5,000+ internal payloads seamlessly decoupling massive search iteration arrays from the main `.onChange()` thread cleanly.
+- Overrides synchronous string rebuilds by explicitly enforcing an `O(1)` Delta Update pattern safely. It intercepts only the specific Swift Sets (`oldIds.subtracting(newIds)`) when a capture drops natively out of the array limit safely eliminating O(N) CPU thrashing! 
+- Safely delegates extraction generation exclusively inside `indexingTask = Task.detached` cleanly wrapping memory loops inherently inside an `SearchDatabaseActor` which evaluates identifiers statically without blowing out JetSam limitations!
+
 ### `ArchiveManager` (Archive Safety Protocol)
 - Explicit background worker strictly mapped to protect the data of Free tier users against the Cloudflare R2 90-day global purge logic (`00004_storage_lifecycle_sync.sql`).
 - Polls locally via `getAvailableDiskSpace()`.
@@ -57,6 +62,11 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Actively forces exact asynchronous REST calls (`/identify`, `/generate-upload-urls`, `/flag-issue`).
 - Automatically extracts the `DeviceIdentityManager.shared.deviceId` strictly bypassing arbitrary session state dependencies smoothly executing Supabase payload pushes correctly mapped directly to the active iOS `ProcessInfo` environment.
 - Safely traps `.401 Unauthorized` responses natively within `performAuthenticatedRequest`. Crucially, it completely abstracts JWT validation by delegating to `SupabaseManager.shared.getValidAuthHeaders()`, ensuring all network calls inherently benefit from the unified self-healing Ghost session fallback loops seamlessly securely.
+
+### Edge Network Operations (`S3` & `PostgreSQL` Bulk Insertions)
+To structurally execute database actions elegantly inside strict serverless Node limits safely maintaining global bounds:
+- **Centralized Cloudflare R2 Executions (`_shared/aws.ts`)**: Instead of recursively deploying raw `aws.sign(...)` headers across the `moderation`, `export-dwca`, and `revenuecat-webhook` logic individually seamlessly multiplying security risks natively, operations uniformly bind dynamic `copyR2Object()` and `deleteR2Object()` structures entirely globally scaling identity bounds cleanly strictly via S3 signatures.
+- **N+1 Query Exhaustion Prevention (`sync-collections`)**: Rather than physically fetching iteration loops binding Supabase inserts sequentially against identical tables natively dropping heavy payloads triggering connection exhaustion seamlessly the layer strictly abandons iterations explicitly generating an array organically passed directly into `.insert(allMappings)!` This natively allows the database to process the massive sync directly eliminating timeout limits unconditionally.
 
 ### `SupabaseManager`
 - Completely delegates the secure API boundary parsing natively wrapped into GoTrue bindings.

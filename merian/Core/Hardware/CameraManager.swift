@@ -1,4 +1,5 @@
 import Foundation
+import os
 import UIKit
 @preconcurrency import AVFoundation
 import CoreImage
@@ -26,7 +27,6 @@ import Accelerate
     // MARK: - Render Throttling Logic
     @ObservationIgnored nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
     @ObservationIgnored nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
-    @ObservationIgnored nonisolated(unsafe) private var activeHistogram = [vImagePixelCount](repeating: 0, count: 256)
     
     // MARK: - State Management
     private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
@@ -49,11 +49,13 @@ import Accelerate
     
     // MARK: - Asynchronous Capture Continuations
     private struct CaptureRequest {
-        let id: UUID
+        let id: Int64
         let continuation: CheckedContinuation<Data, Error>
         var timeoutTask: Task<Void, Error>?
     }
-    private var activeCaptureRequests: [CaptureRequest] = []
+    
+    @ObservationIgnored private let requestsLock = OSAllocatedUnfairLock()
+    @ObservationIgnored nonisolated(unsafe) private var activeCaptureRequests: [Int64: CaptureRequest] = [:]
     
     // MARK: - Hardware Initialization
     private override init() {
@@ -438,8 +440,9 @@ import Accelerate
                 )
                 
                 var error = kvImageNoError
+                var histogram = [vImagePixelCount](repeating: 0, count: 256)
                 
-                activeHistogram.withUnsafeMutableBufferPointer { histPtr in
+                histogram.withUnsafeMutableBufferPointer { histPtr in
                     error = vImageHistogramCalculation_Planar8(&vImageBuffer, histPtr.baseAddress!, vImage_Flags(kvImageNoFlags))
                 }
                 
@@ -447,7 +450,7 @@ import Accelerate
                     var totalLuma: UInt64 = 0
                     var totalPixels: UInt64 = 0
                     for i in 0..<256 {
-                        let count = UInt64(activeHistogram[i])
+                        let count = UInt64(histogram[i])
                         totalLuma += count * UInt64(i)
                         totalPixels += count
                     }
@@ -470,36 +473,43 @@ import Accelerate
     func captureImage() async throws -> Data {
         // safely extract the MainActor state natively passing into the sendable closure
         let flashStatus = self.isFlashEnabled
-        let requestId = UUID()
+        let settings = AVCapturePhotoSettings()
+        let requestId = settings.uniqueID
         
         return try await withTaskCancellationHandler {
             return try await withCheckedThrowingContinuation { continuation in
                 var request = CaptureRequest(id: requestId, continuation: continuation, timeoutTask: nil)
                 
                 // 5-Second Hardware Timeout Fallback
-                request.timeoutTask = Task { @MainActor [weak self] in
+                request.timeoutTask = Task { [weak self] in
                     try await Task.sleep(nanoseconds: 5_000_000_000)
                     guard let self = self else { return }
-                    if let idx = self.activeCaptureRequests.firstIndex(where: { $0.id == requestId }) {
-                        let expired = self.activeCaptureRequests.remove(at: idx)
+                    
+                    let expired = self.requestsLock.withLock {
+                        self.activeCaptureRequests.removeValue(forKey: requestId)
+                    }
+                    
+                    if let expired = expired {
                         expired.continuation.resume(throwing: NSError(domain: "CameraManager", code: -4, userInfo: [NSLocalizedDescriptionKey : "Hardware shutter timed out"]))
                     }
                 }
                 
-                self.activeCaptureRequests.append(request)
+                self.requestsLock.withLock {
+                    self.activeCaptureRequests[requestId] = request
+                }
                 
                 queue.async {
                     guard let connection = self.photoOutput.connection(with: .video), connection.isActive && connection.isEnabled else {
-                        Task { @MainActor in
-                            if let idx = self.activeCaptureRequests.firstIndex(where: { $0.id == requestId }) {
-                                let failed = self.activeCaptureRequests.remove(at: idx)
-                                failed.timeoutTask?.cancel()
-                                failed.continuation.resume(throwing: NSError(domain: "CameraManager", code: -3, userInfo: [NSLocalizedDescriptionKey : "Camera hardware is not dynamically ready or powered down."]))
-                            }
+                        let failed = self.requestsLock.withLock {
+                            self.activeCaptureRequests.removeValue(forKey: requestId)
+                        }
+                        
+                        if let failed = failed {
+                            failed.timeoutTask?.cancel()
+                            failed.continuation.resume(throwing: NSError(domain: "CameraManager", code: -3, userInfo: [NSLocalizedDescriptionKey : "Camera hardware is not dynamically ready or powered down."]))
                         }
                         return
                     }
-                    let settings = AVCapturePhotoSettings()
                     
                     // Set explicitly mapped hardware flash modes when physically firing the shutter 
                     let targetFlashMode: AVCaptureDevice.FlashMode = flashStatus ? .on : .off
@@ -524,10 +534,14 @@ import Accelerate
                 }
             }
         } onCancel: {
-            Task { @MainActor [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
-                if let idx = self.activeCaptureRequests.firstIndex(where: { $0.id == requestId }) {
-                    let cancelled = self.activeCaptureRequests.remove(at: idx)
+                
+                let cancelled = self.requestsLock.withLock {
+                    self.activeCaptureRequests.removeValue(forKey: requestId)
+                }
+                
+                if let cancelled = cancelled {
                     cancelled.timeoutTask?.cancel()
                     cancelled.continuation.resume(throwing: CancellationError())
                 }
@@ -537,18 +551,21 @@ import Accelerate
     
     // MARK: - Photo Output Delegate
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        Task { @MainActor in
-            guard !self.activeCaptureRequests.isEmpty else { return }
-            let request = self.activeCaptureRequests.removeFirst()
-            request.timeoutTask?.cancel()
-            
-            if let error = error {
-                request.continuation.resume(throwing: error)
-            } else if let data = photo.fileDataRepresentation() {
-                request.continuation.resume(returning: data)
-            } else {
-                request.continuation.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))
-            }
+        let requestId = photo.resolvedSettings.uniqueID
+        
+        let request = self.requestsLock.withLock {
+            self.activeCaptureRequests.removeValue(forKey: requestId)
+        }
+        
+        guard let request = request else { return }
+        request.timeoutTask?.cancel()
+        
+        if let error = error {
+            request.continuation.resume(throwing: error)
+        } else if let data = photo.fileDataRepresentation() {
+            request.continuation.resume(returning: data)
+        } else {
+            request.continuation.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))
         }
     }
     

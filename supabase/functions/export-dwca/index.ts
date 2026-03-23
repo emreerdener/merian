@@ -161,7 +161,7 @@ serve((req: Request) =>
       // @ts-ignore: Deno globalThis supports gc natively when run with --v8-flags=--expose-gc
       globalThis.gc?.();
       
-      if (data.length < PAGE_SIZE) {
+      if (data.length < PAGE_SIZE || occurrenceRows.length >= 10000) {
         hasMore = false;
       } else {
         start += PAGE_SIZE;
@@ -202,7 +202,17 @@ serve((req: Request) =>
     zip.file("multimedia.csv", multimediaRows.join("\n") + "\n");
     zip.file("meta.xml", metaXml);
 
-    const zipBuffer = await zip.generateAsync({ type: "uint8array", compression: "STORE" });
+    const zipStream = zip.generateInternalStream({ type: "uint8array", compression: "STORE" });
+    
+    // Utilize Deno Streams natively bridging directly to the Cloudflare R2 Upload payload to drastically scale under the 256MB V8 limits
+    const readableZipStream = new ReadableStream({
+      start(controller) {
+        zipStream.on("data", (data: Uint8Array) => controller.enqueue(data))
+                 .on("end", () => controller.close())
+                 .on("error", (err: Error) => controller.error(err));
+        zipStream.resume();
+      }
+    });
 
     // 6. Upload to R2 and Generate Download URL
     const { s3Client, bucketName, endpoint } = getR2Config();
@@ -211,14 +221,12 @@ serve((req: Request) =>
     const exportKey = `exports/${userId}/Scans_DwC_Archive_${timestamp}.zip`;
     const urlString = `${endpoint}/${bucketName}/${exportKey}`;
 
-    // Use statically resolved Uint8Array explicitly with calculated Content-Length to bypass AWS chunked 411/403 crashes natively
     const putRes = await s3Client.fetch(urlString, {
       method: "PUT",
       headers: {
-        "Content-Length": zipBuffer.length.toString(),
         "Content-Type": "application/zip"
       },
-      body: zipBuffer as unknown as BodyInit
+      body: readableZipStream
     });
 
     if (!putRes.ok) {

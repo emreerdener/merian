@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { getS3Client } from "../_shared/aws.ts";
+import { getS3Client, getR2Config, copyR2Object, deleteR2Object } from "../_shared/aws.ts";
 import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { SafetyRating } from "https://esm.sh/@google/generative-ai@0.24.1";
 
@@ -49,12 +49,8 @@ export async function evaluateAndProcessPayload(
 
       // Step A: Send DELETE request purging image explicitly from staging (if uploaded remotely)
       if ((!imageBase64s || imageBase64s.length === 0) && r2ObjectKeys && r2ObjectKeys.length > 0) {
-          const deleteReqs = r2ObjectKeys.map(async (key) => {
-              const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
-              const deleteReq = new Request(stagingUrl, { method: "DELETE" });
-              const signedDelete = await aws.sign(deleteReq);
-              return fetch(signedDelete);
-          });
+          const r2Config = getR2Config();
+          const deleteReqs = r2ObjectKeys.map(key => deleteR2Object(key, r2Config));
           await Promise.allSettled(deleteReqs);
       }
 
@@ -122,27 +118,16 @@ export async function evaluateAndProcessPayload(
             index++;
         }
     } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {
+        const r2Config = getR2Config();
         for (const r2Key of r2ObjectKeys) {
             const fileName = r2Key.split("/").pop();
             const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
-            const targetS3Url = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
-            const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2Key}`;
 
-            const copyReq = new Request(targetS3Url, {
-              method: "PUT",
-              headers: {
-                "x-amz-copy-source": `/${R2_BUCKET_NAME}/${r2Key}`,
-              },
-            });
-
-            const signedCopy = await aws.sign(copyReq);
-            const copyRes = await fetch(signedCopy);
+            const copyRes = await copyR2Object(r2Key, publicUploadKey, r2Config);
 
             if (copyRes.ok) {
               // Step B: Purge origin from staging payload block after valid internal transfer
-              const originDeleteReq = new Request(stagingUrl, { method: "DELETE" });
-              const signedOriginDelete = await aws.sign(originDeleteReq);
-              await fetch(signedOriginDelete);
+              await deleteR2Object(r2Key, r2Config);
               
               publicUrls.push(`https://media.merian.app/${publicUploadKey}`);
             } else {
