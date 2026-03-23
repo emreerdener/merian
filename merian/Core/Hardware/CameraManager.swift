@@ -507,16 +507,8 @@ import Accelerate
                         settings.flashMode = targetFlashMode
                     }
                     
-                    // Align the physical hardware ISP explicitly to native Portrait bounds to eliminate EXIF geometry offsets 
-                    if #available(iOS 17.0, *) {
-                        if connection.isVideoRotationAngleSupported(90.0) {
-                            connection.videoRotationAngle = 90.0
-                        }
-                    } else {
-                        if connection.isVideoOrientationSupported {
-                            connection.videoOrientation = .portrait
-                        }
-                    }
+                    // Rely strictly on AVCapturePhotoOutput's native Apple EXIF metadata integration. 
+                    // Structurally forcing `connection.videoRotationAngle = 90.0` triggers double-rotations natively producing sideways geometries!
                     
                     if #available(iOS 16.0, *) {
                         settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions

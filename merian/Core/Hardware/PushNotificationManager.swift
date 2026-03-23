@@ -87,7 +87,17 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Suppresses visual banners implicitly if the user is already actively navigating the app natively.
-        completionHandler([])
+        // CRITICAL FIX: Because Merian keeps the app "running" in the background via `URLSession` and Tasks, 
+        // iOS still inherently fires `willPresent` on local pushes!
+        // We MUST verify `.active` foreground presence before suppressing the visual banner gracefully.
+        Task { @MainActor in
+            if UIApplication.shared.applicationState == .active {
+                // Suppresses visual banners implicitly if the user is already actively navigating the app natively.
+                completionHandler([])
+            } else {
+                // Explicitly allow iOS to render the notification across the locked screen/notification center!
+                completionHandler([.banner, .sound, .list])
+            }
+        }
     }
 }

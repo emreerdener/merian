@@ -82,28 +82,33 @@ struct AwardCard: View {
             )
             // MARK: - Premium Specular Shimmer Engine
             .overlay(
-                GeometryReader { geo in
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0.0),
-                                    .init(color: award.isCompleted ? tintInfo.color : .white.opacity(0.9), location: 0.5),
-                                    .init(color: .clear, location: 1.0)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: max(geo.size.width, 1))
-                        .offset(x: shimmerPhase * max(geo.size.width, 1) * 2)
-                        .blendMode(.screen)
-                        .mask(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(lineWidth: 1.5)
-                        )
+                Group {
+                    if award.isCompleted {
+                        GeometryReader { geo in
+                            Rectangle()
+                                .fill(
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: .clear, location: 0.0),
+                                            .init(color: tintInfo.color, location: 0.5),
+                                            .init(color: .clear, location: 1.0)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: max(geo.size.width, 1))
+                                .offset(x: shimmerPhase * max(geo.size.width, 1) * 2)
+                                .blendMode(.screen)
+                                .mask(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(lineWidth: 1.5)
+                                )
+                        }
+                    }
                 }
             )
             .task {
+                guard award.isCompleted else { return }
                 // Initiates organic, randomized intermittent flashes natively decoupled from UI loops
                 while !Task.isCancelled {
                     let randomSleepSeconds = Double.random(in: 4.0...12.0)
