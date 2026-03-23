@@ -13,32 +13,32 @@ struct BiologicalView: View {
     var body: some View {
         VStack(spacing: 24) {
             
-            // 1. Primary Identifiers
+            // Primary Identifiers
             InsightHeader(speciesData: inferenceEngine.speciesData)
             ToxicityBanner()
 
-            // 2. Global Footprint
+            // Global Footprint
             ConservationBanner()
             
-            // 3. Biological Classification
-            TaxonomyCard(
-                taxonomyData: inferenceEngine.speciesData?.taxonomy,
-                scientificName: inferenceEngine.speciesData?.scientificName
-            )
-            
-            // 4. Spatiotemporal Context
-            ScanInformationCard(
-                speciesData: inferenceEngine.speciesData, 
-                timestamp: timestamp
-            )
-  
-            // 5. Educational Reference
+            // Educational Reference
             WikipediaCard(
                 isSafariPresented: $isSafariPresented, 
                 selectedWikiURL: $selectedWikiURL
             )
+
+             // Biological Classification
+            TaxonomyCard(
+                taxonomyData: inferenceEngine.speciesData?.taxonomy,
+                scientificName: inferenceEngine.speciesData?.scientificName
+            )
+
+            // Spatiotemporal Context
+            ScanInformationCard(
+                speciesData: inferenceEngine.speciesData, 
+                timestamp: timestamp
+            )
             
-            // 6. Diagnostic Evaluation
+            // Diagnostic Evaluation
             if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.8, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
                 AIReasoningCard(diagnosticData: diagnosticData)
             }

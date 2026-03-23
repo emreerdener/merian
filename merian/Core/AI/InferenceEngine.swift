@@ -161,7 +161,9 @@ enum APIError: Error {
                         locationName: telemetry.locationName,
                         weatherCondition: telemetry.weatherCondition,
                         weatherTemperatureF: telemetry.weatherTemperatureF,
-                        gpsElevation: telemetry.gpsElevation
+                        gpsElevation: telemetry.gpsElevation,
+                        gpsLatitude: telemetry.gpsLatitude,
+                        gpsLongitude: telemetry.gpsLongitude
                     )
                     
                     // CRITICAL FIX: Prevent phantom DB inserts by strictly validating Task cancellation before inserting!
@@ -226,6 +228,8 @@ enum APIError: Error {
                         weatherCondition: telemetry.weatherCondition,
                         weatherTemperatureF: telemetry.weatherTemperatureF,
                         gpsElevation: telemetry.gpsElevation,
+                        gpsLatitude: telemetry.gpsLatitude,
+                        gpsLongitude: telemetry.gpsLongitude,
                         colors: nil
                     )
                     self.isProcessing = false
@@ -266,7 +270,9 @@ enum APIError: Error {
                     locationName: telemetry.locationName,
                     weatherCondition: telemetry.weatherCondition,
                     weatherTemperatureF: telemetry.weatherTemperatureF,
-                    gpsElevation: telemetry.gpsElevation
+                    gpsElevation: telemetry.gpsElevation,
+                    gpsLatitude: telemetry.gpsLatitude,
+                    gpsLongitude: telemetry.gpsLongitude
                 )
             }
             
@@ -444,7 +450,9 @@ enum APIError: Error {
             locationName: record.locationName,
             weatherCondition: record.weatherCondition,
             weatherTemperatureF: record.weatherTemperatureF,
-            gpsElevation: record.gpsElevation
+            gpsElevation: record.gpsElevation,
+            gpsLatitude: record.gpsLatitude,
+            gpsLongitude: record.gpsLongitude
         )
         self.isProcessing = false
         

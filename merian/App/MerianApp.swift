@@ -25,7 +25,7 @@ struct MerianApp: App {
     // MARK: - Lifecycle Bootstrapping
     init() {
         do {
-            let schema = Schema(versionedSchema: MerianSchemaV11.self)
+            let schema = Schema(versionedSchema: MerianSchemaV12.self)
             let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
             container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
             AppDIContainer.shared.scanRepository.configure(with: container.mainContext)

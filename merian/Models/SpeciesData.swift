@@ -40,12 +40,14 @@ struct SpeciesData {
     var weatherCondition: String?
     var weatherTemperatureF: Double?
     var gpsElevation: Double?
+    var gpsLatitude: Double?
+    var gpsLongitude: Double?
     var colors: [String]?
     let iucnRedListStatus: String?
     
     // MARK: - JSON Decoding Deserializer
     /// DRY Architectural Decoding Strategy Context explicitly mapping standard dictionaries natively to struct bounds securely
-    init(fromEdgeResponse edgeRes: InferenceEngine.EdgeResponse, locationName: String?, weatherCondition: String?, weatherTemperatureF: Double?, gpsElevation: Double? = nil) {
+    init(fromEdgeResponse edgeRes: InferenceEngine.EdgeResponse, locationName: String?, weatherCondition: String?, weatherTemperatureF: Double?, gpsElevation: Double? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil) {
         let insight = InsightData(
             description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
             isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
@@ -88,6 +90,8 @@ struct SpeciesData {
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
         self.gpsElevation = gpsElevation
+        self.gpsLatitude = gpsLatitude
+        self.gpsLongitude = gpsLongitude
         self.colors = edgeRes.colors
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
     }
@@ -113,6 +117,8 @@ struct SpeciesData {
         weatherCondition: String? = nil,
         weatherTemperatureF: Double? = nil,
         gpsElevation: Double? = nil,
+        gpsLatitude: Double? = nil,
+        gpsLongitude: Double? = nil,
         colors: [String]? = nil,
         iucnRedListStatus: String? = nil
     ) {
@@ -134,6 +140,8 @@ struct SpeciesData {
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
         self.gpsElevation = gpsElevation
+        self.gpsLatitude = gpsLatitude
+        self.gpsLongitude = gpsLongitude
         self.colors = colors
         self.iucnRedListStatus = iucnRedListStatus
     }

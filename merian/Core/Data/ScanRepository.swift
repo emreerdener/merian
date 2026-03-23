@@ -73,7 +73,7 @@ final class ScanRepository {
         do {
             let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                 .from("scans")
-                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, species_dictionary(*)")
+                .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, species_dictionary(*)")
                 .eq("user_id", value: userId)
                 .execute()
                 .value
@@ -204,6 +204,9 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let is_live_capture: Bool?
     let colors: [String]?
     let semantic_location: String?
+    let gps_lat_exact: Double?
+    let gps_long_exact: Double?
+    let gps_elevation: Double?
     let species_dictionary: CloudSpeciesDictionary?
 }
 
@@ -267,7 +270,10 @@ actor HistoricalDatabaseActor {
                 locationName: scan.semantic_location,
                 weatherCondition: scan.weather_condition,
                 weatherTemperatureF: scan.weather_temperature_f,
-                iucnRedListStatus: dict?.iucn_red_list_status
+                iucnRedListStatus: dict?.iucn_red_list_status,
+                gpsLatitude: scan.gps_lat_exact,
+                gpsLongitude: scan.gps_long_exact,
+                gpsElevation: scan.gps_elevation
             )
             
             modelContext.insert(record)
@@ -308,6 +314,13 @@ actor HistoricalDatabaseActor {
                 
                 if let newLoc = res.semantic_location, existing.locationName != newLoc {
                     existing.locationName = newLoc
+                    didUpdate = true
+                }
+                
+                if existing.gpsLatitude == nil, let remoteLat = res.gps_lat_exact, let remoteLon = res.gps_long_exact {
+                    existing.gpsLatitude = remoteLat
+                    existing.gpsLongitude = remoteLon
+                    existing.gpsElevation = res.gps_elevation
                     didUpdate = true
                 }
             }

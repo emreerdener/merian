@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 
 struct ScanInformationCard: View {
     let speciesData: SpeciesData?
@@ -11,7 +12,8 @@ struct ScanInformationCard: View {
         // A mathematically exact `0.0` output from CoreLocation natively denotes a missing 
         // vertical altitude fix. Authentic sea-level topological readings always float (e.g., 0.3m, -1.2m).
         let elevationValid = sd.gpsElevation != nil && sd.gpsElevation != 0
-        return nameValid || weatherValid || elevationValid || timestamp != nil
+        let coordsValid = sd.gpsLatitude != nil && sd.gpsLongitude != nil && !(sd.gpsLatitude == 0 && sd.gpsLongitude == 0)
+        return nameValid || weatherValid || elevationValid || coordsValid || timestamp != nil
     }
     
     var body: some View {
@@ -19,6 +21,8 @@ struct ScanInformationCard: View {
         let temp: Double? = speciesData?.weatherTemperatureF
         let cond: String? = speciesData?.weatherCondition
         let elevation: Double? = speciesData?.gpsElevation
+        let lat: Double? = speciesData?.gpsLatitude
+        let lon: Double? = speciesData?.gpsLongitude
         
         if hasValidData {
             VStack(alignment: .leading, spacing: 16) {
@@ -57,6 +61,19 @@ struct ScanInformationCard: View {
                             title: "TIME",
                             value: ts.formatted(date: .omitted, time: .shortened)
                         )
+                    }
+                    
+                    // Map
+                    if let lat = lat, let lon = lon, !(lat == 0 && lon == 0) {
+                        let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+                        Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)))) {
+                            Marker("Location", coordinate: coord)
+                                .tint(Color.accentColor)
+                        }
+                        .frame(height: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .allowsHitTesting(false)
+                        .padding(.top, 4)
                     }
                 }
             }

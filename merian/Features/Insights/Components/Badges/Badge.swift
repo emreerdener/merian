@@ -26,6 +26,7 @@ struct Badge: View {
             if let validIcon = icon {
                 Image(systemName: validIcon)
                     .imageScale(.medium)
+                    .frame(width: 16, alignment: .center)
             }
             Text(text)
                 .lineLimit(1) 

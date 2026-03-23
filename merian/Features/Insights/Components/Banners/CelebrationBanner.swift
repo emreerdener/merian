@@ -39,17 +39,17 @@ private struct NewDiscoveryCelebrationView: View {
             // Icon Fallback
             if !hardwareOrchestrator.isCriticalHeatWarningActive {
                 if #available(iOS 17.0, *) {
-                    Image(systemName: "viewfinder")
+                    Image(systemName: "star.fill")
                         .font(.system(size: 24))
                         .symbolEffect(.pulse)
                         .foregroundStyle(.yellow)
                 } else {
-                    Image(systemName: "viewfinder")
+                    Image(systemName: "star.fill")
                         .font(.system(size: 24))
                         .foregroundStyle(.yellow)
                 }
             } else {
-                Image(systemName: "viewfinder")
+                Image(systemName: "star.fill")
                     .font(.system(size: 24))
                     .foregroundColor(.yellow)
             }

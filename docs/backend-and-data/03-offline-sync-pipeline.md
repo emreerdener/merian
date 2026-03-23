@@ -8,7 +8,7 @@ The `OfflineQueueManager` handles the persistence explicitly with no risk.
 
 1. **Inference Failure & Queueing (`OfflineQueueManager.shared.enqueueCapture`)**
 1. **Inference Failure & Queueing (`OfflineQueueManager.shared.enqueueCapture`)**
-   When a hiker takes a picture miles away from a cell tower, the UI passes the raw capture and active telemetry context (like `gpsLatitude`, `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, `subjectDistanceInMeters`, and `locationName`) completely decoupled into a single `CaptureTelemetry` object struct mapping to `InferenceEngine.analyze(imageData:telemetry:)`. 
+   When a hiker takes a picture miles away from a cell tower, the UI passes the raw capture and active telemetry context (like `gpsLatitude`, `gpsLongitude`, `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, `subjectDistanceInMeters`, and `locationName`) completely decoupled into a single `CaptureTelemetry` object struct mapping to `InferenceEngine.analyze(imageData:telemetry:)`. 
    
    *Note: Legacy environmental variables (such as `cameraPitchDegrees`, `compassHeading`, `uvIndex`, etc.) were completely purged from `CaptureTelemetry` logic to aggressively constrain edge serialization byte limits natively, focusing solely on high-value heuristics.*
 
@@ -51,7 +51,7 @@ Scan permanence and user privacy dictates that explicitly deleted datasets are p
 To securely support multi-device logic and app reinstalls, Merian implements a physical boundary bypassing standard fetch drops: 
 
 1. **The Rehydration Native Sync (`syncHistoricalScansDown`)**
-   Explicitly embedded in `ScanRepository.shared`, this robust task queries the Supabase Edge natively pulling a joined `scans` + `species_dictionary` PostgreSQL JSON response. It sequentially filters all UUIDs securely querying the edge payloads perfectly bounded inside a `.eq("user_id", value: userId)` isolation. To explicitly protect the UI from stuttering during extreme historical payloads (e.g. 5000+ records), the JSON parsing and raw SQLite `.insert(record)` execution is completely decoupled from the Main Thread, natively routing array ingestion directly into a generic `@ModelActor HistoricalDatabaseActor` processing offline safely.
+   Explicitly embedded in `ScanRepository.shared`, this robust task queries the Supabase Edge natively pulling a joined `scans` + `species_dictionary` PostgreSQL JSON response. It explicitly includes exact structural bindings like `gps_latitude`, `gps_longitude`, and `gps_elevation` inside the select block to securely hydrate exact `MapKit` geometries back into local data models out of thin air. It sequentially filters all UUIDs securely querying the edge payloads perfectly bounded inside a `.eq("user_id", value: userId)` isolation. To explicitly protect the UI from stuttering during extreme historical payloads (e.g. 5000+ records), the JSON parsing and raw SQLite `.insert(record)` execution is completely decoupled from the Main Thread, natively routing array ingestion directly into a generic `@ModelActor HistoricalDatabaseActor` processing offline safely.
 2. **Lifecycle Execution Hook**
    This synchronization executes aggressively the pure second a user completely transitions from `Ghost` -> `Authed` inside the `SupabaseManager.setupAuthStateListener` or uniquely whenever the app recovers foreground capabilities out of deep bounds (`AppDIContainer.handleActivePhase`).
 3. **Ghost-Rendering Image Optimization**

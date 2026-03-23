@@ -553,7 +553,7 @@ actor BackgroundDatabaseActor {
         var inferenceFailed = true
         if let parsedWrapper = try? decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData) {
             let edgeRes = parsedWrapper.data
-            var mappedData = SpeciesData(fromEdgeResponse: edgeRes, locationName: telemetry?.locationName, weatherCondition: telemetry?.weatherCondition, weatherTemperatureF: telemetry?.weatherTemperatureF, gpsElevation: telemetry?.gpsElevation)
+            var mappedData = SpeciesData(fromEdgeResponse: edgeRes, locationName: telemetry?.locationName, weatherCondition: telemetry?.weatherCondition, weatherTemperatureF: telemetry?.weatherTemperatureF, gpsElevation: telemetry?.gpsElevation, gpsLatitude: telemetry?.gpsLatitude, gpsLongitude: telemetry?.gpsLongitude)
             
             if mappedData.confidenceScore > 0.0 {
                 inferenceFailed = false
@@ -610,6 +610,8 @@ actor BackgroundDatabaseActor {
                         return String(data: data, encoding: .utf8)
                     }(),
                     iucnRedListStatus: mappedData.iucnRedListStatus,
+                    gpsLatitude: mappedData.gpsLatitude,
+                    gpsLongitude: mappedData.gpsLongitude,
                     gpsElevation: mappedData.gpsElevation
                 )
                 modelContext.insert(record)
@@ -736,6 +738,8 @@ actor BackgroundDatabaseActor {
                     return String(data: data, encoding: .utf8)
                 }(),
                 iucnRedListStatus: mappedData.iucnRedListStatus,
+                gpsLatitude: mappedData.gpsLatitude,
+                gpsLongitude: mappedData.gpsLongitude,
                 gpsElevation: mappedData.gpsElevation
             )
             modelContext.insert(record)
