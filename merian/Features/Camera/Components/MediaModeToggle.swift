@@ -45,8 +45,8 @@ struct MediaModeToggle: View {
                     }
                 }) {
                     HStack(spacing: 6) {
-                        Image(systemName: mode == .visual ? "camera.viewfinder" : "waveform")
-                        Text(mode == .visual ? "Visual" : "Audio")
+                        Image(systemName: mode == .visual ? "viewfinder" : "waveform")
+                        Text(mode == .visual ? "Scan" : "Record")
                     }
                     .font(.subheadline)
                     .fontWeight(.bold)

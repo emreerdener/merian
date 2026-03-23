@@ -1,17 +1,29 @@
 import SwiftUI
+import CoreLocation
 
 struct ConfidenceExplanationSheet: View {
+    @State private var showLocationPrompt: Bool = false
+    
+    private func checkLocationStatus() {
+        // let manager = CLLocationManager()
+        // let status = manager.authorizationStatus
+        // showLocationPrompt = (status == .notDetermined || status == .restricted || status == .denied)
+        
+        // TEMPORARY: Force UI render for styling!
+        showLocationPrompt = true
+    }
+    
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
                 // MARK: - Vibrant Header
                 VStack(spacing: 16) {
                     VStack(spacing: 8) {
-                        Text("Identification confidence")
-                            .font(.system(.title, weight: .bold))
+                        Text("Confidence score")
+                            .font(.system(.title, design: .serif).weight(.bold))
                             .foregroundStyle(.primary)
                         
-                        Text("Merian leverages dynamic computer vision to resolve taxonomies. This spectrum represents the exact boundaries of the algorithm.")
+                        Text("Merian's AI calculates a confidence score out of 100 by analyzing your images alongside GPS location, elevation level, weather data, and more to maximize accuracy.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -24,14 +36,14 @@ struct ConfidenceExplanationSheet: View {
                 VStack(spacing: 0) {
                     SpectrumNode(
                         color: Color(red: 0.11, green: 0.52, blue: 0.28),
-                        nextColor: Color(red: 0.11, green: 0.52, blue: 0.28),
+                        nextColor: Color(red: 0.25, green: 0.75, blue: 0.35),
                         percentage: "95% - 100%",
                         title: "High confidence",
                         description: "Extremely certain. The key visual structures match the model flawlessly."
                     )
                     
                     SpectrumNode(
-                        color: Color(red: 0.11, green: 0.52, blue: 0.28),
+                        color: Color(red: 0.25, green: 0.75, blue: 0.35),
                         nextColor: .orange,
                         percentage: "85% - 94%",
                         title: "Confident",
@@ -72,6 +84,54 @@ struct ConfidenceExplanationSheet: View {
                         .foregroundColor(.primary)
                     
                     VStack(alignment: .leading, spacing: 16) {
+                        if showLocationPrompt {
+                            Button {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            } label: {
+                                HStack(alignment: .top, spacing: 16) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.purple.opacity(0.15))
+                                            .frame(width: 32, height: 32)
+                                        
+                                        Image(systemName: "location.fill")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundColor(.purple)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Enable location data")
+                                            .font(.system(.subheadline, weight: .bold))
+                                            .foregroundColor(.primary)
+                                        
+                                        Text("Inject local topology and weather telemetry directly into the AI for max accuracy.")
+                                            .font(.footnote)
+                                            .foregroundColor(.secondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .lineSpacing(2)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(Color(uiColor: .tertiaryLabel))
+                                        .padding(.top, 8)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Divider()
+                                .opacity(0.5)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 4)
+                        }
+                        
                         TipRow(
                             icon: "camera.macro",
                             color: .blue,
@@ -107,6 +167,12 @@ struct ConfidenceExplanationSheet: View {
             }
             .padding(.top, 32)
             .padding(.bottom, 48)
+        }
+        .onAppear {
+            checkLocationStatus()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            checkLocationStatus()
         }
     }
 }

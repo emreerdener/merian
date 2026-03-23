@@ -35,26 +35,28 @@ struct DangerZone: View {
                     .foregroundColor(.red)
             }
             
-            Button(action: {
-                showSignOutConfirmation = true
-            }) {
-                Text("Sign out")
-                    .foregroundColor(.red)
-            }
-            .confirmationDialog(
-                "Are you sure you want to sign out?",
-                isPresented: $showSignOutConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Sign out", role: .destructive) {
-                    Task {
-                        // Forces a clean physical JWT removal across the device securely
-                        // instantly rehydrating back into a zero-bound Ghost mode state.
-                        await supabase.signOut()
-                        await supabase.initializeGhostSession()
-                    }
+            if !supabase.isGuestUser {
+                Button(action: {
+                    showSignOutConfirmation = true
+                }) {
+                    Text("Sign out")
+                        .foregroundColor(.red)
                 }
-                Button("Cancel", role: .cancel) { }
+                .confirmationDialog(
+                    "Are you sure you want to sign out?",
+                    isPresented: $showSignOutConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Sign out", role: .destructive) {
+                        Task {
+                            // Forces a clean physical JWT removal across the device securely
+                            // instantly rehydrating back into a zero-bound Ghost mode state.
+                            await supabase.signOut()
+                            await supabase.initializeGhostSession()
+                        }
+                    }
+                    Button("Cancel", role: .cancel) { }
+                }
             }
 
             Button(action: {

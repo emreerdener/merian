@@ -22,7 +22,7 @@ struct ToxicityBanner: View {
             }
             .padding()
             .background(Color.yellow.opacity(0.8))
-            .foregroundColor(.primary)
+            .foregroundColor(.black)
             .cornerRadius(16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)

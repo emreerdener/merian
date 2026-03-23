@@ -35,6 +35,7 @@ struct Badge: View {
         .foregroundColor(activeForegroundColor)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .frame(minHeight: 36) // Securely normalize heights across varying intrinsic SF Symbol volumes
         .fixedSize(horizontal: true, vertical: false) // Auto-hug layout lock
         // Combines pristine system glass materials with a 15% dynamic color wash for heavily saturated, vibrant Apple-tier tinted background aesthetics natively.
         .background {

@@ -7,6 +7,7 @@ public struct AwardPayload: Sendable, Identifiable {
     public let type: String
     public let currentCount: Int
     public let targetCount: Int
+    public let lastInteractionDate: Date?
 }
 
 extension AwardPayload {
@@ -50,7 +51,7 @@ extension AwardPayload {
 
 // MARK: - Sorting UI State
 enum AwardSortOption: String, CaseIterable, Identifiable {
-    case smartSort = "Smart Sort"
+    case smartSort = "Smart sort"
     case completedFirst = "Completed first"
     case uncompletedFirst = "Incomplete first"
     case easiestFirst = "Easiest first"

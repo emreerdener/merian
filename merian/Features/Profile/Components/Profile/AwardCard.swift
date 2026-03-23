@@ -4,6 +4,9 @@ import SwiftUI
 struct AwardCard: View {
     let award: AwardPayload
     
+    // Core animation state for the premium specular border glow
+    @State private var shimmerPhase: CGFloat = -1.0
+    
     private var difficultyColor: Color {
         switch award.difficultyLevel {
         case 2: return Color(red: 0.85, green: 0.3, blue: 0.3) // Hard (Crimson)
@@ -55,8 +58,7 @@ struct AwardCard: View {
     }
     
     private var formattedTitle: String {
-        guard let first = award.title.first else { return award.title }
-        return String(first).uppercased() + award.title.dropFirst().lowercased()
+        return award.title
     }
     
     var body: some View {
@@ -72,6 +74,52 @@ struct AwardCard: View {
                     .scaledToFit()
                     .frame(width: 24, height: 24)
                     .foregroundColor(award.isCompleted ? tintInfo.color : Color(uiColor: .systemGray))
+            }
+            // MARK: - Ambient Static Glass Boundary
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(award.isCompleted ? tintInfo.color.opacity(0.25) : Color.primary.opacity(0.08), lineWidth: 1.5)
+            )
+            // MARK: - Premium Specular Shimmer Engine
+            .overlay(
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0.0),
+                                    .init(color: award.isCompleted ? tintInfo.color : .white.opacity(0.9), location: 0.5),
+                                    .init(color: .clear, location: 1.0)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: max(geo.size.width, 1))
+                        .offset(x: shimmerPhase * max(geo.size.width, 1) * 2)
+                        .blendMode(.screen)
+                        .mask(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(lineWidth: 1.5)
+                        )
+                }
+            )
+            .task {
+                // Initiates organic, randomized intermittent flashes natively decoupled from UI loops
+                while !Task.isCancelled {
+                    let randomSleepSeconds = Double.random(in: 4.0...12.0)
+                    try? await Task.sleep(for: .seconds(randomSleepSeconds))
+                    
+                    guard !Task.isCancelled else { break }
+                    
+                    // Reset silently instantly, then trigger the holographic sweep precisely mapped to ConfidenceBadge!
+                    shimmerPhase = -1.0
+                    try? await Task.sleep(nanoseconds: 50_000_000) // 50ms native yield to ensure UI registers the reset
+                    
+                    // Fire the flare across the icon geometry!
+                    withAnimation(.easeOut(duration: 1.8)) {
+                        shimmerPhase = 2.5
+                    }
+                }
             }
             
             // MARK: - Structural Text & Progress Metrics
@@ -148,7 +196,7 @@ struct AwardCard: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(uiColor: .systemBackground))
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
     }
 }
