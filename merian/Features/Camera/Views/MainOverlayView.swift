@@ -53,7 +53,7 @@ struct MainOverlayView: View {
             
             // MARK: - Hardware Capture Bar
             if activeScanImages.count < 2 {
-                HStack(alignment: .bottom) {
+                HStack(alignment: .center) {
                     PhotoLibraryButton(
                         selectedPhotoItems: $selectedPhotoItems,
                         latestThumbnail: latestThumbnail,
