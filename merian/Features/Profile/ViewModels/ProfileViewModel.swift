@@ -11,10 +11,47 @@ final class ProfileViewModel {
     // the very millisecond the PostgreSQL network call physically returns data!
     var defaultGeoprivacy = "open"
     
+    let supabase = SupabaseManager.shared
+    
+    // MARK: - Auth & Profile State Map
+    var isGuestUser: Bool {
+        supabase.isGuestUser
+    }
+    
+    var userName: String? {
+        supabase.currentUser?.userMetadata["full_name"]?.stringValue ?? supabase.currentUser?.userMetadata["name"]?.stringValue
+    }
+    
+    var userEmail: String? {
+        supabase.currentUser?.email
+    }
+    
+    var userAvatarURL: URL? {
+        if let avatarStr = supabase.currentUser?.userMetadata["avatar_url"]?.stringValue ?? supabase.currentUser?.userMetadata["picture"]?.stringValue,
+           let url = URL(string: avatarStr) {
+            return url
+        }
+        return nil
+    }
+    
+    // MARK: - Auth Flow Actions
+    func signInWithApple() async {
+        supabase.startAppleSignIn()
+    }
+    
+    func signInWithGoogle() async {
+        await supabase.signInWithGoogle()
+    }
+    
+    func signOut() async {
+        await supabase.signOut()
+        await supabase.initializeGhostSession()
+    }
+    
     /// Establishes a secure TCP/IP connection to the Supabase Edge natively pulling dynamic cloud-bound preferences 
     /// exclusively independently of the strictly offline local payload engines!
-    func fetchGeoprivacy(supabase: SupabaseManager) {
-        if !supabase.isGuestUser, let user = supabase.currentUser {
+    func fetchGeoprivacy() {
+        if !isGuestUser, let user = supabase.currentUser {
             Task {
                 do {
                     // Ephemeral isolated Decodable Struct explicitly preventing globally polluting the namespace models.

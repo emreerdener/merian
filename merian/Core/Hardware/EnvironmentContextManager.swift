@@ -31,6 +31,10 @@ struct EnvironmentContext {
     // MARK: - State Management
     var isAuthorized: Bool = false
     
+    var locationAuthorizationStatus: CLAuthorizationStatus {
+        locationManager.authorizationStatus
+    }
+    
     // MARK: - Cache Maps
     
     private var activeContinuations: [CheckedContinuation<CLLocation?, Never>] = []

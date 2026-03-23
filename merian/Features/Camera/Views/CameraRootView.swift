@@ -13,92 +13,77 @@ struct CameraRootView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     
-    
     // MARK: - View Model & State
     @State private var viewModel = CameraViewModel()
-    
-    // MARK: - Focus Interactions
-    @State private var focusLocation: CGPoint? = nil
-    @State private var showFocusIndicator: Bool = false
-    @State private var focusTask: Task<Void, Never>? = nil
 
     // MARK: - View Hierarchy
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
-                
-                // MARK: - Optical Bridge
+                // 1. Optical Bridge (Underlay Black Safely)
                 CameraPreviewView(
                     session: cameraManager.session,
-                    onTap: { layerPoint, devicePoint in
+                    onTap: { _, devicePoint in
                         viewModel.handleFocusTap(devicePoint: devicePoint)
-                        focusLocation = layerPoint
-                        showFocusIndicator = true
-                        
-                        focusTask?.cancel()
-                        focusTask = Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 1_500_000_000)
-                            if !Task.isCancelled {
-                                withAnimation(.easeOut) {
-                                    showFocusIndicator = false
-                                }
-                            }
-                        }
                     }
                 )
                 .ignoresSafeArea()
+                .background(Color.black.ignoresSafeArea())
+                .modifier(FocusTapGestureModifier(onTap: { _ in }))
                 
-                FocusIndicator(
-                    showFocusIndicator: showFocusIndicator,
-                    focusLocation: focusLocation
-                )
-            
-                // MARK: - Hardware Effects
-                // Shutter Snap Animation
+                // 2. Hardware Effects (Flash Snap)
                 Color.black
                     .ignoresSafeArea()
                     .opacity(viewModel.flashOpacity)
                     .allowsHitTesting(false)
                 
-                // Thermal Warning Indicator overlay
+                // 3. Thermal Overlay
                 ThermalWarningView()
                 
-                // MARK: - Interface Overlays
-                if !viewModel.isAnalyzingFullscreen {
-                // Extracted Shutter Button Overlay
-                MainOverlayView(
-                    latestThumbnail: photoLibraryManager.latestThumbnail,
-                    isFlashEnabled: cameraManager.isFlashEnabled,
-                    selectedPhotoItems: $viewModel.selectedPhotoItems,
-                    activeSheet: $viewModel.activeSheet,
-                    activeScanImages: viewModel.activeScanImages,
-                    onCapture: { viewModel.executeCapture() },
-                    onToggleFlash: { cameraManager.toggleFlash() },
-                    onThumbnailTap: { index in
-                        viewModel.presentCrop(for: index)
-                    },
-                    onSubmitScan: { viewModel.submitActiveScan(modelContext: modelContext) },
-                    onCancelScan: {
-                        viewModel.activeScanImages.removeAll()
-                        viewModel.activeScannedDatas.removeAll()
-                        viewModel.activeOriginals.removeAll()
+                // 4. UI Interface Layer
+                ZStack {
+                    CameraControlsLayer(
+                        latestThumbnail: photoLibraryManager.latestThumbnail,
+                        isFlashEnabled: cameraManager.isFlashEnabled,
+                        isTooltipVisible: viewModel.isTooltipVisible,
+                        selectedPhotoItems: $viewModel.selectedPhotoItems,
+                        activeSheet: $viewModel.activeSheet,
+                        activeScanImages: viewModel.activeScanImages,
+                        isAnalyzingFullscreen: viewModel.isAnalyzingFullscreen,
+                        onCapture: { viewModel.executeCapture() },
+                        onToggleFlash: { cameraManager.toggleFlash() },
+                        onThumbnailTap: { index in viewModel.presentCrop(for: index) },
+                        onSubmitScan: { viewModel.submitActiveScan(modelContext: modelContext) },
+                        onCancelScan: {
+                            viewModel.activeScanImages.removeAll()
+                            viewModel.activeScannedDatas.removeAll()
+                            viewModel.activeOriginals.removeAll()
+                        },
+                        onModeChange: {
+                            Task {
+                                await viewModel.scheduleTooltipDismissal()
+                            }
+                        }
+                    )
+                    
+                    if viewModel.isAnalyzingFullscreen, !viewModel.analysisImages.isEmpty {
+                        ScanningOverlayView(images: viewModel.analysisImages, scanningPhaseText: viewModel.scanningPhaseText)
+                            .transition(.opacity)
+                            .zIndex(10)
                     }
-                )
-            }
-            
-            // Full-Screen Scanning Overlay
-            if viewModel.isAnalyzingFullscreen, !viewModel.analysisImages.isEmpty {
-                ScanningOverlayView(images: viewModel.analysisImages, scanningPhaseText: viewModel.scanningPhaseText)
-                    .transition(.opacity)
-                    .zIndex(10)
-            }
+                }
             } // ZStack
         } // NavigationStack
         
         // MARK: - View Modifiers
-        // Unified Application Sheet Router Overlay
         .cameraSheetRouter(viewModel: viewModel)
+        .modifier(CropSheetModifier(
+            isPresented: Binding(
+                get: { viewModel.imageToCrop != nil },
+                set: { if !$0 { viewModel.imageToCrop = nil } }
+            ),
+            viewModel: viewModel
+        ))
         .onAppear {
             cameraManager.startSession()
             photoLibraryManager.startObservingAndFetch()
@@ -112,39 +97,6 @@ struct CameraRootView: View {
         .onChange(of: viewModel.selectedPhotoItems) { _, newItems in
             viewModel.handlePhotoPickerSelection(newItems: newItems, modelContext: modelContext)
         }
-        .fullScreenCover(item: $viewModel.imageToCrop) { identItem in
-            ImageCropperView(
-                image: identItem.image,
-                initialScale: identItem.lastCropScale,
-                initialOffset: identItem.lastCropOffset,
-                onCrop: { croppedData, finalScale, finalOffset in
-                    if let editIndex = viewModel.editingCropIndex, editIndex < viewModel.activeScannedDatas.count {
-                        viewModel.activeScannedDatas[editIndex] = croppedData
-                        if let updatedThumb = UIImage(data: croppedData) {
-                            viewModel.activeScanImages[editIndex] = updatedThumb
-                        }
-                        viewModel.activeOriginals[editIndex].lastCropScale = finalScale
-                        viewModel.activeOriginals[editIndex].lastCropOffset = finalOffset
-                    }
-                    viewModel.editingCropIndex = nil
-                    viewModel.imageToCrop = nil
-                },
-                onCancel: {
-                    viewModel.editingCropIndex = nil
-                    viewModel.imageToCrop = nil
-                },
-                onDelete: {
-                    if let editIndex = viewModel.editingCropIndex, editIndex < viewModel.activeScannedDatas.count {
-                        viewModel.activeScannedDatas.remove(at: editIndex)
-                        viewModel.activeScanImages.remove(at: editIndex)
-                        viewModel.activeOriginals.remove(at: editIndex)
-                    }
-                    viewModel.editingCropIndex = nil
-                    viewModel.imageToCrop = nil
-                }
-            )
-        }
-
         .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
             viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
         }
@@ -157,6 +109,42 @@ struct CameraRootView: View {
                        viewModel.imageToCrop == nil
         ) {
             viewModel.executeCapture()
+        }
+    }
+}
+
+private struct CameraControlsLayer: View {
+    let latestThumbnail: UIImage?
+    let isFlashEnabled: Bool
+    let isTooltipVisible: Bool
+    @Binding var selectedPhotoItems: [PhotosPickerItem]
+    @Binding var activeSheet: CameraViewModel.ActiveSheet?
+    let activeScanImages: [UIImage]
+    let isAnalyzingFullscreen: Bool
+    
+    let onCapture: () -> Void
+    let onToggleFlash: () -> Void
+    let onThumbnailTap: (Int) -> Void
+    let onSubmitScan: () -> Void
+    let onCancelScan: () -> Void
+    let onModeChange: () -> Void
+    
+    var body: some View {
+        if !isAnalyzingFullscreen {
+            MainOverlayView(
+                latestThumbnail: latestThumbnail,
+                isFlashEnabled: isFlashEnabled,
+                isTooltipVisible: isTooltipVisible,
+                selectedPhotoItems: $selectedPhotoItems,
+                activeSheet: $activeSheet,
+                activeScanImages: activeScanImages,
+                onCapture: onCapture,
+                onToggleFlash: onToggleFlash,
+                onThumbnailTap: onThumbnailTap,
+                onSubmitScan: onSubmitScan,
+                onCancelScan: onCancelScan,
+                onModeChange: onModeChange
+            )
         }
     }
 }

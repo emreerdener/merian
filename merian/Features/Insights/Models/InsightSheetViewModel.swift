@@ -2,6 +2,12 @@ import SwiftUI
 import SwiftData
 import SafariServices
 
+struct BadgeItem: Hashable {
+    let text: String
+    let color: Color
+    let icon: String
+}
+
 /// Defines the unified local state graph and primary business logic orchestrating the `InsightSheetView` presentation and data actions.
 @MainActor
 @Observable
@@ -29,6 +35,74 @@ final class InsightSheetViewModel {
     
     // MARK: - SwiftData Status
     var activeLocalRecord: LocalScanRecord? = nil
+    
+    // MARK: - Image Engine Dependencies
+    var inferenceEngine: InferenceEngine? = nil
+    
+    // MARK: - Carousel Computed Properties
+    var refUrls: [String] {
+        inferenceEngine?.speciesData?.referenceImageUrl?
+            .components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+    }
+    
+    var validHistoricImagePaths: [String] {
+        inferenceEngine?.validHistoricImagePaths ?? []
+    }
+    
+    var hasLive: Bool {
+        !(inferenceEngine?.activeLiveCaptureDatas.isEmpty ?? true)
+    }
+    
+    var liveCount: Int {
+        inferenceEngine?.activeLiveCaptureDatas.count ?? 0
+    }
+    
+    var totalImages: Int {
+        liveCount + validHistoricImagePaths.count + refUrls.count
+    }
+    
+    // MARK: - Header Computed Properties
+    var headerTitle: String {
+        inferenceEngine?.speciesData?.commonName.capitalized ?? "Scanning subject..."
+    }
+    
+    var headerSubtitle: String {
+        inferenceEngine?.speciesData?.scientificName ?? "Awaiting taxonomy"
+    }
+    
+    var isPoisonous: Bool {
+        inferenceEngine?.speciesData?.insightData.isPoisonous ?? false
+    }
+    
+    var headerParagraphs: [String] {
+        guard let species = inferenceEngine?.speciesData, !species.insightData.description.isEmpty else { return [] }
+        return species.insightData.description
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+    
+    var headerBadgeItems: [BadgeItem] {
+        guard let species = inferenceEngine?.speciesData else { return [] }
+        var badges: [BadgeItem] = []
+        
+        if species.isInvasive {
+            badges.append(BadgeItem(text: "Invasive", color: .orange, icon: "exclamationmark.triangle.fill"))
+        }
+        if !species.isBiological {
+            badges.append(BadgeItem(text: "Not biological", color: .gray, icon: "xmark.seal.fill"))
+        }
+        
+        let ecology = species.ecologyType.lowercased()
+        if ecology == "domesticated" || ecology == "urban" {
+            badges.append(BadgeItem(text: species.ecologyType.capitalized, color: .purple, icon: "house.fill"))
+        } else if ecology != "unknown" {
+            badges.append(BadgeItem(text: species.ecologyType.capitalized, color: .blue, icon: "tree.fill"))
+        }
+        
+        return badges
+    }
     
     // MARK: - Layout Computations
     

@@ -31,198 +31,235 @@ struct ScansSheetView: View {
     @State private var showBatchDeleteConfirmation = false
     @State private var showSelectionLimitAlert = false
     @State private var isSearchFocused = false
-    @State private var toastMessage: String? = nil
-    @State private var isDownloading = false
     
     // MARK: - Static Bounds
-    private let maxBatchSelectionLimit = 20
     private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles", "Other"]
     
     // MARK: - Core View Builder
     var body: some View {
         NavigationStack {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                LibraryView(
-                    searchManager: searchManager,
-                    filterCategories: filterCategories,
-                    isSearchFocused: isSearchFocused,
-                    isSelectionMode: searchManager.isSelectionMode,
-                    isSelected: { scan in searchManager.selectedScans.contains(scan.id) },
-                    onSelect: { scan in
-                        if searchManager.isSelectionMode {
-                            let didToggle = searchManager.toggleSelection(for: scan.id)
-                            if !didToggle {
-                                HapticManager.shared.triggerErrorThump()
-                                showSelectionLimitAlert = true
-                            }
-                        } else {
-                            selectedScanForInsight = scan
-                            inferenceEngine.load(from: scan)
-                        }
-                    },
-                    onDelete: { scan in
-                        scanToDelete = scan
-                        showDeleteConfirmation = true
-                    }
-                )
+            TabView(selection: $activeTab) {
+                LibraryTabContent(
+                    searchManager: searchManager, filterCategories: filterCategories,
+                    isSearchFocused: $isSearchFocused, selectedScanForInsight: $selectedScanForInsight,
+                    showSelectionLimitAlert: $showSelectionLimitAlert, scanToDelete: $scanToDelete,
+                    showDeleteConfirmation: $showDeleteConfirmation
+                ).tag(ScansTab.library)
                 
-                CollectionsView(
-                    searchQuery: searchManager.searchQuery,
-                    isSearchFocused: isSearchFocused,
-                    collections: collections.sorted { c1, c2 in
-                        switch searchManager.collectionSortOption {
-                        case .newest: return c1.createdAt > c2.createdAt
-                        case .oldest: return c1.createdAt < c2.createdAt
-                        case .aToZ: return c1.name.localizedCaseInsensitiveCompare(c2.name) == .orderedAscending
-                        case .zToA: return c1.name.localizedCaseInsensitiveCompare(c2.name) == .orderedDescending
-                        }
+                CollectionsTabContent(
+                    searchManager: searchManager, isSearchFocused: isSearchFocused,
+                    sortedCollections: searchManager.sortedCollections, isInsightSheetOpen: $isInsightSheetOpen
+                ).tag(ScansTab.collections)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .modifier(ScansSheetModifiers(
+                searchManager: searchManager, activeTab: $activeTab, isSearchFocused: $isSearchFocused,
+                selectedScanForInsight: $selectedScanForInsight, showNewCollectionAlert: $showNewCollectionAlert,
+                newCollectionName: $newCollectionName, scanToDelete: $scanToDelete,
+                showDeleteConfirmation: $showDeleteConfirmation, showBatchDeleteConfirmation: $showBatchDeleteConfirmation,
+                showSelectionLimitAlert: $showSelectionLimitAlert, toastMessage: $searchManager.toastMessage,
+                isDownloading: $searchManager.isDownloading, dismiss: dismiss, modelContext: modelContext,
+                onBatchDelete: handleBatchDelete
+            ))
+            .toolbar {
+                ScansSheetToolbar(
+                    searchManager: searchManager, activeTab: $activeTab,
+                    showNewCollectionAlert: $showNewCollectionAlert, dismiss: dismiss,
+                    onShare: {
+                        let selectedScans = searchManager.getSelectedLocalRecords()
+                        Task { await searchManager.batchShare(scans: selectedScans) }
                     },
-                    isInsightSheetOpen: $isInsightSheetOpen
+                    onDownload: {
+                        let selectedScans = searchManager.getSelectedLocalRecords()
+                        Task { await searchManager.batchSavePhotos(scans: selectedScans) }
+                    },
+                    onDelete: { showBatchDeleteConfirmation = true }
                 )
-                }
-                .scrollTargetLayout()
             }
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: Binding(get: { activeTab }, set: { if let val = $0 { activeTab = val } }))
-            .ignoresSafeArea(.keyboard, edges: .bottom)
-            .onChange(of: activeTab) { _, newValue in
-                if !searchManager.searchQuery.isEmpty {
-                    searchManager.searchQuery = ""
-                    isSearchFocused = false
-                    if newValue == .library {
-                        searchManager.performSearch(query: "")
-                    }
-                }
-            }
-            
-            // MARK: - View Modifiers
-            .sheet(item: $selectedScanForInsight) { scan in
-                InsightSheetView(isPresented: Binding(
-                    get: { selectedScanForInsight != nil },
-                    set: { if !$0 { selectedScanForInsight = nil } }
-                ))
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: activeTab == .library ? "Search keywords, habitats, colors..." : "Search collections...")
-            //.searchDictationBehavior(.inline(activation: .onSelect))
-            .onChange(of: searchManager.searchQuery) { _, newValue in
-                if activeTab == .library {
-                    searchManager.performSearch(query: newValue)
-                }
-            }
-            .scansToolbar(
-                searchManager: searchManager,
-                activeTab: $activeTab,
-                showNewCollectionAlert: $showNewCollectionAlert,
-                dismiss: dismiss,
-                onShare: {
-                    let selectedItems = searchManager.getSelectedLocalRecords()
-                    InsightMediaExportManager.shared.batchShareDiscovery(records: selectedItems) { items in
-                        ShareSheetUtility.present(items: items)
-                    }
-                },
-                onDownload: {
-                    let selectedItems = searchManager.getSelectedLocalRecords()
-                    
-                    withAnimation { isDownloading = true }
-                    InsightMediaExportManager.shared.batchSaveUserPhotos(records: selectedItems) { savedCount in
-                        withAnimation { isDownloading = false }
-                        searchManager.exitSelectionMode()
-                        HapticManager.shared.triggerSuccessPulse()
-                        showToast(message: "Saved \(savedCount) photo\(savedCount == 1 ? "" : "s") to your Camera Roll")
-                    }
-                },
-                onDelete: {
-                    showBatchDeleteConfirmation = true
-                }
-            )
-            .newCollectionAlert(
-                isPresented: $showNewCollectionAlert,
-                newCollectionName: $newCollectionName,
-                modelContext: modelContext
-            )
+            .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
         }
         .onAppear {
             searchManager.allScans = allRecords
             searchManager.performSearch(query: searchManager.searchQuery)
-            
         }
         .onChange(of: allRecords) { _, newRecords in
             searchManager.allScans = newRecords
             searchManager.performSearch(query: searchManager.searchQuery)
         }
-        .scanDeletionDialog(
-            isPresented: $showDeleteConfirmation,
-            record: scanToDelete,
-            modelContext: modelContext
-        ) {
-            scanToDelete = nil
-        }
-        .alert(
-            "Delete \(searchManager.selectedScans.count) selected scans?",
-            isPresented: $showBatchDeleteConfirmation
-        ) {
-            Button("Delete permanently", role: .destructive) {
-                let itemsToDelete = searchManager.getSelectedLocalRecords()
-                for item in itemsToDelete {
-                    AppDIContainer.shared.scanRepository.eradicateScan(record: item, modelContext: modelContext)
-                }
-                searchManager.exitSelectionMode()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will permanently remove these discoveries and all associated visuals from your history.")
-        }
-        .alert(
-            "Selection limit reached",
-            isPresented: $showSelectionLimitAlert
-        ) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("You can only select up to 20 items at a time to ensure optimal system performance during export and deletion workloads.")
-        }
-        .overlay(toastOverlay)
-        .overlay {
-            if isDownloading {
-                Color.black.opacity(0.3).ignoresSafeArea()
-                ProgressView("Downloading...")
-                    .padding()
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-            }
+        .onChange(of: collections, initial: true) { _, newCollections in
+            searchManager.collections = newCollections
         }
     }
     
     // MARK: - Action Handlers & Logic Blocks
-    
-// Removed presentShareSheet as this logic was extracted into ShareSheetUtility
-    
-    private func showToast(message: String) {
-        withAnimation(.spring()) { toastMessage = message }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            withAnimation(.easeInOut) { if toastMessage == message { toastMessage = nil } }
+    private func handleBatchDelete() {
+        let itemsToDelete = searchManager.getSelectedLocalRecords()
+        for item in itemsToDelete {
+            AppDIContainer.shared.scanRepository.eradicateScan(record: item, modelContext: modelContext)
         }
+        searchManager.exitSelectionMode()
     }
+}
+
+// MARK: - Private Structs
+
+private struct LibraryTabContent: View {
+    @Bindable var searchManager: ScansManager
+    let filterCategories: [String]
+    @Binding var isSearchFocused: Bool
+    @Binding var selectedScanForInsight: LocalScanRecord?
+    @Binding var showSelectionLimitAlert: Bool
+    @Binding var scanToDelete: LocalScanRecord?
+    @Binding var showDeleteConfirmation: Bool
+    @Environment(InferenceEngine.self) var inferenceEngine
+
+    var body: some View {
+        LibraryView(
+            searchManager: searchManager,
+            filterCategories: filterCategories,
+            isSearchFocused: isSearchFocused,
+            isSelectionMode: searchManager.isSelectionMode,
+            isSelected: { scan in searchManager.selectedScans.contains(scan.id) },
+            onSelect: { scan in
+                if searchManager.isSelectionMode {
+                    let didToggle = searchManager.toggleSelection(for: scan.id)
+                    if !didToggle {
+                        HapticManager.shared.triggerErrorThump()
+                        showSelectionLimitAlert = true
+                    }
+                } else {
+                    selectedScanForInsight = scan
+                    inferenceEngine.load(from: scan)
+                }
+            },
+            onDelete: { scan in
+                scanToDelete = scan
+                showDeleteConfirmation = true
+            }
+        )
+    }
+}
+
+private struct CollectionsTabContent: View {
+    let searchManager: ScansManager
+    let isSearchFocused: Bool
+    let sortedCollections: [ScanCollection]
+    @Binding var isInsightSheetOpen: Bool
     
-    // MARK: - Declarative Subcomponents
+    var body: some View {
+        CollectionsView(
+            searchQuery: searchManager.searchQuery,
+            isSearchFocused: isSearchFocused,
+            collections: sortedCollections,
+            isInsightSheetOpen: $isInsightSheetOpen
+        )
+    }
+}
+
+private struct ScansSheetToolbar: ToolbarContent {
+    @Bindable var searchManager: ScansManager
+    @Binding var activeTab: ScansTab
+    @Binding var showNewCollectionAlert: Bool
+    let dismiss: DismissAction
+    let onShare: () -> Void
+    let onDownload: () -> Void
+    let onDelete: () -> Void
     
-    @ViewBuilder
-    var toastOverlay: some View {
-        if let message = toastMessage {
-            VStack {
+    @AppStorage("gridColumns") private var gridColumns: Int = 3
+
+    var body: some ToolbarContent {
+        if searchManager.isSelectionMode {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Cancel") { searchManager.exitSelectionMode() }
+            }
+            ToolbarItem(placement: .principal) {
+                Text("\(searchManager.selectedScans.count) Selected").font(.headline)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Select All") { searchManager.selectAll() }
+            }
+            ToolbarItemGroup(placement: .bottomBar) {
+                Button(action: onShare) { Image(systemName: "square.and.arrow.up") }
+                .disabled(searchManager.selectedScans.isEmpty)
                 Spacer()
-                Text(message)
-                    .font(.footnote)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .colorScheme(.dark)
-                    .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
-                    .padding(.bottom, 60)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(100)
+                Button(action: onDownload) {
+                    Image(systemName: "arrow.down.circle")
+                    Text("Download").fontWeight(.semibold)
+                }
+                .disabled(searchManager.selectedScans.isEmpty)
+                Spacer()
+                Button(role: .destructive, action: onDelete) { Image(systemName: "trash") }
+                .tint(searchManager.selectedScans.isEmpty ? .gray : .red)
+                .disabled(searchManager.selectedScans.isEmpty)
+            }
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: {
+                    if !searchManager.searchQuery.isEmpty {
+                        searchManager.searchQuery = ""
+                    } else {
+                        dismiss()
+                    }
+                }) {
+                    Image(systemName: "xmark").font(.system(size: 16, weight: .bold))
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if activeTab == .collections {
+                        Button(action: { showNewCollectionAlert = true }) {
+                            Label("New collection", systemImage: "folder.badge.plus")
+                        }
+                        Picker(selection: Binding(get: { searchManager.collectionSortOption }, set: { searchManager.collectionSortOption = $0 })) {
+                            ForEach(ScanSortOption.allCases) { option in
+                                Text(option.rawValue).tag(option)
+                            }
+                        } label: {
+                            Label("Sort by", systemImage: "arrow.up.arrow.down")
+                        }
+                        .pickerStyle(.menu)
+                    } else if activeTab == .library {
+                        ControlGroup {
+                            Toggle(isOn: Binding(get: { gridColumns == 1 }, set: { if $0 { gridColumns = 1 } })) {
+                                Label("1x1", systemImage: "rectangle.grid.1x2")
+                            }
+                            Toggle(isOn: Binding(get: { gridColumns == 2 }, set: { if $0 { gridColumns = 2 } })) {
+                                Label("2x2", systemImage: "square.grid.2x2")
+                            }
+                            Toggle(isOn: Binding(get: { gridColumns == 3 }, set: { if $0 { gridColumns = 3 } })) {
+                                Label("3x3", systemImage: "square.grid.3x3")
+                            }
+                        }
+                        Picker(selection: Binding(get: { searchManager.sortOption }, set: { searchManager.sortOption = $0 })) {
+                            ForEach(ScanSortOption.allCases) { option in
+                                Text(option.rawValue).tag(option)
+                            }
+                        } label: {
+                            Label("Sort by", systemImage: "arrow.up.arrow.down")
+                        }
+                        .pickerStyle(.menu)
+                        Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold))
+                }
+            }
+            ToolbarItem(placement: .principal) {
+                Picker("View", selection: $activeTab) {
+                    Text("Scans").tag(ScansTab.library)
+                    Text("Collections").tag(ScansTab.collections)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+            }
+        }
+        
+        ToolbarItem(placement: .keyboard) {
+            HStack {
+                Spacer()
+                Button("Done") {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
             }
         }
     }

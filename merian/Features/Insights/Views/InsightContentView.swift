@@ -24,7 +24,14 @@ struct InsightContentView: View {
                     // This creates a physical pixel bridge seamlessly masking `TabView` vertical pan-gesture framework synchronization tearing.
                     let bleedBuffer: CGFloat = 50 
                     
-                    ImagesCarousel()
+                    ImagesCarousel(
+                        scanId: inferenceEngine.speciesData?.scanId,
+                        refUrls: viewModel.refUrls,
+                        validHistoricImagePaths: viewModel.validHistoricImagePaths,
+                        hasLive: viewModel.hasLive,
+                        liveCount: viewModel.liveCount,
+                        totalImages: viewModel.totalImages
+                    )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
                         .ignoresSafeArea(.all, edges: .top) // CRUESCIAL: Kills the 16pt sheet native dragging padding!
@@ -50,6 +57,11 @@ struct InsightContentView: View {
         .ignoresSafeArea(.container, edges: .top)
         .contentMargins(.top, 0, for: .scrollContent) // CRITICAL: Eradicates hidden iOS 17 interior scroll canvas offsets!
         .textSelection(.enabled)
+        
+        // Data Mapping Override
+        .onAppear {
+            viewModel.inferenceEngine = inferenceEngine
+        }
         
         // Modal Routings
         .sheet(isPresented: $viewModel.isSafariPresented) {
@@ -84,6 +96,7 @@ private extension InsightContentView {
             } else {
                 
                 BiologicalView(
+                    viewModel: viewModel,
                     isSafariPresented: $viewModel.isSafariPresented, 
                     selectedWikiURL: $viewModel.selectedWikiURL,
                     timestamp: viewModel.activeLocalRecord?.timestamp

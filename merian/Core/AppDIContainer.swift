@@ -35,6 +35,9 @@ import SwiftData
     var usageManager = UsageManager.shared
     var gamificationManager = GamificationManager.shared
     var circuitBreakerManager = CircuitBreakerManager.shared
+    
+    // MARK: - Dependencies (ViewModels)
+    var profileViewModel = ProfileViewModel()
 
     // MARK: - Initialization Engine
     private init() {
@@ -130,6 +133,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.gamificationManager)
             .environment(container.circuitBreakerManager)
             .environment(container.environmentContextManager)
+            .environment(container.profileViewModel)
     }
 }
 

@@ -53,7 +53,7 @@ struct ProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { profileToolbar }
             .onAppear {
-                viewModel.fetchGeoprivacy(supabase: supabase)
+                viewModel.fetchGeoprivacy()
             }
         }
     }

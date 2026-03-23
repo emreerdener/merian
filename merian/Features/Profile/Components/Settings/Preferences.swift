@@ -2,7 +2,9 @@ import SwiftUI
 
 /// Abstracted Settings component bridging the massive divide between User Layout Toggles and Backend/Hardware Singletons.
 struct Preferences: View {
-    @Binding var isExpeditionModeActive: Bool
+    @Environment(HardwareOrchestrator.self) private var hardwareOrchestrator
+    @Environment(SupabaseManager.self) private var supabase
+    
     @Binding var isLiveInferencePaused: Bool
     @Binding var isHapticsEnabled: Bool
     @Binding var saveToCameraRoll: Bool
@@ -10,9 +12,9 @@ struct Preferences: View {
     @Binding var showPaywall: Bool
     
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
-    let supabase: SupabaseManager
     
     var body: some View {
+        @Bindable var hwOrchestrator = hardwareOrchestrator
         Section {
             // MARK: - Theme
             VStack(alignment: .leading, spacing: 8) {
@@ -61,27 +63,17 @@ struct Preferences: View {
             SettingsToggleRow(
                 title: "Expedition mode",
                 description: "Maximizes battery life off-grid by capping camera frame rates and disabling heavy visual effects.",
-                isOn: $isExpeditionModeActive
+                isOn: $hwOrchestrator.isExpeditionModeActive
             )
-            .onChange(of: isExpeditionModeActive) { _, newValue in
-                // Natively intercepts the toggle layout and radically restricts hardware physical limits instantly.
-                HardwareOrchestrator.shared.isExpeditionModeActive = newValue
-                HardwareOrchestrator.shared.evaluateConstraints()
+            .onChange(of: hwOrchestrator.isExpeditionModeActive) { _, _ in
+                hardwareOrchestrator.evaluateConstraints()
             }
             
             // MARK: - Live Viewfinder Hints
-            // Synthetically reverses the binding syntax cleanly mapping User-Intent ("Hints ON")
-            // directly into the backend logical equivalent (`isLiveInferencePaused == false`)
             SettingsToggleRow(
                 title: "Live viewfinder hints",
                 description: "Provides real-time AI scanning suggestions before you press the shutter. Turn off to reduce thermal load or battery drain.",
-                isOn: Binding(
-                    get: { !isLiveInferencePaused },
-                    set: { newValue in
-                        isLiveInferencePaused = !newValue
-                        CameraManager.shared.isLiveInferencePaused = !newValue
-                    }
-                )
+                isOn: hintsDisabled
             )
 
        
@@ -135,5 +127,18 @@ struct SettingsToggleRow: View {
                 .foregroundColor(.secondary)
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Computed Boundaries
+private extension Preferences {
+    var hintsDisabled: Binding<Bool> {
+        Binding<Bool>(
+            get: { !self.isLiveInferencePaused },
+            set: { newValue in
+                self.isLiveInferencePaused = !newValue
+                CameraManager.shared.isLiveInferencePaused = !newValue
+            }
+        )
     }
 }

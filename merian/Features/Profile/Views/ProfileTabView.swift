@@ -27,7 +27,7 @@ struct ProfileTabView: View {
                 Persona(uniqueSpeciesCount: uniqueSpeciesCount)
 
                 // MARK: - User Profile
-                UserProfile(supabase: supabase)
+                UserProfile()
                 
                 // MARK: - Stats
                 UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)

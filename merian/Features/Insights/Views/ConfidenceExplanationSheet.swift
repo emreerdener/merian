@@ -2,12 +2,11 @@ import SwiftUI
 import CoreLocation
 
 struct ConfidenceExplanationSheet: View {
-    @State private var showLocationPrompt: Bool = false
+    @Environment(EnvironmentContextManager.self) private var environmentContext
     
-    private func checkLocationStatus() {
-        let manager = CLLocationManager()
-        let status = manager.authorizationStatus
-        showLocationPrompt = (status == .notDetermined || status == .restricted || status == .denied)
+    private var showLocationPrompt: Bool {
+        let status = environmentContext.locationAuthorizationStatus
+        return status == .notDetermined || status == .restricted || status == .denied
     }
     
     var body: some View {
@@ -27,12 +26,6 @@ struct ConfidenceExplanationSheet: View {
             }
             .padding(.top, 32)
             .padding(.bottom, 48)
-        }
-        .onAppear {
-            checkLocationStatus()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            checkLocationStatus()
         }
     }
 }

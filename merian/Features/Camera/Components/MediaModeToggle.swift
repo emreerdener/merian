@@ -9,13 +9,11 @@ enum CaptureMode: String, CaseIterable {
 /// A highly modular, glassmorphic capsule toggle controlling the active environmental capture state natively!
 struct MediaModeToggle: View {
     @Binding var activeMode: CaptureMode
+    let isTooltipVisible: Bool
+    let onModeChange: () -> Void
     
     // Apple-tier smooth sliding pill animation explicitly bound geometrically
     @Namespace private var toggleAnimation
-    
-    // MARK: - Staging States
-    @State private var showComingSoon = false
-    @State private var tooltipTask: Task<Void, Never>?
     
     var body: some View {
         HStack(spacing: 0) {
@@ -24,19 +22,7 @@ struct MediaModeToggle: View {
                     if mode == .audio {
                         // Throw the "Coming soon" toast for Audio staging!
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                            showComingSoon = true
-                        }
-                        
-                        tooltipTask?.cancel()
-                        tooltipTask = Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 2_000_000_000)
-                            if !Task.isCancelled {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    showComingSoon = false
-                                }
-                            }
-                        }
+                        onModeChange()
                     } else {
                         // Triggers the Apple-tier spring slide natively for Visual
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -65,7 +51,7 @@ struct MediaModeToggle: View {
                     }
                     .overlay(
                         Group {
-                            if mode == .audio && showComingSoon {
+                            if mode == .audio && isTooltipVisible {
                                 Text("Coming soon")
                                     .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(.white)

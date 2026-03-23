@@ -3,6 +3,7 @@ import SwiftUI
 struct BiologicalView: View {
     // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Bindable var viewModel: InsightSheetViewModel
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?
     
@@ -14,7 +15,13 @@ struct BiologicalView: View {
         VStack(spacing: 24) {
             
             // Primary Identifiers
-            InsightHeader(speciesData: inferenceEngine.speciesData)
+            InsightHeader(
+                title: viewModel.headerTitle,
+                subtitle: viewModel.headerSubtitle,
+                isPoisonous: viewModel.isPoisonous,
+                paragraphs: viewModel.headerParagraphs,
+                badgeItems: viewModel.headerBadgeItems
+            )
             ToxicityBanner()
 
             // Global Footprint

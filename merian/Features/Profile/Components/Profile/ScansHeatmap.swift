@@ -18,8 +18,6 @@ struct ScansHeatmap: View {
     private let squareSpacing: CGFloat = 3
     private let yAxisGap: CGFloat = 6
     
-    private var isMonthScale: Bool { scale == .month }
-    
     private var formattedTotalScans: String {
         guard let data = heatmapData else { return "0" }
         let count = scale == .month ? data.currentMonthCaptures : data.totalCaptures
@@ -82,14 +80,7 @@ struct ScansHeatmap: View {
             
             // Grid Container (Canvas Base)
             VStack(alignment: .leading, spacing: 12) {
-                if scale == .year {
-                    FadingScrollView {
-                        gridContent
-                    }
-                } else {
-                    gridContent
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                groupGridContent
                 
                 // Bottom Row (Links + Legend)
                 if heatmapData != nil {
@@ -120,20 +111,28 @@ struct ScansHeatmap: View {
     }
     
     @ViewBuilder
-    private var gridContent: some View {
+    private var groupGridContent: some View {
         if heatmapData != nil {
-            HeatmapGridMatrix(
-                visibleWeeks: visibleWeeks,
-                squareHeight: squareHeight,
-                squareSpacing: squareSpacing,
-                yAxisGap: yAxisGap,
-                colorScheme: colorScheme,
-                isMonthScale: isMonthScale
-            )
-            // Equatable conformation is extremely critical here, as it inherently stops thousands 
-            // of Heatmap Rectangles from redundantly redrawing structurally unless root data mutates!
-            .equatable()
-            .padding(.horizontal, 16)
+            if scale == .year {
+                FadingScrollView {
+                    HeatmapYearGrid(
+                        weeks: visibleWeeks,
+                        colorFor: { count in color(for: count) }
+                    )
+                    // Equatable conformation is extremely critical here, as it inherently stops thousands 
+                    // of Heatmap Rectangles from redundantly redrawing structurally unless root data mutates!
+                    .equatable()
+                    .padding(.horizontal, 16)
+                }
+            } else {
+                HeatmapMonthGrid(
+                    weeks: visibleWeeks,
+                    colorFor: { count in color(for: count) }
+                )
+                .equatable()
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         } else {
             // Skeleton/Loader
             HStack {
@@ -170,19 +169,83 @@ struct HeatmapColor {
     }
 }
 
-// MARK: - Isolated Grid Matrix
-struct HeatmapGridMatrix: View, Equatable {
-    let visibleWeeks: [HeatmapWeek]
-    let squareHeight: CGFloat
-    let squareSpacing: CGFloat
-    let yAxisGap: CGFloat
-    let colorScheme: ColorScheme
-    let isMonthScale: Bool
+// MARK: - Isolated Grid Views
+
+private struct HeatmapMonthGrid: View, Equatable {
+    let weeks: [HeatmapWeek]
+    let colorFor: (Int) -> Color
+    let squareHeight: CGFloat = 11
+    let squareSpacing: CGFloat = 3
+    let yAxisGap: CGFloat = 6
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: squareSpacing) {
+            // X-Axis Labels (Months)
+            HStack(spacing: squareSpacing) {
+                ForEach(Array(weeks.enumerated()), id: \.element.id) { index, week in
+                    VStack(alignment: .leading) {
+                        if let monthLabel = week.monthLabel {
+                            Text(monthLabel)
+                                .font(.caption2)
+                                .foregroundColor(.primary)
+                                .fixedSize()
+                        } else {
+                            Text("")
+                                .font(.caption2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                
+                // Offset for Y-Axis labels
+                Spacer().frame(width: 28 + yAxisGap)
+            }
+            
+            HStack(alignment: .top, spacing: squareSpacing) {
+                ForEach(weeks) { week in
+                    VStack(spacing: squareSpacing) {
+                        ForEach(week.days) { day in
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(colorFor(day.count))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: squareHeight)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                
+                // Y-Axis Labels
+                VStack(alignment: .leading, spacing: squareSpacing) {
+                    Color.clear.frame(height: squareHeight) // Sun
+                    Text("Mon").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
+                    Color.clear.frame(height: squareHeight) // Tue
+                    Text("Wed").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
+                    Color.clear.frame(height: squareHeight) // Thu
+                    Text("Fri").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
+                    Color.clear.frame(height: squareHeight) // Sat
+                }
+                .frame(width: 28, alignment: .leading)
+                .padding(.leading, yAxisGap)
+            }
+        }
+    }
+    
+    static func == (lhs: HeatmapMonthGrid, rhs: HeatmapMonthGrid) -> Bool {
+        lhs.weeks.count == rhs.weeks.count &&
+        zip(lhs.weeks, rhs.weeks).allSatisfy { $0.0.id == $0.1.id }
+    }
+}
+
+private struct HeatmapYearGrid: View, Equatable {
+    let weeks: [HeatmapWeek]
+    let colorFor: (Int) -> Color
+    let squareHeight: CGFloat = 11
+    let squareSpacing: CGFloat = 3
+    let yAxisGap: CGFloat = 6
     
     private func shouldDropLabel(at index: Int) -> Bool {
-        if isMonthScale { return false }
         for jump in 1...3 {
-            if index + jump < visibleWeeks.count, visibleWeeks[index + jump].monthLabel != nil {
+            if index + jump < weeks.count, weeks[index + jump].monthLabel != nil {
                 return true
             }
         }
@@ -193,7 +256,7 @@ struct HeatmapGridMatrix: View, Equatable {
         VStack(alignment: .leading, spacing: squareSpacing) {
             // X-Axis Labels (Months)
             HStack(spacing: squareSpacing) {
-                ForEach(Array(visibleWeeks.enumerated()), id: \.element.id) { index, week in
+                ForEach(Array(weeks.enumerated()), id: \.element.id) { index, week in
                     VStack(alignment: .leading) {
                         if let monthLabel = week.monthLabel, !shouldDropLabel(at: index) {
                             Text(monthLabel)
@@ -205,124 +268,42 @@ struct HeatmapGridMatrix: View, Equatable {
                                 .font(.caption2)
                         }
                     }
-                    .frame(maxWidth: isMonthScale ? .infinity : nil, alignment: .leading)
-                    .frame(width: isMonthScale ? nil : 11, alignment: .leading)
+                    .frame(width: 11, alignment: .leading)
                 }
                 
                 // Offset for Y-Axis labels
                 Spacer().frame(width: 28 + yAxisGap)
             }
             
-            Group {
-                if isMonthScale {
-                    HStack(alignment: .top, spacing: squareSpacing) {
-                        gridBody
-                    }
-                } else {
-                    LazyHStack(alignment: .top, spacing: squareSpacing) {
-                        gridBody
-                    }
-                }
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var gridBody: some View {
-        // Weeks
-        ForEach(visibleWeeks) { week in
-            HeatmapWeekColumnView(
-                week: week,
-                scheme: colorScheme,
-                isMonthScale: isMonthScale,
-                squareHeight: squareHeight,
-                squareSpacing: squareSpacing
-            )
-        }
-        
-        // Y-Axis Labels (Moved to trailing edge)
-        VStack(alignment: .leading, spacing: squareSpacing) {
-            Color.clear.frame(height: squareHeight) // Sun
-            Text("Mon").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
-            Color.clear.frame(height: squareHeight) // Tue
-            Text("Wed").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
-            Color.clear.frame(height: squareHeight) // Thu
-            Text("Fri").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
-            Color.clear.frame(height: squareHeight) // Sat
-        }
-        .frame(width: 28, alignment: .leading)
-        .padding(.leading, yAxisGap)
-    }
-    
-    static func == (lhs: HeatmapGridMatrix, rhs: HeatmapGridMatrix) -> Bool {
-        lhs.isMonthScale == rhs.isMonthScale &&
-        lhs.colorScheme == rhs.colorScheme &&
-        lhs.visibleWeeks.count == rhs.visibleWeeks.count &&
-        zip(lhs.visibleWeeks, rhs.visibleWeeks).allSatisfy { $0.0.id == $0.1.id }
-    }
-}
-
-// MARK: - Dynamic Fading ScrollView
-struct FadingScrollView<Content: View>: View {
-    @ViewBuilder let content: Content
-    
-    @State private var offset: CGFloat = 0
-    @State private var contentWidth: CGFloat = 0
-    @State private var containerWidth: CGFloat = 0
-    
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            content
-                .background(
-                    // Explicitly uses GeometryReader on a strict invisible Color.clear layer to globally 
-                    // intercept CoordinateSpace offset tracking perfectly without hardcoding pixel widths!
-                    GeometryReader { geo in
-                        Color.clear
-                            .onChange(of: geo.frame(in: .named("FadingScrollSpace")).minX, initial: true) { _, newX in
-                                if abs(offset - newX) > 1.0 {
-                                    Task { @MainActor in offset = newX }
-                                }
-                            }
-                            .onChange(of: geo.size.width, initial: true) { _, newW in
-                                if abs(contentWidth - newW) > 1.0 {
-                                    Task { @MainActor in contentWidth = newW }
-                                }
-                            }
-                    }
-                )
-        }
-        .coordinateSpace(name: "FadingScrollSpace")
-        .defaultScrollAnchor(.trailing)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onChange(of: geo.size.width, initial: true) { _, newW in
-                        if abs(containerWidth - newW) > 1.0 {
-                            Task { @MainActor in containerWidth = newW }
+            LazyHStack(alignment: .top, spacing: squareSpacing) {
+                ForEach(weeks) { week in
+                    VStack(spacing: squareSpacing) {
+                        ForEach(week.days) { day in
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(colorFor(day.count))
+                                .frame(width: 11, height: squareHeight)
                         }
                     }
+                }
+                
+                // Y-Axis Labels
+                VStack(alignment: .leading, spacing: squareSpacing) {
+                    Color.clear.frame(height: squareHeight) // Sun
+                    Text("Mon").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
+                    Color.clear.frame(height: squareHeight) // Tue
+                    Text("Wed").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
+                    Color.clear.frame(height: squareHeight) // Thu
+                    Text("Fri").font(.caption2).foregroundColor(.primary).frame(height: squareHeight)
+                    Color.clear.frame(height: squareHeight) // Sat
+                }
+                .frame(width: 28, alignment: .leading)
+                .padding(.leading, yAxisGap)
             }
-        )
-        .mask(
-            HStack(spacing: 0) {
-                let showLeadingFade = offset < -10
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.black.opacity(showLeadingFade ? 0 : 1), .black]),
-                    startPoint: .leading, endPoint: .trailing
-                )
-                .frame(width: 48)
-                
-                Rectangle().fill(Color.black)
-                
-                let maxScroll = max(0, contentWidth - containerWidth)
-                let showTrailingFade = offset > -maxScroll + 10
-                
-                LinearGradient(
-                    gradient: Gradient(colors: [.black, Color.black.opacity(showTrailingFade ? 0 : 1)]),
-                    startPoint: .leading, endPoint: .trailing
-                )
-                .frame(width: 48)
-            }
-        )
+        }
+    }
+    
+    static func == (lhs: HeatmapYearGrid, rhs: HeatmapYearGrid) -> Bool {
+        lhs.weeks.count == rhs.weeks.count &&
+        zip(lhs.weeks, rhs.weeks).allSatisfy { $0.0.id == $0.1.id }
     }
 }

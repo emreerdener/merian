@@ -28,6 +28,7 @@ final class CameraViewModel {
     var activeScanImages: [UIImage] = []
     var activeOriginals: [IdentifiableImage] = []
     var selectedPhotoItems: [PhotosPickerItem] = []
+    var isTooltipVisible: Bool = false
     
     // MARK: - Camera & Scanning State
     var isCapturing: Bool = false
@@ -167,6 +168,29 @@ final class CameraViewModel {
         guard index < activeOriginals.count else { return }
         self.editingCropIndex = index
         self.imageToCrop = activeOriginals[index]
+    }
+    
+    // MARK: - Tooltip Orchestration
+    private var tooltipTask: Task<Void, Never>? = nil
+    
+    func scheduleTooltipDismissal() async {
+        tooltipTask?.cancel()
+        
+        tooltipTask = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                self.isTooltipVisible = true
+            }
+            
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            
+            if !Task.isCancelled {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    self.isTooltipVisible = false
+                }
+            }
+        }
     }
     
     func handleSheetAppear() {

@@ -1,39 +1,28 @@
 import SwiftUI
 
 struct InsightHeader: View {
-    let speciesData: SpeciesData?
-    
-    private var commonName: String {
-        speciesData?.commonName.capitalized ?? "Scanning Subject..."
-    }
-    private var scientificName: String {
-        speciesData?.scientificName ?? "Awaiting Taxonomy"
-    }
-    private var isPoisonous: Bool {
-        speciesData?.insightData.isPoisonous ?? false
-    }
+    let title: String
+    let subtitle: String
+    let isPoisonous: Bool
+    let paragraphs: [String]
+    let badgeItems: [BadgeItem]
     
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
              VStack(alignment: .center, spacing: 8) {
-                Text(scientificName)
+                Text(subtitle)
                     .font(.system(.title3))
                     .italic()
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             
-                Text(commonName)
+                Text(title)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
 
-                // Description tightly coupled with semantic taxonomy traits
-                if let species = speciesData, !species.insightData.description.isEmpty {
-                    let paragraphs = species.insightData.description
-                        .components(separatedBy: .newlines)
-                        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                    
+                if !paragraphs.isEmpty {
                     VStack(spacing: 12) {
                         ForEach(paragraphs, id: \.self) { paragraph in
                             Text(paragraph)
@@ -47,10 +36,14 @@ struct InsightHeader: View {
                 }
              }
 
-            if let species = speciesData {
+            if !badgeItems.isEmpty {
                 // Species Badges geometrically decoupled
-                SpeciesBadges(species: species)
-                    .padding(.horizontal, 16)
+                CenterFlowLayout(spacing: 12) {
+                    ForEach(badgeItems, id: \.self) { badge in
+                        Badge(text: badge.text, color: badge.color, icon: badge.icon)
+                    }
+                }
+                .padding(.horizontal, 16)
             }
         }
         .frame(maxWidth: .infinity)

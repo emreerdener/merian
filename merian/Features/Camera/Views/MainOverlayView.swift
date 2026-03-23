@@ -5,6 +5,7 @@ struct MainOverlayView: View {
     // MARK: - Dependencies
     let latestThumbnail: UIImage?
     let isFlashEnabled: Bool
+    let isTooltipVisible: Bool
     @Binding var selectedPhotoItems: [PhotosPickerItem]
     @Binding var activeSheet: CameraViewModel.ActiveSheet?
     let activeScanImages: [UIImage]
@@ -13,6 +14,7 @@ struct MainOverlayView: View {
     let onThumbnailTap: (Int) -> Void
     let onSubmitScan: () -> Void
     let onCancelScan: () -> Void
+    let onModeChange: () -> Void
     
     // MARK: - Local Staging State
     @State private var activeMode: CaptureMode = .visual
@@ -22,7 +24,11 @@ struct MainOverlayView: View {
         VStack {
             // MARK: - Media Mode Scoping (Staging)
             if activeScanImages.count < 2 {
-                MediaModeToggle(activeMode: $activeMode)
+                MediaModeToggle(
+                    activeMode: $activeMode,
+                    isTooltipVisible: isTooltipVisible,
+                    onModeChange: onModeChange
+                )
                     .padding(.top, 16) // Natively clears the safe area boundaries
                     .transition(.move(edge: .top).combined(with: .opacity))
             }

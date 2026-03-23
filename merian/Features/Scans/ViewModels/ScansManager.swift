@@ -28,6 +28,20 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     
     var collectionSortOption: ScanSortOption = .newest
     
+    var collections: [ScanCollection] = []
+    
+    // MARK: - Collection Engine Bounds
+    var sortedCollections: [ScanCollection] {
+        collections.sorted { c1, c2 in
+            switch collectionSortOption {
+            case .newest: return c1.createdAt > c2.createdAt
+            case .oldest: return c1.createdAt < c2.createdAt
+            case .aToZ: return c1.name.localizedCaseInsensitiveCompare(c2.name) == .orderedAscending
+            case .zToA: return c1.name.localizedCaseInsensitiveCompare(c2.name) == .orderedDescending
+            }
+        }
+    }
+    
     // MARK: - Static Bounds
     let maxBatchSelectionLimit = 20
     
@@ -204,6 +218,46 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     
     func getSelectedLocalRecords() -> [LocalScanRecord] {
         return filteredScans.filter { selectedScans.contains($0.id) }
+    }
+    
+    // MARK: - Batch Operations (Async)
+    var isDownloading = false
+    var toastMessage: String? = nil
+    
+    func batchShare(scans: [LocalScanRecord]) async {
+        await withCheckedContinuation { continuation in
+            InsightMediaExportManager.shared.batchShareDiscovery(records: scans) { items in
+                ShareSheetUtility.present(items: items)
+                continuation.resume()
+            }
+        }
+    }
+    
+    func batchSavePhotos(scans: [LocalScanRecord]) async {
+        await MainActor.run { isDownloading = true }
+        
+        let savedCount = await withCheckedContinuation { continuation in
+            InsightMediaExportManager.shared.batchSaveUserPhotos(records: scans) { count in
+                continuation.resume(returning: count)
+            }
+        }
+        
+        await MainActor.run {
+            isDownloading = false
+            exitSelectionMode()
+            HapticManager.shared.triggerSuccessPulse()
+            showToast(message: "Saved \(savedCount) photo\(savedCount == 1 ? "" : "s") to your Camera Roll")
+        }
+    }
+    
+    private func showToast(message: String) {
+        withAnimation(.spring()) { toastMessage = message }
+        Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            await MainActor.run {
+                withAnimation(.easeInOut) { if toastMessage == message { toastMessage = nil } }
+            }
+        }
     }
 }
 

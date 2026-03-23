@@ -3,32 +3,17 @@ import SwiftUI
 /// Abstracted Profile identity component natively interpreting both Ghost mode states
 /// and dynamically rendering high-fidelity Auth provider payloads seamlessly.
 struct UserProfile: View {
-    var supabase: SupabaseManager
-    
-    // Natively distills nested JSON metadata payloads dropping safely through multiple vendor formats securely
-    private var userName: String? {
-        supabase.currentUser?.userMetadata["full_name"]?.stringValue ?? supabase.currentUser?.userMetadata["name"]?.stringValue
-    }
-    
-    private var userEmail: String? {
-        supabase.currentUser?.email
-    }
-    
-    private var userAvatarURL: URL? {
-        if let avatarStr = supabase.currentUser?.userMetadata["avatar_url"]?.stringValue ?? supabase.currentUser?.userMetadata["picture"]?.stringValue,
-           let url = URL(string: avatarStr) {
-            return url
-        }
-        return nil
-    }
+    @Environment(ProfileViewModel.self) private var profileViewModel
     
     var body: some View {
         VStack {
-            if supabase.isGuestUser {
+            if profileViewModel.isGuestUser {
                 // Ghost Mode: Sign In Flow
                 VStack(spacing: 16) {
                     Button(action: {
-                        supabase.startAppleSignIn()
+                        Task {
+                            await profileViewModel.signInWithApple()
+                        }
                     }) {
                         HStack {
                             Image(systemName: "applelogo")
@@ -44,7 +29,7 @@ struct UserProfile: View {
                     
                     Button(action: {
                         Task {
-                            await supabase.signInWithGoogle()
+                            await profileViewModel.signInWithGoogle()
                         }
                     }) {
                         HStack {
@@ -63,7 +48,7 @@ struct UserProfile: View {
             } else {
                 // Authenticated User Profile Card
                 HStack(spacing: 12) {
-                    if let avatarURL = userAvatarURL {
+                    if let avatarURL = profileViewModel.userAvatarURL {
                         AsyncImage(url: avatarURL) { image in
                             image
                                 .resizable()
@@ -81,11 +66,11 @@ struct UserProfile: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(userName ?? "Explorer")
+                        Text(profileViewModel.userName ?? "Explorer")
                             .font(.title3)
                             .fontWeight(.semibold)
                         
-                        Text(userEmail ?? "Connected account")
+                        Text(profileViewModel.userEmail ?? "Connected account")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
@@ -101,8 +86,7 @@ struct UserProfile: View {
                             Task {
                                 // Forces a clean physical JWT removal across the device securely
                                 // instantly rehydrating back into a zero-bound Ghost mode state.
-                                await supabase.signOut()
-                                await supabase.initializeGhostSession()
+                                await profileViewModel.signOut()
                             }
                         } label: {
                             Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")

@@ -29,13 +29,11 @@ struct SettingsTabView: View {
         List {
             // Section 2: Field & Hardware Preferences
             Preferences(
-                isExpeditionModeActive: $isExpeditionModeActive,
                 isLiveInferencePaused: $isLiveInferencePaused,
                 isHapticsEnabled: $isHapticsEnabled,
                 saveToCameraRoll: $saveToCameraRoll,
                 defaultGeoprivacy: $viewModel.defaultGeoprivacy,
-                showPaywall: $showPaywall,
-                supabase: supabase
+                showPaywall: $showPaywall
             )
             
             // Section 3: Privacy & Citizen Science

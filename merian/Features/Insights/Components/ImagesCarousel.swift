@@ -4,43 +4,68 @@ struct ImagesCarousel: View {
     // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
     
+    // MARK: - Properties
+    let scanId: String?
+    let refUrls: [String]
+    let validHistoricImagePaths: [String]
+    let hasLive: Bool
+    let liveCount: Int
+    let totalImages: Int
+    
     // MARK: - State
     @State private var selectedIndex: Int? = 0
-    
-    // MARK: - Computed Boundaries
-    private var refUrls: [String] {
-        inferenceEngine.speciesData?.referenceImageUrl?
-            .components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty } ?? []
-    }
-    private var validHistoricImagePaths: [String] {
-        inferenceEngine.validHistoricImagePaths
-    }
-    private var hasLive: Bool {
-        !inferenceEngine.activeLiveCaptureDatas.isEmpty
-    }
-    private var liveCount: Int {
-        inferenceEngine.activeLiveCaptureDatas.count
-    }
-    private var totalImages: Int {
-        liveCount + validHistoricImagePaths.count + refUrls.count
-    }
     
     // MARK: - Body
     var body: some View {
         if totalImages > 0 {
             VStack(spacing: 0) {
-                imageTabs
-                    .id("ImagesCarousel_\(totalImages)_\(inferenceEngine.speciesData?.scanId ?? "null")")
-                    .ignoresSafeArea(edges: .top) // Prevent internal TabView safe-area squashing!
-                    .clipped() // Ensure the image layer natively truncates inside its own view logic alone
-                    .overlay(alignment: .bottom) { paginationDots }
-                    .overlay(alignment: .top) {
-                        LinearGradient(colors: [.black.opacity(0.4), .clear], startPoint: .top, endPoint: .bottom)
-                            .frame(height: 120)
-                            .allowsHitTesting(false)
+                TabView(selection: Binding(
+                    get: { selectedIndex ?? 0 },
+                    set: { selectedIndex = $0 }
+                )) {
+                    // Priority: Live Capture actively evaluated (Data payload)
+                    if hasLive {
+                        ForEach(Array(inferenceEngine.activeLiveCaptureDatas.enumerated()), id: \.offset) { index, data in
+                            if let uiImage = UIImage(data: data) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .clipped()
+                                    .tag(index)
+                            }
+                        }
                     }
+                    
+                    // User's Uploaded Images
+                    ForEach(Array(validHistoricImagePaths.enumerated()), id: \.offset) { index, path in
+                        AsyncLocalImageView(
+                            path: path,
+                            fallbackImageUrl: nil,
+                            onImageLoadFailed: { handleImageFailure(identifier: path) }
+                        )
+                        .tag(liveCount + index)
+                    }
+                    
+                    // Tab 1+: Wikipedia / GBIF Reference Images
+                    ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
+                        AsyncLocalImageView(
+                            path: "",
+                            fallbackImageUrl: urlString,
+                            onImageLoadFailed: { handleImageFailure(identifier: urlString) }
+                        )
+                        .tag(liveCount + validHistoricImagePaths.count + index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .id("ImagesCarousel_\(totalImages)_\(scanId ?? "null")")
+                .ignoresSafeArea(edges: .top) // Prevent internal TabView safe-area squashing!
+                .clipped() // Ensure the image layer natively truncates inside its own view logic alone
+                .overlay(alignment: .bottom) { paginationDots }
+                .overlay(alignment: .top) {
+                    LinearGradient(colors: [.black.opacity(0.4), .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 120)
+                        .allowsHitTesting(false)
+                }
             }
             .ignoresSafeArea(.all, edges: .top) // CRUESCIAL: Enables the VStack to puncture the sheet padding exactly where the parent geometry reader calls it!
         }
@@ -60,47 +85,6 @@ struct ImagesCarousel: View {
 // MARK: - Layout Subcomponents
 private extension ImagesCarousel {
     
-    @ViewBuilder
-    var imageTabs: some View {
-        TabView(selection: Binding(
-            get: { selectedIndex ?? 0 },
-            set: { selectedIndex = $0 }
-        )) {
-            // Priority: Live Capture actively evaluated (Data payload)
-            if hasLive {
-                ForEach(Array(inferenceEngine.activeLiveCaptureDatas.enumerated()), id: \.offset) { index, data in
-                    if let uiImage = UIImage(data: data) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .clipped()
-                            .tag(index)
-                    }
-                }
-            }
-            
-            // User's Uploaded Images
-            ForEach(Array(validHistoricImagePaths.enumerated()), id: \.offset) { index, path in
-                AsyncLocalImageView(
-                    imagePath: path,
-                    onImageLoadFailed: { handleImageFailure(identifier: path) }
-                )
-                .tag(liveCount + index)
-            }
-            
-            // Tab 1+: Wikipedia / GBIF Reference Images
-            ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
-                AsyncLocalImageView(
-                    imagePath: nil,
-                    fallbackImageUrl: urlString,
-                    onImageLoadFailed: { handleImageFailure(identifier: urlString) }
-                )
-                .tag(liveCount + validHistoricImagePaths.count + index)
-            }
-        }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-    }
-    
     // MARK: - Pagination Dots
     @ViewBuilder
     var paginationDots: some View {
@@ -119,55 +103,6 @@ private extension ImagesCarousel {
             .background(.ultraThinMaterial, in: Capsule())
             .padding(.bottom, 40)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex ?? 0)
-        }
-    }
-}
-
-// MARK: - Lazy Loading Detached Image Renderer 
-private struct AsyncLocalImageView: View {
-    let imagePath: String?
-    var fallbackImageUrl: String? = nil
-    var onImageLoadFailed: (() -> Void)? = nil
-    
-    @State private var loadedImage: UIImage?
-    @State private var hasFailedToLoad: Bool = false
-    
-    var body: some View {
-        Group {
-            if let img = loadedImage {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-                    .clipped()
-            } else if hasFailedToLoad {
-                ArchivedVisualsView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-            } else {
-                ProgressView()
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.white.opacity(0.1))
-                    .clipped()
-            }
-        }
-        .onAppear {
-            loadThumbnail()
-        }
-    }
-    
-    private func loadThumbnail() {
-        guard loadedImage == nil else { return }
-        Task {
-            let img = await LocalImageLoader.shared.loadImage(fromPath: imagePath, fallbackUrl: fallbackImageUrl)
-            await MainActor.run {
-                if let img = img {
-                    self.loadedImage = img
-                } else {
-                    self.hasFailedToLoad = true
-                    self.onImageLoadFailed?()
-                }
-            }
         }
     }
 }
