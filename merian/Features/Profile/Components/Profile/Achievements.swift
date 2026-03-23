@@ -101,7 +101,7 @@ extension ProfileDatabaseActor {
 }
 
 // MARK: - Primary View
-struct AwardsAndMilestones: View {
+struct Achievements: View {
     let awards: [AwardPayload]
     @State private var sortOption: AwardSortOption = .smartSort
     
@@ -171,7 +171,7 @@ struct AwardsAndMilestones: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center) {
-                Text("Awards & milestones")
+                Text("Achievements")
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)

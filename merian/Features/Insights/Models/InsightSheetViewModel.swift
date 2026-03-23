@@ -158,6 +158,7 @@ final class InsightSheetViewModel {
         }
         
         try? modelContext.save()
+        OfflineQueueManager.shared.syncCollections()
         HapticManager.shared.triggerSelectionPulse()
     }
     

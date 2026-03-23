@@ -39,31 +39,31 @@ private struct NewDiscoveryCelebrationView: View {
             // Icon Fallback
             if !hardwareOrchestrator.isCriticalHeatWarningActive {
                 if #available(iOS 17.0, *) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "viewfinder")
                         .font(.system(size: 24))
                         .symbolEffect(.pulse)
+                        .foregroundStyle(.yellow)
                 } else {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "viewfinder")
                         .font(.system(size: 24))
-                        .foregroundStyle(.yellow, .cyan)
+                        .foregroundStyle(.yellow)
                 }
             } else {
-                Image(systemName: "star.fill")
+                Image(systemName: "viewfinder")
                     .font(.system(size: 24))
                     .foregroundColor(.yellow)
             }
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("NEW DISCOVERY")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.secondary)
-                
-                Text(commonName)
+                Text("New discovery")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
-                    .lineLimit(1)
+                
+                Text("Added to your scans")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.secondary)
             }
         }
         .padding(.horizontal, 20)

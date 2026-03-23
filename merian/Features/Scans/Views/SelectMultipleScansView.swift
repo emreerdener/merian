@@ -69,5 +69,6 @@ struct SelectMultipleScansView: View {
             scan.collections?.append(collection)
         }
         try? modelContext.save()
+        OfflineQueueManager.shared.syncCollections()
     }
 }

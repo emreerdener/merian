@@ -5,12 +5,9 @@ struct ConfidenceExplanationSheet: View {
     @State private var showLocationPrompt: Bool = false
     
     private func checkLocationStatus() {
-        // let manager = CLLocationManager()
-        // let status = manager.authorizationStatus
-        // showLocationPrompt = (status == .notDetermined || status == .restricted || status == .denied)
-        
-        // TEMPORARY: Force UI render for styling!
-        showLocationPrompt = true
+        let manager = CLLocationManager()
+        let status = manager.authorizationStatus
+        showLocationPrompt = (status == .notDetermined || status == .restricted || status == .denied)
     }
     
     var body: some View {

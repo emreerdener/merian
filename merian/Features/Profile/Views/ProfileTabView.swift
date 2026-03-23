@@ -40,7 +40,7 @@ struct ProfileTabView: View {
                 
                 // MARK: - Gamification Awards
                 if !awards.isEmpty {
-                    AwardsAndMilestones(awards: awards)
+                    Achievements(awards: awards)
                 }
             }
             .padding(.horizontal, 16)

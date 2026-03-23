@@ -140,5 +140,6 @@ struct CollectionDetailView: View {
     private func removeFromCollection(scan: LocalScanRecord) {
         scan.collections?.removeAll(where: { $0.id == collection.id })
         try? modelContext.save()
+        OfflineQueueManager.shared.syncCollections()
     }
 }

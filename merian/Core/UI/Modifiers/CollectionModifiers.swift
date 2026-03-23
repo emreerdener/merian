@@ -19,6 +19,7 @@ struct CollectionRenameAlertModifier: ViewModifier {
                     if !trimmed.isEmpty, let collectionToRename = collection {
                         collectionToRename.name = trimmed
                         try? modelContext.save()
+                        OfflineQueueManager.shared.syncCollections()
                         HapticManager.shared.triggerSuccessPulse()
                     }
                 }
@@ -42,6 +43,7 @@ struct CollectionDeleteAlertModifier: ViewModifier {
                         HapticManager.shared.triggerErrorThump()
                         modelContext.delete(collectionToDelete)
                         try? modelContext.save()
+                        OfflineQueueManager.shared.syncCollections()
                     }
                 }
             } message: {
@@ -78,6 +80,7 @@ struct NewCollectionAlertModifier: ViewModifier {
                     }
                     
                     try? modelContext.save()
+                    OfflineQueueManager.shared.syncCollections()
                     newCollectionName = ""
                     
                     HapticManager.shared.triggerSuccessPulse()
