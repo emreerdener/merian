@@ -102,25 +102,32 @@ struct ImageCropperView: View {
 
                     Spacer()
                     
-                    HStack {
-                        Button("Cancel") {
+                    HStack(spacing: 16) {
+                        Button(action: {
                             onCancel()
+                        }) {
+                            Text("Cancel")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.white.opacity(0.15))
+                                .foregroundColor(.white)
+                                .cornerRadius(14)
                         }
-                        .foregroundColor(.white)
-                        .padding()
-                        
-                        Spacer()
                         
                         Button(action: {
                             generateCrop(displaySize: displaySize)
                         }) {
                             Text("Confirm")
-                                .fontWeight(.bold)
-                                .foregroundColor(.yellow)
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
                                 .padding()
+                                .background(Color.yellow)
+                                .foregroundColor(.black)
+                                .cornerRadius(14)
                         }
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 24)
                     .padding(.bottom, 32)
                 }
             }

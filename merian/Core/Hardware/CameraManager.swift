@@ -66,6 +66,14 @@ import Accelerate
                 self?.resetFocusAndExposure()
             }
             .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.isFlashEnabled = false
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - App Lifecycle Observers
