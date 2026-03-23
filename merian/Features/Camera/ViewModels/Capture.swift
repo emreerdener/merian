@@ -43,25 +43,29 @@ extension CameraViewModel {
                     let captureData = try await diContainer.cameraManager.captureImage()
                     
                     // Actively push the original 12MP buffer down natively into the user's Camera Roll securely without blocking UI sweeps natively
-                    Task.detached(priority: .utility) {
+                    Task {
                         await AppDIContainer.shared.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
                     }
                     // 4. Detached Memory Pipeline
                     // Downsamples the 12MP buffer globally off the UI thread to massively drop the footprint
                     // Instantly executes native `generateAutoCenterCrop` natively isolating UIImage and CGImage pointers 
                     // cleanly inside the background securely, exporting solely safe raw `.Data` out bypassing JetSam limits globally
-                    let (finalSafeData, safeCGImage) = await Task.detached(priority: .userInitiated) {
-                        guard let cgImage = ImageDownsampler.downsample(data: captureData, maxSize: 4000) else { return (Data(), nil as CGImage?) }
-                        // Explicitly construct non-Sendable UIImage completely bounded securely offline without UI bridging constraints
-                        let tempRawImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
-                        let data = tempRawImage.jpegData(compressionQuality: 0.8) ?? Data()
-                        return (data, cgImage)
-                    }.value
+                    
+                    let safeCGImage = await ImageDownsampler.shared.downsample(data: captureData, maxSize: 4000)
+                    
+                    let finalSafeData: Data = {
+                        guard let cgImage = safeCGImage else { return Data() }
+                        return autoreleasepool {
+                            let tempRawImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+                            return tempRawImage.jpegData(compressionQuality: 0.8) ?? Data()
+                        }
+                    }()
+                    
                     
                     if !finalSafeData.isEmpty, let validCGImage = safeCGImage {
                         // 5. Environmental Pre-Fetching
                         // Maps historical location caching before pushing to identity pipeline
-                        let task = Task.detached(priority: .userInitiated) {
+                        let task = Task {
                             return await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
                         }
                         

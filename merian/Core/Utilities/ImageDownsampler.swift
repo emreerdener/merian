@@ -4,11 +4,14 @@ import ImageIO
 
 // MARK: - System Hardware Image Downsampler
 /// Safely downsamples massive native 12MP photos natively within CoreGraphics bounds preventing SwiftUI from triggering Out of Memory (OOM) JetSam crashes natively.
-public struct ImageDownsampler {
+public actor ImageDownsampler {
+    
+    public static let shared = ImageDownsampler()
     
     // MARK: - Disk Bound Operations
     /// Downsamples a physical file payload natively into a constrained CGImage bound
-    public static func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
+    public func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
+        return autoreleasepool {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -21,13 +24,15 @@ public struct ImageDownsampler {
             return nil
         }
         
-        return cgImage
+            return cgImage
+        }
     }
     
     // MARK: - Memory Bound Operations
     /// Downsamples raw binary bytes natively into a constrained CGImage bound
-    public static func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
-        let options: [CFString: Any] = [
+    public func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
+        return autoreleasepool {
+            let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: maxSize
@@ -39,6 +44,7 @@ public struct ImageDownsampler {
             return nil
         }
         
-        return cgImage
+            return cgImage
+        }
     }
 }

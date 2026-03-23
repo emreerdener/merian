@@ -39,13 +39,8 @@ actor LocalImageLoader {
                 let filename = (safePath as NSString).lastPathComponent
                 let url = URL.documentsDirectory.appendingPathComponent(filename)
                 
-                if let decoded = await Task.detached(priority: .userInitiated, operation: { () -> UIImage? in
-                    if let cgImage = ImageDownsampler.downsample(url: url, maxSize: CGFloat(maxDimension)) {
-                        return UIImage(cgImage: cgImage)
-                    }
-                    
-                    return nil
-                }).value {
+                if let cgImage = await ImageDownsampler.shared.downsample(url: url, maxSize: CGFloat(maxDimension)) {
+                    let decoded = UIImage(cgImage: cgImage)
                     ImageCache.shared.set(decoded, forKey: cacheKey)
                     return decoded
                 }
@@ -94,15 +89,13 @@ actor LocalImageLoader {
             
             if Task.isCancelled { return nil }
             
-            return await Task.detached(priority: .userInitiated) {
-                if let cgImage = ImageDownsampler.downsample(url: tempURL, maxSize: 500) {
-                    let thumbnail = UIImage(cgImage: cgImage)
-                    ImageCache.shared.set(thumbnail, forKey: cacheKey)
-                    return thumbnail
-                }
-                
-                return nil
-            }.value
+            if let cgImage = await ImageDownsampler.shared.downsample(url: tempURL, maxSize: 500) {
+                let thumbnail = UIImage(cgImage: cgImage)
+                ImageCache.shared.set(thumbnail, forKey: cacheKey)
+                return thumbnail
+            }
+            
+            return nil
         } catch {
             return nil
         }

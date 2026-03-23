@@ -126,20 +126,7 @@ enum APIError: Error {
                 let client = MerianNetworkClient.shared
                 
                 // 2. Convert Data to structural base64 string
-                let base64Strings = await Task.detached(priority: .userInitiated) {
-                    await withTaskGroup(of: (Int, String).self) { group in
-                        for (index, data) in compressedDatas.enumerated() {
-                            group.addTask {
-                                return (index, data.base64EncodedString())
-                            }
-                        }
-                        var results: [(Int, String)] = []
-                        for await result in group {
-                            results.append(result)
-                        }
-                        return results.sorted(by: { $0.0 < $1.0 }).map { $1 }
-                    }
-                }.value
+                let base64Strings = await InferenceProcessingActor.shared.encodeBase64Concurrent(compressedDatas: compressedDatas)
                 
                 let targetObjectKey = "staging/\(UUID().uuidString).jpg"
                 
@@ -155,44 +142,12 @@ enum APIError: Error {
                 let inferenceTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
                 print("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime)) seconds.")
                 
-                // 4. Decode the returned raw bytes intelligently into our local Swift UI Models bypassing stringification payloads entirely
-                let container = modelContext?.container
-                let (finalMappedData, isNewDisc) = try await Task.detached(priority: .userInitiated) { () -> (SpeciesData?, Bool) in
-                    let decoder = JSONDecoder()
-                    
-                    let parsedWrapper: EdgeResponseWrapper
-                    do {
-                        parsedWrapper = try decoder.decode(EdgeResponseWrapper.self, from: resultData)
-                    } catch let error as DecodingError {
-                        print("⚠️ AI JSON Payload Hallucination / Decoding Error: \(error.localizedDescription)")
-                        throw APIError.decodingFailed
-                    }
-                    
-                    let edgeRes = parsedWrapper.data
-                    
-                    let mappedData = SpeciesData(
-                        fromEdgeResponse: edgeRes,
-                        locationName: telemetry.locationName,
-                        weatherCondition: telemetry.weatherCondition,
-                        weatherTemperatureF: telemetry.weatherTemperatureF,
-                        gpsElevation: telemetry.gpsElevation,
-                        gpsLatitude: telemetry.gpsLatitude,
-                        gpsLongitude: telemetry.gpsLongitude
-                    )
-                    
-                    // CRITICAL FIX: Prevent phantom DB inserts by strictly validating Task cancellation before inserting!
-                    // If the user triggered the offline queue or backed out mid-flight, this structurally aborts the detached thread.
-                    try Task.checkCancellation()
-                    
-                    var newDiscovery = false
-                    
-                    // Persist to SwiftData Scans securely isolated via @ModelActor off the main thread bounds natively stopping EXC_BAD_ACCESS
-                    if mappedData.confidenceScore > 0.0, let container = container, !compressedDatas.isEmpty {
-                        let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                        newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, compressedDatas: compressedDatas)
-                    }
-                    return (mappedData, newDiscovery)
-                }.value
+                let (finalMappedData, isNewDisc) = try await InferenceProcessingActor.shared.parseAndSave(
+                    resultData: resultData,
+                    telemetry: telemetry,
+                    modelContext: modelContext,
+                    compressedDatas: compressedDatas
+                )
                 
                 if var mappedData = finalMappedData {
                     if isNewDisc {
@@ -345,10 +300,10 @@ enum APIError: Error {
             
             if let scanId = scanId, let context = modelContext {
                  let container = context.container
-                 await Task.detached(priority: .background) {
+                 Task {
                      let dbActor = BackgroundDatabaseActor(modelContainer: container)
                      await dbActor.updateScanWithWikipedia(scanId: scanId, extract: extract, url: webUrl, imageUrl: imageUrl)
-                 }.value
+                 }
             }
             
         } catch {
@@ -411,12 +366,7 @@ enum APIError: Error {
         self.activeLiveCaptureDatas = []
         
         Task {
-            let validPaths = await Task.detached(priority: .userInitiated) {
-                paths.filter { path in
-                    if path.starts(with: "http") { return true }
-                    return FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
-                }
-            }.value
+            let validPaths = await FileIOActor.shared.validPaths(from: paths)
             
             await MainActor.run {
                 self.validHistoricImagePaths = validPaths
@@ -488,4 +438,70 @@ enum APIError: Error {
     }
     
 
+
+}
+
+// MARK: - Dedicated Actors for Background Offloading
+actor FileIOActor {
+    static let shared = FileIOActor()
+    
+    func validPaths(from paths: [String]) -> [String] {
+        return paths.filter { path in
+            if path.starts(with: "http") { return true }
+            return FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
+        }
+    }
+}
+
+actor InferenceProcessingActor {
+    static let shared = InferenceProcessingActor()
+    
+    func encodeBase64Concurrent(compressedDatas: [Data]) async -> [String] {
+        await withTaskGroup(of: (Int, String).self) { group in
+            for (index, data) in compressedDatas.enumerated() {
+                group.addTask {
+                    return (index, data.base64EncodedString())
+                }
+            }
+            var results: [(Int, String)] = []
+            for await result in group {
+                results.append(result)
+            }
+            return results.sorted(by: { $0.0 < $1.0 }).map { $1 }
+        }
+    }
+    
+    func parseAndSave(resultData: Data, telemetry: CaptureTelemetry, modelContext: ModelContext?, compressedDatas: [Data]) async throws -> (SpeciesData?, Bool) {
+        let decoder = JSONDecoder()
+        
+        let parsedWrapper: InferenceEngine.EdgeResponseWrapper
+        do {
+            parsedWrapper = try decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData)
+        } catch let error as DecodingError {
+            print("⚠️ AI JSON Payload Hallucination / Decoding Error: \(error.localizedDescription)")
+            throw APIError.decodingFailed
+        }
+        
+        let edgeRes = parsedWrapper.data
+        
+        let mappedData = SpeciesData(
+            fromEdgeResponse: edgeRes,
+            locationName: telemetry.locationName,
+            weatherCondition: telemetry.weatherCondition,
+            weatherTemperatureF: telemetry.weatherTemperatureF,
+            gpsElevation: telemetry.gpsElevation,
+            gpsLatitude: telemetry.gpsLatitude,
+            gpsLongitude: telemetry.gpsLongitude
+        )
+        
+        try Task.checkCancellation()
+        
+        var newDiscovery = false
+        
+        if mappedData.confidenceScore > 0.0, let container = modelContext?.container, !compressedDatas.isEmpty {
+            let dbActor = BackgroundDatabaseActor(modelContainer: container)
+            newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, compressedDatas: compressedDatas)
+        }
+        return (mappedData, newDiscovery)
+    }
 }

@@ -191,9 +191,9 @@ import Accelerate
             guard let self = self else { return }
             do {
                 try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
                 let rate = CMTime(value: 1, timescale: Int32(fps))
                 self.applyFrameRate(rate, to: device)
-                device.unlockForConfiguration()
             } catch {
                 print("Failed to lock device for configuration: \(error)")
             }
@@ -213,9 +213,9 @@ import Accelerate
             guard let self = self else { return }
             do {
                 try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
                 let idleRate = CMTime(value: 1, timescale: 1)
                 self.applyFrameRate(idleRate, to: device)
-                device.unlockForConfiguration()
             } catch {
                 print("Failed to lock for configuration in idle state: \(error)")
             }
@@ -340,9 +340,9 @@ import Accelerate
         queue.async {
             do {
                 try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
                 let targetTorchMode: AVCaptureDevice.TorchMode = device.torchMode == .off ? .on : .off
                 device.torchMode = targetTorchMode
-                device.unlockForConfiguration()
                 
                 Task { @MainActor [weak self] in
                     self?.isFlashEnabled = (targetTorchMode == .on)
@@ -362,6 +362,7 @@ import Accelerate
             let device = deviceInput.device
             do {
                 try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
                 
                 if device.isFocusPointOfInterestSupported && device.isFocusModeSupported(.autoFocus) {
                     device.focusPointOfInterest = devicePoint
@@ -374,8 +375,6 @@ import Accelerate
                 }
                 
                 device.isSubjectAreaChangeMonitoringEnabled = true
-                
-                device.unlockForConfiguration()
             } catch {
                 print("Failed to lock device for focus: \(error)")
             }
@@ -391,6 +390,7 @@ import Accelerate
             let device = deviceInput.device
             do {
                 try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
                 
                 if device.isFocusModeSupported(.continuousAutoFocus) {
                     device.focusMode = .continuousAutoFocus
@@ -401,8 +401,6 @@ import Accelerate
                 }
                 
                 device.isSubjectAreaChangeMonitoringEnabled = false
-                
-                device.unlockForConfiguration()
             } catch {
                 print("Failed to lock device for resetting focus: \(error)")
             }
@@ -427,6 +425,8 @@ import Accelerate
         var brightness: Float = 1.0
         if CVPixelBufferGetPlaneCount(pixelBuffer) > 0 {
             CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+            
             if let baseAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0) {
                 let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0)
                 let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
@@ -460,7 +460,6 @@ import Accelerate
                     }
                 }
             }
-            CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
         }
         
         Task { @MainActor in

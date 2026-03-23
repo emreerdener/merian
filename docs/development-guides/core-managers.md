@@ -9,6 +9,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Triggers strictly when `.handleActivePhase()` calls within `MerianApp.swift`.
 - Governs `subjectDistanceInMeters`, auto-focus thresholds, thermal bounds, and frame drops safely natively inside a `DispatchQueue(label: "camera.session")`.
 - Eradicates severe Accelerate `vImage` CPU starvation during paused contexts natively. It deploys an atomic `nonisolated(unsafe) private var activeInferencePaused` boolean structurally synced with the `@MainActor` preference boundary explicitly. This strictly forces an immediate short-circuit early return completely halting the massive hardware histogram allocation pipeline inside `captureOutput`, violently preserving extreme physical battery thermals efficiently whenever the Viewfinder AI is halted.
+- **Leak-Proof Deferred Mutex Unlocks**: Directly mitigates implicit AVFoundation buffer leaks and device thread black-screen lockouts by injecting rigid `defer { device.unlockForConfiguration() }` and `defer { CVPixelBufferUnlockBaseAddress }` hooks across all logical hardware control workflows intuitively resolving physical boundary crashes inherently mapping safely.
 
 ### `EnvironmentContextManager`
 - Explicit mapping for configuring dual properties natively inside the `EnvironmentContext` dependency graph without invoking UI rerenders:
@@ -35,7 +36,7 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Automatically filters natively against `gemini-2.5-flash` or `gemini-2.5-pro` (dynamically allocated based on user subscription tier) payloads binding the structural taxonomy strings mapped specifically right back down to native local properties.
 - Strictly maps native ephemeral telemetry metadata (such as `gpsLatitude`, `gpsLongitude`, `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, and `locationName`) directly back into the parsed `SpeciesData` model, completely abstracting it from the Edge runtime and securely establishing layout geometries seamlessly for the UI layer identically across Live and Offline sweeps.
 - Responsible for mutating and triggering the "Graceful Degradation" UI bounds when network calls fail natively by dumping the payload explicitly down to `OfflineQueueManager`.
-- **Multi-Image Concurrency**: Natively accepts dynamic `imageDatas: [Data]` arrays representing Active Scan UI arrays, executing iterative decoupled `base64EncodedString()` boundaries concurrently routing bulk payloads to the upstream Edge layer entirely without freezing the `@MainActor` thread.
+- **Multi-Image Concurrency & Swift 6 Actors**: Radically abstracts decoupled image transformations `InferenceProcessingActor` completely circumventing rigid `Task.detached` blocks that were explicitly avoiding iOS restrictions natively. Executing explicit `FileIOActor` filesystem validations and base64 parsing loops natively via asynchronous boundaries cleanly protects against data-races globally structurally.
 
 ### `OfflineQueueManager`
 - Dictates completely silent `URLSession` background mappings dynamically allowing the app to seamlessly stash pending physical imagery natively into the local disk partition (Document Directory).

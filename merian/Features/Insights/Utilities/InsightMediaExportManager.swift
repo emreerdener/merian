@@ -10,41 +10,13 @@ final class InsightMediaExportManager {
     func saveUserPhotos(liveData: Data?, validPaths: [String], referenceImageUrl: String?, completion: @escaping (Int) -> Void) {
         let refUrls: [String] = referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
         
-        Task.detached(priority: .userInitiated) {
-            var photosSaved = 0
-            
-            // 1. Live photo payload
-            if let data = liveData {
-                let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
-                if success { photosSaved += 1 }
-            }
-            
-            // 2. Local historical images securely cached on disk
-            for path in validPaths {
-                let url = URL.documentsDirectory.appendingPathComponent(path)
-                let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: url)
-                if success { photosSaved += 1 }
-            }
-            
-            // 3. Remote user uploads explicitly filtering out GBIF/Wiki bounds
-            for urlStr in refUrls {
-                let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
-                if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
-                    do {
-                        let (fileURL, _) = try await URLSession.shared.download(from: url)
-                        let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: fileURL)
-                        if success { photosSaved += 1 }
-                        try? FileManager.default.removeItem(at: fileURL)
-                    } catch {
-                        print("Failed to map R2 cloud payload for UI download: \(error)")
-                    }
-                }
-            }
-            
-            let finalPhotosSaved = photosSaved
-            await MainActor.run {
-                completion(finalPhotosSaved)
-            }
+        Task {
+            let photosSaved = await ExportProcessingActor.shared.saveUserPhotos(
+                liveData: liveData,
+                validPaths: validPaths,
+                refUrls: refUrls
+            )
+            completion(photosSaved)
         }
     }
     
@@ -58,16 +30,7 @@ final class InsightMediaExportManager {
         let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") })?.trimmingCharacters(in: .whitespacesAndNewlines)
         
         Task {
-            let extractedImage = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-                if let live = liveData, let image = UIImage(data: live) {
-                    return image
-                } else if let validPath = historicPath,
-                          let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),
-                          let image = UIImage(data: data) {
-                    return image
-                }
-                return nil
-            }.value
+            let extractedImage = await ExportProcessingActor.shared.extractImage(liveData: liveData, historicPath: historicPath)
             
             if let image = extractedImage {
                 items.insert(image, at: 0)
@@ -101,43 +64,9 @@ final class InsightMediaExportManager {
     func batchSaveUserPhotos(records: [LocalScanRecord], completion: @escaping (Int) -> Void) {
         let payloads = records.map { SavePhotosPayload(localImagePath: $0.localImagePath, additionalImagePaths: $0.additionalImagePaths, referenceImageUrl: $0.referenceImageUrl) }
         
-        Task.detached(priority: .userInitiated) {
-            var photosSaved = 0
-            
-            for payload in payloads {
-                var validPaths: [String] = []
-                if let p = payload.localImagePath { validPaths.append(p) }
-                if let extras = payload.additionalImagePaths { validPaths.append(contentsOf: extras) }
-                
-                // 1. Local historical images securely cached on disk
-                for path in validPaths {
-                    let url = URL.documentsDirectory.appendingPathComponent(path)
-                    if let data = try? Data(contentsOf: url) {
-                        let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
-                        if success { photosSaved += 1 }
-                    }
-                }
-                
-                // 2. Remote user uploads explicitly filtering out GBIF/Wiki bounds
-                let refUrls = payload.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
-                for urlStr in refUrls {
-                    let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
-                        do {
-                            let (data, _) = try await URLSession.shared.data(from: url)
-                            let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
-                            if success { photosSaved += 1 }
-                        } catch {
-                            print("Failed to map R2 cloud payload for UI download: \(error)")
-                        }
-                    }
-                }
-            }
-            
-            let finalPhotosSaved = photosSaved
-            await MainActor.run {
-                completion(finalPhotosSaved)
-            }
+        Task {
+            let photosSaved = await ExportProcessingActor.shared.batchSaveUserPhotos(payloads: payloads)
+            completion(photosSaved)
         }
     }
     
@@ -167,15 +96,7 @@ final class InsightMediaExportManager {
             }
             
             for payload in payloads {
-                let extractedImage = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-                    if let validPath = payload.localImagePath {
-                        let fileURL = URL.documentsDirectory.appendingPathComponent(validPath)
-                        if let cgImage = ImageDownsampler.downsample(url: fileURL, maxSize: 1024) {
-                            return UIImage(cgImage: cgImage)
-                        }
-                    }
-                    return nil
-                }.value
+                let extractedImage = await ExportProcessingActor.shared.extractThumbnail(from: payload.localImagePath)
                 
                 if let image = extractedImage {
                     items.append(image)
@@ -192,5 +113,95 @@ final class InsightMediaExportManager {
             
             await MainActor.run { presentShareSheet(items) }
         }
+    }
+}
+
+// MARK: - Dedicated Processing Actor
+actor ExportProcessingActor {
+    static let shared = ExportProcessingActor()
+    
+    func saveUserPhotos(liveData: Data?, validPaths: [String], refUrls: [String]) async -> Int {
+        var photosSaved = 0
+        
+        if let data = liveData {
+            let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+            if success { photosSaved += 1 }
+        }
+        
+        for path in validPaths {
+            let url = URL.documentsDirectory.appendingPathComponent(path)
+            let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: url)
+            if success { photosSaved += 1 }
+        }
+        
+        for urlStr in refUrls {
+            let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
+            if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
+                do {
+                    let (fileURL, _) = try await URLSession.shared.download(from: url)
+                    let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: fileURL)
+                    if success { photosSaved += 1 }
+                    try? FileManager.default.removeItem(at: fileURL)
+                } catch {
+                    print("Failed to map R2 cloud payload for UI download: \(error)")
+                }
+            }
+        }
+        
+        return photosSaved
+    }
+    
+    func batchSaveUserPhotos(payloads: [InsightMediaExportManager.SavePhotosPayload]) async -> Int {
+        var photosSaved = 0
+        
+        for payload in payloads {
+            var validPaths: [String] = []
+            if let p = payload.localImagePath { validPaths.append(p) }
+            if let extras = payload.additionalImagePaths { validPaths.append(contentsOf: extras) }
+            
+            for path in validPaths {
+                let url = URL.documentsDirectory.appendingPathComponent(path)
+                if let data = try? Data(contentsOf: url) {
+                    let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                    if success { photosSaved += 1 }
+                }
+            }
+            
+            let refUrls = payload.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
+            for urlStr in refUrls {
+                let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
+                if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
+                    do {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                        if success { photosSaved += 1 }
+                    } catch {
+                        print("Failed to map R2 cloud payload for UI download: \(error)")
+                    }
+                }
+            }
+        }
+        return photosSaved
+    }
+    
+    func extractImage(liveData: Data?, historicPath: String?) -> UIImage? {
+        if let live = liveData, let image = UIImage(data: live) {
+            return image
+        } else if let validPath = historicPath,
+                  let data = try? Data(contentsOf: URL.documentsDirectory.appendingPathComponent(validPath)),
+                  let image = UIImage(data: data) {
+            return image
+        }
+        return nil
+    }
+    
+    func extractThumbnail(from localPath: String?) async -> UIImage? {
+        if let validPath = localPath {
+            let fileURL = URL.documentsDirectory.appendingPathComponent(validPath)
+            if let cgImage = await ImageDownsampler.shared.downsample(url: fileURL, maxSize: 1024) {
+                return UIImage(cgImage: cgImage)
+            }
+        }
+        return nil
     }
 }

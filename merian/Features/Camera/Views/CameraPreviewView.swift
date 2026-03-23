@@ -40,6 +40,12 @@ struct CameraPreviewView: UIViewRepresentable {
         context.coordinator.parent = self
     }
     
+    // MARK: - View Deallocation
+    // Ensures AVFoundation layers don't leak by retaining global session traces past the View boundary.
+    static func dismantleUIView(_ uiView: PreviewView, coordinator: Coordinator) {
+        uiView.videoPreviewLayer.session = nil
+    }
+    
     // MARK: - Gesture Coordinator & Delegates
     // Translates legacy imperative UITapGestureRecognizer events cleanly back out to SwiftUI closures.
     func makeCoordinator() -> Coordinator {

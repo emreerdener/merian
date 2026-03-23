@@ -81,7 +81,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         
         if idsToExtract.isEmpty { return }
         
-        indexingTask = Task.detached(priority: .userInitiated) { [weak self] in
+        indexingTask = Task { [weak self] in
             let dbActor = SearchDatabaseActor(modelContainer: container)
             let processedNewScans = await dbActor.extractSearchablePayloads(from: idsToExtract)
             
@@ -140,50 +140,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             // Offload heavy multi-token String matching entirely off the UI thread
             let searchData = self.searchableData
             
-            let matchingIds = await Task.detached(priority: .userInitiated) {
-                let tokens = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-                let matched = searchData.filter { scan in
-                    if Task.isCancelled { return false }
-                    let matchesCategory: Bool
-                    switch catMatch {
-                        case "all": 
-                            matchesCategory = true
-                        case "plants": 
-                            matchesCategory = scan.kingdom == "plantae"
-                        case "fungi": 
-                            matchesCategory = scan.kingdom == "fungi"
-                        case "insects": 
-                            matchesCategory = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
-                        case "birds": 
-                            matchesCategory = scan.className == "aves"
-                        case "mammals": 
-                            matchesCategory = scan.className == "mammalia"
-                        case "reptiles": 
-                            matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
-                        case "other":
-                            let isP = scan.kingdom == "plantae"
-                            let isF = scan.kingdom == "fungi"
-                            let isI = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
-                            let isB = scan.className == "aves"
-                            let isM = scan.className == "mammalia"
-                            let isR = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
-                            matchesCategory = !(isP || isF || isI || isB || isM || isR)
-                        default: 
-                            matchesCategory = false
-                    }
-                    
-                    if !matchesCategory { return false }
-                    if tokens.isEmpty { return true }
-                    
-                    return tokens.allSatisfy { token in
-                        scan.searchString.contains(token)
-                    }
-                }
-                
-                if Task.isCancelled { return [String]() }
-                // Return explicitly primitive Sendable boundaries preventing Swift 6 PersistentModel crossing errors natively
-                return matched.map { $0.id }
-            }.value
+            let filterActor = SearchFilterActor()
+            let matchingIds = await filterActor.filter(text: text, searchData: searchData, catMatch: catMatch)
             
             if Task.isCancelled { return }
             
@@ -275,5 +233,51 @@ actor SearchDatabaseActor {
         }
         
         return processed
+    }
+}
+
+actor SearchFilterActor {
+    func filter(text: String, searchData: [SearchableScan], catMatch: String) -> [String] {
+        let tokens = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        let matched = searchData.filter { scan in
+            if Task.isCancelled { return false }
+            let matchesCategory: Bool
+            switch catMatch {
+                case "all": 
+                    matchesCategory = true
+                case "plants": 
+                    matchesCategory = scan.kingdom == "plantae"
+                case "fungi": 
+                    matchesCategory = scan.kingdom == "fungi"
+                case "insects": 
+                    matchesCategory = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
+                case "birds": 
+                    matchesCategory = scan.className == "aves"
+                case "mammals": 
+                    matchesCategory = scan.className == "mammalia"
+                case "reptiles": 
+                    matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
+                case "other":
+                    let isP = scan.kingdom == "plantae"
+                    let isF = scan.kingdom == "fungi"
+                    let isI = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
+                    let isB = scan.className == "aves"
+                    let isM = scan.className == "mammalia"
+                    let isR = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
+                    matchesCategory = !(isP || isF || isI || isB || isM || isR)
+                default: 
+                    matchesCategory = false
+            }
+            
+            if !matchesCategory { return false }
+            if tokens.isEmpty { return true }
+            
+            return tokens.allSatisfy { token in
+                scan.searchString.contains(token)
+            }
+        }
+        
+        if Task.isCancelled { return [] }
+        return matched.map { $0.id }
     }
 }

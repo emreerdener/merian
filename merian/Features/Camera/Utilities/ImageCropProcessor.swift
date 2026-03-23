@@ -5,8 +5,7 @@ import UniformTypeIdentifiers
 struct ImageCropProcessor {
     
     // MARK: - Async Generation Boundary
-    @MainActor
-    static func generateCrop(
+    nonisolated static func generateCrop(
         image: UIImage,
         displaySize: CGFloat,
         scale: CGFloat,
@@ -29,8 +28,7 @@ struct ImageCropProcessor {
         let targetOrientation = image.imageOrientation
         
         // MARK: - Detached Hardware Execution
-        let processedBytes = await Task.detached(priority: .userInitiated) {
-            let bytes: Data? = autoreleasepool {
+        let processedBytes: Data? = autoreleasepool {
                 let W = targetSize.width
                 let H = targetSize.height
                 
@@ -120,23 +118,19 @@ struct ImageCropProcessor {
                     return nil
                 }
                 
-                return Data(renderData)
-            }
-            return bytes
-        }.value
+            return Data(renderData)
+        }
         
         return processedBytes ?? Data()
     }
     
     // MARK: - Zero-Latency Auto-Crop Pipeline (Active Scan)
-    @MainActor
-    static func generateAutoCenterCrop(image: UIImage) async -> Data {
+    nonisolated static func generateAutoCenterCrop(image: UIImage) async -> Data {
         // MARK: - Sendable Isolation Wrappers
         let targetCGImage = image.cgImage
         let targetOrientation = image.imageOrientation
         
-        let processedBytes = await Task.detached(priority: .userInitiated) {
-            let bytes: Data? = autoreleasepool {
+        let processedBytes: Data? = autoreleasepool {
                 guard let cgImg = targetCGImage else {
                     return nil
                 }
@@ -186,10 +180,8 @@ struct ImageCropProcessor {
                     return nil
                 }
                 
-                return Data(renderData)
-            }
-            return bytes
-        }.value
+            return Data(renderData)
+        }
         
         return processedBytes ?? Data()
     }

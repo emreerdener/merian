@@ -135,9 +135,7 @@ final class CameraViewModel {
                     }
                     
                     if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
-                        let detatchedDownsample = await Task.detached(priority: .userInitiated) {
-                            ImageDownsampler.downsample(url: validUrl, maxSize: 4000)
-                        }.value
+                        let detatchedDownsample = await ImageDownsampler.shared.downsample(url: validUrl, maxSize: 4000)
                         
                         if let cgImage = detatchedDownsample {
                             let rawImage = UIImage(cgImage: cgImage)

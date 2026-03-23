@@ -97,16 +97,14 @@ final class ScanRepository {
                 .value
 
             let container = modelContext.container
-            await Task.detached(priority: .userInitiated) {
-                let dbActor = HistoricalDatabaseActor(modelContainer: container)
-                await dbActor.updateExistingScans(responses: response)
-                
-                if !missingScans.isEmpty {
-                    await dbActor.ingestHistoricalScans(missingScans: missingScans)
-                }
-                
-                await dbActor.syncCollectionsDown(remoteCollections: collectionsResponse)
-            }.value
+            let dbActor = HistoricalDatabaseActor(modelContainer: container)
+            await dbActor.updateExistingScans(responses: response)
+            
+            if !missingScans.isEmpty {
+                await dbActor.ingestHistoricalScans(missingScans: missingScans)
+            }
+            
+            await dbActor.syncCollectionsDown(remoteCollections: collectionsResponse)
             
             if !missingScans.isEmpty {
                 print("✅ Merian Sync: Restored Historical payload records.")

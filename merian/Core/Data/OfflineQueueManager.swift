@@ -48,7 +48,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
         task.id = taskId
         #endif
         
-        return Task.detached(priority: .background) {
+        return Task(priority: .background) {
             await operation(task)
             task.safeEnd()
         }
@@ -155,7 +155,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
         guard isOnline, SupabaseManager.shared.isAuthenticated else { return }
         guard let container = modelContext?.container else { return }
         
-        Task.detached(priority: .background) {
+        Task {
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             await dbActor.pushCollectionsToEdge()
         }
