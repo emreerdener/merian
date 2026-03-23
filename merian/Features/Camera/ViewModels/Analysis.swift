@@ -10,6 +10,9 @@ extension CameraViewModel {
         let capturedDatas = self.activeScannedDatas
         let displayImages = self.activeScanImages
         
+        // Securely capture the EXIF telemetry before clearing the state natively
+        let historicalContext = self.activeOriginals.first?.environmentContext
+        
         // 1. State Clear
         self.activeScannedDatas.removeAll()
         self.activeScanImages.removeAll()
@@ -65,7 +68,12 @@ extension CameraViewModel {
             
             // 3. Environmental Synthesis Pipeline
             let context: EnvironmentContext
-            if let activeTask = self.preFetchTask {
+            if let historic = historicalContext {
+                // Instantly prioritize authentic EXIF data over the user's current device position directly!
+                context = historic
+                self.preFetchTask?.cancel()
+                self.preFetchTask = nil
+            } else if let activeTask = self.preFetchTask {
                 context = await activeTask.value
                 self.preFetchTask = nil
             } else {
