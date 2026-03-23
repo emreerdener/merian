@@ -10,7 +10,6 @@ struct Preferences: View {
     @Binding var showPaywall: Bool
     
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
-    
     let supabase: SupabaseManager
     
     var body: some View {
@@ -47,37 +46,45 @@ struct Preferences: View {
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 4)
+
+                 // MARK: - Push Notifications
+            NavigationLink {
+                NotificationSettingsView()
+            } label: {
+                HStack {
+                    Text("Notifications")
+                        .foregroundColor(.primary)
+                }
+            }
             
             // MARK: - Expedition Mode  
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("Expedition mode", isOn: $isExpeditionModeActive)
-                    .onChange(of: isExpeditionModeActive) { _, newValue in
-                        // Natively intercepts the toggle layout and radically restricts hardware physical limits instantly.
-                        HardwareOrchestrator.shared.isExpeditionModeActive = newValue
-                        HardwareOrchestrator.shared.evaluateConstraints()
-                    }
-                Text("Maximizes battery life off-grid by capping camera frame rates and disabling heavy visual effects.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            SettingsToggleRow(
+                title: "Expedition mode",
+                description: "Maximizes battery life off-grid by capping camera frame rates and disabling heavy visual effects.",
+                isOn: $isExpeditionModeActive
+            )
+            .onChange(of: isExpeditionModeActive) { _, newValue in
+                // Natively intercepts the toggle layout and radically restricts hardware physical limits instantly.
+                HardwareOrchestrator.shared.isExpeditionModeActive = newValue
+                HardwareOrchestrator.shared.evaluateConstraints()
             }
-            .padding(.vertical, 4)
             
             // MARK: - Live Viewfinder Hints
-            VStack(alignment: .leading, spacing: 8) {
-                // Synthetically reverses the binding syntax cleanly mapping User-Intent ("Hints ON")
-                // directly into the backend logical equivalent (`isLiveInferencePaused == false`)
-                Toggle("Live viewfinder hints", isOn: Binding(
+            // Synthetically reverses the binding syntax cleanly mapping User-Intent ("Hints ON")
+            // directly into the backend logical equivalent (`isLiveInferencePaused == false`)
+            SettingsToggleRow(
+                title: "Live viewfinder hints",
+                description: "Provides real-time AI scanning suggestions before you press the shutter. Turn off to reduce thermal load or battery drain.",
+                isOn: Binding(
                     get: { !isLiveInferencePaused },
                     set: { newValue in
                         isLiveInferencePaused = !newValue
                         CameraManager.shared.isLiveInferencePaused = !newValue
                     }
-                ))
-                Text("Provides real-time AI scanning suggestions before you press the shutter. Turn off to reduce thermal load or battery drain.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 4)
+                )
+            )
+
+       
             
             // MARK: - System Haptics
             Toggle("System haptics", isOn: $isHapticsEnabled)
@@ -112,4 +119,21 @@ struct Preferences: View {
         }
     }
     
+}
+
+/// A reusable generic primitives extracting duplicate VStack, Toggle, and Caption architectures globally.
+struct SettingsToggleRow: View {
+    let title: String
+    let description: String
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(title, isOn: $isOn)
+            Text(description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
 }

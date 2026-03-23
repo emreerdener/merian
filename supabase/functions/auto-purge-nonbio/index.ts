@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { getR2Config, getInternalS3Url } from "../_shared/aws.ts";
+import { getR2Config, deleteR2Objects } from "../_shared/aws.ts";
 
 serve(async (req: Request) => {
   if (req.method !== "POST") {
@@ -48,7 +48,6 @@ serve(async (req: Request) => {
     }
 
     const r2Config = getR2Config();
-    const { s3Client } = r2Config;
     const idsToDelete: string[] = [];
 
     // 2. Iterate and issue DELETE to R2 natively
@@ -56,18 +55,7 @@ serve(async (req: Request) => {
       idsToDelete.push(scan.id);
       
       const urls: string[] = scan.image_storage_urls || [];
-      await Promise.allSettled(
-        urls.map(async (url: string) => {
-          try {
-            // Rewrite the internal S3 API binding natively since Postgres stores public Media URLs
-            const s3Url = getInternalS3Url(url, r2Config);
-            
-            await s3Client.fetch(s3Url, { method: "DELETE" });
-          } catch (e) {
-            console.error(`Failed to wipe media at ${url} from Cloudflare R2:`, e);
-          }
-        })
-      );
+      await deleteR2Objects(urls, r2Config);
     }
     
     // 3. Execute `.delete().in("id", ...)` on the scans table

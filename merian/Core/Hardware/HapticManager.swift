@@ -4,6 +4,7 @@ import SwiftUI
 
 // MARK: - Core Sensory Feedback Engine
 @MainActor
+@Observable
 final class HapticManager {
     // MARK: - Singleton Architecture
     static let shared = HapticManager()

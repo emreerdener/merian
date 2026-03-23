@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { getR2Config, getInternalS3Url } from "../_shared/aws.ts";
+import { getR2Config, deleteR2Objects } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) =>
@@ -34,22 +34,7 @@ serve((req: Request) =>
     // 3. R2 Image Erasure (Cloudflare)
     if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
       const r2Config = getR2Config();
-      const { s3Client } = r2Config;
-
-      await Promise.allSettled(
-        scan.image_storage_urls.map(async (url: string) => {
-          try {
-            console.log(`Obliterating R2 payload: ${url}`);
-            
-            // Rewrite the internal S3 API binding natively since Postgres stores public Media URLs
-            const s3Url = getInternalS3Url(url, r2Config);
-            
-            await s3Client.fetch(s3Url, { method: "DELETE" });
-          } catch (e) {
-            console.error(`Failed to wipe media at ${url} from Cloudflare R2:`, e);
-          }
-        })
-      );
+      await deleteR2Objects(scan.image_storage_urls, r2Config);
     }
 
     // 4. Postgres Database Erasure

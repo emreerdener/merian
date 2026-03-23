@@ -11,6 +11,7 @@ import SwiftData
     var hardwareOrchestrator = HardwareOrchestrator.shared
     var cameraManager = CameraManager.shared
     var hapticManager = HapticManager.shared
+    var pushNotificationManager = PushNotificationManager.shared
 
     // MARK: - Dependencies (AI & Intelligence)
     var inferenceEngine = InferenceEngine()
@@ -48,17 +49,7 @@ import SwiftData
             if revenueCatManager.isProActive {
                 offlineQueueManager.enqueueCapture(
                     imageDatas: [payload],
-                    telemetry: CaptureTelemetry(
-                        subjectDistanceInMeters: inferenceEngine.activeDistanceInMeters,
-                        gpsLatitude: inferenceEngine.activeLatitude,
-                        gpsLongitude: inferenceEngine.activeLongitude,
-                        gpsElevation: inferenceEngine.activeElevation,
-                        locationName: inferenceEngine.activeLocationName,
-                        weatherCondition: inferenceEngine.activeWeatherCondition,
-                        weatherTemperatureF: inferenceEngine.activeTemperatureF,
-                        timeOfDay: nil,
-                        timestamp: DateUtilities.iso8601Formatter.string(from: Date())
-                    ),
+                    telemetry: CaptureTelemetry(from: inferenceEngine),
                     blurScore: nil
                 )
             }
@@ -90,6 +81,8 @@ import SwiftData
         
         cameraManager.startSession()
         usageManager.evaluateDailyRefresh()
+        pushNotificationManager.setupDelegate()
+        pushNotificationManager.syncPermissionState()
         
         Task {
             await supabaseManager.initializeGhostSession()
@@ -123,6 +116,8 @@ struct DIContainerModifier: ViewModifier {
         content
             .environment(container.hardwareOrchestrator)
             .environment(container.cameraManager)
+            .environment(container.hapticManager)
+            .environment(container.pushNotificationManager)
             .environment(container.inferenceEngine)
             .environment(container.vui)
             .environment(container.offlineQueueManager)

@@ -15,6 +15,43 @@ struct CaptureTelemetry: Sendable {
     let timestamp: String?
 }
 
+// MARK: - Telemetry DRY Injectors
+extension CaptureTelemetry {
+    @MainActor
+    init(from inferenceEngine: InferenceEngine) {
+        self.init(
+            subjectDistanceInMeters: inferenceEngine.activeDistanceInMeters,
+            gpsLatitude: inferenceEngine.activeLatitude,
+            gpsLongitude: inferenceEngine.activeLongitude,
+            gpsElevation: inferenceEngine.activeElevation,
+            locationName: inferenceEngine.activeLocationName,
+            weatherCondition: inferenceEngine.activeWeatherCondition,
+            weatherTemperatureF: inferenceEngine.activeTemperatureF,
+            timeOfDay: nil,
+            timestamp: DateUtilities.iso8601Formatter.string(from: Date())
+        )
+    }
+    
+    init(from context: EnvironmentContext, distance: Float?) {
+        var reliableElevation: Double? = nil
+        if let location = context.location, location.verticalAccuracy >= 0 && location.verticalAccuracy <= 25 {
+            reliableElevation = location.altitude
+        }
+        
+        self.init(
+            subjectDistanceInMeters: distance,
+            gpsLatitude: context.location?.coordinate.latitude,
+            gpsLongitude: context.location?.coordinate.longitude,
+            gpsElevation: reliableElevation,
+            locationName: context.locationName,
+            weatherCondition: context.weatherCondition,
+            weatherTemperatureF: context.weatherTemperature,
+            timeOfDay: nil,
+            timestamp: ISO8601DateFormatter().string(from: context.location?.timestamp ?? Date())
+        )
+    }
+}
+
 // MARK: - Primary AI Knowledge Domain
 /// Defines the explicit parsed biological constraints mapped natively from the Gemini Edge JSON Engine.
 struct SpeciesData {

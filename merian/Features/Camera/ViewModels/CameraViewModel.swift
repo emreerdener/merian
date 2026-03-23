@@ -54,6 +54,15 @@ final class CameraViewModel {
                 self?.isAnalyzingFullscreen = false
             }
             .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: NSNotification.Name("AppDidEnterActivePhaseWithScan"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                if let scanId = notification.userInfo?["scanId"] as? String {
+                    self?.handleDeepLinkRoute(scanId: scanId)
+                }
+            }
+            .store(in: &cancellables)
     }
     
     private func resetModalsForBackground() {
@@ -72,6 +81,23 @@ final class CameraViewModel {
             scanningPhaseText = "Analyzing subject..."
             analysisImages.removeAll()
             // Note: We deliberately DO NOT call `diContainer.inferenceEngine.cancelActiveRequest()` here.
+        }
+    }
+    
+    // MARK: - App Linking
+    
+    private func handleDeepLinkRoute(scanId: String) {
+        // SwiftData Context Access boundary seamlessly leveraging the shared queue context
+        guard let context = diContainer.offlineQueueManager.modelContext else { return }
+        
+        do {
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+            if let record = (try context.fetch(descriptor)).first {
+                diContainer.inferenceEngine.load(from: record)
+                self.activeSheet = .insight
+            }
+        } catch {
+            print("Failed to route deeply natively to scanId \(scanId): \(error)")
         }
     }
     

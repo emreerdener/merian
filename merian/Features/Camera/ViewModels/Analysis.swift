@@ -77,22 +77,7 @@ extension CameraViewModel {
             self.diContainer.usageManager.consumeScan()
             
             // 5. Generative Telemetry Parsing
-            var reliableElevation: Double? = nil
-            if let location = context.location, location.verticalAccuracy >= 0 && location.verticalAccuracy <= 25 {
-                reliableElevation = location.altitude
-            }
-            
-            let telemetry = CaptureTelemetry(
-                subjectDistanceInMeters: capturedDistance,
-                gpsLatitude: context.location?.coordinate.latitude,
-                gpsLongitude: context.location?.coordinate.longitude,
-                gpsElevation: reliableElevation,
-                locationName: context.locationName,
-                weatherCondition: context.weatherCondition,
-                weatherTemperatureF: context.weatherTemperature,
-                timeOfDay: nil,
-                timestamp: ISO8601DateFormatter().string(from: context.location?.timestamp ?? Date())
-            )
+            let telemetry = CaptureTelemetry(from: context, distance: capturedDistance)
             
             // 6. ML Inference Execution
             // Ships strict array payload globally to dynamically evaluated Supabase Edge logic natively 

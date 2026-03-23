@@ -216,4 +216,14 @@ final class MerianNetworkClient {
         
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
     }
+    
+    func blockUser(targetUserId: String) async throws {
+        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/block-user")!
+        let payload: [String: String] = [
+            "blocked_id": targetUserId
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
 }

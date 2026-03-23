@@ -20,6 +20,13 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Governs `UIImpactFeedbackGenerator` tactile bumps.
 - Generates `NotificationFeedback` natively tying into success/failure workflows across the core application safely bypassing standard `AudioToolbox` imports.
 
+### `PushNotificationManager`
+- Encapsulates isolated Apple `UNUserNotificationCenter` structures directly mapped inside the `@MainActor` thread.
+- Resolves system `authorizationStatus` natively polling the iOS explicit boundary state directly to override local SwiftUI `@AppStorage("isPushNotificationsEnabled")` primitives asynchronously. If a user natively revokes permissions via the OS Settings pane, it securely aligns the local flag synchronously out of sync-loops bypassing redundant user friction seamlessly.
+- Configured firmly as the `UNUserNotificationCenterDelegate`. It dynamically injects `scanId` representations physically into `.userInfo` payload arrays allowing silent background offline completions to pop visibly over the lockscreen.
+- Hooks explicit Deep Link taps intercepting closures organically dropping the explicit UI directly onto an active `InsightSheet` smoothly avoiding generic app-launcher behavior constraints natively.
+- Intercepts visual `completionHandler([])` active arrays physically masking inference banners automatically protecting in-app UX execution flows whenever the application resolves strictly `.active`.
+
 ## AI & Offline Synchronization
 
 ### `InferenceEngine`

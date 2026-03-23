@@ -39,28 +39,9 @@ import Observation
     
     // MARK: - Private API Sync Logic
     private func syncBlockWithBackend(targetUserId: String) async -> Bool {
-        guard let url = URL(string: "\(supabaseUrl)/functions/v1/block-user") else { return false }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        guard let authHeaders = try? await SupabaseManager.shared.getValidAuthHeaders() else {
-            return false
-        }
-        for (key, val) in authHeaders {
-            request.setValue(val, forHTTPHeaderField: key)
-        }
-        let payload: [String: String] = [
-            "blocked_id": targetUserId
-        ]
-        
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            let (_, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else { return false }
-            return (200...299).contains(httpResponse.statusCode)
+            try await MerianNetworkClient.shared.blockUser(targetUserId: targetUserId)
+            return true
         } catch {
             return false
         }

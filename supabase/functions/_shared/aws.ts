@@ -29,3 +29,18 @@ export function getR2Config(): R2Config {
 export function getInternalS3Url(publicUrl: string, config: R2Config): string {
   return publicUrl.replace("https://media.merian.app/", `${config.endpoint}/${config.bucketName}/`);
 }
+
+export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
+  const { s3Client } = r2Config;
+  await Promise.allSettled(
+    urls.map(async (url: string) => {
+      try {
+        console.log(`Obliterating R2 payload: ${url}`);
+        const s3Url = getInternalS3Url(url, r2Config);
+        await s3Client.fetch(s3Url, { method: "DELETE" });
+      } catch (e) {
+        console.error(`Failed to wipe media at ${url} from Cloudflare R2:`, e);
+      }
+    })
+  );
+};

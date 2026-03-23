@@ -453,13 +453,24 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     print("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime)) seconds.")
                     
                     let backgroundActor = BackgroundDatabaseActor(modelContainer: extracted.container)
-                    await backgroundActor.processAndCleanupOfflineScan(
+                    let discoveredSpecies = await backgroundActor.processAndCleanupOfflineScan(
                         resultData: resultData,
                         originalImagePaths: extracted.localImagePaths,
                         scanId: scanId,
                         originalTimestamp: extracted.originalTimestamp,
                         telemetry: finalTelemetry
                     )
+                    
+                    if let speciesName = discoveredSpecies,
+                       UserDefaults.standard.bool(forKey: "isPushNotificationsEnabled") {
+                        await MainActor.run {
+                            #if canImport(UIKit)
+                            if UIApplication.shared.applicationState != .active {
+                                PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: scanId)
+                            }
+                            #endif
+                        }
+                    }
                     
                     let totalPipelineTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
                     print("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime)) seconds!")
@@ -558,15 +569,17 @@ actor BackgroundDatabaseActor {
     
     // MARK: - Deferred Inference Mapper
     /// Called by the Offline Queue explicitly to ensure deferred scans are processed mathematically back down into the User's biological index natively.
-    func processAndCleanupOfflineScan(resultData: Data, originalImagePaths: [String], scanId: String, originalTimestamp: Date, telemetry: CaptureTelemetry? = nil) {
+    func processAndCleanupOfflineScan(resultData: Data, originalImagePaths: [String], scanId: String, originalTimestamp: Date, telemetry: CaptureTelemetry? = nil) -> String? {
         let decoder = JSONDecoder()
         var inferenceFailed = true
+        var resolvedSpeciesName: String? = nil
         if let parsedWrapper = try? decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData) {
             let edgeRes = parsedWrapper.data
             var mappedData = SpeciesData(fromEdgeResponse: edgeRes, locationName: telemetry?.locationName, weatherCondition: telemetry?.weatherCondition, weatherTemperatureF: telemetry?.weatherTemperatureF, gpsElevation: telemetry?.gpsElevation, gpsLatitude: telemetry?.gpsLatitude, gpsLongitude: telemetry?.gpsLongitude)
             
             if mappedData.confidenceScore > 0.0 {
                 inferenceFailed = false
+                resolvedSpeciesName = mappedData.commonName
                 // Retain exactly the original image paths to prevent sandbox leaks natively on SwiftData failures
                 let newlyCopiedPaths: [String] = originalImagePaths
 
@@ -652,6 +665,8 @@ actor BackgroundDatabaseActor {
         } catch {
             print("Background cleanup logic explicitly failed out of process offline trace natively: \(error)")
         }
+        
+        return resolvedSpeciesName
     }
     
     // MARK: - Collections Edge Uplink Sync
