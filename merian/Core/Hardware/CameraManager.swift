@@ -48,8 +48,12 @@ import Accelerate
     private var cachedInferencePreferenceTracker: Bool?
     
     // MARK: - Asynchronous Capture Continuations
-    private var activePhotoContinuation: CheckedContinuation<Data, Error>?
-    private var activeTimeoutTask: Task<Void, Error>?
+    private struct CaptureRequest {
+        let id: UUID
+        let continuation: CheckedContinuation<Data, Error>
+        var timeoutTask: Task<Void, Error>?
+    }
+    private var activeCaptureRequests: [CaptureRequest] = []
     
     // MARK: - Hardware Initialization
     private override init() {
@@ -466,29 +470,32 @@ import Accelerate
     func captureImage() async throws -> Data {
         // safely extract the MainActor state natively passing into the sendable closure
         let flashStatus = self.isFlashEnabled
+        let requestId = UUID()
         
         return try await withTaskCancellationHandler {
             return try await withCheckedThrowingContinuation { continuation in
-                guard activePhotoContinuation == nil else {
-                    continuation.resume(throwing: NSError(domain: "CameraManager", code: -1, userInfo: [NSLocalizedDescriptionKey : "Capture already in progress"]))
-                    return
-                }
-                self.activePhotoContinuation = continuation
+                var request = CaptureRequest(id: requestId, continuation: continuation, timeoutTask: nil)
                 
                 // 5-Second Hardware Timeout Fallback
-                self.activeTimeoutTask = Task { @MainActor [weak self] in
+                request.timeoutTask = Task { @MainActor [weak self] in
                     try await Task.sleep(nanoseconds: 5_000_000_000)
-                    guard let self = self, let activeCont = self.activePhotoContinuation else { return }
-                    self.activePhotoContinuation = nil
-                    activeCont.resume(throwing: NSError(domain: "CameraManager", code: -4, userInfo: [NSLocalizedDescriptionKey : "Hardware shutter timed out"]))
+                    guard let self = self else { return }
+                    if let idx = self.activeCaptureRequests.firstIndex(where: { $0.id == requestId }) {
+                        let expired = self.activeCaptureRequests.remove(at: idx)
+                        expired.continuation.resume(throwing: NSError(domain: "CameraManager", code: -4, userInfo: [NSLocalizedDescriptionKey : "Hardware shutter timed out"]))
+                    }
                 }
+                
+                self.activeCaptureRequests.append(request)
                 
                 queue.async {
                     guard let connection = self.photoOutput.connection(with: .video), connection.isActive && connection.isEnabled else {
                         Task { @MainActor in
-                            guard let cont = self.activePhotoContinuation else { return }
-                            self.activePhotoContinuation = nil
-                            cont.resume(throwing: NSError(domain: "CameraManager", code: -3, userInfo: [NSLocalizedDescriptionKey : "Camera hardware is not dynamically ready or powered down."]))
+                            if let idx = self.activeCaptureRequests.firstIndex(where: { $0.id == requestId }) {
+                                let failed = self.activeCaptureRequests.remove(at: idx)
+                                failed.timeoutTask?.cancel()
+                                failed.continuation.resume(throwing: NSError(domain: "CameraManager", code: -3, userInfo: [NSLocalizedDescriptionKey : "Camera hardware is not dynamically ready or powered down."]))
+                            }
                         }
                         return
                     }
@@ -526,10 +533,12 @@ import Accelerate
             }
         } onCancel: {
             Task { @MainActor [weak self] in
-                guard let self = self, let activeCont = self.activePhotoContinuation else { return }
-                self.activeTimeoutTask?.cancel()
-                self.activePhotoContinuation = nil
-                activeCont.resume(throwing: CancellationError())
+                guard let self = self else { return }
+                if let idx = self.activeCaptureRequests.firstIndex(where: { $0.id == requestId }) {
+                    let cancelled = self.activeCaptureRequests.remove(at: idx)
+                    cancelled.timeoutTask?.cancel()
+                    cancelled.continuation.resume(throwing: CancellationError())
+                }
             }
         }
     }
@@ -537,17 +546,16 @@ import Accelerate
     // MARK: - Photo Output Delegate
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         Task { @MainActor in
-            self.activeTimeoutTask?.cancel()
-            self.activeTimeoutTask = nil
-            guard let cont = self.activePhotoContinuation else { return }
-            self.activePhotoContinuation = nil
+            guard !self.activeCaptureRequests.isEmpty else { return }
+            let request = self.activeCaptureRequests.removeFirst()
+            request.timeoutTask?.cancel()
             
             if let error = error {
-                cont.resume(throwing: error)
+                request.continuation.resume(throwing: error)
             } else if let data = photo.fileDataRepresentation() {
-                cont.resume(returning: data)
+                request.continuation.resume(returning: data)
             } else {
-                cont.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))
+                request.continuation.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))
             }
         }
     }

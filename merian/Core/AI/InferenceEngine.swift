@@ -16,10 +16,11 @@ enum APIError: Error {
 @MainActor
 @Observable final class InferenceEngine {
     // MARK: - Active Pipeline State
+    @ObservationIgnored var inferenceTask: Task<Void, Error>?
     var isProcessing: Bool = false
     var activeImageData: Data? = nil
     var activeCompressedImageData: Data? = nil
-    var activeImageDatas: [String] = []
+    var activeLiveCaptureDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData? = nil
     
@@ -37,7 +38,6 @@ enum APIError: Error {
     private(set) var activeDistanceInMeters: Float? = nil
     
     // MARK: - Asynchronous Execution Controllers
-    private var inferenceTask: Task<Void, Error>?
     public var isBackgroundRescued = false
     
     // MARK: - Network Edge DTOs
@@ -88,14 +88,14 @@ enum APIError: Error {
     }    
 
     // MARK: - Main Pipeline Triggers
-    func analyze(imageData: Data, telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
+    func analyze(imageDatas: [Data], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
         self.inferenceTask?.cancel()
         
         // Reset states for a fresh native scan
         self.isProcessing = true
-        self.activeImageData = imageData
+        self.activeImageData = imageDatas.first
         self.activeCompressedImageData = nil
-        self.activeImageDatas = []
+        self.activeLiveCaptureDatas = imageDatas
         self.validHistoricImagePaths = []
         self.speciesData = nil
         self.isBackgroundRescued = false
@@ -115,8 +115,8 @@ enum APIError: Error {
             let boundaryStartTime = CFAbsoluteTimeGetCurrent()
             
             // 1. Data is already safely compressed from camera cropper directly
-            let compressedData = imageData
-            self.activeCompressedImageData = compressedData
+            let compressedDatas = imageDatas
+            self.activeCompressedImageData = compressedDatas.first
             
             do {
                 if CircuitBreakerManager.shared.isCircuitTripped {
@@ -126,7 +126,21 @@ enum APIError: Error {
                 let client = MerianNetworkClient.shared
                 
                 // 2. Convert Data to structural base64 string
-                let base64String = compressedData.base64EncodedString()
+                let base64Strings = await Task.detached(priority: .userInitiated) {
+                    await withTaskGroup(of: (Int, String).self) { group in
+                        for (index, data) in compressedDatas.enumerated() {
+                            group.addTask {
+                                return (index, data.base64EncodedString())
+                            }
+                        }
+                        var results: [(Int, String)] = []
+                        for await result in group {
+                            results.append(result)
+                        }
+                        return results.sorted(by: { $0.0 < $1.0 }).map { $1 }
+                    }
+                }.value
+                
                 let targetObjectKey = "staging/\(UUID().uuidString).jpg"
                 
                 try Task.checkCancellation() 
@@ -134,8 +148,8 @@ enum APIError: Error {
                 // 3. Transmit the payload directly skipping R2 hops entirely
                 let inferenceStartTime = CFAbsoluteTimeGetCurrent()
                 let resultData = try await client.analyzeSubject(
-                    r2ObjectKey: targetObjectKey,
-                    base64ImageData: base64String,
+                    r2ObjectKeys: [targetObjectKey],
+                    base64ImageDatas: base64Strings,
                     telemetry: telemetry
                 )
                 let inferenceTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
@@ -173,9 +187,9 @@ enum APIError: Error {
                     var newDiscovery = false
                     
                     // Persist to SwiftData Scans securely isolated via @ModelActor off the main thread bounds natively stopping EXC_BAD_ACCESS
-                    if mappedData.confidenceScore > 0.0, let container = container {
+                    if mappedData.confidenceScore > 0.0, let container = container, !compressedDatas.isEmpty {
                         let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                        newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, compressedData: compressedData)
+                        newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, compressedDatas: compressedDatas)
                     }
                     return (mappedData, newDiscovery)
                 }.value
@@ -247,7 +261,7 @@ enum APIError: Error {
                 
                 CircuitBreakerManager.shared.recordFailure()
                 OfflineQueueManager.shared.enqueueCapture(
-                    imageData: compressedData,
+                    imageDatas: compressedDatas,
                     telemetry: telemetry,
                     blurScore: nil
                 )
@@ -339,11 +353,12 @@ enum APIError: Error {
     func cancelActiveRequest() {
         print("Cancelled active inference request to prevent watchdog termination.")
         isBackgroundRescued = true
-        inferenceTask?.cancel()
-        isProcessing = false
+        self.inferenceTask?.cancel()
+        self.speciesData = nil
+        isBackgroundRescued = false
         activeImageData = nil
         activeCompressedImageData = nil
-        activeImageDatas.removeAll()
+        activeLiveCaptureDatas.removeAll()
         validHistoricImagePaths.removeAll()
         activeLatitude = nil
         activeLongitude = nil
@@ -386,7 +401,7 @@ enum APIError: Error {
         if let extras = record.additionalImagePaths {
             paths.append(contentsOf: extras)
         }
-        self.activeImageDatas = paths
+        self.activeLiveCaptureDatas = []
         
         Task {
             let validPaths = await Task.detached(priority: .userInitiated) {

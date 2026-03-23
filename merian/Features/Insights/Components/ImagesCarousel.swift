@@ -18,10 +18,10 @@ struct ImagesCarousel: View {
         inferenceEngine.validHistoricImagePaths
     }
     private var hasLive: Bool {
-        inferenceEngine.activeImageData != nil
+        !inferenceEngine.activeLiveCaptureDatas.isEmpty
     }
     private var liveCount: Int {
-        hasLive ? 1 : 0
+        inferenceEngine.activeLiveCaptureDatas.count
     }
     private var totalImages: Int {
         liveCount + validHistoricImagePaths.count + refUrls.count
@@ -67,12 +67,16 @@ private extension ImagesCarousel {
             set: { selectedIndex = $0 }
         )) {
             // Priority: Live Capture actively evaluated (Data payload)
-            if hasLive, let livePayload = inferenceEngine.activeImageData, let uiImage = UIImage(data: livePayload) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .clipped()
-                    .tag(0)
+            if hasLive {
+                ForEach(Array(inferenceEngine.activeLiveCaptureDatas.enumerated()), id: \.offset) { index, data in
+                    if let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .clipped()
+                            .tag(index)
+                    }
+                }
             }
             
             // User's Uploaded Images

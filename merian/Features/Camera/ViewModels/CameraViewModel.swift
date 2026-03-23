@@ -23,14 +23,18 @@ final class CameraViewModel {
     // MARK: - UI & Navigation State
     var activeSheet: ActiveSheet? = nil
     var imageToCrop: IdentifiableImage? = nil
-    var selectedPhotoItem: PhotosPickerItem? = nil
+    var editingCropIndex: Int? = nil
+    var activeScannedDatas: [Data] = []
+    var activeScanImages: [UIImage] = []
+    var activeOriginals: [IdentifiableImage] = []
+    var selectedPhotoItems: [PhotosPickerItem] = []
     
     // MARK: - Camera & Scanning State
     var isCapturing: Bool = false
     var flashOpacity: Double = 0.0
     var isAnalyzingFullscreen: Bool = false
     var scanningPhaseText: String = "Analyzing subject..."
-    var analysisImage: UIImage? = nil
+    var analysisImages: [UIImage] = []
     
     // MARK: - Asynchronous Jobs
     @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>? = nil
@@ -56,54 +60,89 @@ final class CameraViewModel {
         // Reset sheet boundaries so the user always returns to a clean camera view
         activeSheet = nil
         imageToCrop = nil
+        editingCropIndex = nil
+        activeScannedDatas.removeAll()
+        activeScanImages.removeAll()
+        activeOriginals.removeAll()
+        selectedPhotoItems.removeAll()
         
         // Do not violently kill the analyzing overlay natively if the Inference Engine is actively mid-scan in the background thread.
         if isAnalyzingFullscreen && !diContainer.inferenceEngine.isProcessing {
             isAnalyzingFullscreen = false
             scanningPhaseText = "Analyzing subject..."
-            analysisImage = nil
+            analysisImages.removeAll()
             // Note: We deliberately DO NOT call `diContainer.inferenceEngine.cancelActiveRequest()` here.
         }
     }
     
     // MARK: - User Intents
     
-    func handlePhotoPickerSelection(newItem: PhotosPickerItem?, modelContext: ModelContext) {
+    func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext: ModelContext) {
+        guard !newItems.isEmpty else { return }
+        
         Task { [weak self] in
-            guard let self = self,
-                  let newItem = newItem else { return }
-            guard let wrapper = try? await newItem.loadTransferable(type: ImageFileWrapper.self) else { return }
-            let validUrl = wrapper.url
-            defer { try? FileManager.default.removeItem(at: validUrl) }
+            guard let self = self else { return }
             
-            // Attempt to retrieve native PHAsset context to map historical GPS / Weather
-            var historicalContext: EnvironmentContext? = nil
-            if let localId = newItem.itemIdentifier {
-                let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
-                if let asset = fetchResult.firstObject, let location = asset.location, let creationDate = asset.creationDate {
-                    historicalContext = await self.diContainer.environmentContextManager.fetchHistoricalContext(location: location, date: creationDate)
+            let itemsToProcess = newItems
+            await MainActor.run { self.selectedPhotoItems.removeAll() }
+            
+            for newItem in itemsToProcess {
+                // Fast-fail check to protect strictly against exceeding the strict 2-image limit natively
+                if await MainActor.run(resultType: Bool.self, body: { self.activeScanImages.count >= 2 }) {
+                    break
                 }
-            }
-            
-            if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
-                let detatchedDownsample = await Task.detached(priority: .userInitiated) {
-                    ImageDownsampler.downsample(url: validUrl, maxSize: 4000)
-                }.value
                 
-                if let cgImage = detatchedDownsample {
-                    let rawImage = UIImage(cgImage: cgImage)
-                    await MainActor.run {
-                        self.imageToCrop = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)
-                        self.selectedPhotoItem = nil
+                guard let wrapper = try? await newItem.loadTransferable(type: ImageFileWrapper.self) else { continue }
+                let validUrl = wrapper.url
+                
+                // Scope the defer explicitly into an immediate do-block to guarantee memory unlocks natively per-loop
+                do {
+                    defer { try? FileManager.default.removeItem(at: validUrl) }
+                    
+                    // Attempt to retrieve native PHAsset context to map historical GPS / Weather
+                    var historicalContext: EnvironmentContext? = nil
+                    if let localId = newItem.itemIdentifier {
+                        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
+                        if let asset = fetchResult.firstObject, let location = asset.location, let creationDate = asset.creationDate {
+                            historicalContext = await self.diContainer.environmentContextManager.fetchHistoricalContext(location: location, date: creationDate)
+                        }
                     }
-                }
-            } else {
-                await MainActor.run {
-                    AppTelemetry.trackPaywallImpression()
-                    self.activeSheet = .paywall
+                    
+                    if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
+                        let detatchedDownsample = await Task.detached(priority: .userInitiated) {
+                            ImageDownsampler.downsample(url: validUrl, maxSize: 4000)
+                        }.value
+                        
+                        if let cgImage = detatchedDownsample {
+                            let rawImage = UIImage(cgImage: cgImage)
+                            let finalSafeData = rawImage.jpegData(compressionQuality: 0.8) ?? Data()
+                            
+                            await MainActor.run {
+                                let identifiable = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)
+                                self.activeOriginals.append(identifiable)
+                                self.activeScannedDatas.append(finalSafeData)
+                                if let thumb = UIImage(data: finalSafeData) {
+                                    self.activeScanImages.append(thumb)
+                                }
+                            }
+                        }
+                    } else {
+                        await MainActor.run {
+                            AppTelemetry.trackPaywallImpression()
+                            self.activeSheet = .paywall
+                        }
+                        break // Break immediately if hit paywall limits natively
+                    }
                 }
             }
         }
+    }
+    
+    // MARK: - Manual Crop Routing
+    func presentCrop(for index: Int) {
+        guard index < activeOriginals.count else { return }
+        self.editingCropIndex = index
+        self.imageToCrop = activeOriginals[index]
     }
     
     func handleSheetAppear() {

@@ -92,7 +92,7 @@ final class MerianNetworkClient {
     }
     
     // MARK: - AI & Inference Requests
-    func analyzeSubject(r2ObjectKey: String?, base64ImageData: String?, telemetry: CaptureTelemetry) async throws -> Data {
+    func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, telemetry: CaptureTelemetry) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
         
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
@@ -106,8 +106,8 @@ final class MerianNetworkClient {
         
         let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
         let payload: [String: Any?] = [
-            "r2ObjectKey": r2ObjectKey,
-            "imageBase64": base64ImageData,
+            "r2ObjectKeys": r2ObjectKeys,
+            "imageBase64s": base64ImageDatas,
             "user_id": deviceId,
             "mimeType": "image/jpeg",
             "depthScaleText": depthScaleText,

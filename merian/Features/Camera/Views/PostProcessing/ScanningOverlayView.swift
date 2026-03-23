@@ -5,7 +5,7 @@ import SwiftUI
 // while presenting the geometric snapshot at a 1:1 ratio.
 struct ScanningOverlayView: View {
     // MARK: - Dependencies
-    let uiImage: UIImage
+    let images: [UIImage]
     let scanningPhaseText: String
     
     // MARK: - View Engine
@@ -17,15 +17,21 @@ struct ScanningOverlayView: View {
                 .ignoresSafeArea()
             
             // 2. Optical Scaler Plane
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFill()
-                .aspectRatio(1.0, contentMode: .fit)
-                // Perfectly clips the image flush to the continuous squircle
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .overlay(PremiumScanningOverlay()) 
-                .shadow(color: .black.opacity(0.6), radius: 30, x: 0, y: 15)
-                .padding(.horizontal, 32)
+            HStack(spacing: 4) {
+                ForEach(0..<images.count, id: \.self) { index in
+                    Image(uiImage: images[index])
+                        .resizable()
+                        .scaledToFill()
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                        .clipped()
+                }
+            }
+            .aspectRatio(1.0, contentMode: .fit)
+            // Perfectly clips the unified images flush to the continuous squircle
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(PremiumScanningOverlay()) 
+            .shadow(color: .black.opacity(0.6), radius: 30, x: 0, y: 15)
+            .padding(.horizontal, 32)
             
             // 3. Floating Status Pill
             // Displays the dynamic engine checkpoints ("Identifying...", "Extracting context...")

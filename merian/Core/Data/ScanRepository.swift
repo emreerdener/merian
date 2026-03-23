@@ -58,7 +58,7 @@ final class ScanRepository {
         blurScore: Double? = nil
     ) {
         offlineQueue.enqueueCapture(
-            imageData: imageData,
+            imageDatas: [imageData],
             telemetry: telemetry,
             blurScore: blurScore
         )

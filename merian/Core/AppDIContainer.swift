@@ -47,7 +47,7 @@ import SwiftData
         if inferenceEngine.isProcessing, let payload = inferenceEngine.activeCompressedImageData ?? inferenceEngine.activeImageData {
             if revenueCatManager.isProActive {
                 offlineQueueManager.enqueueCapture(
-                    imageData: payload,
+                    imageDatas: [payload],
                     telemetry: CaptureTelemetry(
                         subjectDistanceInMeters: inferenceEngine.activeDistanceInMeters,
                         gpsLatitude: inferenceEngine.activeLatitude,

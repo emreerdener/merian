@@ -2,11 +2,12 @@ import SwiftUI
 import PhotosUI
 
 struct PhotoLibraryButton: View {
-    @Binding var selectedPhotoItem: PhotosPickerItem?
+    @Binding var selectedPhotoItems: [PhotosPickerItem]
     let latestThumbnail: UIImage?
+    var maxSelectionCount: Int = 1
     
     var body: some View {
-        PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+        PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: maxSelectionCount, matching: .images, photoLibrary: .shared()) {
             ZStack {
                 if let thumbnail = latestThumbnail {
                     Image(uiImage: thumbnail)

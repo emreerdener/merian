@@ -11,11 +11,11 @@ flowchart TD
     C -->|NWPathMonitor Awoken by Cell Tower| D{Network Status 200 OK}
 
     D -->|/generate-upload-urls| E[Cloudflare R2 Staging Bucket]
-    E -->|URLSession Background PUT| F((Cloudflare R2))
+    E -->|URLSession Background PUT (Concurrent Arrays)| F((Cloudflare R2))
     F -->|Supabase Storage Webhook| G([⚡️ Supabase Edge /identify])
 
-    G -->|Fetches ArrayBuffer & Validates| H[🤖 Gemini 2.5 Flash / Pro]
-    H -->|Extracts Strict JSON Schema| G
+    G -->|Fetches ArrayBuffers concurrently & Validates| H[🤖 Gemini 2.5 Flash / Pro]
+    H -->|Combines Visual Context & Extracts Strict JSON| G
 
     G -->|Upserts biological dictionaries| I[(PostgreSQL `species_dictionary`)]
     G -->|Persists UUID scan constraints| J[(PostgreSQL `scans`)]
@@ -43,7 +43,7 @@ flowchart TD
 ### 3. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
 
 - A strict Cloud-native workflow entirely decoupling Apple users from raw API logic.
-- The `identify` Deno Edge node securely accepts pre-signed iOS uploads natively, validates the taxonomy heavily relying explicitly on context variables directly mapped from native Apple `CLLocation` bounding boxes and pushes taxonomies physically straight back into the database synchronously via secure server-side execution.
+- The `identify` Deno Edge node securely accepts pre-signed multi-image iOS uploads natively. It automatically handles concurrent R2 array streams via `Promise.allSettled`, dynamically enforcing a strict 5MB cumulative buffer size constraint to categorically shield the Deno V8 engine from JetSam/OOM heap crashes prior to evaluating the combined visual context across all images natively.
 - Extensively optimized cellular payload architectures physically inject strict `Task.checkCancellation()` boundaries internally inside the `InferenceEngine` explicitly before transferring `URLSession` data payloads to Cloudflare R2 bounds dynamically. If the iOS Watchdog or the user explicitly cancels a processing scan, it instantaneously aborts execution to prevent cellular bandwidth leakage.
 
 ### 4. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)

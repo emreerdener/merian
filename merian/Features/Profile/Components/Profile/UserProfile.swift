@@ -5,8 +5,6 @@ import SwiftUI
 struct UserProfile: View {
     var supabase: SupabaseManager
     
-    @State private var showSignOutConfirmation = false
-    
     // Natively distills nested JSON metadata payloads dropping safely through multiple vendor formats securely
     private var userName: String? {
         supabase.currentUser?.userMetadata["full_name"]?.stringValue ?? supabase.currentUser?.userMetadata["name"]?.stringValue
@@ -96,10 +94,19 @@ struct UserProfile: View {
                     
                     Spacer()
                     
-                    // Uses Apple's `.ultraThinMaterial` bounded to a crisp `Circle()` stroke 
-                    // dropping flawlessly over dynamic user photography directly.
-                    Button {
-                        showSignOutConfirmation = true
+                    // Uses Apple's native `Menu` popover rendering to dynamically bind 
+                    // a systemic "liquid glass" context menu perfectly blurring behind the options.
+                    Menu {
+                        Button(role: .destructive) {
+                            Task {
+                                // Forces a clean physical JWT removal across the device securely
+                                // instantly rehydrating back into a zero-bound Ghost mode state.
+                                await supabase.signOut()
+                                await supabase.initializeGhostSession()
+                            }
+                        } label: {
+                            Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 16, weight: .bold))
@@ -113,17 +120,6 @@ struct UserProfile: View {
                             )
                     }
                     .buttonStyle(BorderlessButtonStyle())
-                    .confirmationDialog("Account options", isPresented: $showSignOutConfirmation, titleVisibility: .hidden) {
-                        Button("Sign out", role: .destructive) {
-                            Task {
-                                // Forces a clean physical JWT removal across the device securely
-                                // instantly rehydrating back into a zero-bound Ghost mode state.
-                                await supabase.signOut()
-                                await supabase.initializeGhostSession()
-                            }
-                        }
-                        Button("Cancel", role: .cancel) { }
-                    }
                 }
                 .padding(12)
                 .background(

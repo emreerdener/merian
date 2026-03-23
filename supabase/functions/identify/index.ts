@@ -10,8 +10,8 @@ serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const body = await req.json();
     const {
-      r2ObjectKey,
-      imageBase64,
+      r2ObjectKeys,
+      imageBase64s,
       user_id,
       gpsLatitude,
       gpsLongitude,
@@ -26,19 +26,21 @@ serve((req: Request) =>
       timestamp,
     } = body;
 
-    if (!r2ObjectKey && !imageBase64) {
-      throw new Error("Missing structural boundary (neither r2ObjectKey nor imageBase64 provided).");
+    if ((!r2ObjectKeys || r2ObjectKeys.length === 0) && (!imageBase64s || imageBase64s.length === 0)) {
+      throw new Error("Missing structural boundary (neither r2ObjectKeys nor imageBase64s provided).");
     }
 
-    if (r2ObjectKey) {
+    if (r2ObjectKeys && r2ObjectKeys.length > 0) {
       // CRITICAL SEC FIX: Prevent malicious actors from submitting spoofed payloads extracting foreign blobs.
-      // If `imageBase64` is present, the key is strictly used for destination filename creation and is securely force-prefixed in `moderation.ts`!
-      if (!imageBase64 && !r2ObjectKey.startsWith(`staging/${user.id}/`)) {
-        console.error(`IDOR MISMATCH: r2ObjectKey was ${r2ObjectKey} but user.id is ${user.id}`);
-        return jsonResponse({ error: "SECURITY VIOLATION (IDOR): Attempting to scrape foreign r2ObjectKey bounds." }, 403);
-      }
-      if (r2ObjectKey.includes("..")) {
-        return jsonResponse({ error: "SECURITY VIOLATION: Path traversal detected inside payload boundaries." }, 400);
+      // If `imageBase64s` is present, the key is strictly used for destination filename creation and is securely force-prefixed in `moderation.ts`!
+      for (const r2ObjectKey of r2ObjectKeys) {
+          if ((!imageBase64s || imageBase64s.length === 0) && !r2ObjectKey.startsWith(`staging/${user.id}/`)) {
+            console.error(`IDOR MISMATCH: r2ObjectKey was ${r2ObjectKey} but user.id is ${user.id}`);
+            return jsonResponse({ error: "SECURITY VIOLATION (IDOR): Attempting to scrape foreign r2ObjectKey bounds." }, 403);
+          }
+          if (r2ObjectKey.includes("..")) {
+            return jsonResponse({ error: "SECURITY VIOLATION: Path traversal detected inside payload boundaries." }, 400);
+          }
       }
     }
 
@@ -46,31 +48,46 @@ serve((req: Request) =>
       return jsonResponse({ error: "Missing user_id parameter in body" }, 400);
     }
 
-    let base64Payload = "";
+    const base64Payloads: string[] = [];
 
-    if (imageBase64) {
-      base64Payload = imageBase64;
-    } else {
+    if (imageBase64s && imageBase64s.length > 0) {
+      base64Payloads.push(...imageBase64s);
+    } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {
       const { s3Client, bucketName, endpoint } = getR2Config();
-      const getUrl = `${endpoint}/${bucketName}/${r2ObjectKey}`;
-
-      const r2Response = await s3Client.fetch(getUrl);
-      if (!r2Response.ok) {
-        throw new Error(
-          `Failed to fetch image from R2: ${r2Response.statusText}`,
-        );
+      
+      const r2Responses = await Promise.allSettled(
+        r2ObjectKeys.map((key: string) => s3Client.fetch(`${endpoint}/${bucketName}/${key}`))
+      );
+      
+      let totalBytes = 0;
+      const validResponses: Response[] = [];
+      
+      for (const result of r2Responses) {
+          if (result.status === "rejected") {
+              throw new Error(`Failed to execute concurrent R2 fetch request.`);
+          }
+          const r2Response = result.value as Response;
+          if (!r2Response.ok) {
+              throw new Error(`Failed to fetch an image from R2: ${r2Response.statusText}`);
+          }
+          
+          // Phase 2: S3 Object Sizing Attack Protection - Limit dynamically to 5MB to prevent OOM cumulatively
+          const contentLengthStr = r2Response.headers.get("Content-Length");
+          if (contentLengthStr) {
+             totalBytes += parseInt(contentLengthStr, 10);
+          }
+          validResponses.push(r2Response);
       }
-
-      // Phase 2: S3 Object Sizing Attack Protection - Limit to 5MB to prevent OOM
-      const contentLengthStr = r2Response.headers.get("Content-Length");
-      if (contentLengthStr) {
-        const bytes = parseInt(contentLengthStr, 10);
-        if (bytes > 5 * 1024 * 1024) {
-          return jsonResponse({ error: "Payload Too Large: Exceeds 5MB boundary." }, 413);
-        }
+      
+      if (totalBytes > 5 * 1024 * 1024) {
+          return jsonResponse({ error: "Payload Too Large: Combined payload inherently exceeds 5MB boundary natively locking Deno heap." }, 413);
       }
-      const arrayBuffer = await r2Response.arrayBuffer();
-      base64Payload = encodeBase64(new Uint8Array(arrayBuffer));
+      
+      // Map safe cumulative physical arrays into memory simultaneously
+      const arrayBuffers = await Promise.all(validResponses.map(res => res.arrayBuffer()));
+      for (const arrayBuffer of arrayBuffers) {
+          base64Payloads.push(encodeBase64(new Uint8Array(arrayBuffer)));
+      }
     }
 
     let userTier = "free";
@@ -96,7 +113,7 @@ serve((req: Request) =>
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-    const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case. 4) CRITICAL: If the subject is non-biological (is_biological_subject = false), you MUST completely OMIT all taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, and colors fields to conserve output tokens.`;
+    const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case. 4) CRITICAL: Evaluate the combined visual context of all provided images organically to compute the absolute most accurate identification. 5) CRITICAL: If the images display multiple distinct biological species, strictly identify exactly ONE primary species (the most prominent or centered subject in the first image) and briefly mention the secondary species within the insight_data description. 6) CRITICAL: If the subject is non-biological (is_biological_subject = false), you MUST completely OMIT all taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, and colors fields to conserve output tokens.`;
 
     const targetModel = userTier === "pro"
       ? "gemini-2.5-pro"
@@ -214,15 +231,15 @@ serve((req: Request) =>
       ],
     };
 
-    const parts = [
-      {
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: base64Payload,
-        },
+    // Dynamically insert mapped image layers chronologically sequentially to form the prompt
+    // deno-lint-ignore no-explicit-any
+    const parts: any[] = base64Payloads.map(payload => ({
+      inlineData: {
+        mimeType: "image/jpeg",
+        data: payload,
       },
-      { text: combinedPrompt },
-    ];
+    }));
+    parts.push({ text: combinedPrompt });
 
     let finishReason: string | undefined;
     let safetyRatings: SafetyRating[] | undefined;
@@ -292,8 +309,8 @@ serve((req: Request) =>
       try {
         const modResult = await evaluateAndProcessPayload(
           user!.id,
-          r2ObjectKey,
-          imageBase64,
+          r2ObjectKeys,
+          imageBase64s,
           finishReason,
           safetyRatings,
           userTier,
@@ -494,8 +511,8 @@ serve((req: Request) =>
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_total_tokens: llmTotalTokens,
-            image_storage_urls: modResult.publicUrl
-              ? [modResult.publicUrl]
+            image_storage_urls: modResult.publicUrls && modResult.publicUrls.length > 0
+              ? modResult.publicUrls
               : [],
           })
           .select("id")

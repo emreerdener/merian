@@ -162,20 +162,27 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     }
     
     // MARK: - UI Queue Push
-    func enqueueCapture(imageData: Data, telemetry: CaptureTelemetry, blurScore: Double? = nil) {
-        let fileName = "\(UUID().uuidString).jpg"
+    func enqueueCapture(imageDatas: [Data], telemetry: CaptureTelemetry, blurScore: Double? = nil) {
         let documentsDirectory = URL.documentsDirectory
-        let fileURL = documentsDirectory.appendingPathComponent(fileName)
+        
+        let generatedPairs = imageDatas.map { _ -> (String, URL) in
+            let fileName = "\(UUID().uuidString).jpg"
+            return (fileName, documentsDirectory.appendingPathComponent(fileName))
+        }
+        let generatedFileNames = generatedPairs.map { $0.0 }
+        let generatedFileURLs = generatedPairs.map { $0.1 }
         
         BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite") { _ in
             do {
-                try imageData.write(to: fileURL)
+                for (index, data) in imageDatas.enumerated() {
+                    try data.write(to: generatedFileURLs[index])
+                }
                 
                 await MainActor.run {
                     let scan = OfflineQueuedScan(
                         id: UUID().uuidString,
                         timestamp: Date(),
-                        localImagePaths: [fileName],
+                        localImagePaths: generatedFileNames,
                         gpsLatitude: telemetry.gpsLatitude,
                         gpsLongitude: telemetry.gpsLongitude,
                         gpsElevation: telemetry.gpsElevation,
@@ -197,13 +204,16 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         try ctx.save()
                         OfflineQueueManager.shared.updateUnsyncedItemCount()
                     } catch {
-                        print("Failed to save offline queue record. Cleaning up abandoned local image footprint.")
-                        try? FileManager.default.removeItem(at: fileURL)
+                        print("Failed to save offline queue record. Cleaning up abandoned local image footprints.")
+                        for url in generatedFileURLs {
+                            try? FileManager.default.removeItem(at: url)
+                        }
                     }
                 }
             } catch {
-                print("Failed to enqueue capture: \(error)")
-                await MainActor.run {
+                print("Failed to enqueue capture array: \(error)")
+                for url in generatedFileURLs {
+                    try? FileManager.default.removeItem(at: url)
                 }
             }
         }
@@ -260,10 +270,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                 }
             }
             
-            // CRITICAL FIX: Explicitly enforce the payload boundary limit natively to prevent HTTP 400 Array Length exceptions downstream.
-            fileNames = Array(fileNames.prefix(5))
-            fileURLs = Array(fileURLs.prefix(5))
-            scanIDs = Array(scanIDs.prefix(5))
+            // No truncation applied to flattened arrays. Bounded by `filteredScans` prefix(5).
             
             guard !fileNames.isEmpty else {
                 await MainActor.run {
@@ -374,10 +381,9 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     let originalTimestamp: Date
                 }
                 
-                guard let urlPath = originalRequestUrlPath, let range = urlPath.range(of: "staging/") else {
+                guard let urlPath = originalRequestUrlPath, urlPath.range(of: "staging/") != nil else {
                     return
                 }
-                let r2ObjectKey = String(urlPath[range.lowerBound...])
 
                 let scanData = await MainActor.run { () -> ExtractedScanData? in
                     guard let modelContext = OfflineQueueManager.shared.modelContext,
@@ -406,37 +412,40 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     return
                 }
                 
-                var finalTelemetry = extracted.telemetry
+                let indexString = indexPart
                 
-                // CRITICAL FIX: Offline Wilderness Recovery
-                // If the scan was taken deep offline, WeatherKit would have failed aggressively.
-                // We retroactively spin up a historical weather context strictly bound to the exact hour they originally pressed the shutter.
-                if finalTelemetry.weatherCondition == nil,
-                    let lat = finalTelemetry.gpsLatitude,
-                    let lon = finalTelemetry.gpsLongitude {
-                    let pastLocation = CLLocation(latitude: lat, longitude: lon)
-                    let historicalContext = await EnvironmentContextManager.shared.fetchHistoricalContext(location: pastLocation, date: extracted.originalTimestamp)
+                if indexString == "\(extracted.localImagePaths.count - 1)" {
+                    var finalTelemetry = extracted.telemetry
                     
-                    finalTelemetry = CaptureTelemetry(
-                        subjectDistanceInMeters: finalTelemetry.subjectDistanceInMeters,
-                        gpsLatitude: finalTelemetry.gpsLatitude,
-                        gpsLongitude: finalTelemetry.gpsLongitude,
-                        gpsElevation: finalTelemetry.gpsElevation,
-                        locationName: finalTelemetry.locationName ?? historicalContext.locationName,
-                        weatherCondition: historicalContext.weatherCondition,
-                        weatherTemperatureF: historicalContext.weatherTemperature,
-                        timeOfDay: finalTelemetry.timeOfDay,
-                        timestamp: finalTelemetry.timestamp
-                    )
-                    print("🌤️ Hydrated offline wilderness scan with historical weather: \(historicalContext.weatherCondition ?? "Unknown")")
-                }
+                    if finalTelemetry.weatherCondition == nil,
+                       let lat = finalTelemetry.gpsLatitude,
+                       let lon = finalTelemetry.gpsLongitude {
+                        let pastLocation = CLLocation(latitude: lat, longitude: lon)
+                        let historicalContext = await EnvironmentContextManager.shared.fetchHistoricalContext(location: pastLocation, date: extracted.originalTimestamp)
+                        
+                        finalTelemetry = CaptureTelemetry(
+                            subjectDistanceInMeters: finalTelemetry.subjectDistanceInMeters,
+                            gpsLatitude: finalTelemetry.gpsLatitude,
+                            gpsLongitude: finalTelemetry.gpsLongitude,
+                            gpsElevation: finalTelemetry.gpsElevation,
+                            locationName: finalTelemetry.locationName ?? historicalContext.locationName,
+                            weatherCondition: historicalContext.weatherCondition,
+                            weatherTemperatureF: historicalContext.weatherTemperature,
+                            timeOfDay: finalTelemetry.timeOfDay,
+                            timestamp: finalTelemetry.timestamp
+                        )
+                        print("🌤️ Hydrated offline wilderness scan with historical weather: \(historicalContext.weatherCondition ?? "Unknown")")
+                    }
                 
                 do {
                     let inferenceStartTime = CFAbsoluteTimeGetCurrent()
                     
+                    let userId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+                    let resolvedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
+                    
                     let resultData = try await MerianNetworkClient.shared.analyzeSubject(
-                        r2ObjectKey: r2ObjectKey,
-                        base64ImageData: nil,
+                        r2ObjectKeys: resolvedKeys,
+                        base64ImageDatas: nil,
                         telemetry: finalTelemetry
                     )
                     
@@ -462,9 +471,10 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                 } catch {
                     print("Failed downstream inference on offline queued scan: \(error)")
                 }
-            }
-            
-            await processCompletion()
+            } // end if indexString...
+        } // end processCompletion block
+        
+        await processCompletion()
             
             let activeTasks = await session.allTasks
             if activeTasks.isEmpty {
@@ -686,12 +696,22 @@ actor BackgroundDatabaseActor {
     
     // MARK: - Realtime Inference Mapper
     /// Handles native UI ingestions safely inside the Actor Thread isolated entirely away from UI and Detached Task loops
-    func saveLiveScanRecord(mappedData: SpeciesData, compressedData: Data) -> Bool {
+    func saveLiveScanRecord(mappedData: SpeciesData, compressedDatas: [Data]) -> Bool {
         var newDiscovery = false
-        if mappedData.confidenceScore > 0.0 {
+        if mappedData.confidenceScore > 0.0, let firstData = compressedDatas.first {
             let filename = "\(UUID().uuidString)_scan.jpg"
             let url = URL.documentsDirectory.appendingPathComponent(filename)
-            try? compressedData.write(to: url, options: .atomic)
+            try? firstData.write(to: url, options: .atomic)
+            
+            var additionalPaths: [String] = []
+            if compressedDatas.count > 1 {
+                for i in 1..<compressedDatas.count {
+                    let extraFilename = "\(UUID().uuidString)_additional_\(i).jpg"
+                    let extraUrl = URL.documentsDirectory.appendingPathComponent(extraFilename)
+                    try? compressedDatas[i].write(to: extraUrl, options: .atomic)
+                    additionalPaths.append(extraFilename)
+                }
+            }
             
             let targetName = mappedData.scientificName
             let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
@@ -721,6 +741,7 @@ actor BackgroundDatabaseActor {
                 ecologyType: mappedData.ecologyType,
                 wikipediaUrl: mappedData.wikipediaUrl,
                 referenceImageUrl: mappedData.referenceImageUrl,
+                additionalImagePaths: additionalPaths.isEmpty ? nil : additionalPaths,
                 confidenceScore: mappedData.confidenceScore,
                 taxonomyKingdom: mappedData.taxonomy?.kingdom,
                 taxonomyPhylum: mappedData.taxonomy?.phylum,

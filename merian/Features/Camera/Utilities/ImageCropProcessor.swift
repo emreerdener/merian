@@ -127,4 +127,70 @@ struct ImageCropProcessor {
         
         return processedBytes ?? Data()
     }
+    
+    // MARK: - Zero-Latency Auto-Crop Pipeline (Active Scan)
+    @MainActor
+    static func generateAutoCenterCrop(image: UIImage) async -> Data {
+        // MARK: - Sendable Isolation Wrappers
+        let targetCGImage = image.cgImage
+        let targetOrientation = image.imageOrientation
+        
+        let processedBytes = await Task.detached(priority: .userInitiated) {
+            let bytes: Data? = autoreleasepool {
+                guard let cgImg = targetCGImage else {
+                    return nil
+                }
+                
+                let cW = CGFloat(cgImg.width)
+                let cH = CGFloat(cgImg.height)
+                
+                // Calculate 1:1 Center Square bounds based on the shortest edge to guarantee native coverage constraints natively
+                let shortestSide = min(cW, cH)
+                let cropX = (cW - shortestSide) / 2.0
+                let cropY = (cH - shortestSide) / 2.0
+                let cropRect = CGRect(x: cropX, y: cropY, width: shortestSide, height: shortestSide)
+                
+                // MARK: 1. CGImagePropertyOrientation Translation
+                let cgOrientation: CGImagePropertyOrientation
+                switch targetOrientation {
+                case .up: cgOrientation = .up
+                case .down: cgOrientation = .down
+                case .left: cgOrientation = .left
+                case .right: cgOrientation = .right
+                case .upMirrored: cgOrientation = .upMirrored
+                case .downMirrored: cgOrientation = .downMirrored
+                case .leftMirrored: cgOrientation = .leftMirrored
+                case .rightMirrored: cgOrientation = .rightMirrored
+                @unknown default: cgOrientation = .up
+                }
+                
+                // MARK: 2. Native Bitmap Payload Dispatch
+                let finalCG = cgImg.cropping(to: cropRect) ?? cgImg
+                
+                let renderData = NSMutableData()
+                
+                // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
+                guard let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else {
+                    return nil
+                }
+                
+                let options: [CFString: Any] = [
+                    kCGImageDestinationLossyCompressionQuality: 0.7,
+                    kCGImagePropertyOrientation: cgOrientation.rawValue,
+                    kCGImageDestinationImageMaxPixelSize: 768 // Force maximum gemini down-render dynamically natively guaranteeing speed
+                ]
+                
+                CGImageDestinationAddImage(destination, finalCG, options as CFDictionary)
+                
+                guard CGImageDestinationFinalize(destination) else {
+                    return nil
+                }
+                
+                return Data(renderData)
+            }
+            return bytes
+        }.value
+        
+        return processedBytes ?? Data()
+    }
 }

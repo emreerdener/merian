@@ -6,12 +6,18 @@ extension CameraViewModel {
     
     // MARK: - ML Analysis Sequence
     
-    func handleCropCompletion(croppedData: Data, modelContext: ModelContext) {
-        // 1. Cache Extraction
-        let historicalContext = imageToCrop?.environmentContext
-        let isFromGallery = imageToCrop?.isFromGallery == true
-        let capturedDistance = imageToCrop?.subjectDistanceInMeters
-        imageToCrop = nil
+    func submitActiveScan(modelContext: ModelContext) {
+        let capturedDatas = self.activeScannedDatas
+        let displayImages = self.activeScanImages
+        
+        // 1. State Clear
+        self.activeScannedDatas.removeAll()
+        self.activeScanImages.removeAll()
+        self.activeOriginals.removeAll()
+        
+        guard !capturedDatas.isEmpty else { return }
+        
+        let capturedDistance = diContainer.cameraManager.subjectDistanceInMeters
         
         Task { [weak self] in
             guard let self = self else { return }
@@ -19,29 +25,46 @@ extension CameraViewModel {
             // 2. Optical Presentation Hook
             // Instantly trigger scanning UI so the user doesn't see a frozen camera feed
             await MainActor.run {
-                if let rawImage = UIImage(data: croppedData) {
-                    self.analysisImage = rawImage
-                }
+                self.analysisImages = displayImages
                 self.scanningPhaseText = "Acquiring coordinates..."
                 self.isAnalyzingFullscreen = true
             }
             
-            // 3. Environmental Synthesis Pipeline
-            // Resolves historical EXIF data against live deferred hardware coordinates
-            let context: EnvironmentContext
-            if let historical = historicalContext, isFromGallery {
-                context = historical
-            } else if isFromGallery {
-                // Prevent current GPS from overwriting a gallery photo lacking EXIF data
-                context = EnvironmentContext(location: nil, weatherCondition: nil, weatherTemperature: nil)
-            } else {
-                if let activeTask = self.preFetchTask {
-                    context = await activeTask.value
-                    self.preFetchTask = nil
+            // NEW: Enforce crop constraints cleanly before analysis!
+            // We lazily defer cropping until submission or manual edit to dramatically accelerate the Camera Shutter UX!
+            var inferenceDatas: [Data] = []
+            var finalUIImages: [UIImage] = []
+            
+            for (index, image) in displayImages.enumerated() {
+                // If it was manually cropped via ImageCropperView, it's saved strictly capped at 768px bounds
+                let physicalMax = max(image.size.width, image.size.height) * image.scale
+                if physicalMax <= 800 && index < capturedDatas.count {
+                    inferenceDatas.append(capturedDatas[index])
+                    finalUIImages.append(image)
                 } else {
-                    let lockedLocation = historicalContext?.location
-                    context = await self.diContainer.environmentContextManager.fetchDeferredContext(preLockedLocation: lockedLocation)
+                    // It's still a raw 4000px uncropped capture and needs perfectly 1:1 auto-bounding right now
+                    let centerCropped = await ImageCropProcessor.generateAutoCenterCrop(image: image)
+                    inferenceDatas.append(centerCropped)
+                    if let croppedThumb = UIImage(data: centerCropped) {
+                        finalUIImages.append(croppedThumb)
+                    } else {
+                        finalUIImages.append(image)
+                    }
                 }
+            }
+            
+            await MainActor.run {
+                // Instantly snap the visual Optical bounds to exactly what Gemini is looking at organically
+                self.analysisImages = finalUIImages
+            }
+            
+            // 3. Environmental Synthesis Pipeline
+            let context: EnvironmentContext
+            if let activeTask = self.preFetchTask {
+                context = await activeTask.value
+                self.preFetchTask = nil
+            } else {
+                context = await self.diContainer.environmentContextManager.fetchDeferredContext(preLockedLocation: nil)
             }
             
             await MainActor.run {
@@ -49,12 +72,11 @@ extension CameraViewModel {
             }
             
             // 4. Rate Cap Consumption
-            // Consume the strict free quota immediately upon commitment to prevent offline hoarding 
+            // Consume the strict free quota immediately upon commitment to prevent offline hoarding dynamically
+            // Bound strictly to the submit Active Scan hook to support up to 2 frames simultaneously counting as 1 organic Scan natively 
             self.diContainer.usageManager.consumeScan()
             
             // 5. Generative Telemetry Parsing
-            // Bundles context strictly scoped via ISO standards mapped directly into ML prompt sequences
-            // Filter elevation based on hardware confidence to prevent 10m+ indoor drifts
             var reliableElevation: Double? = nil
             if let location = context.location, location.verticalAccuracy >= 0 && location.verticalAccuracy <= 25 {
                 reliableElevation = location.altitude
@@ -73,9 +95,9 @@ extension CameraViewModel {
             )
             
             // 6. ML Inference Execution
-            // Ships payload globally to Supabase Edge logic
+            // Ships strict array payload globally to dynamically evaluated Supabase Edge logic natively 
             self.diContainer.inferenceEngine.analyze(
-                imageData: croppedData,
+                imageDatas: inferenceDatas,
                 telemetry: telemetry,
                 modelContext: modelContext
             )
@@ -108,7 +130,7 @@ extension CameraViewModel {
                 }
             }
         } else {
-            analysisImage = nil
+            analysisImages.removeAll()
             if activeSheet != .insight {
                 diContainer.cameraManager.startSession()
             }

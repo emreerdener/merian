@@ -7,30 +7,74 @@ struct IdentifiableImage: Identifiable {
     var environmentContext: EnvironmentContext? = nil
     var isFromGallery: Bool = false
     var subjectDistanceInMeters: Float? = nil
+    var lastCropScale: CGFloat = 1.0
+    var lastCropOffset: CGSize = .zero
 }
 
 struct ImageCropperView: View {
     let image: UIImage
+    let initialScale: CGFloat
+    let initialOffset: CGSize
+    
     // MARK: - Callbacks
-    var onCrop: (Data) -> Void
+    var onCrop: (Data, CGFloat, CGSize) -> Void
     var onCancel: () -> Void
+    var onDelete: (() -> Void)? = nil
     
     // MARK: - Interaction State
-    @State private var scale: CGFloat = 1.0
+    @State private var scale: CGFloat
     @State private var currentScale: CGFloat = 1.0
-    @State private var offset: CGSize = .zero
+    @State private var offset: CGSize
     @State private var currentOffset: CGSize = .zero
+    
+    init(image: UIImage, initialScale: CGFloat = 1.0, initialOffset: CGSize = .zero, onCrop: @escaping (Data, CGFloat, CGSize) -> Void, onCancel: @escaping () -> Void, onDelete: (() -> Void)? = nil) {
+        self.image = image
+        self.initialScale = initialScale
+        self.initialOffset = initialOffset
+        self.onCrop = onCrop
+        self.onCancel = onCancel
+        self.onDelete = onDelete
+        self._scale = State(initialValue: initialScale)
+        self._offset = State(initialValue: initialOffset)
+    }
     
     var body: some View {
         GeometryReader { geometry in
             // Calculate a perfect 1:1 square viewport dynamically inset from screen edges
-            let displaySize = min(geometry.size.width, geometry.size.height) - 32
+            let displaySize = max(0, min(geometry.size.width, geometry.size.height) - 32)
             
             ZStack {
                 // 1. Immutable Canvas
                 Color.black.ignoresSafeArea()
                 
                 VStack {
+                    // TOP TOOLBAR
+                    HStack {
+                        Button(action: { onCancel() }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.white.opacity(0.15))
+                                .clipShape(Circle())
+                        }
+                        
+                        Spacer()
+                        
+                        if let deleteAction = onDelete {
+                            Button(action: { deleteAction() }) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.red.opacity(0.8))
+                                    .clipShape(Circle())
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+                    
                     Spacer()
                     
                     // 2. Optical Scaler Plane
@@ -102,30 +146,16 @@ struct ImageCropperView: View {
 
                     Spacer()
                     
-                    HStack(spacing: 16) {
-                        Button(action: {
-                            onCancel()
-                        }) {
-                            Text("Cancel")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.white.opacity(0.15))
-                                .foregroundColor(.white)
-                                .cornerRadius(14)
-                        }
-                        
-                        Button(action: {
-                            generateCrop(displaySize: displaySize)
-                        }) {
-                            Text("Confirm")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.yellow)
-                                .foregroundColor(.black)
-                                .cornerRadius(14)
-                        }
+                    Button(action: {
+                        generateCrop(displaySize: displaySize)
+                    }) {
+                        Text("Confirm crop")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(14)
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)
@@ -149,7 +179,7 @@ struct ImageCropperView: View {
                 offset: offset,
                 currentOffset: currentOffset
             )
-            onCrop(processedData)
+            onCrop(processedData, scale, offset)
         }
     }
     

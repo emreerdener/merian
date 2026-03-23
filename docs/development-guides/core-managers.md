@@ -28,11 +28,13 @@ Merian relies heavily on a structured Singleton paradigm bound inside the strict
 - Automatically filters natively against `gemini-2.5-flash` or `gemini-2.5-pro` (dynamically allocated based on user subscription tier) payloads binding the structural taxonomy strings mapped specifically right back down to native local properties.
 - Strictly maps native ephemeral telemetry metadata (such as `gpsLatitude`, `gpsLongitude`, `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, and `locationName`) directly back into the parsed `SpeciesData` model, completely abstracting it from the Edge runtime and securely establishing layout geometries seamlessly for the UI layer identically across Live and Offline sweeps.
 - Responsible for mutating and triggering the "Graceful Degradation" UI bounds when network calls fail natively by dumping the payload explicitly down to `OfflineQueueManager`.
+- **Multi-Image Concurrency**: Natively accepts dynamic `imageDatas: [Data]` arrays representing Active Scan UI arrays, executing iterative decoupled `base64EncodedString()` boundaries concurrently routing bulk payloads to the upstream Edge layer entirely without freezing the `@MainActor` thread.
 
 ### `OfflineQueueManager`
 - Dictates completely silent `URLSession` background mappings dynamically allowing the app to seamlessly stash pending physical imagery natively into the local disk partition (Document Directory).
 - Explicitly registers background handlers inside `AppDelegate` safely guaranteeing `URLSession` callbacks natively execute uploads seamlessly completely apart from the main user UI grid logic.
 - Utilizes a unified static abstraction `BackgroundTaskWrapper.execute(name:operation:)` natively to rigidly encapsulate active memory environments binding OS threat loops securely to `UIBackgroundTaskIdentifier` instances gracefully preventing system leaks under suspension natively.
+- **Array Execution Persistence**: Safely iterates arrays of image binaries (`[Data]`) asynchronously, writing each physical file sequentially directly to `.documentsDirectory` and appending discrete `localImagePaths` paths organically. This robust loop ensures aggressive iOS suspension constraints do not structurally corrupt multi-image queued bundles prior to resolving cell reception natively!
 
 ### `ArchiveManager` (Archive Safety Protocol)
 - Explicit background worker strictly mapped to protect the data of Free tier users against the Cloudflare R2 90-day global purge logic (`00004_storage_lifecycle_sync.sql`).

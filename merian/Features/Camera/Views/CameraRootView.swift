@@ -70,16 +70,26 @@ struct CameraRootView: View {
                 MainOverlayView(
                     latestThumbnail: photoLibraryManager.latestThumbnail,
                     isFlashEnabled: cameraManager.isFlashEnabled,
-                    selectedPhotoItem: $viewModel.selectedPhotoItem,
+                    selectedPhotoItems: $viewModel.selectedPhotoItems,
                     activeSheet: $viewModel.activeSheet,
+                    activeScanImages: viewModel.activeScanImages,
                     onCapture: { viewModel.executeCapture() },
-                    onToggleFlash: { cameraManager.toggleFlash() }
+                    onToggleFlash: { cameraManager.toggleFlash() },
+                    onThumbnailTap: { index in
+                        viewModel.presentCrop(for: index)
+                    },
+                    onSubmitScan: { viewModel.submitActiveScan(modelContext: modelContext) },
+                    onCancelScan: {
+                        viewModel.activeScanImages.removeAll()
+                        viewModel.activeScannedDatas.removeAll()
+                        viewModel.activeOriginals.removeAll()
+                    }
                 )
             }
             
             // Full-Screen Scanning Overlay
-            if viewModel.isAnalyzingFullscreen, let uiImage = viewModel.analysisImage {
-                ScanningOverlayView(uiImage: uiImage, scanningPhaseText: viewModel.scanningPhaseText)
+            if viewModel.isAnalyzingFullscreen, !viewModel.analysisImages.isEmpty {
+                ScanningOverlayView(images: viewModel.analysisImages, scanningPhaseText: viewModel.scanningPhaseText)
                     .transition(.opacity)
                     .zIndex(10)
             }
@@ -99,16 +109,37 @@ struct CameraRootView: View {
             cameraManager.stopSession()
             AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()
         }
-        .onChange(of: viewModel.selectedPhotoItem) { _, newItem in
-            viewModel.handlePhotoPickerSelection(newItem: newItem, modelContext: modelContext)
+        .onChange(of: viewModel.selectedPhotoItems) { _, newItems in
+            viewModel.handlePhotoPickerSelection(newItems: newItems, modelContext: modelContext)
         }
         .fullScreenCover(item: $viewModel.imageToCrop) { identItem in
             ImageCropperView(
                 image: identItem.image,
-                onCrop: { croppedData in
-                    viewModel.handleCropCompletion(croppedData: croppedData, modelContext: modelContext)
+                initialScale: identItem.lastCropScale,
+                initialOffset: identItem.lastCropOffset,
+                onCrop: { croppedData, finalScale, finalOffset in
+                    if let editIndex = viewModel.editingCropIndex, editIndex < viewModel.activeScannedDatas.count {
+                        viewModel.activeScannedDatas[editIndex] = croppedData
+                        if let updatedThumb = UIImage(data: croppedData) {
+                            viewModel.activeScanImages[editIndex] = updatedThumb
+                        }
+                        viewModel.activeOriginals[editIndex].lastCropScale = finalScale
+                        viewModel.activeOriginals[editIndex].lastCropOffset = finalOffset
+                    }
+                    viewModel.editingCropIndex = nil
+                    viewModel.imageToCrop = nil
                 },
                 onCancel: {
+                    viewModel.editingCropIndex = nil
+                    viewModel.imageToCrop = nil
+                },
+                onDelete: {
+                    if let editIndex = viewModel.editingCropIndex, editIndex < viewModel.activeScannedDatas.count {
+                        viewModel.activeScannedDatas.remove(at: editIndex)
+                        viewModel.activeScanImages.remove(at: editIndex)
+                        viewModel.activeOriginals.remove(at: editIndex)
+                    }
+                    viewModel.editingCropIndex = nil
                     viewModel.imageToCrop = nil
                 }
             )

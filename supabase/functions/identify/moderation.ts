@@ -5,12 +5,12 @@ import { SafetyRating } from "https://esm.sh/@google/generative-ai@0.24.1";
 
 export async function evaluateAndProcessPayload(
   userId: string,
-  r2ObjectKey: string,
-  imageBase64: string | undefined,
+  r2ObjectKeys: string[] | undefined,
+  imageBase64s: string[] | undefined,
   geminiFinishReason: string | undefined,
   safetyRatings: SafetyRating[] | undefined,
   userTier: string,
-): Promise<{ status: string; publicUrl?: string }> {
+): Promise<{ status: string; publicUrls?: string[] }> {
   try {
     // 1. Evaluate Gemini Safety Ratings and Finish Reason
     let isUnsafe = false;
@@ -40,14 +40,6 @@ export async function evaluateAndProcessPayload(
     const tier = userTier === "pro" ? "pro" : "free";
 
     const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-    const fileName = r2ObjectKey.split("/").pop();
-    const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
-
-    const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2ObjectKey}`;
-    const targetS3Url = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
-    
-    // The public viewer URL to save in PostgreSQL
-    const publicR2DevUrl = `https://media.merian.app/${publicUploadKey}`;
 
     // 3. Unsafe Flow Pipeline
     if (isUnsafe) {
@@ -56,10 +48,14 @@ export async function evaluateAndProcessPayload(
       );
 
       // Step A: Send DELETE request purging image explicitly from staging (if uploaded remotely)
-      if (!imageBase64) {
-          const deleteReq = new Request(stagingUrl, { method: "DELETE" });
-          const signedDelete = await aws.sign(deleteReq);
-          await fetch(signedDelete);
+      if ((!imageBase64s || imageBase64s.length === 0) && r2ObjectKeys && r2ObjectKeys.length > 0) {
+          const deleteReqs = r2ObjectKeys.map(async (key) => {
+              const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${key}`;
+              const deleteReq = new Request(stagingUrl, { method: "DELETE" });
+              const signedDelete = await aws.sign(deleteReq);
+              return fetch(signedDelete);
+          });
+          await Promise.allSettled(deleteReqs);
       }
 
       // Step B: Fetch and increment abuse strikes in Supabase
@@ -98,46 +94,64 @@ export async function evaluateAndProcessPayload(
 
     // 4. Safe Flow Pipeline
     console.log(`Media marked safe. Engaing Safe Flow Pipeline.`);
+    const publicUrls: string[] = [];
 
     // Step A: Migrate source image securely into R2 explicit bounds natively
-    if (imageBase64) {
-        // Direct conversion natively decoding the Base64 boundary String down into Uint8Array
-        const arrayBuffer = decodeBase64(imageBase64);
-        
-        const uploadReq = new Request(targetS3Url, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "image/jpeg"
-            },
-            body: arrayBuffer as unknown as BodyInit
-        });
-        const signedUpload = await aws.sign(uploadReq);
-        const uploadRes = await fetch(signedUpload);
-        if (!uploadRes.ok) {
-            console.error(`Failed to upload direct Base64 buffer into R2. Pipeline stopped.`);
+    if (imageBase64s && imageBase64s.length > 0) {
+        let index = 0;
+        for (const base64 of imageBase64s) {
+            const fallbackUUID = crypto.randomUUID();
+            const fileName = r2ObjectKeys?.[index]?.split("/").pop() || `${fallbackUUID}.jpg`;
+            const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
+            const targetS3Url = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
+            
+            // Direct conversion natively decoding the Base64 boundary String down into Uint8Array
+            const arrayBuffer = decodeBase64(base64);
+            const uploadReq = new Request(targetS3Url, {
+                method: "PUT",
+                headers: { "Content-Type": "image/jpeg" },
+                body: arrayBuffer as unknown as BodyInit
+            });
+            const signedUpload = await aws.sign(uploadReq);
+            const uploadRes = await fetch(signedUpload);
+            if (!uploadRes.ok) {
+                console.error(`Failed to upload direct Base64 buffer into R2. Pipeline stopped.`);
+            } else {
+                publicUrls.push(`https://media.merian.app/${publicUploadKey}`);
+            }
+            index++;
         }
-    } else {
-        const copyReq = new Request(targetS3Url, {
-          method: "PUT",
-          headers: {
-            "x-amz-copy-source": `/${R2_BUCKET_NAME}/${r2ObjectKey}`,
-          },
-        });
+    } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {
+        for (const r2Key of r2ObjectKeys) {
+            const fileName = r2Key.split("/").pop();
+            const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
+            const targetS3Url = `${endpoint}/${R2_BUCKET_NAME}/${publicUploadKey}`;
+            const stagingUrl = `${endpoint}/${R2_BUCKET_NAME}/${r2Key}`;
 
-        const signedCopy = await aws.sign(copyReq);
-        const copyRes = await fetch(signedCopy);
+            const copyReq = new Request(targetS3Url, {
+              method: "PUT",
+              headers: {
+                "x-amz-copy-source": `/${R2_BUCKET_NAME}/${r2Key}`,
+              },
+            });
 
-        if (copyRes.ok) {
-          // Step B: Purge origin from staging payload block after valid internal transfer
-          const originDeleteReq = new Request(stagingUrl, { method: "DELETE" });
-          const signedOriginDelete = await aws.sign(originDeleteReq);
-          await fetch(signedOriginDelete);
-        } else {
-          console.error(`Failed to promote staging payload into R2. Pipeline stopped.`);
+            const signedCopy = await aws.sign(copyReq);
+            const copyRes = await fetch(signedCopy);
+
+            if (copyRes.ok) {
+              // Step B: Purge origin from staging payload block after valid internal transfer
+              const originDeleteReq = new Request(stagingUrl, { method: "DELETE" });
+              const signedOriginDelete = await aws.sign(originDeleteReq);
+              await fetch(signedOriginDelete);
+              
+              publicUrls.push(`https://media.merian.app/${publicUploadKey}`);
+            } else {
+              console.error(`Failed to promote staging payload into R2. Pipeline stopped.`);
+            }
         }
     }
 
-    return { status: "PROMOTED", publicUrl: publicR2DevUrl };
+    return { status: "PROMOTED", publicUrls: publicUrls };
   } catch (error) {
     console.error(`Moderation Pipeline Critical Failure:`, error);
     return { status: "ERROR" };

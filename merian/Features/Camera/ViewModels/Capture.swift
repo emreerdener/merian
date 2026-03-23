@@ -23,6 +23,7 @@ extension CameraViewModel {
         guard activeSheet == nil,
               !isAnalyzingFullscreen, 
               !isCapturing,
+              activeScanImages.count < 2,
               imageToCrop == nil else { return }
               
         isCapturing = true
@@ -45,17 +46,19 @@ extension CameraViewModel {
                     Task.detached(priority: .utility) {
                         await AppDIContainer.shared.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
                     }
-                    let capturedDistance = diContainer.cameraManager.subjectDistanceInMeters
-                    
-                    // 4. Detached Memory Management
+                    // 4. Detached Memory Pipeline
                     // Downsamples the 12MP buffer globally off the UI thread to massively drop the footprint
-                    let detachedDownsample = await Task.detached(priority: .userInitiated) {
-                        ImageDownsampler.downsample(data: captureData, maxSize: 4000)
+                    // Instantly executes native `generateAutoCenterCrop` natively isolating UIImage and CGImage pointers 
+                    // cleanly inside the background securely, exporting solely safe raw `.Data` out bypassing JetSam limits globally
+                    let (finalSafeData, safeCGImage) = await Task.detached(priority: .userInitiated) {
+                        guard let cgImage = ImageDownsampler.downsample(data: captureData, maxSize: 4000) else { return (Data(), nil as CGImage?) }
+                        // Explicitly construct non-Sendable UIImage completely bounded securely offline without UI bridging constraints
+                        let tempRawImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+                        let data = tempRawImage.jpegData(compressionQuality: 0.8) ?? Data()
+                        return (data, cgImage)
                     }.value
                     
-                    if let cgImage = detachedDownsample {
-                        let rawImage = UIImage(cgImage: cgImage)
-                        
+                    if !finalSafeData.isEmpty, let validCGImage = safeCGImage {
                         // 5. Environmental Pre-Fetching
                         // Maps historical location caching before pushing to identity pipeline
                         let task = Task.detached(priority: .userInitiated) {
@@ -63,15 +66,16 @@ extension CameraViewModel {
                         }
                         
                         // 6. MainActor Routing
-                        // Injecting the IdentifiableImage bounds back strictly on the UI thread 
+                        // Injecting the raw safe bytes bounds back strictly on the UI thread 
                         await MainActor.run {
                             self.preFetchTask = task
-                            self.imageToCrop = IdentifiableImage(
-                                image: rawImage,
-                                environmentContext: instantLocation != nil ? EnvironmentContext(location: instantLocation) : nil,
-                                isFromGallery: false,
-                                subjectDistanceInMeters: capturedDistance
-                            )
+                            let backgroundRawImage = UIImage(cgImage: validCGImage, scale: 1.0, orientation: .right)
+                            let identifiable = IdentifiableImage(image: backgroundRawImage, environmentContext: nil, isFromGallery: false)
+                            self.activeOriginals.append(identifiable)
+                            self.activeScannedDatas.append(finalSafeData)
+                            if let thumbnail = UIImage(data: finalSafeData) {
+                                self.activeScanImages.append(thumbnail)
+                            }
                         }
                     }
                 } catch {

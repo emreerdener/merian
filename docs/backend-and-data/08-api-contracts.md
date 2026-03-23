@@ -35,12 +35,15 @@ The server automatically extracts the genuine user identity cryptographically ma
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
-When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. Notably, to defend against Path Traversal and Data Scraping, the server violently enforces that any `r2ObjectKey` structurally completely mandates `staging/${user.id}/` mappings and inherently rejects `../` traversal attempts explicitly dropping foreign malicious requests instantly returning `HTTP 400` status constraints implicitly.
+When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. Notably, to defend against Path Traversal and Data Scraping, the server violently enforces that any paths within `r2ObjectKeys` structurally completely mandate `staging/${user.id}/` mappings and inherently reject `../` traversal attempts explicitly dropping foreign malicious requests instantly returning `HTTP 400` status constraints implicitly.
 
 ```json
 {
-  "r2ObjectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename.jpg",
-  "imageBase64": "<base64 encoded string array for instant processing (skips r2ObjectKey)>",
+  "r2ObjectKeys": [
+    "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_1.jpg", 
+    "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_2.jpg"
+  ],
+  "imageBase64s": ["<base64 encoded string array for instant processing (up to 2 limits, skips r2ObjectKeys)>"],
   "user_id": "Supabase Auth UUID explicitly linking natively via GoTrue Session",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
