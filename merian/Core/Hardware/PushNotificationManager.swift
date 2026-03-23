@@ -1,5 +1,8 @@
 import Foundation
 import UserNotifications
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Encapsulates Apple's UNUserNotificationCenter logic natively to handle local inference completion alerts.
 @MainActor
@@ -26,7 +29,7 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         }
     }
     
-    func requestAuthorization() {
+    func requestAuthorization(completion: @escaping () -> Void = {}) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             DispatchQueue.main.async {
                 if let error = error {
@@ -39,6 +42,7 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                     print("⚠️ Push notification authorization locally denied.")
                     UserDefaults.standard.set(false, forKey: "isPushNotificationsEnabled")
                 }
+                completion()
             }
         }
     }
@@ -59,6 +63,23 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                 print("🚨 Failed to organically schedule push notification: \(error)")
             } else {
                 print("✅ Push notification locally scheduled for \(speciesName).")
+            }
+        }
+    }
+    
+    func sendAchievementUnlockedNotification(achievementTitle: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Achievement Unlocked!"
+        content.body = "You just earned: \(achievementTitle)"
+        content.sound = .default
+        
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("🚨 Failed to organically schedule achievement push notification: \(error)")
+            } else {
+                print("✅ Achievement Push notification locally scheduled for '\(achievementTitle)'.")
             }
         }
     }
@@ -91,6 +112,7 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         // iOS still inherently fires `willPresent` on local pushes!
         // We MUST verify `.active` foreground presence before suppressing the visual banner gracefully.
         Task { @MainActor in
+#if canImport(UIKit)
             if UIApplication.shared.applicationState == .active {
                 // Suppresses visual banners implicitly if the user is already actively navigating the app natively.
                 completionHandler([])
@@ -98,6 +120,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                 // Explicitly allow iOS to render the notification across the locked screen/notification center!
                 completionHandler([.banner, .sound, .list])
             }
+#else
+            completionHandler([.banner, .sound, .list])
+#endif
         }
     }
 }

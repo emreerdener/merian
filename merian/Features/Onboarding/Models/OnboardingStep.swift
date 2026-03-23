@@ -6,5 +6,6 @@ enum OnboardingStep: Int, CaseIterable {
     case camera
     case location
     case photoLibrary
+    case notifications
     case ready
 }

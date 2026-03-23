@@ -3,7 +3,8 @@ import SwiftUI
 /// Abstracted detail view establishing a parent/child routing flow specifically isolating Notification configuration.
 /// Ensures the primary Profile `Preferences` list does not organically expand into an unscrollable behemoth.
 struct NotificationSettingsView: View {
-    @AppStorage("isPushNotificationsEnabled") private var isPushNotificationsEnabled: Bool = false
+    @AppStorage("isPushNotificationsEnabled") private var isPushNotificationsEnabled: Bool = true
+    @AppStorage("isAchievementNotificationsEnabled") private var isAchievementNotificationsEnabled: Bool = true
     
     var body: some View {
         List {
@@ -22,6 +23,21 @@ struct NotificationSettingsView: View {
                 Text("Inference events")
             } footer: {
                 Text("Turning this off suppresses active OS interruptions but keeps results securely banked in your local collections natively.")
+            }
+            
+            Section {
+                SettingsToggleRow(
+                    title: "Achievements & Milestones",
+                    description: "Get notified when you unlock new ecological awards.",
+                    isOn: $isAchievementNotificationsEnabled
+                )
+                .onChange(of: isAchievementNotificationsEnabled) { _, newValue in
+                    if newValue {
+                        AppDIContainer.shared.pushNotificationManager.requestAuthorization()
+                    }
+                }
+            } header: {
+                Text("Gamification")
             }
             
             // Note: As the roadmap expands, Future Notification parameters (e.g. Daily Reminders, Streak Warnings, Community Events)

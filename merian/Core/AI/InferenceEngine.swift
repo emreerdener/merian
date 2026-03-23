@@ -197,7 +197,14 @@ enum APIError: Error {
                 if var mappedData = finalMappedData {
                     if isNewDisc {
                         mappedData.isNewDiscovery = true
-                        GamificationManager.shared.recordNewSpeciesDiscovered()
+                        
+                        await MainActor.run { GamificationManager.shared.recordNewSpeciesDiscovered() }
+                        
+                        if let container = modelContext?.container {
+                            let profileActor = ProfileDatabaseActor(modelContainer: container)
+                            let updatedAwards = await profileActor.calculateAwards()
+                            await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards) }
+                        }
                     }
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)

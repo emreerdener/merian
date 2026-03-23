@@ -41,7 +41,6 @@ private struct NewDiscoveryCelebrationView: View {
                 if #available(iOS 17.0, *) {
                     Image(systemName: "star.fill")
                         .font(.system(size: 24))
-                        .symbolEffect(.pulse)
                         .foregroundStyle(.yellow)
                 } else {
                     Image(systemName: "star.fill")

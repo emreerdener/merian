@@ -465,14 +465,20 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         telemetry: finalTelemetry
                     )
                     
-                    if let speciesName = discoveredSpecies,
-                       UserDefaults.standard.bool(forKey: "isPushNotificationsEnabled") {
+                    if let speciesName = discoveredSpecies {
+                        let profileActor = ProfileDatabaseActor(modelContainer: extracted.container)
+                        let updatedAwards = await profileActor.calculateAwards()
+                        
                         await MainActor.run {
-                            #if canImport(UIKit)
-                            if UIApplication.shared.applicationState != .active {
-                                PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: scanId)
+                            GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
+                            
+                            if UserDefaults.standard.bool(forKey: "isPushNotificationsEnabled") {
+                                #if canImport(UIKit)
+                                if UIApplication.shared.applicationState != .active {
+                                    PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: scanId)
+                                }
+                                #endif
                             }
-                            #endif
                         }
                     }
                     

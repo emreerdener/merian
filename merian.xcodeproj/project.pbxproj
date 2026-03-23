@@ -166,6 +166,7 @@
 		D73DBC6608F0313E6A12C87E /* CollectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF4E6E4D2EF9069B637A10B /* CollectionsView.swift */; };
 		D8B9C4BE62D3BCA14D89C047 /* RevenueCatManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94C0C6144D191EDB1B5BD513 /* RevenueCatManagerTests.swift */; };
 		D96FD0AA92A656CCCFBBFCE0 /* HardwareOrchestratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FB6F37DCBD4D23D072D413 /* HardwareOrchestratorTests.swift */; };
+		E0CBBD9D5E26F1A20CD50015 /* PushNotificationPermissionStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34070DFA94D52E02A1728304 /* PushNotificationPermissionStepView.swift */; };
 		E1E450689D1C1DDF6B143C76 /* ScanInformationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E669DE30D7647BA9F2AA2AAB /* ScanInformationCard.swift */; };
 		E61A539CAD20BF22E686EF2A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B828D3025E18EE78E68D2C /* LibraryView.swift */; };
 		E63E6ACB0BC12DE3ED8081BB /* Card.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B8B867598417442574E4FE /* Card.swift */; };
@@ -254,6 +255,7 @@
 		31EF2AEBAC55EB3C7E7AC29A /* ScansManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansManager.swift; sourceTree = "<group>"; };
 		32F31F1296ED7CCA1F086905 /* PostHogManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostHogManagerTests.swift; sourceTree = "<group>"; };
 		33FD2D0B0B8D49842926B1FC /* AppDIContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDIContainer.swift; sourceTree = "<group>"; };
+		34070DFA94D52E02A1728304 /* PushNotificationPermissionStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PushNotificationPermissionStepView.swift; path = ../merian/Features/Onboarding/Components/PushNotificationPermissionStepView.swift; sourceTree = "<group>"; };
 		34856C34F2EF3A759D27C2AB /* NonBiologicalScansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonBiologicalScansView.swift; sourceTree = "<group>"; };
 		3A10BFC565A6DAC1C222423A /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		3A310C2AC0758FEE43F5E7C3 /* ImageCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCacheTests.swift; sourceTree = "<group>"; };
@@ -456,6 +458,14 @@
 				BA779F57AA05667EB6135895 /* ScanThumbnail.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		0CA6415FC8B4CA796804F9EE /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				CC9408CACA3105FF4F2DAD10 /* Components */,
+			);
+			name = Onboarding;
 			sourceTree = "<group>";
 		};
 		0D14E7494BB797A2BC8A3DF2 /* Models */ = {
@@ -941,6 +951,7 @@
 			isa = PBXGroup;
 			children = (
 				EF2BF439F8B9EA000FA094A1 /* Profile */,
+				0CA6415FC8B4CA796804F9EE /* Onboarding */,
 			);
 			name = Features;
 			sourceTree = "<group>";
@@ -1082,6 +1093,15 @@
 				6E00974E4DE277C96A871035 /* ShareSheetUtility.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		CC9408CACA3105FF4F2DAD10 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				34070DFA94D52E02A1728304 /* PushNotificationPermissionStepView.swift */,
+			);
+			name = Components;
+			path = Components;
 			sourceTree = "<group>";
 		};
 		CCEEE4E885E37B07D9BE72E0 /* Camera */ = {
@@ -1584,6 +1604,7 @@
 				86E7F183AA05D90FCE2B45EE /* WikipediaCard.swift in Sources */,
 				42E3994102AC6A97EF34E3BE /* PushNotificationManager.swift in Sources */,
 				F4485E11E2324BBEE697F66C /* NotificationSettingsView.swift in Sources */,
+				E0CBBD9D5E26F1A20CD50015 /* PushNotificationPermissionStepView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

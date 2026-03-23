@@ -13,16 +13,24 @@ import Observation
     var unlockedSpeciesCount: Int
     var hasFireflyBadge: Bool
     var showTerrariumSheet: Bool = false
+    var unlockedAchievements: Set<String>
     
     // MARK: - Persistent Storage Keys
     private let defaults = UserDefaults.standard
     private let speciesCountKey = "Merian_UnlockedSpeciesCount"
     private let fireflyBadgeKey = "Merian_HasFireflyBadge"
+    private let unlockedAchievementsKey = "Merian_UnlockedAchievements"
     
     // MARK: - Lifecycle Bootstrapping
     private init() {
         self.unlockedSpeciesCount = defaults.integer(forKey: speciesCountKey)
         self.hasFireflyBadge = defaults.bool(forKey: fireflyBadgeKey)
+        
+        if let stored = defaults.stringArray(forKey: unlockedAchievementsKey) {
+            self.unlockedAchievements = Set(stored)
+        } else {
+            self.unlockedAchievements = []
+        }
     }
     
     // MARK: - Badge Execution Triggers
@@ -36,6 +44,23 @@ import Observation
         // Example threshold: hitting 5 distinct taxonomies unlocks the ecosystem fireflies
         if unlockedSpeciesCount >= 5 && !hasFireflyBadge {
             unlockFireflyBadge()
+        }
+    }
+    
+    /// Evaluates if any achievement organically resolved exactly this session natively.
+    func evaluateAchievementsForNotifications(awards: [AwardPayload]) {
+        for award in awards where award.isCompleted {
+            if !unlockedAchievements.contains(award.type) {
+                // IT'S A NEW UNLOCK!
+                unlockedAchievements.insert(award.type)
+                defaults.set(Array(unlockedAchievements), forKey: unlockedAchievementsKey)
+                
+                print("🏆 Gamification: New achievement evaluated offline: \(award.title)")
+                
+                if defaults.bool(forKey: "isAchievementNotificationsEnabled") {
+                    PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)
+                }
+            }
         }
     }
     
