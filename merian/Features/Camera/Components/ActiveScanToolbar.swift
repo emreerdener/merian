@@ -14,12 +14,6 @@ struct ActiveScanToolbar: View {
     let onCancel: () -> Void
     let onSubmit: () -> Void
     
-    private var tooltipText: some View {
-        Text("Tap an image to edit")
-            .symbolRenderingMode(.palette)
-            .foregroundStyle(.white.opacity(0.9), .blue)
-    }
-    
     // MARK: - Body Layout
     var body: some View {
         HStack(spacing: 16) {
@@ -27,7 +21,11 @@ struct ActiveScanToolbar: View {
             
             Spacer(minLength: 0)
             
-            thumbnailGrid
+            ActiveScanThumbnailGrid(
+                images: images,
+                selectedPhotoItems: $selectedPhotoItems,
+                onThumbnailTap: onThumbnailTap
+            )
             
             Spacer(minLength: 0)
             
@@ -41,18 +39,7 @@ struct ActiveScanToolbar: View {
         .padding(.horizontal, 16)
         .overlay(alignment: .top) {
             if showTooltip {
-                tooltipText
-                    .font(.caption.weight(.medium))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.black.opacity(0.4))
-                            .background(.ultraThinMaterial, in: Capsule())
-                    )
-                    .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
-                    .offset(y: -40) // Floats above the top edge of the toolbar without affecting layout
+                ActiveScanTooltipOverlay()
                     .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
             }
         }
@@ -98,7 +85,39 @@ extension ActiveScanToolbar {
     }
     
     // MARK: - Image Grid
-    private var thumbnailGrid: some View {
+    // Moved to private struct ActiveScanThumbnailGrid below to simplify evaluation bounds
+
+    // MARK: - Liquid Glass Container
+    private var glassBackground: some View {
+        Capsule()
+            .fill(.ultraThinMaterial)
+            .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 8)
+    }
+    
+    private var glassBorder: some View {
+        Capsule()
+            .strokeBorder(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.5),
+                        Color.white.opacity(0.1),
+                        Color.white.opacity(0.3)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 0.5
+            )
+    }
+}
+
+// MARK: - Extracted Private Subviews
+private struct ActiveScanThumbnailGrid: View {
+    let images: [UIImage]
+    @Binding var selectedPhotoItems: [PhotosPickerItem]
+    let onThumbnailTap: (Int) -> Void
+
+    var body: some View {
         HStack(spacing: 8) {
             ForEach(0..<images.count, id: \.self) { index in
                 Button(action: { onThumbnailTap(index) }) {
@@ -127,27 +146,23 @@ extension ActiveScanToolbar {
             }
         }
     }
-    
-    // MARK: - Liquid Glass Container
-    private var glassBackground: some View {
-        Capsule()
-            .fill(.ultraThinMaterial)
-            .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 8)
-    }
-    
-    private var glassBorder: some View {
-        Capsule()
-            .strokeBorder(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.5),
-                        Color.white.opacity(0.1),
-                        Color.white.opacity(0.3)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 0.5
+}
+
+private struct ActiveScanTooltipOverlay: View {
+    var body: some View {
+        Text("Tap an image to edit")
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white.opacity(0.9), .blue)
+            .font(.caption.weight(.medium))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.4))
+                    .background(.ultraThinMaterial, in: Capsule())
             )
+            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+            .offset(y: -40) // Floats above the top edge of the toolbar without affecting layout
     }
 }

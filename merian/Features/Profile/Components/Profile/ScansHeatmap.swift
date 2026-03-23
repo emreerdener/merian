@@ -231,15 +231,13 @@ struct HeatmapGridMatrix: View, Equatable {
     private var gridBody: some View {
         // Weeks
         ForEach(visibleWeeks) { week in
-            VStack(spacing: squareSpacing) {
-                ForEach(week.days) { day in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(HeatmapColor.color(for: day.count, scheme: colorScheme))
-                        .frame(maxWidth: isMonthScale ? .infinity : nil)
-                        .frame(width: isMonthScale ? nil : 11, height: squareHeight)
-                }
-            }
-            .frame(maxWidth: isMonthScale ? .infinity : nil)
+            HeatmapWeekColumnView(
+                week: week,
+                scheme: colorScheme,
+                isMonthScale: isMonthScale,
+                squareHeight: squareHeight,
+                squareSpacing: squareSpacing
+            )
         }
         
         // Y-Axis Labels (Moved to trailing edge)

@@ -17,22 +17,6 @@ struct MainOverlayView: View {
     // MARK: - Local Staging State
     @State private var activeMode: CaptureMode = .visual
     
-    // MARK: - Navigation Encoders
-    // Computes bidirectional view states natively mapped directly into CameraSheetRouter
-    private var isScansOpen: Binding<Bool> {
-        Binding(
-            get: { activeSheet == .scans }, 
-            set: { if $0 { activeSheet = .scans } else if activeSheet == .scans { activeSheet = nil } }
-        )
-    }
-    
-    private var isUserProfileOpen: Binding<Bool> {
-        Binding(
-            get: { activeSheet == .profile }, 
-            set: { if $0 { activeSheet = .profile } else if activeSheet == .profile { activeSheet = nil } }
-        )
-    }
-    
     // MARK: - Interface Layout
     var body: some View {
         VStack {
@@ -76,8 +60,8 @@ struct MainOverlayView: View {
             // Maps MainTabBar tabs directly to their overarching CameraSheetRouter payloads 
             if activeScanImages.isEmpty {
                 MainTabBar(
-                    isScansOpen: isScansOpen,
-                    isUserProfileOpen: isUserProfileOpen
+                    isScansOpen: $activeSheet.mapped(to: .scans),
+                    isUserProfileOpen: $activeSheet.mapped(to: .profile)
                 )
                 .padding(.bottom, 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -93,5 +77,22 @@ struct MainOverlayView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: activeScanImages.count)
+    }
+}
+
+// MARK: - Binding Encoders
+extension Binding where Value == CameraViewModel.ActiveSheet? {
+    /// Ergonomically maps an optional active sheet enumeration directly into boolean bindings for standard SwiftUI UI elements
+    func mapped(to target: CameraViewModel.ActiveSheet) -> Binding<Bool> {
+        Binding<Bool>(
+            get: { self.wrappedValue == target },
+            set: { newValue in
+                if newValue {
+                    self.wrappedValue = target
+                } else if self.wrappedValue == target {
+                    self.wrappedValue = nil
+                }
+            }
+        )
     }
 }
