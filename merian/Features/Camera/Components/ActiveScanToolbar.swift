@@ -22,8 +22,24 @@ struct ActiveScanToolbar: View {
     
     // MARK: - Body Layout
     var body: some View {
-        VStack(spacing: 12) {
-            // Hovering Instructions Tooltip
+        HStack(spacing: 16) {
+            cancelButton
+            
+            Spacer(minLength: 0)
+            
+            thumbnailGrid
+            
+            Spacer(minLength: 0)
+            
+            submitButton
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .background(glassBackground)
+        .overlay(glassBorder)
+        .environment(\.colorScheme, .dark)
+        .padding(.horizontal, 16)
+        .overlay(alignment: .top) {
             if showTooltip {
                 tooltipText
                     .font(.caption.weight(.medium))
@@ -36,26 +52,9 @@ struct ActiveScanToolbar: View {
                             .background(.ultraThinMaterial, in: Capsule())
                     )
                     .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                    .offset(y: -40) // Floats above the top edge of the toolbar without affecting layout
                     .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
             }
-            
-            HStack(spacing: 16) {
-                cancelButton
-                
-                Spacer(minLength: 0)
-                
-                thumbnailGrid
-                
-                Spacer(minLength: 0)
-                
-                submitButton
-            }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 16)
-            .background(glassBackground)
-            .overlay(glassBorder)
-            .environment(\.colorScheme, .dark)
-            .padding(.horizontal, 16)
         }
         .padding(.bottom, 24) // Accommodate the physical iPhone home indicator explicitly
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: images.count)

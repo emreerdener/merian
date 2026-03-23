@@ -494,8 +494,9 @@ import Accelerate
                     }
                 }
                 
+                let finalRequest = request
                 self.requestsLock.withLock {
-                    self.activeCaptureRequests[requestId] = request
+                    self.activeCaptureRequests[requestId] = finalRequest
                 }
                 
                 queue.async {
