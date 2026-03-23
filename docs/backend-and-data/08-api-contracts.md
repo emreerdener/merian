@@ -147,6 +147,35 @@ struct IdentifyResponse: Codable {
 
 ---
 
+## Deno `/sync-collections` Edge Node
+
+Synchronizes a user's locally created Scan Collections directly with the PostgreSQL `collections` and `collection_scans` relational schemas safely handling diffing and missing FK maps natively.
+
+### Request Payload
+
+```json
+{
+  "collections": [
+    {
+      "id": "A1B2C3D4-...",
+      "name": "My Favorites",
+      "created_at": "2026-03-23T12:00:00Z",
+      "scan_ids": ["B2C3D4E5-..."],
+      "is_deleted": false
+    }
+  ]
+}
+```
+
+### Safety and Transactional Integrity
+
+Unlike legacy query strategies that trusted fragile string parsing, this node enforces robust PostgREST execution dynamically mapping arrays safely:
+1. **Batch Upserts**: All valid collections are executed entirely via a single atomic `.upsert(collectionPayloads)` parameter, natively resolving PostgreSQL `TIMESTAMPTZ` and `UUID` bounds flawlessly without timing out.
+2. **Offline-Safe Mapping**: Iterate over `collection_scans` insert matrices physically *one-by-one*. If a user groups a scan natively while deep offline, the backend `.scans` mapping hasn't populated. Instead of throwing a lethal constraint violation that halts execution, the Edge Node silently drops the foreign key mismatch, safely awaiting the `OfflineQueueManager` to naturally hydrate the UUID on subsequent background passes.
+3. **Array-Bound Diffing Deletes**: Safely identifies obsolete collections by explicitly running `.select()` across the user's DB bounds natively, mapping a `toDelete` array statically in memory to pass exactly to `.delete().in("id", toDelete)`. This securely circumvents `.not("id", "in", "(...)")` query builder string corruption failures entirely protecting the syncing process.
+
+---
+
 ## Deno `/get-filtered-discovery-feed` Edge Node
 
 Fetches the global social feed of public biological captures, explicitly excluding actors the user has explicitly blocked locally on their client. To prevent PostgreSQL parser exceptions and `in` modifier failures, the native Array matrix of blocked `user_id`s is strictly passed as a raw un-formatted TypeScript array (e.g. `.not("user_id", "in", isolatedExclusions)`) into the native Supabase JS abstraction layer.

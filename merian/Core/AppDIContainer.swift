@@ -45,10 +45,10 @@ import SwiftData
     /// Handles application transition to background gracefully
     func handleBackgroundPhase() {
         // Safely intercept mid-flight networks limits rescuing images asynchronously before standard app suspension
-        if inferenceEngine.isProcessing, let payload = inferenceEngine.activeCompressedImageData ?? inferenceEngine.activeImageData {
+        if inferenceEngine.isProcessing, !inferenceEngine.activeLiveCaptureDatas.isEmpty {
             if revenueCatManager.isProActive {
                 offlineQueueManager.enqueueCapture(
-                    imageDatas: [payload],
+                    imageDatas: inferenceEngine.activeLiveCaptureDatas,
                     telemetry: CaptureTelemetry(from: inferenceEngine),
                     blurScore: nil
                 )

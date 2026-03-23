@@ -203,6 +203,10 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     do {
                         try ctx.save()
                         OfflineQueueManager.shared.updateUnsyncedItemCount()
+                        
+                        // CRITICAL FIX: Manually kickstart the queue immediately following a rescue 
+                        // so that `URLSession` launches gracefully while iOS gives us our 30-sec background envelope.
+                        OfflineQueueManager.shared.syncPendingScans()
                     } catch {
                         print("Failed to save offline queue record. Cleaning up abandoned local image footprints.")
                         for url in generatedFileURLs {
