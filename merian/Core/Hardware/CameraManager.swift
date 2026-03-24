@@ -162,6 +162,26 @@ import Accelerate
 
     @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
 
+    /// Reads `maxAvailableVideoZoomFactor` from the active video device.
+    /// Must be called after `session.startRunning()` — the active format is not resolved until then.
+    nonisolated private func readMaxZoomFactor() -> CGFloat {
+        #if targetEnvironment(simulator)
+        return 5.0
+        #else
+        let activeVideoDevice = session.inputs
+            .compactMap { $0 as? AVCaptureDeviceInput }
+            .first(where: { $0.device.hasMediaType(.video) })?.device
+        guard let activeVideoDevice else { return 1.0 }
+        let maxZoom = activeVideoDevice.maxAvailableVideoZoomFactor
+        let formatMax = activeVideoDevice.activeFormat.videoMaxZoomFactor
+        let switchOvers = activeVideoDevice.virtualDeviceSwitchOverVideoZoomFactors
+        let isVirtual = activeVideoDevice.isVirtualDevice
+        MerianLog.hardware.debug("Zoom device: \(activeVideoDevice.localizedName, privacy: .public), maxAvailable=\(maxZoom, privacy: .public)")
+        MerianLog.hardware.debug("Zoom format: formatMax=\(formatMax, privacy: .public), switchOvers=\(switchOvers, privacy: .public), isVirtual=\(isVirtual, privacy: .public)")
+        return maxZoom
+        #endif
+    }
+
     // MARK: - Session Lifecycle
 
     func startSession() {
@@ -181,26 +201,7 @@ import Accelerate
 
             // maxAvailableVideoZoomFactor is only accurate after startRunning() —
             // the active format is not fully resolved until the session is live.
-            let capturedMaxZoom: CGFloat
-            #if targetEnvironment(simulator)
-            capturedMaxZoom = 5.0
-            #else
-            let activeVideoDevice = self.session.inputs
-                .compactMap { $0 as? AVCaptureDeviceInput }
-                .first(where: { $0.device.hasMediaType(.video) })?.device
-            if let activeVideoDevice {
-                capturedMaxZoom = activeVideoDevice.maxAvailableVideoZoomFactor
-                MerianLog.hardware.debug(
-                    "Zoom: device=\(activeVideoDevice.localizedName, privacy: .public), " +
-                    "maxAvailable=\(activeVideoDevice.maxAvailableVideoZoomFactor, privacy: .public), " +
-                    "formatMax=\(activeVideoDevice.activeFormat.videoMaxZoomFactor, privacy: .public), " +
-                    "switchOvers=\(activeVideoDevice.virtualDeviceSwitchOverVideoZoomFactors, privacy: .public), " +
-                    "isVirtual=\(activeVideoDevice.isVirtualDevice, privacy: .public)"
-                )
-            } else {
-                capturedMaxZoom = 1.0
-            }
-            #endif
+            let capturedMaxZoom = self.readMaxZoomFactor()
 
             Task { @MainActor in
                 self.isSessionRunning = true
