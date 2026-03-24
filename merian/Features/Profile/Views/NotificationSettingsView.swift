@@ -27,7 +27,7 @@ struct NotificationSettingsView: View {
             
             Section {
                 SettingsToggleRow(
-                    title: "Achievements & Milestones",
+                    title: "Achievements & milestones",
                     description: "Get notified when you unlock new ecological awards.",
                     isOn: $isAchievementNotificationsEnabled
                 )

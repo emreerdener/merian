@@ -21,6 +21,7 @@ struct ScansSheetModifiers: ViewModifier {
     let dismiss: DismissAction
     let modelContext: ModelContext
     let onBatchDelete: () -> Void
+    var onCollectionCreated: ((ScanCollection) -> Void)? = nil
     
     func body(content: Content) -> some View {
         content
@@ -50,7 +51,8 @@ struct ScansSheetModifiers: ViewModifier {
             .newCollectionAlert(
                 isPresented: $showNewCollectionAlert,
                 newCollectionName: $newCollectionName,
-                modelContext: modelContext
+                modelContext: modelContext,
+                onCreated: { onCollectionCreated?($0) }
             )
             .scanDeletionDialog(
                 isPresented: $showDeleteConfirmation,

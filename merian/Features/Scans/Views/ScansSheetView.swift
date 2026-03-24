@@ -25,6 +25,7 @@ struct ScansSheetView: View {
     // MARK: - Component State
     @State private var showNewCollectionAlert = false
     @State private var newCollectionName = ""
+    @State private var newlyCreatedCollection: ScanCollection?
     
     @State private var scanToDelete: LocalScanRecord? = nil
     @State private var showDeleteConfirmation = false
@@ -56,7 +57,9 @@ struct ScansSheetView: View {
                     )
                     CollectionsTabContent(
                         searchManager: searchManager, isSearchFocused: isSearchFocused,
-                        sortedCollections: searchManager.sortedCollections, isInsightSheetOpen: $isInsightSheetOpen
+                        sortedCollections: searchManager.sortedCollections, isInsightSheetOpen: $isInsightSheetOpen,
+                        showNewCollectionAlert: $showNewCollectionAlert,
+                        newlyCreatedCollection: $newlyCreatedCollection
                     )
                 }
                 .scrollTargetLayout()
@@ -70,7 +73,7 @@ struct ScansSheetView: View {
                 showDeleteConfirmation: $showDeleteConfirmation, showBatchDeleteConfirmation: $showBatchDeleteConfirmation,
                 showSelectionLimitAlert: $showSelectionLimitAlert, toastMessage: $searchManager.toastMessage,
                 isDownloading: $searchManager.isDownloading, dismiss: dismiss, modelContext: modelContext,
-                onBatchDelete: handleBatchDelete
+                onBatchDelete: handleBatchDelete, onCollectionCreated: { newlyCreatedCollection = $0 }
             ))
             .toolbar {
                 ScansSheetToolbar(
@@ -167,13 +170,17 @@ private struct CollectionsTabContent: View {
     let isSearchFocused: Bool
     let sortedCollections: [ScanCollection]
     @Binding var isInsightSheetOpen: Bool
-    
+    @Binding var showNewCollectionAlert: Bool
+    @Binding var newlyCreatedCollection: ScanCollection?
+
     var body: some View {
         CollectionsView(
             searchQuery: searchManager.searchQuery,
             isSearchFocused: isSearchFocused,
             collections: sortedCollections,
-            isInsightSheetOpen: $isInsightSheetOpen
+            isInsightSheetOpen: $isInsightSheetOpen,
+            showNewCollectionAlert: $showNewCollectionAlert,
+            newlyCreatedCollection: $newlyCreatedCollection
         )
     }
 }

@@ -113,10 +113,8 @@ final class InsightSheetViewModel {
         let isPast = minY < threshold
         
         if isCommonNameScrolledPast != isPast {
-            DispatchQueue.main.async {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    self.isCommonNameScrolledPast = isPast
-                }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                isCommonNameScrolledPast = isPast
             }
         }
     }

@@ -6,6 +6,8 @@ struct CollectionsView: View {
     let isSearchFocused: Bool
     let collections: [ScanCollection]
     @Binding var isInsightSheetOpen: Bool
+    @Binding var showNewCollectionAlert: Bool
+    @Binding var newlyCreatedCollection: ScanCollection?
     
     @Environment(\.modelContext) private var modelContext
     @State private var nonBioCount: Int = 0
@@ -81,7 +83,17 @@ struct CollectionsView: View {
                     iconName: "folder",
                     title: "No collections",
                     message: "Create your first collection to start organizing your scans."
-                )
+                ) {
+                    Button {
+                        showNewCollectionAlert = true
+                    } label: {
+                        Label("New collection", systemImage: "folder.badge.plus")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                }
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
                     ForEach(userCollections) { collection in
@@ -125,6 +137,9 @@ struct CollectionsView: View {
             collection: collectionToEdit,
             modelContext: modelContext
         )
+        .navigationDestination(item: $newlyCreatedCollection) { collection in
+            CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
+        }
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)
         .task {

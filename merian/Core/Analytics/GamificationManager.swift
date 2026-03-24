@@ -33,7 +33,7 @@ import os
     func recordNewSpeciesDiscovered() {
         unlockedSpeciesCount += 1
         defaults.set(unlockedSpeciesCount, forKey: speciesCountKey)
-        MerianLog.general.debug("Species count: \(unlockedSpeciesCount, privacy: .public)")
+        MerianLog.general.debug("Species count: \(self.unlockedSpeciesCount, privacy: .public)")
 
         // 5 unique species unlocks the Firefly Badge.
         if unlockedSpeciesCount >= 5 && !hasFireflyBadge {
