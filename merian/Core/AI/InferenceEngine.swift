@@ -230,27 +230,25 @@ enum APIError: Error {
                     return
                 }
                 
-                if !RevenueCatManager.shared.isProActive {
-                    await MainActor.run {
-                        self.isProcessing = false
-                        UsageManager.shared.refundScan()
-                        NotificationCenter.default.post(name: NSNotification.Name("TriggerPaywall"), object: nil)
-                    }
-                    throw APIError.proRequiredForOfflineTracking
+                // Refund the scan for all users on network failure — they never got a result.
+                // Paywall is only shown upstream at the canPerformScan quota gate, never here.
+                UsageManager.shared.refundScan()
+
+                if RevenueCatManager.shared.isProActive {
+                    // Pro: record the failure and re-queue for background retry.
+                    CircuitBreakerManager.shared.recordFailure()
+                    OfflineQueueManager.shared.enqueueCapture(
+                        imageDatas: compressedDatas,
+                        telemetry: telemetry,
+                        blurScore: nil
+                    )
                 }
-                
-                CircuitBreakerManager.shared.recordFailure()
-                OfflineQueueManager.shared.enqueueCapture(
-                    imageDatas: compressedDatas,
-                    telemetry: telemetry,
-                    blurScore: nil
-                )
                 MerianLog.general.debug("⚠️ Inference Engine Critical Failure: \(error.localizedDescription, privacy: .private)")
                 self.speciesData = SpeciesData(
                     scanId: nil,
                     commonName: "Network Timeout",
                     scientificName: "Offline Mode",
-                    insightData: InsightData(description: "Please check your network boundary connection. The scan has been safely queued offline.", isPoisonous: false, regionalStatusRationale: nil),
+                    insightData: InsightData(description: "Please check your network connection and try again.", isPoisonous: false, regionalStatusRationale: nil),
                     confidenceScore: 0,
                     diagnosticComparison: nil,
                     wikipediaUrl: nil,

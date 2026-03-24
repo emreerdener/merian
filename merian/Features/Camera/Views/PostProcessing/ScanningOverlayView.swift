@@ -37,7 +37,7 @@ struct ScanningOverlayView: View {
             // Displays the dynamic engine checkpoints ("Identifying...", "Extracting context...")
             VStack {
                 HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "sparkles.2")
                         .foregroundColor(.yellow)
                         .symbolEffect(.variableColor) 
                     
