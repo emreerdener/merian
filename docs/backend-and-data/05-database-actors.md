@@ -37,18 +37,36 @@ await dbActor.saveLiveScanRecord(mappedData: data, localImagePaths: paths)
 **Declaration**: `@ModelActor actor HistoricalDatabaseActor`
 
 **Responsibilities:**
-- `reconcileAllHistoricalData(responses:collections:)` — single entry point for the full historical sync: updates existing records, ingests missing ones, reconciles collections
-- `updateExistingScans` (private) — predicate-scoped fetch with `propertiesToFetch` column projection; saves only if fields changed
+- `reconcileScanPage(responses:)` — primary entry point for streaming reconciliation; called once per page fetched from the cloud. Computes the existing-ID set once on the first call (ID-only projection) and caches it in `cachedLocalIds`, then updates existing records and ingests missing ones for the page. The `cachedLocalIds` set is updated incrementally as each page inserts new records, so the full local ID set is never re-fetched per page. Returns the count of newly inserted records.
+- `syncCollectionsDown(remoteCollections:)` — called once, after all scan pages have been streamed. Delegates to `syncCollections` and then clears `cachedLocalIds`, releasing the accumulated set from memory.
+- `cachedLocalIds` (private `var`) — `Set<String>?` that lives for the duration of a `syncHistoricalScansDown` call. `nil` before the first `reconcileScanPage` call and after `syncCollectionsDown` clears it.
+- `updateExistingScans` (private) — predicate-scoped fetch with `propertiesToFetch` column projection; saves only if fields changed. Batches the incoming `responseIds` into chunks of 500 before building each `#Predicate`, preventing SQL IN-clause planner degradation on large libraries.
 - `ingestScans` (private) — inserts new `LocalScanRecord` rows; checkpoint-saves every `MerianConfig.ingestCheckpointInterval` (50) records
 - `syncCollections` (private) — upserts `ScanCollection` records; fetches only the local scans referenced by incoming collections
+- `reconcileAllHistoricalData(responses:collections:)` — **legacy, kept for test compatibility only**. Resets `cachedLocalIds`, delegates to `reconcileScanPage` once, then calls `syncCollectionsDown`. New call sites should use the `reconcileScanPage` / `syncCollectionsDown` pair.
 
-**When to create**: Ad-hoc, once per `syncHistoricalScansDown` call:
+**When to create**: Ad-hoc, once per `syncHistoricalScansDown` call. Use the paged API to stream one page at a time rather than accumulating the full cloud response in memory:
 ```swift
 let dbActor = HistoricalDatabaseActor(modelContainer: container)
-let newCount = await dbActor.reconcileAllHistoricalData(responses: allScans, collections: allCollections)
+
+// Stream scan pages one at a time — never accumulate full allScans[] in memory
+var scanOffset = 0
+while true {
+    let page: [HistoricalScanResponse] = try await ...
+        .range(from: scanOffset, to: scanOffset + pageSize - 1)
+        .execute().value
+    if !page.isEmpty {
+        await dbActor.reconcileScanPage(responses: page)
+    }
+    if page.count < pageSize { break }
+    scanOffset += pageSize
+}
+
+// Collections are small in count — still fully accumulated, then synced once
+await dbActor.syncCollectionsDown(remoteCollections: allCollections)
 ```
 
-The design principle is one actor invocation for all reconciliation work, avoiding multiple `await` actor-boundary crossings for shared state.
+The design principle is page-at-a-time streaming: each page is processed and released before the next is fetched, keeping the in-memory scan accumulation O(page_size) rather than O(total_library_size) regardless of how many scans the user has.
 
 ---
 

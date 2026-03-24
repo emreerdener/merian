@@ -295,79 +295,126 @@ The operation was restructured to be database-first:
 
 This ensures a save failure can never produce a state where the record exists but its images are missing.
 
-### Historical Sync Actor-Boundary Reduction
-The previous `syncHistoricalScansDown` issued three sequential `await` calls to the same `HistoricalDatabaseActor` instance:
+### Historical Sync OOM Prevention — Page-at-a-Time Streaming (`ScanRepository`)
+The previous `syncHistoricalScansDown` accumulated all cloud scan pages into a single `allScans: [HistoricalScanResponse]` array before any reconciliation began. At 10 k+ scans this buffer grows to 100 MB+ of decoded Swift structs on the `@MainActor` heap and triggers JetSam OOM kills on devices with limited RAM.
+
+The fix streams pages one at a time: each fetched page is passed immediately to `HistoricalDatabaseActor.reconcileScanPage(responses:)` and released before the next network request begins. In-memory scan accumulation is now O(page_size) — always 200 records — regardless of how large the user's library grows.
 
 ```swift
-await dbActor.updateExistingScans(responses: response)
-await dbActor.ingestHistoricalScans(missingScans: missingScans)
-await dbActor.syncCollectionsDown(remoteCollections: collectionsResponse)
+let dbActor = HistoricalDatabaseActor(modelContainer: container)
+var scanOffset = 0
+while true {
+    let page: [HistoricalScanResponse] = try await ...
+        .range(from: scanOffset, to: scanOffset + pageSize - 1).execute().value
+    if !page.isEmpty {
+        await dbActor.reconcileScanPage(responses: page)
+    }
+    if page.count < pageSize { break }
+    scanOffset += pageSize
+}
+await dbActor.syncCollectionsDown(remoteCollections: allCollections)
 ```
 
-Each `await` is an actor-boundary crossing (a context switch, a task suspension, and a hop across isolation domains). These three calls were consolidated into a single method:
+Inside `reconcileScanPage`, the full local ID set is computed once (ID-only column projection, `propertiesToFetch = [\.id]`) on the first call and cached as `cachedLocalIds: Set<String>?`. Subsequent page calls reuse the cached set, appending newly inserted IDs incrementally. `syncCollectionsDown` clears `cachedLocalIds` after the collection sync, releasing the set from memory.
 
-```swift
-await dbActor.reconcileAllHistoricalData(responses: allScans, collections: allCollections)
-```
+### IN-Clause Batching (`HistoricalDatabaseActor.updateExistingScans`)
+`updateExistingScans` builds a SwiftData `#Predicate { chunk.contains($0.id) }` to fetch only the local records that appear in the incoming cloud page. On large libraries, a single `#Predicate` with hundreds of IDs degrades the SQLite query planner — the planner stops using the primary key index for IN-clause lookups above a threshold and falls back to a full table scan.
 
-The actor computes the existing-ID set internally using an ID-only column projection (`propertiesToFetch = [\.id]`), eliminating the main-thread full-table scan that previously preceded the calls. All three reconciliation steps share that ID set in memory, running sequentially within the single actor invocation.
+The fix chunks `responseIds` into slices of 500 before building each predicate. Each chunk executes as a separate `FetchDescriptor` fetch, and results are concatenated. The `propertiesToFetch` projection (`[\.id, \.localImagePath, \.additionalImagePaths, \.referenceImageUrl, \.locationName, \.gpsLatitude, \.gpsLongitude, \.gpsElevation]`) is applied to every chunk, keeping column reads narrow across all batches.
 
 ### Idle CMMotionManager Battery Drain (`EnvironmentContextManager`)
 `EnvironmentContextManager` previously instantiated a `CMMotionManager` and started device-motion updates at 100 Hz (`motionManager.startDeviceMotionUpdates(to:)`) during live location tracking. No code path ever consumed the motion data — there were no `motionManager.deviceMotion` reads and no handler closure attached to the update queue. The manager was running at 100 Hz purely to warm the sensor, burning CPU cycles and waking the processor 100 times per second for zero benefit.
 
 `CMMotionManager`, the `import CoreMotion` statement, and all `motionManager.*` call sites have been removed from `EnvironmentContextManager`. The captured telemetry fields that were once intended to use motion data (`cameraPitchDegrees`, `compassHeading`) were already pruned from the `CaptureTelemetry` payload in a prior token-reduction pass. Removing the manager eliminates ~1–3% continuous CPU overhead and a measurable battery drain in the field.
 
-### Swift 6 `@MainActor` Capture in `Task.detached` (`ViewfinderIntelligence`)
-`ViewfinderIntelligence` is a `@MainActor @Observable` class. Its `analyzeFrame(_:)` method spawned work with:
+### Synchronous `@MainActor` Execution (`ViewfinderIntelligence`)
+`ViewfinderIntelligence.analyze(brightness:distance:lumaStdDev:)` performs only pure float comparisons — no I/O, no network, no heavy CPU work. Despite this, the previous implementation wrapped the entire method in a `Task.detached(priority: .userInitiated)` + a nested `defer { Task { @MainActor in self?.isAnalyzing = false } }` trampoline, allocating three Task heap objects per frame at 3 Hz (9 allocations/second) solely to run a handful of float comparisons.
+
+Because the camera's `captureOutput` delegate already dispatches to `@MainActor` via `Task { @MainActor in }` before calling `analyze`, there is no work that needs to leave the main actor. The entire `Task.detached` infrastructure was removed. `analyze` and `updateHint` are now fully synchronous `@MainActor` methods:
 
 ```swift
-Task.detached(priority: .userInitiated) {
-    defer { self.isAnalyzing = false }
-    // ... analysis using self
-}
-```
-
-Under Swift 6 strict concurrency, capturing `self` strongly in a `Task.detached` closure when `self` is `@MainActor`-isolated is a data-race violation: the detached task runs on a cooperative thread pool thread, but it accesses `self` — which requires `@MainActor` isolation — without any hop. The compiler allows this only when the type is `Sendable`, which `@Observable` classes are not.
-
-The closure was updated to capture `[weak self]` and to re-enter the `@MainActor` for all property mutations:
-
-```swift
-Task.detached(priority: .userInitiated) { [weak self] in
-    guard let self else { return }
-    defer {
-        Task { @MainActor [weak self] in self?.isAnalyzing = false }
+// Before
+func analyze(...) {
+    Task.detached(priority: .userInitiated) { [weak self] in
+        defer { Task { @MainActor [weak self] in self?.isAnalyzing = false } }
+        ...
+        await self.updateHint(.optimal)
     }
-    // CPU-bound analysis on the cooperative thread pool
-    let hint = await self.computeHint(...)
-    await MainActor.run { [weak self] in self?.updateHint(hint) }
+}
+private func updateHint(_ hint: VUIHint) async { await MainActor.run { ... } }
+
+// After
+func analyze(...) {
+    guard !isAnalyzing else { return }
+    isAnalyzing = true
+    defer { isAnalyzing = false }
+    // Direct synchronous comparisons — no tasks
+    if brightness < 0.20 { updateHint(.tooDark); return }
+    updateHint(.optimal)
+}
+private func updateHint(_ hint: VUIHint) {  // synchronous
+    if currentHint != hint { currentHint = hint }
+    let newOptimalState = (hint == .optimal)
+    if isOptimal != newOptimalState { isOptimal = newOptimalState }
 }
 ```
 
-This satisfies Swift 6 isolation rules: CPU-bound work runs off the main actor, and all property mutations re-enter via `@MainActor`.
+The `isAnalyzing` flag is retained as a re-entrancy guard: if `analyze` is called again before the current `@MainActor` drain cycle finishes (e.g., via a rapid frame callback burst), the second call is dropped immediately rather than queueing work. `pauseAnalysis(for:)` also calls `updateHint(.optimal)` directly instead of wrapping it in a `Task { await updateHint }`.
 
-### Concurrent Cloud Deletion Fan-Out (`OfflineQueueManager`)
-`syncPendingDeletions()` previously called `MerianNetworkClient.shared.deleteScan(scanId:)` for each queued `PendingCloudDeletionTask` in a serial `for` loop. Each deletion is an independent HTTP round-trip to the `delete-scan` Edge function (~300–600 ms each). For a user who deleted 10 scans offline, draining the queue required 3–6 seconds of sequential network time.
+### `trackFPS` Double-Registration Guard (`CameraManager`)
+`CameraManager.trackFPS()` uses `withObservationTracking { _ = HardwareOrchestrator.shared.targetFPS } onChange:` to re-apply the framerate whenever `targetFPS` changes. The `onChange` closure calls `trackFPS()` recursively to re-arm the observation for the next change.
 
-The loop was replaced with a `withTaskGroup` fan-out. All deletion requests are dispatched concurrently, and results are collected as they resolve:
+Without a guard, if `onChange` fired while a previous `trackFPS()` call had not yet completed its `withObservationTracking` setup (e.g., under rapid `targetFPS` mutations), multiple concurrent observations would accumulate — each one firing its own duplicate `onChange` on the next `targetFPS` write.
+
+A boolean flag `isFPSTrackingRegistered` (marked `@ObservationIgnored` to exclude it from the `@Observable` tracking graph) prevents this:
 
 ```swift
-let results = await withTaskGroup(of: (PendingCloudDeletionTask, Error?).self) { group in
-    for task in pendingTasks {
-        group.addTask {
-            do {
-                try await MerianNetworkClient.shared.deleteScan(scanId: task.scanId)
-                return (task, nil)
-            } catch { return (task, error) }
+private func trackFPS() {
+    guard !isFPSTrackingRegistered else { return }
+    isFPSTrackingRegistered = true
+    withObservationTracking {
+        _ = HardwareOrchestrator.shared.targetFPS
+    } onChange: { [weak self] in
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.isFPSTrackingRegistered = false
+            self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
+            self.trackFPS()
         }
     }
-    var collected: [(PendingCloudDeletionTask, Error?)] = []
-    for await result in group { collected.append(result) }
-    return collected
 }
-// Single context.save() after all results are processed
 ```
 
-A single `context.save()` runs after the group settles, batching all successful tombstone removals into one write rather than one per task. For 10 deletions the wall time drops from ~4 s to ~600 ms.
+The flag is set before `withObservationTracking` registers and cleared inside `onChange` before the recursive `trackFPS()` call, ensuring exactly one active observation at any time.
+
+### Concurrent Cloud Deletion Fan-Out with Batch Cap (`OfflineQueueManager`)
+`syncPendingDeletions()` previously called `MerianNetworkClient.shared.deleteScan(scanId:)` for each queued `PendingCloudDeletionTask` in a serial `for` loop. Each deletion is an independent HTTP round-trip to the `delete-scan` Edge function (~300–600 ms each). For a user who deleted 10 scans offline, draining the queue required 3–6 seconds of sequential network time.
+
+The loop was replaced with a `withTaskGroup` fan-out, batched in groups of 10 to prevent connection-pool exhaustion when users accumulate large queues:
+
+```swift
+let batchSize = 10
+for batchStart in stride(from: 0, to: pendingTasks.count, by: batchSize) {
+    let batch = Array(pendingTasks[batchStart..<min(batchStart + batchSize, pendingTasks.count)])
+    let batchResults = await withTaskGroup(of: (String, Error?).self) { group in
+        for task in batch {
+            group.addTask {
+                do {
+                    try await MerianNetworkClient.shared.deleteScan(scanId: task.scanId)
+                    return (task.scanId, nil)
+                } catch { return (task.scanId, error) }
+            }
+        }
+        var collected: [(String, Error?)] = []
+        for await result in group { collected.append(result) }
+        return collected
+    }
+    allResults.append(contentsOf: batchResults)
+}
+// Single context.save() after all batches are processed
+```
+
+A single `context.save()` runs after all batches settle, batching all successful tombstone removals into one write. For 10 deletions the wall time drops from ~4 s to ~600 ms; the cap prevents unbounded concurrency for users with hundreds of queued deletions.
 
 ### `@MainActor` Sort Offload (`ScansManager`)
 When the Scans library has no active filter and the user changes the sort order, `ScansManager` previously re-sorted the full `allScans` array synchronously on the `@MainActor`. For a library with thousands of records a `localizedCaseInsensitiveCompare` sort can take 20–50 ms, producing a visible hitch during the library transition animation.
@@ -384,3 +431,43 @@ await MainActor.run { self.filteredScans = sorted }
 ```
 
 The snapshot capture is a value-type copy (`[LocalScanRecord]` is a Swift array), so the detached task holds no reference to the `@MainActor`-isolated `ScansManager`. The main thread is only blocked for the final single-assignment `self.filteredScans = sorted`.
+
+### O(N) `scanMap` Rebuild (`ScansManager`)
+`ScansManager` maintains a `[String: LocalScanRecord]` dictionary (`scanMap`) for O(1) scan lookups by ID. After every `allScans` change, the previous implementation rebuilt this dictionary from scratch:
+
+```swift
+var newMap: [String: LocalScanRecord] = [:]
+for scan in allScans { newMap[scan.id] = scan }
+self.scanMap = newMap
+```
+
+For a library with thousands of records, rebuilding the full dictionary on every single insertion or deletion was O(n) CPU work on the `@MainActor`. Because the `allScans` diff is already computed (yielding `addedScans` and `removedIds`), the rebuild was replaced with incremental patching:
+
+```swift
+for scan in addedScans { self.scanMap[scan.id] = scan }
+for id in removedIds   { self.scanMap.removeValue(forKey: id) }
+```
+
+This reduces the `scanMap` update from O(total library) to O(delta) — constant time for typical single-record mutations.
+
+### Concurrent Archive Downloads with Sliding Window (`ArchiveManager`)
+`initiatePrePurgeSync(pendingImages:)` previously downloaded images to the Photo Library in a serial `for` loop — one `PHPhotoLibrary.performChanges` call at a time. For users archiving dozens of images before a purge cycle, serial execution left NVMe bandwidth idle between operations.
+
+The loop was replaced with a `withTaskGroup` sliding window capped at 3 concurrent in-flight downloads:
+
+```swift
+await withTaskGroup(of: Void.self) { group in
+    var inFlight = 0
+    var urlIterator = pendingImages.makeIterator()
+    func enqueueNext() {
+        while inFlight < 3, let url = urlIterator.next() {
+            inFlight += 1
+            group.addTask { try? await self.downloadToLocalLibrary(url: url) }
+        }
+    }
+    enqueueNext()
+    for await _ in group { inFlight -= 1; enqueueNext() }
+}
+```
+
+`PHPhotoLibrary.performChanges` serialises internally on the Photos daemon side, so a higher cap would not improve throughput; 3 was chosen to saturate NVMe bandwidth without queuing more requests than the Photos subsystem can absorb simultaneously.

@@ -45,7 +45,7 @@ import os
         }
         
         self.isStorageCriticallyLow = false
-        
+
         if !isAuthorized {
             let granted = await requestPermissions()
             if !granted {
@@ -53,12 +53,32 @@ import os
                 return
             }
         }
-        
-        for imageUrl in pendingImages {
-            do {
-                try await downloadToLocalLibrary(url: imageUrl)
-            } catch {
-                MerianLog.data.debug("ArchiveManager: Local archive failed for \(imageUrl, privacy: .private): \(error.localizedDescription, privacy: .private)")
+
+        // Fan out downloads concurrently, capped at 3 in-flight at once.
+        // PHPhotoLibrary.performChanges serialises internally, so a higher cap
+        // wouldn't improve throughput while a lower cap wastes NVMe bandwidth.
+        await withTaskGroup(of: Void.self) { group in
+            var inFlight = 0
+            var urlIterator = pendingImages.makeIterator()
+
+            func enqueueNext() {
+                while inFlight < 3, let url = urlIterator.next() {
+                    inFlight += 1
+                    let capturedUrl = url
+                    group.addTask {
+                        do {
+                            try await self.downloadToLocalLibrary(url: capturedUrl)
+                        } catch {
+                            MerianLog.data.debug("ArchiveManager: Local archive failed for \(capturedUrl, privacy: .private): \(error.localizedDescription, privacy: .private)")
+                        }
+                    }
+                }
+            }
+
+            enqueueNext()
+            for await _ in group {
+                inFlight -= 1
+                enqueueNext()
             }
         }
     }

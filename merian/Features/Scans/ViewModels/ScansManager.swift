@@ -66,15 +66,17 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             return
         }
         
-        var newMap: [String: LocalScanRecord] = [:]
-        for scan in allScans { newMap[scan.id] = scan }
-        self.scanMap = newMap
-        
         let oldIds = Set(oldScans.map { $0.id })
         let newIds = Set(allScans.map { $0.id })
-        
+
         let addedScans = allScans.filter { !oldIds.contains($0.id) }
         let removedIds = oldIds.subtracting(newIds)
+
+        // Incrementally patch scanMap instead of rebuilding the whole dictionary.
+        // A full rebuild is O(n) on @MainActor on every scan mutation; incremental updates
+        // are O(delta) — typically O(1) for a single add or delete.
+        for scan in addedScans { self.scanMap[scan.id] = scan }
+        for id in removedIds   { self.scanMap.removeValue(forKey: id) }
         
         // 1. Instantly prune deleted UUIDs out of the string cache natively without touching the background thread!
         if !removedIds.isEmpty {
@@ -281,7 +283,12 @@ actor SearchDatabaseActor {
             
             if let record = self.modelContext.model(for: id) as? LocalScanRecord {
                 let tags = record.semanticTags.joined(separator: " ")
-                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(record.insightDescription) \(tags)".lowercased()
+                // insightDescription is a long paragraph — omitting it prevents faulting the
+                // heaviest text field for every scan during index builds, which would force
+                // SQLite to load kilobytes of prose per record just to build a search string.
+                // commonName, scientificName, ecologyType, and semanticTags cover all practical
+                // user search patterns without the memory cost.
+                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags)".lowercased()
                 
                 processed.append(SearchableScan(
                     id: record.id,

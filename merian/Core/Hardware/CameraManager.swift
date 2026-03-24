@@ -97,12 +97,16 @@ import Accelerate
     }
 
     private func trackFPS() {
+        guard !isFPSTrackingRegistered else { return }
+        isFPSTrackingRegistered = true
         withObservationTracking {
             _ = HardwareOrchestrator.shared.targetFPS
         } onChange: { [weak self] in
-            Task { @MainActor in
-                self?.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
-                self?.trackFPS()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.isFPSTrackingRegistered = false
+                self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
+                self.trackFPS()
             }
         }
     }
@@ -167,6 +171,12 @@ import Accelerate
     }
 
     @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
+
+    /// Guards the recursive `withObservationTracking` chain against double-registration.
+    /// Two rapid thermal/power-state changes can both fire `onChange` before either
+    /// `trackFPS()` re-registers, spawning two parallel tracking chains that each call
+    /// `applyTargetFPS`. This flag ensures at most one active registration at a time.
+    @ObservationIgnored private var isFPSTrackingRegistered = false
 
     /// Reads zoom configuration from the active video device after `session.startRunning()`.
     /// Returns a capped max zoom and the optical lens-switch stops.

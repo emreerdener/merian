@@ -66,14 +66,17 @@ serve((req: Request) =>
       base64Payloads.push(...imageBase64s);
     } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {
       const { s3Client, bucketName, endpoint } = getR2Config();
-      
+
       const r2Responses = await Promise.allSettled(
         r2ObjectKeys.map((key: string) => s3Client.fetch(`${endpoint}/${bucketName}/${key}`))
       );
-      
+
+      // Process images serially: consume one body at a time so each ArrayBuffer is GC-eligible
+      // before the next is loaded, preventing a peak spike of N × (raw + copy + base64) in heap.
+      // Size is checked against ACTUAL bytes after consumption — Content-Length headers are
+      // unreliable (absent on chunked transfer encoding) and must never be trusted as a
+      // heap-exhaustion guard.
       let totalBytes = 0;
-      const validResponses: Response[] = [];
-      
       for (const result of r2Responses) {
           if (result.status === "rejected") {
               throw new Error(`Failed to execute concurrent R2 fetch request.`);
@@ -82,22 +85,11 @@ serve((req: Request) =>
           if (!r2Response.ok) {
               throw new Error(`Failed to fetch an image from R2: ${r2Response.statusText}`);
           }
-          
-          // Reject if combined payload exceeds 5MB to prevent heap exhaustion
-          const contentLengthStr = r2Response.headers.get("Content-Length");
-          if (contentLengthStr) {
-             totalBytes += parseInt(contentLengthStr, 10);
-          }
-          validResponses.push(r2Response);
-      }
-
-      if (totalBytes > 5 * 1024 * 1024) {
-          return jsonResponse({ error: "Payload Too Large: Combined images exceed 5MB limit." }, 413);
-      }
-      // Process images serially: let each ArrayBuffer be GC-eligible before loading the next,
-      // preventing a peak spike of (raw + Uint8Array copy + base64 string) × N images simultaneously.
-      for (const r2Response of validResponses) {
           const arrayBuffer = await r2Response.arrayBuffer();
+          totalBytes += arrayBuffer.byteLength;
+          if (totalBytes > 5 * 1024 * 1024) {
+              return jsonResponse({ error: "Payload Too Large: Combined images exceed 5MB limit." }, 413);
+          }
           base64Payloads.push(encodeBase64(new Uint8Array(arrayBuffer)));
       }
     }
@@ -513,7 +505,15 @@ serve((req: Request) =>
           console.error("Failed to insert scan:", scanInsertError);
         }
     } catch (e) {
-        console.error("Background AI ingestion failed:", e);
+        // Log structured context so failed ingestions are visible and retryable.
+        // A future dead-letter table / replay job can match on user_id + scan_id.
+        console.error(JSON.stringify({
+          event: "background_ingestion_failed",
+          user_id: user.id,
+          scan_id: generatedScanId,
+          error: e instanceof Error ? e.message : String(e),
+          ts: new Date().toISOString(),
+        }));
       }
     })();
 

@@ -26,26 +26,38 @@ extension OfflineQueueManager {
 
         guard !pendingTasks.isEmpty else { return }
 
-        // Fan out all deletions concurrently instead of serializing N round-trips.
+        // Fan out deletions in batches of 10 to prevent unbounded concurrent network requests.
+        // Without a cap, a user returning from a week offline could fire 200+ simultaneous
+        // deleteScan calls, saturating the URLSession pool and triggering server-side rate limits
+        // (5xx responses are retried, making the problem self-amplifying).
         // Only the scanId (String, Sendable) crosses the task-group boundary —
         // @Model objects are not Sendable and must stay on this actor.
         let scanIds = pendingTasks.map(\.scanId)
-        let results: [(String, Error?)] = await withTaskGroup(of: (String, Error?).self) { group in
-            for scanId in scanIds {
-                group.addTask {
-                    do {
-                        try await MerianNetworkClient.shared.deleteScan(scanId: scanId)
-                        return (scanId, nil)
-                    } catch {
-                        return (scanId, error)
+        let batchSize = 10
+        var allResults: [(String, Error?)] = []
+        allResults.reserveCapacity(scanIds.count)
+
+        for batchStart in stride(from: 0, to: scanIds.count, by: batchSize) {
+            let batch = Array(scanIds[batchStart..<min(batchStart + batchSize, scanIds.count)])
+            let batchResults: [(String, Error?)] = await withTaskGroup(of: (String, Error?).self) { group in
+                for scanId in batch {
+                    group.addTask {
+                        do {
+                            try await MerianNetworkClient.shared.deleteScan(scanId: scanId)
+                            return (scanId, nil)
+                        } catch {
+                            return (scanId, error)
+                        }
                     }
                 }
+                var collected: [(String, Error?)] = []
+                for await result in group { collected.append(result) }
+                return collected
             }
-            var collected: [(String, Error?)] = []
-            for await result in group { collected.append(result) }
-            return collected
+            allResults.append(contentsOf: batchResults)
         }
 
+        let results = allResults
         var didMutate = false
         for (scanId, error) in results {
             guard let task = pendingTasks.first(where: { $0.scanId == scanId }) else { continue }

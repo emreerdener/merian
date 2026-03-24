@@ -102,31 +102,44 @@ final class ScanRepository {
               let userId = SupabaseManager.shared.currentUser?.id.uuidString else { return }
 
         do {
-            // --- Paginated scans fetch ---
-            var allScans: [HistoricalScanResponse] = []
+            let container = modelContext.container
+            let dbActor = HistoricalDatabaseActor(modelContainer: container)
+
+            // --- Push local collections before pulling ---
+            // Local collections created while offline (or before auth completed) are never
+            // uploaded by the on-demand syncCollections() path. If we reconcile against
+            // the cloud first, those unsynced collections will be deleted during the sync pass.
+            // Pushing here ensures every local collection reaches Supabase before we treat
+            // the cloud as the source of truth for the delete pass.
+            let pushActor = BackgroundDatabaseActor(modelContainer: container)
+            await pushActor.pushCollectionsToEdge()
+
+            // --- Paginated scans — streamed page-by-page through the actor ---
+            // Never accumulate the full history into memory. For power users with 10k+ scans
+            // the full allScans[] array can exceed 100 MB before any processing begins,
+            // causing OOM kills on 3GB devices under memory pressure.
             var scanOffset = 0
             let scanPageSize = MerianConfig.historicalSyncPageSize
+            var totalNewRecords = 0
+
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
                     .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, species_dictionary(*)")
                     .eq("user_id", value: userId)
+                    .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
                     .execute()
                     .value
-                allScans.append(contentsOf: page)
+                if !page.isEmpty {
+                    if scanOffset == 0 {
+                        MerianLog.data.debug("🔄 Merian Sync: Streaming remote scan pages (page size: \(scanPageSize, privacy: .public))…")
+                    }
+                    totalNewRecords += await dbActor.reconcileScanPage(responses: page)
+                }
                 if page.count < scanPageSize { break }
                 scanOffset += scanPageSize
             }
-
-            // --- Push local collections before pulling ---
-            // Local collections created while offline (or before auth completed) are never
-            // uploaded by the on-demand syncCollections() path. If we reconcile against
-            // the cloud first those unsynced collections will be deleted at line 479.
-            // Pushing here ensures every local collection reaches Supabase before we treat
-            // the cloud as the source of truth for the delete pass.
-            let pushActor = BackgroundDatabaseActor(modelContainer: modelContext.container)
-            await pushActor.pushCollectionsToEdge()
 
             // --- Paginated collections fetch ---
             var allCollections: [CloudCollectionResponse] = []
@@ -145,20 +158,12 @@ final class ScanRepository {
                 colOffset += colPageSize
             }
 
-            if !allScans.isEmpty {
-                MerianLog.data.debug("🔄 Merian Sync: Reconciling \(allScans.count, privacy: .public) remote scans and \(allCollections.count, privacy: .public) collections…")
-            }
+            // Reconcile collections after all scan pages have been ingested so that
+            // collection → scan relationships can resolve against the full local set.
+            await dbActor.syncCollectionsDown(remoteCollections: allCollections)
 
-            // --- Single actor crossing for all reconciliation work ---
-            let container = modelContext.container
-            let dbActor = HistoricalDatabaseActor(modelContainer: container)
-            let newRecordCount = await dbActor.reconcileAllHistoricalData(
-                responses: allScans,
-                collections: allCollections
-            )
-
-            if newRecordCount > 0 {
-                MerianLog.data.debug("✅ Merian Sync: Restored \(newRecordCount, privacy: .public) new historical records.")
+            if totalNewRecords > 0 {
+                MerianLog.data.debug("✅ Merian Sync: Restored \(totalNewRecords, privacy: .public) new historical records.")
             }
 
         } catch {
@@ -291,11 +296,57 @@ struct CloudCollectionScan: Decodable, Sendable {
 @ModelActor
 actor HistoricalDatabaseActor {
 
+    // MARK: - Cached sync state
+
+    /// Local scan ID set, pre-computed once per sync session and updated incrementally as
+    /// new records are inserted. Avoids a full-library fetch on every page call.
+    private var cachedLocalIds: Set<String>? = nil
+
+    // MARK: - Paged API (primary entry points from syncHistoricalScansDown)
+
+    /// Reconciles a single page of remote scan responses against local state.
+    ///
+    /// On the first call `cachedLocalIds` is computed from the database. Subsequent calls
+    /// reuse and update the cached set so the full-library fetch runs exactly once per session
+    /// regardless of how many pages are streamed.
+    ///
+    /// - Returns: The number of new `LocalScanRecord` rows inserted from this page.
+    @discardableResult
+    func reconcileScanPage(responses: [HistoricalScanResponse]) -> Int {
+        if cachedLocalIds == nil {
+            var desc = FetchDescriptor<LocalScanRecord>()
+            desc.propertiesToFetch = [\.id]
+            let existing = (try? modelContext.fetch(desc)) ?? []
+            cachedLocalIds = Set(existing.map { $0.id })
+        }
+        var existingIds = cachedLocalIds!
+
+        updateExistingScans(responses: responses, existingIds: existingIds)
+
+        let missingScans = responses.filter { !existingIds.contains($0.id) }
+        if !missingScans.isEmpty {
+            ingestScans(missingScans: missingScans)
+            for scan in missingScans { existingIds.insert(scan.id) }
+            cachedLocalIds = existingIds
+        }
+
+        return missingScans.count
+    }
+
+    /// Reconciles the full remote collection list against local state, then resets the
+    /// cached ID set so the next sync session starts fresh.
+    func syncCollectionsDown(remoteCollections: [CloudCollectionResponse]) {
+        syncCollections(remoteCollections: remoteCollections)
+        cachedLocalIds = nil
+    }
+
+    // MARK: - Legacy bulk API (kept for test compatibility)
+
     /// Single entry point for all historical reconciliation work.
     ///
-    /// Combines what were previously three separate actor calls (`updateExistingScans`,
-    /// `ingestHistoricalScans`, `syncCollectionsDown`) into one, eliminating two actor-boundary
-    /// crossings and allowing shared local state (e.g. the existing-ID set) to be computed once.
+    /// Delegates to the paged helpers so behaviour is identical. Prefer calling
+    /// `reconcileScanPage` + `syncCollectionsDown` directly to avoid accumulating
+    /// the full history in the caller's memory.
     ///
     /// - Returns: The number of new `LocalScanRecord` rows inserted.
     @discardableResult
@@ -303,28 +354,10 @@ actor HistoricalDatabaseActor {
         responses: [HistoricalScanResponse],
         collections: [CloudCollectionResponse]
     ) -> Int {
-        // --- 1. Compute existing local ID set (cheap: ID-only projection) ---
-        var existingIDDescriptor = FetchDescriptor<LocalScanRecord>()
-        existingIDDescriptor.propertiesToFetch = [\.id]
-        let existingLocalScans: [LocalScanRecord] = {
-            do { return try modelContext.fetch(existingIDDescriptor) }
-            catch { MerianLog.data.error("🚨 reconcile: existing-ID fetch failed: \(error, privacy: .private)"); return [] }
-        }()
-        let existingIds = Set(existingLocalScans.map { $0.id })
-
-        // --- 2. Update existing records ---
-        updateExistingScans(responses: responses, existingIds: existingIds)
-
-        // --- 3. Ingest missing records ---
-        let missingScans = responses.filter { !existingIds.contains($0.id) }
-        if !missingScans.isEmpty {
-            ingestScans(missingScans: missingScans)
-        }
-
-        // --- 4. Reconcile collections ---
-        syncCollections(remoteCollections: collections)
-
-        return missingScans.count
+        cachedLocalIds = nil  // Reset so reconcileScanPage recomputes existingIds from DB
+        let newCount = reconcileScanPage(responses: responses)
+        syncCollectionsDown(remoteCollections: collections)
+        return newCount
     }
 
     // MARK: - Private Helpers
@@ -334,14 +367,26 @@ actor HistoricalDatabaseActor {
         let responseIds = responses.map { $0.id }.filter { existingIds.contains($0) }
         guard !responseIds.isEmpty else { return }
 
-        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { responseIds.contains($0.id) })
-        descriptor.propertiesToFetch = [\.id, \.localImagePath, \.additionalImagePaths, \.referenceImageUrl, \.locationName, \.gpsLatitude, \.gpsLongitude, \.gpsElevation]
-        let existingScans: [LocalScanRecord] = {
-            do { return try modelContext.fetch(descriptor) }
-            catch { MerianLog.data.error("🚨 updateExistingScans: fetch failed: \(error, privacy: .private)"); return [] }
-        }()
+        // Batch into chunks of 500 to keep SQLite IN-clause sizes within efficient planner range.
+        // Large IN lists (>500 entries) degrade the query planner from index-seek to table-scan.
+        let chunkSize = 500
+        var allExistingScans: [LocalScanRecord] = []
+        allExistingScans.reserveCapacity(responseIds.count)
 
-        let lookup: [String: LocalScanRecord] = Dictionary(uniqueKeysWithValues: existingScans.map { ($0.id, $0) })
+        for chunkStart in stride(from: 0, to: responseIds.count, by: chunkSize) {
+            let chunk = Array(responseIds[chunkStart..<min(chunkStart + chunkSize, responseIds.count)])
+            var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
+            descriptor.propertiesToFetch = [\.id, \.localImagePath, \.additionalImagePaths,
+                                             \.referenceImageUrl, \.locationName,
+                                             \.gpsLatitude, \.gpsLongitude, \.gpsElevation]
+            let chunk_records: [LocalScanRecord] = {
+                do { return try modelContext.fetch(descriptor) }
+                catch { MerianLog.data.error("🚨 updateExistingScans: fetch failed: \(error, privacy: .private)"); return [] }
+            }()
+            allExistingScans.append(contentsOf: chunk_records)
+        }
+
+        let lookup: [String: LocalScanRecord] = Dictionary(uniqueKeysWithValues: allExistingScans.map { ($0.id, $0) })
 
         var didUpdate = false
         for res in responses {
