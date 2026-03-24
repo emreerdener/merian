@@ -74,6 +74,41 @@ actor LocalImageLoader {
         return await fetchTask.value
     }
     
+    // MARK: - Prefetch API
+
+    /// Warms the in-memory cache for a leading set of thumbnails before the grid renders.
+    /// Results land in ImageCache so ScanThumbnail.task gets an immediate cache hit instead
+    /// of starting a cold decode after the cell becomes visible.
+    ///
+    /// Uses .utility priority: runs immediately and freely on background threads without
+    /// competing with the main render loop or camera capture (which runs on its own
+    /// DispatchQueue entirely outside the Swift concurrency thread pool).
+    /// Concurrency is capped at 4 to avoid thermal spikes on older devices.
+    nonisolated func prefetch(
+        records: [(imagePath: String?, fallbackUrl: String?)],
+        maxDimension: Int
+    ) {
+        Task(priority: .utility) {
+            await withTaskGroup(of: Void.self) { group in
+                var inFlight = 0
+                for record in records {
+                    if inFlight >= 4 {
+                        await group.next()
+                        inFlight -= 1
+                    }
+                    group.addTask(priority: .utility) {
+                        _ = await self.loadImage(
+                            fromPath: record.imagePath,
+                            fallbackUrl: record.fallbackUrl,
+                            maxDimension: maxDimension
+                        )
+                    }
+                    inFlight += 1
+                }
+            }
+        }
+    }
+
     // MARK: - Network Edge Loaders
     // Explicit network fallback natively isolated off Main Thread
     private nonisolated func fetchNetworkFallback(url: URL, cacheKey: String, maxSize: CGFloat = 500) async -> UIImage? {

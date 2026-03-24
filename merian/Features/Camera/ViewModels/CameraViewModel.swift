@@ -77,14 +77,16 @@ final class CameraViewModel {
         activeOriginals.removeAll()
         selectedPhotoItems.removeAll()
         
-        // Do not violently kill the analyzing overlay natively if the Inference Engine is actively mid-scan in the background thread.
-        if isAnalyzingFullscreen && !diContainer.inferenceEngine.isProcessing {
+        // Always clear the analysis overlay when the app leaves the foreground.
+        // handleBackgroundPhase() owns inference cancellation and re-queuing separately —
+        // keeping isAnalyzingFullscreen = true here would hold the camera blocked on return
+        // until the offline URLSession scan fully completes (potentially minutes later).
+        if isAnalyzingFullscreen {
             phaseRotationTask?.cancel()
             phaseRotationTask = nil
             isAnalyzingFullscreen = false
             scanningPhaseText = "Analyzing subject..."
             analysisImages.removeAll()
-            // Note: We deliberately DO NOT call `diContainer.inferenceEngine.cancelActiveRequest()` here.
         }
     }
     

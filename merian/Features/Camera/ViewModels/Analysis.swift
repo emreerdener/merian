@@ -109,10 +109,16 @@ extension CameraViewModel {
 
     // MARK: - On-Device Subject Classification
 
-    /// Runs `VNClassifyImageRequest` on a background thread and immediately starts a
-    /// subject-specific phrase rotation — well before the Gemini network call completes.
-    /// Phrases progress through subject-relevant details over the typical 6–11 second scan window.
+    /// Runs `VNClassifyImageRequest` on a background thread and drives the scanning phrase rotation.
+    ///
+    /// Generic phrases start immediately so the UI is never blank. Vision runs in parallel and
+    /// overrides with subject-specific phrases only when it returns a confident (≥ 0.5) match.
+    /// Low-confidence or ambiguous results (e.g., broad taxonomy ancestors like "arthropod" scoring
+    /// 0.2 for a plant image) leave the generic series running uninterrupted.
     private func classifySubjectLocally(from data: Data) {
+        // Start generic phrases immediately — no blank state while Vision runs.
+        startPhaseRotation(phrases: Self.genericFallbackPhrases)
+
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let cgImage = UIImage(data: data)?.cgImage else { return }
 
@@ -120,7 +126,9 @@ extension CameraViewModel {
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             try? handler.perform([request])
 
-            let phrases = Self.phraseSeries(for: request.results ?? [])
+            // specificPhraseSeries returns nil when no observation clears the confidence bar,
+            // in which case the generic rotation started above continues without interruption.
+            guard let phrases = Self.specificPhraseSeries(for: request.results ?? []) else { return }
 
             await MainActor.run { [weak self] in
                 guard let self, self.isAnalyzingFullscreen else { return }
@@ -142,12 +150,27 @@ extension CameraViewModel {
         }
     }
 
-    /// Returns a one-shot phrase series tailored to the top Vision observation.
-    /// Each phrase advances ~2.3s apart; the final phrase stays displayed until inference returns.
-    /// Series are designed to read as a real analysis pipeline, not a looping animation.
-    /// Falls back to a subject-agnostic series if Vision returns no confident observations.
-    private nonisolated static func phraseSeries(for observations: [VNClassificationObservation]) -> [String] {
-        for obs in observations.prefix(15) where obs.confidence > 0.15 {
+    /// Generic phrases used when Vision has no confident classification.
+    /// Also used as the immediate starting point before Vision results arrive.
+    private nonisolated static let genericFallbackPhrases: [String] = [
+        "Scanning subject...",
+        "Detecting morphological features...",
+        "Evaluating biological characteristics...",
+        "Analyzing structural patterns...",
+        "Cross-referencing taxonomic data...",
+        "Querying species databases...",
+        "Incorporating location and habitat context...",
+        "Awaiting identification...",
+    ]
+
+    /// Returns subject-specific phrases when Vision identifies a category with ≥ 0.5 confidence.
+    /// Returns nil when no observation clears the threshold — caller should keep the generic series.
+    ///
+    /// Only the top 5 observations are checked. Broad taxonomy ancestors (e.g., "arthropod",
+    /// "organism") commonly appear with 0.1–0.3 confidence even for unrelated subjects, so the
+    /// 0.5 threshold prevents false-positive subject labels.
+    private nonisolated static func specificPhraseSeries(for observations: [VNClassificationObservation]) -> [String]? {
+        for obs in observations.prefix(5) where obs.confidence >= 0.5 {
             let id = obs.identifier.lowercased()
 
             if id.contains("bird") || id.contains("avian") || id.contains("raptor") ||
@@ -298,17 +321,7 @@ extension CameraViewModel {
             }
         }
 
-        // Vision returned no confident observations — use a subject-agnostic series that
-        // still reads as a meaningful pipeline rather than a generic spinner.
-        return [
-            "Scanning subject...",
-            "Detecting morphological features...",
-            "Evaluating biological characteristics...",
-            "Analyzing structural patterns...",
-            "Cross-referencing taxonomic data...",
-            "Querying species databases...",
-            "Incorporating location and habitat context...",
-            "Awaiting identification...",
-        ]
+        // No observation cleared the confidence threshold — caller keeps the generic series.
+        return nil
     }
 }

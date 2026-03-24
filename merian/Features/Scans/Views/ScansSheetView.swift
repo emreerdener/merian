@@ -34,6 +34,14 @@ struct ScansSheetView: View {
     
     // MARK: - Static Bounds
     private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles", "Other"]
+
+    /// Mirrors ScansGrid's thumbnailSize formula so the prefetch cache key matches exactly.
+    @AppStorage("gridColumns") private var gridColumns: Int = 3
+    private var prefetchThumbnailSize: Int {
+        let screenWidth = UIScreen.main.bounds.width
+        let cellWidth = (screenWidth - CGFloat(2 * (gridColumns - 1))) / CGFloat(gridColumns)
+        return Int(cellWidth * UIScreen.main.scale)
+    }
     
     // MARK: - Core View Builder
     var body: some View {
@@ -84,6 +92,7 @@ struct ScansSheetView: View {
         .onAppear {
             searchManager.allScans = allRecords
             searchManager.performSearch(query: searchManager.searchQuery)
+            prefetchLeadingThumbnails(from: allRecords)
         }
         .onChange(of: allRecords) { _, newRecords in
             searchManager.allScans = newRecords
@@ -95,6 +104,16 @@ struct ScansSheetView: View {
     }
     
     // MARK: - Action Handlers & Logic Blocks
+
+    /// Fires 18 concurrent image loads before LazyVGrid renders, filling the first visible
+    /// screen (6 rows × 3 columns on the largest supported iPhone) with no gray placeholders.
+    private func prefetchLeadingThumbnails(from records: [LocalScanRecord]) {
+        let slice = records.prefix(18).map {
+            (imagePath: $0.localImagePath, fallbackUrl: $0.referenceImageUrl)
+        }
+        LocalImageLoader.shared.prefetch(records: Array(slice), maxDimension: prefetchThumbnailSize)
+    }
+
     private func handleBatchDelete() {
         let itemsToDelete = searchManager.getSelectedLocalRecords()
         for item in itemsToDelete {
