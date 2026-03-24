@@ -10,7 +10,7 @@ import Observation
     static let shared = UsageManager()
     
     // MARK: - Quota Thresholds
-    private let maxFreeScansPerDay = 2
+    let maxFreeScansPerDay = 2
     
     // MARK: - State Management
     var freeScansRemaining: Int = 0

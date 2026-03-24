@@ -53,13 +53,20 @@ extension OfflineQueueManager {
     /// are deduplicated against the live `URLSession` task list to avoid double-uploading on relaunch.
     /// Gemini inference is triggered server-side by a Supabase Storage webhook once files land.
     ///
-    /// Guards: expedition mode, connectivity, Pro subscription, and an in-flight sync must all clear.
+    /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
+    /// Free users are additionally gated by their daily scan quota and their queue is capped at `maxFreeScansPerDay` items.
     func syncPendingScans() {
         guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }
-        guard RevenueCatManager.shared.isProActive else { return }
         guard !isSyncing else { return }
         guard let container = modelContext?.container else { return }
+
+        let isProActive = RevenueCatManager.shared.isProActive
+
+        // Free users must have remaining daily quota before the queue processes anything.
+        if !isProActive {
+            guard UsageManager.shared.canPerformScan(isProActive: false) else { return }
+        }
 
         isSyncing = true
 
@@ -80,7 +87,11 @@ extension OfflineQueueManager {
                     $0.taskDescription?.components(separatedBy: "_").first ?? $0.taskDescription
                 }
             )
-            let filteredScans = Array(scanData.filter { !activeScanIDs.contains($0.id) }.prefix(MerianConfig.uploadBatchSize))
+            // For free users, cap the batch to however many scans they can still run today.
+            let batchLimit = await MainActor.run {
+                isProActive ? MerianConfig.uploadBatchSize : UsageManager.shared.freeScansRemaining
+            }
+            let filteredScans = Array(scanData.filter { !activeScanIDs.contains($0.id) }.prefix(batchLimit))
 
             guard !filteredScans.isEmpty else {
                 await MainActor.run {
@@ -90,7 +101,15 @@ extension OfflineQueueManager {
                 return
             }
 
-            await MainActor.run { SyncStateManager.shared.beginSync(itemCount: filteredScans.count) }
+            await MainActor.run {
+                SyncStateManager.shared.beginSync(itemCount: filteredScans.count)
+                // Consume one scan quota slot per item being uploaded.
+                // Pro users have unlimited quota; free users are deducted here so the daily
+                // limit is enforced even when scans complete via background URLSession.
+                if !isProActive {
+                    for _ in filteredScans { UsageManager.shared.consumeScan() }
+                }
+            }
 
             // Flatten scan → image-file pairs. Total is bounded by prefix(5) above.
             let documentsDirectory = URL.documentsDirectory

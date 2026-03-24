@@ -66,19 +66,16 @@ final class AppLifecycleManager {
     
     /// Handles application transition to background gracefully
     func handleBackgroundPhase() {
-        // Safely intercept mid-flight networks limits rescuing images asynchronously before standard app suspension
+        // Cancel the live request and re-queue via the background URLSession for all users.
+        // Free users are capped at maxFreeScansPerDay queue items (enforced in enqueueCapture),
+        // so they cannot hoard scans. Pro users queue without limit.
         if container.inferenceEngine.isProcessing, !container.inferenceEngine.activeLiveCaptureDatas.isEmpty {
-            if container.revenueCatManager.isProActive {
-                // Pro: cancel the live request and re-queue via the background URLSession for guaranteed delivery.
-                container.offlineQueueManager.enqueueCapture(
-                    imageDatas: container.inferenceEngine.activeLiveCaptureDatas,
-                    telemetry: CaptureTelemetry(from: container.inferenceEngine),
-                    blurScore: nil
-                )
-                container.inferenceEngine.cancelActiveRequest()
-            }
-            // Free: let the in-flight request complete naturally within iOS's ~30s background window.
-            // InferenceEngine.analyze() will fire the push notification on completion.
+            container.offlineQueueManager.enqueueCapture(
+                imageDatas: container.inferenceEngine.activeLiveCaptureDatas,
+                telemetry: CaptureTelemetry(from: container.inferenceEngine),
+                blurScore: nil
+            )
+            container.inferenceEngine.cancelActiveRequest()
         }
     }
 }
