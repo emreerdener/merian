@@ -2,107 +2,104 @@ import Foundation
 import UIKit
 import Combine
 
-// MARK: - Core UIDevice Architecture
+// MARK: - UIDevice Extension
+
 extension UIDevice {
-    /// Determines whether the device is considered a "modern iPhone" (iPhone 14 series or newer).
-    /// Used globally to default heavy AI features to off on modern bounds due to rapid thermal heat warnings natively.
+    /// Returns true for iPhone 14 and newer (model identifier ≥ iPhone15,x).
+    /// Used to default live-inference off on modern hardware, which reaches thermal limits quickly.
     var isModernIPhone: Bool {
         var systemInfo = utsname()
         uname(&systemInfo)
-        
+
         var identifier = withUnsafePointer(to: &systemInfo.machine) {
             $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) { ptr in
                 String(cString: ptr)
             }
         }
-        
+
         #if targetEnvironment(simulator)
         if let simulatorModel = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] {
             identifier = simulatorModel
         }
         #endif
-        
-        // "iPhone14,x" mapping maps to iPhone 13.
-        // "iPhone15,x" mapping maps to iPhone 14 / iPhone 14 Plus / iPhone 14 Pro, etc.
-        // Thus, we classify >= 15 as a "modern iPhone" which experiences severe thermal load quickly.
+
+        // "iPhone14,x" → iPhone 13. "iPhone15,x" → iPhone 14.
+        // Classify ≥ 15 as modern to catch devices prone to thermal load under sustained inference.
         if identifier.hasPrefix("iPhone") {
             let numberPart = identifier.dropFirst(6).split(separator: ",").first ?? "0"
             if let majorVersion = Int(numberPart), majorVersion >= 15 {
                 return true
             }
         }
-        
+
         return false
     }
 }
 
-// MARK: - Core Hardware Engine
-/// HardwareOrchestrator acts as the thermal management and concurrency bridge for hardware elements.
+// MARK: - Hardware Orchestrator
+
+/// Thermal management and FPS orchestration for the hardware layer.
+/// Monitors system thermal state and Low Power Mode, adjusting frame rate and UI quality accordingly.
 @MainActor
 @Observable final class HardwareOrchestrator {
     // MARK: - Singleton Architecture
     static let shared = HardwareOrchestrator()
-    
-    // MARK: - State Management
+
+    // MARK: - State
     var targetFPS: Int = 60
     var isGlassmorphismEnabled: Bool = true
     var isCriticalHeatWarningActive: Bool = false
     var isExpeditionModeActive: Bool = false
-    
+
     var isIdleLocked: Bool = false {
         didSet {
-            // Re-evaluate limits immediately when unlock occurs
             if !isIdleLocked {
                 evaluateConstraints()
             }
         }
     }
-    
-    // MARK: - Publisher Bounds
+
+    // MARK: - Private
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
-    
+
     private init() {
         setupMonitors()
         evaluateConstraints()
     }
-    
+
     private func setupMonitors() {
         NotificationCenter.default.publisher(for: ProcessInfo.thermalStateDidChangeNotification)
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.evaluateConstraints()
-            }
+            .sink { [weak self] _ in self?.evaluateConstraints() }
             .store(in: &cancellables)
-            
+
         NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.evaluateConstraints()
-            }
+            .sink { [weak self] _ in self?.evaluateConstraints() }
             .store(in: &cancellables)
     }
-    
-    // MARK: - Thermal Algorithms
-    // Default parameters accept nil to map dynamically to native boundaries, or accept explicitly injected test values
+
+    // MARK: - Thermal Evaluation
+
+    /// Evaluates current thermal and power conditions and updates FPS/quality targets.
+    /// Parameters accept injected values for testing; nil reads live system state.
     func evaluateConstraints(isLowPowerModeEnabled: Bool? = nil, thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
-        
-        // Respect explicit user Settings bounds OR automatically engage if iOS Low Power Mode is tripped natively
+
         let isUserForcedExpedition = UserDefaults.standard.bool(forKey: "isExpeditionModeActive")
         isExpeditionModeActive = isUserForcedExpedition || (isLowPowerModeEnabled ?? processInfo.isLowPowerModeEnabled)
-        // Note: ExpeditionModeActive disabling cellular uploads is handled by network/queue logic elsewhere reading this flag.
-        
-        // If locked in 1fps idle state, we must NOT overwrite settings
+
+        // Do not overwrite FPS while idling at 1fps.
         guard !isIdleLocked else { return }
-        
+
         isCriticalHeatWarningActive = false
-        
+
         if isExpeditionModeActive {
             targetFPS = 24
             isGlassmorphismEnabled = false
             return
         }
-        
+
         let currentState = thermalState ?? processInfo.thermalState
         switch currentState {
         case .nominal:
@@ -124,12 +121,13 @@ extension UIDevice {
             isGlassmorphismEnabled = false
         }
     }
-    
-    // MARK: - OS Foreground Orchestration
+
+    // MARK: - App Lifecycle
+
     func onAppWillResignActive() {
         CameraManager.shared.stopSession()
     }
-    
+
     func onAppDidBecomeActive() {
         CameraManager.shared.startSession()
     }

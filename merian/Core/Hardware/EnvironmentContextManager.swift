@@ -6,55 +6,46 @@ import CoreMotion
 import MapKit
 import Observation
 
-// MARK: - Environmental Telemetry Payload
-/// A data model representing the unified environmental payload extracted at the exact moment of a scan.
-struct EnvironmentContext {
-    let location: CLLocation?
-    var locationName: String? = nil
-    var weatherCondition: String? = nil
-    var weatherTemperature: Double? = nil
-}
+// MARK: - Environment Context Manager
 
-// MARK: - Core Contextual Hardware Engine
-/// A centralized singleton that lazily retrieves GPS locations and WeatherKit payloads only when explicitly triggered.
-/// Adheres to the "Deferred Context Fetch" philosophy to prevent battery drain.
+/// Lazily retrieves GPS and WeatherKit data only when triggered by a scan.
+/// Follows a "deferred context fetch" model to minimize battery impact.
 @MainActor
 @Observable final class EnvironmentContextManager: NSObject, CLLocationManagerDelegate {
     // MARK: - Singleton Architecture
     static let shared = EnvironmentContextManager()
-    
-    // MARK: - Hardware Controllers
+
+    // MARK: - Hardware
     private let locationManager = CLLocationManager()
     private let weatherService = WeatherService.shared
     private let motionManager = CMMotionManager()
-    
-    // MARK: - State Management
+
+    // MARK: - State
     var isAuthorized: Bool = false
-    
+
     var locationAuthorizationStatus: CLAuthorizationStatus {
         locationManager.authorizationStatus
     }
-    
-    // MARK: - Cache Maps
-    
+
+    // MARK: - Cache
     private var activeContinuations: [UUID: CheckedContinuation<CLLocation?, Never>] = [:]
     private var timeoutTask: Task<Void, Never>?
     private(set) var cachedLocation: CLLocation?
     private var fallbackInaccurateLocation: CLLocation?
-    
+
     private var geocodeCache: [String: String] = [:]
     private var geocodeKeys: [String] = []
     private let geocodeCacheLimit = 200
     private var activeGeocodeTasks: [String: Task<String?, Never>] = [:]
-    
-    // MARK: - Hardware Initialization
+
+    // MARK: - Initialization
     private override init() {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         checkAuthorization()
     }
-    
+
     private func checkAuthorization() {
         switch locationManager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
@@ -63,41 +54,42 @@ struct EnvironmentContext {
             self.isAuthorized = false
         }
     }
-    
+
     func validatePermissions() {
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
         }
     }
-    
+
     // MARK: - Live Location Tracking
+
     func startLiveLocationTracking() {
         guard isAuthorized else { return }
         locationManager.startUpdatingLocation()
         locationManager.startUpdatingHeading()
-        
+
         if motionManager.isDeviceMotionAvailable {
             motionManager.startDeviceMotionUpdates()
         }
     }
-    
+
     func stopLiveLocationTracking() {
         locationManager.stopUpdatingLocation()
         locationManager.stopUpdatingHeading()
-        
+
         if motionManager.isDeviceMotionAvailable {
             motionManager.stopDeviceMotionUpdates()
         }
     }
-    
-    // MARK: - Deferred Inference Triggers
-    /// Executes the "Deferred Context Fetch", locking the location pinpoint to the exact time of the shutter press
+
+    // MARK: - Deferred Context Fetch
+
+    /// Fetches environment context pinned to the moment of the shutter press.
     func fetchDeferredContext(preLockedLocation: CLLocation? = nil) async -> EnvironmentContext {
-        // If not authorized, gracefully degrade and return empty context
         guard isAuthorized else {
             return EnvironmentContext(location: preLockedLocation)
         }
-        
+
         let validLocation: CLLocation
         if let pre = preLockedLocation {
             validLocation = pre
@@ -109,15 +101,14 @@ struct EnvironmentContext {
         } else {
             return EnvironmentContext(location: nil)
         }
-        
+
         let locationName = await reverseGeocode(location: validLocation)
-        
-        // Attempt WeatherKit data if a location is returned
+
         do {
             let weather = try await weatherService.weather(for: validLocation)
             let condition = weather.currentWeather.condition.description
             let tempF = weather.currentWeather.temperature.converted(to: .fahrenheit).value
-            
+
             return EnvironmentContext(
                 location: validLocation,
                 locationName: locationName,
@@ -128,15 +119,15 @@ struct EnvironmentContext {
             return EnvironmentContext(location: validLocation, locationName: locationName)
         }
     }
-    
-    /// Executes a clean historical environment fetch for library imports explicitly pinned to the creation date.
+
+    /// Fetches historical environment context for a gallery image, pinned to its creation date.
     func fetchHistoricalContext(location: CLLocation, date: Date) async -> EnvironmentContext {
         let locationName = await reverseGeocode(location: location)
-        
+
         do {
-            // WeatherKit supports historical dates implicitly via standard queries by passing temporal ranges
+            // WeatherKit supports historical queries via hourly time ranges.
             let weatherData = try await weatherService.weather(for: location, including: .hourly(startDate: date, endDate: date.addingTimeInterval(3600)))
-            
+
             if let targetHour = weatherData.first {
                 return EnvironmentContext(
                     location: location,
@@ -151,26 +142,25 @@ struct EnvironmentContext {
             return EnvironmentContext(location: location, locationName: locationName)
         }
     }
-    
-    // MARK: - Context Resolvers
+
+    // MARK: - Private Resolvers
+
     private func reverseGeocode(location: CLLocation) async -> String? {
         let key = String(format: "%.3f,%.3f", location.coordinate.latitude, location.coordinate.longitude)
         if let cached = geocodeCache[key] {
             return cached
         }
-        
-        // CRITICAL SEC FIX: Prevent the "Thundering Herd" API crash by explicitly coalescing concurrent fetches natively
+
+        // Coalesce concurrent geocode requests for the same coordinate to avoid API flooding.
         if let existingTask = activeGeocodeTasks[key] {
             return await existingTask.value
         }
-        
+
         let task = Task { @MainActor [weak self] () -> String? in
             guard let self = self else { return nil }
             let geocoder = CLGeocoder()
-            // CANCELLATION SAFETY: withTaskCancellationHandler wraps the continuation so that if the parent
-            // task is cancelled before the geocoder fires its callback, cancelGeocode() triggers the existing
-            // error path (CLError.geocodeCanceled), which resumes the continuation with nil immediately.
-            // This eliminates the orphaned-suspension window without modifying requestSingleLocation().
+            // withTaskCancellationHandler ensures that if the parent task is cancelled,
+            // cancelGeocode() resumes the continuation immediately via CLError.geocodeCanceled.
             let generatedString: String? = await withTaskCancellationHandler {
                 await withCheckedContinuation { continuation in
                     geocoder.reverseGeocodeLocation(location) { placemarks, error in
@@ -197,7 +187,7 @@ struct EnvironmentContext {
             } onCancel: {
                 geocoder.cancelGeocode()
             }
-            
+
             if let validString = generatedString {
                 if self.geocodeKeys.count >= self.geocodeCacheLimit {
                     let oldest = self.geocodeKeys.removeFirst()
@@ -206,33 +196,31 @@ struct EnvironmentContext {
                 self.geocodeKeys.append(key)
                 self.geocodeCache[key] = validString
             }
-            
+
             self.activeGeocodeTasks.removeValue(forKey: key)
             return generatedString
         }
-        
+
         activeGeocodeTasks[key] = task
         return await task.value
     }
-    
+
     private func requestSingleLocation() async -> CLLocation? {
         let taskID = UUID()
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 self.activeContinuations[taskID] = continuation
                 self.locationManager.requestLocation()
-                
-                // Anti-Deadlock timeout: Force-resume after 2.0s if hardware fails to lock satellites
+
+                // Timeout: force-resume after 2 seconds if the hardware fails to lock satellites.
+                // Degrades to the best available loose lock (e.g., cellular-range accuracy)
+                // so the scan still receives some macro-region context.
                 if self.timeoutTask == nil {
                     self.timeoutTask = Task { @MainActor [weak self] in
                         try? await Task.sleep(nanoseconds: 2_000_000_000)
-                        
+
                         guard !Task.isCancelled, let self = self else { return }
-                        
-                        // Fallback Resolution:
-                        // If we never got a highly accurate <30m location in those 2 seconds, 
-                        // gracefully degrade to whatever loose lock the antenna managed to find (e.g., 500m cellular bounds),
-                        // to ensure they have at least *some* macro-region environment data.
+
                         let bestAvailableFallback = self.cachedLocation ?? self.fallbackInaccurateLocation
                         _ = self.resolvePendingContinuations(with: bestAvailableFallback)
                     }
@@ -250,53 +238,52 @@ struct EnvironmentContext {
             }
         }
     }
-    
+
     // MARK: - CLLocationManagerDelegate
+
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             self.checkAuthorization()
         }
     }
-    
+
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         Task { @MainActor [weak self] in
             guard let self = self else { return }
-            
-            // Prioritize reliable outdoor coordinate locks (< 30m accuracy)
+
+            // Prioritize high-accuracy outdoor locks (≤ 30m horizontal accuracy).
             let isAccurate = location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= 30
-            
+
             if isAccurate {
                 self.cachedLocation = location
-                // End the search early because we hit our gold standard accuracy!
                 _ = self.resolvePendingContinuations(with: location)
             } else {
-                // Not accurate enough. Store it as a safety net in case we hit the 2.0s timeout limit 
-                // and never find a strong precision lock.
+                // Store as a safety net in case the 2-second timeout fires before a strong lock.
                 self.fallbackInaccurateLocation = location
             }
         }
     }
-    
+
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             _ = self.resolvePendingContinuations(with: nil)
         }
     }
-    
+
     private func resolvePendingContinuations(with location: CLLocation?) -> Bool {
         self.timeoutTask?.cancel()
         self.timeoutTask = nil
-        
+
         let pending = Array(self.activeContinuations.values)
         self.activeContinuations.removeAll()
-        
+
         for continuation in pending {
             continuation.resume(returning: location)
         }
-        
+
         return pending.isEmpty
     }
 }

@@ -84,7 +84,7 @@ struct SpeciesData {
     
     // MARK: - JSON Decoding Deserializer
     /// DRY Architectural Decoding Strategy Context explicitly mapping standard dictionaries natively to struct bounds securely
-    init(fromEdgeResponse edgeRes: InferenceEngine.EdgeResponse, locationName: String?, weatherCondition: String?, weatherTemperatureF: Double?, gpsElevation: Double? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil) {
+    init(fromEdgeResponse edgeRes: EdgeResponse, locationName: String?, weatherCondition: String?, weatherTemperatureF: Double?, gpsElevation: Double? = nil, gpsLatitude: Double? = nil, gpsLongitude: Double? = nil) {
         let insight = InsightData(
             description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
             isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,

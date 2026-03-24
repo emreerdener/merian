@@ -6,17 +6,25 @@ import SwiftData
 import ImageIO
 import os
 
-// MARK: - Engine Boundaries
-enum APIError: Error {
-    case proRequiredForOfflineTracking
-    case decodingFailed
+// MARK: - Wikipedia Response (private)
+
+private struct WikiSummaryResponse: Decodable {
+    let extract: String?
+    let content_urls: ContentURLs?
+    let originalimage: OriginalImage?
+
+    struct ContentURLs: Decodable { let desktop: Desktop? }
+    struct Desktop: Decodable { let page: String? }
+    struct OriginalImage: Decodable { let source: String? }
 }
 
-// MARK: - Core Cloud Inference Engine
-/// Manages real-time AI taxonomy processing via Supabase Edge Functions
+// MARK: - Inference Engine
+
+/// Drives the live AI taxonomy pipeline and manages all active scan state.
 @MainActor
 @Observable final class InferenceEngine {
-    // MARK: - Active Pipeline State
+
+    // MARK: - Pipeline State
     @ObservationIgnored var inferenceTask: Task<Void, Error>?
     var isProcessing: Bool = false
     var activeImageData: Data? = nil
@@ -24,7 +32,7 @@ enum APIError: Error {
     var activeLiveCaptureDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData? = nil
-    
+
     // MARK: - Environmental Telemetry State
     private(set) var activeLatitude: Double? = nil
     private(set) var activeLongitude: Double? = nil
@@ -37,64 +45,19 @@ enum APIError: Error {
     private(set) var activeTemperatureF: Double? = nil
     private(set) var activeFlashFired: Bool? = nil
     private(set) var activeDistanceInMeters: Float? = nil
-    
-    // MARK: - Asynchronous Execution Controllers
-    public var isBackgroundRescued = false
-    @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
-    
-    // MARK: - Network Edge DTOs
-    /// Wrapper preventing double string decoding JSON extraction logic
-    struct EdgeResponseWrapper: Codable {
-        let success: Bool?
-        let data: EdgeResponse
-    }
-    
-    /// Struct defining the exact expected JSON schema from the Gemini Edge Function
-    struct EdgeResponse: Codable {
-        let scan_id: String?
-        let is_biological_subject: Bool?
-        let is_live_capture: Bool?
-        let ecology_type: String?
-        let is_invasive: Bool?
-        let scientific_name: String?
-        let common_name: String?
-        let confidence_score: Double?
-        let colors: [String]?
-        
-        struct Taxonomy: Codable {
-            let kingdom: String?
-            let phylum: String?
-            let `class`: String?
-            let order: String?
-            let family: String?
-            let genus: String?
-        }
-        let taxonomy: Taxonomy?
-        
-        struct Insight: Codable {
-            let description: String?
-            let is_poisonous: Bool?
-            let regional_status_rationale: String?
-        }
-        let insight_data: Insight?
-        struct Diagnostic: Codable {
-            let primary_match_rationale: String?
-            let confusing_lookalike_name: String?
-            let key_differentiators: [String]?
-        }
-        let diagnostic_comparison: Diagnostic?
-        let wikipedia_url: String?
-        let wikipedia_extract: String?
-        let reference_image_url: String?
-        let iucn_red_list_status: String?
-    }    
 
-    // MARK: - Main Pipeline Triggers
+    // MARK: - Background Rescue State
+    /// Set to `true` by `cancelActiveRequest()` before cancelling the task, so the task's
+    /// cancellation handler knows the scan was intentionally backgrounded and should not refund.
+    private(set) var isBackgroundRescued = false
+    @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
+
+    // MARK: - Live Inference Pipeline
+
     func analyze(imageDatas: [Data], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
-        
-        // Reset states for a fresh native scan
+
         self.isProcessing = true
         self.activeImageData = imageDatas.first
         self.activeCompressedImageData = nil
@@ -102,56 +65,52 @@ enum APIError: Error {
         self.validHistoricImagePaths = []
         self.speciesData = nil
         self.isBackgroundRescued = false
-        
+
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
         self.activeElevation = telemetry.gpsElevation
         self.activeLocationName = telemetry.locationName
         self.activeWeatherCondition = telemetry.weatherCondition
         self.activeTemperatureF = telemetry.weatherTemperatureF
-        // Ephemeral telemetry removed to preserve memory boundaries
         self.activeDistanceInMeters = telemetry.subjectDistanceInMeters
-        
+
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
-            
-            let boundaryStartTime = CFAbsoluteTimeGetCurrent()
-            
-            // 1. Data is already safely compressed from camera cropper directly
+
+            // Single exit point for isProcessing — covers all success, error, and cancellation paths.
+            defer { self.isProcessing = false }
+
+            let pipelineStart = CFAbsoluteTimeGetCurrent()
             let compressedDatas = imageDatas
             self.activeCompressedImageData = compressedDatas.first
-            
+
             do {
                 if CircuitBreakerManager.shared.isCircuitTripped {
                     throw URLError(.notConnectedToInternet)
                 }
-                
+
                 let client = MerianNetworkClient.shared
-                
-                // 2. Convert Data to structural base64 string
-                let base64Strings = await InferenceProcessingActor.shared.encodeBase64Concurrent(compressedDatas: compressedDatas)
-                
+
+                let base64Strings = await InferenceProcessingActor.shared.encodeBase64(compressedDatas: compressedDatas)
                 let targetObjectKey = "staging/\(UUID().uuidString).jpg"
-                
-                try Task.checkCancellation() 
-                
-                // 3. Transmit the payload directly skipping R2 hops entirely
-                let inferenceStartTime = CFAbsoluteTimeGetCurrent()
+
+                try Task.checkCancellation()
+
+                let inferenceStart = CFAbsoluteTimeGetCurrent()
                 let resultData = try await client.analyzeSubject(
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: base64Strings,
                     telemetry: telemetry
                 )
-                let inferenceTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
-                MerianLog.general.debug("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime), privacy: .public) seconds.")
-                
+                MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
+
                 let (finalMappedData, isNewDisc) = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
                     telemetry: telemetry,
                     modelContext: modelContext,
                     compressedDatas: compressedDatas
                 )
-                
+
                 if var mappedData = finalMappedData {
                     if isNewDisc {
                         mappedData.isNewDiscovery = true
@@ -168,8 +127,8 @@ enum APIError: Error {
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     self.speciesData = mappedData
 
-                    // Send a push notification if the user navigated away while the scan was processing.
-                    // The offline queue path handles its own notification; this covers the live inference path.
+                    // Send a background notification if the user left while the scan was running.
+                    // The offline queue path sends its own notification; this covers live inference only.
                     #if canImport(UIKit)
                     await MainActor.run {
                         if UIApplication.shared.applicationState != .active,
@@ -182,25 +141,28 @@ enum APIError: Error {
                         }
                     }
                     #endif
-                    
-                    let totalPipelineTime = CFAbsoluteTimeGetCurrent() - boundaryStartTime
-                    MerianLog.general.debug("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime), privacy: .public) seconds!")
-                    
+
+                    MerianLog.general.debug("Total pipeline (upload + AI + DB) completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s.")
+
                     if mappedData.isBiological {
                         Task {
-                            await self.asynchronouslyFetchWikipediaAndHydrate(for: mappedData.scientificName, scanId: mappedData.scanId, modelContext: modelContext)
+                            await self.fetchWikipediaAndHydrate(for: mappedData.scientificName, scanId: mappedData.scanId, modelContext: modelContext)
                         }
                     }
                 }
             } catch {
+                // Cancellation: the task was intentionally cancelled (e.g., app backgrounded).
+                // Only refund if this was NOT a background rescue — isBackgroundRescued is reset
+                // here so cancelActiveRequest() doesn't need to race against this block.
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
-                    self.isProcessing = false
-                    if !self.isBackgroundRescued {
+                    let wasRescued = self.isBackgroundRescued
+                    self.isBackgroundRescued = false
+                    if !wasRescued {
                         UsageManager.shared.refundScan()
                     }
                     return
                 }
-                
+
                 if let apiError = error as? APIError, apiError == .decodingFailed {
                     UsageManager.shared.refundScan()
                     self.speciesData = SpeciesData(
@@ -226,16 +188,13 @@ enum APIError: Error {
                         gpsLongitude: telemetry.gpsLongitude,
                         colors: nil
                     )
-                    self.isProcessing = false
                     return
                 }
-                
-                // Refund the scan for all users on network failure — they never got a result.
-                // Paywall is only shown upstream at the canPerformScan quota gate, never here.
+
+                // Network failure — refund the scan since the user never got a result.
                 UsageManager.shared.refundScan()
 
                 if RevenueCatManager.shared.isProActive {
-                    // Pro: record the failure and re-queue for background retry.
                     CircuitBreakerManager.shared.recordFailure()
                     OfflineQueueManager.shared.enqueueCapture(
                         imageDatas: compressedDatas,
@@ -243,7 +202,7 @@ enum APIError: Error {
                         blurScore: nil
                     )
                 }
-                MerianLog.general.debug("⚠️ Inference Engine Critical Failure: \(error.localizedDescription, privacy: .private)")
+                MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
                 self.speciesData = SpeciesData(
                     scanId: nil,
                     commonName: "Network Timeout",
@@ -267,45 +226,38 @@ enum APIError: Error {
                     gpsLongitude: telemetry.gpsLongitude
                 )
             }
-            
-            // Unconditionally clear the active loading hardware state
-            self.isProcessing = false
         }
     }
-    
-    // MARK: - Background Hydration Syncs
-    /// Hits the Wikimedia Desktop Summary framework independently skipping the Inference loop latency cost natively.
-    private func asynchronouslyFetchWikipediaAndHydrate(for species: String, scanId: String?, modelContext: ModelContext?) async {
-        guard !species.isEmpty, species.lowercased() != "taxonomy unavailable", species.lowercased() != "unknown subject" else { return }
-        guard !wikiFetchAttemptedIds.contains(species) else { return }
-        wikiFetchAttemptedIds.insert(species)
 
-        // Match the backend whitespace replacement strategy safely enforcing capital bounds explicitly
+    // MARK: - Wikipedia Background Hydration
+
+    /// Fetches and patches the Wikipedia extract and reference image for a species after inference completes.
+    /// Runs independently to avoid adding latency to the inference round-trip.
+    /// Only marks the species as attempted after a *successful* fetch, so transient failures are retryable.
+    private func fetchWikipediaAndHydrate(for species: String, scanId: String?, modelContext: ModelContext?) async {
+        guard !species.isEmpty,
+              species.lowercased() != "taxonomy unavailable",
+              species.lowercased() != "unknown subject" else { return }
+        guard !wikiFetchAttemptedIds.contains(species) else { return }
+
         let normalized = species.replacingOccurrences(of: " ", with: "_")
-        guard let enc = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(enc)") else { return }
-        
+        guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") else { return }
+
         var request = URLRequest(url: url)
         request.timeoutInterval = 4.0
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return }
-            
-            struct WikiRes: Decodable {
-                let extract: String?
-                let content_urls: ContentURLs?
-                struct ContentURLs: Decodable { let desktop: Desktop? }
-                struct Desktop: Decodable { let page: String? }
-                let originalimage: OriginalImage?
-                struct OriginalImage: Decodable { let source: String? }
-            }
-            
-            let decoded = try JSONDecoder().decode(WikiRes.self, from: data)
-            
+
+            let decoded = try JSONDecoder().decode(WikiSummaryResponse.self, from: data)
             guard let extract = decoded.extract, let webUrl = decoded.content_urls?.desktop?.page else { return }
             let imageUrl = decoded.originalimage?.source
-            
+
+            // Mark as attempted only on success — transient failures (timeout, 404) remain retryable.
+            wikiFetchAttemptedIds.insert(species)
+
             await MainActor.run {
                 if self.speciesData?.scientificName == species {
                     self.speciesData?.wikipediaExtract = extract
@@ -315,27 +267,28 @@ enum APIError: Error {
                     }
                 }
             }
-            
+
             if let scanId = scanId, let context = modelContext {
-                 let container = context.container
-                 Task {
-                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: extract, url: webUrl, imageUrl: imageUrl)
-                 }
+                let container = context.container
+                Task {
+                    let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: extract, url: webUrl, imageUrl: imageUrl)
+                }
             }
-            
         } catch {
-            MerianLog.general.debug("Silently bypassed Wikipedia background hydration: \(error, privacy: .private)")
+            MerianLog.general.debug("Wikipedia hydration skipped: \(error, privacy: .private)")
         }
     }
-    
-    // MARK: - Active Pipeline Modifiers
+
+    // MARK: - Pipeline Modifiers
+
     func cancelActiveRequest() {
-        MerianLog.general.debug("Cancelled active inference request to prevent watchdog termination.")
+        MerianLog.general.debug("Cancelled active inference request.")
         isBackgroundRescued = true
         self.inferenceTask?.cancel()
+        // isBackgroundRescued is reset by the task's cancellation catch block.
+        // If the task was already finished, analyze() resets it at the start of the next scan.
         self.speciesData = nil
-        isBackgroundRescued = false
         activeImageData = nil
         activeCompressedImageData = nil
         activeLiveCaptureDatas.removeAll()
@@ -347,59 +300,45 @@ enum APIError: Error {
         activeWeatherCondition = nil
         activeTemperatureF = nil
     }
-    
-    /// Safely cascades failing URLs directly out of the primary UI loops preserving continuous Carousel streams without throwing out-of-bounds Array indices natively
+
+    /// Removes an invalid image URL from the carousel and from the stored `referenceImageUrl` field.
     func dropInvalidCarouselImage(_ urlStr: String) {
         if let idx = self.validHistoricImagePaths.firstIndex(of: urlStr) {
             self.validHistoricImagePaths.remove(at: idx)
         }
-        
+
         if let currentRef = self.speciesData?.referenceImageUrl {
             var parts = currentRef.components(separatedBy: ",")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
-            
+
             if let idx = parts.firstIndex(of: urlStr) {
                 parts.remove(at: idx)
-                let newJoined = parts.joined(separator: ",")
-                self.speciesData?.referenceImageUrl = newJoined.isEmpty ? nil : newJoined
+                let joined = parts.joined(separator: ",")
+                self.speciesData?.referenceImageUrl = joined.isEmpty ? nil : joined
             }
         }
     }
-    
-    // MARK: - Local Hardware Loaders
-    /// Rehydrates the SpeciesData and UI payloads natively from an offline Scans record
+
+    // MARK: - Local Record Loading
+
+    /// Rehydrates engine state from a persisted `LocalScanRecord` for the insight sheet.
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
-        
+
         self.activeImageData = nil
-        self.validHistoricImagePaths = []
-        var paths: [String] = []
-        if let localPath = record.localImagePath {
-            paths.append(localPath)
-        }
-        if let extras = record.additionalImagePaths {
-            paths.append(contentsOf: extras)
-        }
         self.activeLiveCaptureDatas = []
-        
+        self.validHistoricImagePaths = []
+
+        var paths: [String] = []
+        if let localPath = record.localImagePath { paths.append(localPath) }
+        if let extras = record.additionalImagePaths { paths.append(contentsOf: extras) }
+
         Task {
             let validPaths = await FileIOActor.shared.validPaths(from: paths)
-            
-            await MainActor.run {
-                self.validHistoricImagePaths = validPaths
-            }
+            await MainActor.run { self.validHistoricImagePaths = validPaths }
         }
-        
-        let commonName = record.commonName
-        let scientificName = record.scientificName
-        let insightDescription = record.insightDescription
-        let isPoisonous = record.isPoisonous
-        let confidenceScore = record.confidenceScore ?? 1.0
-        let wikipediaUrl = record.wikipediaUrl
-        let wikipediaExtract = record.wikipediaExtract
-        let referenceImageUrl = record.referenceImageUrl
-        
+
         var parsedDiagnostic: DiagnosticComparison? = nil
         if let rationale = record.diagnosticPrimaryRationale,
            let lookalike = record.diagnosticLookalikeName,
@@ -407,24 +346,23 @@ enum APIError: Error {
            let diffData = diffJsonStr.data(using: .utf8),
            let diffs = try? JSONDecoder().decode([String].self, from: diffData),
            !diffs.isEmpty {
-            
             parsedDiagnostic = DiagnosticComparison(
                 primaryMatchRationale: rationale,
                 confusingLookalikeName: lookalike,
                 keyDifferentiators: diffs
             )
         }
-        
+
         self.speciesData = SpeciesData(
             scanId: record.id,
-            commonName: commonName,
-            scientificName: scientificName,
-            insightData: InsightData(description: insightDescription, isPoisonous: isPoisonous, regionalStatusRationale: nil),
-            confidenceScore: confidenceScore, 
+            commonName: record.commonName,
+            scientificName: record.scientificName,
+            insightData: InsightData(description: record.insightDescription, isPoisonous: record.isPoisonous, regionalStatusRationale: nil),
+            confidenceScore: record.confidenceScore ?? 1.0,
             diagnosticComparison: parsedDiagnostic,
-            wikipediaUrl: wikipediaUrl,
-            wikipediaExtract: wikipediaExtract,
-            referenceImageUrl: referenceImageUrl,
+            wikipediaUrl: record.wikipediaUrl,
+            wikipediaExtract: record.wikipediaExtract,
+            referenceImageUrl: record.referenceImageUrl,
             isBiological: record.isBiological,
             isLiveCapture: record.isLiveCapture,
             isInvasive: record.isInvasive,
@@ -445,72 +383,13 @@ enum APIError: Error {
             gpsLongitude: record.gpsLongitude
         )
         self.isProcessing = false
-        
-        // Retroactively hydrate any legacy offline scans that missed the initial Wikipedia extract resolution OR Wikipedia reference images
+
+        // Retroactively hydrate legacy scans that missed Wikipedia data on initial save.
         if record.isBiological && (record.wikipediaExtract == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty) {
             let safeContext = record.modelContext
             Task {
-                await self.asynchronouslyFetchWikipediaAndHydrate(for: record.scientificName, scanId: record.id, modelContext: safeContext)
+                await self.fetchWikipediaAndHydrate(for: record.scientificName, scanId: record.id, modelContext: safeContext)
             }
         }
-    }
-    
-
-
-}
-
-
-
-actor InferenceProcessingActor {
-    static let shared = InferenceProcessingActor()
-    
-    func encodeBase64Concurrent(compressedDatas: [Data]) async -> [String] {
-        await withTaskGroup(of: (Int, String).self) { group in
-            for (index, data) in compressedDatas.enumerated() {
-                group.addTask {
-                    return (index, data.base64EncodedString())
-                }
-            }
-            var results: [(Int, String)] = []
-            for await result in group {
-                results.append(result)
-            }
-            return results.sorted(by: { $0.0 < $1.0 }).map { $1 }
-        }
-    }
-    
-    func parseAndSave(resultData: Data, telemetry: CaptureTelemetry, modelContext: ModelContext?, compressedDatas: [Data]) async throws -> (SpeciesData?, Bool) {
-        let decoder = JSONDecoder()
-        
-        let parsedWrapper: InferenceEngine.EdgeResponseWrapper
-        do {
-            parsedWrapper = try decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData)
-        } catch let error as DecodingError {
-            MerianLog.general.debug("⚠️ AI JSON Payload Hallucination / Decoding Error: \(error.localizedDescription, privacy: .private)")
-            throw APIError.decodingFailed
-        }
-        
-        let edgeRes = parsedWrapper.data
-        
-        let mappedData = SpeciesData(
-            fromEdgeResponse: edgeRes,
-            locationName: telemetry.locationName,
-            weatherCondition: telemetry.weatherCondition,
-            weatherTemperatureF: telemetry.weatherTemperatureF,
-            gpsElevation: telemetry.gpsElevation,
-            gpsLatitude: telemetry.gpsLatitude,
-            gpsLongitude: telemetry.gpsLongitude
-        )
-        
-        try Task.checkCancellation()
-        
-        var newDiscovery = false
-        
-        if mappedData.confidenceScore > 0.0, let container = modelContext?.container, !compressedDatas.isEmpty {
-            let savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: compressedDatas)
-            let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, localImagePaths: savedPaths)
-        }
-        return (mappedData, newDiscovery)
     }
 }

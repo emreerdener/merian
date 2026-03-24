@@ -19,6 +19,8 @@
 		19D584DDA2A3386241997CED /* FadingScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA401B34F87B7B4B66AD1FD5 /* FadingScrollView.swift */; };
 		19D7D643D0B74F2F0261631D /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84FF5120CF359D3E87CB4529 /* UserProfile.swift */; };
 		1AF43A34D958F0AD5B596EC8 /* InferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1044C34325AE2EFB4EC21358 /* InferenceEngine.swift */; };
+		A2F1E0D9C8B7A6F5E4D3C2B1 /* InferenceEdgeDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A2 /* InferenceEdgeDTOs.swift */; };
+		B4A3F2E1D0C9B8A7F6E5D4C3 /* InferenceProcessingActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8C9D0E1F2A3B4 /* InferenceProcessingActor.swift */; };
 		1B0300BD0BB1C04B910D7ECC /* ConservationBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C677BCA687D318A267B65370 /* ConservationBanner.swift */; };
 		1B24CE3DB82C58CA835665D5 /* OnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261F0BA802A906A13D6B118B /* OnboardingViewModelTests.swift */; };
 		1B6BFA65E4FD0F69771A22F5 /* InferenceEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BED795DDD156C8FE18D565B /* InferenceEngineTests.swift */; };
@@ -172,6 +174,7 @@
 		C5687BC388267DCB9D73056D /* SyncStateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16738A6F0F0676E8DDD3318E /* SyncStateManager.swift */; };
 		C59DB30428863BF93FD72C77 /* CelebrationBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215B78224B555E2EA538C476 /* CelebrationBanner.swift */; };
 		C68E1DEEF4B031DA0C9F3E8C /* EnvironmentContextManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */; };
+		F2E1D0C9B8A7F6E5D4C3B2A1 /* EnvironmentContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* EnvironmentContext.swift */; };
 		C73303EFD9738C0E3FC401B9 /* CameraPermissionStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8815517A2E4E6BA6EB37CAA /* CameraPermissionStepView.swift */; };
 		C7AA31ECCE527E151CF6C39C /* TelemetryClient in Frameworks */ = {isa = PBXBuildFile; productRef = B41D79C304B7AE7C8A98F7A4 /* TelemetryClient */; };
 		CA672046EEC1120C9EF87041 /* MainTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6963D372E7F7B17BB7B0DB3 /* MainTabBar.swift */; };
@@ -262,6 +265,8 @@
 		0C6607CB16EDD46A55A81A3F /* MerianNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianNetworkClient.swift; sourceTree = "<group>"; };
 		0DCA0392A80D8CEEC5DDCC95 /* PushNotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManagerTests.swift; sourceTree = "<group>"; };
 		1044C34325AE2EFB4EC21358 /* InferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEngine.swift; sourceTree = "<group>"; };
+		B1C2D3E4F5A6B7C8D9E0F1A2 /* InferenceEdgeDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEdgeDTOs.swift; sourceTree = "<group>"; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* InferenceProcessingActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceProcessingActor.swift; sourceTree = "<group>"; };
 		119B433DC21B3CBB5FBEBDA4 /* ViewfinderIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligence.swift; sourceTree = "<group>"; };
 		1315C44C76CF9D95CF2E3860 /* ConfidenceSpectrum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceSpectrum.swift; sourceTree = "<group>"; };
 		161EAAB217364EB7BA813812 /* UsageManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManagerTests.swift; sourceTree = "<group>"; };
@@ -405,6 +410,7 @@
 		C2937FDB359FEC0F1F7688A6 /* ConfidenceHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceHeader.swift; sourceTree = "<group>"; };
 		C45A4A13D898657D8E4EBF3C /* ViewfinderIntelligenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligenceTests.swift; sourceTree = "<group>"; };
 		C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContextManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* EnvironmentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContext.swift; sourceTree = "<group>"; };
 		C677BCA687D318A267B65370 /* ConservationBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConservationBanner.swift; sourceTree = "<group>"; };
 		C8815517A2E4E6BA6EB37CAA /* CameraPermissionStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionStepView.swift; sourceTree = "<group>"; };
 		CB33C2AAD173F49DF2B86AD7 /* Analysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analysis.swift; sourceTree = "<group>"; };
@@ -736,6 +742,8 @@
 			isa = PBXGroup;
 			children = (
 				1044C34325AE2EFB4EC21358 /* InferenceEngine.swift */,
+				B1C2D3E4F5A6B7C8D9E0F1A2 /* InferenceEdgeDTOs.swift */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* InferenceProcessingActor.swift */,
 				119B433DC21B3CBB5FBEBDA4 /* ViewfinderIntelligence.swift */,
 			);
 			path = AI;
@@ -1202,6 +1210,7 @@
 			children = (
 				E4B3DD5F49376139EA14458E /* CameraManager.swift */,
 				C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* EnvironmentContext.swift */,
 				BB0AE39969F0604490ECB159 /* HapticManager.swift */,
 				F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */,
 				06CA502A8E1CDB5E10033D0B /* PushNotificationManager.swift */,
@@ -1584,6 +1593,7 @@
 				653576165C2B6ACE190F811B /* DeviceIdentityManager.swift in Sources */,
 				22A9DDA4A148922FA84712BA /* EmptyStateView.swift in Sources */,
 				C68E1DEEF4B031DA0C9F3E8C /* EnvironmentContextManager.swift in Sources */,
+				F2E1D0C9B8A7F6E5D4C3B2A1 /* EnvironmentContext.swift in Sources */,
 				F52C7C262FEE4E7EAC92F90A /* ExportScans.swift in Sources */,
 				19D584DDA2A3386241997CED /* FadingScrollView.swift in Sources */,
 				CC5304A7E67E874E9F9A74CD /* FileIOActor.swift in Sources */,
@@ -1602,6 +1612,8 @@
 				D45AC7C9A7478DBE357998BC /* ImageFileWrapper.swift in Sources */,
 				D305E8423FF831F9770AEDC9 /* ImagesCarousel.swift in Sources */,
 				1AF43A34D958F0AD5B596EC8 /* InferenceEngine.swift in Sources */,
+				A2F1E0D9C8B7A6F5E4D3C2B1 /* InferenceEdgeDTOs.swift in Sources */,
+				B4A3F2E1D0C9B8A7F6E5D4C3 /* InferenceProcessingActor.swift in Sources */,
 				4399A5E177F35C589DB7BE82 /* InsightBottomToolbar.swift in Sources */,
 				90A2377F2B7EFB9784EE9A00 /* InsightContentView.swift in Sources */,
 				64DEB35E155BFCB600765EE8 /* InsightHeader.swift in Sources */,

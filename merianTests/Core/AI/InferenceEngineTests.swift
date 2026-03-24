@@ -43,7 +43,7 @@ struct InferenceEngineTests {
         
         // Act
         let decoder = JSONDecoder()
-        let wrapper = try decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: jsonData)
+        let wrapper = try decoder.decode(EdgeResponseWrapper.self, from: jsonData)
         
         // Assert: Ensure nested Decodable structures map perfectly
         let edgeResponse = wrapper.data
@@ -78,7 +78,7 @@ struct InferenceEngineTests {
         
         // Act
         let decoder = JSONDecoder()
-        let wrapper = try decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: jsonData)
+        let wrapper = try decoder.decode(EdgeResponseWrapper.self, from: jsonData)
         
         // Assert: Ensure optionality gracefully falls back rather than violently crashing
         let edgeResponse = wrapper.data

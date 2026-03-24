@@ -70,9 +70,9 @@ actor BackgroundDatabaseActor {
         var resolvedSpeciesName: String? = nil
         var finalIsNewDiscovery = false
 
-        let parsedWrapper: InferenceEngine.EdgeResponseWrapper?
+        let parsedWrapper: EdgeResponseWrapper?
         do {
-            parsedWrapper = try JSONDecoder().decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData)
+            parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
         } catch {
             MerianLog.data.debug("processAndCleanupOfflineScan: JSON decode failed: \(error, privacy: .private)")
             parsedWrapper = nil
