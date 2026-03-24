@@ -93,10 +93,14 @@ On `NWPathMonitor` reconnect, `syncPendingDeletions()` drains the `PendingCloudD
 
 Merian supports creating custom `ScanCollection` buckets while fully disconnected.
 
-1. **Entity Instantiation**: A user taps "New Collection" — a `ScanCollection` is inserted into SwiftData with a UUID immediately.
-2. **Offline-Safe Mapping**: The user groups a `LocalScanRecord` into the collection. `OfflineQueueManager.shared.syncCollections()` runs in the background, pushing `SyncCollectionPayload` arrays to the `sync-collections` Edge function.
-3. **Resilient Sync Architecture**: If the assigned scan UUID hasn't reached Cloudflare R2 yet, the Edge Node safely absorbs the Postgres foreign-key rejection. The collection itself saves. On subsequent app foreground cycles, `pushCollectionsToEdge` naturally retries and resolves the reference.
-4. **Rehydration**: `syncHistoricalScansDown` fetches `[CloudCollectionResponse]` and reconciles them against local `ScanCollection` records. Obsolete collections (absent from the cloud response and not "Favorites") are deleted.
+1. **Entity Instantiation**: A user taps "New Collection" — a `ScanCollection` is inserted into SwiftData and `modelContext.save()` is called immediately. The collection is durable locally from this point.
+2. **Background Upload**: `OfflineQueueManager.shared.syncCollections()` is triggered, pushing `SyncCollectionPayload` arrays to the `sync-collections` Edge function. The upload is wrapped in `BackgroundTaskWrapper.execute(name: "CollectionSync")` so iOS grants additional background time if the user closes the app immediately after creating a collection.
+3. **Resilient Sync Architecture**: `syncCollections()` no-ops when offline or unauthenticated. Collections created in these states remain in SwiftData and are picked up by the push-before-pull ordering described in step 4.
+4. **Push-Before-Pull Ordering**: `syncHistoricalScansDown` calls `pushCollectionsToEdge()` — uploading all local collections to Supabase — **before** fetching the cloud collection list. This guarantees that any collection created while offline or before authentication completes is in the cloud before the reconciliation delete pass runs. Without this ordering, a collection that was never successfully uploaded would be treated as "obsolete" and deleted on next launch.
+5. **Reconciliation**: After the push, `syncHistoricalScansDown` fetches `[CloudCollectionResponse]` and calls `HistoricalDatabaseActor.syncCollections(remoteCollections:)`. Collections present in the cloud response are upserted; collections absent from the cloud response and not named "Favorites" are deleted locally. Because step 4 guarantees every local collection is already in the cloud, the delete pass only removes collections the user genuinely deleted on another device.
+6. **FK Safety**: If the assigned scan UUID hasn't reached Cloudflare R2 yet when the collection payload arrives, the Edge node safely absorbs the Postgres foreign-key rejection. The collection itself is saved. On the next `pushCollectionsToEdge` call the scan reference resolves.
+
+**Critical ordering rule:** The push (`pushCollectionsToEdge`) must always complete before the pull (cloud collections fetch) in `syncHistoricalScansDown`. Reversing this order causes local-only collections to be treated as obsolete and deleted.
 
 ## Restoring Historical Workloads (Rehydration)
 
@@ -115,7 +119,7 @@ Once all pages are accumulated, a single `HistoricalDatabaseActor` instance is c
 1. **ID projection fetch**: Fetches only `\.id` from all local `LocalScanRecord` rows (minimal column projection) to compute the existing-ID set cheaply off the main thread.
 2. **`updateExistingScans`**: Fetches only local records whose IDs appear in the cloud response (predicate-scoped + `propertiesToFetch` projection). Updates: `localImagePath`, `additionalImagePaths`, `referenceImageUrl`, GPS fields, `locationName`. Saves only if any field actually changed.
 3. **`ingestScans`**: Inserts new `LocalScanRecord` rows for cloud records absent locally. Checkpoint-saves every `MerianConfig.ingestCheckpointInterval` (50) records to limit data loss if a background task is killed mid-ingest.
-4. **`syncCollections`**: Fetches only `ScanCollection` records and only the local scan records referenced by the incoming collections (predicate-scoped). Upserts collections, rebuilds scan relationships, deletes obsolete non-Favorites collections.
+4. **`syncCollections`**: Fetches only `ScanCollection` records and only the local scan records referenced by the incoming collections (predicate-scoped). Upserts collections, rebuilds scan relationships, deletes obsolete non-Favorites collections. **Precondition**: `syncHistoricalScansDown` always calls `pushCollectionsToEdge()` before this step so that the cloud collection list already contains every local collection — the delete pass therefore only removes genuine remote deletions, never unsynced local creations.
 
 ### Lifecycle Execution Hook
 This synchronization fires the moment a user transitions from Ghost → Authenticated (inside `SupabaseManager.setupAuthStateListener`) and whenever the app recovers foreground state (`AppDIContainer.handleActivePhase`).

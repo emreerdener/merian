@@ -193,7 +193,7 @@ extension OfflineQueueManager {
     func syncCollections() {
         guard isOnline, SupabaseManager.shared.isAuthenticated else { return }
         guard let container = modelContext?.container else { return }
-        Task {
+        BackgroundTaskWrapper.execute(name: "CollectionSync") { _ in
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             await dbActor.pushCollectionsToEdge()
         }

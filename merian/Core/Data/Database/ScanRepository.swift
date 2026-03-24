@@ -119,6 +119,15 @@ final class ScanRepository {
                 scanOffset += scanPageSize
             }
 
+            // --- Push local collections before pulling ---
+            // Local collections created while offline (or before auth completed) are never
+            // uploaded by the on-demand syncCollections() path. If we reconcile against
+            // the cloud first those unsynced collections will be deleted at line 479.
+            // Pushing here ensures every local collection reaches Supabase before we treat
+            // the cloud as the source of truth for the delete pass.
+            let pushActor = BackgroundDatabaseActor(modelContainer: modelContext.container)
+            await pushActor.pushCollectionsToEdge()
+
             // --- Paginated collections fetch ---
             var allCollections: [CloudCollectionResponse] = []
             var colOffset = 0
