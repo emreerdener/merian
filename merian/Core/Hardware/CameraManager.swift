@@ -25,6 +25,7 @@ import Accelerate
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Render Throttling Logic
+    @ObservationIgnored private let stateLock = OSAllocatedUnfairLock()
     @ObservationIgnored nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
     @ObservationIgnored nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
     
@@ -40,7 +41,8 @@ import Accelerate
     
     var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: "isLiveInferencePaused") as? Bool ?? UIDevice.current.isModernIPhone {
         didSet {
-            activeInferencePaused = isLiveInferencePaused
+            let currentVal = isLiveInferencePaused
+            stateLock.withLock { activeInferencePaused = currentVal }
         }
     }
     
@@ -60,7 +62,8 @@ import Accelerate
     // MARK: - Hardware Initialization
     private override init() {
         super.init()
-        self.activeInferencePaused = self.isLiveInferencePaused
+        let initialPaused = self.isLiveInferencePaused
+        self.stateLock.withLock { self.activeInferencePaused = initialPaused }
         
         trackFPS()
             
@@ -157,9 +160,15 @@ import Accelerate
     func startSession() {
         guard !session.isRunning else { return }
         queue.async {
-            if !self.isSessionConfigured {
+            let needsConfig = self.stateLock.withLock { () -> Bool in
+                if !self.isSessionConfigured {
+                    self.isSessionConfigured = true
+                    return true
+                }
+                return false
+            }
+            if needsConfig {
                 self.setupSession()
-                self.isSessionConfigured = true
             }
             self.session.startRunning()
             Task { @MainActor in
@@ -195,7 +204,7 @@ import Accelerate
                 let rate = CMTime(value: 1, timescale: Int32(fps))
                 self.applyFrameRate(rate, to: device)
             } catch {
-                print("Failed to lock device for configuration: \(error)")
+                MerianLog.hardware.debug("Failed to lock device for configuration: \(error, privacy: .private)")
             }
         }
     }
@@ -217,7 +226,7 @@ import Accelerate
                 let idleRate = CMTime(value: 1, timescale: 1)
                 self.applyFrameRate(idleRate, to: device)
             } catch {
-                print("Failed to lock for configuration in idle state: \(error)")
+                MerianLog.hardware.debug("Failed to lock for configuration in idle state: \(error, privacy: .private)")
             }
         }
     }
@@ -261,10 +270,12 @@ import Accelerate
     nonisolated func depthDataOutput(_ output: AVCaptureDepthDataOutput, didOutput depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection) {
         // CPU FLOOD FIX: Throttle the heavy Depth Map calculation natively before locking the CPU
         let now = CFAbsoluteTimeGetCurrent()
-        if now - lastDepthTime < 0.3 {
-            return
+        let shouldProcess = stateLock.withLock { () -> Bool in
+            if now - lastDepthTime < 0.3 { return false }
+            lastDepthTime = now
+            return true
         }
-        lastDepthTime = now
+        if !shouldProcess { return }
 
         let depthPixelBuffer = depthData.depthDataMap
         CVPixelBufferLockBaseAddress(depthPixelBuffer, .readOnly)
@@ -348,7 +359,7 @@ import Accelerate
                     self?.isFlashEnabled = (targetTorchMode == .on)
                 }
             } catch {
-                print("Failed to lock device for torch: \(error)")
+                MerianLog.hardware.debug("Failed to lock device for torch: \(error, privacy: .private)")
             }
         }
     }
@@ -376,7 +387,7 @@ import Accelerate
                 
                 device.isSubjectAreaChangeMonitoringEnabled = true
             } catch {
-                print("Failed to lock device for focus: \(error)")
+                MerianLog.hardware.debug("Failed to lock device for focus: \(error, privacy: .private)")
             }
         }
     }
@@ -402,24 +413,27 @@ import Accelerate
                 
                 device.isSubjectAreaChangeMonitoringEnabled = false
             } catch {
-                print("Failed to lock device for resetting focus: \(error)")
+                MerianLog.hardware.debug("Failed to lock device for resetting focus: \(error, privacy: .private)")
             }
         }
     }
     
     // MARK: - Video Frame Processing Delegate
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        if activeInferencePaused { return }
+        let isPaused = stateLock.withLock { activeInferencePaused }
+        if isPaused { return }
         
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
         // Optimize: Throttle natively on the background queue BEFORE jumping to the Main Thread
         // This drops main thread context switches from 60fps to 3fps, drastically saving battery
         let now = CFAbsoluteTimeGetCurrent()
-        if now - lastCaptureTime < 0.3 {
-            return
+        let shouldProcess = stateLock.withLock { () -> Bool in
+            if now - lastCaptureTime < 0.3 { return false }
+            lastCaptureTime = now
+            return true
         }
-        lastCaptureTime = now
+        if !shouldProcess { return }
         
         // Calculate brightness synchronously via ultra-fast Accelerate vector hardware, bypassing manual CPU byte-stride loops
         var brightness: Float = 1.0

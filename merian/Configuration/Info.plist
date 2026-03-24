@@ -21,7 +21,7 @@
 	<key>CFBundleVersion</key>
 	<string>2</string>
 	<key>GIDClientID</key>
-	<string>837988435097-6kclt4r7lhrf1jg2gn4djm65bkh6839u.apps.googleusercontent.com</string>
+	<string>$(GIDClientID)</string>
 
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
@@ -67,7 +67,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.837988435097-6kclt4r7lhrf1jg2gn4djm65bkh6839u</string>
+				<string>$(REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
 	</array>

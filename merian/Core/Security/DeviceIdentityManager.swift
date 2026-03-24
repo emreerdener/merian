@@ -6,6 +6,7 @@ import WatchKit
 #endif
 import Security
 import Observation
+import os
 
 // MARK: - Core Identity Engine
 @MainActor
@@ -33,7 +34,7 @@ import Observation
         
         // Critical: Protect existing user Identity records from background iOS wiping loops dynamically
         if status == errSecInteractionNotAllowed {
-            print("DeviceIdentityManager: Keychain locked in background (errSecInteractionNotAllowed). Throttling execution to protect identities natively.")
+            MerianLog.general.debug("DeviceIdentityManager: Keychain locked in background (errSecInteractionNotAllowed). Throttling execution to protect identities natively.")
             #if canImport(UIKit)
             return UIDevice.current.identifierForVendor?.uuidString ?? ""
             #elseif canImport(WatchKit)

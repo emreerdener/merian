@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - Core Networking Protocols
 enum NetworkError: Error {
@@ -45,7 +46,7 @@ final class MerianNetworkClient {
         }
         
         guard let authHeaders = try? await SupabaseManager.shared.getValidAuthHeaders() else {
-            print("⚠️ MerianNetworkClient: Critical Auth Failure or Disconnected OAuth User natively resolving bounds.")
+            MerianLog.network.debug("⚠️ MerianNetworkClient: Critical Auth Failure or Disconnected OAuth User natively resolving bounds.")
             throw NetworkError.invalidResponse
         }
         for (key, val) in authHeaders {
@@ -59,28 +60,28 @@ final class MerianNetworkClient {
         
         if httpResponse.statusCode != 200 {
             let errString = String(data: data, encoding: .utf8) ?? "Unknown"
-            print("🚨 SUPABASE EDGE FAILED [\(httpResponse.statusCode)]: \(errString)")
+            MerianLog.network.debug("🚨 SUPABASE EDGE FAILED [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
             
             // Self-Healing Zombie Session Trap safely managed
             if httpResponse.statusCode == 401 && !isRetry {
-                let hasAuthenticatedOAuth = UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth")
+                let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: "Merian_HasAuthenticatedOAuth")
                 if hasAuthenticatedOAuth {
-                    print("🚨 NATIVE SESSION EXPIRED. Blocking Ghost overwrite to force UI re-authentication.")
+                    MerianLog.network.debug("🚨 NATIVE SESSION EXPIRED. Blocking Ghost overwrite to force UI re-authentication.")
                     throw NetworkError.invalidResponse
                 }
                 
                 let isGuest = await SupabaseManager.shared.isGuestUser
                 if isGuest {
-                    print("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")
+                    MerianLog.network.debug("🚨 ZOMBIE SESSION DETECTED. Purging local auth cache and regenerating...")
                     await SupabaseManager.shared.signOut()
                     await SupabaseManager.shared.initializeGhostSession()
                     
-                    print("⏳ Waiting 1.5s for Kong API Gateway to sync new ES256 signature...")
+                    MerianLog.network.debug("⏳ Waiting 1.5s for Kong API Gateway to sync new ES256 signature...")
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     
                     return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
                 } else {
-                    print("🚨 NATIVE SESSION EXPIRED. Failing gracefully to allow re-authentication.")
+                    MerianLog.network.debug("🚨 NATIVE SESSION EXPIRED. Failing gracefully to allow re-authentication.")
                     throw NetworkError.invalidResponse
                 }
             }
@@ -155,7 +156,7 @@ final class MerianNetworkClient {
         let uploadStartTime = CFAbsoluteTimeGetCurrent()
         let (responseData, response) = try await URLSession.shared.data(for: request)
         let uploadTime = CFAbsoluteTimeGetCurrent() - uploadStartTime
-        print("⏱️ [Performance] Cloudflare R2 Upload completed in \(String(format: "%.3f", uploadTime)) seconds.")
+        MerianLog.network.debug("⏱️ [Performance] Cloudflare R2 Upload completed in \(String(format: "%.3f", uploadTime), privacy: .public) seconds.")
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.uploadFailed
@@ -163,7 +164,7 @@ final class MerianNetworkClient {
         
         if httpResponse.statusCode != 200 {
             let errString = String(data: responseData, encoding: .utf8) ?? "Unknown"
-            print("🚨 R2 UPLOAD FAILED [\(httpResponse.statusCode)]: \(errString)")
+            MerianLog.network.debug("🚨 R2 UPLOAD FAILED [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
             throw NetworkError.uploadFailed
         }
     }
@@ -175,13 +176,13 @@ final class MerianNetworkClient {
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        print("✅ Scan deleted sequentially successfully from Cloud Edge")
+        MerianLog.network.debug("✅ Scan deleted sequentially successfully from Cloud Edge")
     }
     
     func safeDeleteAccount() async throws {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/safe-delete")!
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST")
-        print("✅ Account physically destroyed across PostgreSQL and Cloudflare R2")
+        MerianLog.network.debug("✅ Account physically destroyed across PostgreSQL and Cloudflare R2")
     }
     
     // MARK: - Darwin Core (DwC) Archives

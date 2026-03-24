@@ -8,6 +8,7 @@ import CoreLocation
 #if canImport(UIKit)
 import UIKit
 import Observation
+import os
 
 // MARK: - Core Concurrency Wrapper
 /// A generic, thread-safe wrapper for managing UIBackgroundTaskIdentifier
@@ -102,7 +103,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                 // Only act on actual state changes to avoid redundant thrashing
                 if newStatus != self?.isOnline {
                     self?.isOnline = newStatus
-                    print("NWPathMonitor Status Changed: \(newStatus ? "Online" : "Offline")")
+                    MerianLog.data.debug("NWPathMonitor Status Changed: \(newStatus ? "Online" : "Offline", privacy: .public)")
                     
                     if newStatus {
                         // Debounce slightly to allow the OS network stack to fully resolve
@@ -135,18 +136,18 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     try await MerianNetworkClient.shared.deleteScan(scanId: task.scanId)
                     context.delete(task)
                     try context.save()
-                    print("✅ Successfully erased \(task.scanId) securely in Edge background")
+                    MerianLog.data.debug("✅ Successfully erased \(task.scanId, privacy: .private) securely in Edge background")
                 } catch {
                     // Let it fail silently, either network jitter or it naturally succeeded already.
                     // We'll retry on next connectivity cycle naturally.
                     if case NetworkError.invalidResponse = error {
                         context.delete(task)
-                        try? context.save()
+                        do { try context.save() } catch { MerianLog.data.debug("🚨 context save failed: \(error, privacy: .private)") }
                     }
                 }
             }
         } catch {
-            print("Failed fetching cloud deletion tasks: \(error)")
+            MerianLog.data.debug("Failed fetching cloud deletion tasks: \(error, privacy: .private)")
         }
     }
     
@@ -208,16 +209,16 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         // so that `URLSession` launches gracefully while iOS gives us our 30-sec background envelope.
                         OfflineQueueManager.shared.syncPendingScans()
                     } catch {
-                        print("Failed to save offline queue record. Cleaning up abandoned local image footprints.")
+                        MerianLog.data.debug("Failed to save offline queue record. Cleaning up abandoned local image footprints.")
                         for url in generatedFileURLs {
-                            try? FileManager.default.removeItem(at: url)
+                            do { try FileManager.default.removeItem(at: url) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
                         }
                     }
                 }
             } catch {
-                print("Failed to enqueue capture array: \(error)")
+                MerianLog.data.debug("Failed to enqueue capture array: \(error, privacy: .private)")
                 for url in generatedFileURLs {
-                    try? FileManager.default.removeItem(at: url)
+                    do { try FileManager.default.removeItem(at: url) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
                 }
             }
         }
@@ -236,7 +237,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
         syncTask = BackgroundTaskWrapper.execute(
             name: "OfflineQueueSync",
             expirationHandler: {
-                print("Offline Queue background expiration triggered")
+                MerianLog.data.debug("Offline Queue background expiration triggered")
                 Task { @MainActor in SyncStateManager.shared.completeSync() }
             }
         ) { _ in
@@ -291,8 +292,14 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     for (index, presignedURL) in presignedUrls.enumerated() {
                         if Task.isCancelled { break } // Block loop execution instantly upon strict OS-level thread suspension
                         
-                        guard index < fileURLs.count else { continue }
-                        guard let remoteUrl = URL(string: presignedURL.signedUrl) else { continue }
+                        guard index < fileURLs.count else {
+                            MerianLog.data.debug("OfflineQueue Sync skipped: Index \(index) out of bounds for fileURLs (count: \(fileURLs.count))")
+                            continue
+                        }
+                        guard let remoteUrl = URL(string: presignedURL.signedUrl) else {
+                            MerianLog.data.debug("OfflineQueue Sync skipped: Invalid signed URL returned by edge")
+                            continue
+                        }
                         
                         var request = URLRequest(url: remoteUrl)
                         request.httpMethod = "PUT"
@@ -303,7 +310,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         
                         // NEW FIX: Infinite queue race condition protection
                         if !FileManager.default.fileExists(atPath: originalFileURL.path) {
-                            print("⚠️ Offline Queue: Original file \(originalFileURL.lastPathComponent) went missing! Tombstoning this scan globally.")
+                            MerianLog.data.debug("⚠️ Offline Queue: Original file \(originalFileURL.lastPathComponent, privacy: .private) went missing! Tombstoning this scan globally.")
                             Task { @MainActor in
                                 OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
                             }
@@ -313,12 +320,12 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_\(index)_temp_upload.jpg")
                         
                         // CRITICAL FIX: Explicitly remove orphaned files to prevent copyItem from silently failing
-                        try? FileManager.default.removeItem(at: tempFileURL)
+                        do { try FileManager.default.removeItem(at: tempFileURL) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
                         
                         do {
                             try FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
                         } catch {
-                            print("Offline Queue: Failed to copy physical payload, aborting: \(error)")
+                            MerianLog.data.debug("Offline Queue: Failed to copy physical payload, aborting: \(error, privacy: .private)")
                             continue
                         }
                         
@@ -331,7 +338,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     // The backend will handle the actual Gemini inference asynchronously via a Supabase Storage Webhook once the file lands in the R2 staging bucket.
                     
                 } catch {
-                    print("Failed to request Background staging URLs natively: \(error)")
+                    MerianLog.data.debug("Failed to request Background staging URLs natively: \(error, privacy: .private)")
                 }
                 
                 // the remote system handles upload and then completion delegate fires.
@@ -349,7 +356,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
         BackgroundTaskWrapper.execute(
             name: "OfflineInference",
             expirationHandler: {
-                print("Offline inference background task expired")
+                MerianLog.data.debug("Offline inference background task expired")
             }
         ) { _ in
             let processCompletion = { @Sendable () async in
@@ -362,13 +369,13 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                 let indexPart = components.count > 1 ? components[1] : ""
                 
                 let tempFileURL = URL.cachesDirectory.appendingPathComponent(indexPart.isEmpty ? "\(scanId)_temp_upload.jpg" : "\(scanId)_\(indexPart)_temp_upload.jpg")
-                try? FileManager.default.removeItem(at: tempFileURL)
+                do { try FileManager.default.removeItem(at: tempFileURL) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
                 
                 if let error = error {
-                    print("Background upload hard failed: \(error)")
+                    MerianLog.data.debug("Background upload hard failed: \(error, privacy: .private)")
                     let nsError = error as NSError
                     if nsError.domain == NSURLErrorDomain && (nsError.code == NSURLErrorFileDoesNotExist || nsError.code == NSURLErrorCannotOpenFile) {
-                        print("⚠️ Offline Queue: Terminal file-system corruption detected. Tombstoning scan \(scanId).")
+                        MerianLog.data.debug("⚠️ Offline Queue: Terminal file-system corruption detected. Tombstoning scan \(scanId, privacy: .private).")
                         await MainActor.run {
                             OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
                         }
@@ -381,9 +388,9 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     let recoverableCodes = [403, 500, 502, 503, 504]
                     
                     if recoverableCodes.contains(code) {
-                        print("Background upload failed with recoverable status (\(code)). Retaining in queue.")
+                        MerianLog.data.debug("Background upload failed with recoverable status (\(code, privacy: .public)). Retaining in queue.")
                     } else {
-                        print("Background upload rejected physically by boundary constraints. Server returned an error.")
+                        MerianLog.data.debug("Background upload rejected physically by boundary constraints. Server returned an error.")
                         await MainActor.run {
                             OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
                         }
@@ -408,7 +415,8 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                         return nil
                     }
                     let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-                    guard let scan = try? modelContext.fetch(descriptor).first else { return nil }
+                    let scan: OfflineQueuedScan? = { do { return try modelContext.fetch(descriptor).first } catch { MerianLog.data.debug("🚨 Fetch failed: \(error, privacy: .private)"); return nil } }()
+                    guard let scan = scan else { return nil }
                     
                     let telemetry = CaptureTelemetry(
                         subjectDistanceInMeters: scan.subjectDistanceInMeters,
@@ -451,7 +459,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                             timeOfDay: finalTelemetry.timeOfDay,
                             timestamp: finalTelemetry.timestamp
                         )
-                        print("🌤️ Hydrated offline wilderness scan with historical weather: \(historicalContext.weatherCondition ?? "Unknown")")
+                        MerianLog.data.debug("🌤️ Hydrated offline wilderness scan with historical weather: \(historicalContext.weatherCondition ?? "Unknown", privacy: .public)")
                     }
                 
                 do {
@@ -467,7 +475,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     )
                     
                     let inferenceTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
-                    print("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime)) seconds.")
+                    MerianLog.data.debug("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime), privacy: .public) seconds.")
                     
                     let backgroundActor = BackgroundDatabaseActor(modelContainer: extracted.container)
                     let discoveredSpecies = await backgroundActor.processAndCleanupOfflineScan(
@@ -496,14 +504,14 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                     }
                     
                     let totalPipelineTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
-                    print("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime)) seconds!")
+                    MerianLog.data.debug("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime), privacy: .public) seconds!")
                     
                     await MainActor.run {
                         OfflineQueueManager.shared.updateUnsyncedItemCount()
                         CircuitBreakerManager.shared.recordSuccess()
                     }
                 } catch {
-                    print("Failed downstream inference on offline queued scan: \(error)")
+                    MerianLog.data.debug("Failed downstream inference on offline queued scan: \(error, privacy: .private)")
                 }
             } // end if indexString...
         } // end processCompletion block
@@ -532,7 +540,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     func updateUnsyncedItemCount() {
         guard let context = modelContext else { return }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == false })
-        let count = (try? context.fetchCount(descriptor)) ?? 0
+        let count: Int = { do { return try context.fetchCount(descriptor) } catch { MerianLog.data.debug("🚨 fetchCount failed: \(error, privacy: .private)"); return 0 } }()
         Task { @MainActor in
             self.unsyncedItemsCount = count
         }
@@ -541,9 +549,10 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     func softDeleteQueuedScan(scanId: String) {
         guard let modelContext = modelContext else { return }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate<OfflineQueuedScan> { $0.id == scanId })
-        if let match = (try? modelContext.fetch(descriptor))?.first {
+        let _tempMatch: OfflineQueuedScan? = { do { return try modelContext.fetch(descriptor).first } catch { MerianLog.data.debug("🚨 match fetch failed: \(error, privacy: .private)"); return nil } }()
+        if let match = _tempMatch {
             match.isDeleted = true
-            try? modelContext.save()
+            do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
             updateUnsyncedItemCount()
         }
     }
@@ -559,14 +568,14 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
                 // Clear the cache completely out of the local device storage
                 for path in scan.localImagePaths {
                     let fileURL = documentsDirectory.appendingPathComponent(path)
-                    try? FileManager.default.removeItem(at: fileURL)
+                    do { try FileManager.default.removeItem(at: fileURL) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
                 }
                 modelContext.delete(scan)
             }
             try modelContext.save()
             updateUnsyncedItemCount()
         } catch {
-            print("Failed to purge soft deleted records: \(error)")
+            MerianLog.data.debug("Failed to purge soft deleted records: \(error, privacy: .private)")
         }
     }
     
@@ -586,7 +595,7 @@ actor BackgroundDatabaseActor {
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
         descriptor.fetchLimit = limit
         
-        let pending = (try? modelContext.fetch(descriptor)) ?? []
+        let pending: [OfflineQueuedScan] = { do { return try modelContext.fetch(descriptor) } catch { MerianLog.data.debug("🚨 pending fetch failed: \(error, privacy: .private)"); return [] } }()
         return pending.map { PendingScanPayload(id: $0.id, localImagePaths: $0.localImagePaths) }
     }
     
@@ -596,7 +605,8 @@ actor BackgroundDatabaseActor {
         let decoder = JSONDecoder()
         var inferenceFailed = true
         var resolvedSpeciesName: String? = nil
-        if let parsedWrapper = try? decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData) {
+        let _temp_parsedWrapper: InferenceEngine.EdgeResponseWrapper? = { do { return try decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData) } catch { MerianLog.data.debug("🚨 JSON decode failed: \(error, privacy: .private)"); return nil } }()
+if let parsedWrapper = _temp_parsedWrapper {
             let edgeRes = parsedWrapper.data
             var mappedData = SpeciesData(fromEdgeResponse: edgeRes, locationName: telemetry?.locationName, weatherCondition: telemetry?.weatherCondition, weatherTemperatureF: telemetry?.weatherTemperatureF, gpsElevation: telemetry?.gpsElevation, gpsLatitude: telemetry?.gpsLatitude, gpsLongitude: telemetry?.gpsLongitude)
             
@@ -611,7 +621,7 @@ actor BackgroundDatabaseActor {
                     predicate: #Predicate<LocalScanRecord> { $0.scientificName == targetName }
                 )
                 
-                let existingRecords = (try? modelContext.fetch(fetchDescriptor)) ?? []
+                let existingRecords: [LocalScanRecord] = { do { return try modelContext.fetch(fetchDescriptor) } catch { MerianLog.data.debug("🚨 existingRecords fetch failed: \(error, privacy: .private)"); return [] } }()
                 let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
                 
                 if existingRecords.isEmpty {
@@ -652,7 +662,7 @@ actor BackgroundDatabaseActor {
                     diagnosticPrimaryRationale: mappedData.diagnosticComparison?.primaryMatchRationale,
                     diagnosticLookalikeName: mappedData.diagnosticComparison?.confusingLookalikeName,
                     diagnosticDifferentiatorsJson: {
-                        guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = try? JSONEncoder().encode(diffs) else { return nil }
+                        guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = { () -> Data? in do { return try JSONEncoder().encode(diffs) } catch { MerianLog.data.debug("🚨 JSON parsing failed: \(error, privacy: .private)"); return nil } }() else { return nil }
                         return String(data: data, encoding: .utf8)
                     }(),
                     iucnRedListStatus: mappedData.iucnRedListStatus,
@@ -661,7 +671,7 @@ actor BackgroundDatabaseActor {
                     gpsElevation: mappedData.gpsElevation
                 )
                 modelContext.insert(record)
-                try? modelContext.save()
+                do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
             }
         }
         
@@ -681,12 +691,12 @@ actor BackgroundDatabaseActor {
                 let documentsDirectory = URL.documentsDirectory
                 for path in originalImagePaths {
                     let fileURL = documentsDirectory.appendingPathComponent(path)
-                    try? FileManager.default.removeItem(at: fileURL)
+                    do { try FileManager.default.removeItem(at: fileURL) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
                 }
             }
             
         } catch {
-            print("Background cleanup logic explicitly failed out of process offline trace natively: \(error)")
+            MerianLog.data.debug("Background cleanup logic explicitly failed out of process offline trace natively: \(error, privacy: .private)")
         }
         
         return resolvedSpeciesName
@@ -706,7 +716,7 @@ actor BackgroundDatabaseActor {
     
     func pushCollectionsToEdge() async {
         let descriptor = FetchDescriptor<ScanCollection>()
-        let collections = (try? modelContext.fetch(descriptor)) ?? []
+        let collections: [ScanCollection] = { do { return try modelContext.fetch(descriptor) } catch { MerianLog.data.debug("🚨 collections fetch failed: \(error, privacy: .private)"); return [] } }()
         
         var payloadList: [SyncCollectionPayload] = []
         for col in collections {
@@ -726,9 +736,9 @@ actor BackgroundDatabaseActor {
                 "sync-collections",
                 options: .init(headers: headers, body: SyncRequestPayload(collections: payloadList))
             )
-            print("✅ Successfully pushed \(payloadList.count) Collections to Edge implicitly.")
+            MerianLog.data.debug("✅ Successfully pushed \(payloadList.count, privacy: .public) Collections to Edge implicitly.")
         } catch {
-            print("Failed to sync collections downstream natively: \(error)")
+            MerianLog.data.debug("Failed to sync collections downstream natively: \(error, privacy: .private)")
         }
     }
     
@@ -739,14 +749,14 @@ actor BackgroundDatabaseActor {
         if mappedData.confidenceScore > 0.0, let firstData = compressedDatas.first {
             let filename = "\(UUID().uuidString)_scan.jpg"
             let url = URL.documentsDirectory.appendingPathComponent(filename)
-            try? firstData.write(to: url, options: .atomic)
+            do { try firstData.write(to: url, options: .atomic) } catch { MerianLog.data.debug("🚨 File write failed for firstData: \(error, privacy: .private)") }
             
             var additionalPaths: [String] = []
             if compressedDatas.count > 1 {
                 for i in 1..<compressedDatas.count {
                     let extraFilename = "\(UUID().uuidString)_additional_\(i).jpg"
                     let extraUrl = URL.documentsDirectory.appendingPathComponent(extraFilename)
-                    try? compressedDatas[i].write(to: extraUrl, options: .atomic)
+                    do { try compressedDatas[i].write(to: extraUrl, options: .atomic) } catch { MerianLog.data.debug("🚨 File write failed for compressedDatas[i]: \(error, privacy: .private)") }
                     additionalPaths.append(extraFilename)
                 }
             }
@@ -756,7 +766,7 @@ actor BackgroundDatabaseActor {
                 predicate: #Predicate { $0.scientificName == targetName }
             )
             
-            let existingRecords = (try? modelContext.fetch(fetchDescriptor)) ?? []
+            let existingRecords: [LocalScanRecord] = { do { return try modelContext.fetch(fetchDescriptor) } catch { MerianLog.data.debug("🚨 existingRecords fetch failed: \(error, privacy: .private)"); return [] } }()
             let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
             
             if existingRecords.isEmpty {
@@ -793,7 +803,7 @@ actor BackgroundDatabaseActor {
                 diagnosticPrimaryRationale: mappedData.diagnosticComparison?.primaryMatchRationale,
                 diagnosticLookalikeName: mappedData.diagnosticComparison?.confusingLookalikeName,
                 diagnosticDifferentiatorsJson: {
-                    guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = try? JSONEncoder().encode(diffs) else { return nil }
+                    guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators, let data = { () -> Data? in do { return try JSONEncoder().encode(diffs) } catch { MerianLog.data.debug("🚨 JSON parsing failed: \(error, privacy: .private)"); return nil } }() else { return nil }
                     return String(data: data, encoding: .utf8)
                 }(),
                 iucnRedListStatus: mappedData.iucnRedListStatus,
@@ -802,7 +812,7 @@ actor BackgroundDatabaseActor {
                 gpsElevation: mappedData.gpsElevation
             )
             modelContext.insert(record)
-            try? modelContext.save()
+            do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
         }
         return newDiscovery
     }
@@ -813,13 +823,14 @@ actor BackgroundDatabaseActor {
         let fetchDescriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { $0.id == scanId }
         )
-        if let record = (try? modelContext.fetch(fetchDescriptor))?.first {
+        let _tempRecord: LocalScanRecord? = { do { return try modelContext.fetch(fetchDescriptor).first } catch { MerianLog.data.debug("🚨 record fetch failed: \(error, privacy: .private)"); return nil } }()
+        if let record = _tempRecord {
             record.wikipediaExtract = extract
             record.wikipediaUrl = url
             if let img = imageUrl, !img.isEmpty {
                 record.referenceImageUrl = img
             }
-            try? modelContext.save()
+            do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
         }
     }
 }

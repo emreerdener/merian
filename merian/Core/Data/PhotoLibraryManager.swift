@@ -2,6 +2,8 @@ import Foundation
 import Photos
 import UIKit
 import Observation
+import ImageIO
+import os
 
 // MARK: - Core Camera Roll Bridge
 /// Manages fetching the most recent photo thumbnail from the user's camera roll securely without extracting PII.
@@ -100,15 +102,28 @@ import Observation
         }
         
         guard status == .authorized || status == .limited else {
-            print("⚠️ Insufficient permissions to securely persist array into Camera Roll.")
+            MerianLog.data.debug("⚠️ Insufficient permissions to securely persist array into Camera Roll.")
             return false
         }
         
         do {
+            let processedPayload: ResourcePayload = {
+                switch payload {
+                case .data(let data):
+                    return .data(self.stripGPS(from: data) ?? data)
+                case .url(let url):
+                    if let fileData = try? Data(contentsOf: url),
+                       let stripped = self.stripGPS(from: fileData) {
+                        return .data(stripped)
+                    }
+                    return payload
+                }
+            }()
+            
             try await PHPhotoLibrary.shared().performChanges {
                 let request = PHAssetCreationRequest.forAsset()
-                // Directly pass the raw physics buffers seamlessly natively maintaining EXIF data dynamically.
-                switch payload {
+                // Directly pass the stripped privacy safe buffers natively avoiding GPS PII persistence.
+                switch processedPayload {
                 case .data(let data):
                     request.addResource(with: .photo, data: data, options: nil)
                 case .url(let url):
@@ -121,7 +136,7 @@ import Observation
             }
             return true
         } catch {
-            print("⚠️ Failed to natively save image to photo library bounds: \(error)")
+            MerianLog.data.debug("⚠️ Failed to natively save image to photo library bounds: \(error, privacy: .private)")
             return false
         }
     }
@@ -132,7 +147,7 @@ import Observation
         
         let success = await executePhotoLibraryWrite(payload: .data(imageData), location: location, accessLevel: .readWrite)
         if success {
-            print("📸 Captured image efficiently pushed down into native Camera Roll.")
+            MerianLog.data.debug("📸 Captured image efficiently pushed down into native Camera Roll.")
         }
     }
     
@@ -142,5 +157,30 @@ import Observation
     
     func saveImageManual(fileURL: URL) async -> Bool {
         return await executePhotoLibraryWrite(payload: .url(fileURL), location: nil, accessLevel: .addOnly)
+    }
+    
+    // MARK: - Privacy & EXIF Scrubbing
+    /// Resolves memory buffers and strips precise PII GPS dict arrays securely
+    nonisolated private func stripGPS(from data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let type = CGImageSourceGetType(source) else {
+            return nil
+        }
+        
+        let mutableData = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(mutableData, type, 1, nil) else {
+            return nil
+        }
+        
+        guard var properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+            return nil
+        }
+        
+        properties[kCGImagePropertyGPSDictionary] = nil
+        
+        CGImageDestinationAddImageFromSource(destination, source, 0, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        
+        return mutableData as Data
     }
 }

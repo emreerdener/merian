@@ -1,5 +1,6 @@
 import Foundation
 import AppIntents
+import os
 
 // MARK: - Core OS Integration
 
@@ -7,8 +8,8 @@ import AppIntents
 // Mocking the Navigation architecture to represent standard Merian implementations
 struct AppState {
     static let shared = AppState()
-    func navigateTo(_ destination: String) { print("Navigated seamlessly to \(destination)") }
-    func navigateToLastScan() { print("Pushed Last Scan Modal natively.") }
+    func navigateTo(_ destination: String) { MerianLog.general.debug("Navigated seamlessly to \(destination, privacy: .public)") }
+    func navigateToLastScan() { MerianLog.general.debug("Pushed Last Scan Modal natively.") }
 }
 
 // MARK: - Primary Discovery Intent

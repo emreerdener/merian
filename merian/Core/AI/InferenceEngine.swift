@@ -4,6 +4,7 @@ import Combine
 import SwiftUI
 import SwiftData
 import ImageIO
+import os
 
 // MARK: - Engine Boundaries
 enum APIError: Error {
@@ -89,6 +90,7 @@ enum APIError: Error {
 
     // MARK: - Main Pipeline Triggers
     func analyze(imageDatas: [Data], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
+        guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         
         // Reset states for a fresh native scan
@@ -140,7 +142,7 @@ enum APIError: Error {
                     telemetry: telemetry
                 )
                 let inferenceTime = CFAbsoluteTimeGetCurrent() - inferenceStartTime
-                print("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime)) seconds.")
+                MerianLog.general.debug("⏱️ [Performance] Gemini Edge Inference completed in \(String(format: "%.3f", inferenceTime), privacy: .public) seconds.")
                 
                 let (finalMappedData, isNewDisc) = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
@@ -166,7 +168,7 @@ enum APIError: Error {
                     self.speciesData = mappedData
                     
                     let totalPipelineTime = CFAbsoluteTimeGetCurrent() - boundaryStartTime
-                    print("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime)) seconds!")
+                    MerianLog.general.debug("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime), privacy: .public) seconds!")
                     
                     if mappedData.isBiological {
                         Task {
@@ -227,7 +229,7 @@ enum APIError: Error {
                     telemetry: telemetry,
                     blurScore: nil
                 )
-                print("⚠️ Inference Engine Critical Failure: \(error.localizedDescription)")
+                MerianLog.general.debug("⚠️ Inference Engine Critical Failure: \(error.localizedDescription, privacy: .private)")
                 self.speciesData = SpeciesData(
                     scanId: nil,
                     commonName: "Network Timeout",
@@ -307,13 +309,13 @@ enum APIError: Error {
             }
             
         } catch {
-            print("Silently bypassed Wikipedia background hydration: \(error)")
+            MerianLog.general.debug("Silently bypassed Wikipedia background hydration: \(error, privacy: .private)")
         }
     }
     
     // MARK: - Active Pipeline Modifiers
     func cancelActiveRequest() {
-        print("Cancelled active inference request to prevent watchdog termination.")
+        MerianLog.general.debug("Cancelled active inference request to prevent watchdog termination.")
         isBackgroundRescued = true
         self.inferenceTask?.cancel()
         self.speciesData = nil
@@ -478,7 +480,7 @@ actor InferenceProcessingActor {
         do {
             parsedWrapper = try decoder.decode(InferenceEngine.EdgeResponseWrapper.self, from: resultData)
         } catch let error as DecodingError {
-            print("⚠️ AI JSON Payload Hallucination / Decoding Error: \(error.localizedDescription)")
+            MerianLog.general.debug("⚠️ AI JSON Payload Hallucination / Decoding Error: \(error.localizedDescription, privacy: .private)")
             throw APIError.decodingFailed
         }
         

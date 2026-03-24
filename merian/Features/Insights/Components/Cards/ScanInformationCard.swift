@@ -7,12 +7,17 @@ struct ScanInformationCard: View {
     
     var hasValidData: Bool {
         guard let sd = speciesData else { return false }
-        let nameValid = sd.locationName != nil && !sd.locationName!.trimmingCharacters(in: .whitespaces).isEmpty
+        let nameValid = sd.locationName.map { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
         let weatherValid = sd.weatherTemperatureF != nil && sd.weatherCondition != nil
         // A mathematically exact `0.0` output from CoreLocation natively denotes a missing 
         // vertical altitude fix. Authentic sea-level topological readings always float (e.g., 0.3m, -1.2m).
         let elevationValid = sd.gpsElevation != nil && sd.gpsElevation != 0
-        let coordsValid = sd.gpsLatitude != nil && sd.gpsLongitude != nil && !(sd.gpsLatitude == 0 && sd.gpsLongitude == 0)
+        let coordsValid: Bool = {
+            guard let lat = sd.gpsLatitude, let lon = sd.gpsLongitude else { return false }
+            let latValid = lat >= -90 && lat <= 90
+            let lonValid = lon >= -180 && lon <= 180
+            return latValid && lonValid && !(lat == 0 && lon == 0)
+        }()
         return nameValid || weatherValid || elevationValid || coordsValid || timestamp != nil
     }
     
@@ -64,7 +69,7 @@ struct ScanInformationCard: View {
                     }
                     
                     // Map
-                    if let lat = lat, let lon = lon, !(lat == 0 && lon == 0) {
+                    if let lat = lat, let lon = lon, (lat >= -90 && lat <= 90), (lon >= -180 && lon <= 180), !(lat == 0 && lon == 0) {
                         let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
                         Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)))) {
                             Marker("Location", coordinate: coord)

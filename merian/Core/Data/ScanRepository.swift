@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import os
 
 // MARK: - Core Database Orchestrator
 /// The generic logical abstraction over Database operations.
@@ -19,11 +20,11 @@ final class ScanRepository {
         offlineQueue.modelContext = modelContext
         
         let descriptor = FetchDescriptor<ScanCollection>()
-        let collections = (try? modelContext.fetch(descriptor)) ?? []
+        let collections: [ScanCollection] = { do { return try modelContext.fetch(descriptor) } catch { MerianLog.data.debug("🚨 collections fetch failed: \(error, privacy: .private)"); return [] } }()
         if !collections.contains(where: { $0.name == "Favorites" }) {
             let favorites = ScanCollection(name: "Favorites")
             modelContext.insert(favorites)
-            try? modelContext.save()
+            do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
         }
     }
     
@@ -45,7 +46,7 @@ final class ScanRepository {
         do {
             return try modelContext.fetch(descriptor)
         } catch {
-            print("Failed to fetch LocalScans from generic repository: \(error)")
+            MerianLog.data.debug("Failed to fetch LocalScans from generic repository: \(error, privacy: .private)")
             return []
         }
     }
@@ -80,13 +81,13 @@ final class ScanRepository {
             
             // Reconcile and buffer diff bounds cleanly out of SwiftData
             let descriptor = FetchDescriptor<LocalScanRecord>()
-            let existingLocalScans = (try? modelContext.fetch(descriptor)) ?? []
+            let existingLocalScans: [LocalScanRecord] = { do { return try modelContext.fetch(descriptor) } catch { MerianLog.data.debug("🚨 existingLocalScans fetch failed: \(error, privacy: .private)"); return [] } }()
             let existingIds = Set(existingLocalScans.map { $0.id })
             
             let missingScans = response.filter { !existingIds.contains($0.id) }
             
             if !missingScans.isEmpty {
-                print("🔄 Merian Sync: Restoring \(missingScans.count) historical scan payloads natively...")
+                MerianLog.data.debug("🔄 Merian Sync: Restoring \(missingScans.count, privacy: .public) historical scan payloads natively...")
             }
             
             let collectionsResponse: [CloudCollectionResponse] = try await SupabaseManager.shared.client
@@ -107,11 +108,11 @@ final class ScanRepository {
             await dbActor.syncCollectionsDown(remoteCollections: collectionsResponse)
             
             if !missingScans.isEmpty {
-                print("✅ Merian Sync: Restored Historical payload records.")
+                MerianLog.data.debug("✅ Merian Sync: Restored Historical payload records.")
             }
             
         } catch {
-            print("🚨 Failed strictly reconciling Offline Historical Scans from Edge bounds: \(error)")
+            MerianLog.data.debug("🚨 Failed strictly reconciling Offline Historical Scans from Edge bounds: \(error, privacy: .private)")
         }
     }
     
@@ -137,7 +138,7 @@ final class ScanRepository {
         
         for p in imagesToErase {
             let fp = docs.appendingPathComponent(p)
-            try? FileManager.default.removeItem(at: fp)
+            do { try FileManager.default.removeItem(at: fp) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
         }
         
         // 2. Halt an upload if it's unfortunately caught midway in the upload buffer queue
@@ -150,7 +151,7 @@ final class ScanRepository {
         // 4. Destroy the immediate core SwiftData record for an optimistic-UI instantaneous disappear
         modelContext.delete(record)
         
-        try? modelContext.save()
+        do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
         
         // Push the delete-scan execution immediately
         Task {
@@ -166,9 +167,9 @@ final class ScanRepository {
             try modelContext.delete(model: OfflineQueuedScan.self)
             try modelContext.delete(model: PendingCloudDeletionTask.self)
             try modelContext.save()
-            print("✅ Successfully purged all SwiftData records natively.")
+            MerianLog.data.debug("✅ Successfully purged all SwiftData records natively.")
         } catch {
-            print("🚨 Failed to erase local ModelContainer: \(error.localizedDescription)")
+            MerianLog.data.debug("🚨 Failed to erase local ModelContainer: \(error.localizedDescription, privacy: .private)")
         }
     }
 }
@@ -235,7 +236,7 @@ actor HistoricalDatabaseActor {
             let wikiExtract = dict?.descriptions?["wikipedia"]?.flatMap { $0 }
             
             let rawR2Image = scan.image_storage_urls?.first
-            let additionalUrls = (scan.image_storage_urls?.count ?? 0) > 1 ? Array(scan.image_storage_urls!.dropFirst()) : nil
+            let additionalUrls = scan.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
             
             let dictRefImage = dict?.reference_image_url
             
@@ -277,12 +278,12 @@ actor HistoricalDatabaseActor {
             modelContext.insert(record)
         }
         
-        try? modelContext.save()
+        do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
     }
     
     func updateExistingScans(responses: [HistoricalScanResponse]) {
         let descriptor = FetchDescriptor<LocalScanRecord>()
-        let existingScans = (try? modelContext.fetch(descriptor)) ?? []
+        let existingScans: [LocalScanRecord] = { do { return try modelContext.fetch(descriptor) } catch { MerianLog.data.debug("🚨 existingScans fetch failed: \(error, privacy: .private)"); return [] } }()
         var lookup: [String: LocalScanRecord] = [:]
         for scan in existingScans {
             lookup[scan.id] = scan
@@ -292,7 +293,7 @@ actor HistoricalDatabaseActor {
         for res in responses {
             if let existing = lookup[res.id] {
                 let rawR2Image = res.image_storage_urls?.first
-                let additionalUrls = (res.image_storage_urls?.count ?? 0) > 1 ? Array(res.image_storage_urls!.dropFirst()) : nil
+                let additionalUrls = res.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
                 let dictRefImage = res.species_dictionary?.reference_image_url
                 
                 if existing.localImagePath == nil && rawR2Image != nil {
@@ -325,17 +326,17 @@ actor HistoricalDatabaseActor {
         }
         
         if didUpdate {
-            try? modelContext.save()
+            do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
         }
     }
     
     func syncCollectionsDown(remoteCollections: [CloudCollectionResponse]) {
         let descriptor = FetchDescriptor<ScanCollection>()
-        let existingCollections = (try? modelContext.fetch(descriptor)) ?? []
+        let existingCollections: [ScanCollection] = { do { return try modelContext.fetch(descriptor) } catch { MerianLog.data.debug("🚨 existingCollections fetch failed: \(error, privacy: .private)"); return [] } }()
         var existingLookup = Dictionary(uniqueKeysWithValues: existingCollections.map { ($0.id, $0) })
         
         let allScansDescriptor = FetchDescriptor<LocalScanRecord>()
-        let localScans = (try? modelContext.fetch(allScansDescriptor)) ?? []
+        let localScans: [LocalScanRecord] = { do { return try modelContext.fetch(allScansDescriptor) } catch { MerianLog.data.debug("🚨 localScans fetch failed: \(error, privacy: .private)"); return [] } }()
         let localScansLookup = Dictionary(uniqueKeysWithValues: localScans.map { ($0.id, $0) })
         
         for remote in remoteCollections {
@@ -372,6 +373,6 @@ actor HistoricalDatabaseActor {
             }
         }
         
-        try? modelContext.save()
+        do { try modelContext.save() } catch { MerianLog.data.debug("🚨 modelContext save failed: \(error, privacy: .private)") }
     }
 }

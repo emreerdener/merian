@@ -1,5 +1,6 @@
 import Foundation
 import PostHog
+import os
 
 // MARK: - Core Telemetry Gateway
 /// Handles PostHog anonymous telemetry to track UX funnels, Day-7 retention, and feature abandonment.
@@ -24,14 +25,14 @@ final class PostHogManager {
         configuration.sessionReplay = false
         
         PostHogSDK.shared.setup(configuration)
-        print("🦔 PostHog securely initialized (Anonymous Funnel Tracking)")
+        MerianLog.general.debug("🦔 PostHog securely initialized (Anonymous Funnel Tracking)")
     }
     
     // MARK: - Identity Matrix Binding
     /// Binds the anonymous Supabase Ghost URL uniquely mapping the Day-7 retention graph
     func identifyUser(userId: String) {
         PostHogSDK.shared.identify(userId)
-        print("🦔 PostHog bound to Ghost User: \(userId)")
+        MerianLog.general.debug("🦔 PostHog bound to Ghost User: \(userId, privacy: .private)")
     }
     
     // MARK: - Security Sandbox Reset

@@ -1,5 +1,6 @@
 import Foundation
 import TelemetryClient
+import os
 
 // MARK: - Core TelemetryDeck Gateway
 /// Architecture wrapper for TelemetryDeck.
@@ -36,7 +37,7 @@ enum AppTelemetry {
         
         TelemetryManager.initialize(with: configuration)
         isInitialized = true
-        print("📊 TelemetryDeck securely initialized (Anonymous Analytics Only)")
+        MerianLog.general.debug("📊 TelemetryDeck securely initialized (Anonymous Analytics Only)")
     }
     
     // MARK: - Gamification Event Metrics

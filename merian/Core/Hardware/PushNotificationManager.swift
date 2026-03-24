@@ -2,6 +2,7 @@ import Foundation
 import UserNotifications
 #if canImport(UIKit)
 import UIKit
+import os
 #endif
 
 /// Encapsulates Apple's UNUserNotificationCenter logic natively to handle local inference completion alerts.
@@ -33,13 +34,13 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             DispatchQueue.main.async {
                 if let error = error {
-                    print("🚨 Failed to natively request push notification authorization: \(error)")
+                    MerianLog.hardware.debug("🚨 Failed to natively request push notification authorization: \(error, privacy: .private)")
                     UserDefaults.standard.set(false, forKey: "isPushNotificationsEnabled")
                 } else if granted {
-                    print("✅ Push notification authorization permanently granted.")
+                    MerianLog.hardware.debug("✅ Push notification authorization permanently granted.")
                     UserDefaults.standard.set(true, forKey: "isPushNotificationsEnabled")
                 } else {
-                    print("⚠️ Push notification authorization locally denied.")
+                    MerianLog.hardware.debug("⚠️ Push notification authorization locally denied.")
                     UserDefaults.standard.set(false, forKey: "isPushNotificationsEnabled")
                 }
                 completion()
@@ -60,9 +61,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("🚨 Failed to organically schedule push notification: \(error)")
+                MerianLog.hardware.debug("🚨 Failed to organically schedule push notification: \(error, privacy: .private)")
             } else {
-                print("✅ Push notification locally scheduled for \(speciesName).")
+                MerianLog.hardware.debug("✅ Push notification locally scheduled for \(speciesName, privacy: .private).")
             }
         }
     }
@@ -77,9 +78,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("🚨 Failed to organically schedule achievement push notification: \(error)")
+                MerianLog.hardware.debug("🚨 Failed to organically schedule achievement push notification: \(error, privacy: .private)")
             } else {
-                print("✅ Achievement Push notification locally scheduled for '\(achievementTitle)'.")
+                MerianLog.hardware.debug("✅ Achievement Push notification locally scheduled for '\(achievementTitle, privacy: .public)'.")
             }
         }
     }
@@ -95,7 +96,7 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         
         if let scanId = userInfo["scanId"] as? String {
             Task { @MainActor in
-                print("📱 Push Notification Tapped: Routing cleanly to scanId \(scanId)")
+                MerianLog.hardware.debug("📱 Push Notification Tapped: Routing cleanly to scanId \(scanId, privacy: .private)")
                 NotificationCenter.default.post(name: NSNotification.Name("AppDidEnterActivePhaseWithScan"), object: nil, userInfo: ["scanId": scanId])
             }
         }

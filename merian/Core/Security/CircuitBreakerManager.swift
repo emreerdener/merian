@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import Observation
+import os
 
 // MARK: - Core Fault Tolerance Engine
 @MainActor
@@ -31,7 +32,7 @@ import Observation
     // MARK: - Private Circuit Breaker Logic
     private func tripCircuit() {
         isCircuitTripped = true
-        print("CircuitBreakerManager: Circuit Tripped! Routing all network requests to local Field Queue.")
+        MerianLog.general.debug("CircuitBreakerManager: Circuit Tripped! Routing all network requests to local Field Queue.")
         cooldownTimer?.invalidate()
         cooldownTimer = Timer.scheduledTimer(withTimeInterval: cooldownPeriod, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.resetCircuit() }
@@ -42,6 +43,6 @@ import Observation
         isCircuitTripped = false
         consecutiveFailures = 0
         cooldownTimer?.invalidate()
-        print("CircuitBreakerManager: Circuit Reset. Resuming standard network requests.")
+        MerianLog.general.debug("CircuitBreakerManager: Circuit Reset. Resuming standard network requests.")
     }
 }

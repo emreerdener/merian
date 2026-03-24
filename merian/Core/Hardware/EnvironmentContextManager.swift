@@ -37,7 +37,7 @@ struct EnvironmentContext {
     
     // MARK: - Cache Maps
     
-    private var activeContinuations: [CheckedContinuation<CLLocation?, Never>] = []
+    private var activeContinuations: [UUID: CheckedContinuation<CLLocation?, Never>] = [:]
     private var timeoutTask: Task<Void, Never>?
     private(set) var cachedLocation: CLLocation?
     private var fallbackInaccurateLocation: CLLocation?
@@ -208,25 +208,36 @@ struct EnvironmentContext {
     }
     
     private func requestSingleLocation() async -> CLLocation? {
-        // Only set timeoutTask if it's currently nil
-        
-        return await withCheckedContinuation { continuation in
-            self.activeContinuations.append(continuation)
-            self.locationManager.requestLocation()
-            
-            // Anti-Deadlock timeout: Force-resume after 2.0s if hardware fails to lock satellites
-            if self.timeoutTask == nil {
-                self.timeoutTask = Task { @MainActor [weak self] in
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
-                    
-                    guard !Task.isCancelled, let self = self else { return }
-                    
-                    // Fallback Resolution:
-                    // If we never got a highly accurate <30m location in those 2 seconds, 
-                    // gracefully degrade to whatever loose lock the antenna managed to find (e.g., 500m cellular bounds),
-                    // to ensure they have at least *some* macro-region environment data.
-                    let bestAvailableFallback = self.cachedLocation ?? self.fallbackInaccurateLocation
-                    _ = self.resolvePendingContinuations(with: bestAvailableFallback)
+        let taskID = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                self.activeContinuations[taskID] = continuation
+                self.locationManager.requestLocation()
+                
+                // Anti-Deadlock timeout: Force-resume after 2.0s if hardware fails to lock satellites
+                if self.timeoutTask == nil {
+                    self.timeoutTask = Task { @MainActor [weak self] in
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        
+                        guard !Task.isCancelled, let self = self else { return }
+                        
+                        // Fallback Resolution:
+                        // If we never got a highly accurate <30m location in those 2 seconds, 
+                        // gracefully degrade to whatever loose lock the antenna managed to find (e.g., 500m cellular bounds),
+                        // to ensure they have at least *some* macro-region environment data.
+                        let bestAvailableFallback = self.cachedLocation ?? self.fallbackInaccurateLocation
+                        _ = self.resolvePendingContinuations(with: bestAvailableFallback)
+                    }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in
+                if let continuation = self.activeContinuations.removeValue(forKey: taskID) {
+                    continuation.resume(returning: nil)
+                }
+                if self.activeContinuations.isEmpty {
+                    self.timeoutTask?.cancel()
+                    self.timeoutTask = nil
                 }
             }
         }
@@ -271,7 +282,7 @@ struct EnvironmentContext {
         self.timeoutTask?.cancel()
         self.timeoutTask = nil
         
-        let pending = self.activeContinuations
+        let pending = Array(self.activeContinuations.values)
         self.activeContinuations.removeAll()
         
         for continuation in pending {

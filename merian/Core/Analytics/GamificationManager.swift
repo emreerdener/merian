@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import Observation
+import os
 
 // MARK: - Core Gamification Engine
 /// Tracks Gamification mechanics like Streaks, Badges, and Unlocked Species to drive the Digital Terrarium state.
@@ -36,28 +37,28 @@ import Observation
     // MARK: - Badge Execution Triggers
     /// Called when a taxonomic scan validates natively or offline queue hits 200 OK
     func recordNewSpeciesDiscovered() {
-        unlockedSpeciesCount += 1
-        defaults.set(unlockedSpeciesCount, forKey: speciesCountKey)
+        self.unlockedSpeciesCount += 1
+        self.defaults.set(self.unlockedSpeciesCount, forKey: self.speciesCountKey)
         
-        print("🏆 Gamification: Species count increased to \(unlockedSpeciesCount)")
+        MerianLog.general.debug("🏆 Gamification: Species count increased to \(self.unlockedSpeciesCount, privacy: .public)")
         
         // Example threshold: hitting 5 distinct taxonomies unlocks the ecosystem fireflies
-        if unlockedSpeciesCount >= 5 && !hasFireflyBadge {
-            unlockFireflyBadge()
+        if self.unlockedSpeciesCount >= 5 && !self.hasFireflyBadge {
+            self.unlockFireflyBadge()
         }
     }
     
     /// Evaluates if any achievement organically resolved exactly this session natively.
     func evaluateAchievementsForNotifications(awards: [AwardPayload]) {
         for award in awards where award.isCompleted {
-            if !unlockedAchievements.contains(award.type) {
+            if !self.unlockedAchievements.contains(award.type) {
                 // IT'S A NEW UNLOCK!
-                unlockedAchievements.insert(award.type)
-                defaults.set(Array(unlockedAchievements), forKey: unlockedAchievementsKey)
+                self.unlockedAchievements.insert(award.type)
+                self.defaults.set(Array(self.unlockedAchievements), forKey: self.unlockedAchievementsKey)
                 
-                print("🏆 Gamification: New achievement evaluated offline: \(award.title)")
+                MerianLog.general.debug("🏆 Gamification: New achievement evaluated offline: \(award.title, privacy: .public)")
                 
-                if defaults.bool(forKey: "isAchievementNotificationsEnabled") {
+                if self.defaults.bool(forKey: "isAchievementNotificationsEnabled") {
                     PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)
                 }
             }
@@ -65,9 +66,9 @@ import Observation
     }
     
     private func unlockFireflyBadge() {
-        hasFireflyBadge = true
-        defaults.set(true, forKey: fireflyBadgeKey)
-        print("🏆 Gamification: Firefly Badge Unlocked!")
+        self.hasFireflyBadge = true
+        self.defaults.set(true, forKey: self.fireflyBadgeKey)
+        MerianLog.general.debug("🏆 Gamification: Firefly Badge Unlocked!")
         // Trigger any necessary Apple native Haptics or Telemetry here
         HapticManager.shared.triggerSelectionPulse()
     }

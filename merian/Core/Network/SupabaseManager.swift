@@ -5,6 +5,7 @@ import Supabase
 import GoogleSignIn
 import RevenueCat
 import Observation
+import os
 
 // MARK: - Core Auth & Network Engine
 /// Manages the global Supabase connection and core Authentication states for Ghost Users
@@ -67,7 +68,7 @@ import Observation
                 self.isAuthenticated = false
             }
             
-            print("🔐 Supabase Auth Event: \(state.event) | Authenticated: \(self.isAuthenticated)")
+            MerianLog.auth.debug("🔐 Supabase Auth Event: \(String(describing: state.event), privacy: .public) | Authenticated: \(self.isAuthenticated, privacy: .private)")
         }
     }
     
@@ -92,7 +93,7 @@ import Observation
         do {
             // Check if they are already actively signed in (either as a Ghost or an Authenticated Apple user)
             let session = try await client.auth.session
-            print("👻 Active Merian User Identity already resolved natively on device.")
+            MerianLog.auth.debug("👻 Active Merian User Identity already resolved natively on device.")
             await linkExternalTelemetry(user: session.user)
         } catch {
             let errString = String(describing: error)
@@ -102,21 +103,21 @@ import Observation
             if let authError = error as? AuthError, case .sessionMissing = authError {
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
-                    print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
+                    MerianLog.auth.debug("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString, privacy: .private)")
                     await linkExternalTelemetry(user: authResponse.user)
                 } catch {
-                    print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
+                    MerianLog.auth.debug("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription, privacy: .private)")
                 }
             } else if errString.contains("sessionNotFound") || errString.contains("sessionMissing") {
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
-                    print("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString)")
+                    MerianLog.auth.debug("👻 Successfully established new Ghost User Identity: \(authResponse.user.id.uuidString, privacy: .private)")
                     await linkExternalTelemetry(user: authResponse.user)
                 } catch {
-                    print("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription)")
+                    MerianLog.auth.debug("⚠️ Failed to establish Anonymous Supabase Session: \(error.localizedDescription, privacy: .private)")
                 }
             } else {
-                print("⚠️ Bypassed Anonymous Sign-In: Existing user identity bounds protected despite network/expiration failure.")
+                MerianLog.auth.debug("⚠️ Bypassed Anonymous Sign-In: Existing user identity bounds protected despite network/expiration failure.")
             }
         }
     }
@@ -128,10 +129,10 @@ import Observation
             try await client.auth.signOut()
             PostHogManager.shared.reset()
             _ = try? await Purchases.shared.logOut()
-            UserDefaults.standard.removeObject(forKey: "Merian_HasAuthenticatedOAuth")
-            print("User actively signed out and token flushed")
+            KeychainManager.shared.removeObject(forKey: "Merian_HasAuthenticatedOAuth")
+            MerianLog.auth.debug("User actively signed out and token flushed")
         } catch {
-            print("⚠️ Failed to purge local Supabase Auth state: \(error.localizedDescription)")
+            MerianLog.auth.debug("⚠️ Failed to purge local Supabase Auth state: \(error.localizedDescription, privacy: .private)")
         }
     }
     
@@ -147,7 +148,7 @@ import Observation
         do {
             token = try await self.getActiveJWT()
         } catch {
-            let hasAuthenticated = UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth")
+            let hasAuthenticated = KeychainManager.shared.bool(forKey: "Merian_HasAuthenticatedOAuth")
             if !hasAuthenticated {
                 await self.initializeGhostSession()
                 token = try await self.getActiveJWT()
@@ -201,14 +202,14 @@ import Observation
     
     func signInWithGoogle() async {
         guard let rootVC = getRootViewController() else {
-            print("Failed to find root view controller for Google Sign In")
+            MerianLog.auth.debug("Failed to find root view controller for Google Sign In")
             return
         }
 
         do {
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootVC)
             guard let idToken = result.user.idToken?.tokenString else {
-                print("No idToken found.")
+                MerianLog.auth.debug("No idToken found.")
                 return
             }
             let accessToken = result.user.accessToken.tokenString
@@ -217,11 +218,11 @@ import Observation
             let session = try await client.auth.session
             await linkExternalTelemetry(user: session.user)
             
-            UserDefaults.standard.set(true, forKey: "Merian_HasAuthenticatedOAuth")
+            KeychainManager.shared.set(true, forKey: "Merian_HasAuthenticatedOAuth")
             
-            print("Google Sign In complete!")
+            MerianLog.auth.debug("Google Sign In complete!")
         } catch {
-            print("Google Sign In Cancelled or Error: \(error.localizedDescription)")
+            MerianLog.auth.debug("Google Sign In Cancelled or Error: \(error.localizedDescription, privacy: .private)")
         }
     }
     
@@ -234,9 +235,9 @@ import Observation
                 "merge-ghost-profile",
                 options: .init(body: GhostPayload(ghost_id: ghostId))
             )
-            print("Ghost Profile explicitly merged via Edge natively for \(ghostId)")
+            MerianLog.auth.debug("Ghost Profile explicitly merged via Edge natively for \(ghostId, privacy: .private)")
         } catch {
-            print("Ghost profile merge failed over Edge bounds: \(error.localizedDescription)")
+            MerianLog.auth.debug("Ghost profile merge failed over Edge bounds: \(error.localizedDescription, privacy: .private)")
         }
     }
     
@@ -260,19 +261,28 @@ import Observation
 
     private func randomNonceString(length: Int = 32) -> String {
         precondition(length > 0)
-        var randomBytes = [UInt8](repeating: 0, count: length)
-        let errorCode = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
-        if errorCode != errSecSuccess {
-            fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
+        let maxValidValue = UInt8(charset.count * (256 / charset.count))
+        
+        var nonce = ""
+        nonce.reserveCapacity(length)
+        
+        while nonce.count < length {
+            var buffer = [UInt8](repeating: 0, count: length - nonce.count)
+            let errorCode = SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer)
+            if errorCode != errSecSuccess {
+                fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+            }
+            
+            for byte in buffer {
+                if byte < maxValidValue {
+                    nonce.append(charset[Int(byte) % charset.count])
+                    if nonce.count == length { break }
+                }
+            }
         }
-
-        let charset: [Character] =
-            Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
-        let nonce = randomBytes.map { byte in
-            // Pick a random character from the set, wrapping around if needed.
-            charset[Int(byte) % charset.count]
-        }
-        return String(nonce)
+        
+        return nonce
     }
 
     private func sha256(_ input: String) -> String {
@@ -304,11 +314,11 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                 fatalError("Invalid state: A login callback was received, but no login request was sent.")
             }
             guard let appleIDToken = appleIDCredential.identityToken else {
-                print("Unable to fetch identity token")
+                MerianLog.auth.debug("Unable to fetch identity token")
                 return
             }
             guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
-                print("Unable to serialize token string from data: \(appleIDToken.debugDescription)")
+                MerianLog.auth.debug("Unable to serialize token string from data: \(appleIDToken.debugDescription, privacy: .private)")
                 return
             }
             
@@ -318,11 +328,11 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                     let session = try await client.auth.session
                     await linkExternalTelemetry(user: session.user)
                     
-                    UserDefaults.standard.set(true, forKey: "Merian_HasAuthenticatedOAuth")
+                    KeychainManager.shared.set(true, forKey: "Merian_HasAuthenticatedOAuth")
                     
-                    print("Apple Sign In complete!")
+                    MerianLog.auth.debug("Apple Sign In complete!")
                 } catch {
-                    print("Failed to authenticate Apple token with Supabase: \(error.localizedDescription)")
+                    MerianLog.auth.debug("Failed to authenticate Apple token with Supabase: \(error.localizedDescription, privacy: .private)")
                 }
             }
         }
@@ -330,6 +340,6 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
         self.activeAppleAuth = nil
-        print("Apple Sign In error: \(error.localizedDescription)")
+        MerianLog.auth.debug("Apple Sign In error: \(error.localizedDescription, privacy: .private)")
     }
 }

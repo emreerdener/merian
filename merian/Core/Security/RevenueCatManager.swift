@@ -1,6 +1,7 @@
 import Foundation
 @_spi(Internal) import RevenueCat
 import Observation
+import os
 
 // MARK: - Core Subscription Engine
 @MainActor
@@ -64,9 +65,9 @@ import Observation
                 Purchases.shared.attribution.setAttributes(["avatar_url": avatarUrl])
             }
             
-            print("🚀 Successfully linked RevenueCat UUID to Supabase Identity: \(userId)")
+            MerianLog.general.debug("🚀 Successfully linked RevenueCat UUID to Supabase Identity: \(userId, privacy: .private)")
         } catch {
-            print("⚠️ RevenueCat login failed: \(error.localizedDescription)")
+            MerianLog.general.debug("⚠️ RevenueCat login failed: \(error.localizedDescription, privacy: .private)")
         }
     }
     
@@ -77,7 +78,7 @@ import Observation
             let info = try await Purchases.shared.customerInfo()
             self.updateEntitlements(with: info)
         } catch {
-            print("Failed to fetch customer info: \(error.localizedDescription)")
+            MerianLog.general.debug("Failed to fetch customer info: \(error.localizedDescription, privacy: .private)")
         }
     }
     
@@ -98,7 +99,7 @@ import Observation
         do {
             self.currentOfferings = try await Purchases.shared.offerings()
         } catch {
-            print("⚠️ Failed to fetch RevenueCat Offerings: \(error.localizedDescription)")
+            MerianLog.general.debug("⚠️ Failed to fetch RevenueCat Offerings: \(error.localizedDescription, privacy: .private)")
         }
     }
     

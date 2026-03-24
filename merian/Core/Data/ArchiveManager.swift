@@ -3,6 +3,7 @@ import Photos
 import SwiftUI
 import SwiftData
 import Observation
+import os
 
 // MARK: - Core Archival Orchestrator
 @MainActor
@@ -49,7 +50,7 @@ import Observation
         if !isAuthorized {
             let granted = await requestPermissions()
             if !granted {
-                print("ArchiveManager: Photo library access denied. Cannot archive images.")
+                MerianLog.data.debug("ArchiveManager: Photo library access denied. Cannot archive images.")
                 return
             }
         }
@@ -58,7 +59,7 @@ import Observation
             do {
                 try await downloadToLocalLibrary(url: imageUrl)
             } catch {
-                print("ArchiveManager: Local archive failed for \(imageUrl): \(error.localizedDescription)")
+                MerianLog.data.debug("ArchiveManager: Local archive failed for \(imageUrl, privacy: .private): \(error.localizedDescription, privacy: .private)")
             }
         }
     }
@@ -72,7 +73,7 @@ import Observation
                 return available
             }
         } catch {
-            print("ArchiveManager: Failed to query true APFS space: \(error)")
+            MerianLog.data.debug("ArchiveManager: Failed to query true APFS space: \(error, privacy: .private)")
         }
         return 0
     }
@@ -89,14 +90,14 @@ import Observation
             
             // Move from ephemeral network cache to a stable temporary boundary to prevent URLSession auto-destruct
             let stableURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
-            try? FileManager.default.removeItem(at: stableURL)
+            do { try FileManager.default.removeItem(at: stableURL) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
             try FileManager.default.moveItem(at: downloadedURL, to: stableURL)
             tempFileURL = stableURL
         }
         
         defer {
             if let fileToRemove = tempFileURL {
-                try? FileManager.default.removeItem(at: fileToRemove)
+                do { try FileManager.default.removeItem(at: fileToRemove) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
             }
         }
         
@@ -107,7 +108,7 @@ import Observation
             creationRequest.addResource(with: .photo, fileURL: resourceURL, options: nil)
         }
         
-        print("ArchiveManager: Successfully archived image to device Photos.")
+        MerianLog.data.debug("ArchiveManager: Successfully archived image to device Photos.")
     }
     
     // MARK: - Cold Storage Re-Hydration
@@ -118,7 +119,7 @@ import Observation
         
         let availableSpace = getAvailableDiskSpace()
         if availableSpace < diskSpaceThreshold {
-            print("ArchiveManager: ASP rescue aborted - insufficient device partition boundary.")
+            MerianLog.data.debug("ArchiveManager: ASP rescue aborted - insufficient device partition boundary.")
             return
         }
         
@@ -147,7 +148,7 @@ import Observation
                 await archiveActor.rescueTransfers(resourceIDs: resourceIDs)
             }
         } catch {
-            print("ArchiveManager: Failed to evaluate offline sweeps bounds: \(error.localizedDescription)")
+            MerianLog.data.debug("ArchiveManager: Failed to evaluate offline sweeps bounds: \(error.localizedDescription, privacy: .private)")
         }
     }
     
@@ -214,7 +215,7 @@ actor ArchiveDatabaseActor {
                 remoteUrlMap[item.id] = item.image_storage_urls
             }
         } catch {
-            print("ArchiveManager: Failed bulk R2 URL fetch natively: \(error)")
+            MerianLog.data.debug("ArchiveManager: Failed bulk R2 URL fetch natively: \(error, privacy: .private)")
             return
         }
 
@@ -243,16 +244,16 @@ actor ArchiveDatabaseActor {
                 record.localImagePath = filename
                 record.isLocallyArchived = true
                 
-                print("ArchiveManager: Successfully rescued scan \(record.id) off the R2 edge.")
+                MerianLog.data.debug("ArchiveManager: Successfully rescued scan \(record.id, privacy: .private) off the R2 edge.")
             } catch {
-                print("ArchiveManager: Failed to rescue aging boundary payload - \(error.localizedDescription)")
+                MerianLog.data.debug("ArchiveManager: Failed to rescue aging boundary payload - \(error.localizedDescription, privacy: .private)")
             }
         }
         
         do {
             try self.modelContext.save()
         } catch {
-            print("ArchiveManager: Failed to persist ASP contextual state: \(error.localizedDescription)")
+            MerianLog.data.debug("ArchiveManager: Failed to persist ASP contextual state: \(error.localizedDescription, privacy: .private)")
         }
     }
 }

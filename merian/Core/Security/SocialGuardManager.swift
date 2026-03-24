@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import SwiftUI
 import Observation
+import os
 
 // MARK: - Core Trust & Safety Engine
 @MainActor
@@ -31,9 +32,9 @@ import Observation
         if !success {
             // Revert Optimistic Render back down to standard configurations 
             blockedUserIds.remove(targetUserId)
-            print("SocialGuard: Failed to establish strict backend boundary. Optimistic Block Reversed.")
+            MerianLog.general.debug("SocialGuard: Failed to establish strict backend boundary. Optimistic Block Reversed.")
         } else {
-            print("SocialGuard: Block successful against User \(targetUserId)")
+            MerianLog.general.debug("SocialGuard: Block successful against User \(targetUserId, privacy: .private)")
         }
     }
     
