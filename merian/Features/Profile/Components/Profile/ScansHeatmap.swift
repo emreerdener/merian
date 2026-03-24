@@ -39,7 +39,7 @@ struct ScansHeatmap: View {
             // Top Header Outside the Container
             if heatmapData != nil {
                 HStack(spacing: 6) {
-                    Image(systemName: "camera.viewfinder")
+                    Image(systemName: "viewfinder")
                         .foregroundColor(.primary)
                     Text("\(formattedTotalScans) scans this")
                         .foregroundColor(.primary)
