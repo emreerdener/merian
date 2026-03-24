@@ -204,6 +204,7 @@
 		D45AC7C9A7478DBE357998BC /* ImageFileWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 566EC2AE78CCD4E4FE08A16B /* ImageFileWrapper.swift */; };
 		D58D13D5345CB92A4561E569 /* FocusTapGestureModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFCA5B7DBE8EB4211FF915B7 /* FocusTapGestureModifier.swift */; };
 		D73DBC6608F0313E6A12C87E /* CollectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF4E6E4D2EF9069B637A10B /* CollectionsView.swift */; };
+		D807DFD08F636AA1C1BC7850 /* ZoomSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45382833C3607B1E9EAC4CE7 /* ZoomSliderView.swift */; };
 		D8B9C4BE62D3BCA14D89C047 /* RevenueCatManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94C0C6144D191EDB1B5BD513 /* RevenueCatManagerTests.swift */; };
 		D96FD0AA92A656CCCFBBFCE0 /* HardwareOrchestratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FB6F37DCBD4D23D072D413 /* HardwareOrchestratorTests.swift */; };
 		DBEC14E91B45B06AE2C45789 /* SchemaV4.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F355DA672A9E69204AD1708 /* SchemaV4.swift */; };
@@ -314,6 +315,7 @@
 		3F247A78E807CC64C9442F2C /* SearchableScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableScan.swift; sourceTree = "<group>"; };
 		40B8B867598417442574E4FE /* Card.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Card.swift; sourceTree = "<group>"; };
 		41947F78DC1E5E6A116B92D4 /* ToxicityBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToxicityBanner.swift; sourceTree = "<group>"; };
+		45382833C3607B1E9EAC4CE7 /* ZoomSliderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomSliderView.swift; sourceTree = "<group>"; };
 		456E8B5495AA92CF327C3F17 /* Achievements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Achievements.swift; sourceTree = "<group>"; };
 		466CB07B954EACA10D496F15 /* merianUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = merianUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		46AB32E6FF5391F18D6200E7 /* ImagesCarousel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagesCarousel.swift; sourceTree = "<group>"; };
@@ -443,7 +445,7 @@
 		D2E5C836927FEDB08630D2CC /* Merian.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Merian.entitlements; sourceTree = "<group>"; };
 		D5E649DC3A7E515D7F38BDA6 /* CollectionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionCard.swift; sourceTree = "<group>"; };
 		D86D6A051B5FE3A78E597BDC /* ScansSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansSheetView.swift; sourceTree = "<group>"; };
-		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DC435DD629FF43539F7B60D6 /* EnvironmentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContext.swift; sourceTree = "<group>"; };
 		DC4BA5174670296C98053C13 /* DateUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtilities.swift; sourceTree = "<group>"; };
 		DD700EF331A8B1B196F5BA3F /* CropSheetModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropSheetModifier.swift; sourceTree = "<group>"; };
@@ -476,7 +478,7 @@
 		F364B8F7339FC3B32C92E344 /* ReportInsightViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportInsightViewModel.swift; sourceTree = "<group>"; };
 		F3E3FDD98BDC87AA7E828EAD /* AwardCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AwardCard.swift; sourceTree = "<group>"; };
 		F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
-		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F60B6B87B52B4507F4A13C07 /* GamificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationModels.swift; sourceTree = "<group>"; };
 		F615780D12416A23B56634BD /* FlashButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashButton.swift; sourceTree = "<group>"; };
 		F6963D372E7F7B17BB7B0DB3 /* MainTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabBar.swift; sourceTree = "<group>"; };
@@ -611,6 +613,7 @@
 				A55AB8F9BFE56463CBA14FBB /* PhotoLibraryButton.swift */,
 				1B76F32343E363292902920A /* ShutterButton.swift */,
 				8DDC2C50B9698BA06E739DC8 /* ViewfinderHints.swift */,
+				45382833C3607B1E9EAC4CE7 /* ZoomSliderView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -1476,7 +1479,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0B94C342D2F7F49D11202598 = {
 						TestTargetID = D06FD3E9CDCF533A0C2D2843;
@@ -1770,6 +1773,7 @@
 				3B0B4417F90F2CEAEE75E0FC /* ViewfinderIntelligence.swift in Sources */,
 				53CCB57FB7D10B8596E0F350 /* WelcomeStepView.swift in Sources */,
 				86E7F183AA05D90FCE2B45EE /* WikipediaCard.swift in Sources */,
+				D807DFD08F636AA1C1BC7850 /* ZoomSliderView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1922,11 +1926,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -1947,7 +1949,6 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -2025,11 +2026,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -2043,7 +2042,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

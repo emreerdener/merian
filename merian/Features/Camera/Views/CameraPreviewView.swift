@@ -8,6 +8,9 @@ struct CameraPreviewView: UIViewRepresentable {
     // MARK: - Dependencies
     var session: AVCaptureSession
     var onTap: (CGPoint, CGPoint) -> Void
+    /// Called when the user swipes right-to-left across the viewfinder.
+    /// Reserved for the future audio recording mode transition — pass `nil` until that view exists.
+    var onSwipeLeft: (() -> Void)? = nil
     
     // MARK: - UIKit Substrate Layer
     // The literal backing geometry that receives AVFoundation visual frames.
@@ -30,7 +33,15 @@ struct CameraPreviewView: UIViewRepresentable {
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         tapGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(tapGesture)
-        
+
+        let panGesture = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
+        panGesture.cancelsTouchesInView = false
+        view.addGestureRecognizer(panGesture)
+
+        let pinchGesture = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinch(_:)))
+        pinchGesture.cancelsTouchesInView = false
+        view.addGestureRecognizer(pinchGesture)
+
         return view
     }
     
@@ -54,16 +65,76 @@ struct CameraPreviewView: UIViewRepresentable {
     
     class Coordinator: NSObject {
         var parent: CameraPreviewView
-        
+
+        // MARK: - Gesture state
+        private var panStartZoom: CGFloat = 1.0
+        private var panDirection: PanDirection = .undetermined
+        private var pinchStartZoom: CGFloat = 1.0
+
+        private enum PanDirection { case undetermined, vertical, horizontal }
+
         init(_ parent: CameraPreviewView) {
             self.parent = parent
         }
-        
+
         @objc func handleTap(_ sender: UITapGestureRecognizer) {
             guard let view = sender.view as? PreviewView else { return }
             let layerPoint = sender.location(in: view)
             let devicePoint = view.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: layerPoint)
             parent.onTap(layerPoint, devicePoint)
+        }
+
+        @objc func handlePinch(_ sender: UIPinchGestureRecognizer) {
+            switch sender.state {
+            case .began:
+                pinchStartZoom = CameraManager.shared.zoomFactor
+            case .changed:
+                let proposed = min(max(pinchStartZoom * sender.scale, 1.0), CameraManager.shared.maxZoomFactor)
+                CameraManager.shared.setZoom(factor: proposed)
+            default:
+                break
+            }
+        }
+
+        /// Vertical pan → zoom in/out. Horizontal pan ending left → reserved for audio mode (future).
+        /// Direction is locked on the first frame where velocity is unambiguous, preventing diagonal drift.
+        @objc func handlePan(_ sender: UIPanGestureRecognizer) {
+            guard let view = sender.view else { return }
+
+            switch sender.state {
+            case .began:
+                panDirection = .undetermined
+                panStartZoom = CameraManager.shared.zoomFactor
+
+            case .changed:
+                if panDirection == .undetermined {
+                    let velocity = sender.velocity(in: view)
+                    if abs(velocity.y) > abs(velocity.x) {
+                        panDirection = .vertical
+                    } else if abs(velocity.x) > abs(velocity.y) {
+                        panDirection = .horizontal
+                    }
+                }
+                guard panDirection == .vertical else { return }
+                let translation = sender.translation(in: view)
+                let range = max(1.0, CameraManager.shared.maxZoomFactor - 1.0)
+                // 300 pt of drag spans the full zoom range. Negative Y = upward = zoom in.
+                let delta = (-translation.y / 300) * range
+                let proposed = min(max(panStartZoom + delta, 1.0), CameraManager.shared.maxZoomFactor)
+                CameraManager.shared.setZoom(factor: proposed)
+
+            case .ended, .cancelled:
+                if panDirection == .horizontal {
+                    let velocity = sender.velocity(in: view)
+                    if velocity.x < -200 {
+                        parent.onSwipeLeft?()
+                    }
+                }
+                panDirection = .undetermined
+
+            default:
+                break
+            }
         }
     }
 }

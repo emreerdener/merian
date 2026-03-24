@@ -39,6 +39,11 @@ import Accelerate
     var subjectDistanceInMeters: Float? = nil
     var isFlashEnabled = false
 
+    // MARK: - Zoom
+    private(set) var zoomFactor: CGFloat = 1.0
+    private(set) var maxZoomFactor: CGFloat = 1.0
+    var isZoomSupported: Bool { true } // DEBUG: force visible — revert to `maxZoomFactor >= 2.0`
+
     // MARK: - Live Inference State
     @ObservationIgnored nonisolated(unsafe) private var activeInferencePaused: Bool = false
 
@@ -149,6 +154,22 @@ import Accelerate
         }
 
         session.commitConfiguration()
+
+        // Read after commitConfiguration so the active format is fully resolved.
+        #if targetEnvironment(simulator)
+        let capturedMaxZoom: CGFloat = 5.0   // Simulator has no real zoom hardware; stub for UI testing.
+        #else
+        let capturedMaxZoom = captureDevice.maxAvailableVideoZoomFactor
+        #endif
+
+        MerianLog.hardware.debug("Zoom: maxAvailableVideoZoomFactor = \(capturedMaxZoom, privacy: .public), device = \(captureDevice.localizedName, privacy: .public)")
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.maxZoomFactor = capturedMaxZoom
+            self.zoomFactor = 1.0
+            MerianLog.hardware.debug("Zoom: maxZoomFactor set to \(capturedMaxZoom, privacy: .public), isZoomSupported = \(self.isZoomSupported, privacy: .public)")
+        }
     }
 
     @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
@@ -354,6 +375,26 @@ import Accelerate
                 }
             } catch {
                 MerianLog.hardware.debug("Failed to lock device for torch: \(error, privacy: .private)")
+            }
+        }
+    }
+
+    func setZoom(factor: CGFloat) {
+        guard let deviceInput = session.inputs.first(where: {
+            ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true
+        }) as? AVCaptureDeviceInput else { return }
+
+        let device = deviceInput.device
+        let clamped = min(max(factor, 1.0), maxZoomFactor)
+        zoomFactor = clamped
+
+        queue.async {
+            do {
+                try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
+                device.videoZoomFactor = clamped
+            } catch {
+                MerianLog.hardware.debug("Failed to lock device for zoom: \(error, privacy: .private)")
             }
         }
     }

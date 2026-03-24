@@ -83,6 +83,13 @@ struct MainOverlayView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .overlay(alignment: .trailing) {
+            if activeScanImages.isEmpty {
+                ZoomSliderView()
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 110)
+            }
+        }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: activeScanImages.count)
     }
 }

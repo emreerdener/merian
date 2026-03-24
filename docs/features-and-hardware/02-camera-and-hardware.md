@@ -8,7 +8,7 @@ The optical and physical layer of the Merian application wraps Apple's `AVFounda
 
 The lowest-level integration, interfacing directly with the iPhone optics.
 
-- Instantiates the `AVCaptureSession` via `AVCaptureDevice.DiscoverySession`, prioritizing `.builtInLiDARDepthCamera` for accurate physical scale. Zoom heuristics are stripped because Apple locks LiDAR to Wide-Angle models only.
+- Instantiates the `AVCaptureSession` via `AVCaptureDevice.DiscoverySession`, prioritizing `.builtInLiDARDepthCamera` for accurate physical scale.
 - Configures parallel buffers routing to `AVCaptureVideoDataOutput`, `AVCaptureDepthDataOutput`, and `AVCapturePhotoOutput`. Sets `videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]` so that `ViewfinderIntelligence` can extract raw Luma brightness bounds from memory plane 0 without expensive CPU color-space conversions.
 - Evaluates `photoOutput.isDepthDataDeliverySupported` during configuration, mapping `.isDepthDataDeliveryEnabled` downstream into `AVCapturePhotoSettings`. This validation prevents `SIGABRT` / `NSInvalidArgumentException` crashes in AVFoundation on non-LiDAR devices that attempt depth captures.
 - Sets `photoOutput.isHighResolutionCaptureEnabled = true`, letting Apple's Image Signal Processor manage dynamic resolution, avoiding 48MP RAW byte crashes.
@@ -20,7 +20,34 @@ The lowest-level integration, interfacing directly with the iPhone optics.
 - Throttles preview feeds between 15–60 FPS to conserve memory.
 - **Native Hardware Interaction (`AVCaptureEventInteraction`)**: Uses the iOS 17.2 hardware API to intercept native volume buttons, the Action button, and the iPhone 16 Camera Control. Bound on the `.began` event phase for zero-latency capture parity with the system Camera app. Grabs a live `CLLocation` snapshot at capture time. Disables itself when UI sheets or modals are open to prevent volume hijacking.
 - **Tap-to-Focus & Tap-to-Expose**: Uses `.captureDevicePointConverted` in `CameraPreviewView` to translate UI touches into hardware coordinates. Offloads `lockForConfiguration` adjustments to the background queue for `.autoFocus` and `.autoExpose` tracking without deadlocking. Enables `isSubjectAreaChangeMonitoringEnabled` and registers `AVCaptureDevice.subjectAreaDidChangeNotification` to reset focus back to continuous tracking when the device is panned away.
+- **Zoom (`zoomFactor`, `maxZoomFactor`, `setZoom(factor:)`)**: `maxAvailableVideoZoomFactor` is read from the selected `AVCaptureDevice` immediately after `session.commitConfiguration()` — reading it before the commit returns 1.0 because the active format is not finalized until that point. The value is shipped to `@MainActor` via `Task { @MainActor [weak self] in }` (same pattern as `isSessionRunning`). `isZoomSupported` is `true` when `maxZoomFactor >= 2.0`, hiding the control entirely on single-lens hardware. `setZoom(factor:)` sets `zoomFactor` on `@MainActor` immediately for responsive UI, then applies `device.videoZoomFactor` on the background `queue` under `lockForConfiguration` — identical threading pattern to `toggleFlash()`. In simulator builds (`#if targetEnvironment(simulator)`), `maxZoomFactor` is stubbed to `5.0` because the simulated camera always reports `1.0`.
 - **Thread-Safe Capture Operations**: Resolves data races and array bounds exceptions (`SIGABRT`) from overlapping hardware capture timeouts. Replaces the linear `activeCaptureRequests` array with a thread-safe `Dictionary<Int64, CaptureRequest>` keyed by `AVCapturePhotoSettings.uniqueID`, providing atomic O(1) removals via an `NSLock` that synchronizes `@MainActor` continuation callbacks with the asynchronous hardware delegates.
+
+### `ZoomSliderView` (`Features/Camera/Components/ZoomSliderView.swift`)
+
+A self-contained vertical zoom slider overlaid on the right side of the camera viewfinder. Reads `CameraManager` from the environment — no parameters are passed from `MainOverlayView`.
+
+- Renders only when `CameraManager.isZoomSupported` is `true`. Returns `EmptyView` on single-lens hardware, keeping the viewfinder clean on devices where zoom would be purely digital.
+- Hidden automatically when `activeScanImages` is non-empty (image staging mode), via the `activeScanImages.isEmpty` guard in `MainOverlayView`'s `.overlay(alignment: .trailing)`.
+- **Thermometer track**: 200pt `Capsule` with `.ultraThinMaterial` + `.dark` colorScheme (matching `FlashButton`). A white fill grows from the bottom as zoom increases. The thumb circle + zoom label pill (`"1×"`, `"2.1×"`) float above the fill.
+- **DragGesture math**: Captures `dragStartFactor` at gesture start. Each frame: `deltaFactor = (-translation.y / trackHeight) * (maxZoomFactor - 1.0)`. Proposed = `dragStartFactor + delta`, clamped to `[1.0, maxZoomFactor]`. Accumulating from start rather than per-frame delta eliminates floating-point drift on long drags.
+- **Haptic detents**: `UIImpactFeedbackGenerator(style: .rigid, intensity: 0.6)` fires when `zoomFactor` crosses within ±0.05 of 1×, 2×, or 3× (stops that exist within `maxZoomFactor`). A ±0.07 hysteresis band via `lastHapticStop` prevents chattering when hovering near a stop.
+- Zoom changes propagate to all three input surfaces (slider, swipe, pinch) in real time because all call `CameraManager.shared.setZoom(factor:)`, which updates the `@Observable zoomFactor` property.
+
+### `CameraPreviewView` — Viewfinder Gestures
+
+Three `UIGestureRecognizer` instances are registered on the `AVCaptureVideoPreviewLayer` backing view, all with `cancelsTouchesInView = false` so SwiftUI overlay controls (shutter, flash, etc.) continue to receive touches:
+
+| Gesture | Recognizer | Behaviour |
+|---|---|---|
+| Tap | `UITapGestureRecognizer` | Tap-to-focus & expose at the tapped point |
+| Vertical swipe | `UIPanGestureRecognizer` | Zoom in (up) / zoom out (down) |
+| Pinch | `UIPinchGestureRecognizer` | Zoom in / zoom out |
+| Horizontal swipe left | `UIPanGestureRecognizer` (same instance) | Reserved — will open audio recording mode |
+
+The single `UIPanGestureRecognizer` handles both vertical zoom and the future horizontal mode switch. Direction is locked on the first `.changed` frame where `abs(velocity.y) > abs(velocity.x)` (vertical) or vice versa, preventing diagonal drift from triggering both actions. The horizontal branch fires `onSwipeLeft?()` on gesture end when `velocity.x < -200 pt/s`; the closure defaults to `nil` until the audio recording view is built.
+
+Pinch zoom captures `pinchStartZoom` at `.began` and computes `proposed = pinchStartZoom * sender.scale` on each `.changed` frame — `scale` is relative to gesture start, so multiplying by the start factor gives the correct absolute zoom without drift.
 
 ### `HapticManager`
 
