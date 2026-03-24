@@ -104,7 +104,7 @@ private struct WikiSummaryResponse: Decodable {
                 )
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
-                let (finalMappedData, isNewDisc) = try await InferenceProcessingActor.shared.parseAndSave(
+                let (finalMappedData, isNewDisc, savedImagePaths) = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
                     telemetry: telemetry,
                     modelContext: modelContext,
@@ -125,8 +125,11 @@ private struct WikiSummaryResponse: Decodable {
 
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
+                    // Populate on-disk paths before speciesData so the carousel has the user's
+                    // image ready the moment the insight sheet renders. Clear live in-memory
+                    // data afterwards — validHistoricImagePaths takes over as the image source.
+                    self.validHistoricImagePaths = savedImagePaths
                     self.speciesData = mappedData
-                    // Release raw image bytes — no longer needed once inference succeeds.
                     self.activeImageData = nil
                     self.activeCompressedImageData = nil
                     self.activeLiveCaptureDatas.removeAll()

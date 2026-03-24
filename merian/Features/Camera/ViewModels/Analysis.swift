@@ -91,6 +91,11 @@ extension CameraViewModel {
         isAnalyzingFullscreen = false
         if diContainer.inferenceEngine.speciesData != nil {
             activeSheet = .insight
+            // Mark a new unread scan only for real results (scanId is nil on error placeholders
+            // like "Analysis Failed" / "Network Timeout" which are not persisted to the library).
+            if diContainer.inferenceEngine.speciesData?.scanId != nil {
+                UserDefaults.standard.set(true, forKey: "hasUnseenScan")
+            }
         }
     }
 

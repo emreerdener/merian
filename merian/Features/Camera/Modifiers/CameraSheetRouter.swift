@@ -25,6 +25,9 @@ struct CameraSheetRouter: ViewModifier {
                             get: { viewModel.activeSheet == .insight },
                             set: { if $0 { viewModel.activeSheet = .insight } else if viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
                         ))
+                        .onAppear {
+                            UserDefaults.standard.set(false, forKey: "hasUnseenScan")
+                        }
                     }
                 }
                 .presentationDragIndicator(.hidden)

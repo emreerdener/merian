@@ -13,12 +13,16 @@ actor InferenceProcessingActor {
     }
 
     /// Decodes the edge function response, persists the scan record, and returns the mapped data.
+    ///
+    /// Returns the saved local image paths alongside the result so the caller can populate
+    /// `InferenceEngine.validHistoricImagePaths` before clearing `activeLiveCaptureDatas`,
+    /// ensuring the carousel always has the user's image available immediately after inference.
     func parseAndSave(
         resultData: Data,
         telemetry: CaptureTelemetry,
         modelContext: ModelContext?,
         compressedDatas: [Data]
-    ) async throws -> (SpeciesData?, Bool) {
+    ) async throws -> (SpeciesData?, Bool, [String]) {
         let parsedWrapper: EdgeResponseWrapper
         do {
             parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
@@ -40,13 +44,14 @@ actor InferenceProcessingActor {
         try Task.checkCancellation()
 
         var newDiscovery = false
+        var savedPaths: [String] = []
 
         if mappedData.confidenceScore > 0.0, let container = modelContext?.container, !compressedDatas.isEmpty {
-            let savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: compressedDatas)
+            savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: compressedDatas)
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, localImagePaths: savedPaths)
         }
 
-        return (mappedData, newDiscovery)
+        return (mappedData, newDiscovery, savedPaths)
     }
 }

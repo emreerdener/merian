@@ -47,11 +47,13 @@ var totalImages: Int { liveCount + validHistoricImagePaths.count + refUrls.count
 
 The carousel merges three image sources in order:
 
-1. **Live captures** (`inferenceEngine.activeLiveCaptureDatas`) — raw `Data` from the current shutter session
-2. **Historic paths** (`inferenceEngine.validHistoricImagePaths`) — local filenames or R2 URLs for historical scans loaded via `InferenceEngine.load(from:)`
-3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated Wikimedia or reference URLs
+1. **Live captures** (`inferenceEngine.activeLiveCaptureDatas`) — raw `Data` from the current shutter session, available during the active inference call
+2. **Historic paths** (`inferenceEngine.validHistoricImagePaths`) — local file paths written to disk by `InferenceProcessingActor.parseAndSave` on live scan success, or populated via `InferenceEngine.load(from:)` for scans opened from the library
+3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated Wikimedia or reference URLs arrived from Wikipedia hydration
 
-All images are loaded through `LocalImageLoader.shared.loadImage(fromPath:fallbackUrl:maxDimension:)` via `AsyncLocalImageView`, which handles RAM cache hits, request coalescing, and local-vs-remote routing transparently.
+**Seamless image source handoff**: On a live scan, `validHistoricImagePaths` is populated with the on-disk paths returned by `parseAndSave` *before* `speciesData` is set and *before* `activeLiveCaptureDatas` is cleared. This means the carousel has the user's saved image ready the instant the insight sheet renders — the reference image is never the only page shown on first open. The `NativePageCarousel` is keyed on `scanId` so that when `speciesData` is set (changing the key), the initial page build already includes the on-disk image paths.
+
+All images are loaded through `AsyncLocalImageView`, which handles RAM cache hits, request coalescing, and local-vs-remote routing transparently.
 
 Invalid carousel URLs are purged from state via `InferenceEngine.dropInvalidCarouselImage(_:)`, which removes the entry from `validHistoricImagePaths` or from the comma-separated `speciesData.referenceImageUrl` without throwing index-out-of-bounds errors.
 

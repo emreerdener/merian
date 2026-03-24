@@ -310,10 +310,9 @@ actor BackgroundDatabaseActor {
     func pushCollectionsToEdge() async {
         let collections: [ScanCollection]
         do {
-            var descriptor = FetchDescriptor<ScanCollection>(
+            let descriptor = FetchDescriptor<ScanCollection>(
                 predicate: #Predicate { $0.name != "Favorites" }
             )
-            descriptor.propertiesToFetch = [\.id, \.name, \.createdAt]
             collections = try modelContext.fetch(descriptor)
         } catch {
             MerianLog.data.debug("pushCollectionsToEdge: fetch failed: \(error, privacy: .private)")

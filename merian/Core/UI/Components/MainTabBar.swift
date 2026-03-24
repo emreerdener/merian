@@ -8,6 +8,7 @@ struct MainTabBar: View {
     // MARK: - Component State
     @State private var showComingSoon = false
     @State private var tooltipTask: Task<Void, Never>?
+    @AppStorage("hasUnseenScan") private var hasUnseenScan: Bool = false
     
     // MARK: - Visual Layout
     var body: some View {
@@ -60,10 +61,11 @@ struct MainTabBar: View {
             TabBarButton(
                 iconName: "rectangle.stack",
                 title: "Scans",
-                action: { 
+                action: {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    isScansOpen = true 
-                }
+                    isScansOpen = true
+                },
+                showBadge: hasUnseenScan
             )
 
             // 3. User Identity Profile 
@@ -109,7 +111,8 @@ fileprivate struct TabBarButton: View {
     let title: String
     let action: () -> Void
     var isDisabled: Bool = false
-    
+    var showBadge: Bool = false
+
     // MARK: - Visual Layout
     var body: some View {
         Button(action: action) {
@@ -117,6 +120,14 @@ fileprivate struct TabBarButton: View {
                 Image(systemName: iconName)
                     .font(.system(size: 20, weight: .regular))
                     .frame(height: 24)
+                    .overlay(alignment: .topTrailing) {
+                        if showBadge {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                                .offset(x: 4, y: -2)
+                        }
+                    }
                 Text(title)
                     .font(.system(size: 10, weight: .semibold))
             }
