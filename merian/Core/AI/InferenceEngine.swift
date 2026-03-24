@@ -28,7 +28,6 @@ private struct WikiSummaryResponse: Decodable {
     @ObservationIgnored var inferenceTask: Task<Void, Error>?
     var isProcessing: Bool = false
     var activeImageData: Data? = nil
-    var activeCompressedImageData: Data? = nil
     var activeLiveCaptureDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData? = nil
@@ -51,16 +50,22 @@ private struct WikiSummaryResponse: Decodable {
     /// cancellation handler knows the scan was intentionally backgrounded and should not refund.
     private(set) var isBackgroundRescued = false
     @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
+    private let wikiFetchAttemptCap = 500
 
     // MARK: - Live Inference Pipeline
 
-    func analyze(imageDatas: [Data], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
+    /// - Parameters:
+    ///   - imageDatas: 1024 px inference-quality images. Sent to Gemini as base64 and
+    ///     retained in `activeLiveCaptureDatas` for background rescue re-queuing.
+    ///   - displayDatas: 2048 px display-quality images. Written to disk so the insight
+    ///     sheet and scan library render without JPEG blocking artifacts. Never sent to AI.
+    ///     Falls back to `imageDatas` when empty (e.g. offline-queue reprocessing path).
+    func analyze(imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
 
         self.isProcessing = true
-        self.activeImageData = imageDatas.first
-        self.activeCompressedImageData = nil
+        self.activeImageData = displayDatas.first ?? imageDatas.first
         self.activeLiveCaptureDatas = imageDatas
         self.validHistoricImagePaths = []
         self.speciesData = nil
@@ -74,6 +79,8 @@ private struct WikiSummaryResponse: Decodable {
         self.activeTemperatureF = telemetry.weatherTemperatureF
         self.activeDistanceInMeters = telemetry.subjectDistanceInMeters
 
+        let capturedDisplayDatas = displayDatas
+
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
 
@@ -81,8 +88,7 @@ private struct WikiSummaryResponse: Decodable {
             defer { self.isProcessing = false }
 
             let pipelineStart = CFAbsoluteTimeGetCurrent()
-            let compressedDatas = imageDatas
-            self.activeCompressedImageData = compressedDatas.first
+            let compressedDatas = imageDatas  // 1024 px — only these are base64-encoded for Gemini
 
             do {
                 if CircuitBreakerManager.shared.isCircuitTripped {
@@ -108,7 +114,8 @@ private struct WikiSummaryResponse: Decodable {
                     resultData: resultData,
                     telemetry: telemetry,
                     modelContext: modelContext,
-                    compressedDatas: compressedDatas
+                    compressedDatas: compressedDatas,
+                    displayDatas: capturedDisplayDatas
                 )
 
                 if var mappedData = finalMappedData {
@@ -131,7 +138,6 @@ private struct WikiSummaryResponse: Decodable {
                     self.validHistoricImagePaths = savedImagePaths
                     self.speciesData = mappedData
                     self.activeImageData = nil
-                    self.activeCompressedImageData = nil
                     self.activeLiveCaptureDatas.removeAll()
 
                     // Send a background notification if the user left while the scan was running.
@@ -246,6 +252,10 @@ private struct WikiSummaryResponse: Decodable {
               species.lowercased() != "taxonomy unavailable",
               species.lowercased() != "unknown subject" else { return }
         guard !wikiFetchAttemptedIds.contains(species) else { return }
+        // Evict the entire set when the cap is hit so a long session never grows unboundedly.
+        if wikiFetchAttemptedIds.count >= wikiFetchAttemptCap {
+            wikiFetchAttemptedIds.removeAll()
+        }
 
         let normalized = species.replacingOccurrences(of: " ", with: "_")
         guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
@@ -297,7 +307,6 @@ private struct WikiSummaryResponse: Decodable {
         // If the task was already finished, analyze() resets it at the start of the next scan.
         self.speciesData = nil
         activeImageData = nil
-        activeCompressedImageData = nil
         activeLiveCaptureDatas.removeAll()
         validHistoricImagePaths.removeAll()
         activeLatitude = nil

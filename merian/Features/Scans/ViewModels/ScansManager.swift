@@ -129,18 +129,26 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 150_000_000) // Debounce typing
             if Task.isCancelled { return }
-            
+
             guard let self = self else { return }
-            
+
             let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
             let catMatch = currentCategory.lowercased()
-            
+
             if text.isEmpty && catMatch == "all" {
-                let sortedAll = self.executeSort(on: self.allScans)
-                
-                withAnimation {
-                    self.filteredScans = sortedAll
+                // LocalScanRecord is a @Model and not Sendable, so it cannot cross a
+                // Task.detached boundary. The sort (Date/String comparisons over the
+                // existing array) is fast enough to run on the main actor directly.
+                let sortedAll = self.allScans.sorted { lhs, rhs in
+                    switch self.sortOption {
+                    case .newest: return lhs.timestamp > rhs.timestamp
+                    case .oldest: return lhs.timestamp < rhs.timestamp
+                    case .aToZ:   return lhs.commonName.localizedCaseInsensitiveCompare(rhs.commonName) == .orderedAscending
+                    case .zToA:   return lhs.commonName.localizedCaseInsensitiveCompare(rhs.commonName) == .orderedDescending
+                    }
                 }
+                if Task.isCancelled { return }
+                withAnimation { self.filteredScans = sortedAll }
                 return
             }
             

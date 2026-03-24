@@ -63,7 +63,6 @@ struct CameraPreviewView: UIViewRepresentable {
         Coordinator(self)
     }
     
-    @MainActor
     class Coordinator: NSObject {
         var parent: CameraPreviewView
 
@@ -86,14 +85,19 @@ struct CameraPreviewView: UIViewRepresentable {
         }
 
         @objc func handlePinch(_ sender: UIPinchGestureRecognizer) {
-            switch sender.state {
-            case .began:
-                pinchStartZoom = CameraManager.shared.zoomFactor
-            case .changed:
-                let proposed = min(max(pinchStartZoom * sender.scale, 1.0), CameraManager.shared.maxZoomFactor)
-                CameraManager.shared.setZoom(factor: proposed)
-            default:
-                break
+            // UIKit calls gesture handlers on the main thread — assumeIsolated is safe here.
+            let state = sender.state
+            let scale = sender.scale
+            MainActor.assumeIsolated {
+                switch state {
+                case .began:
+                    pinchStartZoom = CameraManager.shared.zoomFactor
+                case .changed:
+                    let proposed = min(max(pinchStartZoom * scale, 1.0), CameraManager.shared.maxZoomFactor)
+                    CameraManager.shared.setZoom(factor: proposed)
+                default:
+                    break
+                }
             }
         }
 
@@ -101,40 +105,42 @@ struct CameraPreviewView: UIViewRepresentable {
         /// Direction is locked on the first frame where velocity is unambiguous, preventing diagonal drift.
         @objc func handlePan(_ sender: UIPanGestureRecognizer) {
             guard let view = sender.view else { return }
+            // Capture non-isolated sender values before crossing the actor boundary.
+            let state      = sender.state
+            let velocity   = sender.velocity(in: view)
+            let translation = sender.translation(in: view)
 
-            switch sender.state {
-            case .began:
-                panDirection = .undetermined
-                panStartZoom = CameraManager.shared.zoomFactor
+            // UIKit calls gesture handlers on the main thread — assumeIsolated is safe here.
+            MainActor.assumeIsolated {
+                switch state {
+                case .began:
+                    panDirection = .undetermined
+                    panStartZoom = CameraManager.shared.zoomFactor
 
-            case .changed:
-                if panDirection == .undetermined {
-                    let velocity = sender.velocity(in: view)
-                    if abs(velocity.y) > abs(velocity.x) {
-                        panDirection = .vertical
-                    } else if abs(velocity.x) > abs(velocity.y) {
-                        panDirection = .horizontal
+                case .changed:
+                    if panDirection == .undetermined {
+                        if abs(velocity.y) > abs(velocity.x) {
+                            panDirection = .vertical
+                        } else if abs(velocity.x) > abs(velocity.y) {
+                            panDirection = .horizontal
+                        }
                     }
-                }
-                guard panDirection == .vertical else { return }
-                let translation = sender.translation(in: view)
-                let range = max(1.0, CameraManager.shared.maxZoomFactor - 1.0)
-                // 300 pt of drag spans the full zoom range. Negative Y = upward = zoom in.
-                let delta = (-translation.y / 300) * range
-                let proposed = min(max(panStartZoom + delta, 1.0), CameraManager.shared.maxZoomFactor)
-                CameraManager.shared.setZoom(factor: proposed)
+                    guard panDirection == .vertical else { return }
+                    let range = max(1.0, CameraManager.shared.maxZoomFactor - 1.0)
+                    // 300 pt of drag spans the full zoom range. Negative Y = upward = zoom in.
+                    let delta = (-translation.y / 300) * range
+                    let proposed = min(max(panStartZoom + delta, 1.0), CameraManager.shared.maxZoomFactor)
+                    CameraManager.shared.setZoom(factor: proposed)
 
-            case .ended, .cancelled:
-                if panDirection == .horizontal {
-                    let velocity = sender.velocity(in: view)
-                    if velocity.x < -200 {
+                case .ended, .cancelled:
+                    if panDirection == .horizontal && velocity.x < -200 {
                         parent.onSwipeLeft?()
                     }
-                }
-                panDirection = .undetermined
+                    panDirection = .undetermined
 
-            default:
-                break
+                default:
+                    break
+                }
             }
         }
     }

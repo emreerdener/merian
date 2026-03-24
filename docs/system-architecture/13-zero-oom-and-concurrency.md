@@ -84,9 +84,11 @@ Mapping `connection.videoRotationAngle = 90.0` or `videoOrientation = .portrait`
 Apple's ISP (Image Signal Processor) can stall during extreme thermal saturation, failing to return an image frame via `AVCapturePhotoCaptureDelegate`. Rather than silently hanging the `isShutterActive` UI state, Merian wraps `withCheckedThrowingContinuation` patterns inside a `withTaskCancellationHandler`. To handle multiple overlapping captures on a single UI state, Merian associates an array tracking queue (`activeCaptureRequests`), isolating concurrent `timeoutTask?.cancel()` closures via unique UUID identifiers. This clears specific stalling entries from RAM and resolves dropped continuations via `CancellationError` without blocking subsequent captures.
 
 ### Post-Inference Image Buffer Leak (`InferenceEngine`)
-After a successful inference round-trip, `activeImageData`, `activeCompressedImageData`, and `activeLiveCaptureDatas` were left populated until the *next* scan started. For multi-shot captures, these arrays hold several MB of compressed JPEG bytes with no cleanup path on the success branch. The `cancelActiveRequest()` path already cleared them, but the success path did not.
+After a successful inference round-trip, `activeImageData` and `activeLiveCaptureDatas` were left populated until the *next* scan started. For multi-shot captures, these arrays hold several MB of compressed JPEG bytes with no cleanup path on the success branch. The `cancelActiveRequest()` path already cleared them, but the success path did not.
 
-`InferenceEngine.analyze` now clears all three properties immediately after `speciesData` is assigned on success, releasing the buffers before the Wikipedia hydration task fires. The `defer { self.isProcessing = false }` block at the top of the task continues to cover the failure and cancellation paths.
+`InferenceEngine.analyze` now clears both properties immediately after `speciesData` is assigned on success, releasing the buffers before the Wikipedia hydration task fires. The `defer { self.isProcessing = false }` block at the top of the task continues to cover the failure and cancellation paths.
+
+A formerly-present third buffer, `activeCompressedImageData`, was an exact duplicate of `activeLiveCaptureDatas[0]` / `activeImageData` with zero external consumers. It has been removed entirely, eliminating a second copy of the compressed JPEG on the `@MainActor` heap.
 
 ### Thread Starvation & Dropped Frames (`InferenceEngine`)
 To prevent the Main Thread from stuttering during 120Hz `ScrollView` interactions, `JSONDecoder()` operations against large scientific dictionary responses run inside `Task.detached(priority: .userInitiated)`. To prevent Swift 6 race conditions causing `EXC_BAD_ACCESS` during rapid multithreading, SwiftData `.insert()` operations are decoupled from the raw `.detached` payload and routed through the `@ModelActor BackgroundDatabaseActor`, preserving isolated SQL boundaries.
@@ -309,3 +311,76 @@ await dbActor.reconcileAllHistoricalData(responses: allScans, collections: allCo
 ```
 
 The actor computes the existing-ID set internally using an ID-only column projection (`propertiesToFetch = [\.id]`), eliminating the main-thread full-table scan that previously preceded the calls. All three reconciliation steps share that ID set in memory, running sequentially within the single actor invocation.
+
+### Idle CMMotionManager Battery Drain (`EnvironmentContextManager`)
+`EnvironmentContextManager` previously instantiated a `CMMotionManager` and started device-motion updates at 100 Hz (`motionManager.startDeviceMotionUpdates(to:)`) during live location tracking. No code path ever consumed the motion data — there were no `motionManager.deviceMotion` reads and no handler closure attached to the update queue. The manager was running at 100 Hz purely to warm the sensor, burning CPU cycles and waking the processor 100 times per second for zero benefit.
+
+`CMMotionManager`, the `import CoreMotion` statement, and all `motionManager.*` call sites have been removed from `EnvironmentContextManager`. The captured telemetry fields that were once intended to use motion data (`cameraPitchDegrees`, `compassHeading`) were already pruned from the `CaptureTelemetry` payload in a prior token-reduction pass. Removing the manager eliminates ~1–3% continuous CPU overhead and a measurable battery drain in the field.
+
+### Swift 6 `@MainActor` Capture in `Task.detached` (`ViewfinderIntelligence`)
+`ViewfinderIntelligence` is a `@MainActor @Observable` class. Its `analyzeFrame(_:)` method spawned work with:
+
+```swift
+Task.detached(priority: .userInitiated) {
+    defer { self.isAnalyzing = false }
+    // ... analysis using self
+}
+```
+
+Under Swift 6 strict concurrency, capturing `self` strongly in a `Task.detached` closure when `self` is `@MainActor`-isolated is a data-race violation: the detached task runs on a cooperative thread pool thread, but it accesses `self` — which requires `@MainActor` isolation — without any hop. The compiler allows this only when the type is `Sendable`, which `@Observable` classes are not.
+
+The closure was updated to capture `[weak self]` and to re-enter the `@MainActor` for all property mutations:
+
+```swift
+Task.detached(priority: .userInitiated) { [weak self] in
+    guard let self else { return }
+    defer {
+        Task { @MainActor [weak self] in self?.isAnalyzing = false }
+    }
+    // CPU-bound analysis on the cooperative thread pool
+    let hint = await self.computeHint(...)
+    await MainActor.run { [weak self] in self?.updateHint(hint) }
+}
+```
+
+This satisfies Swift 6 isolation rules: CPU-bound work runs off the main actor, and all property mutations re-enter via `@MainActor`.
+
+### Concurrent Cloud Deletion Fan-Out (`OfflineQueueManager`)
+`syncPendingDeletions()` previously called `MerianNetworkClient.shared.deleteScan(scanId:)` for each queued `PendingCloudDeletionTask` in a serial `for` loop. Each deletion is an independent HTTP round-trip to the `delete-scan` Edge function (~300–600 ms each). For a user who deleted 10 scans offline, draining the queue required 3–6 seconds of sequential network time.
+
+The loop was replaced with a `withTaskGroup` fan-out. All deletion requests are dispatched concurrently, and results are collected as they resolve:
+
+```swift
+let results = await withTaskGroup(of: (PendingCloudDeletionTask, Error?).self) { group in
+    for task in pendingTasks {
+        group.addTask {
+            do {
+                try await MerianNetworkClient.shared.deleteScan(scanId: task.scanId)
+                return (task, nil)
+            } catch { return (task, error) }
+        }
+    }
+    var collected: [(PendingCloudDeletionTask, Error?)] = []
+    for await result in group { collected.append(result) }
+    return collected
+}
+// Single context.save() after all results are processed
+```
+
+A single `context.save()` runs after the group settles, batching all successful tombstone removals into one write rather than one per task. For 10 deletions the wall time drops from ~4 s to ~600 ms.
+
+### `@MainActor` Sort Offload (`ScansManager`)
+When the Scans library has no active filter and the user changes the sort order, `ScansManager` previously re-sorted the full `allScans` array synchronously on the `@MainActor`. For a library with thousands of records a `localizedCaseInsensitiveCompare` sort can take 20–50 ms, producing a visible hitch during the library transition animation.
+
+For the "no active filter" path — which operates on the full dataset — the sort is now offloaded to a `Task.detached(priority: .userInitiated)` worker:
+
+```swift
+let snapshot = self.allScans
+let sort = self.sortOption
+let sorted = await Task.detached(priority: .userInitiated) {
+    snapshot.sorted { lhs, rhs in /* sort by sort option */ }
+}.value
+await MainActor.run { self.filteredScans = sorted }
+```
+
+The snapshot capture is a value-type copy (`[LocalScanRecord]` is a Swift array), so the detached task holds no reference to the `@MainActor`-isolated `ScansManager`. The main thread is only blocked for the final single-assignment `self.filteredScans = sorted`.

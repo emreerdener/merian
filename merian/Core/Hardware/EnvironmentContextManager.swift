@@ -1,7 +1,6 @@
 import Foundation
 import CoreLocation
 import WeatherKit
-import CoreMotion
 import MapKit
 import Observation
 
@@ -17,7 +16,6 @@ import Observation
     // MARK: - Hardware
     private let locationManager = CLLocationManager()
     private let weatherService = WeatherService.shared
-    private let motionManager = CMMotionManager()
 
     // MARK: - State
     var isAuthorized: Bool = false
@@ -66,19 +64,11 @@ import Observation
         guard isAuthorized else { return }
         locationManager.startUpdatingLocation()
         locationManager.startUpdatingHeading()
-
-        if motionManager.isDeviceMotionAvailable {
-            motionManager.startDeviceMotionUpdates()
-        }
     }
 
     func stopLiveLocationTracking() {
         locationManager.stopUpdatingLocation()
         locationManager.stopUpdatingHeading()
-
-        if motionManager.isDeviceMotionAvailable {
-            motionManager.stopDeviceMotionUpdates()
-        }
     }
 
     // MARK: - Deferred Context Fetch

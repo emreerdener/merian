@@ -24,23 +24,51 @@ extension OfflineQueueManager {
             return
         }
 
-        for task in pendingTasks {
-            do {
-                try await MerianNetworkClient.shared.deleteScan(scanId: task.scanId)
-                context.delete(task)
-                try context.save()
-                MerianLog.data.debug("✅ Deleted \(task.scanId, privacy: .private) from Edge")
-            } catch {
-                // Retain in queue; will retry on next connectivity cycle.
-                MerianLog.data.error("syncPendingDeletions: failed for \(task.scanId, privacy: .private): \(error, privacy: .private)")
-                if case NetworkError.invalidResponse = error {
-                    context.delete(task)
+        guard !pendingTasks.isEmpty else { return }
+
+        // Fan out all deletions concurrently instead of serializing N round-trips.
+        // Only the scanId (String, Sendable) crosses the task-group boundary —
+        // @Model objects are not Sendable and must stay on this actor.
+        let scanIds = pendingTasks.map(\.scanId)
+        let results: [(String, Error?)] = await withTaskGroup(of: (String, Error?).self) { group in
+            for scanId in scanIds {
+                group.addTask {
                     do {
-                        try context.save()
+                        try await MerianNetworkClient.shared.deleteScan(scanId: scanId)
+                        return (scanId, nil)
                     } catch {
-                        MerianLog.data.error("syncPendingDeletions: save failed after invalidResponse for \(task.scanId, privacy: .private): \(error, privacy: .private)")
+                        return (scanId, error)
                     }
                 }
+            }
+            var collected: [(String, Error?)] = []
+            for await result in group { collected.append(result) }
+            return collected
+        }
+
+        var didMutate = false
+        for (scanId, error) in results {
+            guard let task = pendingTasks.first(where: { $0.scanId == scanId }) else { continue }
+            if let error {
+                MerianLog.data.error("syncPendingDeletions: failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+                if case NetworkError.invalidResponse = error {
+                    // Remote resource already gone — tombstone locally.
+                    context.delete(task)
+                    didMutate = true
+                }
+                // All other errors: retain in queue for the next connectivity cycle.
+            } else {
+                MerianLog.data.debug("✅ Deleted \(scanId, privacy: .private) from Edge")
+                context.delete(task)
+                didMutate = true
+            }
+        }
+
+        if didMutate {
+            do {
+                try context.save()
+            } catch {
+                MerianLog.data.error("syncPendingDeletions: save failed: \(error, privacy: .private)")
             }
         }
     }

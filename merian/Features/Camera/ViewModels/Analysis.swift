@@ -23,12 +23,14 @@ extension CameraViewModel {
 
         // 2. Capture the context needed for inference before clearing the staging buffers.
         let datasToAnalyze = activeScannedDatas
+        let displayDatasToAnalyze = activeDisplayDatas
         let capturedOriginals = activeOriginals
         let capturedPreFetchTask = preFetchTask
 
         // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
         activeScanImages.removeAll()
         activeScannedDatas.removeAll()
+        activeDisplayDatas.removeAll()
         activeOriginals.removeAll()
         preFetchTask = nil
 
@@ -73,6 +75,7 @@ extension CameraViewModel {
             await MainActor.run {
                 diContainer.inferenceEngine.analyze(
                     imageDatas: datasToAnalyze,
+                    displayDatas: displayDatasToAnalyze,
                     telemetry: telemetry,
                     modelContext: modelContext
                 )

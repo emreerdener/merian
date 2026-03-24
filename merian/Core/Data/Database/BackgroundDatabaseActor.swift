@@ -171,7 +171,8 @@ actor BackgroundDatabaseActor {
 
         // Dequeue the OfflineQueuedScan and purge local image files if inference failed.
         do {
-            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            descriptor.fetchLimit = 1
             let matches = try modelContext.fetch(descriptor)
             for scan in matches { modelContext.delete(scan) }
             try modelContext.save()
@@ -272,7 +273,9 @@ actor BackgroundDatabaseActor {
 
     /// Retroactively hydrates a scan record with Wikipedia data post-inference.
     func updateScanWithWikipedia(scanId: String, extract: String, url: String, imageUrl: String?) {
-        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        descriptor.propertiesToFetch = [\.wikipediaExtract, \.wikipediaUrl, \.referenceImageUrl]
         let record: LocalScanRecord?
         do {
             record = try modelContext.fetch(descriptor).first

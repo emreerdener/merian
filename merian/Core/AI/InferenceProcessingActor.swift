@@ -8,8 +8,21 @@ actor InferenceProcessingActor {
     static let shared = InferenceProcessingActor()
 
     /// Encodes image data payloads to base64 strings, preserving order.
+    /// Multi-image scans are encoded concurrently across worker threads to overlap CPU time.
     func encodeBase64(compressedDatas: [Data]) async -> [String] {
-        compressedDatas.map { $0.base64EncodedString() }
+        guard compressedDatas.count > 1 else {
+            return compressedDatas.map { $0.base64EncodedString() }
+        }
+        var results = [String](repeating: "", count: compressedDatas.count)
+        await withTaskGroup(of: (Int, String).self) { group in
+            for (i, data) in compressedDatas.enumerated() {
+                group.addTask { (i, data.base64EncodedString()) }
+            }
+            for await (i, encoded) in group {
+                results[i] = encoded
+            }
+        }
+        return results
     }
 
     /// Decodes the edge function response, persists the scan record, and returns the mapped data.
@@ -17,11 +30,19 @@ actor InferenceProcessingActor {
     /// Returns the saved local image paths alongside the result so the caller can populate
     /// `InferenceEngine.validHistoricImagePaths` before clearing `activeLiveCaptureDatas`,
     /// ensuring the carousel always has the user's image available immediately after inference.
+    ///
+    /// - Parameters:
+    ///   - compressedDatas: 1024 px inference-quality images (used for base64 encoding only).
+    ///   - displayDatas: 2048 px display-quality images written to disk. When non-empty these
+    ///     are written instead of `compressedDatas` so the insight sheet and scan library
+    ///     render at full display quality. Falls back to `compressedDatas` when empty
+    ///     (e.g. offline-queue reprocessing path where only inference-quality data is stored).
     func parseAndSave(
         resultData: Data,
         telemetry: CaptureTelemetry,
         modelContext: ModelContext?,
-        compressedDatas: [Data]
+        compressedDatas: [Data],
+        displayDatas: [Data] = []
     ) async throws -> (SpeciesData?, Bool, [String]) {
         let parsedWrapper: EdgeResponseWrapper
         do {
@@ -47,7 +68,10 @@ actor InferenceProcessingActor {
         var savedPaths: [String] = []
 
         if mappedData.confidenceScore > 0.0, let container = modelContext?.container, !compressedDatas.isEmpty {
-            savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: compressedDatas)
+            // Write display-quality images when available; fall back to inference-quality
+            // (offline-queue reprocessing path where only 1024 px data is stored on disk).
+            let datasToWrite = displayDatas.isEmpty ? compressedDatas : displayDatas
+            savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: datasToWrite)
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, localImagePaths: savedPaths)
         }

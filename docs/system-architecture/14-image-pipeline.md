@@ -13,21 +13,51 @@ This document traces the full journey of an image from physical shutter press to
 - **OOM risk**: Decoding a full 12–48 MP `CMSampleBuffer` without throttling instantly spikes RAM and triggers JetSam.
 - **Mitigation**: An atomic `nonisolated(unsafe) private var activeInferencePaused` boolean short-circuits the entire `captureOutput` pipeline when the viewfinder AI is halted. No histogram allocation occurs for a paused session. Additionally, `defer { CVPixelBufferUnlockBaseAddress }` is unconditionally applied to prevent AVFoundation buffer leaks.
 
-### 2. Downsample Before Encoding (`ImageDownsampler`)
+### 2. Dual-Path Downsample (`ImageDownsampler`)
 
-Before any image bytes are written to disk or sent to the network, raw `CMSampleBuffer` data is piped through `ImageDownsampler.shared` (`Core/Utilities/ImageDownsampler.swift`).
+Every capture produces **two independent downsampled images** from the same raw source buffer. The two paths serve different purposes and are sized accordingly.
+
+| Path | Constant | Size | Destination |
+|---|---|---|---|
+| **Inference** | `MerianConfig.inferenceImageMaxSize` | 1024 px longest edge | Base64-encoded and sent to Gemini; retained in `activeLiveCaptureDatas` for background-rescue re-queuing |
+| **Display** | `MerianConfig.displayImageMaxSize` | 2048 px longest edge | Written to disk by `FileIOActor`; read by the insight sheet carousel and scan library |
 
 ```swift
-// Disk-bound path (from a file URL)
-ImageDownsampler.shared.downsample(url: fileURL, maxSize: 1024)
+// Camera shutter path (Capture.swift) — same captureData source, two passes
+let inferenceCGImage = ImageDownsampler.shared.downsample(
+    data: captureData, maxSize: MerianConfig.inferenceImageMaxSize)  // → Gemini
 
-// Memory-bound path (from raw Data)
-ImageDownsampler.shared.downsample(data: rawData, maxSize: 1024)
+let displayCGImage = ImageDownsampler.shared.downsample(
+    data: captureData, maxSize: MerianConfig.displayImageMaxSize)    // → disk / insight sheet
+
+// Gallery picker path (CameraViewModel) — same dual pattern from a file URL
+let inferenceCGImage = ImageDownsampler.shared.downsample(
+    url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize)
+let displayCGImage = ImageDownsampler.shared.downsample(
+    url: validUrl, maxSize: MerianConfig.displayImageMaxSize)
 ```
 
-- **Implementation**: Uses `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceCreateThumbnailFromImageAlways: true` and `kCGImageSourceShouldCache: false`. This instructs ImageIO to decode only a scaled thumbnail directly from the compressed source, never loading the full pixel buffer into RAM.
-- **`autoreleasepool`**: Each downsample call wraps its work in an `autoreleasepool` so intermediate CoreGraphics allocations are released immediately rather than accumulating until the next runloop drain.
-- **`nonisolated` methods**: Both `downsample(url:maxSize:)` and `downsample(data:maxSize:)` are declared `nonisolated`, making them synchronous and callable without `await`. This allows concurrent grid loads to decode in parallel on the cooperative thread pool rather than being serialized through the actor's executor. The `autoreleasepool` inside each call remains safe because CoreGraphics is thread-safe at the frame level.
+The two resulting `Data` values are staged separately in `CameraViewModel`:
+- `activeScannedDatas` — 1024 px inference payloads
+- `activeDisplayDatas` — 2048 px display payloads
+
+`Analysis.submitActiveScan()` passes both arrays to `InferenceEngine.analyze(imageDatas:displayDatas:)`. Inside the engine, `imageDatas` is base64-encoded for the AI call; `displayDatas` is forwarded to `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via `FileIOActor.writeTemporaryImages`. The AI never receives the larger payload.
+
+**Why 1024 px for inference?** Sufficient for Gemini species identification. Keeps the base64 payload at ~100–250 KB, reducing token cost and upload latency by ~15× versus the previous 4000 px ceiling.
+
+**Why 2048 px for display?** Covers the full-width pixel density of all current iOS devices without upscaling (iPhone Pro Max at 3× = 1290 px native; iPad Pro at 2× = 2048 px native). Eliminates the JPEG blocking artifacts that were visible when the insight sheet and scan library rendered the same 1024 px image that was sent to the AI. Stored files average ~300–700 KB vs ~100–250 KB at inference quality.
+
+**Why two `CGImageSourceCreateThumbnailAtIndex` calls instead of one?** Both operate on the compressed source bytes (JPEG / HEIC) without ever expanding the full 12 MP raster. The cost is two lightweight thumbnail decodes from the same buffer — negligible compared to the AVFoundation capture itself.
+
+**Crop export path**: `ImageCropProcessor` uses `maxSize: 768` (tighter, crop-optimised for crop-view thumbnails). This path is unaffected by the inference/display split.
+
+**Implementation**: Uses `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceCreateThumbnailFromImageAlways: true` and `kCGImageSourceShouldCache: false`. This instructs ImageIO to decode only a scaled thumbnail directly from the compressed source, never loading the full pixel buffer into RAM.
+
+**`autoreleasepool`**: Both display and inference downsample calls — and the `UIImage.jpegData` encoding that follows each — are wrapped in `autoreleasepool` so intermediate CoreGraphics allocations are released immediately.
+
+**`nonisolated` methods**: Both `downsample(url:maxSize:)` and `downsample(data:maxSize:)` are declared `nonisolated`, making them synchronous and callable without `await`. This allows concurrent grid loads to decode in parallel on the cooperative thread pool. The `autoreleasepool` inside each call remains safe because CoreGraphics is thread-safe at the frame level.
+
+**Full-resolution preservation**: The unmodified 12 MP sensor buffer is saved to the user's Camera Roll by `PhotoLibraryManager` *before* any downsampling occurs, so no image quality is permanently lost regardless of which path is used.
 
 ### 3. Write to Documents Directory (`FileIOActor`)
 
@@ -103,6 +133,8 @@ This means the grid renders correctly with cloud images immediately, and any loc
 ## Upload Path (Offline Queue)
 
 For captures that go into the offline queue, images are written to disk by `FileIOActor.writeTemporaryImages` before the `OfflineQueuedScan` SwiftData record is inserted. During upload, `OfflineQueueManager` copies each image to a temp file in `URL.cachesDirectory` (naming convention: `<scanId>_<index>_temp_upload.jpg`) and hands the path to `URLSession.uploadTask(with:fromFile:)`. The OS background session owns the byte transmission from that point. On upload completion, the temp staging file is deleted unconditionally regardless of success or failure.
+
+**Offline queue image quality**: The offline queue stores inference-quality images only (1024 px). When an offline scan is reprocessed, `InferenceProcessingActor.parseAndSave` receives `displayDatas = []` and falls back to writing the inference-quality files to disk. This is a deliberate trade-off: the full-resolution photo is already saved to Camera Roll at capture time, so 1024 px on-disk files are an acceptable fallback for the subset of scans that passed through the offline queue. Live captures and gallery picks both produce display-quality on-disk files.
 
 ---
 

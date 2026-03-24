@@ -87,7 +87,9 @@ A `PendingCloudDeletionTask` SwiftData record is inserted at deletion time, queu
 If the scan being destroyed is actively queued for upload, `softDeleteQueuedScan` tombstones the `OfflineQueuedScan` record (`isDeleted = true`), excluding it from future sync attempts. Records are hard-purged later via `purgeSoftDeletedRecords()`.
 
 ### 4. Network Polling Sync (`syncPendingDeletions`)
-On `NWPathMonitor` reconnect, `syncPendingDeletions()` drains the `PendingCloudDeletionTask` queue, calling the `delete-scan` Edge function for each. `NetworkError.invalidResponse` (resource already gone) is treated as terminal and the task is removed. All other errors retain the task for the next cycle.
+On `NWPathMonitor` reconnect, `syncPendingDeletions()` drains the `PendingCloudDeletionTask` queue. Deletion requests are fanned out **concurrently** via `withTaskGroup` — each `PendingCloudDeletionTask` gets its own child task calling the `delete-scan` Edge function independently. Results are collected as they settle. A single `modelContext.save()` runs once after the group completes, removing all successfully confirmed tasks in one write. For a user who accumulated 10 offline deletions, wall time drops from ~4 s (serial) to ~600 ms (concurrent).
+
+`NetworkError.invalidResponse` (resource already gone) is treated as terminal and the task is removed. All other errors retain the task for the next cycle.
 
 ## The Collections Pipeline
 
@@ -95,6 +97,8 @@ Merian supports creating custom `ScanCollection` buckets while fully disconnecte
 
 1. **Entity Instantiation**: A user taps "New Collection" — a `ScanCollection` is inserted into SwiftData and `modelContext.save()` is called immediately. The collection is durable locally from this point.
 2. **Background Upload**: `OfflineQueueManager.shared.syncCollections()` is triggered, pushing `SyncCollectionPayload` arrays to the `sync-collections` Edge function. The upload is wrapped in `BackgroundTaskWrapper.execute(name: "CollectionSync")` so iOS grants additional background time if the user closes the app immediately after creating a collection.
+
+   **Diff-based Edge sync**: The `sync-collections` Deno function performs a set-based delta sync rather than a nuclear delete-and-reinsert. It computes the desired `collection_scans` membership from the client payload and diffs it against the current Supabase state. Only the delta (rows to add and rows to remove) is written. Additions use `upsert` with `ignoreDuplicates: true` to absorb FK violations for scans not yet synced. Removals are grouped by `collection_id` so each delete targets an indexed lookup rather than a full scan. A `MAX_COLLECTIONS = 200` cap is enforced server-side to prevent oversized payloads from exhausting the Deno heap.
 3. **Resilient Sync Architecture**: `syncCollections()` no-ops when offline or unauthenticated. Collections created in these states remain in SwiftData and are picked up by the push-before-pull ordering described in step 4.
 4. **Push-Before-Pull Ordering**: `syncHistoricalScansDown` calls `pushCollectionsToEdge()` — uploading all local collections to Supabase — **before** fetching the cloud collection list. This guarantees that any collection created while offline or before authentication completes is in the cloud before the reconciliation delete pass runs. Without this ordering, a collection that was never successfully uploaded would be treated as "obsolete" and deleted on next launch.
 5. **Reconciliation**: After the push, `syncHistoricalScansDown` fetches `[CloudCollectionResponse]` and calls `HistoricalDatabaseActor.syncCollections(remoteCollections:)`. Collections present in the cloud response are upserted; collections absent from the cloud response and not named "Favorites" are deleted locally. Because step 4 guarantees every local collection is already in the cloud, the delete pass only removes collections the user genuinely deleted on another device.

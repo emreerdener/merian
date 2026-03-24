@@ -51,8 +51,11 @@ extension CameraViewModel {
                     // Instantly executes native `generateAutoCenterCrop` natively isolating UIImage and CGImage pointers 
                     // cleanly inside the background securely, exporting solely safe raw `.Data` out bypassing JetSam limits globally
                     
-                    let safeCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: 4000)
-                    
+                    // Inference payload: 1024 px longest edge — sufficient for Gemini species
+                    // identification while keeping the base64 payload small (~100-250 KB).
+                    // The full-resolution photo was already saved to Camera Roll above.
+                    let safeCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.inferenceImageMaxSize)
+
                     let finalSafeData: Data = {
                         guard let cgImage = safeCGImage else { return Data() }
                         return autoreleasepool {
@@ -63,6 +66,16 @@ extension CameraViewModel {
                         }
                     }()
 
+                    // Display payload: 2048 px longest edge — written to disk so the insight
+                    // sheet and scan library render without JPEG blocking artifacts. The AI
+                    // never sees this data; only finalSafeData is base64-encoded for Gemini.
+                    let displaySafeData: Data = autoreleasepool {
+                        guard let displayCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.displayImageMaxSize) else {
+                            return finalSafeData // fallback to inference quality
+                        }
+                        let displayImage = UIImage(cgImage: displayCGImage, scale: 1.0, orientation: .up)
+                        return displayImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? finalSafeData
+                    }
 
                     if !finalSafeData.isEmpty, let validCGImage = safeCGImage {
                         // 5. Environmental Pre-Fetching
@@ -79,6 +92,7 @@ extension CameraViewModel {
                             let identifiable = IdentifiableImage(image: backgroundRawImage, environmentContext: nil, isFromGallery: false)
                             self.activeOriginals.append(identifiable)
                             self.activeScannedDatas.append(finalSafeData)
+                            self.activeDisplayDatas.append(displaySafeData)
                             if let thumbnail = UIImage(data: finalSafeData) {
                                 self.activeScanImages.append(thumbnail)
                             }

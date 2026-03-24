@@ -154,22 +154,6 @@ import Accelerate
         }
 
         session.commitConfiguration()
-
-        // Read after commitConfiguration so the active format is fully resolved.
-        #if targetEnvironment(simulator)
-        let capturedMaxZoom: CGFloat = 5.0   // Simulator has no real zoom hardware; stub for UI testing.
-        #else
-        let capturedMaxZoom = captureDevice.maxAvailableVideoZoomFactor
-        #endif
-
-        MerianLog.hardware.debug("Zoom: maxAvailableVideoZoomFactor = \(capturedMaxZoom, privacy: .public), device = \(captureDevice.localizedName, privacy: .public)")
-
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.maxZoomFactor = capturedMaxZoom
-            self.zoomFactor = 1.0
-            MerianLog.hardware.debug("Zoom: maxZoomFactor set to \(capturedMaxZoom, privacy: .public), isZoomSupported = \(self.isZoomSupported, privacy: .public)")
-        }
     }
 
     @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
@@ -190,8 +174,24 @@ import Accelerate
                 self.setupSession()
             }
             self.session.startRunning()
+
+            // maxAvailableVideoZoomFactor is only accurate after startRunning() —
+            // the active format is not fully resolved until the session is live.
+            let capturedMaxZoom: CGFloat
+            #if targetEnvironment(simulator)
+            capturedMaxZoom = 5.0
+            #else
+            capturedMaxZoom = (self.session.inputs
+                .compactMap { $0 as? AVCaptureDeviceInput }
+                .first { $0.device.hasMediaType(.video) }?
+                .device.maxAvailableVideoZoomFactor) ?? 1.0
+            #endif
+
             Task { @MainActor in
                 self.isSessionRunning = true
+                self.maxZoomFactor = capturedMaxZoom
+                self.zoomFactor = 1.0
+                MerianLog.hardware.debug("Zoom: maxZoomFactor = \(capturedMaxZoom, privacy: .public), isZoomSupported = \(self.isZoomSupported, privacy: .public)")
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
                 ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
             }

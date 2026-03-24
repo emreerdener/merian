@@ -6,6 +6,10 @@ import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHandler.ts";
 
+// Instantiated once at module scope so warm isolate re-use avoids re-initialization overhead.
+const _geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
+const _genAI = new GoogleGenerativeAI(_geminiApiKey);
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const body = await req.json();
@@ -51,6 +55,14 @@ serve((req: Request) =>
     const base64Payloads: string[] = [];
 
     if (imageBase64s && imageBase64s.length > 0) {
+      if (imageBase64s.length > 5) {
+        return jsonResponse({ error: "Too many images." }, 400);
+      }
+      const totalB64Bytes = imageBase64s.reduce((sum: number, s: string) => sum + s.length, 0);
+      // base64 inflates raw size ~4/3; 5 MB raw ≈ 6.7 MB encoded
+      if (totalB64Bytes > 7 * 1024 * 1024) {
+        return jsonResponse({ error: "Payload Too Large: base64 payload exceeds 5 MB raw limit." }, 413);
+      }
       base64Payloads.push(...imageBase64s);
     } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {
       const { s3Client, bucketName, endpoint } = getR2Config();
@@ -82,8 +94,10 @@ serve((req: Request) =>
       if (totalBytes > 5 * 1024 * 1024) {
           return jsonResponse({ error: "Payload Too Large: Combined images exceed 5MB limit." }, 413);
       }
-      const arrayBuffers = await Promise.all(validResponses.map(res => res.arrayBuffer()));
-      for (const arrayBuffer of arrayBuffers) {
+      // Process images serially: let each ArrayBuffer be GC-eligible before loading the next,
+      // preventing a peak spike of (raw + Uint8Array copy + base64 string) × N images simultaneously.
+      for (const r2Response of validResponses) {
+          const arrayBuffer = await r2Response.arrayBuffer();
           base64Payloads.push(encodeBase64(new Uint8Array(arrayBuffer)));
       }
     }
@@ -107,17 +121,13 @@ serve((req: Request) =>
         );
     }
 
-    const geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
-
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-
     const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case. 4) CRITICAL: Evaluate the combined visual context of all provided images organically to compute the absolute most accurate identification. 5) CRITICAL: If the images display multiple distinct biological species, strictly identify exactly ONE primary species (the most prominent or centered subject in the first image) and briefly mention the secondary species within the insight_data description. 6) CRITICAL: If the subject is non-biological (is_biological_subject = false), you MUST completely OMIT all taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, and colors fields to conserve output tokens.`;
 
     const targetModel = userTier === "pro"
       ? "gemini-2.5-pro"
       : "gemini-2.5-flash";
 
-    const model = genAI.getGenerativeModel({
+    const model = _genAI.getGenerativeModel({
       model: targetModel,
       systemInstruction: systemInstruction,
       generationConfig: {

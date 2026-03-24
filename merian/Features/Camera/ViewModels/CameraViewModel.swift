@@ -29,6 +29,11 @@ final class CameraViewModel {
     var activeOriginals: [IdentifiableImage] = []
     var selectedPhotoItems: [PhotosPickerItem] = []
     var isTooltipVisible: Bool = false
+    /// Display-quality (2048 px) versions of the staged captures, written to disk after
+    /// inference so the insight sheet and scan library render without JPEG blocking artifacts.
+    /// Kept separate from `activeScannedDatas` so the AI inference path never sees the
+    /// larger payload — only `activeScannedDatas` (1024 px) is base64-encoded for Gemini.
+    var activeDisplayDatas: [Data] = []
     
     // MARK: - Camera & Scanning State
     var isCapturing: Bool = false
@@ -75,6 +80,7 @@ final class CameraViewModel {
         activeScannedDatas.removeAll()
         activeScanImages.removeAll()
         activeOriginals.removeAll()
+        activeDisplayDatas.removeAll()
         selectedPhotoItems.removeAll()
         
         // Always clear the analysis overlay when the app leaves the foreground.
@@ -141,16 +147,29 @@ final class CameraViewModel {
                     }
                     
                     if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
-                        let detatchedDownsample = ImageDownsampler.shared.downsample(url: validUrl, maxSize: 4000)
-                        
-                        if let cgImage = detatchedDownsample {
+                        // Inference payload: 1024 px — matches the camera shutter path so both paths
+                        // produce equivalently-sized payloads for consistent Gemini token costs.
+                        let inferenceCGImage = ImageDownsampler.shared.downsample(url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize)
+
+                        if let cgImage = inferenceCGImage {
                             let rawImage = UIImage(cgImage: cgImage)
                             let finalSafeData = rawImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? Data()
-                            
+
+                            // Display payload: 2048 px — written to disk so the insight sheet and
+                            // scan library render without JPEG blocking artifacts.
+                            let displaySafeData: Data = autoreleasepool {
+                                guard let displayCGImage = ImageDownsampler.shared.downsample(url: validUrl, maxSize: MerianConfig.displayImageMaxSize) else {
+                                    return finalSafeData
+                                }
+                                let displayImage = UIImage(cgImage: displayCGImage)
+                                return displayImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? finalSafeData
+                            }
+
                             await MainActor.run {
                                 let identifiable = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)
                                 self.activeOriginals.append(identifiable)
                                 self.activeScannedDatas.append(finalSafeData)
+                                self.activeDisplayDatas.append(displaySafeData)
                                 if let thumb = UIImage(data: finalSafeData) {
                                     self.activeScanImages.append(thumb)
                                 }

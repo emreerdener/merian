@@ -45,10 +45,12 @@ enum VUIHint: String {
         guard !isAnalyzing else { return }
         isAnalyzing = true
 
-        // Push heavy CoreImage statistics completely off the Main Thread
-        Task.detached(priority: .userInitiated) {
+        // Push hint evaluation off the main thread. [weak self] prevents a strong capture of
+        // the @MainActor-isolated type inside a Task.detached, satisfying Swift 6 isolation rules.
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
             defer {
-                Task { @MainActor in self.isAnalyzing = false }
+                Task { @MainActor [weak self] in self?.isAnalyzing = false }
             }
 
             // 1. Distance heuristics
