@@ -52,7 +52,7 @@ struct SpectrumNode: View {
                 }
                 
                 Text(description)
-                    .font(.footnote)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .lineSpacing(4)

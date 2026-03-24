@@ -4,15 +4,15 @@ struct ConfidenceSpectrum: View {
     var body: some View {
         VStack(spacing: 0) {
             SpectrumNode(
-                color: Color(red: 0.11, green: 0.52, blue: 0.28),
-                nextColor: Color(red: 0.25, green: 0.75, blue: 0.35),
+                color: Color(red: 0.25, green: 0.75, blue: 0.35),
+                nextColor: Color(red: 0.11, green: 0.52, blue: 0.28),
                 percentage: "95% - 100%",
                 title: "High confidence",
                 description: "Extremely certain. The key visual structures match the model flawlessly."
             )
             
             SpectrumNode(
-                color: Color(red: 0.25, green: 0.75, blue: 0.35),
+                color: Color(red: 0.11, green: 0.52, blue: 0.28),
                 nextColor: .orange,
                 percentage: "85% - 94%",
                 title: "Confident",

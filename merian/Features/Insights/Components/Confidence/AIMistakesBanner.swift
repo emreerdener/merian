@@ -9,11 +9,11 @@ struct AIMistakesBanner: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 Text("AI can make mistakes")
-                    .font(.subheadline.bold())
+                    .font(.callout.bold())
                     .foregroundColor(.primary)
                 
                 Text("While Merian uses advanced models, consider verifying critical identifications with experts, especially regarding toxicity or foraging.")
-                    .font(.footnote)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .lineSpacing(4)

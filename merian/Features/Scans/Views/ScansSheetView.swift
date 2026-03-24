@@ -38,20 +38,23 @@ struct ScansSheetView: View {
     // MARK: - Core View Builder
     var body: some View {
         NavigationStack {
-            TabView(selection: $activeTab) {
-                LibraryTabContent(
-                    searchManager: searchManager, filterCategories: filterCategories,
-                    isSearchFocused: $isSearchFocused, selectedScanForInsight: $selectedScanForInsight,
-                    showSelectionLimitAlert: $showSelectionLimitAlert, scanToDelete: $scanToDelete,
-                    showDeleteConfirmation: $showDeleteConfirmation
-                ).tag(ScansTab.library)
-                
-                CollectionsTabContent(
-                    searchManager: searchManager, isSearchFocused: isSearchFocused,
-                    sortedCollections: searchManager.sortedCollections, isInsightSheetOpen: $isInsightSheetOpen
-                ).tag(ScansTab.collections)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    LibraryTabContent(
+                        searchManager: searchManager, filterCategories: filterCategories,
+                        isSearchFocused: $isSearchFocused, selectedScanForInsight: $selectedScanForInsight,
+                        showSelectionLimitAlert: $showSelectionLimitAlert, scanToDelete: $scanToDelete,
+                        showDeleteConfirmation: $showDeleteConfirmation
+                    )
+                    CollectionsTabContent(
+                        searchManager: searchManager, isSearchFocused: isSearchFocused,
+                        sortedCollections: searchManager.sortedCollections, isInsightSheetOpen: $isInsightSheetOpen
+                    )
+                }
+                .scrollTargetLayout()
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: Binding(get: { activeTab }, set: { if let val = $0 { activeTab = val } }))
             .modifier(ScansSheetModifiers(
                 searchManager: searchManager, activeTab: $activeTab, isSearchFocused: $isSearchFocused,
                 selectedScanForInsight: $selectedScanForInsight, showNewCollectionAlert: $showNewCollectionAlert,
