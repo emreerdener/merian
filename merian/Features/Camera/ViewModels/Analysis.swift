@@ -131,65 +131,184 @@ extension CameraViewModel {
 
     private func startPhaseRotation(phrases: [String]) {
         phaseRotationTask?.cancel()
-        var index = 0
         phaseRotationTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                self.scanningPhaseText = phrases[index]
-                index = (index + 1) % phrases.count
+            for (index, phrase) in phrases.enumerated() {
+                guard !Task.isCancelled, let self else { return }
+                self.scanningPhaseText = phrase
+                // Don't sleep after the final phrase — let it sit until inference completes.
+                guard index < phrases.count - 1 else { return }
                 try? await Task.sleep(nanoseconds: 2_300_000_000)
             }
         }
     }
 
-    /// Returns an ordered phrase series tailored to the top Vision observation.
-    /// Phrases are spaced ~2.3s apart, covering the typical 6–11s inference window with 3–5 updates.
+    /// Returns a one-shot phrase series tailored to the top Vision observation.
+    /// Each phrase advances ~2.3s apart; the final phrase stays displayed until inference returns.
+    /// Series are designed to read as a real analysis pipeline, not a looping animation.
+    /// Falls back to a subject-agnostic series if Vision returns no confident observations.
     private nonisolated static func phraseSeries(for observations: [VNClassificationObservation]) -> [String] {
         for obs in observations.prefix(15) where obs.confidence > 0.15 {
             let id = obs.identifier.lowercased()
+
+            if id.contains("bird") || id.contains("avian") || id.contains("raptor") ||
+               id.contains("songbird") || id.contains("waterfowl") || id.contains("owl") {
+                return [
+                    "Spotted avian subject...",
+                    "Analyzing plumage and markings...",
+                    "Evaluating bill and wing morphology...",
+                    "Reviewing seasonal variation patterns...",
+                    "Cross-referencing eBird observations...",
+                    "Verifying geographic range...",
+                    "Checking subspecies distribution...",
+                    "Awaiting species confirmation...",
+                ]
+            }
             if id.contains("insect") || id.contains("arthropod") || id.contains("butterfly") ||
                id.contains("moth") || id.contains("bee") || id.contains("beetle") ||
-               id.contains("spider") || id.contains("arachnid") {
-                return ["Examining insect...", "Analyzing wing patterns...", "Identifying species...", "Consulting entomology guide..."]
+               id.contains("fly") || id.contains("ant") || id.contains("wasp") ||
+               id.contains("dragonfly") || id.contains("cricket") || id.contains("grasshopper") {
+                return [
+                    "Detected arthropod subject...",
+                    "Analyzing wing venation patterns...",
+                    "Examining body segmentation...",
+                    "Reviewing diagnostic field markers...",
+                    "Evaluating taxonomic indicators...",
+                    "Consulting entomology records...",
+                    "Checking regional distribution data...",
+                    "Awaiting species confirmation...",
+                ]
             }
-            if id.contains("bird") {
-                return ["Examining bird...", "Checking field markings...", "Identifying species...", "Cross-referencing range maps..."]
+            if id.contains("spider") || id.contains("arachnid") || id.contains("scorpion") ||
+               id.contains("tick") || id.contains("mite") {
+                return [
+                    "Detected arachnid subject...",
+                    "Analyzing body segmentation...",
+                    "Examining appendage morphology...",
+                    "Reviewing leg span and spinnerets...",
+                    "Checking taxonomic classification...",
+                    "Consulting arachnology records...",
+                    "Checking regional occurrence records...",
+                    "Awaiting species confirmation...",
+                ]
             }
-            if id.contains("mammal") || id.contains("dog") || id.contains("cat") ||
-               id.contains("deer") || id.contains("fox") || id.contains("bear") {
-                return ["Examining mammal...", "Noting key features...", "Identifying species...", "Cross-referencing range maps..."]
+            if id.contains("mushroom") || id.contains("fungi") || id.contains("fungus") ||
+               id.contains("lichen") {
+                return [
+                    "Detected fungal specimen...",
+                    "Analyzing cap and stipe morphology...",
+                    "Examining gill and pore structure...",
+                    "Evaluating coloration and texture...",
+                    "Reviewing substrate and habitat context...",
+                    "Consulting mycology database...",
+                    "Checking seasonal fruiting patterns...",
+                    "Awaiting species confirmation...",
+                ]
             }
-            if id.contains("reptile") || id.contains("snake") || id.contains("lizard") ||
-               id.contains("turtle") {
-                return ["Examining reptile...", "Noting scale patterns...", "Identifying species...", "Cross-referencing field guide..."]
+            if id.contains("flower") || id.contains("blossom") || id.contains("bloom") {
+                return [
+                    "Detected flowering plant...",
+                    "Analyzing petal arrangement and form...",
+                    "Examining reproductive structures...",
+                    "Evaluating inflorescence pattern...",
+                    "Reviewing pollinator associations...",
+                    "Cross-referencing botanical records...",
+                    "Checking regional flora records...",
+                    "Awaiting species confirmation...",
+                ]
             }
-            if id.contains("amphibian") || id.contains("frog") || id.contains("toad") ||
-               id.contains("salamander") {
-                return ["Examining amphibian...", "Noting skin patterns...", "Identifying species...", "Cross-referencing field guide..."]
-            }
-            if id.contains("fish") {
-                return ["Examining fish...", "Analyzing fin morphology...", "Identifying species...", "Consulting ichthyology guide..."]
-            }
-            if id.contains("mushroom") || id.contains("fungi") || id.contains("fungus") {
-                return ["Examining fungi...", "Analyzing spore patterns...", "Identifying species...", "Consulting mycology guide..."]
-            }
-            if id.contains("flower") || id.contains("blossom") {
-                return ["Examining flower...", "Analyzing petal structure...", "Identifying species...", "Checking botanical records..."]
-            }
-            if id.contains("tree") {
-                return ["Examining tree...", "Analyzing bark and foliage...", "Identifying species...", "Checking botanical records..."]
+            if id.contains("tree") || id.contains("conifer") || id.contains("palm") {
+                return [
+                    "Detected arboreal subject...",
+                    "Analyzing bark texture and pattern...",
+                    "Examining leaf shape and arrangement...",
+                    "Evaluating growth form...",
+                    "Reviewing fruit and seed characteristics...",
+                    "Cross-referencing botanical records...",
+                    "Checking habitat and elevation range...",
+                    "Awaiting species confirmation...",
+                ]
             }
             if id.contains("plant") || id.contains("leaf") || id.contains("vegetation") ||
-               id.contains("shrub") || id.contains("grass") || id.contains("fern") {
-                return ["Examining plant...", "Analyzing leaf morphology...", "Identifying species...", "Checking botanical records..."]
+               id.contains("shrub") || id.contains("grass") || id.contains("fern") ||
+               id.contains("moss") || id.contains("algae") || id.contains("vine") {
+                return [
+                    "Detected botanical subject...",
+                    "Analyzing leaf morphology...",
+                    "Examining venation and margin patterns...",
+                    "Evaluating growth habit...",
+                    "Reviewing stem and root indicators...",
+                    "Consulting flora database...",
+                    "Checking native range distribution...",
+                    "Awaiting species confirmation...",
+                ]
+            }
+            if id.contains("reptile") || id.contains("snake") || id.contains("lizard") ||
+               id.contains("turtle") || id.contains("crocodile") || id.contains("gecko") {
+                return [
+                    "Detected reptilian subject...",
+                    "Analyzing scale patterns and coloration...",
+                    "Examining body plan and proportions...",
+                    "Reviewing dorsal pattern variation...",
+                    "Checking taxonomic classification...",
+                    "Cross-referencing herpetology records...",
+                    "Checking regional population data...",
+                    "Awaiting species confirmation...",
+                ]
+            }
+            if id.contains("amphibian") || id.contains("frog") || id.contains("toad") ||
+               id.contains("salamander") || id.contains("newt") || id.contains("caecilian") {
+                return [
+                    "Detected amphibian subject...",
+                    "Analyzing skin texture and markings...",
+                    "Examining body form and proportions...",
+                    "Evaluating taxonomic indicators...",
+                    "Reviewing call and behavioral traits...",
+                    "Consulting herpetology database...",
+                    "Checking wetland habitat associations...",
+                    "Awaiting species confirmation...",
+                ]
+            }
+            if id.contains("fish") || id.contains("shark") || id.contains("ray") ||
+               id.contains("eel") || id.contains("salmon") || id.contains("trout") {
+                return [
+                    "Detected aquatic vertebrate...",
+                    "Analyzing fin morphology...",
+                    "Examining lateral line and scale patterns...",
+                    "Reviewing coloration and spotting patterns...",
+                    "Evaluating body shape and proportions...",
+                    "Consulting ichthyology records...",
+                    "Checking watershed distribution...",
+                    "Awaiting species confirmation...",
+                ]
+            }
+            if id.contains("mammal") || id.contains("dog") || id.contains("cat") ||
+               id.contains("deer") || id.contains("fox") || id.contains("bear") ||
+               id.contains("rabbit") || id.contains("squirrel") || id.contains("raccoon") ||
+               id.contains("rodent") || id.contains("primate") {
+                return [
+                    "Detected mammalian subject...",
+                    "Analyzing body proportions...",
+                    "Examining pelage and facial features...",
+                    "Reviewing behavioral and territorial markers...",
+                    "Cross-referencing range data...",
+                    "Verifying habitat indicators...",
+                    "Checking population range boundaries...",
+                    "Awaiting species confirmation...",
+                ]
             }
         }
+
+        // Vision returned no confident observations — use a subject-agnostic series that
+        // still reads as a meaningful pipeline rather than a generic spinner.
         return [
-            "Analyzing subject...",
-            "Identifying species...",
-            "Examining details...",
-            "Evaluating features...",
-            "Consulting field guide...",
+            "Scanning subject...",
+            "Detecting morphological features...",
+            "Evaluating biological characteristics...",
+            "Analyzing structural patterns...",
+            "Cross-referencing taxonomic data...",
+            "Querying species databases...",
+            "Incorporating location and habitat context...",
+            "Awaiting identification...",
         ]
     }
 }
