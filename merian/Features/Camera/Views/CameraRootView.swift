@@ -113,8 +113,18 @@ struct CameraRootView: View {
         .onChange(of: viewModel.selectedPhotoItems) { _, newItems in
             viewModel.handlePhotoPickerSelection(newItems: newItems, modelContext: modelContext)
         }
+        .onChange(of: viewModel.activeScanImages.count) { _, count in
+            guard count == 1,
+                  !UserDefaults.standard.bool(forKey: "multiImageScanMode") else { return }
+            viewModel.submitActiveScan(modelContext: modelContext)
+        }
         .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
             viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
+            if isFullscreen {
+                cameraManager.stopSession()
+            } else {
+                cameraManager.startSession()
+            }
         }
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             viewModel.handleInferenceProcessingChange(isStillProcessing: isStillProcessing)

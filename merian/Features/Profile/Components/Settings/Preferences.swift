@@ -12,6 +12,7 @@ struct Preferences: View {
     @Binding var showPaywall: Bool
     
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
+    @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
     
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
@@ -83,6 +84,13 @@ struct Preferences: View {
 
             // MARK: - Save to Camera Roll
             Toggle("Save to camera roll", isOn: $saveToCameraRoll)
+
+            // MARK: - Multi-Image Scans
+            SettingsToggleRow(
+                title: "Multi-image scans",
+                description: "Attach up to 2 images before submitting. By default a single capture is sent to AI immediately.",
+                isOn: $multiImageScanMode
+            )
             
             // MARK: - Geoprivacy
             Picker("Geoprivacy", selection: $defaultGeoprivacy) {

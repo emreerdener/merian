@@ -18,6 +18,7 @@ struct MainOverlayView: View {
     
     // MARK: - Local Staging State
     @State private var activeMode: CaptureMode = .visual
+    @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
     
     // MARK: - Interface Layout
     var body: some View {
@@ -47,7 +48,7 @@ struct MainOverlayView: View {
                     PhotoLibraryButton(
                         selectedPhotoItems: $selectedPhotoItems,
                         latestThumbnail: latestThumbnail,
-                        maxSelectionCount: max(1, 2 - activeScanImages.count)
+                        maxSelectionCount: multiImageScanMode ? max(1, 2 - activeScanImages.count) : 1
                     )
                     
                     Spacer()

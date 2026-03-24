@@ -42,7 +42,7 @@ struct ConservationBanner: View {
             }
             .padding(20)
             .background(Color.green.opacity(0.05))
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(Color.green.opacity(0.4), lineWidth: 1)

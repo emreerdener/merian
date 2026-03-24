@@ -42,22 +42,59 @@ struct ImageCropperView: View {
         GeometryReader { geometry in
             // Calculate a perfect 1:1 square viewport dynamically inset from screen edges
             let displaySize = max(0, min(geometry.size.width, geometry.size.height) - 32)
-            
+
             ZStack {
                 // 1. Immutable Canvas
                 Color.black.ignoresSafeArea()
-                
-                // 2. Optical Scaler Plane (Image Layer)
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
+
+                VStack {
+                    // 2. Top Toolbar — dismiss (X) left, delete (trash) right
+                    HStack {
+                        Button(action: { onCancel() }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.white.opacity(0.15))
+                                .clipShape(Circle())
+                        }
+
+                        Spacer()
+
+                        if let deleteAction = onDelete {
+                            Button(action: { deleteAction() }) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.red.opacity(0.8))
+                                    .clipShape(Circle())
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+
+                    Spacer()
+
+                    // 3. Optical Scaler Plane (Image Layer)
+                    ZStack {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: displaySize, height: displaySize)
+                            .scaleEffect(scale * currentScale)
+                            .offset(
+                                x: offset.width + currentOffset.width,
+                                y: offset.height + currentOffset.height
+                            )
+                    }
                     .frame(width: displaySize, height: displaySize)
-                    .scaleEffect(scale * currentScale)
-                    .offset(
-                        x: offset.width + currentOffset.width,
-                        y: offset.height + currentOffset.height
-                    )
                     .clipShape(Rectangle())
+                    .overlay(
+                        Rectangle()
+                            .stroke(Color.white.opacity(0.8), lineWidth: 1)
+                    )
                     .contentShape(Rectangle())
                     // MARK: - Gesture Tracking
                     // Drag and Magnification simultaneously manipulate the affine geometry
@@ -94,29 +131,33 @@ struct ImageCropperView: View {
                             .onEnded { value in
                                 scale = max(1.0, scale * currentScale)
                                 currentScale = 1.0
-                                
+
                                 withAnimation(.spring()) {
                                     offset = getClampedOffset(proposedOffset: offset, displaySize: displaySize, activeScale: scale)
                                 }
                             }
                     )
-                
-                // 3. User Interaction Overlay Extracted Structure
-                CropOverlayView(
-                    cropRect: CGRect(origin: .zero, size: CGSize(width: displaySize, height: displaySize)),
-                    imageSize: image.size,
-                    onCornerDrag: { corner, translation in
-                        // Future implementation for asymmetric bounding box mutation. 
-                        // Currently affine mapping inherently calculates geometric offset bounds internally.
+
+                    Text("Pinch to zoom, drag to move")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .padding(.bottom, 24)
+
+                    Spacer()
+
+                    // 4. Confirm Button
+                    Button(action: { generateCrop(displaySize: displaySize) }) {
+                        Text("Confirm crop")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(14)
                     }
-                )
-                
-                // 4. Action Confirmation Layer Extracted Structure
-                CropConfirmationToolbar(
-                    onCancel: onCancel,
-                    onConfirm: { generateCrop(displaySize: displaySize) },
-                    onDelete: onDelete
-                )
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 32)
+                }
             }
         }
     }
@@ -162,102 +203,3 @@ struct ImageCropperView: View {
     }
 }
 
-// MARK: - Declarative Subcomponents Extensions
-
-enum Corner {
-    case topLeft, topRight, bottomLeft, bottomRight
-}
-
-private struct CropOverlayView: View {
-    let cropRect: CGRect
-    let imageSize: CGSize
-    let onCornerDrag: (Corner, CGSize) -> Void
-    
-    var body: some View {
-        ZStack {
-            Rectangle()
-                .stroke(Color.white.opacity(0.8), lineWidth: 1)
-                .frame(width: cropRect.width, height: cropRect.height)
-                .allowsHitTesting(false)
-            
-            VStack {
-                HStack {
-                    cornerHandle(.topLeft)
-                    Spacer()
-                    cornerHandle(.topRight)
-                }
-                Spacer()
-                HStack {
-                    cornerHandle(.bottomLeft)
-                    Spacer()
-                    cornerHandle(.bottomRight)
-                }
-            }
-            .frame(width: cropRect.width + 16, height: cropRect.height + 16)
-        }
-    }
-    
-    private func cornerHandle(_ corner: Corner) -> some View {
-        Circle()
-            .fill(Color.white)
-            .frame(width: 16, height: 16)
-            .shadow(radius: 2)
-            .gesture(
-                DragGesture().onChanged { value in
-                    onCornerDrag(corner, value.translation)
-                }
-            )
-    }
-}
-
-private struct CropConfirmationToolbar: View {
-    let onCancel: () -> Void
-    let onConfirm: () -> Void
-    let onDelete: (() -> Void)?
-    
-    var body: some View {
-        VStack {
-            Spacer()
-            
-            Text("Pinch to zoom, drag to move")
-                .font(.caption)
-                .foregroundColor(.gray)
-                .padding(.bottom, 24)
-            
-            HStack(spacing: 16) {
-                Button(action: onCancel) {
-                    Text("Cancel")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.white.opacity(0.15))
-                        .foregroundColor(.white)
-                        .cornerRadius(14)
-                }
-                
-                if let deleteAction = onDelete {
-                    Button(action: deleteAction) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 52, height: 52)
-                            .background(Color.red.opacity(0.8))
-                            .clipShape(Circle())
-                    }
-                }
-                
-                Button(action: onConfirm) {
-                    Text("Confirm crop")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(14)
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
-        }
-    }
-}

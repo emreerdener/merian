@@ -40,6 +40,7 @@ final class CameraViewModel {
     // MARK: - Asynchronous Jobs
     @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>? = nil
     @ObservationIgnored private var focusTask: Task<Void, Never>? = nil
+    @ObservationIgnored var phaseRotationTask: Task<Void, Never>? = nil
     
     // MARK: - Lifecycle
     init() {
@@ -78,6 +79,8 @@ final class CameraViewModel {
         
         // Do not violently kill the analyzing overlay natively if the Inference Engine is actively mid-scan in the background thread.
         if isAnalyzingFullscreen && !diContainer.inferenceEngine.isProcessing {
+            phaseRotationTask?.cancel()
+            phaseRotationTask = nil
             isAnalyzingFullscreen = false
             scanningPhaseText = "Analyzing subject..."
             analysisImages.removeAll()
