@@ -44,6 +44,8 @@ struct ScanningOverlayView: View {
                     Text(scanningPhaseText)
                         .font(.system(.title3, design: .rounded, weight: .medium))
                         .foregroundColor(.white)
+                        .contentTransition(.opacity)
+                        .animation(.easeInOut(duration: 0.35), value: scanningPhaseText)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 14)
