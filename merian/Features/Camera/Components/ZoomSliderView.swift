@@ -12,7 +12,6 @@ struct ZoomSliderView: View {
     private let trackHeight: CGFloat = 200
     private let trackWidth:  CGFloat = 6
     private let thumbSize:   CGFloat = 22
-    private let hapticStops: [CGFloat] = [1.0, 2.0, 3.0]
 
     // MARK: - Drag state
     @State private var dragStartFactor: CGFloat = 1.0
@@ -53,6 +52,20 @@ struct ZoomSliderView: View {
             Capsule()
                 .fill(Color.white.opacity(0.85))
                 .frame(width: trackWidth, height: max(trackWidth, trackHeight * fraction))
+
+            // Optical stop dots — tappable, skip 1× (always at track bottom)
+            ForEach(camera.opticalZoomStops.filter { $0 > 1.0 }, id: \.self) { stop in
+                let stopFraction = fillFraction(for: stop)
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.75))
+                        .frame(width: 5, height: 5)
+                }
+                .frame(width: thumbSize * 2, height: 16)
+                .contentShape(Rectangle())
+                .onTapGesture { camera.setZoom(factor: stop) }
+                .offset(y: -(stopFraction * trackHeight))
+            }
 
             // Thumb + label
             VStack(spacing: 4) {
@@ -120,7 +133,8 @@ struct ZoomSliderView: View {
     // MARK: - Haptics
 
     private func triggerHapticIfNeeded(factor: CGFloat) {
-        for stop in hapticStops where stop <= camera.maxZoomFactor {
+        let stops = camera.opticalZoomStops
+        for stop in stops {
             if abs(factor - stop) < 0.05 && lastHapticStop != stop {
                 UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.6)
                 lastHapticStop = stop
@@ -128,7 +142,7 @@ struct ZoomSliderView: View {
             }
         }
         // Reset hysteresis so the haptic can fire again on re-crossing.
-        if lastHapticStop != nil && hapticStops.allSatisfy({ abs(factor - $0) >= 0.07 }) {
+        if lastHapticStop != nil && stops.allSatisfy({ abs(factor - $0) >= 0.07 }) {
             lastHapticStop = nil
         }
     }

@@ -42,6 +42,9 @@ import Accelerate
     // MARK: - Zoom
     private(set) var zoomFactor: CGFloat = 1.0
     private(set) var maxZoomFactor: CGFloat = 1.0
+    /// Zoom factors at which the device physically switches lenses (e.g. [2.0, 6.0] on a triple-camera Pro).
+    /// Populated after the session starts. Used by ZoomSliderView for tappable optical stop dots.
+    private(set) var opticalZoomStops: [CGFloat] = []
     var isZoomSupported: Bool { maxZoomFactor >= 2.0 }
 
     // MARK: - Live Inference State
@@ -85,7 +88,10 @@ import Accelerate
 
         NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
             .sink { [weak self] _ in
-                Task { @MainActor in self?.isFlashEnabled = false }
+                Task { @MainActor in
+                    self?.isFlashEnabled = false
+                    self?.setZoom(factor: 1.0)
+                }
             }
             .store(in: &cancellables)
     }
@@ -162,23 +168,30 @@ import Accelerate
 
     @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
 
-    /// Reads `maxAvailableVideoZoomFactor` from the active video device.
-    /// Must be called after `session.startRunning()` — the active format is not resolved until then.
-    nonisolated private func readMaxZoomFactor() -> CGFloat {
+    /// Reads zoom configuration from the active video device after `session.startRunning()`.
+    /// Returns a capped max zoom and the optical lens-switch stops.
+    ///
+    /// `maxAvailableVideoZoomFactor` can reach 189× (pure digital pixel-stretch). We cap at 15×
+    /// to match the useful quality range; Apple's Camera app applies a similar soft cap.
+    /// `virtualDeviceSwitchOverVideoZoomFactors` gives the exact factors where the hardware
+    /// physically changes lenses — these become the tappable dots on the slider.
+    nonisolated private func readZoomConfig() -> (maxZoom: CGFloat, stops: [CGFloat]) {
         #if targetEnvironment(simulator)
-        return 5.0
+        return (5.0, [1.0, 2.0, 5.0])
         #else
         let activeVideoDevice = session.inputs
             .compactMap { $0 as? AVCaptureDeviceInput }
             .first(where: { $0.device.hasMediaType(.video) })?.device
-        guard let activeVideoDevice else { return 1.0 }
-        let maxZoom = activeVideoDevice.maxAvailableVideoZoomFactor
+        guard let activeVideoDevice else { return (1.0, []) }
+        let available = activeVideoDevice.maxAvailableVideoZoomFactor
+        let cap = min(available, 15.0)
+        let rawStops = activeVideoDevice.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.doubleValue) }
+        let stops = ([1.0] + rawStops).filter { $0 <= cap }
         let formatMax = activeVideoDevice.activeFormat.videoMaxZoomFactor
-        let switchOvers = activeVideoDevice.virtualDeviceSwitchOverVideoZoomFactors
         let isVirtual = activeVideoDevice.isVirtualDevice
-        MerianLog.hardware.debug("Zoom device: \(activeVideoDevice.localizedName, privacy: .public), maxAvailable=\(maxZoom, privacy: .public)")
-        MerianLog.hardware.debug("Zoom format: formatMax=\(formatMax, privacy: .public), switchOvers=\(switchOvers, privacy: .public), isVirtual=\(isVirtual, privacy: .public)")
-        return maxZoom
+        MerianLog.hardware.debug("Zoom device: \(activeVideoDevice.localizedName, privacy: .public), available=\(available, privacy: .public), cap=\(cap, privacy: .public)")
+        MerianLog.hardware.debug("Zoom format: formatMax=\(formatMax, privacy: .public), isVirtual=\(isVirtual, privacy: .public)")
+        return (cap, stops)
         #endif
     }
 
@@ -201,13 +214,14 @@ import Accelerate
 
             // maxAvailableVideoZoomFactor is only accurate after startRunning() —
             // the active format is not fully resolved until the session is live.
-            let capturedMaxZoom = self.readMaxZoomFactor()
+            let (capturedMaxZoom, capturedStops) = self.readZoomConfig()
 
             Task { @MainActor in
                 self.isSessionRunning = true
                 self.maxZoomFactor = capturedMaxZoom
-                self.zoomFactor = 1.0
-                MerianLog.hardware.debug("Zoom: maxZoomFactor=\(capturedMaxZoom, privacy: .public), isZoomSupported=\(self.isZoomSupported, privacy: .public)")
+                self.opticalZoomStops = capturedStops
+                self.setZoom(factor: 1.0) // resets both UI state and device.videoZoomFactor
+                MerianLog.hardware.debug("Zoom: maxZoomFactor=\(capturedMaxZoom, privacy: .public), stops=\(capturedStops, privacy: .public), isZoomSupported=\(self.isZoomSupported, privacy: .public)")
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
                 ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
             }
