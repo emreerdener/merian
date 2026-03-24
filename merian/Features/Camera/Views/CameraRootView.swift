@@ -16,6 +16,11 @@ struct CameraRootView: View {
     // MARK: - View Model & State
     @State private var viewModel = CameraViewModel()
 
+    // MARK: - Focus Indicator State
+    @State private var focusLocation: CGPoint? = nil
+    @State private var showFocusIndicator: Bool = false
+    @State private var focusHideTask: Task<Void, Never>? = nil
+
     // MARK: - View Hierarchy
     var body: some View {
         NavigationStack {
@@ -23,13 +28,24 @@ struct CameraRootView: View {
                 // 1. Optical Bridge (Underlay Black Safely)
                 CameraPreviewView(
                     session: cameraManager.session,
-                    onTap: { _, devicePoint in
+                    onTap: { layerPoint, devicePoint in
                         viewModel.handleFocusTap(devicePoint: devicePoint)
+
+                        // Drive the focus indicator from the UIKit layer point — the SwiftUI gesture
+                        // modifier can't compete with the UITapGestureRecognizer on the preview layer.
+                        focusLocation = layerPoint
+                        showFocusIndicator = true
+                        focusHideTask?.cancel()
+                        focusHideTask = Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            guard !Task.isCancelled else { return }
+                            withAnimation(.easeOut) { showFocusIndicator = false }
+                        }
                     }
                 )
                 .ignoresSafeArea()
                 .background(Color.black.ignoresSafeArea())
-                .modifier(FocusTapGestureModifier(onTap: { _ in }))
+                .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
                 
                 // 2. Hardware Effects (Flash Snap)
                 Color.black
