@@ -54,6 +54,13 @@ import os
     /// Active upload batch task. Cancelled immediately on connectivity loss.
     var syncTask: Task<Void, Never>?
 
+    /// In-memory counter tracking consecutive transient upload failures per scan ID.
+    /// Resets on app restart — a fresh process always gets a clean slate of retries.
+    @ObservationIgnored var uploadRetryCount: [String: Int] = [:]
+
+    /// Maximum consecutive transient errors before a scan is tombstoned.
+    static let maxUploadRetries = 3
+
     // MARK: - Lifecycle
 
     private override init() {

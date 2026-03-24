@@ -142,7 +142,10 @@ import os
             let container = modelContext.container
             let resourceIDs = agingScans.map { $0.persistentModelID }
             
-            Task.detached(priority: .background) {
+            BackgroundTaskWrapper.execute(
+                name: "ArchiveRescue",
+                expirationHandler: { MerianLog.data.debug("ArchiveRescue background task expired before completion") }
+            ) { _ in
                 let archiveActor = ArchiveDatabaseActor(modelContainer: container)
                 await archiveActor.rescueTransfers(resourceIDs: resourceIDs)
             }
@@ -242,7 +245,10 @@ actor ArchiveDatabaseActor {
                 
                 record.localImagePath = filename
                 record.isLocallyArchived = true
-                
+                // Save after each successful rescue so progress is preserved
+                // if the app is terminated before the loop finishes.
+                try? self.modelContext.save()
+
                 MerianLog.data.debug("ArchiveManager: Successfully rescued scan \(record.id, privacy: .private) off the R2 edge.")
             } catch {
                 MerianLog.data.debug("ArchiveManager: Failed to rescue aging boundary payload - \(error.localizedDescription, privacy: .private)")

@@ -85,13 +85,45 @@ extension OfflineQueueManager {
 
         // Handle transport-level errors.
         if let uploadError {
-            MerianLog.data.debug("Background upload failed: \(uploadError, privacy: .private)")
             let nsError = uploadError as NSError
+
+            // File-missing errors are terminal — the source data is unrecoverable.
             let isFileMissing = nsError.domain == NSURLErrorDomain
                 && (nsError.code == NSURLErrorFileDoesNotExist || nsError.code == NSURLErrorCannotOpenFile)
             if isFileMissing {
-                MerianLog.data.debug("Terminal file corruption — tombstoning scan \(scanId, privacy: .private)")
+                MerianLog.data.debug("Terminal file corruption — tombstoning \(scanId, privacy: .private)")
                 await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
+                return
+            }
+
+            // Transient connectivity errors (timeout, handoff, no signal) are retriable.
+            // Track attempts in-memory and only tombstone after maxUploadRetries failures
+            // so a brief WiFi handoff doesn't permanently discard a scan.
+            let transientCodes: Set<Int> = [
+                NSURLErrorTimedOut,
+                NSURLErrorNetworkConnectionLost,
+                NSURLErrorNotConnectedToInternet,
+                NSURLErrorDataNotAllowed,
+                NSURLErrorInternationalRoamingOff
+            ]
+            if nsError.domain == NSURLErrorDomain && transientCodes.contains(nsError.code) {
+                let retries = await MainActor.run { () -> Int in
+                    let next = (OfflineQueueManager.shared.uploadRetryCount[scanId] ?? 0) + 1
+                    OfflineQueueManager.shared.uploadRetryCount[scanId] = next
+                    return next
+                }
+                let max = OfflineQueueManager.maxUploadRetries
+                if retries >= max {
+                    MerianLog.data.debug("Upload retry limit reached (\(retries)/\(max)) — tombstoning \(scanId, privacy: .private)")
+                    await MainActor.run {
+                        OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
+                        OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+                    }
+                } else {
+                    MerianLog.data.debug("Transient upload error \(retries)/\(max) for \(scanId, privacy: .private) — retaining in queue")
+                }
+            } else {
+                MerianLog.data.debug("Background upload failed: \(uploadError, privacy: .private)")
             }
             return
         }
@@ -99,7 +131,9 @@ extension OfflineQueueManager {
         // Handle HTTP-level errors.
         guard let statusCode = responseStatusCode, statusCode == 200 else {
             let code = responseStatusCode ?? 0
-            let recoverableCodes: Set<Int> = [403, 500, 502, 503, 504]
+            // 403/401 are auth failures — permanent, not worth retrying.
+            // 429 and 5xx are server/rate-limit errors that may resolve on the next sync cycle.
+            let recoverableCodes: Set<Int> = [429, 500, 502, 503, 504]
             if recoverableCodes.contains(code) {
                 MerianLog.data.debug("Background upload recoverable (\(code, privacy: .public)) — retaining in queue")
             } else {
@@ -108,6 +142,9 @@ extension OfflineQueueManager {
             }
             return
         }
+
+        // Clear any prior transient-error retry count now that this upload succeeded.
+        await MainActor.run { OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId) }
 
         // Only trigger inference for files that landed in the staging bucket.
         guard let urlPath = originalRequestUrlPath, urlPath.contains("staging/") else { return }

@@ -36,10 +36,13 @@ All this payload work runs inside a `BackgroundTaskWrapper.execute` block so iOS
 - **Step A**: iOS transmits the staged file to the Cloudflare R2 staging bucket.
 - **Step B**: `urlSessionDidFinishEvents(forBackgroundURLSession:)` fires, invoking the `AppDelegate` completion handler so the system knows it's safe to suspend.
 - **Step C**: `urlSession(_:task:didCompleteWithError:)` fires. Non-Sendable task properties are captured as local immutable variables before crossing the actor boundary. The handler cleans up the temp staging file unconditionally, then:
-  - **Transport errors**: File-missing errors (NSURLErrorFileDoesNotExist, NSURLErrorCannotOpenFile) are terminal — the scan is tombstoned via `softDeleteQueuedScan`. Other transport errors leave the record in the queue for retry.
-  - **HTTP 403 / 5xx**: Recoverable — retain in queue for next connectivity cycle.
-  - **HTTP 4xx (non-403)**: Terminal — tombstone.
-  - **HTTP 200**: Proceed to inference.
+  - **Transport errors — file missing** (`NSURLErrorFileDoesNotExist`, `NSURLErrorCannotOpenFile`): terminal — tombstone immediately via `softDeleteQueuedScan`.
+  - **Transport errors — transient connectivity** (`NSURLErrorTimedOut`, `NSURLErrorNetworkConnectionLost`, `NSURLErrorNotConnectedToInternet`, `NSURLErrorDataNotAllowed`, `NSURLErrorInternationalRoamingOff`): retain in queue, increment in-memory `uploadRetryCount[scanId]`. After `OfflineQueueManager.maxUploadRetries` (3) consecutive failures the scan is tombstoned. The counter resets to zero on the next successful upload or on app restart.
+  - **Transport errors — other**: logged, retained in queue.
+  - **HTTP 403 / 401**: Terminal — auth failure, tombstone.
+  - **HTTP 429 / 5xx**: Recoverable — retain in queue for next connectivity cycle.
+  - **HTTP 4xx (non-403/401/429)**: Terminal — tombstone.
+  - **HTTP 200**: Clear the retry counter for this scan ID, then proceed to inference.
 - **Step D**: `SyncStateManager.shared.beginInferencing()` transitions the state machine to `.inferencing`. The inference Edge function (`analyzeSubject`) is called with the R2 object keys. Inference is suppressed until the **last** image file for the scan has landed (guarded by `indexPart == localImagePaths.count - 1`), preventing partial-payload submissions.
 - **Step E**: `SyncStateManager.shared.beginFinalizing()` transitions to `.finalizing`. `BackgroundDatabaseActor.processAndCleanupOfflineScan` decodes the JSON, inserts `LocalScanRecord`, deletes the `OfflineQueuedScan`, and saves. On inference failure, local image files are deleted via `FileIOActor.shared.deleteImages(at:)`.
 - **Step F**: `ProfileDatabaseActor.calculateAwards()` recalculates the full achievement state. Because awards can trigger on any condition over the scan history (time-of-day, species counts, ecology types, etc.) — not just new discoveries — this runs after every successful inference. `GamificationManager.shared.recordNewSpeciesDiscovered()` is additionally called when `isNewDiscovery == true`. A push notification is queued if the app is backgrounded.

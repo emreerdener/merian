@@ -251,15 +251,27 @@ extension CameraViewModel {
                     "Awaiting species confirmation...",
                 ]
             }
+            if id.contains("cactus") || id.contains("cactaceae") || id.contains("succulent") {
+                return [
+                    "Detected succulent subject...",
+                    "Analyzing spine and areole patterns...",
+                    "Examining stem morphology and rib structure...",
+                    "Evaluating growth form and branching...",
+                    "Reviewing surface texture and coloration...",
+                    "Consulting flora database...",
+                    "Checking native range distribution...",
+                    "Awaiting species confirmation...",
+                ]
+            }
             if id.contains("plant") || id.contains("leaf") || id.contains("vegetation") ||
                id.contains("shrub") || id.contains("grass") || id.contains("fern") ||
                id.contains("moss") || id.contains("algae") || id.contains("vine") {
                 return [
                     "Detected botanical subject...",
-                    "Analyzing leaf morphology...",
-                    "Examining venation and margin patterns...",
+                    "Analyzing morphological features...",
+                    "Examining structural patterns...",
                     "Evaluating growth habit...",
-                    "Reviewing stem and root indicators...",
+                    "Reviewing diagnostic field markers...",
                     "Consulting flora database...",
                     "Checking native range distribution...",
                     "Awaiting species confirmation...",

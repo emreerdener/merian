@@ -18,7 +18,7 @@ enum NetworkError: Error {
 | Case | Meaning | Caller contract |
 |---|---|---|
 | `invalidURL` | URL construction failed (programming error) | Log and abort. Do not retry. |
-| `uploadFailed` | R2 `PUT` returned non-200, or `URLSession` could not cast the response to `HTTPURLResponse` | Retain in offline queue for next connectivity cycle unless HTTP 4xx non-403, in which case tombstone. |
+| `uploadFailed` | R2 `PUT` returned non-200, or `URLSession` could not cast the response to `HTTPURLResponse` | Retain in queue for recoverable codes (429, 5xx). Tombstone for auth failures (401, 403) and other 4xx. Transient transport errors also retain in queue with a bounded retry counter (max 3 attempts before tombstone). |
 | `invalidResponse` | HTTP error or auth failure from Edge; also used as sentinel when `getValidAuthHeaders()` fails entirely | For sync deletions: treat as terminal (resource is already gone), remove the task. For other callers: log and surface a UI error or route to offline queue. |
 | `decodingFailed` | `JSONDecoder` failed on a network response | Log `.error`. Do not retry the same request. For inference: throw `APIError.decodingFailed` which triggers the graceful degradation UI. |
 
@@ -57,9 +57,17 @@ When a network call fails in `OfflineQueueManager`, the error classification det
 
 ```
 Upload (background URLSession task)
-    ├── File missing at source path → tombstone via softDeleteQueuedScan (terminal)
-    ├── HTTP 200 → proceed; webhook triggers Gemini inference server-side
-    └── Non-200 → retain in queue for next connectivity cycle
+    ├── File missing (NSURLErrorFileDoesNotExist / CannotOpenFile)
+    │   └── tombstone via softDeleteQueuedScan (terminal)
+    ├── Transient connectivity error (TimedOut / NetworkConnectionLost /
+    │   NotConnectedToInternet / DataNotAllowed / InternationalRoamingOff)
+    │   ├── retries < maxUploadRetries (3) → retain in queue, increment uploadRetryCount
+    │   └── retries ≥ 3 → tombstone (terminal)
+    ├── Other transport error → log, retain in queue
+    ├── HTTP 200 → clear retry counter; proceed to inference pipeline
+    ├── HTTP 429 / 5xx → retain in queue (recoverable)
+    ├── HTTP 401 / 403 → tombstone (auth failure, terminal)
+    └── HTTP 4xx (other) → tombstone (terminal)
 
 Cloud deletion (PendingCloudDeletionTask)
     ├── NetworkError.invalidResponse → tombstone (resource already gone, no point retrying)
@@ -78,6 +86,7 @@ Uploads use a background `URLSession` (`URLSessionConfiguration.background`) wit
 | Network timeout (Pro user) | InsightSheet opens with "Network Timeout" / "Offline Mode" placeholder + scan queued silently |
 | Network timeout (Free user) | Paywall sheet presented via `TriggerPaywall` notification |
 | R2 upload failure (missing source file) | Scan tombstoned silently via `softDeleteQueuedScan`; user is not notified |
+| R2 upload — transient error × 3 consecutive failures | Scan tombstoned silently after `maxUploadRetries` exhausted; user is not notified |
 | SwiftData save failure during deletion | `.error` logged; file deletion aborted; DB state remains consistent (record still exists, deletion task not persisted) |
 | JWT expiry (authenticated OAuth user) | `NetworkError.invalidResponse` thrown; callers surface a re-auth prompt |
 
