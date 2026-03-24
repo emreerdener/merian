@@ -138,43 +138,47 @@ extension OfflineQueueManager {
                 // Gemini inference is triggered by a Supabase Storage webhook once files land.
                 let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(fileNames: fileNames)
 
-                for (index, presignedURL) in presignedUrls.enumerated() {
-                    guard !Task.isCancelled else { break }
-                    guard index < fileURLs.count else {
-                        MerianLog.data.debug("syncPendingScans: index \(index) out of bounds — skipping")
-                        continue
+                // File copies and upload task creation are independent per-image — fan them out
+                // concurrently so NVMe writes for a 3-image scan overlap instead of queuing serially.
+                await withTaskGroup(of: Void.self) { group in
+                    for (index, presignedURL) in presignedUrls.enumerated() {
+                        guard !Task.isCancelled else { break }
+                        guard index < fileURLs.count else {
+                            MerianLog.data.debug("syncPendingScans: index \(index) out of bounds — skipping")
+                            continue
+                        }
+                        guard let remoteUrl = URL(string: presignedURL.signedUrl) else {
+                            MerianLog.data.debug("syncPendingScans: invalid signed URL at index \(index) — skipping")
+                            continue
+                        }
+
+                        let scanId = scanIDs[index]
+                        let originalFileURL = fileURLs[index]
+
+                        guard FileManager.default.fileExists(atPath: originalFileURL.path) else {
+                            MerianLog.data.debug("syncPendingScans: source file missing for \(originalFileURL.lastPathComponent, privacy: .private) — tombstoning")
+                            Task { @MainActor in OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
+                            continue
+                        }
+
+                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_\(index)_temp_upload.jpg")
+
+                        group.addTask {
+                            try? FileManager.default.removeItem(at: tempFileURL)
+                            do {
+                                try FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
+                            } catch {
+                                MerianLog.data.debug("syncPendingScans: temp file staging failed: \(error, privacy: .private)")
+                                return
+                            }
+                            var request = URLRequest(url: remoteUrl)
+                            request.httpMethod = "PUT"
+                            request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                            let uploadTask = session.uploadTask(with: request, fromFile: tempFileURL)
+                            uploadTask.taskDescription = "\(scanId)_\(index)"
+                            uploadTask.resume()
+                        }
                     }
-                    guard let remoteUrl = URL(string: presignedURL.signedUrl) else {
-                        MerianLog.data.debug("syncPendingScans: invalid signed URL at index \(index) — skipping")
-                        continue
-                    }
-
-                    let scanId = scanIDs[index]
-                    let originalFileURL = fileURLs[index]
-
-                    guard FileManager.default.fileExists(atPath: originalFileURL.path) else {
-                        MerianLog.data.debug("syncPendingScans: source file missing for \(originalFileURL.lastPathComponent, privacy: .private) — tombstoning")
-                        Task { @MainActor in OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
-                        continue
-                    }
-
-                    let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_\(index)_temp_upload.jpg")
-                    try? FileManager.default.removeItem(at: tempFileURL)
-
-                    do {
-                        try FileManager.default.copyItem(at: originalFileURL, to: tempFileURL)
-                    } catch {
-                        MerianLog.data.debug("syncPendingScans: temp file staging failed: \(error, privacy: .private)")
-                        continue
-                    }
-
-                    var request = URLRequest(url: remoteUrl)
-                    request.httpMethod = "PUT"
-                    request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
-
-                    let uploadTask = session.uploadTask(with: request, fromFile: tempFileURL)
-                    uploadTask.taskDescription = "\(scanId)_\(index)"
-                    uploadTask.resume()
                 }
             } catch {
                 MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")

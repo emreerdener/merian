@@ -15,8 +15,10 @@ When performing bulk downsampling with CoreGraphics (`ImageDownsampler.downsampl
 ### AVFoundation Deferred Stalling Avoidance
 When interacting with AVFoundation hardware handles like `device.lockForConfiguration()`, invoking early `return` checks or throwing errors before calling `device.unlockForConfiguration()` permanently seized the underlying device bus, resulting in camera black-screens. Dropping CVPixelBuffer lock boundaries also crashed Accelerate vectors. Merian enforces Swift's `defer` closures (`defer { device.unlockForConfiguration() }` and `defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }`) to insulate hardware mutex constraints against unhandled failure states.
 
-### SwiftData Memory Exhaustion (`InsightSheetView`)
+### SwiftData Memory Exhaustion (`InsightSheetView` & `BackgroundDatabaseActor`)
 When querying records from large user-generated biological libraries in SwiftData, executing a generic `FetchDescriptor` and filtering the `records.first(where:)` array synchronously in memory triggers an OS JetSam crash for power users. Merian prevents this by injecting `#Predicate` constraints directly into the `FetchDescriptor`, forcing the underlying SQLite engine to isolate the single `targetId` without expanding full Swift collections into memory.
+
+The same principle applies to `BackgroundDatabaseActor.pushCollectionsToEdge()`, which previously fetched every `ScanCollection` unconditionally with `FetchDescriptor<ScanCollection>()`. This loaded all stored properties — including fields irrelevant to the sync payload — for every collection, including Favorites (which is never synced). The fetch now uses a `#Predicate { $0.name != "Favorites" }` to exclude Favorites at the SQLite layer, and `descriptor.propertiesToFetch = [\.id, \.name, \.createdAt]` to project only the three columns required to build the `SyncCollectionPayload`. The `scans` relationship is still faulted lazily when `col.scans?.compactMap(\.id)` is called, as SwiftData does not support relationship projection.
 
 ### SwiftData Relationship Faults (OOM)
 When managing many-to-many SwiftData relationships, mutating the "Many" side (e.g., `collection.scans.append(record)`) forces the underlying SQLite engine to synchronously fault the entire array — potentially thousands of heavy `LocalScanRecord` structures — into active RAM on the Main Thread. For power users, this causes an immediate JetSam Out-Of-Memory termination. To protect the RAM ceiling, inverted "One" side mutation was applied to `ScanCollection` in UI components like `ScanSelectionSheetView` and `CollectionDetailView`. Developers now mutate and read the "One" side of the relationship (e.g., `scan.collections?.append(collection)` and `scan.collections?.removeAll(...)`) rather than the "Many" side (e.g., `collection.scans?.append(record)`), preventing the SQLite engine from expanding massive data arrays into active RAM. Deleting a collection bypasses iterative child array loops entirely. By executing `modelContext.delete(collection)`, the system uses SwiftData's default `.nullify` behavior, severing connections without pulling individual heavy payloads into active memory.
@@ -50,6 +52,11 @@ When loading grid arrays from SwiftData entries, missing `imagePath` and `fallba
 ### SQLite Thread-Safety Violations (`ArchiveManager`)
 Instantiating non-isolated `ModelContext` containers inside arbitrary `Task.detached` closures violates Swift 6 concurrency rules, generating data races and `EXC_BAD_ACCESS` crashes under load. Merian abandoned arbitrary detached SQLite threading. Background database ingestion (such as rescuing aging `.jpg` blobs off the S3 proxy) runs inside `@ModelActor` constructs (`ArchiveDatabaseActor`). This isolates SQL read/write operations inside a sequential concurrent thread pool, preventing memory access corruption. Duplicated object mapping logic across models (such as copying `SpeciesData` initialization dictionaries inside `OfflineQueueManager`) is consolidated back into `init(fromEdgeResponse:)` origins, isolating network JSON decoding and preventing data parity errors.
 
+### Serial Upload Staging Head-of-Line Blocking (`OfflineQueueManager`)
+Before upload tasks were handed to the OS background `URLSession`, each image in a batch was staged serially: `FileManager.copyItem` (a synchronous NVMe write) ran sequentially per file before the next began. For a 3-image scan on a busy NVMe controller this added 500 ms–2 s of dead time before any byte reached R2.
+
+`syncPendingScans` now uses `withTaskGroup` to fan out the staging work. Pre-flight checks — URL parsing, file-existence guards, tombstoning — remain serial because they are fast and because tombstoning mutates `@MainActor` state. Only the `FileManager.copyItem` + `URLSession.uploadTask` pair is placed in a task group child. All captured types (`URL`, `String`, `Int`, `URLSession`) are `Sendable`, satisfying Swift 6 strict concurrency.
+
 ### Background Suspension Limits (`OfflineQueueManager`)
 When evaluating inference payloads without cell service, the system requires `UIBackgroundTaskIdentifier` hooks to complete URLSession executions. In Merian, these handles are extracted outside of `@MainActor` task executions to avoid rapid synchronous delegate fire-and-return OS suspension traps.
 
@@ -75,6 +82,11 @@ Mapping `connection.videoRotationAngle = 90.0` or `videoOrientation = .portrait`
 
 ### Hanging Continuations (`CameraManager`)
 Apple's ISP (Image Signal Processor) can stall during extreme thermal saturation, failing to return an image frame via `AVCapturePhotoCaptureDelegate`. Rather than silently hanging the `isShutterActive` UI state, Merian wraps `withCheckedThrowingContinuation` patterns inside a `withTaskCancellationHandler`. To handle multiple overlapping captures on a single UI state, Merian associates an array tracking queue (`activeCaptureRequests`), isolating concurrent `timeoutTask?.cancel()` closures via unique UUID identifiers. This clears specific stalling entries from RAM and resolves dropped continuations via `CancellationError` without blocking subsequent captures.
+
+### Post-Inference Image Buffer Leak (`InferenceEngine`)
+After a successful inference round-trip, `activeImageData`, `activeCompressedImageData`, and `activeLiveCaptureDatas` were left populated until the *next* scan started. For multi-shot captures, these arrays hold several MB of compressed JPEG bytes with no cleanup path on the success branch. The `cancelActiveRequest()` path already cleared them, but the success path did not.
+
+`InferenceEngine.analyze` now clears all three properties immediately after `speciesData` is assigned on success, releasing the buffers before the Wikipedia hydration task fires. The `defer { self.isProcessing = false }` block at the top of the task continues to cover the failure and cancellation paths.
 
 ### Thread Starvation & Dropped Frames (`InferenceEngine`)
 To prevent the Main Thread from stuttering during 120Hz `ScrollView` interactions, `JSONDecoder()` operations against large scientific dictionary responses run inside `Task.detached(priority: .userInitiated)`. To prevent Swift 6 race conditions causing `EXC_BAD_ACCESS` during rapid multithreading, SwiftData `.insert()` operations are decoupled from the raw `.detached` payload and routed through the `@ModelActor BackgroundDatabaseActor`, preserving isolated SQL boundaries.
@@ -107,6 +119,14 @@ Loading local file bytes sequentially via `Data(contentsOf:)` and binding `UIIma
 When capturing `@Model` instances (`LocalScanRecord`) into SwiftUI presentation layers like `.alert` or `.confirmationDialog` button closures, SwiftData `@Query` observers routinely lose tracking. Modifying `scan.isBiological = true` and calling `modelContext.save()` inside these disconnected "portals" mutates SQLite correctly but fails to trigger SwiftUI reactive updates, leaving the UI in a stale state.
 
 **The Refactor**: Merian resolves this by executing a re-fetch inside the `.alert` action via `modelContext.model(for: scan.persistentModelID)`. This retrieves the tracked `@MainActor` memory pointer from the active context. Operations executed from there propagate correctly, collapsing `NonBiologicalScansView` boundaries and routing the payload back into the central biological timeline.
+
+### GCD Dispatch Mixed Into Swift Concurrency Contexts
+Several sites used `DispatchQueue.main.asyncAfter(deadline:)` inside `@MainActor`-bound or SwiftUI view contexts, creating subtle ordering hazards:
+
+- **`HapticManager.triggerErrorThump`** (a `@MainActor @Observable` class): The follow-up `error.notificationOccurred(.error)` was delayed with `DispatchQueue.main.asyncAfter(...+0.1)`. Because the class is already `@MainActor`, crossing back through GCD is redundant and can produce ordering races if the main run loop is busy. Replaced with `Task { @MainActor in try? await Task.sleep(nanoseconds: 100_000_000) ... }`.
+- **`InsightSheetView.onAppear`**: The bottom-bar animation was triggered with `DispatchQueue.main.asyncAfter(...+0.35)` inside an `.onAppear` closure. This was converted to a standalone `.task` modifier. The `.task` version is automatically cancelled if the view disappears before the 350 ms delay fires — the `asyncAfter` version was not cancellable and would mutate state on a view that was no longer on screen.
+
+Both replacements keep execution within the structured concurrency tree, making cancellation, ordering, and priority inheritance predictable.
 
 ### SwiftUI Task Cancellation Swallowing
 When generating delays (like `toastMessage` banners) using SwiftUI's `.task(id:)` modifier, using `try? await Task.sleep()` swallows the native `CancellationError`. If the `id` changes rapidly, the swallowed error prevents the active task from aborting, creating race conditions where multiple toast timers overlap and prematurely clear the UI state. Merian enforces `try await Task.sleep()` without the optional coalescing inside `.task(id:)` structures, guaranteeing SwiftUI cancels previous suspended timers instantly.
@@ -145,11 +165,23 @@ When masking a `ScrollView` with dynamic fade overlays that evaluate scroll posi
 - `FadingScrollView` bypasses this by adopting `.onChange(of: geo.frame(in: .named("FadingScrollSpace")).minX, initial: true)`, observing geometric measurements directly inside the view-closure block rather than delegating across the UI bound tree.
 - This triggers alongside the UI layout, allowing `offset` evaluations to mutate `LinearGradient` mask bounds correctly without dropping updates across the trailing anchor layout.
 
+### Concurrent Environment Context Fetch (`EnvironmentContextManager`)
+In `fetchDeferredContext`, reverse geocoding (`reverseGeocode(location:)`) and weather fetching (`weatherService.weather(for:)`) were previously sequential `await` calls. Since these are independent network I/O operations — typically 300–800 ms each — sequential execution added 300–1000 ms of unnecessary latency to every shutter press.
+
+`reverseGeocode` is now launched as an `async let` child task before `weatherService.weather(for:)` begins on the main task. Both operations run in parallel. The geocode result is `await`-ed when constructing the `EnvironmentContext` return value — at which point it is almost always already resolved. The pattern also handles the failure case correctly: if weather throws, `await locationName` in the `catch` block retrieves the geocode result (which ran concurrently and is ready) without re-fetching.
+
 ### Apple Geocoder Rate Limiting (`EnvironmentContextManager`)
 Invoking `CLGeocoder().reverseGeocodeLocation` on every historical index directly triggers Apple server rate limits. Rapid bulk photo imports fire `CLError.network` suspensions resulting in hours of stranded metadata. Merian abstracts the geocoder loop with a RAM-based LRU coordinate cache, rounding hash precision to 111 meters (`%.3f,%.3f`). Location patterns clustering on the same coordinates resolve from cache without touching the device radio, and offline synchronizations skip the server check entirely.
 
 ### Deferred Location Timeouts (`EnvironmentContextManager`)
 Unconditionally calling `timeoutTask?.cancel()` in debounced functions like `requestSingleLocation()` caused starvation. If the user tapped the shutter rapidly, the timeout task was deferred indefinitely, growing the `activeContinuations` array and permanently hanging the camera shutter pipeline. Merian resolves this: the timeout task is now instantiated only if one is not already running, allowing existing tasks to fire and flush. Active continuations are cancelled inside `locationManager(_:didUpdateLocations:)` and `didFailWithError`, enforcing limits on resolution latency.
+
+### Synchronous SQLite on the Launch Path (`ScanRepository`)
+`ScanRepository.configure(with:)` was called synchronously during app setup and performed a `FetchDescriptor<ScanCollection>()` fetch — loading every `ScanCollection` record with every stored property — to check whether a "Favorites" collection existed. On large libraries with many collections, this blocked the main thread before the first frame rendered.
+
+Two fixes were applied together:
+1. **Async deferral**: `configure` now returns immediately after injecting the queue context. The Favorites check runs inside `Task { @MainActor in }`, yielding the current synchronous callsite and running on the next main actor iteration.
+2. **O(1) fetch**: The full collection fetch was replaced with `modelContext.fetchCount(descriptor)` where `descriptor` uses `#Predicate { $0.name == "Favorites" }` and `fetchLimit = 1`. SQLite evaluates this as a `SELECT COUNT(*) WHERE name = 'Favorites' LIMIT 1` — constant time regardless of library size.
 
 ### Synchronous SQLite Blocking (`MerianApp`)
 Wrapping the core `ModelContainer` SwiftData instantiation inside `MerianApp`'s `.init()` guaranteed a UI hitch. For power users booting thousands of scans, evaluating deep SQLite schema migrations synchronously before the `WindowGroup` rendered blocked the Main Thread and destroyed the camera's "Instant-On" latency. Merian removes this stutter by rendering `CameraRootView` without a local container, offloading `ModelContainer(for: schema)` initialization into an asynchronous `.task` lifecycle modifier that attaches the SQLite container in the background.

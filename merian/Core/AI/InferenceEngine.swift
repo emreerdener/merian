@@ -126,6 +126,10 @@ private struct WikiSummaryResponse: Decodable {
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     self.speciesData = mappedData
+                    // Release raw image bytes — no longer needed once inference succeeds.
+                    self.activeImageData = nil
+                    self.activeCompressedImageData = nil
+                    self.activeLiveCaptureDatas.removeAll()
 
                     // Send a background notification if the user left while the scan was running.
                     // The offline queue path sends its own notification; this covers live inference only.

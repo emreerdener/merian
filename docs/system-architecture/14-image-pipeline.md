@@ -81,11 +81,13 @@ LocalImageLoader.shared.loadImage(
 `ImageCache.shared` (`Core/Data/Images/ImageCache.swift`) wraps `NSCache<NSString, UIImage>`.
 
 ```swift
-// Capped at 100 entries (~15 MB estimate)
-cache.countLimit = 100
+cache.countLimit = 100                    // hard entry cap
+cache.totalCostLimit = 30 * 1024 * 1024  // 30 MB byte cap
 ```
 
-- **Automatic eviction**: `NSCache` evicts entries under system memory pressure without any manual intervention.
+Every `set(_:forKey:)` call computes the pixel-area cost (`width × height × 4 bytes`) and passes it to `setObject(_:forKey:cost:)`. This gives `NSCache` an accurate memory footprint so it can evict the largest images first rather than treating a 4K thumbnail the same as a 64×64 icon.
+
+- **Automatic eviction**: `NSCache` evicts entries under system memory pressure without any manual intervention. With `totalCostLimit` set, eviction is triggered by *actual byte usage* rather than just entry count.
 - **No strong references**: Images in `NSCache` do not prevent deallocation, so they are released when iOS signals a memory warning.
 
 ---

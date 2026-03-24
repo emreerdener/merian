@@ -48,7 +48,10 @@ final class HapticManager {
     func triggerErrorThump() {
         if UserDefaults.standard.bool(forKey: "isHapticsEnabled") {
             rigid.impactOccurred()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.error.notificationOccurred(.error) }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                self.error.notificationOccurred(.error)
+            }
         }
     }
 

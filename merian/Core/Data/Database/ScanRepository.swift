@@ -24,26 +24,31 @@ final class ScanRepository {
     private init() {}
 
     /// Injects the SwiftData context and seeds the default "Favorites" collection if absent.
+    ///
+    /// The Favorites check is deferred to a `Task` so the synchronous launch path is never
+    /// blocked by a SQLite fetch. On large libraries the original synchronous fetch caused a
+    /// visible hitch before the first frame rendered.
     func configure(with modelContext: ModelContext) {
         offlineQueue.modelContext = modelContext
-
-        let descriptor = FetchDescriptor<ScanCollection>()
-        let collections: [ScanCollection]
-        do {
-            collections = try modelContext.fetch(descriptor)
-        } catch {
-            MerianLog.data.error("configure: collections fetch failed: \(error, privacy: .private)")
-            return
+        Task { @MainActor in
+            self.seedFavoritesIfNeeded(modelContext: modelContext)
         }
+    }
 
-        if !collections.contains(where: { $0.name == "Favorites" }) {
-            let favorites = ScanCollection(name: "Favorites")
-            modelContext.insert(favorites)
-            do {
-                try modelContext.save()
-            } catch {
-                MerianLog.data.error("configure: Favorites seed save failed: \(error, privacy: .private)")
-            }
+    private func seedFavoritesIfNeeded(modelContext: ModelContext) {
+        var descriptor = FetchDescriptor<ScanCollection>(
+            predicate: #Predicate { $0.name == "Favorites" }
+        )
+        descriptor.fetchLimit = 1
+        guard let count = try? modelContext.fetchCount(descriptor) else { return }
+        guard count == 0 else { return }
+
+        let favorites = ScanCollection(name: "Favorites")
+        modelContext.insert(favorites)
+        do {
+            try modelContext.save()
+        } catch {
+            MerianLog.data.error("configure: Favorites seed save failed: \(error, privacy: .private)")
         }
     }
 

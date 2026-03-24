@@ -87,7 +87,7 @@ struct CollectionsView: View {
                     Button {
                         showNewCollectionAlert = true
                     } label: {
-                        Label("New collection", systemImage: "folder.badge.plus")
+                        Text("New collection")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                     }

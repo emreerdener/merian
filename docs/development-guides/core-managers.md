@@ -17,6 +17,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
   - **CoreLocation**: Caches and updates `CLLocationCoordinate2D`, `altitude`, and `course`.
   - **WeatherKit**: Fetches hyper-local `temperature` and `condition` to supplement inference payloads.
 - Updates are gated by a `cacheThreshold` to limit unnecessary location and weather polling.
+- **Concurrent geocode + weather**: In `fetchDeferredContext`, `reverseGeocode(location:)` is launched as an `async let` child task before the `weatherService.weather(for:)` call begins. Both I/O operations — typically 300–800 ms each — run in parallel, cutting total context-fetch latency by 300–1000 ms per shutter press.
 
 ### `HapticManager`
 - Governs `UIImpactFeedbackGenerator` tactile feedback.
@@ -37,6 +38,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Selects between `gemini-2.5-flash` and `gemini-2.5-pro` based on the user's subscription tier, then maps the taxonomy strings from the response back to local model properties.
 - Maps ephemeral telemetry metadata (`gpsLatitude`, `gpsLongitude`, `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, `locationName`) into the parsed `SpeciesData` model, abstracting this detail from the Edge runtime and making it consistent across live and offline inference paths.
 - On network failure, routes the payload to `OfflineQueueManager` and triggers the Graceful Degradation UI state.
+- **Post-inference buffer release**: After `speciesData` is set on a successful result, `activeImageData`, `activeCompressedImageData`, and `activeLiveCaptureDatas` are immediately cleared. This prevents compressed image bytes (potentially several MB per multi-shot capture) from lingering in RAM until the next scan begins.
 
 **Multi-File Structure**: The engine is split across three files:
 - `InferenceEngine.swift` — the main engine with its public API unchanged.
@@ -50,6 +52,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Multi-Image Persistence**: Iterates `[Data]` arrays asynchronously, writing each file to `.documentsDirectory` via `FileIOActor` and appending paths to `localImagePaths`. This ensures multi-image bundles are not corrupted by iOS suspension before connectivity is restored.
 - **Recursive Queue Draining**: The `URLSession` delegate calls `syncPendingScans()` recursively when a completed batch detects `unsyncedItemsCount > 0`, draining the queue automatically without user intervention.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5) and `pendingScanFetchLimit` (50) are governed by `MerianConfig` constants rather than inline literals.
+- **Concurrent upload staging (`withTaskGroup`)**: File copy and `URLSession.uploadTask` creation for each image in a batch are fanned out via `withTaskGroup`. Pre-flight guards (URL validation, file existence, tombstoning) remain serial; only the NVMe write (`FileManager.copyItem`) and task creation are concurrent. For a 3-image scan this eliminates 500 ms–2 s of head-of-line blocking before the OS background session takes over.
 - **Free User Queue Cap & Quota Enforcement**: `enqueueCapture` enforces a hard cap of `UsageManager.shared.maxFreeScansPerDay` (2) queued items for free users. If the cap is reached, the new item is rejected and any files already written to disk are cleaned up atomically. `syncPendingScans` checks `canPerformScan` before starting a batch and calls `consumeScan()` once per submitted item, enforcing the daily quota through the background URLSession path. Pro users have no cap.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the pipeline progresses.
 
@@ -67,6 +70,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `ScanRepository`
 - `@MainActor` singleton facade over `OfflineQueueManager` and SwiftData, decoupling UI and ViewModels from `ModelContext` and queue internals.
 - Injected at startup via `configure(with:)`, which also seeds the "Favorites" collection if absent.
+- **`configure(with:)` — non-blocking launch**: The Favorites collection seed is deferred to `Task { @MainActor in }` so `configure` returns immediately without performing any SQLite I/O on the synchronous launch path. On large libraries, the original synchronous `FetchDescriptor<ScanCollection>()` blocked the main thread before the first frame rendered. The deferred fetch also uses `fetchCount` with `#Predicate { $0.name == "Favorites" }` + `fetchLimit = 1` — O(1) regardless of collection count.
 - **`syncHistoricalScansDown`**: Fetches cloud scan and collection history with pagination (`MerianConfig.historicalSyncPageSize`, `MerianConfig.collectionsSyncPageSize`), then delegates all reconciliation to a single `HistoricalDatabaseActor.reconcileAllHistoricalData(responses:collections:)` call, replacing the previous three-call actor-boundary crossing pattern.
 - **`eradicateScan`**: Commits database changes (delete record, insert cloud deletion task) before touching disk. File deletion via `FileIOActor.shared.deleteImages(at:)` runs only after a successful `modelContext.save()`, preventing partial-failure inconsistency.
 
@@ -105,6 +109,8 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Calls `getValidAuthHeaders()` with `try` (not `try?`) so authentication errors propagate to callers rather than being silently dropped. Previously, using `try?` made network failures impossible to diagnose.
 - Extracts `DeviceIdentityManager.shared.deviceId` without depending on arbitrary session state.
 - Traps `.401 Unauthorized` responses in `performAuthenticatedRequest` by delegating to `SupabaseManager.shared.getValidAuthHeaders()`, which handles Ghost session refresh.
+- **Dedicated `URLSession`**: A private `lazy var session` replaces all `URLSession.shared` call sites. Configuration: `timeoutIntervalForRequest = 30`, `timeoutIntervalForResource = 90` (hard cap — Gemini cannot bypass this regardless of the per-request timeout), `httpMaximumConnectionsPerHost = 6`, `httpShouldSetCookies = false`, `urlCache = nil`. Both Edge function calls and R2 PUT uploads go through this session.
+- **TLS certificate pinning (`MerianTLSDelegate`)**: A private `URLSessionDelegate` validates the server certificate for `*.supabase.co` against a SHA-256 hash of the leaf certificate DER. Other hosts (e.g. R2's `*.r2.cloudflarestorage.com`) fall through to default ATS validation. Pinning is skipped in `DEBUG` builds to allow MITM proxies. When `pinnedCertHashes` is empty (initial state), default ATS validation applies — populate the set using `openssl s_client -connect qlarqavoqhkuwzmevrmf.supabase.co:443 </dev/null | openssl x509 -outform DER | openssl dgst -sha256 -binary | base64`. Include a primary hash and a backup to enable zero-downtime rotation.
 
 ### Edge Network Operations (`S3` & `PostgreSQL` Bulk Insertions)
 - **Centralized Cloudflare R2 Operations (`_shared/aws.ts`)**: `copyR2Object()` and `deleteR2Object()` are defined once and shared across `moderation`, `export-dwca`, and `revenuecat-webhook`, rather than duplicating `aws.sign(...)` headers in each.

@@ -28,12 +28,13 @@ struct InsightSheetView: View {
                 .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
                 
                 // MARK: Lifecycle Bindings
-                .onAppear { 
+                .onAppear {
                     viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        withAnimation(.easeIn(duration: 0.2)) {
-                            viewModel.showBottomBarTools = true
-                        }
+                }
+                .task {
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    withAnimation(.easeIn(duration: 0.2)) {
+                        viewModel.showBottomBarTools = true
                     }
                 }
                 .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in

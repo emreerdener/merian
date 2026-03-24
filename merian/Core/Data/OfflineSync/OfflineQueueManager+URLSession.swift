@@ -144,7 +144,7 @@ extension OfflineQueueManager {
         }
 
         // Clear any prior transient-error retry count now that this upload succeeded.
-        await MainActor.run { OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId) }
+        await MainActor.run { _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId) }
 
         // Only trigger inference for files that landed in the staging bucket.
         guard let urlPath = originalRequestUrlPath, urlPath.contains("staging/") else { return }

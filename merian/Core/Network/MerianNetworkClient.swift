@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import os
 
 // MARK: - Network Errors
@@ -22,6 +23,59 @@ struct PreSignedURL: Codable {
     let objectKey: String
 }
 
+// MARK: - TLS Certificate Pinning
+
+/// Validates the server certificate for *.supabase.co against pinned SHA-256 hashes.
+///
+/// Pinning is skipped in DEBUG builds to allow MITM proxies (Charles, Proxyman).
+/// When `pinnedCertHashes` is empty (initial state), default ATS validation applies.
+///
+/// To populate the hashes, run:
+///   openssl s_client -connect qlarqavoqhkuwzmevrmf.supabase.co:443 </dev/null \
+///     | openssl x509 -outform DER \
+///     | openssl dgst -sha256 -binary \
+///     | base64
+///
+/// Include a primary hash and a backup hash to allow zero-downtime cert rotation.
+private final class MerianTLSDelegate: NSObject, URLSessionDelegate {
+    static let pinnedCertHashes: Set<String> = [
+        // "insert_primary_cert_sha256_base64_here",
+        // "insert_backup_cert_sha256_base64_here",
+    ]
+
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        #if DEBUG
+        // Skip pinning in debug builds to allow MITM proxies (Charles, Proxyman).
+        completionHandler(.performDefaultHandling, nil)
+        #else
+        // Only pin the Supabase domain; let R2 and other hosts use default ATS validation.
+        guard challenge.protectionSpace.host.hasSuffix("supabase.co"),
+              challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              !MerianTLSDelegate.pinnedCertHashes.isEmpty,
+              let serverTrust = challenge.protectionSpace.serverTrust,
+              let certChain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate],
+              let leafCert = certChain.first else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        let certData = SecCertificateCopyData(leafCert) as Data
+        let hash = Data(SHA256.hash(data: certData)).base64EncodedString()
+
+        if MerianTLSDelegate.pinnedCertHashes.contains(hash) {
+            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+        } else {
+            MerianLog.network.error("TLS cert pinning failed for \(challenge.protectionSpace.host, privacy: .public)")
+            completionHandler(.cancelAuthenticationChallenge, nil)
+        }
+        #endif
+    }
+}
+
 // MARK: - Merian Network Client
 
 /// Authenticated HTTP client for all Supabase Edge Function and R2 storage calls.
@@ -32,6 +86,20 @@ final class MerianNetworkClient {
 
     private let supabaseUrl = MerianEnvironment.supabaseUrl
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
+
+    // MARK: - URLSession
+
+    /// Dedicated session with sensible timeouts, connection limits, and TLS pinning.
+    /// Replaces `URLSession.shared` to avoid inheriting the system-wide shared configuration.
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30       // TCP + TLS + first-byte wait
+        config.timeoutIntervalForResource = 90      // Hard cap; Gemini can be slow on bad connections
+        config.httpMaximumConnectionsPerHost = 6
+        config.httpShouldSetCookies = false         // Auth uses headers, not cookies
+        config.urlCache = nil                       // Edge responses are never cacheable
+        return URLSession(configuration: config, delegate: MerianTLSDelegate(), delegateQueue: nil)
+    }()
 
     // MARK: - Authenticated Request Core
 
@@ -54,7 +122,7 @@ final class MerianNetworkClient {
             request.setValue(val, forHTTPHeaderField: key)
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.invalidResponse
         }
@@ -151,7 +219,7 @@ final class MerianNetworkClient {
         request.httpBody = data
 
         let uploadStart = CFAbsoluteTimeGetCurrent()
-        let (responseData, response) = try await URLSession.shared.data(for: request)
+        let (responseData, response) = try await session.data(for: request)
         MerianLog.network.debug("R2 upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
 
         guard let httpResponse = response as? HTTPURLResponse else {

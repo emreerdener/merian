@@ -30,6 +30,8 @@ Batch sizing is governed by `MerianConfig`:
 
 Active upload tasks are deduplicated against `backgroundSession.allTasks` before dispatching, preventing double-uploads on relaunch. Each image is first copied to a temp file in `URL.cachesDirectory` (`<scanId>_<index>_temp_upload.jpg`) before being handed to `URLSession.uploadTask(with:fromFile:)`. The OS background session owns byte transmission from here, handling interruption and resume transparently.
 
+**Concurrent staging (`withTaskGroup`)**: Pre-flight guards — URL validation, file existence checks, and tombstoning — remain serial. Once all guards clear, the `FileManager.copyItem` and `uploadTask` creation for each image are fanned out concurrently via `withTaskGroup`. For a 3-image scan this eliminates 500 ms–2 s of head-of-line blocking before the background session takes ownership.
+
 All this payload work runs inside a `BackgroundTaskWrapper.execute` block so iOS does not suspend the process during disk I/O or URL generation.
 
 ### 5. Upload Lifecycle via URLSession Delegates

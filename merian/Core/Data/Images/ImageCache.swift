@@ -20,13 +20,17 @@ final class ImageCache: @unchecked Sendable {
 
     private init() {
         cache.countLimit = 100
+        cache.totalCostLimit = 30 * 1024 * 1024 // 30 MB — enables memory-pressure eviction
     }
 
     // MARK: - Access
 
     /// Stores an image in the cache under the given key.
+    /// Cost is set to the pixel-area footprint so `totalCostLimit` eviction is accurate.
     func set(_ image: UIImage, forKey key: String) {
-        cache.setObject(image, forKey: key as NSString)
+        let pixelWidth = Int(image.size.width * image.scale)
+        let pixelHeight = Int(image.size.height * image.scale)
+        cache.setObject(image, forKey: key as NSString, cost: pixelWidth * pixelHeight * 4)
     }
 
     /// Returns the cached image for the given key, or `nil` if not present.

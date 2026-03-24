@@ -102,7 +102,8 @@ import Observation
             return EnvironmentContext(location: nil)
         }
 
-        let locationName = await reverseGeocode(location: validLocation)
+        // Run geocoding and weather fetch concurrently — they are independent I/O operations.
+        async let locationName = reverseGeocode(location: validLocation)
 
         do {
             let weather = try await weatherService.weather(for: validLocation)
@@ -111,12 +112,12 @@ import Observation
 
             return EnvironmentContext(
                 location: validLocation,
-                locationName: locationName,
+                locationName: await locationName,
                 weatherCondition: condition,
                 weatherTemperature: tempF
             )
         } catch {
-            return EnvironmentContext(location: validLocation, locationName: locationName)
+            return EnvironmentContext(location: validLocation, locationName: await locationName)
         }
     }
 
