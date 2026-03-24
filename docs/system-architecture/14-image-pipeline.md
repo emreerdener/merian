@@ -27,7 +27,7 @@ ImageDownsampler.shared.downsample(data: rawData, maxSize: 1024)
 
 - **Implementation**: Uses `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceCreateThumbnailFromImageAlways: true` and `kCGImageSourceShouldCache: false`. This instructs ImageIO to decode only a scaled thumbnail directly from the compressed source, never loading the full pixel buffer into RAM.
 - **`autoreleasepool`**: Each downsample call wraps its work in an `autoreleasepool` so intermediate CoreGraphics allocations are released immediately rather than accumulating until the next runloop drain.
-- **Actor isolation**: `ImageDownsampler` is a Swift `actor`, so concurrent downsample calls are serialized. This prevents CPU starvation from multiple parallel full-resolution decodings.
+- **`nonisolated` methods**: Both `downsample(url:maxSize:)` and `downsample(data:maxSize:)` are declared `nonisolated`, making them synchronous and callable without `await`. This allows concurrent grid loads to decode in parallel on the cooperative thread pool rather than being serialized through the actor's executor. The `autoreleasepool` inside each call remains safe because CoreGraphics is thread-safe at the frame level.
 
 ### 3. Write to Documents Directory (`FileIOActor`)
 
@@ -73,7 +73,8 @@ LocalImageLoader.shared.loadImage(
 
 - **Thundering herd prevention**: The `activeTasks: [String: Task<UIImage?, Never>]` dictionary ensures that 50 cells requesting the same image key in a single scroll frame all await one download, not 50 parallel downloads.
 - **OOM risk during scroll**: Loading full-resolution images for every visible grid cell would exhaust RAM on large libraries.
-- **Mitigation**: `maxDimension` defaults to `1024` for the scan grid and is reduced to `500` for remote fallback thumbnails. All loads go through `ImageDownsampler` before being stored in the cache.
+- **Adaptive `maxDimension`**: `ScansGrid` computes the actual cell pixel size from screen width, column count, and display scale — `Int((screenWidth - spacing) / columns * scale)` — and passes it to `ScanThumbnail` as `maxDimension`. On a 3-column iPhone 15 at 3× scale this is roughly 390px, versus the previous hardcoded 1024px. `LocalImageLoader` threads `maxDimension` through to both local and remote load paths. Remote fallback downloads previously capped at a hardcoded 500px now use the same caller-provided value.
+- **`maxDimension` default**: `600` in `ScanThumbnail` (used when a caller omits the parameter, e.g. single-image detail views).
 
 ### 5. RAM Cache (`ImageCache`)
 
@@ -91,7 +92,7 @@ cache.countLimit = 100
 
 ## Historical / Remote Images (Rehydration)
 
-When a user reinstalls the app or signs in on a new device, `LocalScanRecord.localImagePath` contains a Cloudflare R2 URL rather than a local filename. `LocalImageLoader` handles this transparently — it detects the `http://` prefix and routes through `fetchNetworkFallback`, which downloads to a temp file, downsamples to 500px, caches in RAM, and deletes the temp file.
+When a user reinstalls the app or signs in on a new device, `LocalScanRecord.localImagePath` contains a Cloudflare R2 URL rather than a local filename. `LocalImageLoader` handles this transparently — it detects the `http://` prefix and routes through `fetchNetworkFallback`, which downloads to a temp file, downsamples to the caller-provided `maxDimension` (no longer hardcoded), caches in RAM, and deletes the temp file.
 
 This means the grid renders correctly with cloud images immediately, and any locally archived scans (via `ArchiveManager`) will be served from disk on subsequent loads once they have been rescued to `documentsDirectory`.
 

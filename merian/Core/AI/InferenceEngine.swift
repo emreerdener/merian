@@ -167,6 +167,21 @@ enum APIError: Error {
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     self.speciesData = mappedData
+
+                    // Send a push notification if the user navigated away while the scan was processing.
+                    // The offline queue path handles its own notification; this covers the live inference path.
+                    #if canImport(UIKit)
+                    await MainActor.run {
+                        if UIApplication.shared.applicationState != .active,
+                           UserDefaults.standard.bool(forKey: "isPushNotificationsEnabled"),
+                           let scanId = mappedData.scanId {
+                            PushNotificationManager.shared.sendInferenceCompleteNotification(
+                                speciesName: mappedData.commonName,
+                                scanId: scanId
+                            )
+                        }
+                    }
+                    #endif
                     
                     let totalPipelineTime = CFAbsoluteTimeGetCurrent() - boundaryStartTime
                     MerianLog.general.debug("⏱️ [Performance] Total Analysis Pipeline (Upload + AI + DB) executed in \(String(format: "%.3f", totalPipelineTime), privacy: .public) seconds!")

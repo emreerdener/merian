@@ -57,12 +57,18 @@ The design principle is one actor invocation for all reconciliation work, avoidi
 **Declaration**: `@ModelActor actor ProfileDatabaseActor`
 
 **Responsibilities:**
-- `calculateProfileStats()` — fetches all `LocalScanRecord` rows with a column-projected descriptor (scientific name and timestamp only) to compute species count and scan streak
-- `calculateAwards()` (extension in `Achievements.swift`) — fetches all `LocalScanRecord` rows and delegates to `AchievementsCalculator.calculate(from:)`, returning an `[AwardPayload]` array
-- Called from `InferenceEngine` after every successful inference (not gated on `isNewDiscovery` — awards can trigger on any condition: time-of-day, taxonomy, elevation, etc.)
+- `calculateAll()` — **preferred entry point**. Single fetch with an 11-column `propertiesToFetch` projection (superset covering stats, heatmap, and awards). Returns `(speciesCount: Int, streak: Int, heatmap: ProfileHeatmapData, awards: [AwardPayload])`. Replaces three sequential actor calls with one.
+- `calculateProfileStats()` — fetches with `[\.scientificName, \.timestamp]` projection; computes species count and streak. Kept for call sites that only need these two values.
+- `calculateHeatmapData()` — fetches with `[\.timestamp]` projection; computes the 52-week scan heatmap. Kept for call sites that only need heatmap data.
+- `calculateAwards()` (extension in `Achievements.swift`) — fetches with the full 11-column projection; delegates to `AchievementsCalculator.calculate(from:)`. Called from `InferenceEngine` after every successful inference (not gated on `isNewDiscovery` — awards can trigger on any condition: time-of-day, taxonomy, elevation, etc.)
 
-**When to create**: Ad-hoc, after each successful inference:
+**When to create**: Ad-hoc. Use `calculateAll()` from `ProfileTabView` (single actor crossing for all profile data) and `calculateAwards()` from `InferenceEngine` (post-inference award refresh):
 ```swift
+// ProfileTabView — single fetch for all profile data
+let actor = ProfileDatabaseActor(modelContainer: container)
+let (species, streak, heatmap, awards) = await actor.calculateAll()
+
+// InferenceEngine — post-inference award refresh only
 if let container = modelContext?.container {
     let profileActor = ProfileDatabaseActor(modelContainer: container)
     let updatedAwards = await profileActor.calculateAwards()
@@ -132,8 +138,9 @@ All `@ModelActor` actors are created ad-hoc (per operation) rather than stored a
 | Save a live scan result | `BackgroundDatabaseActor` (ad-hoc) |
 | Process an offline scan after upload | `BackgroundDatabaseActor` (ad-hoc) |
 | Sync historical scans from cloud | `HistoricalDatabaseActor` (ad-hoc) |
-| Calculate achievement awards | `ProfileDatabaseActor` (ad-hoc) |
-| Calculate profile stats (species count, streak) | `ProfileDatabaseActor` (ad-hoc) |
+| Calculate all profile data (stats + heatmap + awards) | `ProfileDatabaseActor.calculateAll()` (ad-hoc) |
+| Calculate achievement awards only (post-inference) | `ProfileDatabaseActor.calculateAwards()` (ad-hoc) |
+| Calculate profile stats (species count, streak) | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc) |
 | Write image files to disk | `FileIOActor.shared` |
 | Delete image files from disk | `FileIOActor.shared` |
 | Validate image paths | `FileIOActor.shared` |

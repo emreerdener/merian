@@ -21,7 +21,7 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 **Async `Task {}` (off Main thread):**
 5. `SupabaseManager.initializeGhostSession()` — ensures a valid anonymous or authenticated session exists before any network calls.
 6. `OfflineQueueManager.syncPendingScans()` — immediately drains queued captures if `NWPathMonitor` shows connectivity.
-7. `ScanRepository.syncHistoricalScansDown(modelContext:)` — fetches paginated cloud history and reconciles against local SwiftData (supports reinstalls and multi-device access).
+7. `ScanRepository.syncHistoricalScansDown(modelContext:)` — fetches paginated cloud history and reconciles against local SwiftData (supports reinstalls and multi-device access). **Throttled to once per 15 minutes** via `UserDefaults("lastHistoricalSyncDate")` to prevent redundant full-table network syncs on every foreground transition (e.g. returning from Control Center).
 8. **Archive Safety Protocol** (once per 24 hours via `UserDefaults("lastArchiveRescueDate")`): `ArchiveManager.evaluateAndRescueAgingScans(modelContext:)` — downloads images for Free-tier scans approaching Cloudflare R2's 90-day lifecycle deletion window.
 
 ---
@@ -41,28 +41,35 @@ Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay).
 
 Triggered when `scenePhase == .background`.
 
-This phase handles the **mid-flight inference rescue race condition**: if the user navigates away from the app while an inference is in progress, the capture must not be lost.
+This phase handles the **mid-flight inference race condition**: if the user navigates away from the app while a scan is in progress, the behavior depends on subscription tier.
 
-**Rescue sequence (Pro users only):**
+**Pro users — rescue via offline queue:**
 1. Checks `InferenceEngine.isProcessing && !activeLiveCaptureDatas.isEmpty`.
-2. Checks `RevenueCatManager.isProActive` — Free users do not get offline rescue.
-3. Calls `OfflineQueueManager.enqueueCapture(imageDatas:telemetry:blurScore:)` with the live capture bytes and a `CaptureTelemetry` snapshot.
-4. Calls `InferenceEngine.cancelActiveRequest()` — only after the enqueue completes, guaranteeing zero data loss.
+2. Calls `OfflineQueueManager.enqueueCapture(imageDatas:telemetry:blurScore:)` with the live capture bytes and a `CaptureTelemetry` snapshot.
+3. Calls `InferenceEngine.cancelActiveRequest()` — only after the enqueue call, guaranteeing zero data loss.
+4. The offline queue's background URLSession handles the upload + inference + push notification independently of app state.
 
-If the device is not Pro or inference is not in-flight, nothing is written and the handler is a no-op.
+**Free users — complete in-flight naturally:**
+1. Checks `InferenceEngine.isProcessing && !activeLiveCaptureDatas.isEmpty`.
+2. The already in-flight URLSession request is **not cancelled**. iOS grants approximately 30 seconds of background execution time, which is sufficient for a typical edge inference (2–5 seconds).
+3. When `InferenceEngine.analyze()` completes, `self.speciesData` is set and a push notification is dispatched if `UIApplication.shared.applicationState != .active` and `isPushNotificationsEnabled` is true.
+
+> **Pro/Free distinction**: The Pro gate covers *offline queuing* (no-connectivity captures, re-queuing mid-flight scans for guaranteed delivery). Completing an already in-flight network request is available to all users.
 
 ---
 
 ## Phase Ordering & Critical Rules
 
-| Phase | Camera Session | Offline Queue | Inference |
-|---|---|---|---|
-| Active | Start | Drain | Normal |
-| Inactive | Stop | Untouched | Untouched |
-| Background | Already stopped | Rescue in-flight capture | Cancel after enqueue |
+| Phase | Camera Session | Offline Queue | Inference (Pro) | Inference (Free) |
+|---|---|---|---|---|
+| Active | Start | Drain | Normal | Normal |
+| Inactive | Stop | Untouched | Untouched | Untouched |
+| Background | Already stopped | Enqueue + cancel | Enqueue → cancel → URLSession handles | Let complete naturally in ~30s window |
 
 **Rules AI agents must follow:**
-- **Never cancel inference before enqueuing** in `handleBackgroundPhase`. The ordering is enqueue → cancel, not cancel → enqueue.
+- **Never cancel inference before enqueuing** in `handleBackgroundPhase` for Pro users. The ordering is enqueue → cancel, not cancel → enqueue.
+- **Never cancel a free user's in-flight inference** in `handleBackgroundPhase`. Free users rely on the live inference task completing within iOS's background execution window. Cancelling it loses the scan with no recourse.
 - **Never add direct ViewModel references** to `AppLifecycleManager`. Use `NotificationCenter` for UI side-effects.
+- `syncHistoricalScansDown` is throttled to once per 15 minutes. Do not add additional call sites without also checking `UserDefaults("lastHistoricalSyncDate")`.
 - The Archive Safety Protocol runs at most once per 24-hour wall-clock period. Do not trigger it manually from other call sites.
 - All async work inside `handleActivePhase` is intentionally fire-and-forget (`Task {}`). Errors are logged but never surface to the user during a phase transition.
