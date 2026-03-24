@@ -15,7 +15,7 @@ public struct ShareSheetUtility {
             topController = presented
         }
         
-        // Gracefully support iPad rendering anchors cleanly
+        // Set anchor for iPad popover presentation.
         if let popover = activityVC.popoverPresentationController {
             popover.sourceView = topController.view
             popover.sourceRect = CGRect(x: topController.view.bounds.midX, y: topController.view.bounds.midY, width: 0, height: 0)

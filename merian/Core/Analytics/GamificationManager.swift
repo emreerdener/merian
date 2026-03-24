@@ -1,75 +1,67 @@
 import Foundation
-import Combine
 import Observation
 import os
 
-// MARK: - Core Gamification Engine
-/// Tracks Gamification mechanics like Streaks, Badges, and Unlocked Species to drive the Digital Terrarium state.
+/// Manages gamification state: species unlock count, badges, and achievements.
 @MainActor
 @Observable final class GamificationManager {
-    // MARK: - Singleton Architecture
     static let shared = GamificationManager()
-    
-    // MARK: - State Management
+
+    // MARK: - State
+
     var unlockedSpeciesCount: Int
     var hasFireflyBadge: Bool
     var showTerrariumSheet: Bool = false
     var unlockedAchievements: Set<String>
-    
-    // MARK: - Persistent Storage Keys
+
+    // MARK: - Storage Keys
+
     private let defaults = UserDefaults.standard
-    private let speciesCountKey = "Merian_UnlockedSpeciesCount"
-    private let fireflyBadgeKey = "Merian_HasFireflyBadge"
+    private let speciesCountKey        = "Merian_UnlockedSpeciesCount"
+    private let fireflyBadgeKey        = "Merian_HasFireflyBadge"
     private let unlockedAchievementsKey = "Merian_UnlockedAchievements"
-    
-    // MARK: - Lifecycle Bootstrapping
+
     private init() {
-        self.unlockedSpeciesCount = defaults.integer(forKey: speciesCountKey)
-        self.hasFireflyBadge = defaults.bool(forKey: fireflyBadgeKey)
-        
-        if let stored = defaults.stringArray(forKey: unlockedAchievementsKey) {
-            self.unlockedAchievements = Set(stored)
-        } else {
-            self.unlockedAchievements = []
-        }
+        unlockedSpeciesCount = defaults.integer(forKey: speciesCountKey)
+        hasFireflyBadge      = defaults.bool(forKey: fireflyBadgeKey)
+        unlockedAchievements = Set(defaults.stringArray(forKey: unlockedAchievementsKey) ?? [])
     }
-    
-    // MARK: - Badge Execution Triggers
-    /// Called when a taxonomic scan validates natively or offline queue hits 200 OK
+
+    // MARK: - Recording
+
+    /// Records a newly discovered species and evaluates badge unlocks.
     func recordNewSpeciesDiscovered() {
-        self.unlockedSpeciesCount += 1
-        self.defaults.set(self.unlockedSpeciesCount, forKey: self.speciesCountKey)
-        
-        MerianLog.general.debug("🏆 Gamification: Species count increased to \(self.unlockedSpeciesCount, privacy: .public)")
-        
-        // Example threshold: hitting 5 distinct taxonomies unlocks the ecosystem fireflies
-        if self.unlockedSpeciesCount >= 5 && !self.hasFireflyBadge {
-            self.unlockFireflyBadge()
+        unlockedSpeciesCount += 1
+        defaults.set(unlockedSpeciesCount, forKey: speciesCountKey)
+        MerianLog.general.debug("Species count: \(unlockedSpeciesCount, privacy: .public)")
+
+        // 5 unique species unlocks the Firefly Badge.
+        if unlockedSpeciesCount >= 5 && !hasFireflyBadge {
+            unlockFireflyBadge()
         }
     }
-    
-    /// Evaluates if any achievement organically resolved exactly this session natively.
+
+    /// Checks `awards` for newly completed achievements and triggers notifications if enabled.
     func evaluateAchievementsForNotifications(awards: [AwardPayload]) {
         for award in awards where award.isCompleted {
-            if !self.unlockedAchievements.contains(award.type) {
-                // IT'S A NEW UNLOCK!
-                self.unlockedAchievements.insert(award.type)
-                self.defaults.set(Array(self.unlockedAchievements), forKey: self.unlockedAchievementsKey)
-                
-                MerianLog.general.debug("🏆 Gamification: New achievement evaluated offline: \(award.title, privacy: .public)")
-                
-                if self.defaults.bool(forKey: "isAchievementNotificationsEnabled") {
-                    PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)
-                }
+            guard !unlockedAchievements.contains(award.type) else { continue }
+
+            unlockedAchievements.insert(award.type)
+            defaults.set(Array(unlockedAchievements), forKey: unlockedAchievementsKey)
+            MerianLog.general.debug("Achievement unlocked: \(award.title, privacy: .public)")
+
+            if defaults.bool(forKey: "isAchievementNotificationsEnabled") {
+                PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)
             }
         }
     }
-    
+
+    // MARK: - Private
+
     private func unlockFireflyBadge() {
-        self.hasFireflyBadge = true
-        self.defaults.set(true, forKey: self.fireflyBadgeKey)
-        MerianLog.general.debug("🏆 Gamification: Firefly Badge Unlocked!")
-        // Trigger any necessary Apple native Haptics or Telemetry here
+        hasFireflyBadge = true
+        defaults.set(true, forKey: fireflyBadgeKey)
+        MerianLog.general.debug("Firefly Badge unlocked.")
         HapticManager.shared.triggerSelectionPulse()
     }
 }

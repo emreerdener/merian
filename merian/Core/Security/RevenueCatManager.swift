@@ -3,34 +3,31 @@ import Foundation
 import Observation
 import os
 
-// MARK: - Core Subscription Engine
 @MainActor
 @Observable final class RevenueCatManager {
-    // MARK: - Singleton Architecture
     static let shared = RevenueCatManager()
     private init() {}
-    
-    // MARK: - State Management
+
+    // MARK: - State
+
     var isProActive: Bool = false
     var currentOfferings: Offerings?
     var isFetchingOfferings: Bool = false
-    
-    // MARK: - Component Initialization
-    /// Initializes checking RevenueCat for active telemetry tokens
+
+    // MARK: - Configuration
+
+    /// Configures the RevenueCat SDK and fetches initial customer state.
     func configure() {
         Purchases.logLevel = .warn
-        
+
         let apiKey = MerianEnvironment.revenueCatApiKey
-        
-        // Allow the environment to dictate the exact key used directly. 
-        // If a test_ key is provided locally or via Xcode Cloud, RevenueCat will safely initialize in Sandbox mode natively.
-        
+
         #if !DEBUG
         if apiKey.hasPrefix("test_") {
+            // RevenueCat throws a fatalError if a "test_" key is used in Release builds.
+            // uiPreviewMode prevents the crash in TestFlight but simulates mock products.
+            // A real "appl_" key is required for live App Store transactions.
             #warning("TEMPORARY OVERRIDE: Using RevenueCat 'test_' apiKey with uiPreviewMode in Release. Remove before App Store launch!")
-            // RevenueCat intrinsically throws a fatalError if a "test_" API key is used in Release builds.
-            // Bypassing with uiPreviewMode guarantees the app won't crash on boot in TestFlight, but it will
-            // simulate mock products. A real App Store ("appl_") key is required for actual TestFlight interactions.
             let builder = Configuration.Builder(withAPIKey: apiKey)
                 .with(dangerousSettings: DangerousSettings(uiPreviewMode: true))
             Purchases.configure(with: builder.build())
@@ -40,21 +37,22 @@ import os
         #else
         Purchases.configure(withAPIKey: apiKey)
         #endif
-        
+
         Task {
             await refreshCustomerInfo()
             await fetchOfferings()
         }
     }
-    
-    // MARK: - Identity Synchronization
-    /// Establishes the link between RevenueCat's UUID constraint and the Supabase Identity, synchronizing optional User Metadata 
+
+    // MARK: - Identity
+
+    /// Logs in to RevenueCat with `userId` and syncs optional profile attributes.
     func linkWithSupabase(userId: String, email: String? = nil, displayName: String? = nil, avatarUrl: String? = nil) async {
         do {
             let (customerInfo, _) = try await Purchases.shared.logIn(userId)
-            self.updateEntitlements(with: customerInfo)
-            
-            // Push Standardized Auth Metrics directly to RevenueCat profiles
+            updateEntitlements(with: customerInfo)
+
+            // Sync optional profile attributes.
             if let email = email, !email.isEmpty {
                 Purchases.shared.attribution.setEmail(email)
             }
@@ -64,55 +62,54 @@ import os
             if let avatarUrl = avatarUrl, !avatarUrl.isEmpty {
                 Purchases.shared.attribution.setAttributes(["avatar_url": avatarUrl])
             }
-            
-            MerianLog.general.debug("🚀 Successfully linked RevenueCat UUID to Supabase Identity: \(userId, privacy: .private)")
+
+            MerianLog.general.debug("RevenueCat login succeeded for user \(userId, privacy: .private)")
         } catch {
-            MerianLog.general.debug("⚠️ RevenueCat login failed: \(error.localizedDescription, privacy: .private)")
+            MerianLog.general.debug("RevenueCat login failed: \(error.localizedDescription, privacy: .private)")
         }
     }
-    
-    // MARK: - Entitlement Processing
-    /// Evaluates if the user actively holds the `Naturalist` or `Weekend Warrior` pass bounds
+
+    // MARK: - Entitlements
+
+    /// Fetches the current customer info and updates entitlement state.
     func refreshCustomerInfo() async {
         do {
             let info = try await Purchases.shared.customerInfo()
-            self.updateEntitlements(with: info)
+            updateEntitlements(with: info)
         } catch {
             MerianLog.general.debug("Failed to fetch customer info: \(error.localizedDescription, privacy: .private)")
         }
     }
-    
+
     private func updateEntitlements(with info: CustomerInfo) {
-        // Enforcing the Master Protocol tiers
         let isNaturalist = info.entitlements.all["Naturalist Tier"]?.isActive == true
-        let is7DayPass = info.entitlements.all["7_day_pass"]?.isActive == true
-        let isPro = info.entitlements.all["pro"]?.isActive == true
-        
-        self.isProActive = isNaturalist || is7DayPass || isPro
+        let is7DayPass   = info.entitlements.all["7_day_pass"]?.isActive == true
+        let isPro        = info.entitlements.all["pro"]?.isActive == true
+        isProActive = isNaturalist || is7DayPass || isPro
     }
-    
-    /// Fetches all active packages available for the Paywall rendering UI
+
+    /// Fetches available offerings for the paywall.
     func fetchOfferings() async {
-        self.isFetchingOfferings = true
-        defer { self.isFetchingOfferings = false }
-        
+        isFetchingOfferings = true
+        defer { isFetchingOfferings = false }
         do {
-            self.currentOfferings = try await Purchases.shared.offerings()
+            currentOfferings = try await Purchases.shared.offerings()
         } catch {
-            MerianLog.general.debug("⚠️ Failed to fetch RevenueCat Offerings: \(error.localizedDescription, privacy: .private)")
+            MerianLog.general.debug("Failed to fetch RevenueCat offerings: \(error.localizedDescription, privacy: .private)")
         }
     }
-    
-    // MARK: - Native Apple Transactions
-    /// Safely triggers the Apple native checkout sheet locking into RevenueCat asynchronously
+
+    // MARK: - Purchases
+
+    /// Initiates the purchase flow for `package`.
     func purchase(_ package: Package) async throws {
         let result = try await Purchases.shared.purchase(package: package)
-        self.updateEntitlements(with: result.customerInfo)
+        updateEntitlements(with: result.customerInfo)
     }
-    
-    /// Restores any missing transactions from Apple back into the device boundary
+
+    /// Restores previous purchases from Apple.
     func restorePurchases() async throws {
         let info = try await Purchases.shared.restorePurchases()
-        self.updateEntitlements(with: info)
+        updateEntitlements(with: info)
     }
 }

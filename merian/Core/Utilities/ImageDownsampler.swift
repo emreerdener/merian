@@ -2,49 +2,39 @@ import Foundation
 import CoreGraphics
 import ImageIO
 
-// MARK: - System Hardware Image Downsampler
-/// Safely downsamples massive native 12MP photos natively within CoreGraphics bounds preventing SwiftUI from triggering Out of Memory (OOM) JetSam crashes natively.
+/// Downsamples large photos using ImageIO thumbnailing to avoid OOM pressure.
+/// All operations are `nonisolated` and safe to call from any concurrency context.
 public actor ImageDownsampler {
-    
+
     public static let shared = ImageDownsampler()
-    
-    // MARK: - Disk Bound Operations
-    /// Downsamples a physical file payload natively into a constrained CGImage bound
-    public nonisolated func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
-        return autoreleasepool {
-        let options: [CFString: Any] = [
+
+    private static let sourceOptions: CFDictionary = [kCGImageSourceShouldCache: false] as CFDictionary
+
+    private nonisolated func thumbnailOptions(maxSize: CGFloat) -> CFDictionary {
+        [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: maxSize
-        ]
-        
-        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
-        guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, sourceOptions as CFDictionary),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-            return nil
-        }
-        
-            return cgImage
+        ] as CFDictionary
+    }
+
+    /// Downsamples an image file at `url` to fit within `maxSize` pixels on the longest edge.
+    public nonisolated func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
+        autoreleasepool {
+            let options = thumbnailOptions(maxSize: maxSize)
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, Self.sourceOptions),
+                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
+            return image
         }
     }
-    
-    // MARK: - Memory Bound Operations
-    /// Downsamples raw binary bytes natively into a constrained CGImage bound
+
+    /// Downsamples an image from raw `data` to fit within `maxSize` pixels on the longest edge.
     public nonisolated func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
-        return autoreleasepool {
-            let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxSize
-        ]
-        
-        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
-        guard let imageSource = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
-            return nil
-        }
-        
-            return cgImage
+        autoreleasepool {
+            let options = thumbnailOptions(maxSize: maxSize)
+            guard let source = CGImageSourceCreateWithData(data as CFData, Self.sourceOptions),
+                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
+            return image
         }
     }
 }

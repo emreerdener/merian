@@ -108,7 +108,7 @@ For captures that go into the offline queue, images are written to disk by `File
 
 | Component | Location | Responsibility |
 |---|---|---|
-| `ImageDownsampler` | `Core/Utilities/` | CGImageSource thumbnail decoding; actor-serialized; autoreleasepool |
+| `ImageDownsampler` | `Core/Utilities/` | CGImageSource thumbnail decoding; `nonisolated` methods safe for concurrent calls; autoreleasepool |
 | `FileIOActor` | `Core/Data/Database/` | Disk reads/writes; isolated from Main and SwiftData actors |
 | `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; RAM cache hits; request coalescing; local/remote routing |
 | `ImageCache` | `Core/Data/Images/` | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap |

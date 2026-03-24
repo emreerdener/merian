@@ -10,7 +10,7 @@ enum MerianConfig {
 
     // MARK: - Free Tier Retention
 
-    /// The earliest a Free Tier scan can enter the ASP rescue window (days before expiry).
+    /// The earliest a Free Tier scan can enter the archive rescue window (days before expiry).
     static let archiveRescueWindowStartDays = 80
     /// The latest a Free Tier scan will be evaluated for rescue (days before full expiry).
     static let archiveRescueWindowEndDays   = 88

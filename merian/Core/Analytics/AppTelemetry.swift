@@ -2,83 +2,64 @@ import Foundation
 import TelemetryClient
 import os
 
-// MARK: - Core TelemetryDeck Gateway
-/// Architecture wrapper for TelemetryDeck.
-/// All metrics are strictly anonymized, ensuring ZERO Personally Identifiable Information (PII) is tracked.
+/// Thin wrapper around TelemetryDeck for anonymous, PII-free analytics.
 enum AppTelemetry {
-    // MARK: - Thread-Safe State Management
-    
+
+    // MARK: - State
+
     private static let lock = NSLock()
-    nonisolated(unsafe) private static var _isInitialized = false
-    
+    private nonisolated(unsafe) static var _isInitialized = false
+
     static var isInitialized: Bool {
-        get {
-            lock.lock()
-            let value = _isInitialized
-            lock.unlock()
-            return value
-        }
-        set {
-            lock.lock()
-            _isInitialized = newValue
-            lock.unlock()
-        }
+        get { lock.withLock { _isInitialized } }
+        set { lock.withLock { _isInitialized = newValue } }
     }
-    
-    // MARK: - Lifecycle Bootstrapping
-    /// Establishes the connection to TelemetryDeck during the instant iOS App Boot phase
+
+    // MARK: - Setup
+
+    /// Initializes TelemetryDeck with the app's configured ID.
     static func initialize() {
-        let appId = MerianEnvironment.telemetryAppID
-        
-        let configuration = TelemetryManagerConfiguration(appID: appId)
-        
-        // Disable automatically sending location data to honor the strict Master Protocol Geoprivacy constraints
-        // We only append location when the user explicitly agrees to 'public' biological scans natively
-        
+        let configuration = TelemetryManagerConfiguration(appID: MerianEnvironment.telemetryAppID)
         TelemetryManager.initialize(with: configuration)
         isInitialized = true
-        MerianLog.general.debug("📊 TelemetryDeck securely initialized (Anonymous Analytics Only)")
+        MerianLog.general.debug("TelemetryDeck initialized.")
     }
-    
-    // MARK: - Gamification Event Metrics
-    /// Tracks a successful taxonomy interaction globally mapped back to the hardware pipeline
+
+    // MARK: - Scan Events
+
+    /// Records a completed scan.
     static func trackScan(isPro: Bool) {
         guard isInitialized else { return }
-        TelemetryManager.send("ScanCompleted", with: [
-            "tier": isPro ? "Pro" : "Free"
-        ])
+        TelemetryManager.send("ScanCompleted", with: ["tier": isPro ? "Pro" : "Free"])
     }
-    
-    /// Tracks globally mapping back to when a user captures an entirely new species
+
+    /// Records a new species discovery.
     static func trackNewDiscovery(isPro: Bool) {
         guard isInitialized else { return }
-        TelemetryManager.send("NewSpeciesDiscovered", with: [
-            "tier": isPro ? "Pro" : "Free"
-        ])
+        TelemetryManager.send("NewSpeciesDiscovered", with: ["tier": isPro ? "Pro" : "Free"])
     }
-    
-    // MARK: - Monetization Event Metrics
-    /// Tracks when a user hits the physical 2-scan bounds and the Paywall springs dynamically
+
+    // MARK: - Monetization Events
+
+    /// Records a paywall impression.
     static func trackPaywallImpression() {
         guard isInitialized else { return }
         TelemetryManager.send("PaywallViewed")
     }
-    
-    // MARK: - Hardware Health Event Metrics
-    /// Tracks if the device's physical sensors hit critical thresholds and trigger Thermal Downgrading
+
+    // MARK: - Hardware Events
+
+    /// Records a thermal throttling event.
     static func trackThermalThrottling(fpsLimit: Int) {
         guard isInitialized else { return }
-        TelemetryManager.send("ThermalThrottled", with: [
-            "targetFPS": String(fpsLimit)
-        ])
+        TelemetryManager.send("ThermalThrottled", with: ["targetFPS": String(fpsLimit)])
     }
-    
-    // MARK: - Fatal Exception Event Metrics
-    /// Hard crash tracker (implicitly caught by TelemetryDeck out of the box, but this allows custom assertions)
+
+    // MARK: - Error Events
+
+    /// Records a named error domain for custom error tracking.
     static func trackError(_ errorDomain: String) {
         guard isInitialized else { return }
-        TelemetryManager.send("SystemError", with: [
-            "domain": errorDomain
-        ])
+        TelemetryManager.send("SystemError", with: ["domain": errorDomain])
     }
 }

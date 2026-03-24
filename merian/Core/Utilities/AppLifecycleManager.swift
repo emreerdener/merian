@@ -1,28 +1,29 @@
 import SwiftUI
 import SwiftData
 
-/// Dedicated orchestrator specifically managing logic when the App transitions across Active, Inactive, and Background states.
-/// This cleanly decouples all routing and recovery logic off the primary dependency injection container natively.
+/// Handles app lifecycle transitions (active, inactive, background),
+/// dispatching to the relevant core services.
+/// Decouples lifecycle logic from the primary dependency injection container.
 @MainActor
 final class AppLifecycleManager {
-    
+
     private let container: AppDIContainer
-    
+
     init(container: AppDIContainer) {
         self.container = container
     }
-    
-    /// Handles application transition to active foreground
+
+    /// Handles application transition to active foreground.
     func handleActivePhase() {
-        // Structurally prevent the OS from booting camera sessions implicitly or hitting API quotas actively natively during the Onboarding flow securely.
+        // Skip setup until onboarding is complete.
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         guard hasCompletedOnboarding else { return }
-        
+
         container.cameraManager.startSession()
         container.usageManager.evaluateDailyRefresh()
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()
-        
+
         Task {
             await container.supabaseManager.initializeGhostSession()
             container.offlineQueueManager.syncPendingScans()
@@ -30,8 +31,8 @@ final class AppLifecycleManager {
             let now = Date()
 
             if let context = container.offlineQueueManager.modelContext {
-                // Restore account history for re-installs or multi-device login seamlessly
-                // Throttled to once per 15 minutes to avoid redundant full-table network syncs on every foreground
+                // Restore account history on re-install or multi-device login.
+                // Throttled to once per 15 minutes to avoid redundant network syncs on every foreground.
                 let lastSyncDate = UserDefaults.standard.object(forKey: "lastHistoricalSyncDate") as? Date ?? Date.distantPast
                 if now.timeIntervalSince(lastSyncDate) >= 900 {
                     await container.scanRepository.syncHistoricalScansDown(modelContext: context)
@@ -39,7 +40,7 @@ final class AppLifecycleManager {
                 }
             }
 
-            // Trigger Archive Safety Protocol natively once per 24 hours
+            // Evaluate archive rescue once per 24 hours.
             let lastRescueDate = UserDefaults.standard.object(forKey: "lastArchiveRescueDate") as? Date ?? Date.distantPast
             if now.timeIntervalSince(lastRescueDate) >= 86400 {
                 if let context = container.offlineQueueManager.modelContext {
@@ -49,26 +50,24 @@ final class AppLifecycleManager {
             }
         }
     }
-    
-    /// Handles application transition to inactive (like app switcher)
+
+    /// Handles application transition to inactive (e.g. app switcher).
     func handleInactivePhase() {
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         guard hasCompletedOnboarding else { return }
-        
+
         container.cameraManager.stopSession()
-        
-        // Ensure the UI gracefully defaults back to the ready-to-scan state
-        // if the user drops out of the app while viewing a sheet natively.
-        // It's imperative that this is dispatched globally because we do not want
-        // to directly couple `AppLifecycleManager` tightly to `CameraViewModel`.
-        NotificationCenter.default.post(name: NSNotification.Name("AppDidEnterInactivePhase"), object: nil)
+
+        // Notify observers (e.g. CameraViewModel) to reset modal state.
+        // Posted as a notification to avoid coupling AppLifecycleManager to CameraViewModel.
+        NotificationCenter.default.post(name: .appDidEnterInactivePhase, object: nil)
     }
-    
-    /// Handles application transition to background gracefully
+
+    /// Handles application transition to background.
     func handleBackgroundPhase() {
-        // Cancel the live request and re-queue via the background URLSession for all users.
-        // Free users are capped at maxFreeScansPerDay queue items (enforced in enqueueCapture),
-        // so they cannot hoard scans. Pro users queue without limit.
+        // If a live capture is in progress, re-queue it for background URLSession delivery
+        // and cancel the active request. Free users are capped at maxFreeScansPerDay items;
+        // Pro users queue without limit.
         if container.inferenceEngine.isProcessing, !container.inferenceEngine.activeLiveCaptureDatas.isEmpty {
             container.offlineQueueManager.enqueueCapture(
                 imageDatas: container.inferenceEngine.activeLiveCaptureDatas,

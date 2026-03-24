@@ -1,8 +1,6 @@
 #if canImport(UIKit)
 import UIKit
 
-// MARK: - Background Task Wrapper
-
 /// Thread-safe wrapper around `UIBackgroundTaskIdentifier` for Swift 6 strict concurrency.
 ///
 /// `UIBackgroundTaskIdentifier` is not `Sendable`, so direct use across actor boundaries
@@ -25,12 +23,15 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
 
     /// Ends the background task if it is currently active. Safe to call from any thread.
     public func safeEnd() {
-        let currentId = id
-        guard currentId != .invalid else { return }
-        DispatchQueue.main.async {
-            UIApplication.shared.endBackgroundTask(currentId)
+        let idToEnd: UIBackgroundTaskIdentifier = lock.withLock {
+            guard _id != .invalid else { return .invalid }
+            defer { _id = .invalid }
+            return _id
         }
-        id = .invalid
+        guard idToEnd != .invalid else { return }
+        DispatchQueue.main.async {
+            UIApplication.shared.endBackgroundTask(idToEnd)
+        }
     }
 
     /// Begins a named background task, runs `operation`, then ends the task.

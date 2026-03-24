@@ -44,7 +44,7 @@ final class CameraViewModel {
     
     // MARK: - Lifecycle
     init() {
-        NotificationCenter.default.publisher(for: NSNotification.Name("AppDidEnterInactivePhase"))
+        NotificationCenter.default.publisher(for: .appDidEnterInactivePhase)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.resetModalsForBackground() }
             .store(in: &cancellables)

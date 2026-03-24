@@ -31,7 +31,7 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay).
 
 1. `CameraManager.stopSession()` — halts AVFoundation to preserve thermal budget and release hardware resources.
-2. Posts `NSNotification.Name("AppDidEnterInactivePhase")` — consumed by `CameraViewModel` (and other observers) to reset view state (e.g., dismiss result sheets) without directly coupling `AppLifecycleManager` to individual ViewModels.
+2. Posts `.appDidEnterInactivePhase` (`Notification.Name.appDidEnterInactivePhase`, defined in `Core/Utilities/NotificationNames.swift`) — consumed by `CameraViewModel` (and other observers) to reset view state (e.g., dismiss result sheets) without directly coupling `AppLifecycleManager` to individual ViewModels.
 
 > `CameraViewModel` intentionally **does not** nil out active ML payloads on this notification — that is reserved for `handleBackgroundPhase()` to prevent a race condition where UI cleanup runs before the background rescue can read the payload.
 

@@ -1,38 +1,43 @@
 import Foundation
-import Combine
 import Observation
 import os
 
-// MARK: - Core Fault Tolerance Engine
 @MainActor
 @Observable final class CircuitBreakerManager {
-    // MARK: - Singleton Architecture
     static let shared = CircuitBreakerManager()
-    
-    // MARK: - State Management
+
+    // MARK: - State
+
     var isCircuitTripped: Bool = false
-    
-    // MARK: - Telemetry Thresholds
+
+    // MARK: - Configuration
+
     private var consecutiveFailures: Int = 0
     private let failureThreshold: Int = 3
-    private let cooldownPeriod: TimeInterval = 900 // 15 minutes
+    private let cooldownPeriod: TimeInterval = 15 * 60
     private var cooldownTimer: Timer?
 
-    // MARK: - Public API Telemetry
+    // MARK: - Recording
+
     func recordFailure() {
         consecutiveFailures += 1
-        if consecutiveFailures >= failureThreshold && !isCircuitTripped { tripCircuit() }
+        if consecutiveFailures >= failureThreshold && !isCircuitTripped {
+            tripCircuit()
+        }
     }
 
     func recordSuccess() {
         consecutiveFailures = 0
-        if isCircuitTripped { resetCircuit() }
+        if isCircuitTripped {
+            resetCircuit()
+        }
     }
 
-    // MARK: - Private Circuit Breaker Logic
+    // MARK: - Private
+
     private func tripCircuit() {
         isCircuitTripped = true
-        MerianLog.general.debug("CircuitBreakerManager: Circuit Tripped! Routing all network requests to local Field Queue.")
+        MerianLog.general.debug("Circuit tripped after \(self.consecutiveFailures) failures; entering cooldown.")
         cooldownTimer?.invalidate()
         cooldownTimer = Timer.scheduledTimer(withTimeInterval: cooldownPeriod, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.resetCircuit() }
@@ -43,6 +48,6 @@ import os
         isCircuitTripped = false
         consecutiveFailures = 0
         cooldownTimer?.invalidate()
-        MerianLog.general.debug("CircuitBreakerManager: Circuit Reset. Resuming standard network requests.")
+        MerianLog.general.debug("Circuit reset; resuming normal requests.")
     }
 }
