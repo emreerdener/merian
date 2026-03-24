@@ -5,7 +5,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ## Hardware Domain
 
 ### `CameraManager`
-- Abstracts AVFoundation and binds to `.builtInLiDARDepthCamera` arrays on physical devices.
+- Abstracts AVFoundation via `AVCaptureDevice.DiscoverySession`, preferring `.builtInTripleCamera` on Pro devices for optical zoom support, falling back to `.builtInLiDARDepthCamera`, `.builtInDualCamera`, `.builtInDualWideCamera`, and `.builtInWideAngleCamera` in that order. Depth data via `AVCaptureDepthDataOutput` is attached conditionally and works with any device in the list that supports it.
 - Activated via `.handleActivePhase()` calls in `MerianApp.swift`.
 - Governs `subjectDistanceInMeters`, auto-focus thresholds, thermal bounds, and frame drops on a dedicated `DispatchQueue(label: "camera.session")`.
 - Avoids Accelerate `vImage` CPU starvation during paused states via an atomic `nonisolated(unsafe) private var activeInferencePaused` boolean, synchronized with the `@MainActor` preference boundary. When set, this triggers an early return in `captureOutput`, halting the histogram allocation pipeline and preserving battery and thermals whenever the Viewfinder AI is paused.

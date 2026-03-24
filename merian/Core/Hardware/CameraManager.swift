@@ -42,7 +42,7 @@ import Accelerate
     // MARK: - Zoom
     private(set) var zoomFactor: CGFloat = 1.0
     private(set) var maxZoomFactor: CGFloat = 1.0
-    var isZoomSupported: Bool { true } // DEBUG: force visible — revert to `maxZoomFactor >= 2.0`
+    var isZoomSupported: Bool { maxZoomFactor >= 2.0 }
 
     // MARK: - Live Inference State
     @ObservationIgnored nonisolated(unsafe) private var activeInferencePaused: Bool = false
@@ -107,8 +107,12 @@ import Accelerate
         session.beginConfiguration()
         session.sessionPreset = .photo
 
+        // builtInTripleCamera (Pro) exposes optical zoom across lenses AND delivers LiDAR depth
+        // data via AVCaptureDepthDataOutput on devices that have LiDAR. builtInLiDARDepthCamera
+        // locks videoZoomFactor at 1.0 by design (RGB/depth misalignment risk), so it is listed
+        // after triple and dual to ensure zoom is available whenever the hardware supports it.
         let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInLiDARDepthCamera, .builtInDualCamera, .builtInDualWideCamera, .builtInWideAngleCamera],
+            deviceTypes: [.builtInTripleCamera, .builtInLiDARDepthCamera, .builtInDualCamera, .builtInDualWideCamera, .builtInWideAngleCamera],
             mediaType: .video,
             position: .back
         )
@@ -181,17 +185,28 @@ import Accelerate
             #if targetEnvironment(simulator)
             capturedMaxZoom = 5.0
             #else
-            capturedMaxZoom = (self.session.inputs
+            let activeVideoDevice = self.session.inputs
                 .compactMap { $0 as? AVCaptureDeviceInput }
-                .first { $0.device.hasMediaType(.video) }?
-                .device.maxAvailableVideoZoomFactor) ?? 1.0
+                .first(where: { $0.device.hasMediaType(.video) })?.device
+            if let activeVideoDevice {
+                capturedMaxZoom = activeVideoDevice.maxAvailableVideoZoomFactor
+                MerianLog.hardware.debug(
+                    "Zoom: device=\(activeVideoDevice.localizedName, privacy: .public), " +
+                    "maxAvailable=\(activeVideoDevice.maxAvailableVideoZoomFactor, privacy: .public), " +
+                    "formatMax=\(activeVideoDevice.activeFormat.videoMaxZoomFactor, privacy: .public), " +
+                    "switchOvers=\(activeVideoDevice.virtualDeviceSwitchOverVideoZoomFactors, privacy: .public), " +
+                    "isVirtual=\(activeVideoDevice.isVirtualDevice, privacy: .public)"
+                )
+            } else {
+                capturedMaxZoom = 1.0
+            }
             #endif
 
             Task { @MainActor in
                 self.isSessionRunning = true
                 self.maxZoomFactor = capturedMaxZoom
                 self.zoomFactor = 1.0
-                MerianLog.hardware.debug("Zoom: maxZoomFactor = \(capturedMaxZoom, privacy: .public), isZoomSupported = \(self.isZoomSupported, privacy: .public)")
+                MerianLog.hardware.debug("Zoom: maxZoomFactor=\(capturedMaxZoom, privacy: .public), isZoomSupported=\(self.isZoomSupported, privacy: .public)")
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
                 ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
             }
@@ -382,10 +397,14 @@ import Accelerate
     func setZoom(factor: CGFloat) {
         guard let deviceInput = session.inputs.first(where: {
             ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true
-        }) as? AVCaptureDeviceInput else { return }
+        }) as? AVCaptureDeviceInput else {
+            MerianLog.hardware.debug("setZoom: no video device input found")
+            return
+        }
 
         let device = deviceInput.device
         let clamped = min(max(factor, 1.0), maxZoomFactor)
+        MerianLog.hardware.debug("setZoom: requested=\(factor, privacy: .public), clamped=\(clamped, privacy: .public), max=\(self.maxZoomFactor, privacy: .public)")
         zoomFactor = clamped
 
         queue.async {
@@ -394,7 +413,7 @@ import Accelerate
                 defer { device.unlockForConfiguration() }
                 device.videoZoomFactor = clamped
             } catch {
-                MerianLog.hardware.debug("Failed to lock device for zoom: \(error, privacy: .private)")
+                MerianLog.hardware.debug("setZoom: lockForConfiguration failed: \(error, privacy: .private)")
             }
         }
     }
