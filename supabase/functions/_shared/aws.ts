@@ -35,7 +35,7 @@ export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
   await Promise.allSettled(
     urls.map(async (url: string) => {
       try {
-        console.log(`Obliterating R2 payload: ${url}`);
+        console.log(`Deleting R2 object: ${url}`);
         const s3Url = getInternalS3Url(url, r2Config);
         await s3Client.fetch(s3Url, { method: "DELETE" });
       } catch (e) {

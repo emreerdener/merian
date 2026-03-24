@@ -1,10 +1,10 @@
 # API Contracts and Network Mappings
 
-Merian operates heavily decoupled. The iOS application exclusively hits Supabase Edge Functions, abstracting its physical networking entirely away from 3rd party providers like Google Gemini.
+Merian operates decoupled. The iOS application exclusively hits Supabase Edge Functions, abstracting its networking away from 3rd-party providers like Google Gemini.
 
 ## Deno `/generate-upload-urls` Edge Node
 
-To fetch cryptographic keys for direct-to-Cloudflare uploads safely bridging DDOS vectors, the client pushes standard limits arrays:
+To fetch cryptographic keys for direct-to-Cloudflare uploads, the client sends a filename array:
 
 ### Request Payload
 
@@ -15,7 +15,7 @@ To fetch cryptographic keys for direct-to-Cloudflare uploads safely bridging DDO
 }
 ```
 
-The server automatically extracts the genuine user identity cryptographically mapped off the `Authorization` Header JWT (`supabaseAdmin.auth.getUser()`) overriding any untrusted parameters structurally. Yields securely locked Cloudflare R2 bounds natively tied to the genuine user preventing path traversal vulnerabilities completely. These pre-signed `PUT` URLs dynamically generate an explicit `X-Amz-Expires=86400` query parameter (24 Hours). This extensive validation window explicitly decouples strict network connections, granting native Apple iOS `BackgroundTasks` total flexibility to execute data bursts overnight purely dictated by internal OS memory profiles, thermal bounds, and active Wi-Fi availability without inducing 403 Forbidden AWS errors.
+The server extracts the verified user identity from the `Authorization` Header JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the request body. Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours). This extended window gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting 403 errors.
 
 ```json
 {
@@ -35,16 +35,16 @@ The server automatically extracts the genuine user identity cryptographically ma
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
-When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. Notably, to defend against Path Traversal and Data Scraping, the server violently enforces that any paths within `r2ObjectKeys` structurally completely mandate `staging/${user.id}/` mappings and inherently reject `../` traversal attempts explicitly dropping foreign malicious requests instantly returning `HTTP 400` status constraints implicitly.
+When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server enforces that all paths within `r2ObjectKeys` begin with `staging/${user.id}/` and rejects `../` traversal attempts with `HTTP 400`.
 
 ```json
 {
   "r2ObjectKeys": [
-    "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_1.jpg", 
+    "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_1.jpg",
     "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_2.jpg"
   ],
   "imageBase64s": ["<base64 encoded string array for instant processing (up to 2 limits, skips r2ObjectKeys)>"],
-  "user_id": "Supabase Auth UUID explicitly linking natively via GoTrue Session",
+  "user_id": "Supabase Auth UUID linking via GoTrue Session",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
   "gpsElevation": 42.5,
@@ -61,15 +61,15 @@ When the `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. Notably
 
 ### The JSON Response Schema (From Gemini Back to Swift)
 
-To drastically optimize API expenditures, the `identify` Deno Edge node employs two fundamental strategies:
-- **Model Routing**: The system physically isolates Gemini clusters natively mapping `isProActive` subscriptions directly to `gemini-2.5-pro`, dynamically degrading base layer users optimally cleanly to `gemini-2.5-flash`. Both physical tiers unconditionally execute the strict `merianResponseSchema` bound to protect SQLite UI logic safely. 
-- **Dynamic Token Truncation (Non-biological targets)**: To inherently drop output limits securely when processing non-biological data, the Deno node actively strips objects like `taxonomy`, `insight_data`, `diagnostic_comparison`, and `ecology_type` out of the global `required: []` payload natively passing `is_biological_subject: false` instead. The iOS Swift layer gracefully receives the exact null pointer bindings seamlessly resolving down to Native Optionals natively!
+To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
+- **Model Routing**: The system routes `isProActive` subscribers to `gemini-2.5-pro` and base-tier users to `gemini-2.5-flash`. Both tiers use the `merianResponseSchema` constraint to protect SQLite UI logic.
+- **Dynamic Token Truncation (Non-biological targets)**: When processing non-biological subjects, the Deno node removes `taxonomy`, `insight_data`, `diagnostic_comparison`, and `ecology_type` from the `required: []` array and passes `is_biological_subject: false`. The Swift layer maps the absent fields to native Optionals.
 
-If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to simultaneously support both the Pro schema and Free text-prompt shapes equally without throwing `JSONDecoder()` crashing states!
+If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to simultaneously support both the Pro schema and Free text-prompt shapes without causing `JSONDecoder()` failures.
 
-**Critical Formatting Rule**: The Edge Function explicitly constraints Gemini to output the `common_name` tightly formatted in standard Title Case capitalization (e.g. "Monarch Butterfly"). However, for robust safety, the Swift decoding layer aggressively applies `.capitalized` properties downstream on rendering to guarantee older SQLite cache results physically display uniformly without requiring DB migrations natively.
+**Critical Formatting Rule**: The Edge Function instructs Gemini to output `common_name` in Title Case (e.g. "Monarch Butterfly"). For safety, the Swift decoding layer also applies `.capitalized` on rendering to ensure older cached results display consistently without requiring DB migrations.
 
-**Critical Edge Limitation (Gemini 2.5):** The model natively errors with `400 Bad Request` if developers strictly supply descriptive strings for enum checks. The `ecology_type` must be explicitly formatted as a structural JSON `enum: ["wild", "urban", "domesticated", "unknown"]` constraint within Deno to map cleanly.
+**Critical Edge Limitation (Gemini 2.5):** The model returns `400 Bad Request` when enum fields include descriptive strings. `ecology_type` must be formatted as a structural JSON `enum: ["wild", "urban", "domesticated", "unknown"]` constraint in the Deno schema.
 
 ```json
 {
@@ -110,15 +110,28 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
 }
 ```
 
+### Error Responses
+
+| Status | Body | Meaning |
+|---|---|---|
+| `400` | `{ "error": "AI processing error. Please try again." }` | Gemini generation failure |
+| `400` | `{ "error": "Bad Request: Path traversal detected." }` | `r2ObjectKeys` contains a `../` traversal attempt |
+| `400` | `{ "error": "Forbidden: r2ObjectKey does not belong to the requesting user." }` | IDOR — key does not belong to the authenticated user |
+| `413` | `{ "error": "Payload Too Large: Combined images exceed 5MB limit." }` | Combined image payload exceeds 5 MB |
+| `422` | `{ "error": "Processing Error: Malformed AI response." }` | Gemini returned output that could not be parsed |
+| `422` | `{ "error": "Processing Error: Invalid AI response format." }` | Gemini returned output in an unexpected format |
+
+`422` is excluded from the iOS `OfflineQueueManager`'s list of recoverable error codes. The client drops the queue entry rather than retrying indefinitely.
+
 ## The Standardized JSON Return Payload (From Supabase to Swift)
 
-To completely eliminate network bottleneck latency, the `/identify` Edge Function generates the `scan_id` locally using `crypto.randomUUID()` and **instantaneously returns the `data` payload natively** to the iOS application as soon as the Gemini inference completes. It permanently abstracts all relational PostgreSQL insertions, background R2 uploads, and parallel API scrapers (GBIF/Wikipedia) securely behind an asynchronous `EdgeRuntime.waitUntil` boundary preventing UI threading locks implicitly.
+To reduce latency, the `/identify` Edge Function generates `scan_id` locally via `crypto.randomUUID()` and returns the `data` payload to iOS as soon as Gemini inference completes. All PostgreSQL insertions, R2 uploads, and parallel API calls (GBIF/Wikipedia) run asynchronously behind `EdgeRuntime.waitUntil`.
 
 ### Gemini Parsing and Error Mitigation
 
-To prevent Deno V8 Container crashes due to Catastrophic Backtracking (ReDoS) from hallucinated markdown payloads, the endpoint parses raw Gemini output using a strictly enforced lightweight string mapping `substring(indexOf)` methodology instead of unbounded regex. If `JSON.parse` fails these physical bounds, it explicitly traps the exception natively returning an `HTTP 422 Unprocessable Entity`. Because `422` is intentionally excluded from the iOS `OfflineQueueManager`'s list of recoverable `.networkError` codes, the host client natively drops the corrupted queue dependency gracefully mapping avoiding infinitely deadlocking background requests and protecting user bandwidth limits.
+To prevent ReDoS from hallucinated markdown payloads, the endpoint parses raw Gemini output using a `substring(indexOf)` approach rather than unbounded regex. If `JSON.parse` fails, the endpoint returns `HTTP 422 Unprocessable Entity`. Because `422` is not in the iOS `OfflineQueueManager`'s recoverable error list, the client drops the corrupted queue entry rather than retrying.
 
-> **Note on Wikipedia Extraction:** Because the server asynchronously fetches Wikipedia payload metadata natively inside of PostgreSQL *after* delivering the active response down to iOS, live scans will execute instantaneously but omit Wikipedia references structurally. The iOS client intentionally triggers a secondary `fetch` to `en.wikipedia.org/api/rest_v1/page/summary/` synchronously with the rendering timeline to backfill the `InsightSheetView` UI organically via `@Published` property wrapper mutations without compromising initial AI performance.
+> **Note on Wikipedia Extraction:** The server fetches Wikipedia metadata asynchronously after returning the response to iOS. Live scans therefore omit Wikipedia references in the initial response. The iOS client triggers a secondary fetch to `en.wikipedia.org/api/rest_v1/page/summary/` to backfill the `InsightSheetView` via `@Published` property mutations without blocking the initial AI response.
 
 ```json
 {
@@ -131,7 +144,7 @@ To prevent Deno V8 Container crashes due to Catastrophic Backtracking (ReDoS) fr
 }
 ```
 
-This strict data contract bridges safely into the native Swift Codable layer where nested JSON `Data` is natively verified safely preventing `JSONDecoder()` crashing states on double-escaped strings.
+This data contract maps into the Swift Codable layer where nested JSON `Data` is verified to prevent `JSONDecoder()` failures on double-escaped strings.
 
 ```swift
 struct IdentifyResponse: Codable {
@@ -141,15 +154,15 @@ struct IdentifyResponse: Codable {
 }
 ```
 
-**Client Authentication Caveat**: `MerianNetworkClient` explicitly abstracts GoTrue anonymous hardware tokens structurally. The backend **strictly extracts cryptographic JWT Identity** from the Supabase `Authorization: Bearer` Header utilizing `supabaseAdmin.auth.getUser()`, entirely disregarding untrusted `user_id` values passed into request body payloads. The payloads generated natively from Swift use the `SupabaseManager`'s active session UUID strictly as a proxy binding string to sync RevenueCat identifiers but true API validation bridges dynamically exclusively over GoTrue JWT verification securely preventing API spoofing and session ghosting.
+**Client Authentication Caveat**: `MerianNetworkClient` abstracts GoTrue anonymous hardware tokens. The backend extracts cryptographic JWT identity from the `Authorization: Bearer` header via `supabaseAdmin.auth.getUser()`, ignoring any `user_id` in the request body. The Swift payload uses the `SupabaseManager`'s active session UUID only as a proxy string for syncing RevenueCat identifiers — actual API validation runs over GoTrue JWT verification only.
 
-**Offline Ghost Overwrite Protection**: Prior to initializing generic `SupabaseManager.shared.getValidAuthHeaders()` catch blocks across standard timeouts natively, the iOS client strictly evaluates `UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth")`. If an authenticated Apple/Google user goes deep offline into the wilderness letting their JWT physically expire, the Swift client will explicitly `throw NetworkError.invalidResponse` immediately. This completely bypasses the iOS Sandbox from arbitrarily flushing their Pro status with a random Guest UUID natively stranding `.sqlite` payloads in the void, forcing the `CameraRootView` to pop UI demanding physical re-authentication instead.
+**Offline Ghost Overwrite Protection**: Before calling `SupabaseManager.shared.getValidAuthHeaders()`, the iOS client checks `UserDefaults.standard.bool(forKey: "Merian_HasAuthenticatedOAuth")`. If an authenticated user goes offline long enough for their JWT to expire, the Swift client throws `NetworkError.invalidResponse` immediately. This prevents a guest UUID from overwriting the user's Pro status or stranding their `.sqlite` data, and causes `CameraRootView` to prompt re-authentication instead.
 
 ---
 
 ## Deno `/sync-collections` Edge Node
 
-Synchronizes a user's locally created Scan Collections directly with the PostgreSQL `collections` and `collection_scans` relational schemas safely handling diffing and missing FK maps natively.
+Synchronizes locally created Scan Collections with the PostgreSQL `collections` and `collection_scans` schemas, handling diffing and missing FK references.
 
 ### Request Payload
 
@@ -169,34 +182,34 @@ Synchronizes a user's locally created Scan Collections directly with the Postgre
 
 ### Safety and Transactional Integrity
 
-Unlike legacy query strategies that trusted fragile string parsing, this node enforces robust PostgREST execution dynamically mapping arrays safely:
-1. **Batch Upserts**: All valid collections are executed entirely via a single atomic `.upsert(collectionPayloads)` parameter, natively resolving PostgreSQL `TIMESTAMPTZ` and `UUID` bounds flawlessly without timing out.
-2. **Native Bulk-Insertion (N+1 Prevention)**: Pushing large `collection_scans` matrices sequentially inside a `for` loop historically triggered devastating N+1 query meltdowns resulting in Deno container timeouts explicitly. The Edge Node completely abandons scalar iterations, routing the entire array payload iteratively into a single `.insert(allMappings)` bulk operation natively into PostgreSQL. This guarantees massive schema updates cleanly resolve inside the exact bounds of the 256MB V8 Execution latency! If a user groups a scan natively while deep offline and the backend `.scans` mapping hasn't physical pushed yet, Supabase catches the constraint mismatch directly in `insertError` safely avoiding container failure.
-3. **Array-Bound Diffing Deletes**: Safely identifies obsolete collections by explicitly running `.select()` across the user's DB bounds natively, mapping a `toDelete` array statically in memory to pass exactly to `.delete().in("id", toDelete)`. This securely circumvents `.not("id", "in", "(...)")` query builder string corruption failures entirely protecting the syncing process.
+1. **Batch Upserts**: All valid collections are written via a single atomic `.upsert(collectionPayloads)` call, resolving PostgreSQL `TIMESTAMPTZ` and `UUID` types without timing out.
+2. **Bulk Insertion (N+1 Prevention)**: Pushing `collection_scans` entries in a `for` loop triggered N+1 query timeouts. The Edge Node routes the entire array into a single `.insert(allMappings)` call. If a user groups a scan while offline and the backend `scans` row hasn't arrived yet, Supabase catches the constraint error in `insertError` without crashing the container.
+3. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running `.select()` across the user's DB rows, building a `toDelete` array in memory and passing it to `.delete().in("id", toDelete)`. This avoids `.not("id", "in", "(...)")` string-builder failures.
 
 ---
 
 ## Deno `/get-filtered-discovery-feed` Edge Node
 
-Fetches the global social feed of public biological captures, explicitly excluding actors the user has explicitly blocked locally on their client. To prevent PostgreSQL parser exceptions and `in` modifier failures, the native Array matrix of blocked `user_id`s is strictly passed as a raw un-formatted TypeScript array (e.g. `.not("user_id", "in", isolatedExclusions)`) into the native Supabase JS abstraction layer.
+Fetches the global social feed of public biological captures, excluding users the authenticated user has blocked. The blocked `user_id` array is passed as a raw TypeScript array (e.g. `.not("user_id", "in", isolatedExclusions)`) to avoid PostgreSQL parser exceptions.
 
 ### Authentication Enforcement
 
-Unlike legacy edge structures which trusted unverified `userId` variables inside body payloads (enabling severe IDOR scrape vulnerabilities), this network mapping **strictly extracts cryptographic JWT Identity** from the Supabase `Authorization: Bearer` Header utilizing `supabaseAdmin.auth.getUser()`. 
+The endpoint extracts user identity from the `Authorization: Bearer` header via `supabaseAdmin.auth.getUser()`, ignoring any `userId` in the request body.
 
-**Critical Kong API Gateway Requirement**: 
-Because we use `URLSession` inside `MerianNetworkClient` instead of the Supabase Swift Edge Function SDK, all HTTP requests strictly POSTing to Deno **MUST** include both the `Authorization: Bearer <JWT>` header AND the `apikey: <SUPABASE_ANON_KEY>` header. If the `apikey` header is omitted, the Supabase Kong API Gateway will intercept and strip the `Authorization` header before it reaches the Edge Function, resulting in unhandled `401 Unauthorized: Missing token` crashes.
+**Critical Kong API Gateway Requirement**:
+Because we use `URLSession` inside `MerianNetworkClient` instead of the Supabase Swift SDK, all HTTP requests to Deno **MUST** include both the `Authorization: Bearer <JWT>` header AND the `apikey: <SUPABASE_ANON_KEY>` header. If the `apikey` header is omitted, the Supabase Kong API Gateway strips the `Authorization` header before it reaches the Edge Function, causing `401 Unauthorized: Missing token`.
 
-Any request attempting to fake a user session via a manipulated JSON body without passing a valid structural JWT signature in the header natively fails with a `401 Unauthorized` token boundary. This guarantees actors can only physically query Discovery Feeds mapping dynamically to their own authenticated blocklists natively.
+Any request with a manipulated JSON body but no valid JWT signature in the header returns `401 Unauthorized`.
 
 ### Global Geoprivacy & Endangered Species Shielding
-To completely prevent physical location tracking, geolocation scraping, and poachers from harvesting targets mapping dynamically to IUCN Endangered, Vulnerable, or Near-Threatened species, the endpoint executes an aggressive stringent post-processing `map` array loop natively before JSON transmission. The system **unconditionally** deletes the exact `.gps_lat_exact` and `.gps_long_exact` numeric boundaries completely off the global JSON payload for every single user scan natively, closing global tracking bounds seamlessly regardless of whether the user explicitly opted into `Open` geoprivacy natively. Furthermore, if the specific Linnaean taxonomy flags the capture as protected, it organically rounds their `gps_lat_public` geometries mathematically down to 11km structural tiles masking the generalized discovery feed dynamically.
+
+To prevent location tracking and poaching of IUCN Endangered, Vulnerable, or Near-Threatened species, the endpoint runs a post-processing `map` loop before JSON transmission. The `.gps_lat_exact` and `.gps_long_exact` fields are removed from every scan in the payload, regardless of the user's geoprivacy setting. Additionally, if the taxonomy flags a capture as a protected species, the endpoint rounds `gps_lat_public` coordinates to 11km tiles.
 
 ---
 
 ## Deno `/merge-ghost-profile` Edge Node
 
-Transfers ownership of physical records originating from an ephemeral Anonymous Ghost Session securely into a fully enrolled, newly authenticated Google/Apple ID natively.
+Transfers ownership of records from an anonymous Ghost Session to a newly authenticated Google/Apple ID.
 
 ### Request Payload
 
@@ -208,34 +221,32 @@ Transfers ownership of physical records originating from an ephemeral Anonymous 
 
 ### Authentication Enforcement
 
-Because this completely reassigns thousands of physical PostgreSQL records, validation must tightly prevent IDOR Account Takeover (ATO) exploits natively:
-1. Maps `supabaseAdmin.auth.getUser(jwt)` natively to extract the verified `targetUserId`.
-2. Explicitly triggers `supabaseAdmin.auth.admin.getUserById(ghost_id)` natively validating `is_anonymous === true`. If a malicious actor passes a fully authenticated user's ID blindly attempting to hijack their cloud scans and force a `deleteUser`, the Edge loop instantly faults with a `403 Forbidden` IDOR termination shielding registered identities natively.
-3. Completely transfers `scans` ownership mapping and cleanly drops the native `ghost_id` via `.deleteUser(ghost_id)`.
+1. Calls `supabaseAdmin.auth.getUser(jwt)` to extract the verified `targetUserId`.
+2. Calls `supabaseAdmin.auth.admin.getUserById(ghost_id)` and validates `is_anonymous === true`. If a malicious actor passes a fully authenticated user's ID to hijack their scans, the endpoint returns `403 Forbidden`.
+3. Transfers `scans` ownership and deletes the `ghost_id` via `.deleteUser(ghost_id)`.
 
 ---
 
 ## Deno `/safe-delete` Edge Node
 
-Permanently tombstones a user's account and initiates the total erasure of all their associated physical payload bytes across both PostgreSQL databases and Cloudflare R2 storage.
+Tombstones a user's account and initiates deletion of all associated data from PostgreSQL and Cloudflare R2.
 
 ### Request Payload
 
-No JSON body is required. The endpoint operates entirely off of cryptographic identity bindings to prevent IDOR vulnerabilities.
+No JSON body is required. The endpoint operates from the JWT identity alone to prevent IDOR vulnerabilities.
 
 ### Authentication Enforcement
 
-To prevent arbitrary account deletion vectors from hostile actors:
-1. Natively maps `supabaseAdmin.auth.getUser()` to isolate the internal UUID binding securely from the `Authorization: Bearer` header.
-2. Directly executes the `apply_user_tombstone` PostgreSQL RPC strictly mapping against the exact authenticated JWT session `user.id`. 
-3. The RPC securely cascades through the `public.scans`, `public.user_blocks`, and `public.flagged_reviews` tables, wiping the data natively and triggering Cloudflare R2 object purges.
-4. Returns a `200 OK` prompting the iOS client to natively `signOut()`, drop all local SQLite `ModelContext` dependencies (via `ScanRepository.purgeAllData()`), and reset the user boundary to Guest.
+1. Calls `supabaseAdmin.auth.getUser()` to extract the authenticated user's UUID from the `Authorization: Bearer` header.
+2. Executes the `apply_user_tombstone` PostgreSQL RPC against the authenticated `user.id`.
+3. The RPC cascades through `public.scans`, `public.user_blocks`, and `public.flagged_reviews`, removing rows and triggering Cloudflare R2 object purges.
+4. Returns `200 OK`. The iOS client then calls `signOut()`, drops all local SQLite `ModelContext` state via `ScanRepository.purgeAllData()`, and resets to Guest.
 
 ---
 
 ## Deno `/delete-scan` Edge Node
 
-Permanently deletes a fully cataloged biological scan from both the physical Supabase PostgreSQL database and the Cloudflare R2 bucket synchronously.
+Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
 
 ### Request Payload
 
@@ -247,19 +258,18 @@ Permanently deletes a fully cataloged biological scan from both the physical Sup
 
 ### Authentication Enforcement
 
-Because this completely destroys a structural memory, validation is absolute:
 1. Extracts `scanId` from the payload and queries `public.scans` using the Service Role.
-2. If the scan natively doesn't exist (e.g. deleted while offline but already purged serverside), it safely returns a HTTP 200 payload telling the Swift queue system to drop the offline payload cleanly.
-3. Retrieves the active GoTrue verification natively bridging the JWT boundary mapped by `supabaseAdmin.auth.getUser()`.
-4. Statically equates `scan.owner_id === user.id`. A mismatch throws a `403 Forbidden` IDOR termination.
-5. Recursively deletes bytes natively mapped to the `AwsClient` bucket array based upon exactly the `image_storage_urls` array payloads without manually rebuilding Cloudflare endpoints. This natively prevents 404 stranded images caused by accidental namespace duplication bounds.
-6. Issues native `DELETE` commands wiping the Postgres row cleanly.
+2. If the scan does not exist (e.g. already purged server-side while offline), returns HTTP 200 so the Swift queue system drops the pending deletion.
+3. Extracts the verified user identity from the JWT via `supabaseAdmin.auth.getUser()`.
+4. Compares `scan.owner_id === user.id`. A mismatch returns `403 Forbidden`.
+5. Deletes all Cloudflare R2 objects referenced in `image_storage_urls` via the `AwsClient`, avoiding 404 errors from namespace duplication.
+6. Deletes the Postgres row.
 
 ---
 
 ## Deno `/block-user` Edge Node
 
-Executes a rigid moderation block, instantly dropping the specified offender from the authenticated identity's Discovery Feed ecosystem securely natively via `SocialGuardManager`.
+Inserts a moderation block, removing the specified user from the authenticated user's Discovery Feed via `SocialGuardManager`.
 
 ### Request Payload
 
@@ -271,15 +281,15 @@ Executes a rigid moderation block, instantly dropping the specified offender fro
 
 ### Authentication Enforcement
 
-- Strictly pulls `supabaseAdmin.auth.getUser(jwt)` mapped from the GoTrue header.
-- Physically writes the structural boundary into the `public.user_blocks` Table natively (schema migrated via `00001_initial_schema.sql`).
-- Generates a `400 Bad Request` if `blocked_id` matches the calling identity's UUID safely.
+- Extracts user identity from the GoTrue header via `supabaseAdmin.auth.getUser(jwt)`.
+- Writes the block into `public.user_blocks` (schema in `00001_initial_schema.sql`).
+- Returns `400 Bad Request` if `blocked_id` matches the calling user's UUID.
 
 ---
 
 ## Deno `/flag-issue` Edge Node
 
-Generates an ecosystem report against AI inferences mapped aggressively within the native UI (`ReportInsightView`), injecting raw data safely into `00005_flagged_reviews.sql`.
+Submits a report against an AI inference from the `ReportInsightView`, inserting a row into `00005_flagged_reviews.sql`.
 
 ### Request Payload
 
@@ -293,16 +303,16 @@ Generates an ecosystem report against AI inferences mapped aggressively within t
 
 ### Authentication Enforcement
 
-- Strictly pulls `user!.id` natively returning from the `requireAuth(jwt)` middleware.
-- Validates JWT signature to ensure a genuine authenticated identity mapping against `scan_id` ignoring payload spoofing completely.
-- Natively inserts a row mapped strictly into `public.flagged_reviews`.
-- Triggers `HTTP 200` upon success securely decoupling the user's report without hanging the SwiftUI interface dynamically.
+- Extracts `user.id` from the `requireAuth(jwt)` middleware.
+- Validates the JWT signature against the `scan_id`.
+- Inserts a row into `public.flagged_reviews`.
+- Returns `HTTP 200` on success.
 
 ---
 
 ## Deno `/export-dwca` Edge Node
 
-Generates a Darwin Core Archive (DwC-A) containing the user's biological captures or a global dataset, zipping the occurrence and multimedia data, then uploading it directly to Cloudflare R2 before generating an expiring download URL.
+Generates a Darwin Core Archive (DwC-A) containing the user's biological captures or a global dataset, zips the occurrence and multimedia data, uploads it to Cloudflare R2, and returns an expiring download URL.
 
 ### Request Payload
 
@@ -315,5 +325,5 @@ Generates a Darwin Core Archive (DwC-A) containing the user's biological capture
 
 ### Authentication Enforcement
 
-- Strictly pulls `supabaseAdmin.auth.getUser(jwt)` mapped from the GoTrue header.
-- **DwC-A Global Geoprivacy Leak Prevention**: Cryptographically enforces ownership gating for exact coordinate access. Evaluates `canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId)`. If a user requests a global dataset (`exportScope = "global"`), they will only receive perturbed/public coordinates (`50km` obfuscated matrix) for scans they do not physically own, completely patching the global location scraping vulnerability. Exact coordinates (`gps_lat_exact`, `gps_long_exact`) are strictly included only when the authenticated JWT `user.id` cryptographically matches the specific `scan.user_id`.
+- Extracts user identity from the GoTrue header via `supabaseAdmin.auth.getUser(jwt)`.
+- **DwC-A Global Geoprivacy Leak Prevention**: Enforces ownership gating for exact coordinates. Evaluates `canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId)`. For global exports, users receive perturbed coordinates (50km obfuscation) for scans they do not own. Exact `gps_lat_exact` / `gps_long_exact` values are only included when the authenticated `user.id` matches the scan's `user_id`.

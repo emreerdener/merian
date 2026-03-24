@@ -1,6 +1,6 @@
 # Merian AI Code Conventions & Guidelines
 
-When generating or modifying code for Merian, follow these explicit constraints to ensure optimal performance, hardware safety, and architectural consistency.
+When generating or modifying code for Merian, follow these constraints to ensure optimal performance, hardware safety, and architectural consistency.
 
 ## 0. The Documentation Directory
 The `docs/` folder contains the master reference for the application:
@@ -16,8 +16,8 @@ The `docs/` folder contains the master reference for the application:
 ## 1. Project Generation (XcodeGen)
 - **NEVER** directly modify `Merian.xcodeproj`.
 - **ALWAYS** update `project.yml` when adding new packages, frameworks, scopes, or entitlements.
-- Run `xcodegen generate` explicitly before attempting to build.
-- API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`. NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files. 
+- Run `xcodegen generate` before attempting to build.
+- API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`. NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
 
 ## 2. Directory Structure
 The workspace enforces this layout inside `merian/`:
@@ -38,30 +38,30 @@ The workspace enforces this layout inside `merian/`:
 ## 3. Application State & Dependency Injection
 - **DO NOT** use scattered `@EnvironmentObject` implementations or rely heavily on SwiftUI environment scoping for heavy singletons.
 - **ALWAYS** use `AppDIContainer.shared` for injecting business logic. This protects the SwiftUI View lifecycle from massive memory redraw loops.
-- Pass required core managers cleanly (e.g., `let cameraManager: CameraManager`) into `Views` as `@Observable` bindings or `@ObservedObject` properties.
+- Pass required core managers (e.g., `let cameraManager: CameraManager`) into `Views` as `@Observable` bindings or `@ObservedObject` properties.
 
 ## 4. Hardware and Performance Limits
-- iOS Background limitations severely constrain API requests. Any heavy file I/O operations must be cleanly decoupled via `Task.detached(priority: .background)`.
+- iOS Background limitations severely constrain API requests. Any heavy file I/O operations must be decoupled via `Task.detached(priority: .background)`.
 - Image conversions (e.g. `downsampleImage`) or large JSON parsing must occur off the Main thread to prevent 60FPS UI stutters.
-- Avoid forcing `.isHighResolutionCaptureEnabled` without throttling image loads natively via `ImageIO` `CGImageSourceCreateThumbnailAtIndex` bounded logic. A full 12MP-48MP uncompressed capture explicitly forces iOS "Out of Memory" (OOM) crashes if repeatedly appended array buffers are allocated blindly.
+- Avoid forcing `.isHighResolutionCaptureEnabled` without throttling image loads via `ImageIO` `CGImageSourceCreateThumbnailAtIndex` bounded logic. A full 12MP–48MP uncompressed capture will cause iOS Out of Memory (OOM) crashes if repeatedly appended array buffers are allocated without bounds.
 
 ## 5. UI and Glassmorphism (Aesthetics)
 - **Stunning UIs are mandatory**: The user should be wowed at first glance.
-- Implement `.ultraThinMaterial` backgrounds universally to merge UI elements organically over camera viewfinders.
+- Implement `.ultraThinMaterial` backgrounds to merge UI elements over camera viewfinders.
 - Avoid large opaque black or white overlay panes. Make components dynamic, animated with `.spring()` transitions, and highly responsive. Use `RiveRuntime` (`.riv` files) for complex interactive states.
-- DO NOT use XIBs or custom rigid Storyboards. Write natively composed SwiftUI exclusively.
+- DO NOT use XIBs or custom rigid Storyboards. Write SwiftUI exclusively.
 
 ## 6. Supabase & Deno Edge
-- The `identify` Edge node abstracts all `generativelanguage` (Google) calls natively.
-- Never write direct Gemini inference code directly inside iOS Swift controllers, this leaks API keys and bypasses edge limits.
-- Keep the Deno Edge `index.ts` files perfectly synchronized with the Swift `IdentifyResponse` API Contract mapped in `08-API-Contracts.md`.
-- Ensure all unstructured display text (e.g. `common_name`) is locked via `systemInstruction` rigid rules to format cleanly as Title Case natively to prevent messy frontend lowercase UI outputs before it ever caches physically into the database.
+- The `identify` Edge node abstracts all `generativelanguage` (Google) calls.
+- Never write direct Gemini inference code inside iOS Swift controllers — this leaks API keys and bypasses edge limits.
+- Keep the Deno Edge `index.ts` files synchronized with the Swift `IdentifyResponse` API Contract mapped in `08-API-Contracts.md`.
+- Ensure all unstructured display text (e.g. `common_name`) is locked via `systemInstruction` rules to format as Title Case, preventing lowercase UI outputs before values are cached to the database.
 
 ## 7. Database Safeties
-- Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to securely persist the `UsageManager` limits locally on iOS against reinstallations. Do not blindly use IDFV (`.deviceId`) for backend user records or analytics identifiers. Keep identity cleanly chained against the active Supabase Auth session `.uuidString` to natively sync RevenueCat.
-- Follow RLS (Row Level Security) schemas logically by explicitly avoiding direct CRUD iOS modifications onto PostgreSQL. Instead, POST heavily via Edge REST points protected by Native JWT verification `supabaseAdmin.auth.getUser()`.
-- **SwiftData Predicate Boolean Mapping Bug**: When creating `@Query(filter:)` definitions with `#Predicate`, NEVER rely on implicit boolean checks (e.g. `$0.isBiological`). Due to massive iOS 17 compilation faults, the SwiftData framework will completely ignore the filter rendering `SELECT * FROM table`, thereby polluting entire lists natively. **ALWAYS** explicitly map operators against booleans (e.g. `$0.isBiological == true` or `$0.isBiological == false`) entirely explicitly preventing implicit bypass logic.
-- **SwiftData Predicate `UUID()` Evaluation Fault**: Due to severe Swift 5.9 macro constraints, passing a raw explicit `UUID` parameter dynamically against a mapped persistent `String` column natively inside a `#Predicate` forces catastrophic compiler timeouts permanently hanging builds without error logs. You **MUST** strictly extract the generic `.uuidString` value *outside* the closure before running the comparison bounds (e.g., `let stringVal = id.uuidString`, then `#Predicate { $0.id == stringVal }`).
+- Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to persist `UsageManager` limits locally on iOS across reinstalls. Do not use IDFV (`.deviceId`) for backend user records or analytics identifiers. Keep identity chained against the active Supabase Auth session `.uuidString` to sync RevenueCat.
+- Follow RLS (Row Level Security) schemas by avoiding direct CRUD modifications to PostgreSQL from iOS. POST via Edge REST endpoints protected by JWT verification via `supabaseAdmin.auth.getUser()`.
+- **SwiftData Predicate Boolean Mapping Bug**: When creating `@Query(filter:)` definitions with `#Predicate`, NEVER rely on implicit boolean checks (e.g. `$0.isBiological`). Due to iOS 17 compilation faults, SwiftData will ignore the filter and return all rows. **ALWAYS** map operators against booleans explicitly (e.g. `$0.isBiological == true` or `$0.isBiological == false`).
+- **SwiftData Predicate `UUID()` Evaluation Fault**: Due to Swift 5.9 macro constraints, passing a raw `UUID` parameter against a persistent `String` column inside a `#Predicate` causes compiler timeouts that hang builds without error logs. **MUST** extract `.uuidString` outside the closure before comparing (e.g., `let stringVal = id.uuidString`, then `#Predicate { $0.id == stringVal }`).
 
 ## 8. Documentation Maintenance
-- **ALWAYS create and update documentation accordingly.** Whenever you implement a new feature, modify a system's architecture, or alter an API contract, you MUST update the corresponding markdown file in the `docs/` folder to reflect reality. Do not wait to be asked. Ensure a perfectly synchronized and accurate documentation set that reflects the codebase's reality.
+- **ALWAYS create and update documentation accordingly.** Whenever you implement a new feature, modify a system's architecture, or alter an API contract, update the corresponding markdown file in the `docs/` folder to reflect reality. Do not wait to be asked. Maintain an accurate, synchronized documentation set that matches the codebase.

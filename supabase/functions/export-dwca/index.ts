@@ -44,37 +44,35 @@ serve((req: Request) =>
       query = query.eq("user_id", userId);
     }
 
-    // Phase 3: Cryptographic grouping without leaking Supabase identites.
+    // Hash user IDs for global exports to avoid leaking Supabase identities
     const secretHashSalt = Deno.env.get("SUPABASE_JWT_SECRET") || "salt";
-    
-    // Initialize headers and progressive array accumulators out of loop scope
+
     const occurrenceRows = [
       "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters"
     ];
-    
+
     const multimediaRows = ["coreid,identifier,format"];
-    
+
     let hasMore = true;
     let start = 0;
     const PAGE_SIZE = 1000;
 
     while (hasMore) {
       const { data, error } = await query.range(start, start + PAGE_SIZE - 1);
-      
+
       if (error) {
-        throw new Error(`Failed to fetch academic records: ${error.message}`);
+        throw new Error(`Failed to fetch records: ${error.message}`);
       }
-      
+
       if (!data || data.length === 0) {
         hasMore = false;
         break;
       }
-      
-      // CRITICAL SEC FIX: Prevent V8 Event Loop Starvation structurally on massive export scales natively
-      // Instead of explicitly blasting 1,000 concurrent cryptographic digests synchronously starving V8, process them sequentially
+
+      // Process in sub-batches to avoid V8 starvation on large exports
       const batchResults = [];
       const SUB_BATCH_SIZE = 50;
-      
+
       interface SpeciesDictionary {
         scientific_name?: string;
         kingdom?: string;
@@ -85,7 +83,7 @@ serve((req: Request) =>
         genus?: string;
         iucn_red_list_status?: string;
       }
-      
+
       interface ScanRow {
         id: string;
         user_id: string;
@@ -106,18 +104,17 @@ serve((req: Request) =>
             const scan = row as ScanRow;
             const species = scan.species_dictionary || {};
             const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
-            
+
             const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
             let recordedBy = "Merian Citizen Scientist";
-            
+
             if (!isTombstoned) {
               if (exportScope === "global") {
-                 // Hash to maintain contributor isolation anonymously
-                 const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
-                 const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
-                 recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
+                const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
+                const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
+                recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
               } else {
-                 recordedBy = scan.user_id;
+                recordedBy = scan.user_id;
               }
             }
 
@@ -130,7 +127,7 @@ serve((req: Request) =>
             let lon: number | string | undefined | null = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
             const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
 
-            // Enforce explicit float truncation for protected species blurring
+            // Round to ~11km resolution for protected species
             if (isProtected && typeof lat === "number" && typeof lon === "number") {
               lat = Math.round(lat * 10) / 10;
               lon = Math.round(lon * 10) / 10;
@@ -140,7 +137,7 @@ serve((req: Request) =>
             if (lon === null || lon === undefined) lon = "";
 
             const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
-            
+
             const urls = scan.image_storage_urls || [];
             const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
 
@@ -149,18 +146,18 @@ serve((req: Request) =>
         );
         batchResults.push(...subBatchResults);
       }
-      
+
       for (const res of batchResults) {
         occurrenceRows.push(res.occurrenceRow);
         if (res.mRows.length > 0) {
           multimediaRows.push(res.mRows.join("\n"));
         }
       }
-      
-      // Allow data arrays and generic object clusters to be Garbage Collected instantly preventing V8 Heap out-of-memory spikes 
-      // @ts-ignore: Deno globalThis supports gc natively when run with --v8-flags=--expose-gc
+
+      // Hint the GC to reclaim page data before loading the next page
+      // @ts-ignore: Deno globalThis supports gc when run with --v8-flags=--expose-gc
       globalThis.gc?.();
-      
+
       if (data.length < PAGE_SIZE || occurrenceRows.length >= 10000) {
         hasMore = false;
       } else {
@@ -168,7 +165,7 @@ serve((req: Request) =>
       }
     }
 
-    // 4. Build meta.xml
+    // 2. Build meta.xml
     const metaXml = `<?xml version="1.0" encoding="UTF-8"?>
 <archive xmlns="http://rs.tdwg.org/dwc/text/">
   <core encoding="UTF-8" linesTerminatedBy="\\n" fieldsTerminatedBy="," fieldsEnclosedBy="" ignoreHeaderLines="1" rowType="http://rs.tdwg.org/dwc/terms/Occurrence">
@@ -196,15 +193,14 @@ serve((req: Request) =>
   </extension>
 </archive>`;
 
-    // 5. Zip it up (Phase 2: Use streaming internal representation to bypass 256MB V8 limit)
+    // 3. Zip and stream directly to R2 to stay under the 256MB V8 heap limit
     const zip = new JSZip();
     zip.file("occurrence.csv", occurrenceRows.join("\n") + "\n");
     zip.file("multimedia.csv", multimediaRows.join("\n") + "\n");
     zip.file("meta.xml", metaXml);
 
     const zipStream = zip.generateInternalStream({ type: "uint8array", compression: "STORE" });
-    
-    // Utilize Deno Streams natively bridging directly to the Cloudflare R2 Upload payload to drastically scale under the 256MB V8 limits
+
     const readableZipStream = new ReadableStream({
       start(controller) {
         zipStream.on("data", (data: Uint8Array) => controller.enqueue(data))
@@ -214,7 +210,7 @@ serve((req: Request) =>
       }
     });
 
-    // 6. Upload to R2 and Generate Download URL
+    // 4. Upload to R2 and generate a signed download URL
     const { s3Client, bucketName, endpoint } = getR2Config();
 
     const timestamp = Date.now();
@@ -223,19 +219,17 @@ serve((req: Request) =>
 
     const putRes = await s3Client.fetch(urlString, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/zip"
-      },
+      headers: { "Content-Type": "application/zip" },
       body: readableZipStream
     });
 
     if (!putRes.ok) {
-      throw new Error(`Failed to upload streaming archive to R2: ${putRes.statusText}`);
+      throw new Error(`Failed to upload archive to R2: ${putRes.statusText}`);
     }
 
     const getUrl = new URL(urlString);
     getUrl.searchParams.set("X-Amz-Expires", "86400");
-    
+
     const signedGet = await s3Client.sign(getUrl.toString(), {
       method: "GET",
       aws: { signQuery: true },

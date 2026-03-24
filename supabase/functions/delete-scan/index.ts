@@ -11,33 +11,32 @@ serve((req: Request) =>
       return jsonResponse({ error: "Missing 'scanId' parameter in request body." }, 400);
     }
 
-    // 1. Fetch the remote scan payload securely
+    // 1. Fetch the scan record
     const { data: scan, error: fetchError } = await supabaseAdmin
       .from("scans")
       .select("id, user_id, image_storage_urls")
       .eq("id", scanId)
       .single();
 
-    // Soft bypass: If the user deletes a local offline scan before it syncs to the DB,
-    // the Cloud Sync queue will harmlessly drop it.
+    // If the scan doesn't exist remotely, treat as success — offline sync will drop it cleanly.
     if (fetchError || !scan) {
-      console.log(`Scan ${scanId} not found remotely, explicitly ignoring for Offline Sync queues.`);
+      console.log(`Scan ${scanId} not found remotely; skipping for offline sync.`);
       return jsonResponse({ success: true, message: "Scan not found remotely." }, 200);
     }
 
-    // 2. Authorization constraints (IDOR Protection)
+    // 2. Verify ownership before deletion (IDOR protection)
     if (scan.user_id !== user.id) {
-      console.error(`IDOR attempt: User ${user.id} accessed scan ${scanId} owned by ${scan.user_id}`);
+      console.error(`IDOR attempt: User ${user.id} tried to delete scan ${scanId} owned by ${scan.user_id}`);
       return jsonResponse({ error: "Forbidden: You do not have permission to delete this record." }, 403);
     }
 
-    // 3. R2 Image Erasure (Cloudflare)
+    // 3. Delete images from R2
     if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
       const r2Config = getR2Config();
       await deleteR2Objects(scan.image_storage_urls, r2Config);
     }
 
-    // 4. Postgres Database Erasure
+    // 4. Delete scan from database
     const { error: deleteError } = await supabaseAdmin
       .from("scans")
       .delete()
@@ -45,14 +44,11 @@ serve((req: Request) =>
 
     if (deleteError) {
       console.error(`Database deletion failed for ${scanId}:`, deleteError);
-      return jsonResponse({ error: "Internal Server Error: Failed to drop database row." }, 500);
+      return jsonResponse({ error: "Internal Server Error: Failed to delete scan record." }, 500);
     }
 
-    console.log(`Successfully annihilated scan ${scanId} for user ${user.id}`);
-    
-    return jsonResponse({ 
-      success: true, 
-      message: "Scan securely deleted." 
-    }, 200);
+    console.log(`Deleted scan ${scanId} for user ${user.id}`);
+
+    return jsonResponse({ success: true, message: "Scan deleted." }, 200);
   })
 );

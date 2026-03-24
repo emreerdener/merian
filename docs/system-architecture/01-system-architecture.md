@@ -1,6 +1,6 @@
 # Merian System Architecture
 
-Merian is a powerful biological classification and gamification platform engineered natively for iOS and watchOS. The architecture relies on robust decoupled physical modules connecting the onboard Apple hardware completely to a Supabase PostgreSQL backend bridging heavy LLM inferences safely via Cloudflare R2 bounds and Gemini models.
+Merian is a biological classification and gamification platform built for iOS and watchOS. The architecture relies on decoupled modules connecting onboard Apple hardware to a Supabase PostgreSQL backend, bridging LLM inferences via Cloudflare R2 and Gemini models.
 
 ## Architectural Data Flow (Overview)
 
@@ -25,47 +25,47 @@ flowchart TD
 
 ### 1. Dependency Injection (`AppDIContainer`)
 
-- To prevent Massive Environment Object pollution and ensure strict separation of concerns, Merian employs a centralized `AppDIContainer`. This singleton physically holds and exposes all core orchestration services natively to view modifiers (like `CameraManager`, `InferenceEngine`, `EnvironmentContextManager`) avoiding scattered initializations across the app. To preserve the "Instant-On" zero latency launch requirement natively, all dependencies are mapped exclusively via `lazy var` descriptors. This strategically bypasses eager Main Thread initialization during `MerianApp` physical boot cycles ensuring heavy hardware layers (`AVCaptureSession`) only spin up when explicitly requested by foreground SwiftUI `.onAppear` lifecycles natively.
+- To prevent Massive Environment Object pollution and enforce separation of concerns, Merian uses a centralized `AppDIContainer`. This singleton holds and exposes all core orchestration services to view modifiers (like `CameraManager`, `InferenceEngine`, `EnvironmentContextManager`), avoiding scattered initializations across the app. To preserve the "Instant-On" zero-latency launch requirement, all dependencies are declared as `lazy var`. This bypasses eager Main Thread initialization during `MerianApp` boot, ensuring heavy hardware layers (`AVCaptureSession`) only spin up when requested by foreground SwiftUI `.onAppear` lifecycles.
 
 ### 2. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`, `EnvironmentContextManager`)
 
-- Direct bindings into `AVCaptureSession`, dynamically negotiating `isHighResolutionPhotoEnabled` buffers using native ISP (Image Signal Processor) and Deep Fusion. The `DiscoverySession` strictly prioritizes extracting the native `.builtInLiDARDepthCamera` locking down the optical hardware mapping completely to guarantee accurate physical telemetry. All zoom functionalities are strictly barred.
-- Active Thermal monitoring manipulating OS frames (`targetFPS`), dynamically rendering the Glassmorphism `.ultraThinMaterial` on-the-fly to prevent critical heat loads in extreme outdoor wilderness environments.
-- **Native Camera Roll Integration (`PhotoLibraryManager`):** Safely persists unmodified `12MP` high-quality output bounds securely into the user's local iOS `PHPhotoLibrary` instantaneously avoiding iCloud sync delays entirely natively on capture.
-- **Pre-warmed Tactile Shutter (`HapticManager`):** The app explicitly unifies and `.prepare()`s Taptic bounds (e.g. `UIImpactFeedbackGenerator(style: .medium)`) upon app boot inside a global `HapticManager`. Centralizing haptics entirely removes the rogue ~20ms instantiation frame drop (shutter lag) associated with firing "cold" core haptics on physical button triggers dynamically. To protect the critical "Instant-On" zero latency launch requirement natively, these multiple `.prepare()` blocks are dynamically decoupled into a deferred `Task { @MainActor }` sleeping natively for 300ms allowing the Main Thread to organically map the heavy hardware layers (`AVCaptureSession`) completely entirely unimpeded.
-- **Live Context Tracking & Zero-Latency Capture (`EnvironmentContextManager`):** Efficiently manages `CoreLocation` and `WeatherKit` by continuously tracking exact coordinates (`cachedLocation`) in the background while the camera is active. Upon any shutter trigger (UI or hardware button), it instantaneously snapshots these coordinates with zero latency and natively stamps them inside the `PHAssetCreationRequest`, forcing the true spatial GPS bounds directly into the EXIF output array of the locally saved 12MP photo. It executes a concurrent `MKReverseGeocodingRequest` to natively map semantic location names (e.g. `San Francisco, CA`) directly via MapKit into the local SwiftData `MerianSchemaV6` database for UI display. It seamlessly backfills historical edge metadata natively (GPS and past WeatherKit conditions) structurally mapping `PHAsset` EXIF data for library imports prior to inference execution.
+- Direct bindings into `AVCaptureSession`, negotiating `isHighResolutionPhotoEnabled` buffers using the ISP (Image Signal Processor) and Deep Fusion. The `DiscoverySession` prioritizes the `.builtInLiDARDepthCamera`, locking down optical hardware to guarantee accurate physical telemetry. All zoom functionalities are barred.
+- Active thermal monitoring manipulates OS frame rate (`targetFPS`) and renders Glassmorphism `.ultraThinMaterial` overlays dynamically to prevent critical heat loads in outdoor environments.
+- **Native Camera Roll Integration (`PhotoLibraryManager`):** Persists unmodified `12MP` output into the user's local iOS `PHPhotoLibrary` on capture, avoiding iCloud sync delays.
+- **Pre-warmed Tactile Shutter (`HapticManager`):** The app `.prepare()`s Taptic Engine instances (e.g. `UIImpactFeedbackGenerator(style: .medium)`) on app boot inside a global `HapticManager`. Centralizing haptics removes the ~20ms "cold" instantiation lag on physical button triggers. To protect the "Instant-On" launch requirement, these `.prepare()` calls are deferred inside a `Task { @MainActor }` sleeping 300ms, allowing the Main Thread to complete the heavy hardware layers (`AVCaptureSession`) unimpeded.
+- **Live Context Tracking & Zero-Latency Capture (`EnvironmentContextManager`):** Manages `CoreLocation` and `WeatherKit` by continuously tracking coordinates (`cachedLocation`) in the background while the camera is active. On any shutter trigger (UI or hardware button), it snapshots the coordinates with zero latency and stamps them inside the `PHAssetCreationRequest`, writing GPS bounds directly into the EXIF output of the locally saved 12 MP photo. It runs a concurrent `MKReverseGeocodingRequest` to map semantic location names (e.g. `San Francisco, CA`) via MapKit into the local SwiftData `MerianSchemaV6` database for UI display. It also backfills historical edge metadata (GPS and past WeatherKit conditions) by mapping `PHAsset` EXIF data for library imports prior to inference.
 
 ### 2. Ephemeral Offline-First Sync (`OfflineQueueManager`, `SwiftData`)
 
-- Employs a zero-data loss queue structure tracking users globally without cellular data using `SwiftData` logic natively inside `MerianApp`. It actively intercepts `URLError` network timeouts generated by the live `InferenceEngine` securely capturing the unified `CaptureTelemetry` hardware physics context mapping images to the documents directory instantaneously.
-- Intelligent `NWPathMonitor` monitors 3G/Off-grid edge boundaries, immediately debouncing signals for 1.0 second when the hiker steps into cell-service, gracefully wrapping a `UIBackgroundTaskIdentifier` as a strict 30-second timeout handler before handing payloads safely to an iOS `.background` `URLSession` daemon. Intercepts `AppDelegate` hook completions natively satisfying iOS background watchdog limits safely.
+- Employs a zero-data-loss queue structure tracking users without cellular data using `SwiftData` inside `MerianApp`. It intercepts `URLError` network timeouts from the live `InferenceEngine`, capturing the unified `CaptureTelemetry` hardware context and writing images to the documents directory.
+- `NWPathMonitor` observes 3G/off-grid boundaries, debouncing signals for 1.0 second when the hiker steps into cell service. It wraps a `UIBackgroundTaskIdentifier` as a 30-second timeout handler before handing payloads to an iOS `.background` `URLSession` daemon. `AppDelegate` hook completions are intercepted to satisfy iOS background Watchdog limits.
 
 ### 3. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
 
-- A strict Cloud-native workflow entirely decoupling Apple users from raw API logic.
-- The `identify` Deno Edge node securely accepts pre-signed multi-image iOS uploads natively. It automatically handles concurrent R2 array streams via `Promise.allSettled`, dynamically enforcing a strict 5MB cumulative buffer size constraint to categorically shield the Deno V8 engine from JetSam/OOM heap crashes prior to evaluating the combined visual context across all images natively.
-- Extensively optimized cellular payload architectures physically inject strict `Task.checkCancellation()` boundaries internally inside the `InferenceEngine` explicitly before transferring `URLSession` data payloads to Cloudflare R2 bounds dynamically. If the iOS Watchdog or the user explicitly cancels a processing scan, it instantaneously aborts execution to prevent cellular bandwidth leakage.
+- A Cloud-native workflow decoupling Apple users from raw API logic.
+- The `identify` Deno Edge node accepts pre-signed multi-image iOS uploads. It handles concurrent R2 array streams via `Promise.allSettled`, enforcing a strict 5 MB cumulative buffer size constraint to shield the Deno V8 engine from OOM heap crashes before evaluating the combined visual context across all images.
+- `Task.checkCancellation()` boundaries are injected inside `InferenceEngine` before transferring `URLSession` data payloads to Cloudflare R2. If the iOS Watchdog or the user cancels a processing scan, execution aborts immediately to prevent cellular bandwidth leakage.
 
 ### 4. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)
 
-- Tracks device-native state (`UserDefaults`) tying species identifications instantly into `.riv` visual triggers cleanly inside interactive glassmorphic view modifiers (`Terrarium`).
-- Binds global haptics seamlessly mapping success triggers and interactions synchronously.
+- Tracks device-native state (`UserDefaults`), tying species identifications into `.riv` visual triggers inside interactive glassmorphic view modifiers (`Terrarium`).
+- Binds global haptics to success triggers and interactions.
 
 ### 5. Private Analytics (`AppTelemetry`, `PostHog`)
 
-- Heavily abstracted, completely PII-free tracking mapping OS limits passively via `TelemetryClient`.
-- Identifies anonymous Day-7 usage funnels globally across UI interactions with `PostHog` dynamically mapping the UUID without any stringing risk natively.
+- PII-free tracking mapping OS limits passively via `TelemetryClient`.
+- Identifies anonymous Day-7 usage funnels across UI interactions with `PostHog`, mapped by UUID without personal data.
 
 ### 6. UI Initialization & Memory Operations
 
-- **Instant Cold Boot:** SDK injections (`AppTelemetry`, `PostHog`) and heavy `CameraManager` hardware initializations (`AVCaptureSession.beginConfiguration`) are rigidly deferred onto a `Task.detached(priority: .background)` executor cleanly preventing the Main Actor from locking, ensuring a strict sub-1-second boot for the Camera pipeline.
-- **RAM Image Cache (`ImageCache`):** A strictly typed `@unchecked Sendable` thread-safe `NSCache` bounds downsampled Scans thumbnails in RAM instantly avoiding massive disk I/O thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM (Out-of-Memory) crashes and micro-stutters by limiting to ~100 thumbnail chunks natively controlled by iOS memory pressure limits.
-- **Asynchronous Grid Downsampling:** Displays mapping heavy physical Local File caches (`ScansSearchView`, `InsightSheetView`, and `InsightCarousel`) offload physical image decoding strictly onto a CPU pool prioritizing `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex` logic dynamically bounds-checking 12-Megapixel file memory dynamically. Streaming explicit byte headers recursively without allocating generic structural `.Data()` blocks strictly locks iOS OOM (Out-of-Memory) bounds dynamically ensuring scrolling remains seamlessly locked to 60fps on edge devices.
+- **Instant Cold Boot:** SDK injections (`AppTelemetry`, `PostHog`) and heavy `CameraManager` hardware initialization (`AVCaptureSession.beginConfiguration`) are deferred onto a `Task.detached(priority: .background)` executor, preventing the Main Actor from blocking and ensuring a sub-1-second boot for the Camera pipeline.
+- **RAM Image Cache (`ImageCache`):** A thread-safe `@unchecked Sendable` `NSCache` stores downsampled scan thumbnails in RAM, avoiding massive disk I/O thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM crashes and micro-stutters by capping at ~100 thumbnail entries, with iOS memory pressure controlling eviction.
+- **Asynchronous Grid Downsampling:** Image-heavy views (`ScansSearchView`, `InsightSheetView`, `InsightCarousel`) offload decoding onto a CPU pool using `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex`, bounds-checking 12 MP files without allocating generic `Data` blocks. This keeps scrolling locked to 60fps on edge devices.
 
 ### 7. watchOS Extension (`MerianWatch`)
 
-Merian functions natively bounded as a standalone watchOS executable mapping completely offline capabilities decoupled from the host iPhone:
-- **Build Target Nuance**: Natively relies upon explicit `project.yml` product type declarations (`watch2-app`) and correctly mapped `Contents.json` icon configurations inside `Assets.xcassets` to avoid watchOS Simulator deployment failures gracefully.
-- **`WKInterfaceDevice.current().identifierForVendor` Execution**: Safely mimics iOS bindings syncing the Anonymous user UUID securely via `WatchConnectivity.WCSession` back to iOS Core boundaries.
-- Uses `Network.framework` hooks and `URLSession` actively hitting Supabase Edge from the wrist bridging independent inferences if the iPhone is dead.
-- Shares the core UI `InsightSheetView` logic natively bridging data models to provide biological readouts natively without the parent app in range.
+Merian functions as a standalone watchOS executable, decoupled from the host iPhone:
+- **Build Target Nuance**: Relies on explicit `project.yml` product type declarations (`watch2-app`) and correctly mapped `Contents.json` icon configurations inside `Assets.xcassets` to avoid watchOS Simulator deployment failures.
+- **`WKInterfaceDevice.current().identifierForVendor` Execution**: Mimics iOS bindings, syncing the anonymous user UUID via `WatchConnectivity.WCSession` to iOS Core boundaries.
+- Uses `Network.framework` hooks and `URLSession` to hit Supabase Edge from the wrist, supporting independent inferences when the iPhone is unavailable.
+- Shares the core `InsightSheetView` logic and data models to provide biological readouts without the parent app in range.

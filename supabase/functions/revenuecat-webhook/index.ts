@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getR2Config, copyR2Object, deleteR2Object } from "../_shared/aws.ts";
-import { jsonResponse } from "../_shared/edgeHandler.ts";
+import { jsonResponse, runBackground } from "../_shared/edgeHandler.ts";
+import { timingSafeCompare } from "../_shared/security.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -9,7 +10,6 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 async function migrateUserStorage(userId: string, sourcePrefix: string, targetPrefix: string) {
   try {
-
     let totalMigrated = 0;
     let hasMore = true;
     let start = 0;
@@ -33,7 +33,7 @@ async function migrateUserStorage(userId: string, sourcePrefix: string, targetPr
       const BATCH_SIZE = 50;
       for (let i = 0; i < scans.length; i += BATCH_SIZE) {
         const chunk = scans.slice(i, i + BATCH_SIZE);
-        
+
         await Promise.allSettled(chunk.map(async (scan) => {
           if (!scan.image_storage_urls || scan.image_storage_urls.length === 0) return;
 
@@ -46,11 +46,10 @@ async function migrateUserStorage(userId: string, sourcePrefix: string, targetPr
               const fileName = pathParts.pop();
               const originalUserId = pathParts.pop();
 
-              // CRITICAL SEC FIX: Prevent malicious actors from submitting spoofed payloads 
-              // that overwrite or delete adjacent user's private captures in R2 via arbitrary URLs
+              // Prevent IDOR: reject if the URL belongs to a different user.
               if (originalUserId !== userId) {
-                  console.warn(`SECURITY VIOLATION (IDOR): Webhook user ${userId} attempted to migrate assets belonging to ${originalUserId}`);
-                  return urlStr;
+                console.warn(`IDOR: User ${userId} attempted to migrate asset owned by ${originalUserId}.`);
+                return urlStr;
               }
 
               const sourceKey = `public_uploads/${sourcePrefix}/${originalUserId}/${fileName}`;
@@ -61,15 +60,12 @@ async function migrateUserStorage(userId: string, sourcePrefix: string, targetPr
 
               if (copyResponse.ok) {
                 await deleteR2Object(sourceKey, r2Config);
-                
-                const cleanMapUrl = `https://media.merian.app/${targetKey}`;
-                migrated = true;
                 totalMigrated++;
-                return cleanMapUrl;
+                migrated = true;
+                return `https://media.merian.app/${targetKey}`;
               } else {
-                console.error(`S3 Copy Failed mapping ${sourceKey}: ${copyResponse.statusText}`);
-                const brokenMapUrl = `https://media.merian.app/${sourceKey}`;
-                return brokenMapUrl;
+                console.error(`R2 copy failed for ${sourceKey}: ${copyResponse.statusText}`);
+                return `https://media.merian.app/${sourceKey}`;
               }
             } else {
               return urlStr;
@@ -93,19 +89,19 @@ async function migrateUserStorage(userId: string, sourcePrefix: string, targetPr
         start += pageSize;
       }
     }
-    
-    console.log(`S3 Background Migration Complete. Relocated ${totalMigrated} blobs from ${sourcePrefix} to ${targetPrefix} for ${userId}.`);
+
+    console.log(`Storage migration complete: ${totalMigrated} objects moved from ${sourcePrefix} to ${targetPrefix} for user ${userId}.`);
   } catch (e) {
-    console.error(`Background S3 Migration (${sourcePrefix}->${targetPrefix}) aborted natively: `, e);
+    console.error(`Storage migration (${sourcePrefix} → ${targetPrefix}) failed for user ${userId}:`, e);
   }
 }
 
 serve(async (req: Request) => {
   try {
     const WEBHOOK_SECRET = Deno.env.get("REVENUECAT_WEBHOOK_SECRET");
-    const authHeader = req.headers.get("Authorization");
+    const authHeader = req.headers.get("Authorization") ?? "";
 
-    if (!WEBHOOK_SECRET || authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
+    if (!WEBHOOK_SECRET || !timingSafeCompare(authHeader, `Bearer ${WEBHOOK_SECRET}`)) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -113,35 +109,24 @@ serve(async (req: Request) => {
     const event = body.event;
 
     if (!event) {
-      return jsonResponse({ error: "No event found" }, 400);
+      return jsonResponse({ error: "No event found." }, 400);
     }
 
     const eventType = event.type;
     const userId = event.app_user_id;
 
     if (!userId) {
-      return jsonResponse({ error: "No app_user_id found" }, 400);
+      return jsonResponse({ error: "No app_user_id found." }, 400);
     }
 
-    console.log(`Received Webhook: ${eventType} for User: ${userId}`);
+    console.log(`Webhook received: ${eventType} for user ${userId}`);
 
-    // Ensure user exists in our DB, upsert ghost if missing
+    // Ensure user row exists before updating subscription tier
     await supabaseAdmin
       .from("users")
       .upsert({ id: userId, subscription_tier: "free" }, { onConflict: "id", ignoreDuplicates: true });
 
-    // Safely extract the native EdgeRuntime execution bounds
-    const globalObj = globalThis as unknown as { EdgeRuntime?: { waitUntil: (p: Promise<void>) => void } };
-    const runBackground = (task: Promise<void>) => {
-      if (typeof globalObj.EdgeRuntime === "object" && typeof globalObj.EdgeRuntime.waitUntil === "function") {
-        globalObj.EdgeRuntime.waitUntil(task);
-      } else {
-        task.catch(console.error);
-      }
-    };
-
     if (["INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION"].includes(eventType)) {
-      // 1. Upgrade user tier to 'pro'
       const { error: updateError } = await supabaseAdmin
         .from("users")
         .update({ subscription_tier: "pro" })
@@ -151,10 +136,8 @@ serve(async (req: Request) => {
         throw new Error(`Failed to upgrade user tier: ${updateError.message}`);
       }
 
-      // Phase 2: Decoupled S3 Migration
       runBackground(migrateUserStorage(userId, "free", "pro"));
     } else if (["EXPIRATION"].includes(eventType)) {
-      // Revert user tier strictly back to 'free'
       const { error: downgradeError } = await supabaseAdmin
         .from("users")
         .update({ subscription_tier: "free" })
@@ -163,8 +146,7 @@ serve(async (req: Request) => {
       if (downgradeError) {
         throw new Error(`Failed to downgrade user tier: ${downgradeError.message}`);
       }
-      
-      // Phase 2: Decoupled S3 Expiration Migration bridging payload natively over bounds
+
       runBackground(migrateUserStorage(userId, "pro", "free"));
     }
 

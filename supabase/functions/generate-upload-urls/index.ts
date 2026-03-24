@@ -6,12 +6,7 @@ serve((req: Request) =>
   withEdgeHandler(req, async (user, _supabaseAdmin) => {
     const { fileNames } = await req.json();
 
-    if (!user.id) {
-      return jsonResponse({ error: "Unauthorized: Missing identity context." }, 401);
-    }
-
-    // Explicitly protect the Cloudflare R2 staging environment from spam loops
-    // by restricting batch queues strictly to 5 high-res chunks natively.
+    // Limit uploads to 5 files per request to prevent R2 abuse
     if (!Array.isArray(fileNames) || fileNames.length === 0 || fileNames.length > 5) {
       return jsonResponse({
         error: "Bad Request: 'fileNames' must be an array of 1 to 5 values."
@@ -20,7 +15,6 @@ serve((req: Request) =>
 
     const { s3Client, bucketName, endpoint } = getR2Config();
 
-    // Fan-out cryptographic pre-signed URL mappings symmetrically
     const urls = await Promise.all(
       fileNames.map(async (fileName: string) => {
         const imageId = crypto.randomUUID();
@@ -28,9 +22,7 @@ serve((req: Request) =>
         const urlString = `${endpoint}/${bucketName}/${key}`;
 
         const putUrl = new URL(urlString);
-
-        // Lock AWS expiration natively to 24 hours (86400 seconds)
-        putUrl.searchParams.set("X-Amz-Expires", "86400");
+        putUrl.searchParams.set("X-Amz-Expires", "86400"); // 24-hour expiration
 
         const signedPut = await s3Client.sign(putUrl.toString(), {
           method: "PUT",
@@ -46,9 +38,6 @@ serve((req: Request) =>
       })
     );
 
-    return jsonResponse({
-      success: true,
-      urls
-    }, 200);
+    return jsonResponse({ success: true, urls }, 200);
   })
 );

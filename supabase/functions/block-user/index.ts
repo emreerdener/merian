@@ -7,11 +7,8 @@ serve((req: Request) =>
     const { blocked_id } = body;
 
     if (!blocked_id) {
-      throw new Error("Missing 'blocked_id' parameter in payload.");
+      return jsonResponse({ error: "Missing 'blocked_id' in request body." }, 400);
     }
-
-    // Register the block across the edge securely.
-    // If a collision occurs, withEdgeHandler safely intercepts the error boundary.
     const { error } = await supabaseAdmin
       .from("user_blocks")
       .insert({ 

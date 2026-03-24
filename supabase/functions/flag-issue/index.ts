@@ -9,7 +9,7 @@ serve((req: Request) =>
       return jsonResponse({ error: "Missing required parameters: 'scanId' and 'flagReason' must be provided." }, 400);
     }
 
-    // 1. Log the administrative flag firmly into the moderation queue
+    // 1. Insert a moderation queue record
     const { error: insertError } = await supabaseAdmin
       .from("flagged_reviews")
       .insert({
@@ -23,23 +23,19 @@ serve((req: Request) =>
       throw new Error(`Failed to insert flagged review record: ${insertError.message}`);
     }
 
-    // 2. Cascade physical state bounds directly onto the Scan payload itself 
-    // This allows active clients tracking the table to immediately reflect the `is_flagged` bounds natively.
+    // 2. Mark the scan as flagged
     const { error: updateError } = await supabaseAdmin
       .from("scans")
-      .update({ 
-        is_flagged: true, 
-        human_intervention_notes: `Flag Reason: ${flagReason} | Suggestion: ${userSuggestion ?? "None"}` 
+      .update({
+        is_flagged: true,
+        human_intervention_notes: `Flag Reason: ${flagReason} | Suggestion: ${userSuggestion ?? "None"}`
       })
       .eq("id", scanId);
 
     if (updateError) {
-      throw new Error(`Failed to update underlying core scan physical mapping: ${updateError.message}`);
+      throw new Error(`Failed to update scan record: ${updateError.message}`);
     }
 
-    return jsonResponse({ 
-      success: true, 
-      message: "Report securely accepted for manual moderation." 
-    }, 200);
+    return jsonResponse({ success: true, message: "Report submitted for moderation." }, 200);
   })
 );

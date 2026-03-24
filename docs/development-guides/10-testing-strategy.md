@@ -1,10 +1,10 @@
 # Merian Testing & Quality Assurance Strategy
 
-Merian employs a lightweight, modern Swift-native testing structure leveraging the `Testing` framework globally, cleanly isolating offline UI queues and core engine components away from the rigid Apple lifecycle loops seamlessly. 
+Merian uses a lightweight, Swift-native testing structure built on the `Testing` framework, isolating offline UI queues and core engine components from Apple lifecycle dependencies.
 
 ## In-Memory Database Containers (`SwiftData`)
 
-We rigorously prevent test suites from polluting physical local iOS file system directories and SQLite databases natively. All local unit tests physically testing caching states and soft-deletions must explicitly invoke an isolated, volatile `ModelContext`:
+Test suites must not pollute the local iOS file system or SQLite databases. All unit tests that exercise caching states and soft-deletions must use an isolated, volatile `ModelContext`:
 
 ```swift
 @MainActor
@@ -17,46 +17,46 @@ private func createInMemoryContext() throws -> ModelContext {
 ```
 
 This guarantees that:
-1. Operations like `context.save()` happen exclusively in RAM and resolve instantly, bypassing native disk IO waits safely.
-2. The user's genuine `Scans` and native `OfflineQueuedScan` artifacts are rigidly shielded from testing permutations permanently.
+1. Operations like `context.save()` happen in RAM and resolve immediately, bypassing disk I/O.
+2. The user's real `Scans` and `OfflineQueuedScan` records are shielded from test mutations.
 
 ## Core Suites
 
-The testing bounds are mapped physically within `merianTests/Core` and `merianTests/Features`:
+Tests are organized under `merianTests/Core` and `merianTests/Features`:
 
 ### Analytics & Telemetry
-- **`AppTelemetryTests.swift`**: Validates structural tracking arrays natively ensuring telemetry identifiers are PII-free.
-- **`PostHogManagerTests.swift`**: Securely asserts logical bounds surrounding day-7 tracking funnels and user identification natively.
-- **`GamificationManagerTests.swift`**: Validates native persistence bounds asserting proper math updates against user local scores ensuring UI progression trackers never skew bounds unexpectedly.
-- **`UsageManagerTests.swift`**: Securely bounds Apple ecosystem checks triggering daily free quotas and limits without accessing native API constraints permanently.
+- **`AppTelemetryTests.swift`**: Validates tracking arrays to ensure telemetry identifiers are PII-free.
+- **`PostHogManagerTests.swift`**: Asserts logic around day-7 tracking funnels and user identification.
+- **`GamificationManagerTests.swift`**: Validates persistence, asserting correct math updates against user local scores so UI progression trackers do not skew unexpectedly.
+- **`UsageManagerTests.swift`**: Validates daily free quota checks and limits without accessing live API constraints.
 
 ### AI & Data Architectures
-- **`InferenceEngineTests.swift`**: Securely asserts logical bounds surrounding decoding the `EdgeResponseWrapper` AI payloads structurally, mapping specific physical metadata like `is_poisonous`, raw numeric `ai_confidence_score` indices and deep structural `TaxonomyData` logic seamlessly across `JSONDecoder`.
-- **`ViewfinderIntelligenceTests.swift`**: Validates real-time analysis bounds safely mapping frames before initiating inference triggers.
-- **`ArchiveManagerTests.swift`, `SyncStateManagerTests.swift`, `ScanRepositoryTests.swift`, `BackgroundDatabaseActorTests.swift`**: Verifies dynamic bi-directional relationship bounds appending dynamically and structurally inside the isolated local RAM footprint properly without causing SwiftData loop issues safely.
-- **`OfflineQueueManagerTests.swift`**: Dynamically mocks native payload insertions efficiently. 
-  - **In-Memory Isolation**: It spins up an explicit `@MainActor ModelContext` strictly targeting `.isStoredInMemoryOnly = true` to isolate test data entirely from the user's real offline queue.
-  - **Core Lifecycles**: Rigorously exercises `.enqueueCapture` (asserting `SwiftData` arrays increment perfectly) and native `.purgeSoftDeletedRecords()` (asserting soft-deleted items vanish while undeleted items persist securely). 
-  - **Disk Teardown**: Explicitly confirms that physical sandbox files in `URL.documentsDirectory` are functionally eradicated during purges to prevent storage bloat.
-- **`ImageCacheTests.swift`**: Ensures Swift RAM cache bounds do not aggressively override maximum physical system allocations cleanly natively.
+- **`InferenceEngineTests.swift`**: Asserts decoding of `EdgeResponseWrapper` AI payloads, including metadata fields like `is_poisonous`, `ai_confidence_score`, and `TaxonomyData` via `JSONDecoder`.
+- **`ViewfinderIntelligenceTests.swift`**: Validates real-time analysis logic, ensuring frames are evaluated correctly before inference is triggered.
+- **`ArchiveManagerTests.swift`, `SyncStateManagerTests.swift`, `ScanRepositoryTests.swift`, `BackgroundDatabaseActorTests.swift`**: Verifies bi-directional SwiftData relationship behavior within an isolated in-memory context, without triggering SwiftData loop issues.
+- **`OfflineQueueManagerTests.swift`**: Mocks queue payload insertions.
+  - **In-Memory Isolation**: Spins up a `@MainActor ModelContext` with `.isStoredInMemoryOnly = true` to isolate test data from the user's real offline queue.
+  - **Core Lifecycles**: Exercises `.enqueueCapture` (asserting SwiftData record counts increment correctly) and `.purgeSoftDeletedRecords()` (asserting soft-deleted items are removed while undeleted items persist).
+  - **Disk Teardown**: Confirms that sandbox files in `URL.documentsDirectory` are deleted during purges to prevent storage bloat.
+- **`ImageCacheTests.swift`**: Ensures the Swift RAM cache does not exceed maximum system allocation limits.
 
 ### Hardware & Ecosystem Integrations
-- **`CameraManagerTests.swift`, `CameraViewModelTests.swift`**: Validates cross-app UI state routing logic including deep physical Apple lifecycle events like `NSNotification.Name("AppDidEnterInactivePhase")` dropping active testing limits physically avoiding lockouts explicitly. Crucially, asserts that the new "Legacy Viewfinder" toggle (`isLiveInferencePaused`) cleanly disables VUI background thread evaluation dynamically upon setting.
-- **`HardwareOrchestratorTests.swift`**: Mocks `ProcessInfo.processInfo.thermalState` boundaries securely guaranteeing the camera dynamically throttles `FPS` dynamically without restarting instances natively. Verifies explicit UserDefaults binding (`isExpeditionModeActive`) securely overriding OS thresholds to aggressively lock to 24fps and remove glass modifiers. To bypass Swift runtime crashes locally across asynchronous CI containers, strictly executes `AppTelemetry.initialize()` at `HardwareOrchestratorTests.init()` utilizing a stub `TEST_MOCK_ID` configuration cleanly.
-- **`EnvironmentContextManagerTests.swift`**: Asserts safe async bounding over simulated `CLLocationManager` outputs validating offline contexts.
-- **`HapticManagerTests.swift`**: Confirms safe initialization states bridging `UIImpactFeedbackGenerator` buffers without stalling threads. Now structurally asserts that hard-toggling `UserDefaults.standard.set(false, forKey: "isHapticsEnabled")` prevents sequence triggers gracefully avoiding hardware memory faults.
-- **`PhotoLibraryManagerTests.swift`**: Validates that toggling `UserDefaults("saveToCameraRoll")` securely drops the payload without triggering fatal explicit Apple `PHPhotoLibrary` memory allocations seamlessly natively.
+- **`CameraManagerTests.swift`, `CameraViewModelTests.swift`**: Validates UI state routing logic including Apple lifecycle events like `NSNotification.Name("AppDidEnterInactivePhase")`. Asserts that the "Legacy Viewfinder" toggle (`isLiveInferencePaused`) disables background thread evaluation when set.
+- **`HardwareOrchestratorTests.swift`**: Mocks `ProcessInfo.processInfo.thermalState` boundaries to verify the camera throttles FPS dynamically without restarting instances. Verifies the `UserDefaults` binding (`isExpeditionModeActive`) correctly overrides OS thresholds to lock to 24fps and remove glass modifiers. To avoid Swift runtime crashes in asynchronous CI containers, calls `AppTelemetry.initialize()` at `HardwareOrchestratorTests.init()` using a stub `TEST_MOCK_ID` configuration.
+- **`EnvironmentContextManagerTests.swift`**: Asserts safe async handling over simulated `CLLocationManager` outputs for offline contexts.
+- **`HapticManagerTests.swift`**: Confirms safe initialization of `UIImpactFeedbackGenerator` buffers without stalling threads. Asserts that setting `UserDefaults.standard.set(false, forKey: "isHapticsEnabled")` prevents sequence triggers without causing hardware memory faults.
+- **`PhotoLibraryManagerTests.swift`**: Validates that toggling `UserDefaults("saveToCameraRoll")` drops the payload without triggering `PHPhotoLibrary` memory allocations.
 
 ### Security, Network & Identity
-- **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Thoroughly maps API routing bounds testing explicit self-healing `.401` execution cycles for Ghost User retries and JSON body payload serialization natively.
-- **`DeviceIdentityManagerTests.swift`, `RevenueCatManagerTests.swift`**: Directly isolates authentication loops binding persistent mock App Store IDs cleanly away from live Production identifiers.
-- **`SocialGuardManagerTests.swift`, `CircuitBreakerManagerTests.swift`**: Asserts offline logic guaranteeing blocked users do not re-populate the feed organically.
+- **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Tests API routing, including `.401` retry cycles for Ghost User flows and JSON body payload serialization.
+- **`DeviceIdentityManagerTests.swift`, `RevenueCatManagerTests.swift`**: Isolates authentication loops using persistent mock App Store IDs, away from live production identifiers.
+- **`SocialGuardManagerTests.swift`, `CircuitBreakerManagerTests.swift`**: Asserts offline logic ensuring blocked users do not re-populate the feed.
 
 ### UI & Utilities
-- **`ImageDownsamplerTests.swift`**: Directly tests pure Core Graphics memory constraint barriers mapping 4000x4000 physical payloads cleanly under safe metric limits natively to prevent Out-Of-Memory JetSam OS crashes structurally.
-- **`ScansSearchManagerTests.swift`**: Verifies debounced string bounds extracting correctly locally via SwiftData `@Query` mechanisms safely.
-- **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine progression natively, guaranteeing structural hardware fallback steps cleanly prevent `Int` scalar out-of-bounds execution crashes. It strictly tests the core persistence loops simulating native `@AppStorage` routing flags out of the `.ready` boundary entirely offline.
+- **`ImageDownsamplerTests.swift`**: Tests Core Graphics memory constraints by processing 4000x4000 payloads under safe metric limits, preventing Out-Of-Memory JetSam crashes.
+- **`ScansSearchManagerTests.swift`**: Verifies debounced string filtering via SwiftData `@Query` mechanisms.
+- **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine progression, ensuring hardware fallback steps prevent `Int` scalar out-of-bounds crashes. Tests core persistence loops simulating `@AppStorage` routing flags from the `.ready` boundary, fully offline.
 
-## Mocking Physical Apple Ecosystem Limits natively (`DeviceIdentityManager`)
+## Mocking Apple Ecosystem Limits (`DeviceIdentityManager`)
 
-When testing natively across AI boundaries, it is structurally impermissible to pollute real Ghost Session tracking identities via PostHog telemetry instances. Explicit tests avoid calling `SupabaseManager.shared.initializeGhostSession()` natively, instead strictly executing business logic testing models securely decoupled from Apple ecosystem HTTP constraints completely!
+When testing across AI boundaries, tests must not pollute real Ghost Session tracking identities via PostHog telemetry. Tests avoid calling `SupabaseManager.shared.initializeGhostSession()` and instead test business logic models decoupled from live Apple ecosystem HTTP constraints.

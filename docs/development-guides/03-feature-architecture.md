@@ -87,7 +87,7 @@ func executeCapture() {
 ```
 
 **Rules:**
-- Never inject managers via `@EnvironmentObject`. Use `@Environment(ManagerType.self)` only for types explicitly provided through `MerianApp.swift`'s `.environment()` chain.
+- Never inject managers via `@EnvironmentObject`. Use `@Environment(ManagerType.self)` only for types provided through `MerianApp.swift`'s `.environment()` chain.
 - Never call `AppDIContainer.shared` from inside a `View` body. All DI access belongs in ViewModels.
 - Pass managers from a View to a child Component via closure callbacks, not by passing the DI container.
 

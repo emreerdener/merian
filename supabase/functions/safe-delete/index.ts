@@ -3,16 +3,16 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    // 2. Delegate R2 wiping to background limits to prevent Deno timeout
+    // 1. Queue R2 storage deletion in the background to avoid timeout
     const { error: deletionError } = await supabaseAdmin
       .from("pending_storage_deletions")
       .insert({ target_user_id: user.id, status: "pending" });
 
     if (deletionError) {
-      console.warn(`Could not insert pending deletion log, continuing local wipe: ${deletionError.message}`);
+      console.warn(`Could not insert pending deletion record, continuing: ${deletionError.message}`);
     }
 
-    // 3. PostgreSQL RPC execution securing global Taxonomy Graph
+    // 2. Apply user tombstone via RPC
     const { error: rpcError } = await supabaseAdmin.rpc("apply_user_tombstone", {
       target_user_id: user.id,
     });
@@ -21,16 +21,16 @@ serve((req: Request) =>
       throw new Error(`Failed to apply user tombstone: ${rpcError.message}`);
     }
 
-    // 4. Delete Auth Configuration globally
+    // 3. Delete auth profile
     const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
 
     if (deleteUserError) {
-      throw new Error(`Failed to delete internal auth profile: ${deleteUserError.message}`);
+      throw new Error(`Failed to delete auth profile: ${deleteUserError.message}`);
     }
 
     return jsonResponse({
       success: true,
-      message: "Account successfully deleted and tombstoned.",
+      message: "Account successfully deleted.",
     }, 200);
   })
 );

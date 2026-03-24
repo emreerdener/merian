@@ -21,7 +21,7 @@ serve((req: Request) =>
     const validCollections = collections.filter(c => !c.is_deleted);
     const activeIds = validCollections.map(c => c.id);
 
-    // 1. Batch Upsert Collections
+    // 1. Batch upsert active collections
     if (validCollections.length > 0) {
       const collectionPayloads = validCollections.map(c => ({
         id: c.id,
@@ -39,14 +39,14 @@ serve((req: Request) =>
       }
     }
 
-    // 2. Wipe existing collection_scans for active groups to refresh mappings natively
+    // 2. Clear existing collection memberships before re-syncing
     if (activeIds.length > 0) {
       await supabaseAdmin
         .from("collection_scans")
         .delete()
         .in("collection_id", activeIds);
-        
-      // 3. Insert mappings, swallowing missing FK scan failures if pending offline queue inserts lag natively
+
+      // 3. Re-insert all scan memberships; FK violations are expected for unsynced scans
       const allMappings: { collection_id: string; scan_id: string }[] = [];
       for (const collection of validCollections) {
         if (collection.scan_ids && collection.scan_ids.length > 0) {
@@ -59,7 +59,6 @@ serve((req: Request) =>
       }
 
       if (allMappings.length > 0) {
-        // Execute a native Postgres bulk-insertion to definitively prevent N+1 query meltdowns!
         const { error: insertError } = await supabaseAdmin.from("collection_scans").insert(allMappings);
         if (insertError) {
           console.error("Bulk mapping insert error: ", insertError);
@@ -67,7 +66,7 @@ serve((req: Request) =>
       }
     }
 
-    // 4. Safely diff-delete obsolete collections (Full Sync)
+    // 4. Diff-delete collections no longer in the active set
     const { data: existingIdsData } = await supabaseAdmin
       .from("collections")
       .select("id")
@@ -82,7 +81,7 @@ serve((req: Request) =>
           .from("collections")
           .delete()
           .in("id", toDelete);
-        
+
         if (deleteError) {
           console.error("Diff deletion error: ", deleteError);
         }

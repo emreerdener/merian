@@ -3,52 +3,50 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const targetUserId = user.id;
     const { ghost_id } = await req.json();
 
     if (!ghost_id) {
       return jsonResponse({ error: "Missing 'ghost_id' parameter in payload." }, 400);
     }
 
-    if (ghost_id === targetUserId) {
-      return jsonResponse({ message: "No merge required: Session already matches target bounds." }, 200);
+    if (ghost_id === user.id) {
+      return jsonResponse({ message: "No merge required: ghost_id matches current user." }, 200);
     }
 
-    // CRITICAL SEC FIX: Validate the requested ghost_id is actually an Anonymous Ghost User natively before obliterating it.
-    // This forcibly prevents IDOR Account Takeover (ATO) strikes stealing and deleting fully authenticated Apple/Google profiles.
+    // Verify the target is an anonymous (guest) account to prevent IDOR account takeover.
     const { data: ghostUser, error: ghostUserError } = await supabaseAdmin.auth.admin.getUserById(ghost_id);
-    
+
     if (ghostUserError || !ghostUser?.user) {
-      return jsonResponse({ error: "Ghost user account not found or already merged." }, 404);
+      return jsonResponse({ error: "Ghost user not found or already merged." }, 404);
     }
 
     if (!ghostUser.user.is_anonymous) {
-      console.error(`IDOR ATO Attempt: User ${targetUserId} attempted to blindly steal fully authenticated account ${ghost_id}`);
-      return jsonResponse({ error: "Forbidden: The requested profile is fully authenticated and cannot be hijacked." }, 403);
+      console.warn(`IDOR attempt: User ${user.id} tried to merge authenticated account ${ghost_id}`);
+      return jsonResponse({ error: "Forbidden: The target account is not a guest account." }, 403);
     }
 
-    // Securely transfer PostgreSQL scans ownership from the Ghost UUID to the newly verified session.user.id
+    // Transfer scan ownership from the ghost account to the authenticated user
     const { error: scansUpdateError } = await supabaseAdmin
       .from("scans")
-      .update({ user_id: targetUserId })
+      .update({ user_id: user.id })
       .eq("user_id", ghost_id);
 
     if (scansUpdateError) {
-      console.error(`Scans ownership update failed for ${ghost_id} to ${targetUserId}`);
-      throw new Error(`Migration Failed: ${scansUpdateError.message}`);
+      console.error(`Scans transfer failed from ${ghost_id} to ${user.id}`);
+      throw new Error(`Migration failed: ${scansUpdateError.message}`);
     }
 
-    // Eradicate Ghost user identity permanently to prevent abandoned orphaned accounts
+    // Delete the guest account after successful transfer
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(ghost_id);
 
     if (deleteError) {
-      console.error(`Erasing Ghost ID ${ghost_id} completely failed natively: ${deleteError.message}`);
+      console.warn(`Failed to delete ghost user ${ghost_id}: ${deleteError.message}`);
     }
 
-    return jsonResponse({ 
-      success: true, 
-      targetUserId,
-      message: "Ghost account securely merged and annihilated."
+    return jsonResponse({
+      success: true,
+      targetUserId: user.id,
+      message: "Ghost account merged and deleted."
     }, 200);
   })
 );
