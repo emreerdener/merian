@@ -131,9 +131,15 @@ extension CameraViewModel {
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             try? handler.perform([request])
 
-            // specificPhraseSeries returns nil when no observation clears the confidence bar,
-            // in which case the generic rotation started above continues without interruption.
+            // specificPhraseSeries returns nil when no observation clears the confidence bar
+            // or the margin check fails — generic rotation continues without interruption.
             guard let phrases = Self.specificPhraseSeries(for: request.results ?? []) else { return }
+
+            // Hold for 3 seconds before switching. This ensures the generic series always
+            // plays through the first phase of a scan, and subject-specific phrases only
+            // appear once the inference call is well underway — reducing how long an
+            // incorrect category label is visible if Vision misclassified the subject.
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
 
             await MainActor.run { [weak self] in
                 guard let self, self.isAnalyzingFullscreen else { return }
@@ -168,14 +174,20 @@ extension CameraViewModel {
         "Awaiting identification...",
     ]
 
-    /// Returns subject-specific phrases when Vision identifies a category with ≥ 0.5 confidence.
+    /// Returns subject-specific phrases when Vision identifies a category with ≥ 0.65 confidence
+    /// and a clear margin over the second-best observation.
     /// Returns nil when no observation clears the threshold — caller should keep the generic series.
     ///
-    /// Only the top 5 observations are checked. Broad taxonomy ancestors (e.g., "arthropod",
-    /// "organism") commonly appear with 0.1–0.3 confidence even for unrelated subjects, so the
-    /// 0.5 threshold prevents false-positive subject labels.
+    /// Only the top 5 observations are checked. The 0.65 threshold and ≥ 0.15 margin guard
+    /// prevent cross-category misclassification (e.g., a plant briefly scoring 0.51 "bird")
+    /// from surfacing subject-specific phrases that would be jarring or incorrect.
     private nonisolated static func specificPhraseSeries(for observations: [VNClassificationObservation]) -> [String]? {
-        for obs in observations.prefix(5) where obs.confidence >= 0.5 {
+        // Require a clear lead over the second-best result to filter split/ambiguous classifications.
+        if observations.count >= 2 {
+            guard observations[0].confidence - observations[1].confidence >= 0.15 else { return nil }
+        }
+
+        for obs in observations.prefix(5) where obs.confidence >= 0.65 {
             let id = obs.identifier.lowercased()
 
             if id.contains("bird") || id.contains("avian") || id.contains("raptor") ||
