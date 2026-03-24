@@ -49,7 +49,7 @@ struct ImagesCarousel: View {
                     // Tab 1+: Wikipedia / GBIF Reference Images
                     ForEach(Array(refUrls.enumerated()), id: \.offset) { index, urlString in
                         AsyncLocalImageView(
-                            path: "",
+                            path: nil,
                             fallbackImageUrl: urlString,
                             onImageLoadFailed: { handleImageFailure(identifier: urlString) }
                         )
