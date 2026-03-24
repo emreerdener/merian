@@ -59,7 +59,7 @@ extension CameraViewModel {
                             // kCGImageSourceCreateThumbnailWithTransform already bakes the EXIF
                             // orientation into the CGImage pixels — use .up to avoid a second rotation.
                             let tempRawImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
-                            return tempRawImage.jpegData(compressionQuality: 0.8) ?? Data()
+                            return tempRawImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? Data()
                         }
                     }()
 
@@ -85,7 +85,7 @@ extension CameraViewModel {
                         }
                     }
                 } catch {
-                    print("⚠️ Hardware shutter failure: \(error.localizedDescription)")
+                    MerianLog.hardware.error("Hardware shutter failure: \(error, privacy: .private)")
                 }
                 
                 await MainActor.run {

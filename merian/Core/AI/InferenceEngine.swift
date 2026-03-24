@@ -139,7 +139,7 @@ private struct WikiSummaryResponse: Decodable {
                     #if canImport(UIKit)
                     await MainActor.run {
                         if UIApplication.shared.applicationState != .active,
-                           UserDefaults.standard.bool(forKey: "isPushNotificationsEnabled"),
+                           UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
                            let scanId = mappedData.scanId {
                             PushNotificationManager.shared.sendInferenceCompleteNotification(
                                 speciesName: mappedData.commonName,

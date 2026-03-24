@@ -8,7 +8,7 @@ struct MainTabBar: View {
     // MARK: - Component State
     @State private var showComingSoon = false
     @State private var tooltipTask: Task<Void, Never>?
-    @AppStorage("hasUnseenScan") private var hasUnseenScan: Bool = false
+    @AppStorage(UserDefaultsKeys.hasUnseenScan) private var hasUnseenScan: Bool = false
     
     // MARK: - Visual Layout
     var body: some View {

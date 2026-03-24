@@ -20,9 +20,7 @@ struct PhotoLibraryPermissionStepView: View {
                 let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
                 if status == .notDetermined {
                     PHPhotoLibrary.requestAuthorization(for: .readWrite) { _ in
-                        DispatchQueue.main.async {
-                            onNext() // Auto advance after selection
-                        }
+                        Task { @MainActor in onNext() }
                     }
                 } else {
                     // Safe fallback if permissions were historically logged natively before flow reset

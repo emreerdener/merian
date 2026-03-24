@@ -42,7 +42,7 @@ import Accelerate
     // MARK: - Live Inference State
     @ObservationIgnored nonisolated(unsafe) private var activeInferencePaused: Bool = false
 
-    var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: "isLiveInferencePaused") as? Bool ?? UIDevice.current.isModernIPhone {
+    var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: UserDefaultsKeys.isLiveInferencePaused) as? Bool ?? UIDevice.current.isModernIPhone {
         didSet {
             let currentVal = isLiveInferencePaused
             stateLock.withLock { activeInferencePaused = currentVal }

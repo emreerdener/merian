@@ -17,7 +17,7 @@ struct CameraSheetRouter: ViewModifier {
                             set: { if !$0 && viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
                         ))
                         .onAppear {
-                            UserDefaults.standard.set(false, forKey: "hasUnseenScan")
+                            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
                         }
                     case .paywall:
                         PaywallView()
@@ -29,7 +29,7 @@ struct CameraSheetRouter: ViewModifier {
                             set: { if $0 { viewModel.activeSheet = .insight } else if viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
                         ))
                         .onAppear {
-                            UserDefaults.standard.set(false, forKey: "hasUnseenScan")
+                            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
                         }
                     }
                 }

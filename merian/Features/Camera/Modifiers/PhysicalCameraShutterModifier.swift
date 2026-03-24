@@ -16,9 +16,7 @@ struct HardwareCaptureInteraction: UIViewRepresentable {
         let interaction = AVCaptureEventInteraction { event in
             // .began guarantees instant zero-latency capture mirroring the native Camera app
             if event.phase == .began {
-                DispatchQueue.main.async {
-                    action()
-                }
+                Task { @MainActor in action() }
             }
         }
         interaction.isEnabled = isEnabled

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @MainActor
-@Observable class OnboardingViewModel {
+@Observable final class OnboardingViewModel {
     // MARK: - Published State
     var currentStep: OnboardingStep = .welcome
     

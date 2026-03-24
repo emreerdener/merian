@@ -37,7 +37,7 @@ struct ExportScans: View {
                                     withAnimation { self.hasRequestedExport = true }
                                 }
                             } catch {
-                                print("🚨 Export architecture failed: \(error)")
+                                MerianLog.network.error("DwC-A export request failed: \(error, privacy: .private)")
                                 await MainActor.run { isExporting = false }
                             }
                         }

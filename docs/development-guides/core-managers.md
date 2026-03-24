@@ -25,7 +25,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 ### `PushNotificationManager`
 - Encapsulates `UNUserNotificationCenter` operations on the `@MainActor` thread.
-- Polls `authorizationStatus` to keep the local `@AppStorage("isPushNotificationsEnabled")` flag in sync with the OS Settings state. If a user revokes permissions externally, the local flag is corrected asynchronously.
+- Polls `authorizationStatus` to keep the local `@AppStorage(UserDefaultsKeys.isPushNotificationsEnabled)` flag in sync with the OS Settings state. If a user revokes permissions externally, the local flag is corrected asynchronously via `Task { @MainActor in }` (not `DispatchQueue.main.async`) to maintain Swift 6 strict concurrency compliance.
 - Configured as the `UNUserNotificationCenterDelegate`. Injects `scanId` values into `.userInfo` payloads so background offline completions can surface notifications over the lock screen.
 - Intercepts deep link taps from notification actions and routes the UI directly to the relevant `InsightSheet`.
 - Calls `completionHandler([])` to suppress inference banners when the app is in the `.active` foreground state.
@@ -86,9 +86,9 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **N+1 Query Prevention**: Extracts all `.identifier` strings upfront and sends a single `.in("id", ...)` PostgREST query, pulling all storage relationships in one round-trip.
 
 ### `MerianConfig`
-- Centralized enum (`Core/Utilities/MerianConfig.swift`) holding all policy constants for the data layer.
+- Centralized enum (`Core/Utilities/MerianConfig.swift`) holding all policy constants for the data and AI layers.
 - A policy change requires exactly one edit, with no risk of values diverging across files.
-- Referenced by `OfflineQueueManager`, `ScanRepository` (`HistoricalDatabaseActor`), and `ArchiveManager`.
+- Referenced by `OfflineQueueManager`, `ScanRepository` (`HistoricalDatabaseActor`), `ArchiveManager`, `CameraViewModel`, and `Analysis`.
 
 | Constant | Value | Consumer |
 |---|---|---|
@@ -100,6 +100,22 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 | `diskSpaceThreshold` | 500 MB | `ArchiveManager` |
 | `archiveRescueWindowStartDays` | 80 | `ArchiveManager` |
 | `archiveRescueWindowEndDays` | 88 | `ArchiveManager` |
+| `jpegCompressionQuality` | 0.8 | `Capture`, `CameraViewModel` |
+| `visionConfidenceThreshold` | 0.65 | `Analysis` (Vision pre-classifier) |
+| `visionConfidenceMargin` | 0.15 | `Analysis` (margin guard vs. second-best) |
+| `scanningPhaseSubjectDelayNs` | 3 s | `Analysis` (delay before subject phrases) |
+| `scanningPhaseRotationIntervalNs` | 2.3 s | `Analysis` (between phase phrases) |
+
+### `UserDefaultsKeys`
+- Centralized enum (`Core/Utilities/UserDefaultsKeys.swift`) holding all `UserDefaults` / `@AppStorage` key strings.
+- Prevents silent key mismatches between write sites (`UserDefaults.standard.set`) and read sites (`@AppStorage`, `UserDefaults.standard.bool(forKey:)`).
+- **Do not inline string literals for these keys anywhere in the codebase.** Always reference the constant.
+
+| Constant | Key string | Sites |
+|---|---|---|
+| `hasUnseenScan` | `"hasUnseenScan"` | `MainTabBar` (read), `Analysis` (write), `CameraSheetRouter` (clear) |
+| `isPushNotificationsEnabled` | `"isPushNotificationsEnabled"` | `NotificationSettingsView`, `PushNotificationManager`, `InferenceEngine`, `OfflineQueueManager+URLSession` |
+| `isLiveInferencePaused` | `"isLiveInferencePaused"` | `SettingsTabView`, `CameraManager` |
 
 ## Networking
 

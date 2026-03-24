@@ -94,7 +94,7 @@ extension CameraViewModel {
             // Mark a new unread scan only for real results (scanId is nil on error placeholders
             // like "Analysis Failed" / "Network Timeout" which are not persisted to the library).
             if diContainer.inferenceEngine.speciesData?.scanId != nil {
-                UserDefaults.standard.set(true, forKey: "hasUnseenScan")
+                UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
             }
         }
     }
@@ -139,7 +139,7 @@ extension CameraViewModel {
             // plays through the first phase of a scan, and subject-specific phrases only
             // appear once the inference call is well underway — reducing how long an
             // incorrect category label is visible if Vision misclassified the subject.
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            try? await Task.sleep(nanoseconds: MerianConfig.scanningPhaseSubjectDelayNs)
 
             await MainActor.run { [weak self] in
                 guard let self, self.isAnalyzingFullscreen else { return }
@@ -156,7 +156,7 @@ extension CameraViewModel {
                 self.scanningPhaseText = phrase
                 // Don't sleep after the final phrase — let it sit until inference completes.
                 guard index < phrases.count - 1 else { return }
-                try? await Task.sleep(nanoseconds: 2_300_000_000)
+                try? await Task.sleep(nanoseconds: MerianConfig.scanningPhaseRotationIntervalNs)
             }
         }
     }
@@ -174,20 +174,20 @@ extension CameraViewModel {
         "Awaiting identification...",
     ]
 
-    /// Returns subject-specific phrases when Vision identifies a category with ≥ 0.65 confidence
-    /// and a clear margin over the second-best observation.
+    /// Returns subject-specific phrases when Vision identifies a category with confidence ≥
+    /// `MerianConfig.visionConfidenceThreshold` and a clear margin over the second-best observation.
     /// Returns nil when no observation clears the threshold — caller should keep the generic series.
     ///
-    /// Only the top 5 observations are checked. The 0.65 threshold and ≥ 0.15 margin guard
-    /// prevent cross-category misclassification (e.g., a plant briefly scoring 0.51 "bird")
+    /// Only the top 5 observations are checked. The confidence threshold and margin guard
+    /// prevent cross-category misclassification (e.g., a plant briefly scoring as "bird")
     /// from surfacing subject-specific phrases that would be jarring or incorrect.
     private nonisolated static func specificPhraseSeries(for observations: [VNClassificationObservation]) -> [String]? {
         // Require a clear lead over the second-best result to filter split/ambiguous classifications.
         if observations.count >= 2 {
-            guard observations[0].confidence - observations[1].confidence >= 0.15 else { return nil }
+            guard observations[0].confidence - observations[1].confidence >= MerianConfig.visionConfidenceMargin else { return nil }
         }
 
-        for obs in observations.prefix(5) where obs.confidence >= 0.65 {
+        for obs in observations.prefix(5) where obs.confidence >= MerianConfig.visionConfidenceThreshold {
             let id = obs.identifier.lowercased()
 
             if id.contains("bird") || id.contains("avian") || id.contains("raptor") ||

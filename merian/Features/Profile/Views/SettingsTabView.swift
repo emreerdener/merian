@@ -9,7 +9,7 @@ struct SettingsTabView: View {
 
     // MARK: - Feature Toggles
     @AppStorage("isExpeditionModeActive") private var isExpeditionModeActive = false
-    @AppStorage("isLiveInferencePaused") private var isLiveInferencePaused = UIDevice.current.isModernIPhone
+    @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused = UIDevice.current.isModernIPhone
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
     @AppStorage("saveToCameraRoll") private var saveToCameraRoll = true
 

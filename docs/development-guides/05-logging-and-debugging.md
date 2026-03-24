@@ -19,7 +19,7 @@ enum MerianLog {
 }
 ```
 
-**Never use `print()` in production code.** `Logger` entries appear in Console.app and Instruments, are filterable by category, respect privacy specifiers, and have negligible performance overhead. `print()` does none of these.
+**Never use `print()` in production code.** `Logger` entries appear in Console.app and Instruments, are filterable by category, respect privacy specifiers, and have negligible performance overhead. `print()` does none of these. The codebase has been fully audited — there are no remaining `print()` calls outside of tests. Any new `print()` introduced during development must be replaced before merge.
 
 ---
 

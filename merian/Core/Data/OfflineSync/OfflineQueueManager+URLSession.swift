@@ -255,7 +255,7 @@ extension OfflineQueueManager {
                         GamificationManager.shared.recordNewSpeciesDiscovered()
                     }
                     GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
-                    if UserDefaults.standard.bool(forKey: "isPushNotificationsEnabled") {
+                    if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
                         #if canImport(UIKit)
                         if UIApplication.shared.applicationState != .active {
                             PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: scanId)

@@ -22,9 +22,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
     func syncPermissionState() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let isGranted = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-            DispatchQueue.main.async {
-                if UserDefaults.standard.bool(forKey: "isPushNotificationsEnabled") != isGranted {
-                    UserDefaults.standard.set(isGranted, forKey: "isPushNotificationsEnabled")
+            Task { @MainActor in
+                if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) != isGranted {
+                    UserDefaults.standard.set(isGranted, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
                 }
             }
         }
@@ -32,16 +32,16 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
 
     func requestAuthorization(completion: @escaping () -> Void = {}) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 if let error = error {
                     MerianLog.hardware.debug("Failed to request push notification authorization: \(error, privacy: .private)")
-                    UserDefaults.standard.set(false, forKey: "isPushNotificationsEnabled")
+                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
                 } else if granted {
                     MerianLog.hardware.debug("Push notification authorization granted.")
-                    UserDefaults.standard.set(true, forKey: "isPushNotificationsEnabled")
+                    UserDefaults.standard.set(true, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
                 } else {
                     MerianLog.hardware.debug("Push notification authorization denied.")
-                    UserDefaults.standard.set(false, forKey: "isPushNotificationsEnabled")
+                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
                 }
                 completion()
             }

@@ -1,0 +1,14 @@
+import Foundation
+
+// MARK: - UserDefaults Key Constants
+/// Single source of truth for all UserDefaults / AppStorage key strings.
+/// Using these constants prevents silent key mismatches across sites that
+/// read and write the same preference value.
+enum UserDefaultsKeys {
+    /// Whether the user has an unseen scan result waiting in the Scans sheet.
+    static let hasUnseenScan = "hasUnseenScan"
+    /// Whether push notifications are enabled (mirrors OS authorization status).
+    static let isPushNotificationsEnabled = "isPushNotificationsEnabled"
+    /// Whether the live on-device inference viewfinder pass is paused (Legacy Viewfinder mode).
+    static let isLiveInferencePaused = "isLiveInferencePaused"
+}

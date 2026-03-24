@@ -3,7 +3,7 @@ import SwiftUI
 /// Abstracted detail view establishing a parent/child routing flow specifically isolating Notification configuration.
 /// Ensures the primary Profile `Preferences` list does not organically expand into an unscrollable behemoth.
 struct NotificationSettingsView: View {
-    @AppStorage("isPushNotificationsEnabled") private var isPushNotificationsEnabled: Bool = true
+    @AppStorage(UserDefaultsKeys.isPushNotificationsEnabled) private var isPushNotificationsEnabled: Bool = true
     @AppStorage("isAchievementNotificationsEnabled") private var isAchievementNotificationsEnabled: Bool = true
     
     var body: some View {

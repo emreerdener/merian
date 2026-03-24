@@ -15,7 +15,7 @@ import SwiftData
 
     // MARK: - Dependencies (AI & Intelligence)
     var inferenceEngine = InferenceEngine()
-    var vui = ViewfinderIntelligence.shared
+    var viewfinderIntelligence = ViewfinderIntelligence.shared
     
     // MARK: - Dependencies (Core Services)
     var environmentContextManager = EnvironmentContextManager.shared
@@ -60,7 +60,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.hapticManager)
             .environment(container.pushNotificationManager)
             .environment(container.inferenceEngine)
-            .environment(container.vui)
+            .environment(container.viewfinderIntelligence)
             .environment(container.offlineQueueManager)
             .environment(container.syncStateManager)
             .environment(container.archiveManager)

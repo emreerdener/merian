@@ -18,15 +18,12 @@ struct PushNotificationPermissionStepView: View {
             primaryAction: {
                 // Request OS Permission manually natively
                 AppDIContainer.shared.pushNotificationManager.requestAuthorization {
-                    DispatchQueue.main.async {
-                        // We advance automatically immediately upon boundary completion cleanly
-                        onNext()
-                    }
+                    onNext()
                 }
             },
             secondaryButtonTitle: "Not right now",
             secondaryAction: {
-                UserDefaults.standard.set(false, forKey: "isPushNotificationsEnabled")
+                UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
                 onNext()
             }
         )

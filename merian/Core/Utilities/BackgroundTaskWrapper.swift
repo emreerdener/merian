@@ -29,7 +29,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
             return _id
         }
         guard idToEnd != .invalid else { return }
-        DispatchQueue.main.async {
+        Task { @MainActor in
             UIApplication.shared.endBackgroundTask(idToEnd)
         }
     }

@@ -121,12 +121,16 @@ When capturing `@Model` instances (`LocalScanRecord`) into SwiftUI presentation 
 **The Refactor**: Merian resolves this by executing a re-fetch inside the `.alert` action via `modelContext.model(for: scan.persistentModelID)`. This retrieves the tracked `@MainActor` memory pointer from the active context. Operations executed from there propagate correctly, collapsing `NonBiologicalScansView` boundaries and routing the payload back into the central biological timeline.
 
 ### GCD Dispatch Mixed Into Swift Concurrency Contexts
-Several sites used `DispatchQueue.main.asyncAfter(deadline:)` inside `@MainActor`-bound or SwiftUI view contexts, creating subtle ordering hazards:
+Several sites used `DispatchQueue.main.async` or `DispatchQueue.main.asyncAfter(deadline:)` inside `@MainActor`-bound or SwiftUI view contexts, creating subtle ordering hazards:
 
 - **`HapticManager.triggerErrorThump`** (a `@MainActor @Observable` class): The follow-up `error.notificationOccurred(.error)` was delayed with `DispatchQueue.main.asyncAfter(...+0.1)`. Because the class is already `@MainActor`, crossing back through GCD is redundant and can produce ordering races if the main run loop is busy. Replaced with `Task { @MainActor in try? await Task.sleep(nanoseconds: 100_000_000) ... }`.
 - **`InsightSheetView.onAppear`**: The bottom-bar animation was triggered with `DispatchQueue.main.asyncAfter(...+0.35)` inside an `.onAppear` closure. This was converted to a standalone `.task` modifier. The `.task` version is automatically cancelled if the view disappears before the 350 ms delay fires — the `asyncAfter` version was not cancellable and would mutate state on a view that was no longer on screen.
+- **System framework callbacks** (`UNUserNotificationCenter`, `AVCaptureDevice`, `PHPhotoLibrary`, `CLLocationManagerDelegate`, `AVCaptureEventInteraction`): These APIs call their completion handlers on arbitrary background threads. Crossing back to the main thread with `DispatchQueue.main.async { }` is replaced throughout with `Task { @MainActor in }`. This keeps all main-actor hops within the Swift concurrency runtime, enabling priority inheritance and avoiding the GCD/async interop pitfalls documented by SE-0297.
+- **`BackgroundTaskWrapper.safeEnd()`**: `UIApplication.shared.endBackgroundTask()` requires the main actor. Previously used `DispatchQueue.main.async`; replaced with `Task { @MainActor in }` for the same reason.
 
-Both replacements keep execution within the structured concurrency tree, making cancellation, ordering, and priority inheritance predictable.
+**Rule:** Never use `DispatchQueue.main.async` or `DispatchQueue.main.asyncAfter` in new code. Use `Task { @MainActor in }` for one-shot hops from background callbacks, and `.task` modifiers or `await MainActor.run { }` for structured async contexts. All existing `DispatchQueue.main.*` sites have been migrated.
+
+All replacements keep execution within the structured concurrency tree, making cancellation, ordering, and priority inheritance predictable.
 
 ### SwiftUI Task Cancellation Swallowing
 When generating delays (like `toastMessage` banners) using SwiftUI's `.task(id:)` modifier, using `try? await Task.sleep()` swallows the native `CancellationError`. If the `id` changes rapidly, the swallowed error prevents the active task from aborting, creating race conditions where multiple toast timers overlap and prematurely clear the UI state. Merian enforces `try await Task.sleep()` without the optional coalescing inside `.task(id:)` structures, guaranteeing SwiftUI cancels previous suspended timers instantly.

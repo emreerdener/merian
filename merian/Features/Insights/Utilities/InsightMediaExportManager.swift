@@ -143,7 +143,7 @@ actor ExportProcessingActor {
                     if success { photosSaved += 1 }
                     try? FileManager.default.removeItem(at: fileURL)
                 } catch {
-                    print("Failed to map R2 cloud payload for UI download: \(error)")
+                    MerianLog.network.error("Failed to download R2 media asset: \(error, privacy: .private)")
                 }
             }
         }
@@ -176,7 +176,7 @@ actor ExportProcessingActor {
                         let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
                         if success { photosSaved += 1 }
                     } catch {
-                        print("Failed to map R2 cloud payload for UI download: \(error)")
+                        MerianLog.network.error("Failed to download R2 media asset: \(error, privacy: .private)")
                     }
                 }
             }

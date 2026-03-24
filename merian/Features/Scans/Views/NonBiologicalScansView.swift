@@ -145,7 +145,7 @@ struct NonBiologicalScansView: View {
     private func markAsBiological(_ scan: LocalScanRecord) {
         // Local Optimistic UI - Re-fetch explicitly on the MainActor context to guarantee SwiftData UI observers fire!
         guard let activeRecord = modelContext.model(for: scan.persistentModelID) as? LocalScanRecord else {
-            print("Failed to re-fetch scan for mutation.")
+            MerianLog.data.error("Failed to re-fetch scan for mutation.")
             return
         }
         
@@ -161,9 +161,9 @@ struct NonBiologicalScansView: View {
         
         do {
             try modelContext.save()
-            print("Successfully rescued scan back to biological library!")
+            MerianLog.data.debug("Scan rescued back to biological library.")
         } catch {
-            print("🚨 Local SwiftData Save Failed: \(error)")
+            MerianLog.data.error("SwiftData save failed during biological rescue: \(error, privacy: .private)")
         }
         
         let scanId = activeRecord.id
@@ -178,7 +178,7 @@ struct NonBiologicalScansView: View {
             do {
                 try await AppDIContainer.shared.supabaseManager.client.from("scans").update(payload).eq("id", value: scanId).execute()
             } catch {
-                print("Failed remote markAsBiological sync: \(error)")
+                MerianLog.network.error("Remote markAsBiological sync failed: \(error, privacy: .private)")
             }
         }
         

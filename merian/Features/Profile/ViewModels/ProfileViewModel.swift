@@ -64,7 +64,7 @@ final class ProfileViewModel {
                         .value
                     self.defaultGeoprivacy = response.default_geoprivacy
                 } catch {
-                    print("🚨 Error tracking geoprivacy boundary: \(error)")
+                    MerianLog.network.error("Failed to fetch geoprivacy preference: \(error, privacy: .private)")
                 }
             }
         }

@@ -39,4 +39,27 @@ enum MerianConfig {
     /// SwiftData save checkpoint interval during bulk historical scan ingestion.
     /// A checkpoint every N records caps maximum data loss if a background task is killed.
     static let ingestCheckpointInterval = 50
+
+    // MARK: - Image Quality
+
+    /// JPEG compression quality applied when downsampling captures before storage or upload.
+    /// 0.8 balances file size against perceptible quality loss on modern iPhone sensors.
+    static let jpegCompressionQuality: CGFloat = 0.8
+
+    // MARK: - On-Device Vision Classification
+
+    /// Minimum Vision confidence score for an observation to drive subject-specific scan phrases.
+    static let visionConfidenceThreshold: Float = 0.65
+    /// Minimum gap between the top two Vision observations required to trust the classification.
+    /// Guards against ambiguous frames where two categories score similarly (e.g., plant vs. bird).
+    static let visionConfidenceMargin: Float = 0.15
+
+    // MARK: - Scanning Phase UX Timing
+
+    /// How long to display the generic scan phrases before switching to subject-specific ones.
+    /// Ensures the generic series always plays through the opening of a scan and reduces the
+    /// chance of an incorrect category label being visible if Vision misclassifies early frames.
+    static let scanningPhaseSubjectDelayNs: UInt64 = 3_000_000_000   // 3.0 s
+    /// Pause between consecutive subject-specific phase phrases during an active scan.
+    static let scanningPhaseRotationIntervalNs: UInt64 = 2_300_000_000 // 2.3 s
 }

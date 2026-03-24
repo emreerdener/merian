@@ -2,7 +2,7 @@ import Foundation
 import CoreLocation
 import SwiftUI
 
-@Observable class LocationPermissionDelegate: NSObject, CLLocationManagerDelegate {
+@Observable final class LocationPermissionDelegate: NSObject, CLLocationManagerDelegate {
     // MARK: - Core Dependencies
     @ObservationIgnored var locationManager = CLLocationManager()
     
@@ -23,7 +23,7 @@ import SwiftUI
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
         } else {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.onAuthorizationDetermined?()
             }
         }
@@ -32,7 +32,7 @@ import SwiftUI
     // MARK: - CLLocationManagerDelegate Events
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         if manager.authorizationStatus != .notDetermined {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.onAuthorizationDetermined?()
             }
         }

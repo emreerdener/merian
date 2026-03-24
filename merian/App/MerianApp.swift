@@ -74,7 +74,7 @@ struct MerianApp: App {
                     do {
                         try await diContainer.supabaseManager.client.auth.session(from: url)
                     } catch {
-                        print("Supabase auth session URL handler failed: \(error)")
+                        MerianLog.auth.error("Supabase auth session URL handler failed: \(error, privacy: .private)")
                     }
                 }
             }

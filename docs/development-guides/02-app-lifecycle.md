@@ -16,7 +16,7 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 1. `CameraManager.startSession()` — resumes AVFoundation capture session.
 2. `UsageManager.evaluateDailyRefresh()` — resets daily scan token count if the calendar day has rolled over.
 3. `PushNotificationManager.setupDelegate()` — re-registers the UNUserNotificationCenter delegate.
-4. `PushNotificationManager.syncPermissionState()` — reconciles local `@AppStorage("isPushNotificationsEnabled")` with the OS authorization status to handle revocations in Settings.
+4. `PushNotificationManager.syncPermissionState()` — reconciles the local `@AppStorage(UserDefaultsKeys.isPushNotificationsEnabled)` flag with the OS authorization status to handle revocations in Settings.
 
 **Async `Task {}` (off Main thread):**
 5. `SupabaseManager.initializeGhostSession()` — ensures a valid anonymous or authenticated session exists before any network calls.

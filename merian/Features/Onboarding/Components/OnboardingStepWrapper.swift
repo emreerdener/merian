@@ -22,13 +22,26 @@ struct OnboardingStepWrapper: View {
     var secondaryButtonTitle: String? = nil
     var secondaryAction: (() -> Void)? = nil
     
+    // MARK: - Subviews
+
+    private var primaryButton: some View {
+        Button(action: primaryAction) {
+            Text(primaryButtonTitle)
+                .font(.headline)
+                .foregroundColor(primaryButtonTextColor)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(primaryButtonColor)
+                .clipShape(Capsule())
+        }
+    }
+
     // MARK: - Visual Layout
     var body: some View {
         VStack(spacing: 32) {
             Spacer()
             
             // 1. Central Graphic Core
-            // TODO: Drop RiveViewModel file here
             Rectangle()
                 .fill(iconColor)
                 .frame(width: 250, height: 250)
@@ -53,16 +66,7 @@ struct OnboardingStepWrapper: View {
             // 3. Action Buttons
             if let secondaryTitle = secondaryButtonTitle, let secondaryAction = secondaryAction {
                 VStack(spacing: 24) {
-                    Button(action: primaryAction) {
-                        Text(primaryButtonTitle)
-                            .font(.headline)
-                            .foregroundColor(primaryButtonTextColor)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(primaryButtonColor)
-                            .clipShape(Capsule())
-                    }
-                    
+                    primaryButton
                     Button(action: secondaryAction) {
                         Text(secondaryTitle)
                             .font(.subheadline)
@@ -72,17 +76,9 @@ struct OnboardingStepWrapper: View {
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
             } else {
-                Button(action: primaryAction) {
-                    Text(primaryButtonTitle)
-                        .font(.headline)
-                        .foregroundColor(primaryButtonTextColor)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(primaryButtonColor)
-                        .clipShape(Capsule())
-                }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 64)
+                primaryButton
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 64)
             }
         }
     }

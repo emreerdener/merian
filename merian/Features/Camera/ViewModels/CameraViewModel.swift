@@ -103,7 +103,7 @@ final class CameraViewModel {
                 self.activeSheet = .insight
             }
         } catch {
-            print("Failed to route deeply natively to scanId \(scanId): \(error)")
+            MerianLog.general.error("Failed to route to scanId \(scanId, privacy: .private): \(error, privacy: .private)")
         }
     }
     
@@ -145,7 +145,7 @@ final class CameraViewModel {
                         
                         if let cgImage = detatchedDownsample {
                             let rawImage = UIImage(cgImage: cgImage)
-                            let finalSafeData = rawImage.jpegData(compressionQuality: 0.8) ?? Data()
+                            let finalSafeData = rawImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? Data()
                             
                             await MainActor.run {
                                 let identifiable = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)

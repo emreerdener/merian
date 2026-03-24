@@ -17,11 +17,8 @@ struct CameraPermissionStepView: View {
             primaryButtonTextColor: Color.white,
             primaryButtonColor: Color.blue,
             primaryAction: {
-                AVCaptureDevice.requestAccess(for: .video) { granted in
-                    DispatchQueue.main.async {
-                        // We advance automatically immediately upon boundary completion cleanly
-                        onNext()
-                    }
+                AVCaptureDevice.requestAccess(for: .video) { _ in
+                    Task { @MainActor in onNext() }
                 }
             }
         )

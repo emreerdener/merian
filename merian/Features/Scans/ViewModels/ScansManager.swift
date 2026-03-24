@@ -12,7 +12,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 }
 
 @MainActor
-@Observable class ScansManager {
+@Observable final class ScansManager {
     // MARK: - UI Published State
     var searchQuery: String = ""
     var filteredScans: [LocalScanRecord] = []

@@ -108,7 +108,7 @@ struct Preferences: View {
                             .eq("id", value: userId)
                             .execute()
                     } catch {
-                        print("🚨 Failed to mutate PostgreSQL geoprivacy table natively: \(error)")
+                        MerianLog.network.error("Failed to update geoprivacy preference: \(error, privacy: .private)")
                     }
                 }
             }

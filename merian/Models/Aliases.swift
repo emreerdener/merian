@@ -1,7 +1,8 @@
 import SwiftData
 
-// MARK: - Current Schema Aliases
-/// Typealiases for the active schema version. Update these when bumping to a new schema version.
+// MARK: - Active Schema Aliases
+/// Single source of truth for the current schema version. When bumping to a new schema version,
+/// update all four aliases here — no other call sites need to change.
 typealias LocalScanRecord          = MerianSchemaV12.LocalScanRecord
 typealias OfflineQueuedScan        = MerianSchemaV12.OfflineQueuedScan
 typealias ScanCollection           = MerianSchemaV12.ScanCollection

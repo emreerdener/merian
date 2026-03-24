@@ -93,9 +93,9 @@ extension OfflineQueueManager {
                     // Free users are capped at their daily scan limit to prevent scan hoarding.
                     // If the cap is already hit, clean up the files we just wrote and bail.
                     if !RevenueCatManager.shared.isProActive,
-                       let ctx = OfflineQueueManager.shared.modelContext {
+                       let modelContext = OfflineQueueManager.shared.modelContext {
                         let capDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == false })
-                        let currentCount = (try? ctx.fetchCount(capDescriptor)) ?? 0
+                        let currentCount = (try? modelContext.fetchCount(capDescriptor)) ?? 0
                         if currentCount >= UsageManager.shared.maxFreeScansPerDay {
                             MerianLog.data.debug("enqueueCapture: free user queue cap reached — scan not enqueued")
                             for url in fileURLs { try? FileManager.default.removeItem(at: url) }
@@ -122,10 +122,10 @@ extension OfflineQueueManager {
                         uvIndex: nil,
                         isDeleted: false
                     )
-                    guard let ctx = OfflineQueueManager.shared.modelContext else { return }
-                    ctx.insert(scan)
+                    guard let modelContext = OfflineQueueManager.shared.modelContext else { return }
+                    modelContext.insert(scan)
                     do {
-                        try ctx.save()
+                        try modelContext.save()
                         OfflineQueueManager.shared.updateUnsyncedItemCount()
                         // Kick off sync immediately while iOS has an active background window.
                         OfflineQueueManager.shared.syncPendingScans()
