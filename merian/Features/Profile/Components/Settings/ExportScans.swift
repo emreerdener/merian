@@ -6,12 +6,19 @@ struct ExportScans: View {
     let supabase: SupabaseManager
     @Binding var isExporting: Bool
     @Binding var exportUrl: URL?
+    @State private var hasRequestedExport = false
     
     var body: some View {
         Section {
             if !supabase.isGuestUser {
                 // Export Scans
-                if let url = exportUrl {
+                if hasRequestedExport {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                        Text("Exporting... We'll notify you when ready.")
+                            .font(.subheadline)
+                    }
+                } else if let url = exportUrl {
                     ShareLink(item: url) {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
@@ -20,17 +27,14 @@ struct ExportScans: View {
                     }
                 } else {
                     Button(action: {
-                        // Immediately bumps massive Zip compression and Base64 translations 
-                        // entirely off the UI thread avoiding blocking native Scroll geometry!
                         Task.detached(priority: .userInitiated) {
                             await MainActor.run { isExporting = true }
                             do {
-                                // Calls the Supabase Edge Function executing massive Python-like DwC-A 
-                                // JSON parsing mapping securely natively across the network boundary.
-                                let url = try await MerianNetworkClient.shared.exportDwcA(scope: "user")
+                                // Maps request completely off timeout logic!
+                                try await MerianNetworkClient.shared.requestDwcAExport(scope: "user")
                                 await MainActor.run {
-                                    self.exportUrl = url
                                     self.isExporting = false
+                                    withAnimation { self.hasRequestedExport = true }
                                 }
                             } catch {
                                 print("🚨 Export architecture failed: \(error)")

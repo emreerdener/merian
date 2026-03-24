@@ -22,6 +22,12 @@ struct ScansGrid<MenuContent: View>: View {
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 2), count: gridColumns)
     }
+
+    private var thumbnailSize: Int {
+        let screenWidth = UIScreen.main.bounds.width
+        let cellWidth = (screenWidth - CGFloat(2 * (gridColumns - 1))) / CGFloat(gridColumns)
+        return Int(cellWidth * UIScreen.main.scale)
+    }
     
     // MARK: - Visual Layout
     var body: some View {
@@ -31,7 +37,7 @@ struct ScansGrid<MenuContent: View>: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     onSelect(scan)
                 }) {
-                    ScanThumbnail(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl)
+                    ScanThumbnail(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl, maxDimension: thumbnailSize)
                         .overlay(
                             ZStack {
                                 if isSelectionMode {

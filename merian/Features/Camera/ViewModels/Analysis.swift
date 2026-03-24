@@ -1,150 +1,100 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Pipeline Orchestration
 extension CameraViewModel {
-    
-    // MARK: - ML Analysis Sequence
-    
+
+    // MARK: - Submit Active Scan
+
+    /// Kicks off the inference pipeline for the accumulated `activeScanImages`.
+    ///
+    /// Call order:
+    /// 1. Snapshot images into the analysis overlay and show fullscreen scanning UI.
+    /// 2. Await the pre-fetched `EnvironmentContext` (started at shutter press) to build telemetry.
+    /// 3. Clear the staging buffers so the user cannot double-submit.
+    /// 4. Fire `InferenceEngine.analyze` — `handleInferenceProcessingChange` will dismiss the overlay when done.
     func submitActiveScan(modelContext: ModelContext) {
-        let capturedDatas = self.activeScannedDatas
-        let displayImages = self.activeScanImages
-        
-        // Securely capture the EXIF telemetry before clearing the state natively
-        let historicalContext = self.activeOriginals.first?.environmentContext
-        
-        // 1. State Clear
-        self.activeScannedDatas.removeAll()
-        self.activeScanImages.removeAll()
-        self.activeOriginals.removeAll()
-        
-        guard !capturedDatas.isEmpty else { return }
-        
-        let capturedDistance = diContainer.cameraManager.subjectDistanceInMeters
-        
-        Task { [weak self] in
-            guard let self = self else { return }
-            
-            // 2. Optical Presentation Hook
-            // Instantly trigger scanning UI so the user doesn't see a frozen camera feed
-            await MainActor.run {
-                self.analysisImages = displayImages
-                self.scanningPhaseText = "Acquiring coordinates..."
-                self.isAnalyzingFullscreen = true
-            }
-            
-            // NEW: Enforce crop constraints cleanly before analysis!
-            // We lazily defer cropping until submission or manual edit to dramatically accelerate the Camera Shutter UX!
-            let results = await withTaskGroup(of: (Int, Data, UIImage).self) { group in
-                for (index, image) in displayImages.enumerated() {
-                    let uncroppedData = index < capturedDatas.count ? capturedDatas[index] : Data()
-                    
-                    group.addTask {
-                        let physicalMax = max(image.size.width, image.size.height) * image.scale
-                        if physicalMax <= 800 {
-                            return (index, uncroppedData, image)
-                        } else {
-                            let centerCropped = await ImageCropProcessor.generateAutoCenterCrop(image: image)
-                            let thumb = UIImage(data: centerCropped) ?? image
-                            return (index, centerCropped, thumb)
-                        }
-                    }
-                }
-                
-                var collected: [(Int, Data, UIImage)] = []
-                for await result in group {
-                    collected.append(result)
-                }
-                return collected.sorted(by: { $0.0 < $1.0 })
-            }
-            
-            let inferenceDatas = results.map { $0.1 }
-            let finalUIImages = results.map { $0.2 }
-            
-            await MainActor.run {
-                // Instantly snap the visual Optical bounds to exactly what Gemini is looking at organically
-                self.analysisImages = finalUIImages
-            }
-            
-            // 3. Environmental Synthesis Pipeline
-            let context: EnvironmentContext
-            if let historic = historicalContext {
-                // Instantly prioritize authentic EXIF data over the user's current device position directly!
-                context = historic
-                self.preFetchTask?.cancel()
-                self.preFetchTask = nil
-            } else if let activeTask = self.preFetchTask {
-                context = await activeTask.value
-                self.preFetchTask = nil
+        guard !activeScannedDatas.isEmpty else { return }
+
+        // 1. Move staged images into the overlay and surface the scanning fullscreen view.
+        analysisImages = activeScanImages
+        isAnalyzingFullscreen = true
+        scanningPhaseText = "Analyzing subject..."
+
+        // 2. Capture the context needed for inference before clearing the staging buffers.
+        let datasToAnalyze = activeScannedDatas
+        let capturedOriginals = activeOriginals
+        let capturedPreFetchTask = preFetchTask
+
+        // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
+        activeScanImages.removeAll()
+        activeScannedDatas.removeAll()
+        activeOriginals.removeAll()
+        preFetchTask = nil
+
+        Task {
+            // 4. Resolve the pre-fetched environment context (started at shutter press).
+            let resolvedContext = await capturedPreFetchTask?.value
+
+            // Build telemetry — prefer the pre-fetched context; fall back to the
+            // historical context baked into the first gallery original if present.
+            let telemetry: CaptureTelemetry
+            if let context = resolvedContext {
+                telemetry = CaptureTelemetry(
+                    from: context,
+                    distance: diContainer.cameraManager.subjectDistanceInMeters
+                )
+            } else if let historicalContext = capturedOriginals.first?.environmentContext {
+                telemetry = CaptureTelemetry(
+                    from: historicalContext,
+                    distance: nil
+                )
             } else {
-                context = await self.diContainer.environmentContextManager.fetchDeferredContext(preLockedLocation: nil)
+                telemetry = CaptureTelemetry(
+                    subjectDistanceInMeters: diContainer.cameraManager.subjectDistanceInMeters,
+                    gpsLatitude: nil,
+                    gpsLongitude: nil,
+                    gpsElevation: nil,
+                    locationName: nil,
+                    weatherCondition: nil,
+                    weatherTemperatureF: nil,
+                    timeOfDay: nil,
+                    timestamp: DateUtilities.iso8601Formatter.string(from: Date())
+                )
             }
-            
+
+            // 5. Fire the inference pipeline.
             await MainActor.run {
-                self.scanningPhaseText = "Analyzing subject..."
-            }
-            
-            // 4. Rate Cap Consumption
-            // Consume the strict free quota immediately upon commitment to prevent offline hoarding dynamically
-            // Bound strictly to the submit Active Scan hook to support up to 2 frames simultaneously counting as 1 organic Scan natively 
-            self.diContainer.usageManager.consumeScan()
-            
-            // 5. Generative Telemetry Parsing
-            let telemetry = CaptureTelemetry(from: context, distance: capturedDistance)
-            
-            // 6. ML Inference Execution
-            // Ships strict array payload globally to dynamically evaluated Supabase Edge logic natively 
-            self.diContainer.inferenceEngine.analyze(
-                imageDatas: inferenceDatas,
-                telemetry: telemetry,
-                modelContext: modelContext
-            )
-        }
-    }
-    
-    // MARK: - State Listeners & Dispatch Context
-    
-    func synchronizeAnalysisState(isFullscreen: Bool) {
-        if isFullscreen {
-            diContainer.cameraManager.stopSession() // Revert viewport to off while analyzing over it
-            
-            // Dynamically rotate processing labels natively so the user feels active execution pacing during long 5-10 second global inference requests
-            let engagingPrompts = [
-                "Scanning image...",
-                "Analyzing subject...",
-                "Processing context...",
-                "Evaluating matches...",
-                "Identifying species...",
-                "Finalizing result..."
-            ]
-            
-            for (index, prompt) in engagingPrompts.enumerated() {
-                DispatchQueue.main.asyncAfter(deadline: .now() + Double(index + 1) * 1.6) {
-                    if self.isAnalyzingFullscreen {
-                        withAnimation(.easeIn(duration: 0.35)) {
-                            self.scanningPhaseText = prompt
-                        }
-                    }
-                }
-            }
-        } else {
-            analysisImages.removeAll()
-            if activeSheet != .insight {
-                diContainer.cameraManager.startSession()
+                diContainer.inferenceEngine.analyze(
+                    imageDatas: datasToAnalyze,
+                    telemetry: telemetry,
+                    modelContext: modelContext
+                )
             }
         }
     }
-    
+
+    // MARK: - Inference Processing Change
+
+    /// Responds to changes in `InferenceEngine.isProcessing`.
+    ///
+    /// When processing completes (false), dismisses the fullscreen overlay and
+    /// surfaces the insight sheet if the engine produced a result.
     func handleInferenceProcessingChange(isStillProcessing: Bool) {
-        if !isStillProcessing && isAnalyzingFullscreen {
-            withAnimation {
-                isAnalyzingFullscreen = false
-            }
-            // Safely defer the insight sheet presentation strictly forcing SwiftUI to stabilize
-            // any hardware interactions from leaking `.paywall` checks concurrently
-            DispatchQueue.main.async { [weak self] in
-                self?.activeSheet = .insight
-            }
+        guard !isStillProcessing else { return }
+        isAnalyzingFullscreen = false
+        if diContainer.inferenceEngine.speciesData != nil {
+            activeSheet = .insight
         }
+    }
+
+    // MARK: - Analysis State Synchronization
+
+    /// Responds to changes in `isAnalyzingFullscreen`.
+    ///
+    /// Cleans up overlay state when the fullscreen scanning view is dismissed.
+    func synchronizeAnalysisState(isFullscreen: Bool) {
+        guard !isFullscreen else { return }
+        analysisImages.removeAll()
+        scanningPhaseText = "Analyzing subject..."
     }
 }

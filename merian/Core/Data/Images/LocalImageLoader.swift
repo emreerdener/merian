@@ -30,16 +30,16 @@ actor LocalImageLoader {
         let fetchTask = Task<UIImage?, Never> {
             // 3. Remote URL Execution (if 'imagePath' is actually a cloud URL payload directly)
             if let safePath = imagePath, safePath.starts(with: "http"), let remoteUrl = URL(string: safePath) {
-                if let networkImage = await fetchNetworkFallback(url: remoteUrl, cacheKey: cacheKey) {
+                if let networkImage = await fetchNetworkFallback(url: remoteUrl, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
                     return networkImage
                 }
-            } 
+            }
             // 4. Local File Extraction directly off Main Thread
             else if let safePath = imagePath, !safePath.isEmpty, !safePath.starts(with: "http") {
                 let filename = (safePath as NSString).lastPathComponent
                 let url = URL.documentsDirectory.appendingPathComponent(filename)
                 
-                if let cgImage = await ImageDownsampler.shared.downsample(url: url, maxSize: CGFloat(maxDimension)) {
+                if let cgImage = ImageDownsampler.shared.downsample(url: url, maxSize: CGFloat(maxDimension)) {
                     let decoded = UIImage(cgImage: cgImage)
                     ImageCache.shared.set(decoded, forKey: cacheKey)
                     return decoded
@@ -54,7 +54,7 @@ actor LocalImageLoader {
                 
                 for url in urls {
                     if Task.isCancelled { return nil }
-                    if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey) {
+                    if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
                         return networkImage
                     }
                 }
@@ -76,7 +76,7 @@ actor LocalImageLoader {
     
     // MARK: - Network Edge Loaders
     // Explicit network fallback natively isolated off Main Thread
-    private nonisolated func fetchNetworkFallback(url: URL, cacheKey: String) async -> UIImage? {
+    private nonisolated func fetchNetworkFallback(url: URL, cacheKey: String, maxSize: CGFloat = 500) async -> UIImage? {
         if Task.isCancelled { return nil }
         
         do {
@@ -89,7 +89,7 @@ actor LocalImageLoader {
             
             if Task.isCancelled { return nil }
             
-            if let cgImage = await ImageDownsampler.shared.downsample(url: tempURL, maxSize: 500) {
+            if let cgImage = ImageDownsampler.shared.downsample(url: tempURL, maxSize: maxSize) {
                 let thumbnail = UIImage(cgImage: cgImage)
                 ImageCache.shared.set(thumbnail, forKey: cacheKey)
                 return thumbnail

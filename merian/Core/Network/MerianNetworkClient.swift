@@ -186,22 +186,15 @@ final class MerianNetworkClient {
     }
     
     // MARK: - Darwin Core (DwC) Archives
-    func exportDwcA(scope: String = "user") async throws -> URL {
-        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/export-dwca")!
+    /// Fires an asynchronous export job structurally dodging the 30-second Edge Deno CPU timeout natively.
+    func requestDwcAExport(scope: String = "user") async throws {
+        // We hit the async job orchestrator instead of blocking on the raw CPU export stream
+        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/request-export-dwca")!
         let payload: [String: Any] = ["exportScope": scope, "includePreciseCoordinates": true]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 120.0)
-        
-        struct ExportResponse: Codable {
-            let exportUrl: String
-        }
-        
-        guard let result = try? JSONDecoder().decode(ExportResponse.self, from: data), let url = URL(string: result.exportUrl) else {
-            throw NetworkError.decodingFailed
-        }
-        
-        return url
+        // Timeout drops to 15s because this purely writes a queue state into Postgres!
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 15.0)
     }
     
     // MARK: - Core Moderation Triggers

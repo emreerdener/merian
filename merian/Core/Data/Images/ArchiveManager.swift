@@ -16,7 +16,6 @@ import os
     var isAuthorized: Bool = false
     
     // MARK: - Core Limits
-    private let diskSpaceThreshold: Int64 = 500 * 1024 * 1024 // 500MB
     private let albumName = "Merian"
     
     // MARK: - Lifecycle Bootstrapping
@@ -39,7 +38,7 @@ import os
     func initiatePrePurgeSync(pendingImages: [URL]) async {
         let availableSpace = getAvailableDiskSpace()
         
-        if availableSpace < diskSpaceThreshold {
+        if availableSpace < MerianConfig.diskSpaceThreshold {
             self.isStorageCriticallyLow = true
             HapticManager.shared.triggerErrorThump()
             return
@@ -118,15 +117,15 @@ import os
         guard !RevenueCatManager.shared.isProActive else { return }
         
         let availableSpace = getAvailableDiskSpace()
-        if availableSpace < diskSpaceThreshold {
+        if availableSpace < MerianConfig.diskSpaceThreshold {
             MerianLog.data.debug("ArchiveManager: ASP rescue aborted - insufficient device partition boundary.")
             return
         }
         
         let now = Date()
         let calendar = Calendar.current
-        guard let eightyDaysAgo = calendar.date(byAdding: .day, value: -80, to: now),
-              let eightyEightDaysAgo = calendar.date(byAdding: .day, value: -88, to: now) else { return }
+        guard let eightyDaysAgo = calendar.date(byAdding: .day, value: -MerianConfig.archiveRescueWindowStartDays, to: now),
+              let eightyEightDaysAgo = calendar.date(byAdding: .day, value: -MerianConfig.archiveRescueWindowEndDays, to: now) else { return }
         
         let descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { scan in

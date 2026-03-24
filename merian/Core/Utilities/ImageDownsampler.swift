@@ -10,7 +10,7 @@ public actor ImageDownsampler {
     
     // MARK: - Disk Bound Operations
     /// Downsamples a physical file payload natively into a constrained CGImage bound
-    public func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
+    public nonisolated func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
         return autoreleasepool {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -30,7 +30,7 @@ public actor ImageDownsampler {
     
     // MARK: - Memory Bound Operations
     /// Downsamples raw binary bytes natively into a constrained CGImage bound
-    public func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
+    public nonisolated func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
         return autoreleasepool {
             let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,

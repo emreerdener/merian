@@ -2,6 +2,14 @@
 
 Merian implements a seamless onboarding funnel by marrying Supabase Anonymous Authentication deeply with RevenueCat SDK bindings for entitlement checking natively.
 
+## Contents
+
+- [Anonymous IDFV Strategy (`DeviceIdentityManager`)](#the-anonymous-idfv-strategy-deviceidentitymanager) — Ghost session creation, OAuth upgrade, account merging, historical sync
+- [Paywalls and Entitlements (`RevenueCatManager`)](#paywalls-and-entitlements-revenuecat manager) — `isProActive`, plan display
+- [RevenueCat Webhook](#revenuecat-webhook-revenuecat-webhook) — Server-side tier sync, R2 data migration on upgrade/downgrade
+- [Usage Limits (`UsageManager`)](#usage-limits-usagemanager) — Daily scan quota, refund logic, paywall gate
+- [Trust & Safety (`SocialGuardManager`)](#trust--safety-socialguardmanager) — Block user, optimistic UI, Edge sync
+
 ## The Anonymous IDFV Strategy (`DeviceIdentityManager`)
 
 To maximize user conversion, Merian demands zero upfront onboarding friction:

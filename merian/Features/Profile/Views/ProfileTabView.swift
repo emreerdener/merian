@@ -56,9 +56,7 @@ struct ProfileTabView: View {
                 // prevent dropping frames on the physical UI Thread during millions of array computations.
                 let container = modelContext.container
                 let actor = ProfileDatabaseActor(modelContainer: container)
-                let (species, streak) = await actor.calculateProfileStats()
-                let heatmap = await actor.calculateHeatmapData()
-                let fetchedAwards = await actor.calculateAwards()
+                let (species, streak, heatmap, fetchedAwards) = await actor.calculateAll()
                 await MainActor.run {
                     self.uniqueSpeciesCount = species
                     self.currentStreak = streak

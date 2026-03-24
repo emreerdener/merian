@@ -4,11 +4,14 @@ When generating or modifying code for Merian, follow these explicit constraints 
 
 ## 0. The Documentation Directory
 The `docs/` folder contains the master reference for the application:
-- Refer to `docs/01-System-Architecture.md` for overall logic.
-- Refer to `docs/13-Zero-OOM-and-Concurrency.md` for strict P0 iOS and Deno concurrency/memory safety rules.
-- Refer to `docs/02-Camera-and-Hardware.md` for hardware integrations like LiDAR and precise telemetry snapshots.
-- Refer to `docs/07-Database-Schema.md` for PostgreSQL & SwiftData schemas.
-- Refer to `docs/08-API-Contracts.md` for all network request/response shapes.
+- Refer to `docs/system-architecture/system-overview.md` for overall architecture and pipeline logic.
+- Refer to `docs/system-architecture/13-zero-oom-and-concurrency.md` for strict P0 iOS and Deno concurrency/memory safety rules.
+- Refer to `docs/features-and-hardware/02-camera-and-hardware.md` for hardware integrations like LiDAR and precise telemetry snapshots.
+- Refer to `docs/backend-and-data/07-database-schema.md` for PostgreSQL & SwiftData schemas.
+- Refer to `docs/backend-and-data/08-api-contracts.md` for all network request/response shapes.
+- Refer to `docs/backend-and-data/03-offline-sync-pipeline.md` for offline queue, sync state machine, and deletion architecture.
+- Refer to `docs/development-guides/02-app-lifecycle.md` for `AppLifecycleManager` phase contracts and trigger ordering.
+- Refer to `docs/system-architecture/14-image-pipeline.md` for capture → disk → cache → display image flow.
 
 ## 1. Project Generation (XcodeGen)
 - **NEVER** directly modify `Merian.xcodeproj`.
@@ -19,7 +22,16 @@ The `docs/` folder contains the master reference for the application:
 ## 2. Directory Structure
 The workspace enforces this layout inside `merian/`:
 - `Features/`: Complete user domains (`Camera`, `Insights`, `Scans`, `Profile`, `Settings`).
-- `Core/`: Foundational logic (`AI`, `Network`, `Security`, `Data`, `Hardware`, `Analytics`, `Intents`).
+- `Core/`: Foundational logic organized into subdirectories:
+  - `AI/`: `InferenceEngine`, `InferenceProcessingActor`
+  - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`, `HistoricalDatabaseActor`, `ScanRepository`
+  - `Data/Images/`: `LocalImageLoader`, `ImageCache`, `ArchiveManager`, `PhotoLibraryManager`
+  - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`, `CircuitBreakerManager`
+  - `Hardware/`: `CameraManager`, `HardwareOrchestrator`, `EnvironmentContextManager`
+  - `Network/`: `MerianNetworkClient`, `SupabaseManager`
+  - `Security/`: `KeychainManager`, `DeviceIdentityManager`
+  - `Utilities/`: `MerianConfig`, `AppLifecycleManager`, `BackgroundTaskWrapper`, `ImageDownsampler`, `MerianLog`
+  - `Analytics/`, `Intents/`
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
 - `Configuration/`: `project.yml`, `Config.xcconfig`, App Intents, and Entrypoint metadata.
 

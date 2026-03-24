@@ -3,6 +3,7 @@ import Photos
 import UIKit
 import Observation
 import ImageIO
+import CoreLocation
 import os
 
 // MARK: - Core Camera Roll Bridge
@@ -86,7 +87,7 @@ import os
     }
     
     // MARK: - Hardware Write Orchestration
-    private enum ResourcePayload {
+    private enum ResourcePayload: Sendable {
         case data(Data)
         case url(URL)
     }
@@ -107,7 +108,7 @@ import os
         }
         
         do {
-            let processedPayload: ResourcePayload = {
+            let processedPayload: ResourcePayload = await Task.detached {
                 switch payload {
                 case .data(let data):
                     return .data(self.stripGPS(from: data) ?? data)
@@ -118,7 +119,7 @@ import os
                     }
                     return payload
                 }
-            }()
+            }.value
             
             try await PHPhotoLibrary.shared().performChanges {
                 let request = PHAssetCreationRequest.forAsset()

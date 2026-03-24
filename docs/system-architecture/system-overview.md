@@ -1,5 +1,7 @@
 # Merian System Architecture Overview
 
+Merian is a biological field identification app for iOS. Point the camera at any plant, insect, fungus, or animal — Merian identifies it using Gemini AI, records GPS telemetry and weather context, and builds a personal species journal that works fully offline.
+
 Merian relies on an aggressive "Zero-OOM" (Out Of Memory) design philosophy targeting seamless, native performance on iOS hardware. The system completely decouples the expensive Machine Learning payload extraction logic to Supabase Serverless Edge infrastructure to protect the physical battery bounds of the device.
 
 ## High-Level Pipeline
@@ -22,12 +24,16 @@ Everything is statically bound within `AppDIContainer.swift`:
 
 ## SwiftData & Data Layer
 
-A rigid standard mapped over native native SwiftData migrations:
+A rigid standard mapped over native SwiftData migrations:
 
-- Models natively stored inside `LocalScanRecord` strictly map their UUIDs **1-to-1 with physical Postgres `/scans` rows**. The platform previously attempted to merge multiple scans of the same species into a hidden `additionalImagePaths` array locally, which caused a race condition where the background `ScanRepository` network synchronizer would spawn a duplicate "ghost" tile because the Cloud ID didn't match the Local random UUID. 
+- Models natively stored inside `LocalScanRecord` strictly map their UUIDs **1-to-1 with physical Postgres `/scans` rows**. The platform previously attempted to merge multiple scans of the same species into a hidden `additionalImagePaths` array locally, which caused a race condition where the background `ScanRepository` network synchronizer would spawn a duplicate "ghost" tile because the Cloud ID didn't match the Local random UUID.
 - *Grid Rendering Rule*: Every shutter press now generates a distinct physical tile in the `Scans` exactly mimicking the iOS Photos app, completely preventing cloud duplication loops. Gamification telemetry uniquely hashes against the `scientificName` to prevent giving users multiple "New Discovery" awards for identical subjects.
 - Schema versioning handles structural modifications cleanly.
+- Implements resilient offline lookup bindings securely mapping `#Predicate` constraints via `.localizedStandardContains()` to seamlessly guarantee robust case-insensitive `SQLite` matches across `ScanRepository`, organically superseding brittle manual string tokenization matrices.
 - Implements the "Archive Safety Protocol" via `ArchiveManager.swift`, preserving the physics blobs of Free-tier users logically before Cloudflare's 90-day R2 Lifecycle Deletion Rule executes. This protects the native `Scans` offline caches against sudden Cloud purges.
+- **Transactional Deletions**: `ScanRepository.eradicateScan` commits SwiftData changes first (delete record, insert cloud task, save) and only purges local image files via `FileIOActor` after the save succeeds. A save failure leaves state fully consistent — no orphaned database records with missing images.
+- **Historical Sync**: `syncHistoricalScansDown` paginates both the scans and collections cloud fetches (via `.range(from:to:)`), then reconciles all data in a single `HistoricalDatabaseActor.reconcileAllHistoricalData` invocation — reducing actor-boundary crossings from three to one.
+- **Centralized Policy (`MerianConfig`)**: All batch sizes, page sizes, storage thresholds, and retention window constants are defined in `MerianConfig.swift`. Tuning any policy constant requires exactly one change.
 
 ## Identity Pipeline
 

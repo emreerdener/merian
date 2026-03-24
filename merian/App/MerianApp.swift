@@ -18,6 +18,7 @@ struct MerianApp: App {
     
     // MARK: - App Dependencies
     let diContainer = AppDIContainer.shared
+    let lifecycleManager = AppLifecycleManager(container: AppDIContainer.shared)
     
     // MARK: - SwiftData Container
     let container: ModelContainer
@@ -82,11 +83,11 @@ struct MerianApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background:
-                diContainer.handleBackgroundPhase()
+                lifecycleManager.handleBackgroundPhase()
             case .inactive:
-                diContainer.handleInactivePhase()
+                lifecycleManager.handleInactivePhase()
             case .active:
-                diContainer.handleActivePhase()
+                lifecycleManager.handleActivePhase()
             @unknown default:
                 break
             }

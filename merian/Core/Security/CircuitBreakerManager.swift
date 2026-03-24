@@ -14,7 +14,7 @@ import os
     
     // MARK: - Telemetry Thresholds
     private var consecutiveFailures: Int = 0
-    private let failureThreshold: Int = 2
+    private let failureThreshold: Int = 3
     private let cooldownPeriod: TimeInterval = 900 // 15 minutes
     private var cooldownTimer: Timer?
 

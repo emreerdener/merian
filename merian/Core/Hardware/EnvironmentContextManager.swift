@@ -167,27 +167,35 @@ struct EnvironmentContext {
         let task = Task { @MainActor [weak self] () -> String? in
             guard let self = self else { return nil }
             let geocoder = CLGeocoder()
-            let generatedString: String? = await withCheckedContinuation { continuation in
-                geocoder.reverseGeocodeLocation(location) { placemarks, error in
-                    if error != nil {
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    
-                    if let placemark = placemarks?.first {
-                        if let city = placemark.locality, let adminArea = placemark.administrativeArea {
-                            continuation.resume(returning: "\(city), \(adminArea)")
-                        } else if let city = placemark.locality {
-                            continuation.resume(returning: city)
-                        } else if let name = placemark.name {
-                            continuation.resume(returning: name)
+            // CANCELLATION SAFETY: withTaskCancellationHandler wraps the continuation so that if the parent
+            // task is cancelled before the geocoder fires its callback, cancelGeocode() triggers the existing
+            // error path (CLError.geocodeCanceled), which resumes the continuation with nil immediately.
+            // This eliminates the orphaned-suspension window without modifying requestSingleLocation().
+            let generatedString: String? = await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    geocoder.reverseGeocodeLocation(location) { placemarks, error in
+                        if error != nil {
+                            continuation.resume(returning: nil)
+                            return
+                        }
+
+                        if let placemark = placemarks?.first {
+                            if let city = placemark.locality, let adminArea = placemark.administrativeArea {
+                                continuation.resume(returning: "\(city), \(adminArea)")
+                            } else if let city = placemark.locality {
+                                continuation.resume(returning: city)
+                            } else if let name = placemark.name {
+                                continuation.resume(returning: name)
+                            } else {
+                                continuation.resume(returning: nil)
+                            }
                         } else {
                             continuation.resume(returning: nil)
                         }
-                    } else {
-                        continuation.resume(returning: nil)
                     }
                 }
+            } onCancel: {
+                geocoder.cancelGeocode()
             }
             
             if let validString = generatedString {

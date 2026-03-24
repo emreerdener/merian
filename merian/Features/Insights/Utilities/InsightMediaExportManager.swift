@@ -198,7 +198,7 @@ actor ExportProcessingActor {
     func extractThumbnail(from localPath: String?) async -> UIImage? {
         if let validPath = localPath {
             let fileURL = URL.documentsDirectory.appendingPathComponent(validPath)
-            if let cgImage = await ImageDownsampler.shared.downsample(url: fileURL, maxSize: 1024) {
+            if let cgImage = ImageDownsampler.shared.downsample(url: fileURL, maxSize: 1024) {
                 return UIImage(cgImage: cgImage)
             }
         }

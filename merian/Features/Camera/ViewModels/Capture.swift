@@ -51,7 +51,7 @@ extension CameraViewModel {
                     // Instantly executes native `generateAutoCenterCrop` natively isolating UIImage and CGImage pointers 
                     // cleanly inside the background securely, exporting solely safe raw `.Data` out bypassing JetSam limits globally
                     
-                    let safeCGImage = await ImageDownsampler.shared.downsample(data: captureData, maxSize: 4000)
+                    let safeCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: 4000)
                     
                     let finalSafeData: Data = {
                         guard let cgImage = safeCGImage else { return Data() }

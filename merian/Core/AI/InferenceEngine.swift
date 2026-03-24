@@ -40,6 +40,7 @@ enum APIError: Error {
     
     // MARK: - Asynchronous Execution Controllers
     public var isBackgroundRescued = false
+    @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
     
     // MARK: - Network Edge DTOs
     /// Wrapper preventing double string decoding JSON extraction logic
@@ -154,15 +155,15 @@ enum APIError: Error {
                 if var mappedData = finalMappedData {
                     if isNewDisc {
                         mappedData.isNewDiscovery = true
-                        
                         await MainActor.run { GamificationManager.shared.recordNewSpeciesDiscovered() }
-                        
-                        if let container = modelContext?.container {
-                            let profileActor = ProfileDatabaseActor(modelContainer: container)
-                            let updatedAwards = await profileActor.calculateAwards()
-                            await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards) }
-                        }
                     }
+
+                    if let container = modelContext?.container {
+                        let profileActor = ProfileDatabaseActor(modelContainer: container)
+                        let updatedAwards = await profileActor.calculateAwards()
+                        await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards) }
+                    }
+
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     self.speciesData = mappedData
@@ -263,7 +264,9 @@ enum APIError: Error {
     /// Hits the Wikimedia Desktop Summary framework independently skipping the Inference loop latency cost natively.
     private func asynchronouslyFetchWikipediaAndHydrate(for species: String, scanId: String?, modelContext: ModelContext?) async {
         guard !species.isEmpty, species.lowercased() != "taxonomy unavailable", species.lowercased() != "unknown subject" else { return }
-        
+        guard !wikiFetchAttemptedIds.contains(species) else { return }
+        wikiFetchAttemptedIds.insert(species)
+
         // Match the backend whitespace replacement strategy safely enforcing capital bounds explicitly
         let normalized = species.replacingOccurrences(of: " ", with: "_")
         guard let enc = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
@@ -443,17 +446,7 @@ enum APIError: Error {
 
 }
 
-// MARK: - Dedicated Actors for Background Offloading
-actor FileIOActor {
-    static let shared = FileIOActor()
-    
-    func validPaths(from paths: [String]) -> [String] {
-        return paths.filter { path in
-            if path.starts(with: "http") { return true }
-            return FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent(path).path)
-        }
-    }
-}
+
 
 actor InferenceProcessingActor {
     static let shared = InferenceProcessingActor()
@@ -501,8 +494,9 @@ actor InferenceProcessingActor {
         var newDiscovery = false
         
         if mappedData.confidenceScore > 0.0, let container = modelContext?.container, !compressedDatas.isEmpty {
+            let savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: compressedDatas)
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, compressedDatas: compressedDatas)
+            newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, localImagePaths: savedPaths)
         }
         return (mappedData, newDiscovery)
     }

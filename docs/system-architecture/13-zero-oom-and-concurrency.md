@@ -57,7 +57,7 @@ Crucially, when bridging these strict Swift 6 concurrency boundaries via `Task.d
 Furthermore, to structurally prevent iOS from violently suspending the application natively before background I/O queues successfully tear down, Merian strictly abolishes invoking detached `Task { ... }` blocks orphaned inside asynchronous `defer` closures. Inside the `URLSession` completion handler natively, active task evaluations (`session.allTasks`) are rigorously executed directly within the synchronous, awaited boundary of the `BackgroundTaskWrapper.execute` mapping, definitively guaranteeing the queue lock releases successfully before the `UIBackgroundTaskIdentifier` expires natively.
 Furthermore, to prevent Swift 6 Sendable reference structural violations natively, `urlSession(_:task:didCompleteWithError:)` extracts non-Sendable `task.taskDescription` and HTTP string properties into local immutable variables directly on the delegate context seamlessly prior to traversing back across the background wrapper boundary dynamically!
 Additionally, early function return closures in `OfflineQueueManager` skipping inference (due to `504` error codes natively) unintentionally skipped `SyncStateManager.shared.completeSync()`. This permanently deadlocked the offline queue natively. Merian strictly bounds these teardowns natively leveraging a block `defer` dynamically checking if `session.allTasks.isEmpty` securely running the teardowns unconditionally natively overriding all possible abort paths inherently preventing deadlocks.
-Furthermore, when chunking pending offline scans to the Edge Function payload boundary, Merian mathematically caps loop payloads cleanly via `.prefix(5)` on the `filteredScans` array. Previously, dynamically enforcing a secondary `.prefix(5)` limit strictly against the flattened `fileNames`, `fileURLs`, and `scanIDs` arrays inadvertently severed multi-image payloads (since one offline scan now bounds up to 2 local images). By completely removing the truncation on the flattened arrays and relying solely on the scan-level limit, the architecture guarantees a partial payload state is never pushed to Cloudflare R2, preventing silent infinite `HTTP 400 Array Length exceptions` while preserving data integrity.
+Furthermore, when chunking pending offline scans to the Edge Function payload boundary, Merian mathematically caps loop payloads cleanly via `.prefix(5)` on the `filteredScans` array. Previously, dynamically enforcing a secondary `.prefix(5)` limit strictly against the flattened `fileNames`, `fileURLs`, and `scanIDs` arrays inadvertently severed multi-image payloads (since one offline scan now bounds up to 2 local images). By completely removing the truncation on the flattened arrays and relying solely on the scan-level limit, the architecture guarantees a partial payload state is never pushed to Cloudflare R2, preventing silent infinite `HTTP 400 Array Length exceptions` while preserving data integrity. Finally, to strictly adhere to Swift 6 Concurrency execution matrices, the system structurally drops redundant asynchronous `.await` hooks natively preceding `session.uploadTask(with:fromFile:)` executions. Since this specific `URLSession` factory boundary creates a deferred upload initialization object synchronously, invoking `.await` violently forced active thread hops and produced compiler concurrency faults which are now completely bypassed!
 	
 ### Background Delegate Deadlocks (`PushNotificationManager`)
 When executing `URLSession` hooks off-grid directly via a background task identifier, the Merian Application strictly remains visually suspended but structurally executing via an `active` physical process. When AI processing triggered completion alerts, `UNUserNotificationCenterDelegate` natively fired `willPresent` because the process was alive! Historically, bounding `completionHandler([])` universally across this block physically swallowed notifications completely organically locking users out of background completions. Now, the delegator strictly verifies `UIApplication.shared.applicationState == .active`, returning `[.banner, .sound, .list]` perfectly when the app is suspended to force iOS to immediately populate the Lock Screen notification safely!
@@ -177,6 +177,76 @@ Furthermore, it protects against "Thundering Herd" memory leaks. If the UI queri
 ### Task Capture Retain Cycles (`EnvironmentContextManager` & `ScansSearchManager`)
 When firing background `@MainActor` executions inside persistent managers routing closures natively (like `reverseGeocode` or `performSearch`), utilizing default `Task { ... }` or `Task.detached { ... }` blocks implicitly captures `self` via a strong reference natively. When a `Task` mutates a local property (e.g., `self.geocodeCache[key]` or `self.searchableData = processed`) and that `Task` is inherently retained by the class (e.g., `self.searchTask = task`), the architecture immediately violently creates an infinite Retain Cycle. This permanently bypasses the OS Garbage Collection limits completely locking gigabytes of memory inside zombie ViewModels forever natively.
 **The Refactor**: The codebase strictly mandates explicitly capturing `[weak self]` directly inside the `Task` / `Task.detached` parameter loops, dropping the strong pointer boundary organically. The architecture securely unwraps `guard let self = self else { return }` prior to mutating variables inherently allowing standard Swift garbage collection sweeps to purge these massive mapping classes safely upon background terminations safely! Specifically inside `EnvironmentContextManager`, rapidly firing asynchronous CoreLocation delegates (`requestSingleLocation`, `locationManager(_:didUpdateLocations:)`, etc.) structurally generated runaway cross-actor memory leaks. These closures were rigidly refactored completely to `Task { @MainActor [weak self] in guard let self = self else { return } }`, correctly guaranteeing strict Thread boundaries natively flush hardware sensor data matrices perfectly upon completion freeing up RAM physically.
+
+### Sync Pipeline State Machine (`SyncStateManager`)
+The original `SyncStateManager` used two independent properties (`isSyncing: Bool`, `pendingUploadCount: Int`) to represent upload progress, making it impossible to distinguish between uploading, inferencing, and finalizing phases — all of which appear "in progress" to the UI but have meaningfully different durations and semantics.
+
+`SyncStateManager` was refactored to replace these with an exhaustive `SyncPhase` enum:
+
+```swift
+enum SyncPhase: Equatable {
+    case idle
+    case uploading(count: Int)   // PUT requests in flight to R2 staging
+    case inferencing             // Gemini Edge function running
+    case finalizing              // Writing LocalScanRecord, deleting OfflineQueuedScan
+}
+```
+
+`OfflineQueueManager` transitions the phase at each boundary:
+- `beginSync(itemCount:)` → `.uploading(count:)` when the batch is dispatched
+- `beginInferencing()` → `.inferencing` immediately before calling `analyzeSubject`
+- `beginFinalizing()` → `.finalizing` immediately before `processAndCleanupOfflineScan`
+- `completeSync()` → `.idle` when all tasks settle or on connectivity loss
+
+Computed shims (`isSyncing: Bool { phase.isActive }` and `pendingUploadCount: Int`) preserve backward compatibility for existing UI components.
+
+### Centralized Magic Numbers (`MerianConfig`)
+Batch sizes, fetch limits, pagination page sizes, storage thresholds, and retention windows were previously scattered as literals across `OfflineQueueManager`, `ScanRepository`, `ArchiveManager`, and `BackgroundDatabaseActor`. Divergence between these call sites silently introduced bugs (e.g., fetch limit of 50 but batch limit of 5 were in different files with no linking comment).
+
+All policy constants are now consolidated in `MerianConfig.swift` (Core/Utilities/):
+
+```swift
+enum MerianConfig {
+    static let uploadBatchSize              = 5
+    static let pendingScanFetchLimit        = 50
+    static let historicalSyncPageSize       = 200
+    static let collectionsSyncPageSize      = 100
+    static let ingestCheckpointInterval     = 50
+    static let diskSpaceThreshold: Int64    = 500 * 1024 * 1024
+    static let archiveRescueWindowStartDays = 80
+    static let archiveRescueWindowEndDays   = 88
+}
+```
+
+`ArchiveManager`, `OfflineQueueManager+Sync`, and `ScanRepository` reference these constants exclusively. Tuning any policy requires a change in exactly one place.
+
+### Transactional Scan Deletion (`eradicateScan`)
+The original `eradicateScan` deleted image files from disk **before** committing the SwiftData changes. A save failure after file deletion left the `LocalScanRecord` intact in the database while its images were gone — a permanently broken state.
+
+The operation was restructured to be database-first:
+1. Tombstone any in-flight upload (`softDeleteQueuedScan`).
+2. Insert `PendingCloudDeletionTask` + `modelContext.delete(record)`.
+3. `modelContext.save()` — **if this fails, return immediately without touching disk**. State is fully consistent.
+4. Only after a successful save: `FileIOActor.shared.deleteImages(at:)` asynchronously purges local `.jpg` files. Remote R2 URLs are skipped (they are not locally owned).
+
+This ensures a save failure can never produce a state where the record exists but its images are missing.
+
+### Historical Sync Actor-Boundary Reduction
+The previous `syncHistoricalScansDown` issued three sequential `await` calls to the same `HistoricalDatabaseActor` instance:
+
+```swift
+await dbActor.updateExistingScans(responses: response)
+await dbActor.ingestHistoricalScans(missingScans: missingScans)
+await dbActor.syncCollectionsDown(remoteCollections: collectionsResponse)
+```
+
+Each `await` is an actor-boundary crossing (a context switch, a task suspension, and a hop across isolation domains). These three calls were consolidated into a single method:
+
+```swift
+await dbActor.reconcileAllHistoricalData(responses: allScans, collections: allCollections)
+```
+
+The actor computes the existing-ID set internally using an ID-only column projection (`propertiesToFetch = [\.id]`), eliminating the main-thread full-table scan that previously preceded the calls. All three reconciliation steps share that ID set in memory, running sequentially within the single actor invocation.
 
 ## 2. Deno Edge Scalability & OOM Protection (P1)
 
