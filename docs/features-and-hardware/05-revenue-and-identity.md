@@ -45,10 +45,12 @@ REVENUECAT_WEBHOOK_SECRET` `Authorization` header validation natively mapping to
 
 A tightly coupled boundary enforcing the Paywall visually in frontend boundaries securely.
 
-- Connects logically to `.canPerformScan(isProActive:)`, successfully enforcing the exact mathematical bound `return isProActive || freeScansRemaining > 0` natively, ensuring the hard paywall drops when expected limits are hit.
-- **Proactive Offline Consumption & Refunds**: Free quota tokens are now strictly deducted natively via `consumeScan()` the exact millisecond the user commits to analyzing an image inside `CameraViewModel`, *prior* to Edge inference routing, preventing "Airplane Mode Hoarding". However, to ensure fairness natively, if an inference drops into an unrecoverable failure state (e.g., explicit task cancellation, or complete JSON schema breakdown from AI response), `UsageManager.shared.refundScan()` instantly intercepts the state to refund the token securely so the user is not unfairly penalized for a technical hiccup.
+- Connects logically to `.canPerformScan(isProActive:)`, enforcing the bound `return isProActive || freeScansRemaining > 0`. The paywall is only ever surfaced from the two pre-scan gates: `Capture.swift` (camera shutter) and `handlePhotoPickerSelection` (photo library picker). **Network failures in `InferenceEngine` never trigger the paywall** — they surface a "Network Timeout" error state and refund the token.
+- **Quota Enforcement Across Live and Background Paths**: `consumeScan()` is called in two distinct locations to cover both inference paths — at capture time (live path) and at upload-scheduling time inside `syncPendingScans` (offline queue path). This prevents free users from bypassing the daily limit by capturing scans in the foreground and processing them via the background URLSession later.
+- **Refunds**: If an inference fails unrecoverably (task cancellation, JSON decoding failure, network error), `UsageManager.shared.refundScan()` restores the consumed token so the user is not penalized for a technical failure.
+- **Free User Queue Cap**: `maxFreeScansPerDay` (2) is an `internal` property accessible to `OfflineQueueManager`, which uses it to cap the offline queue depth for free users. This prevents scan hoarding across multiple days.
 - Grants 2 free daily validations intrinsically via `UserDefaults` keyed explicitly against `DeviceIdentityManager.shared.deviceId`.
-- Resets limits predictably across calendar bounds, actively triggering `$isPaywallOpen` sheets on strict bounds. The `evaluateDailyRefresh()` check is aggressively bridged into `AppDIContainer.handleActivePhase()` ensuring user quotas are dynamically zeroed the exact moment the app enters the foreground from an overnight suspension.
+- Resets limits predictably across calendar bounds. The `evaluateDailyRefresh()` check is bridged into `AppDIContainer.handleActivePhase()` ensuring user quotas are reset the exact moment the app enters the foreground from an overnight suspension.
 
 ## Trust & Safety (`SocialGuardManager`)
 

@@ -14,17 +14,19 @@ The queue engine spawns a `BackgroundTaskWrapper.execute` window so iOS grants e
 
 **The Circuit Breaker (`CircuitBreakerManager`)**: If repeated HTTP errors or timeouts cross a threshold, the circuit "trips", routing all new captures straight to the offline queue and bypassing useless network connections for a guaranteed zero-latency shutter experience.
 
-**Pro Gate**: Offline queuing is a Merian Pro feature. Free-tier captures that fail inference throw `APIError.proRequiredForOfflineTracking`, refund the scan token, and surface the paywall.
+**Free User Queue Cap**: To prevent scan hoarding, `enqueueCapture` checks the current `OfflineQueuedScan` count on the `@MainActor` before inserting. If a free user already has `UsageManager.shared.maxFreeScansPerDay` (2) items queued, the new item is rejected and any files written to disk are cleaned up atomically. Pro users have no queue depth cap.
 
 ### 3. Network Awakening (`NWPathMonitor`)
 The `NWPathMonitor` instance listens to the cellular stack continuously. When a connection flips `.satisfied`, the manager debounces for 1,000 ms to let the OS networking stack fully settle before starting processing.
 
 ### 4. Background Processing & Batch Uploads
-The manager guards against expedition mode (`!HardwareOrchestrator.shared.isExpeditionModeActive`), connectivity, Pro subscription, and an in-flight sync before proceeding. It calls `SyncStateManager.shared.beginSync(itemCount:)`, transitioning the shared state machine to `.uploading(count:)` and broadcasting the exact batch volume to the UI.
+The manager guards against expedition mode, connectivity, and an in-flight sync before proceeding. Free users are additionally gated by their daily scan quota: `syncPendingScans` returns immediately if `UsageManager.shared.canPerformScan(isProActive: false)` is false. For free users the batch is further capped to `UsageManager.shared.freeScansRemaining` items, and `UsageManager.shared.consumeScan()` is called once per queued item at upload-scheduling time so the daily limit is enforced through the background URLSession path.
+
+`SyncStateManager.shared.beginSync(itemCount:)` is called to transition the shared state machine to `.uploading(count:)` and broadcast the exact batch volume to the UI.
 
 Batch sizing is governed by `MerianConfig`:
 - **`pendingScanFetchLimit`** (50): maximum `OfflineQueuedScan` records fetched per cycle via `BackgroundDatabaseActor.fetchPendingScans(limit:)`.
-- **`uploadBatchSize`** (5): maximum scans dispatched to R2 staging per cycle (`.prefix(MerianConfig.uploadBatchSize)`).
+- **`uploadBatchSize`** (5): maximum scans dispatched to R2 staging per cycle for Pro users (`.prefix(MerianConfig.uploadBatchSize)`). Free users use `freeScansRemaining` as their effective batch limit.
 
 Active upload tasks are deduplicated against `backgroundSession.allTasks` before dispatching, preventing double-uploads on relaunch. Each image is first copied to a temp file in `URL.cachesDirectory` (`<scanId>_<index>_temp_upload.jpg`) before being handed to `URLSession.uploadTask(with:fromFile:)`. The OS background session owns byte transmission from here, handling interruption and resume transparently.
 
