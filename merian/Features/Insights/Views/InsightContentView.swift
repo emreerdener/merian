@@ -90,8 +90,9 @@ private extension InsightContentView {
                !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
                 
                 NonBiologicalView(
-                    species: speciesData, 
-                    commonName: speciesData.commonName.capitalized
+                    species: speciesData,
+                    commonName: speciesData.commonName.capitalized,
+                    timestamp: viewModel.activeLocalRecord?.timestamp
                 )
             } else {
                 

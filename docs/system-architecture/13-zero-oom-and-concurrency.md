@@ -194,6 +194,8 @@ Calculating target Luma brightness by looping through `CVPixelBuffer` matrix add
 
 **The Refactor**: The previous `vImage` logic parked a single `nonisolated(unsafe)` buffer atop the class, violating Swift 6 memory bounds and causing pointer tearing inside the `captureOutput` loop. That global cache object was removed. The system now allocates a lightweight local array inside the inner loop scope: `var histogram = [vImagePixelCount](repeating: 0, count: 256)`. It instantiates locally 60 times per second and deallocates with ARC, enforcing thread-safe memory isolation and satisfying Swift 6 compilation checks.
 
+The same histogram loop also derives `lumaStdDev` (standard deviation of the luma distribution, 0–255 scale) by accumulating `totalLumaSq` alongside `totalLuma` — `stdDev = sqrt(E[X²] - E[X]²)`. This adds no extra vImage passes and negligible CPU cost. `lumaStdDev` is forwarded to `ViewfinderIntelligence` as a sharpness proxy: low variance indicates motion blur or a featureless frame.
+
 ### Hardware Concurrency Defenses (`OSAllocatedUnfairLock`)
 When tracking asynchronous camera shutter continuations across multiple thread boundaries sharing identical payload dictionaries, wrapping standard dictionaries in generic arrays violates Swift 6 memory protections.
 

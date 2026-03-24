@@ -3,6 +3,7 @@ import SwiftUI
 struct NonBiologicalView: View {
     let species: SpeciesData
     let commonName: String
+    var timestamp: Date? = nil
 
     var body: some View {
         VStack(spacing: 8) {
@@ -19,7 +20,7 @@ struct NonBiologicalView: View {
             }
             .card()
             
-            ScanInformationCard(speciesData: species)
+            ScanInformationCard(speciesData: species, timestamp: timestamp)
         }
         .padding(.horizontal)
     }

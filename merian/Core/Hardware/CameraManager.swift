@@ -430,8 +430,9 @@ import Accelerate
         }
         if !shouldProcess { return }
 
-        // Calculate luma brightness via Accelerate histogram — avoids manual byte-stride loops.
+        // Calculate luma brightness and std dev via Accelerate histogram — avoids manual byte-stride loops.
         var brightness: Float = 1.0
+        var lumaStdDev: Float = 0.0
         if CVPixelBufferGetPlaneCount(pixelBuffer) > 0 {
             CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
             defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
@@ -457,15 +458,22 @@ import Accelerate
 
                 if error == kvImageNoError {
                     var totalLuma: UInt64 = 0
+                    var totalLumaSq: UInt64 = 0
                     var totalPixels: UInt64 = 0
                     for i in 0..<256 {
                         let count = UInt64(histogram[i])
-                        totalLuma += count * UInt64(i)
+                        let luma = UInt64(i)
+                        totalLuma += count * luma
+                        totalLumaSq += count * luma * luma
                         totalPixels += count
                     }
                     if totalPixels > 0 {
                         let averageLuma = Float(totalLuma) / Float(totalPixels)
                         brightness = averageLuma / 255.0
+                        // Variance = E[X²] - E[X]² — std dev on 0-255 scale, proxy for sharpness
+                        let meanSq = Float(totalLumaSq) / Float(totalPixels)
+                        let variance = max(0, meanSq - averageLuma * averageLuma)
+                        lumaStdDev = variance.squareRoot()
                     }
                 }
             }
@@ -473,7 +481,7 @@ import Accelerate
 
         Task { @MainActor in
             guard !self.isLiveInferencePaused else { return }
-            ViewfinderIntelligence.shared.analyze(brightness: brightness, distance: self.subjectDistanceInMeters)
+            ViewfinderIntelligence.shared.analyze(brightness: brightness, distance: self.subjectDistanceInMeters, lumaStdDev: lumaStdDev)
         }
     }
 

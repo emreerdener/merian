@@ -6,7 +6,10 @@ import Observation
 // MARK: - Viewfinder Constants
 enum VUIHint: String {
     case tooDark = "Too dark"
+    case tooBright = "Move to shade"
+    case tooClose = "Move back"
     case moveCloser = "Move closer"
+    case holdStill = "Hold still"
     case optimal = "Optimal"
 }
 
@@ -35,35 +38,46 @@ enum VUIHint: String {
         Task { await updateHint(.optimal) }
     }
     
-    func analyze(brightness: Float, distance: Float?) {
+    func analyze(brightness: Float, distance: Float?, lumaStdDev: Float) {
         guard Date() > pauseUntil else { return }
-        
+
         // Drop frames instantly if we're currently processing one to maintain zero latency in the viewfinder
         guard !isAnalyzing else { return }
         isAnalyzing = true
-        
+
         // Push heavy CoreImage statistics completely off the Main Thread
         Task.detached(priority: .userInitiated) {
             defer {
                 Task { @MainActor in self.isAnalyzing = false }
             }
-            
-            // 1. Distance Heuristic
-            // Standard botanical / biological subjects normally sit below 2.5 meters.
-            if let dist = distance, dist > 2.5 {
+
+            // 1. Distance heuristics
+            if let dist = distance, dist > 3.0 {
                 await self.updateHint(.moveCloser)
                 return
             }
-            
-            // 2. Brightness Heuristic utilizing direct Luma plane extraction purely on CPU
+            if let dist = distance, dist < 0.12 {
+                await self.updateHint(.tooClose)
+                return
+            }
+
+            // 2. Exposure heuristics
             // (Extracted synchronously in CameraManager to prevent asynchronous EXC_BAD_ACCESS CVPixelBuffer memory recycling crashes)
-            
-            // Strict threshold rejecting lighting boundaries before Gemini processing
             if brightness < 0.20 {
                 await self.updateHint(.tooDark)
                 return
             }
-            
+            if brightness > 0.88 {
+                await self.updateHint(.tooBright)
+                return
+            }
+
+            // 3. Sharpness heuristic — low luma variance indicates motion blur or insufficient image detail
+            if lumaStdDev < 20.0 {
+                await self.updateHint(.holdStill)
+                return
+            }
+
             // All checks passed
             await self.updateHint(.optimal)
         }
