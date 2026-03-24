@@ -60,6 +60,13 @@ struct Preferences: View {
                 }
             }
             
+             // MARK: - Multi-Image Scans
+            SettingsToggleRow(
+                title: "Multi-image scans",
+                description: "Attach up to 2 images before submitting. By default a single capture is sent to AI immediately.",
+                isOn: $multiImageScanMode
+            )
+            
             // MARK: - Expedition Mode  
             SettingsToggleRow(
                 title: "Expedition mode",
@@ -76,14 +83,7 @@ struct Preferences: View {
                 description: "Provides real-time AI scanning suggestions before you press the shutter. Turn off to reduce thermal load or battery drain.",
                 isOn: hintsDisabled
             )
-
-            // MARK: - Multi-Image Scans
-            SettingsToggleRow(
-                title: "Multi-image scans",
-                description: "Attach up to 2 images before submitting. By default a single capture is sent to AI immediately.",
-                isOn: $multiImageScanMode
-            )
-            
+           
             // MARK: - System Haptics
             Toggle("System haptics", isOn: $isHapticsEnabled)
 

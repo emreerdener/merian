@@ -56,24 +56,26 @@ extension CameraViewModel {
                     let finalSafeData: Data = {
                         guard let cgImage = safeCGImage else { return Data() }
                         return autoreleasepool {
-                            let tempRawImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+                            // kCGImageSourceCreateThumbnailWithTransform already bakes the EXIF
+                            // orientation into the CGImage pixels — use .up to avoid a second rotation.
+                            let tempRawImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
                             return tempRawImage.jpegData(compressionQuality: 0.8) ?? Data()
                         }
                     }()
-                    
-                    
+
+
                     if !finalSafeData.isEmpty, let validCGImage = safeCGImage {
                         // 5. Environmental Pre-Fetching
                         // Maps historical location caching before pushing to identity pipeline
                         let task = Task {
                             return await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
                         }
-                        
+
                         // 6. MainActor Routing
-                        // Injecting the raw safe bytes bounds back strictly on the UI thread 
+                        // Injecting the raw safe bytes bounds back strictly on the UI thread
                         await MainActor.run {
                             self.preFetchTask = task
-                            let backgroundRawImage = UIImage(cgImage: validCGImage, scale: 1.0, orientation: .right)
+                            let backgroundRawImage = UIImage(cgImage: validCGImage, scale: 1.0, orientation: .up)
                             let identifiable = IdentifiableImage(image: backgroundRawImage, environmentContext: nil, isFromGallery: false)
                             self.activeOriginals.append(identifiable)
                             self.activeScannedDatas.append(finalSafeData)

@@ -109,9 +109,9 @@ extension CameraViewModel {
 
     // MARK: - On-Device Subject Classification
 
-    /// Runs `VNClassifyImageRequest` on a background thread and updates `scanningPhaseText`
-    /// as soon as the on-device model responds — well before the Gemini network call completes.
-    /// If Vision can't identify the subject, starts the fallback phrase rotation instead.
+    /// Runs `VNClassifyImageRequest` on a background thread and immediately starts a
+    /// subject-specific phrase rotation — well before the Gemini network call completes.
+    /// Phrases progress through subject-relevant details over the typical 6–11 second scan window.
     private func classifySubjectLocally(from data: Data) {
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let cgImage = UIImage(data: data)?.cgImage else { return }
@@ -120,65 +120,76 @@ extension CameraViewModel {
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             try? handler.perform([request])
 
-            let observations = request.results ?? []
-            let phaseText = Self.phaseText(for: observations)
+            let phrases = Self.phraseSeries(for: request.results ?? [])
 
             await MainActor.run { [weak self] in
                 guard let self, self.isAnalyzingFullscreen else { return }
-                if phaseText == Self.fallbackPhrase {
-                    self.startPhaseRotation()
-                } else {
-                    self.phaseRotationTask?.cancel()
-                    self.phaseRotationTask = nil
-                    self.scanningPhaseText = phaseText
-                }
+                self.startPhaseRotation(phrases: phrases)
             }
         }
     }
 
-    private nonisolated static let fallbackPhrase = "Analyzing subject..."
-
-    private static let rotatingFallbackPhrases: [String] = [
-        "Analyzing subject...",
-        "Identifying species...",
-        "Examining details...",
-        "Evaluating features...",
-        "Consulting field guide...",
-    ]
-
-    private func startPhaseRotation() {
+    private func startPhaseRotation(phrases: [String]) {
         phaseRotationTask?.cancel()
         var index = 0
         phaseRotationTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                self.scanningPhaseText = CameraViewModel.rotatingFallbackPhrases[index]
-                index = (index + 1) % CameraViewModel.rotatingFallbackPhrases.count
+                self.scanningPhaseText = phrases[index]
+                index = (index + 1) % phrases.count
                 try? await Task.sleep(nanoseconds: 2_300_000_000)
             }
         }
     }
 
-    private nonisolated static func phaseText(for observations: [VNClassificationObservation]) -> String {
+    /// Returns an ordered phrase series tailored to the top Vision observation.
+    /// Phrases are spaced ~2.3s apart, covering the typical 6–11s inference window with 3–5 updates.
+    private nonisolated static func phraseSeries(for observations: [VNClassificationObservation]) -> [String] {
         for obs in observations.prefix(15) where obs.confidence > 0.15 {
             let id = obs.identifier.lowercased()
             if id.contains("insect") || id.contains("arthropod") || id.contains("butterfly") ||
                id.contains("moth") || id.contains("bee") || id.contains("beetle") ||
-               id.contains("spider") || id.contains("arachnid") { return "Examining insect..." }
-            if id.contains("bird") { return "Examining bird..." }
+               id.contains("spider") || id.contains("arachnid") {
+                return ["Examining insect...", "Analyzing wing patterns...", "Identifying species...", "Consulting entomology guide..."]
+            }
+            if id.contains("bird") {
+                return ["Examining bird...", "Checking field markings...", "Identifying species...", "Cross-referencing range maps..."]
+            }
             if id.contains("mammal") || id.contains("dog") || id.contains("cat") ||
-               id.contains("deer") || id.contains("fox") || id.contains("bear") { return "Examining mammal..." }
+               id.contains("deer") || id.contains("fox") || id.contains("bear") {
+                return ["Examining mammal...", "Noting key features...", "Identifying species...", "Cross-referencing range maps..."]
+            }
             if id.contains("reptile") || id.contains("snake") || id.contains("lizard") ||
-               id.contains("turtle") { return "Examining reptile..." }
+               id.contains("turtle") {
+                return ["Examining reptile...", "Noting scale patterns...", "Identifying species...", "Cross-referencing field guide..."]
+            }
             if id.contains("amphibian") || id.contains("frog") || id.contains("toad") ||
-               id.contains("salamander") { return "Examining amphibian..." }
-            if id.contains("fish") { return "Examining fish..." }
-            if id.contains("mushroom") || id.contains("fungi") || id.contains("fungus") { return "Examining fungi..." }
-            if id.contains("flower") || id.contains("blossom") { return "Examining flower..." }
-            if id.contains("tree") { return "Examining tree..." }
+               id.contains("salamander") {
+                return ["Examining amphibian...", "Noting skin patterns...", "Identifying species...", "Cross-referencing field guide..."]
+            }
+            if id.contains("fish") {
+                return ["Examining fish...", "Analyzing fin morphology...", "Identifying species...", "Consulting ichthyology guide..."]
+            }
+            if id.contains("mushroom") || id.contains("fungi") || id.contains("fungus") {
+                return ["Examining fungi...", "Analyzing spore patterns...", "Identifying species...", "Consulting mycology guide..."]
+            }
+            if id.contains("flower") || id.contains("blossom") {
+                return ["Examining flower...", "Analyzing petal structure...", "Identifying species...", "Checking botanical records..."]
+            }
+            if id.contains("tree") {
+                return ["Examining tree...", "Analyzing bark and foliage...", "Identifying species...", "Checking botanical records..."]
+            }
             if id.contains("plant") || id.contains("leaf") || id.contains("vegetation") ||
-               id.contains("shrub") || id.contains("grass") || id.contains("fern") { return "Examining plant..." }
+               id.contains("shrub") || id.contains("grass") || id.contains("fern") {
+                return ["Examining plant...", "Analyzing leaf morphology...", "Identifying species...", "Checking botanical records..."]
+            }
         }
-        return fallbackPhrase
+        return [
+            "Analyzing subject...",
+            "Identifying species...",
+            "Examining details...",
+            "Evaluating features...",
+            "Consulting field guide...",
+        ]
     }
 }
