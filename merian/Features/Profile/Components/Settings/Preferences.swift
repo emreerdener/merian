@@ -77,20 +77,18 @@ struct Preferences: View {
                 isOn: hintsDisabled
             )
 
-       
-            
-            // MARK: - System Haptics
-            Toggle("System haptics", isOn: $isHapticsEnabled)
-
-            // MARK: - Save to Camera Roll
-            Toggle("Save to camera roll", isOn: $saveToCameraRoll)
-
             // MARK: - Multi-Image Scans
             SettingsToggleRow(
                 title: "Multi-image scans",
                 description: "Attach up to 2 images before submitting. By default a single capture is sent to AI immediately.",
                 isOn: $multiImageScanMode
             )
+            
+            // MARK: - System Haptics
+            Toggle("System haptics", isOn: $isHapticsEnabled)
+
+            // MARK: - Save to Camera Roll
+            Toggle("Save to camera roll", isOn: $saveToCameraRoll)
             
             // MARK: - Geoprivacy
             Picker("Geoprivacy", selection: $defaultGeoprivacy) {

@@ -7,7 +7,7 @@ struct AIMistakesBanner: View {
                 .foregroundColor(.yellow)
                 .font(.title3)
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("AI can make mistakes")
                     .font(.callout.bold())
                     .foregroundColor(.primary)
