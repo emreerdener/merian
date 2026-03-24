@@ -14,14 +14,15 @@ struct AsyncLocalImageView: View {
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFill()
+                    .transition(.opacity)
             } else if hasFailedToLoad {
                 ArchivedVisualsView()
             } else {
                 ProgressView()
                     .controlSize(.large)
-                    .background(Color.white.opacity(0.1))
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: loadedImage != nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         // task(id:) cancels the in-flight load when the view disappears during a fast swipe,
