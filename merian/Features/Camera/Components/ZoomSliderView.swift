@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Read-only vertical zoom meter overlay for the camera viewfinder.
+/// Vertical zoom meter overlay for the camera viewfinder.
 ///
 /// Displays a tick-mark ruler with optical stop indicators and a floating
 /// zoom chip that tracks the current zoom factor. Zoom is controlled via
-/// pinch or swipe gestures on the full viewfinder — this view is purely visual.
+/// dragging the slider, or pinch/swipe gestures on the full viewfinder.
 /// Self-contained: reads `CameraManager` from the environment and returns
 /// `EmptyView` on hardware where zoom is not supported.
 struct ZoomSliderView: View {
@@ -23,10 +23,12 @@ struct ZoomSliderView: View {
     private let indicatorTickOffset: CGFloat = 5
     private let zoomYellow = Color(red: 1.0, green: 204.0 / 255.0, blue: 0.0)
 
-    // MARK: - Active zoom detection
+    // MARK: - State
     @State private var isActivelyZooming: Bool = false
     @State private var zoomIdleTask: Task<Void, Never>? = nil
-    @State private var lastHapticStop: CGFloat? = nil
+    @State private var lastHapticTick: Int? = nil
+    @State private var dragStartFactor: CGFloat = 1.0
+    @State private var isDragging: Bool = false
 
     var body: some View {
         Group {
@@ -61,9 +63,26 @@ struct ZoomSliderView: View {
                 .padding(.top, 11)
             currentZoomIndicator
                 .offset(y: indicatorY)
-                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: indicatorY)
+                .animation(isDragging ? nil : .spring(response: 0.4, dampingFraction: 0.75), value: indicatorY)
         }
         .frame(width: componentWidth, height: trackHeight + 22)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 1, coordinateSpace: .local)
+                .onChanged { value in
+                    if !isDragging {
+                        isDragging = true
+                        dragStartFactor = camera.zoomFactor
+                    }
+                    // Log-space delta gives 1:1 visual tracking on the logarithmic ruler.
+                    // newFactor = startFactor * exp(sign * (dy / trackHeight) * log(maxZoom))
+                    let dy = invertZoomDirection ? value.translation.height : -value.translation.height
+                    let logMax = log(camera.maxZoomFactor)
+                    let newFactor = min(max(dragStartFactor * exp((dy / trackHeight) * logMax), 1.0), camera.maxZoomFactor)
+                    camera.setZoom(factor: newFactor)
+                }
+                .onEnded { _ in isDragging = false }
+        )
     }
 
     // MARK: - Ruler ticks
@@ -74,6 +93,7 @@ struct ZoomSliderView: View {
         // Half a tick's zoom range — used to snap a tick to the nearest optical stop.
         let halfTickZoom = maxZoom > 1.0 ? (maxZoom - 1.0) / CGFloat(tickCount - 1) * 0.5 : 0
         let inverted = invertZoomDirection
+        let maxLabel = zoomLabel(for: maxZoom)
 
         return Canvas { ctx, size in
             guard maxZoom > 1.0 else { return }
@@ -87,17 +107,31 @@ struct ZoomSliderView: View {
                     ? 1.0 + t * (maxZoom - 1.0)
                     : maxZoom - t * (maxZoom - 1.0)
                 let isOpticalStop = stops.contains { abs(tickZoom - $0) < halfTickZoom }
+                // Max zoom tick: i=0 in default (top), i=tickCount-1 in inverted (bottom)
+                let isMaxZoom = inverted ? i == tickCount - 1 : i == 0
 
                 var line = Path()
-                let tickLength = isOpticalStop ? shortTickWidth : shortTickWidth * 0.6
-                let x0: CGFloat = size.width - tickLength + (isOpticalStop ? opticalTickInset : 0)
+                let tickLength: CGFloat
+                let x0: CGFloat
+                if isMaxZoom {
+                    tickLength = shortTickWidth
+                    x0 = size.width - tickLength
+                } else {
+                    tickLength = isOpticalStop ? shortTickWidth : shortTickWidth * 0.6
+                    x0 = size.width - tickLength + (isOpticalStop ? opticalTickInset : 0)
+                }
                 line.move(to: CGPoint(x: x0, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
 
-                let tickColor: Color = isOpticalStop ? .white.opacity(0.8) : .white.opacity(0.45)
-                ctx.stroke(line, with: .color(tickColor), lineWidth: 0.5)
+                let tickColor: Color = isMaxZoom ? .white : (isOpticalStop ? .white.opacity(0.8) : .white.opacity(0.45))
+                ctx.stroke(line, with: .color(tickColor), lineWidth: isMaxZoom ? 1.0 : 0.5)
 
-                if isOpticalStop {
+                if isMaxZoom {
+                    let label = Text(maxLabel)
+                        .font(.system(size: 7, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.7))
+                    ctx.draw(label, at: CGPoint(x: size.width - shortTickWidth - 5, y: y), anchor: .trailing)
+                } else if isOpticalStop {
                     let dotSize: CGFloat = 4
                     let dotX = size.width - dotRightOffset - dotSize / 2
                     ctx.fill(
@@ -156,17 +190,27 @@ struct ZoomSliderView: View {
 
     // MARK: - Haptics
 
+    /// Fires on every tick crossing. Maps both the current factor and optical stops into
+    /// tick-index space so optical stop detection is accurate on the logarithmic scale.
     private func triggerHapticIfNeeded(factor: CGFloat) {
-        let stops = camera.opticalZoomStops
-        for stop in stops {
-            if abs(factor - stop) < 0.05 && lastHapticStop != stop {
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred(intensity: 1.0)
-                lastHapticStop = stop
-                return
-            }
-        }
-        if lastHapticStop != nil && stops.allSatisfy({ abs(factor - $0) >= 0.07 }) {
-            lastHapticStop = nil
+        guard camera.maxZoomFactor > 1.0 else { return }
+
+        let fraction = fillFraction(for: factor)
+        let currentTick = Int((fraction * CGFloat(tickCount - 1)).rounded())
+        guard currentTick != lastHapticTick else { return }
+        lastHapticTick = currentTick
+
+        // Map optical stops to their nearest tick indices in log space.
+        let logMax = log(camera.maxZoomFactor)
+        let opticalStopTicks = Set(camera.opticalZoomStops.map { stop -> Int in
+            let f = log(max(stop, 1.0)) / logMax
+            return Int((f * CGFloat(tickCount - 1)).rounded())
+        })
+
+        if opticalStopTicks.contains(currentTick) {
+            UIImpactFeedbackGenerator(style: .heavy).impactOccurred(intensity: 1.0)
+        } else {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.4)
         }
     }
 

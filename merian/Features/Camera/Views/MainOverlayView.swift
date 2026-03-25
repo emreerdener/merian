@@ -87,7 +87,6 @@ struct MainOverlayView: View {
         .overlay(alignment: zoomSideLeft ? .leading : .trailing) {
             if activeScanImages.count < 2 {
                 ZoomSliderView()
-                    .padding(zoomSideLeft ? .leading : .trailing, 16)
                     .padding(.bottom, 110)
             }
         }

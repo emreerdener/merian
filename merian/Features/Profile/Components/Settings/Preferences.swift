@@ -4,88 +4,110 @@ import SwiftUI
 struct Preferences: View {
     @Environment(HardwareOrchestrator.self) private var hardwareOrchestrator
     @Environment(SupabaseManager.self) private var supabase
-    
+
     @Binding var isLiveInferencePaused: Bool
     @Binding var isHapticsEnabled: Bool
     @Binding var saveToCameraRoll: Bool
     @Binding var defaultGeoprivacy: String
     @Binding var showPaywall: Bool
-    
+
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
 
     @Binding var notificationSettingsActive: Bool
     @Binding var cameraSettingsActive: Bool
-    
+
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
         Section {
 
             // MARK: - Theme
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("Theme", selection: $themeMode) {
-                    ForEach(ThemeMode.allCases) { mode in
-                        Text(mode.rawValue)
-                            .tag(mode)
+            VStack(alignment: .leading, spacing: 8) {                   
+                    Picker("Theme", selection: $themeMode) {
+                        ForEach(ThemeMode.allCases) { mode in
+                            Text(mode.rawValue)
+                                .tag(mode)
+                        }
                     }
-                }
-                .pickerStyle(.segmented)
+                    .pickerStyle(.segmented)
             }
             .padding(.vertical, 4)
 
-             // MARK: - Camera
+            // MARK: - Camera
             Button { cameraSettingsActive = true } label: {
-                SettingsNavigationRow(title: "Camera")
+                SettingsNavigationRow(title: "Camera", icon: "camera.fill", iconColor: .gray)
             }
 
             // MARK: - Manage Plan
             Button { showPaywall = true } label: {
                 SettingsNavigationRow(
                     title: "Manage plan",
-                    description: "Upgrade or manage your active subscription tier."
+                    description: "Upgrade or manage your active subscription tier.",
+                    icon: "crown.fill",
+                    iconColor: .orange
                 )
             }
 
             // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
-                SettingsNavigationRow(title: "Notifications")
+                SettingsNavigationRow(title: "Notifications", icon: "bell.fill", iconColor: .red)
             }
 
-             // MARK: - Multi-Image Scans
+            // MARK: - Multi-Image Scans
             SettingsToggleRow(
                 title: "Multi-image scans",
                 description: "Attach up to 2 images before submitting. By default a single capture is sent to AI immediately.",
-                isOn: $multiImageScanMode
+                isOn: $multiImageScanMode,
+                icon: "photo.stack.fill",
+                iconColor: .blue
             )
 
             // MARK: - Expedition Mode
             SettingsToggleRow(
                 title: "Expedition mode",
                 description: "Maximizes battery life off-grid by capping camera frame rates and disabling heavy visual effects.",
-                isOn: $hwOrchestrator.isExpeditionModeActive
+                isOn: $hwOrchestrator.isExpeditionModeActive,
+                icon: "leaf.fill",
+                iconColor: .green
             )
             .onChange(of: hwOrchestrator.isExpeditionModeActive) { _, _ in
                 hardwareOrchestrator.evaluateConstraints()
             }
-            
+
             // MARK: - Live Viewfinder Hints
             SettingsToggleRow(
                 title: "Live viewfinder hints",
                 description: "Provides real-time AI scanning suggestions before you press the shutter. Turn off to reduce thermal load or battery drain.",
-                isOn: hintsDisabled
+                isOn: hintsDisabled,
+                icon: "sparkles",
+                iconColor: .indigo
             )
-           
+
             // MARK: - System Haptics
-            Toggle("System haptics", isOn: $isHapticsEnabled)
+            SettingsToggleRow(
+                title: "System haptics",
+                isOn: $isHapticsEnabled,
+                icon: "waveform",
+                iconColor: .pink
+            )
 
             // MARK: - Save to Camera Roll
-            Toggle("Save to camera roll", isOn: $saveToCameraRoll)
-            
+            SettingsToggleRow(
+                title: "Save to camera roll",
+                isOn: $saveToCameraRoll,
+                icon: "photo.fill",
+                iconColor: .teal
+            )
+
             // MARK: - Geoprivacy
             NavigationLink {
                 GeoprivacyPickerView(defaultGeoprivacy: $defaultGeoprivacy)
             } label: {
-                HStack {
+                HStack(spacing: 12) {
+                    Image(systemName: "location.fill")
+                        .foregroundStyle(.blue)
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 24)
                     Text("Geoprivacy")
                         .foregroundColor(.primary)
                     Spacer()
@@ -97,49 +119,76 @@ struct Preferences: View {
             Text("Preferences")
         }
     }
-    
+
 }
 
+
+// MARK: - Reusable Row Primitives
+
 /// A reusable row for settings items that navigate or trigger an action.
-/// Renders a title, optional description caption, and a trailing chevron.
+/// Renders an optional icon badge, title, optional description caption, and a trailing chevron.
 /// Use as the label of a `Button` (with `.navigationDestination`) rather than
 /// `NavigationLink`, which would add a second system disclosure indicator.
 struct SettingsNavigationRow: View {
     let title: String
     var description: String? = nil
+    var icon: String? = nil
+    var iconColor: Color = .gray
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 12) {
+                if let icon {
+                    Image(systemName: icon)
+                        .foregroundStyle(iconColor)
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 24)
+                }
                 Text(title)
                     .foregroundColor(.primary)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .foregroundColor(.secondary)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
             }
             if let description {
                 Text(description)
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .padding(.leading, icon != nil ? 36 : 0)
             }
         }
         .padding(.vertical, 4)
     }
 }
 
-/// A reusable generic primitives extracting duplicate VStack, Toggle, and Caption architectures globally.
+/// A reusable row wrapping a Toggle with an optional icon badge and caption.
 struct SettingsToggleRow: View {
     let title: String
-    let description: String
+    var description: String? = nil
     @Binding var isOn: Bool
-    
+    var icon: String? = nil
+    var iconColor: Color = .gray
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle(title, isOn: $isOn)
-            Text(description)
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Toggle(isOn: $isOn) {
+                HStack(spacing: 12) {
+                    if let icon {
+                        Image(systemName: icon)
+                            .foregroundStyle(iconColor)
+                            .font(.system(size: 17, weight: .medium))
+                            .frame(width: 24)
+                    }
+                    Text(title)
+                }
+            }
+            if let description {
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, icon != nil ? 36 : 0)
+            }
         }
         .padding(.vertical, 4)
     }
@@ -170,12 +219,16 @@ struct CameraSettingsView: View {
                 SettingsToggleRow(
                     title: "Left-side zoom slider",
                     description: "Move the zoom meter to the left edge of the viewfinder.",
-                    isOn: $zoomSideLeft
+                    isOn: $zoomSideLeft,
+                    icon: "arrow.left.and.right",
+                    iconColor: .blue
                 )
                 SettingsToggleRow(
                     title: "Invert zoom direction",
                     description: "Swipe down to zoom in, swipe up to zoom out.",
-                    isOn: $invertZoomDirection
+                    isOn: $invertZoomDirection,
+                    icon: "arrow.up.arrow.down",
+                    iconColor: .blue
                 )
             } header: {
                 Text("Zoom")
