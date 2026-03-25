@@ -34,47 +34,60 @@ final class HapticManager {
     }
 
     // MARK: - Public Triggers
+
     func triggerFocusSnap() {
-        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { heavy.impactOccurred() }
+        guard shouldFire else { return }
+        heavy.impactOccurred()
     }
 
     func triggerSheetSpring() {
-        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { light.impactOccurred() }
+        guard shouldFire else { return }
+        light.impactOccurred()
     }
 
     func triggerMediumPulse() {
-        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { medium.impactOccurred() }
+        guard shouldFire else { return }
+        medium.impactOccurred()
     }
 
     func triggerErrorThump() {
-        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") {
-            rigid.impactOccurred()
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 100_000_000)
-                self.error.notificationOccurred(.error)
-            }
+        guard shouldFire else { return }
+        rigid.impactOccurred()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            self.error.notificationOccurred(.error)
         }
     }
 
     func triggerSelectionPulse() {
-        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { selection.selectionChanged() }
+        guard shouldFire else { return }
+        selection.selectionChanged()
     }
 
     func triggerSuccessPulse() {
-        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { success.notificationOccurred(.success) }
+        guard shouldFire else { return }
+        success.notificationOccurred(.success)
     }
 
     func triggerLightImpact(intensity: CGFloat? = nil) {
-        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") {
-            if let intensity { light.impactOccurred(intensity: intensity) }
-            else { light.impactOccurred() }
-        }
+        guard shouldFire else { return }
+        if let intensity { light.impactOccurred(intensity: intensity) }
+        else { light.impactOccurred() }
     }
 
     func triggerHeavyImpact(intensity: CGFloat? = nil) {
-        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") {
-             if let intensity { heavy.impactOccurred(intensity: intensity) }
-             else { heavy.impactOccurred() }
-        }
+        guard shouldFire else { return }
+        if let intensity { heavy.impactOccurred(intensity: intensity) }
+        else { heavy.impactOccurred() }
+    }
+
+    // MARK: - Private
+
+    /// Haptics are suppressed when the user has disabled them or when expedition mode is
+    /// active — expedition mode prioritises battery over feedback without permanently
+    /// modifying the user's haptics preference.
+    private var shouldFire: Bool {
+        UserDefaults.standard.bool(forKey: "isHapticsEnabled") &&
+        !HardwareOrchestrator.shared.isExpeditionModeActive
     }
 }

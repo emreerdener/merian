@@ -8,6 +8,7 @@ export async function requireAuth(
   const rawAuthHeader = req.headers.get("Authorization");
 
   if (!rawAuthHeader) {
+    console.error("requireAuth: Missing Authorization header in request.");
     return {
       user: null,
       response: new Response(JSON.stringify({ error: "Unauthorized: Missing Authorization header." }), {
@@ -27,6 +28,7 @@ export async function requireAuth(
   const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
 
   if (authError || !user) {
+    console.error("requireAuth: Supabase getUser() failed.", authError);
     return {
       user: null,
       response: new Response(

@@ -511,6 +511,15 @@ serve((req: Request) =>
 
         if (scanInsertError) {
           console.error("Failed to insert scan:", scanInsertError);
+          
+          // Revert and purge R2 promotional uploads to prevent untracked orphans
+          if (modResult.publicUrls && modResult.publicUrls.length > 0) {
+            console.log("Rolling back R2 uploads due to database failure.");
+            const r2Config = getR2Config();
+            const { deleteR2Object } = await import("../_shared/aws.ts");
+            const keysToPurge = modResult.publicUrls.map((url: string) => url.replace("https://media.merian.app/", ""));
+            await Promise.allSettled(keysToPurge.map((key: string) => deleteR2Object(key, r2Config)));
+          }
         }
     } catch (e) {
         // Log structured context so failed ingestions are visible and retryable.

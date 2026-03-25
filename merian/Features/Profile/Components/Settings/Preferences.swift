@@ -75,12 +75,15 @@ struct Preferences: View {
             // MARK: - Expedition Mode
             SettingsToggleRow(
                 title: "Expedition mode",
-                description: "Maximizes battery life off-grid by capping camera frame rates and disabling heavy visual effects.",
+                description: "Maximizes battery life off-grid by capping camera frame rates, disabling heavy visual effects, and suppressing haptics.",
                 isOn: $hwOrchestrator.isExpeditionModeActive,
                 icon: "map.fill",
                 iconColor: .green
             )
-            .onChange(of: hwOrchestrator.isExpeditionModeActive) { _, _ in
+            .onChange(of: hwOrchestrator.isExpeditionModeActive) { _, newValue in
+                // Write to UserDefaults before evaluateConstraints() — that method reads
+                // this key directly and would otherwise snap the toggle back to its prior state.
+                UserDefaults.standard.set(newValue, forKey: "isExpeditionModeActive")
                 hardwareOrchestrator.evaluateConstraints()
             }
 
