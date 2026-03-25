@@ -10,11 +10,11 @@ When a user scans a subject with an active network connection, the Gemini respon
 ### 2. Inference Failure & Queueing (`enqueueCapture`)
 When a hiker captures a photo off-grid, the telemetry (GPS, weather, elevation, subject distance, location name) is wrapped in a `CaptureTelemetry` struct and passed to `OfflineQueueManager.shared.enqueueCapture(imageDatas:telemetry:)`.
 
-The queue engine spawns a `BackgroundTaskWrapper.execute` window so iOS grants extended time even when the app is backgrounded. All disk I/O runs off the main thread via `FileIOActor`. Once image bytes land in `URL.documentsDirectory`, a new `OfflineQueuedScan` SwiftData record is inserted with the full telemetry payload attached.
+The queue engine spawns a `BackgroundTaskWrapper.execute` window so iOS grants extended time even when the app is backgrounded. All disk I/O runs off the main thread via `FileIOActor`. Once image bytes land in `URL.documentsDirectory`, a new `OfflineQueuedScan` SwiftData record is inserted with the full telemetry payload attached. On a successful `context.save()`, `AppTelemetry.trackOfflineQueued()` fires a `OfflineQueuedScan` TelemetryDeck signal to measure offline usage rate.
 
 **The Circuit Breaker (`CircuitBreakerManager`)**: If repeated HTTP errors or timeouts cross a threshold, the circuit "trips", routing all new captures straight to the offline queue and bypassing useless network connections for a guaranteed zero-latency shutter experience.
 
-**Free User Queue Cap**: To prevent scan hoarding, `enqueueCapture` checks the current `OfflineQueuedScan` count on the `@MainActor` before inserting. If a free user already has `UsageManager.shared.maxFreeScansPerDay` (2) items queued, the new item is rejected and any files written to disk are cleaned up atomically. Pro users have no queue depth cap.
+**Free User Queue Cap**: To prevent scan hoarding, `enqueueCapture` checks the current `OfflineQueuedScan` count on the `@MainActor` before inserting. If a free user already has `UsageManager.shared.maxFreeScansPerDay` (2) items queued, the new item is rejected and any files written to disk are cleaned up atomically — the telemetry signal is **not** fired in this case. Pro users have no queue depth cap.
 
 ### 3. Network Awakening (`NWPathMonitor`)
 The `NWPathMonitor` instance listens to the cellular stack continuously. When a connection flips `.satisfied`, the manager debounces for 1,000 ms to let the OS networking stack fully settle before starting processing.

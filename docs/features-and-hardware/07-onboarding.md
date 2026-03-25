@@ -52,11 +52,12 @@ func advanceStep() {
 }
 
 func completeOnboarding() {
-    hasCompletedOnboarding = true  // writes to UserDefaults("hasCompletedOnboarding")
+    AppTelemetry.trackOnboardingCompleted()  // fires before flag write — activation funnel signal
+    hasCompletedOnboarding = true            // writes to UserDefaults("hasCompletedOnboarding")
 }
 ```
 
-`completeOnboarding()` is called on the `.ready` step. Writing `true` to `hasCompletedOnboarding` is the gate that activates the full app lifecycle:
+`completeOnboarding()` is called on the `.ready` step. It fires a `OnboardingCompleted` TelemetryDeck signal before writing the flag, capturing the activation moment. Writing `true` to `hasCompletedOnboarding` is the gate that activates the full app lifecycle:
 
 - `AppLifecycleManager.handleActivePhase()` checks this flag first and returns immediately if false
 - `AppLifecycleManager.handleInactivePhase()` — same guard

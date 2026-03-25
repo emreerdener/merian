@@ -33,7 +33,8 @@ private struct NewDiscoveryCelebrationView: View {
     let onDismiss: () -> Void
     
     @State private var dismissTask: Task<Void, Never>?
-    
+    @State private var hasFiredDiscoveryEvent = false
+
     var body: some View {
         HStack(spacing: 12) {
             // Icon Fallback
@@ -99,7 +100,10 @@ private struct NewDiscoveryCelebrationView: View {
                 }
         )
         .onAppear {
-            AppTelemetry.trackNewDiscovery(isPro: RevenueCatManager.shared.isProActive)
+            if !hasFiredDiscoveryEvent {
+                hasFiredDiscoveryEvent = true
+                AppTelemetry.trackNewDiscovery(isPro: RevenueCatManager.shared.isProActive)
+            }
             HapticManager.shared.triggerSuccessPulse()
             
             if UIAccessibility.isVoiceOverRunning {

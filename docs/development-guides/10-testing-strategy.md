@@ -25,8 +25,8 @@ This guarantees that:
 Tests are organized under `merianTests/Core` and `merianTests/Features`:
 
 ### Analytics & Telemetry
-- **`AppTelemetryTests.swift`**: Validates tracking arrays to ensure telemetry identifiers are PII-free.
-- **`PostHogManagerTests.swift`**: Asserts logic around day-7 tracking funnels and user identification.
+- **`AppTelemetryTests.swift`**: Calls `AppTelemetry.initialize()` in `setUp()` so the `isInitialized` guard passes and `TelemetryManager.send()` is actually exercised. `testAllTrackMethodsDoNotCrash` covers every public signal including `trackOfflineQueued` and `trackOnboardingCompleted`. `testIsInitializedAfterSetUp` asserts `isInitialized == true` to catch any future regression where `setUp()` drops the initialization call.
+- **`PostHogManagerTests.swift`**: Smoke-tests `identifyUser` and `reset` against the shared singleton to verify the SDK binding does not crash.
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct math updates against user local scores so UI progression trackers do not skew unexpectedly.
 - **`UsageManagerTests.swift`**: Validates daily free quota checks and limits without accessing live API constraints.
 

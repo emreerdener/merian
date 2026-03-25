@@ -20,6 +20,7 @@ import SwiftUI
     }
     
     func completeOnboarding() {
+        AppTelemetry.trackOnboardingCompleted()
         hasCompletedOnboarding = true
     }
 }

@@ -3,18 +3,26 @@ import XCTest
 
 final class AppTelemetryTests: XCTestCase {
 
-    func testAppTelemetryInvocation() {
-        // AppTelemetry strictly writes non-PII events to a shared memory space without explicit return states.
-        // The most critical bounds here are to ensure calling every wrapper logic doesn't throw a fatalError/crash the main threads
-        
+    override func setUp() {
+        super.setUp()
+        // Must initialize before track calls so the isInitialized guard passes.
+        // Without this every track method silently no-ops and the test covers nothing.
+        AppTelemetry.initialize()
+    }
+
+    func testAllTrackMethodsDoNotCrash() {
         AppTelemetry.trackScan(isPro: true)
         AppTelemetry.trackScan(isPro: false)
-        
         AppTelemetry.trackNewDiscovery(isPro: true)
         AppTelemetry.trackNewDiscovery(isPro: false)
-        
         AppTelemetry.trackPaywallImpression()
         AppTelemetry.trackThermalThrottling(fpsLimit: 15)
         AppTelemetry.trackError("UnitTestTrigger")
+        AppTelemetry.trackOfflineQueued()
+        AppTelemetry.trackOnboardingCompleted()
+    }
+
+    func testIsInitializedAfterSetUp() {
+        XCTAssertTrue(AppTelemetry.isInitialized, "setUp() must call initialize() so track methods are not silently no-oped")
     }
 }

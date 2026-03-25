@@ -177,6 +177,7 @@ private struct WikiSummaryResponse: Decodable {
                 }
 
                 if let apiError = error as? APIError, apiError == .decodingFailed {
+                    AppTelemetry.trackError("APIDecodingFailure")
                     UsageManager.shared.refundScan()
                     self.speciesData = SpeciesData(
                         scanId: nil,
@@ -205,6 +206,7 @@ private struct WikiSummaryResponse: Decodable {
                 }
 
                 // Network failure — refund the scan since the user never got a result.
+                AppTelemetry.trackError("InferenceNetworkFailure")
                 UsageManager.shared.refundScan()
 
                 if RevenueCatManager.shared.isProActive {

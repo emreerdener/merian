@@ -3,10 +3,13 @@ import PostHog
 import os
 
 /// Handles PostHog anonymous telemetry for UX funnels, retention, and feature tracking.
-@MainActor
+/// Not isolated to @MainActor — PostHogSDK is thread-safe and configure() runs on a
+/// background thread via Task.detached in MerianApp.init().
 final class PostHogManager {
     static let shared = PostHogManager()
     private init() {}
+
+    private(set) var isConfigured = false
 
     // MARK: - Configuration
 
@@ -26,6 +29,7 @@ final class PostHogManager {
         configuration.sessionReplay = false
 
         PostHogSDK.shared.setup(configuration)
+        isConfigured = true
         MerianLog.general.debug("PostHog initialized.")
     }
 
@@ -33,6 +37,10 @@ final class PostHogManager {
 
     /// Identifies the current user session in PostHog.
     func identifyUser(userId: String) {
+        guard isConfigured else {
+            MerianLog.general.warning("PostHogManager.identifyUser() called before configure() — identity dropped.")
+            return
+        }
         PostHogSDK.shared.identify(userId)
         MerianLog.general.debug("PostHog identified user: \(userId, privacy: .private)")
     }

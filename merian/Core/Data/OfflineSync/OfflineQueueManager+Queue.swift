@@ -128,6 +128,7 @@ extension OfflineQueueManager {
                     do {
                         try modelContext.save()
                         OfflineQueueManager.shared.updateUnsyncedItemCount()
+                        AppTelemetry.trackOfflineQueued()
                         // Kick off sync immediately while iOS has an active background window.
                         OfflineQueueManager.shared.syncPendingScans()
                     } catch {

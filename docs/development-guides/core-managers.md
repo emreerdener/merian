@@ -54,7 +54,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Recursive Queue Draining**: The `URLSession` delegate calls `syncPendingScans()` recursively when a completed batch detects `unsyncedItemsCount > 0`, draining the queue automatically without user intervention.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5) and `pendingScanFetchLimit` (50) are governed by `MerianConfig` constants rather than inline literals.
 - **Concurrent upload staging (`withTaskGroup`)**: File copy and `URLSession.uploadTask` creation for each image in a batch are fanned out via `withTaskGroup`. Pre-flight guards (URL validation, file existence, tombstoning) remain serial; only the NVMe write (`FileManager.copyItem`) and task creation are concurrent. For a 3-image scan this eliminates 500 ms–2 s of head-of-line blocking before the OS background session takes over.
-- **Free User Queue Cap & Quota Enforcement**: `enqueueCapture` enforces a hard cap of `UsageManager.shared.maxFreeScansPerDay` (2) queued items for free users. If the cap is reached, the new item is rejected and any files already written to disk are cleaned up atomically. `syncPendingScans` checks `canPerformScan` before starting a batch and calls `consumeScan()` once per submitted item, enforcing the daily quota through the background URLSession path. Pro users have no cap.
+- **Free User Queue Cap & Quota Enforcement**: `enqueueCapture` enforces a hard cap of `UsageManager.shared.maxFreeScansPerDay` (2) queued items for free users. If the cap is reached, the new item is rejected and any files already written to disk are cleaned up atomically — `AppTelemetry.trackOfflineQueued()` is **not** fired on a cap rejection. `syncPendingScans` checks `canPerformScan` before starting a batch and calls `consumeScan()` once per submitted item, enforcing the daily quota through the background URLSession path. Pro users have no cap.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the pipeline progresses.
 
 ### `SyncStateManager`
@@ -156,4 +156,6 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Handles `.purchaserInfo()` callbacks and connects to the `revenuecat-webhook` Edge function.
 
 ### `PostHogManager`
-- Manages anonymous telemetry via `.identifyUser()` across all app state transitions.
+- Not `@MainActor` — `PostHogSDK` is thread-safe, so `configure()` genuinely runs on the background thread pool when dispatched via `Task.detached` in `MerianApp.init()`.
+- Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()` guards on this flag and logs a warning rather than calling `PostHogSDK.shared.identify()` before setup completes — guards against a race where auth state restores before the background configure task finishes.
+- Calls `reset()` on sign-out to clear the PostHog session.

@@ -35,7 +35,8 @@ struct MerianApp: App {
         }
         
         // Initialize telemetry synchronously — just stores config, safe on main thread.
-        // PostHog configure is async so it stays on a background task.
+        // PostHog is deferred via Task.detached to avoid blocking init(). Since PostHogManager
+        // is not @MainActor, configure() runs on the background thread pool as intended.
         AppTelemetry.initialize()
         Task.detached(priority: .background) {
             await PostHogManager.shared.configure()

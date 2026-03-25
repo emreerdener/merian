@@ -45,20 +45,41 @@ Achievement states (like `isCompleted` or progress counts) are not stored in the
 
 ## Secure Telemetry Ecosystem
 
-To preserve a sub-1-second camera boot experience, both Apple TelemetryDeck and PostHog SDKs initialize off the main thread. `MerianApp` delegates their configurations to a `Task.detached(priority: .background)` block with a 500ms delay, keeping the primary UI render pass uncontested on the CPU.
+Merian uses two analytics systems with a strict privacy boundary:
 
-### `AppTelemetry` (Telemetrydeck SDK)
+- **TelemetryDeck (`AppTelemetry`)** — anonymous, PII-free product metrics. No user identity is ever attached.
+- **PostHog (`PostHogManager`)** — user-identified session and lifecycle tracking, linked to the Supabase anonymous UUID only (never email, name, or device identifiers).
 
-Monitors core system stability using PII-free Apple anonymous strings.
+### Initialization
 
-- Calls `.initialize(config)` to bind the platform key.
-- **Synchronous initialization**: `AppTelemetry.initialize()` is called directly in `MerianApp.init()` before any view is constructed. `TelemetryManager.initialize(with:)` is purely synchronous config storage — safe on the main thread. The previous pattern of deferring initialization inside a `Task.detached` with a 500ms sleep caused a `fatalError` whenever anything accessed `TelemetryManager.shared` during that window. The internal `isInitialized` NSLock guard is still present to protect unit-test contexts (e.g. `HardwareOrchestratorTests` which initializes the SDK with a stub ID) from calling `.send()` before `.initialize()`.
-- Custom signals track camera activity (`trackScan`).
-- The hardware orchestrator calls `.trackThermalThrottling(fpsLimit:)` to record heat warnings and provide data on Apple thermal management performance.
+`AppTelemetry.initialize()` is called synchronously in `MerianApp.init()` — `TelemetryManager.initialize(with:)` is pure config storage with no I/O, safe on the main thread.
+
+`PostHogManager.configure()` is dispatched via `Task.detached(priority: .background)`. `PostHogManager` is not `@MainActor`, so the work actually runs on the background thread pool rather than hopping back to the main actor. This keeps the primary UI render pass uncontested on launch.
+
+### `AppTelemetry` (TelemetryDeck SDK)
+
+Thin enum wrapper around `TelemetryManager`. All sends go through a private `send(_:with:)` helper that checks `isInitialized` and logs a warning (rather than silently no-oping) if called before `initialize()`. The `isInitialized` flag is protected by `NSLock` for thread safety.
+
+**Signal inventory:**
+
+| Signal | Method | Payload | Trigger |
+|---|---|---|---|
+| `ScanCompleted` | `trackScan(isPro:)` | `tier: "Pro"/"Free"` | Successful inference result |
+| `NewSpeciesDiscovered` | `trackNewDiscovery(isPro:)` | `tier: "Pro"/"Free"` | `NewDiscoveryCelebrationView.onAppear` (guarded by `hasFiredDiscoveryEvent` to prevent re-fires) |
+| `PaywallViewed` | `trackPaywallImpression()` | — | Camera shutter or gallery picker hits free scan cap |
+| `ThermalThrottled` | `trackThermalThrottling(fpsLimit:)` | `targetFPS: "15"` | Device thermal state reaches critical |
+| `OfflineQueuedScan` | `trackOfflineQueued()` | — | Scan successfully written to offline queue after `context.save()` |
+| `OnboardingCompleted` | `trackOnboardingCompleted()` | — | User taps Continue on the `.ready` onboarding step |
+| `APIDecodingFailure` | `trackError("APIDecodingFailure")` | `domain: "APIDecodingFailure"` | Gemini response fails schema decoding |
+| `InferenceNetworkFailure` | `trackError("InferenceNetworkFailure")` | `domain: "InferenceNetworkFailure"` | Network error on live inference (non-cancellation path) |
+| `SystemError` | `trackError(_:)` | `domain: <errorDomain>` | Available for future error domains |
 
 ### `PostHogManager`
 
-Tracks frontend button interactions to measure feature discovery, anonymously.
+Tracks session lifecycle and user identity, anonymously.
 
-- Uses `identify(...)` to link Supabase Anonymous UUID strings alongside RevenueCat identifiers.
-- Calls `reset()` when `SupabaseManager.shared.signOut()` clears session state, erasing session metrics on demand.
+- Not `@MainActor` — thread-safe wrapper around `PostHogSDK.shared`.
+- Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()` guards on this flag and logs a warning if called before `configure()` finishes (race condition on fast auth restore at launch).
+- `captureApplicationLifecycleEvents = true` for automatic foreground/background tracking. `captureScreenViews` and `captureElementInteractions` are disabled — the former causes iOS 18 layout constraint warnings by inserting `UIKitToolbar` into SwiftUI `UIHostingController` hierarchies.
+- Uses `identify(userId:)` to link the Supabase Anonymous UUID alongside RevenueCat identifiers.
+- Calls `reset()` when `SupabaseManager.shared.signOut()` clears session state.

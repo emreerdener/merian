@@ -29,37 +29,60 @@ enum AppTelemetry {
 
     /// Records a completed scan.
     static func trackScan(isPro: Bool) {
-        guard isInitialized else { return }
-        TelemetryManager.send("ScanCompleted", with: ["tier": isPro ? "Pro" : "Free"])
+        send("ScanCompleted", with: ["tier": isPro ? "Pro" : "Free"])
     }
 
     /// Records a new species discovery.
     static func trackNewDiscovery(isPro: Bool) {
-        guard isInitialized else { return }
-        TelemetryManager.send("NewSpeciesDiscovered", with: ["tier": isPro ? "Pro" : "Free"])
+        send("NewSpeciesDiscovered", with: ["tier": isPro ? "Pro" : "Free"])
     }
 
     // MARK: - Monetization Events
 
     /// Records a paywall impression.
     static func trackPaywallImpression() {
-        guard isInitialized else { return }
-        TelemetryManager.send("PaywallViewed")
+        send("PaywallViewed")
+    }
+
+    // MARK: - Offline Queue Events
+
+    /// Records a scan successfully queued for offline sync.
+    static func trackOfflineQueued() {
+        send("OfflineQueuedScan")
+    }
+
+    // MARK: - Activation Events
+
+    /// Records the user completing onboarding.
+    static func trackOnboardingCompleted() {
+        send("OnboardingCompleted")
     }
 
     // MARK: - Hardware Events
 
     /// Records a thermal throttling event.
     static func trackThermalThrottling(fpsLimit: Int) {
-        guard isInitialized else { return }
-        TelemetryManager.send("ThermalThrottled", with: ["targetFPS": String(fpsLimit)])
+        send("ThermalThrottled", with: ["targetFPS": String(fpsLimit)])
     }
 
     // MARK: - Error Events
 
     /// Records a named error domain for custom error tracking.
     static func trackError(_ errorDomain: String) {
-        guard isInitialized else { return }
-        TelemetryManager.send("SystemError", with: ["domain": errorDomain])
+        send("SystemError", with: ["domain": errorDomain])
+    }
+
+    // MARK: - Private
+
+    private static func send(_ signal: String, with params: [String: String]? = nil) {
+        guard isInitialized else {
+            MerianLog.general.warning("AppTelemetry.send() called before initialize() — signal '\(signal)' dropped.")
+            return
+        }
+        if let params {
+            TelemetryManager.send(signal, with: params)
+        } else {
+            TelemetryManager.send(signal)
+        }
     }
 }
