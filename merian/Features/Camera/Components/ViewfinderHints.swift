@@ -6,7 +6,7 @@ struct ViewfinderHints: View {
     
     var body: some View {
         Group {
-            if showInitialPrompt && vui.isOptimal {
+            if showInitialPrompt {
                 Text("Take a photo to identify")
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -18,7 +18,7 @@ struct ViewfinderHints: View {
                     .clipShape(Capsule())
                     .padding(.bottom, 16)
                     .transition(.opacity)
-            } else if !vui.isOptimal {
+            } else if !showInitialPrompt && !vui.isOptimal {
                 Text(vui.currentHint.rawValue)
                     .font(.subheadline)
                     .fontWeight(.semibold)

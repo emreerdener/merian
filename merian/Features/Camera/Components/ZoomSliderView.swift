@@ -59,11 +59,15 @@ struct ZoomSliderView: View {
             zoomIdleTask = Task {
                 try? await Task.sleep(for: .seconds(1.5))
                 guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    isActivelyZooming = false
-                    withAnimation(.easeInOut(duration: 0.45)) { zoomActivityStrength = 0.0 }
-                }
+                await MainActor.run { isActivelyZooming = false }
             }
+        }
+        // Collapse the tick-extension effect when zoom settles. Kept in a synchronous
+        // onChange rather than inside the async Task so withAnimation is guaranteed to
+        // run within SwiftUI's update cycle and actually interpolates the Canvas redraws.
+        .onChange(of: isActivelyZooming) { _, isActive in
+            guard !isActive else { return }
+            withAnimation(.easeOut(duration: 0.5)) { zoomActivityStrength = 0.0 }
         }
     }
 
@@ -86,7 +90,7 @@ struct ZoomSliderView: View {
                 .animation(.easeInOut(duration: 0.2), value: showSetPoint)
             currentZoomIndicator
                 .offset(y: indicatorY)
-                .animation(isDragging ? nil : .spring(response: 0.4, dampingFraction: 0.75), value: indicatorY)
+                .animation(isDragging ? nil : .easeOut(duration: 0.25), value: indicatorY)
         }
         .frame(width: componentWidth, height: trackHeight + 22)
         .contentShape(Rectangle())
@@ -104,7 +108,10 @@ struct ZoomSliderView: View {
                     let newFactor = min(max(dragStartFactor * exp((dy / trackHeight) * logMax), 1.0), camera.maxZoomFactor)
                     camera.setZoom(factor: newFactor)
                 }
-                .onEnded { _ in isDragging = false }
+                .onEnded { _ in
+                    isDragging = false
+                    camera.snapToNearestOpticalStop()
+                }
         )
     }
 
@@ -194,7 +201,7 @@ struct ZoomSliderView: View {
             } else {
                 Circle()
                     .fill(zoomYellow)
-                    .frame(width: 5, height: 5)
+                    .frame(width: 4, height: 4)
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
 
@@ -206,24 +213,22 @@ struct ZoomSliderView: View {
                 .opacity(showText ? 0.7 : 0.15)
         }
         .frame(width: componentWidth, height: 20)
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: showText)
+        .animation(.easeOut(duration: 0.3), value: showText)
     }
 
     // MARK: - 1× set point indicator
 
     /// A static white marker that appears at the 1× position whenever the current
-    /// zoom indicator has moved away from it. Mirrors the structural layout of
-    /// `currentZoomIndicator` (same frame, same hairline connector) but uses a
-    /// muted white fill so it reads as a reference point rather than the active cue.
+    /// zoom indicator has moved away from it. Styled identically to the Canvas
+    /// optical-stop dots: 4 pt circle, white.opacity(0.9), no hairline connector,
+    /// trailing padding of `dotRightOffset` so its centre lands at the same x.
     private var setPointIndicator: some View {
         HStack(spacing: 0) {
             Spacer(minLength: 0)
             Circle()
-                .fill(Color.white.opacity(0.55))
+                .fill(Color.white.opacity(0.9))
                 .frame(width: 4, height: 4)
-            Color.white
-                .frame(width: dotRightOffset, height: 0.5)
-                .opacity(0.15)
+                .padding(.trailing, dotRightOffset)
         }
         .frame(width: componentWidth, height: 20)
     }

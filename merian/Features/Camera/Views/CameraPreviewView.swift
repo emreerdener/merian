@@ -42,6 +42,8 @@ struct CameraPreviewView: UIViewRepresentable {
         pinchGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(pinchGesture)
 
+        context.coordinator.startObservingZoom(in: view)
+
         return view
     }
     
@@ -73,8 +75,74 @@ struct CameraPreviewView: UIViewRepresentable {
 
         private enum PanDirection { case undetermined, vertical, horizontal }
 
+        // MARK: - Lens-switch crossfade state
+        private var lastZoomFactor: CGFloat = 1.0
+        private weak var lensTransitionOverlay: UIView?
+        private var lensTransitionTask: Task<Void, Never>?
+
         init(_ parent: CameraPreviewView) {
             self.parent = parent
+        }
+
+        // MARK: - Lens-switch crossfade
+
+        /// Starts a recursive withObservationTracking chain watching zoomFactor.
+        /// When the factor crosses an optical stop the coordinator snapshots the current
+        /// preview frame and fades it out, hiding the physical lens-switch discontinuity.
+        /// The chain self-terminates when the coordinator is deallocated ([weak self]).
+        @MainActor func startObservingZoom(in view: PreviewView) {
+            withObservationTracking {
+                _ = CameraManager.shared.zoomFactor
+            } onChange: { [weak self, weak view] in
+                guard let self, let view else { return }
+                // onChange fires synchronously during the property write — jump to the
+                // next main-actor iteration so zoomFactor has its committed value and
+                // the snapshot is taken before the background ramp reaches the hardware.
+                Task { @MainActor [weak self, weak view] in
+                    guard let self, let view else { return }
+                    let newFactor = CameraManager.shared.zoomFactor
+                    self.handleLensSwitchIfNeeded(newFactor: newFactor, in: view)
+                    self.startObservingZoom(in: view)
+                }
+            }
+        }
+
+        @MainActor private func handleLensSwitchIfNeeded(newFactor: CGFloat, in view: PreviewView) {
+            defer { lastZoomFactor = newFactor }
+
+            // Skip during session setup / zoom reset so we don't flash on startup.
+            guard CameraManager.shared.isSessionRunning else { return }
+
+            let stops = CameraManager.shared.opticalZoomStops.filter { $0 > 1.0 }
+            guard stops.contains(where: { stop in
+                (lastZoomFactor < stop) != (newFactor < stop)
+            }) else { return }
+
+            // Cancel any in-flight crossfade before starting a new one.
+            lensTransitionTask?.cancel()
+            lensTransitionOverlay?.removeFromSuperview()
+
+            // Snapshot the current composited frame. This runs before the background
+            // camera queue processes the ramp command, so it always captures the
+            // pre-switch image.
+            guard let overlay = view.snapshotView(afterScreenUpdates: false) else { return }
+            overlay.frame = view.bounds
+            view.addSubview(overlay)
+            lensTransitionOverlay = overlay
+
+            // Hold long enough for the hardware to switch and stabilise, then fade out.
+            lensTransitionTask = Task { @MainActor [weak self, weak overlay] in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled, let overlay else { return }
+                UIView.animate(withDuration: 0.15, delay: 0, options: .curveEaseOut) {
+                    overlay.alpha = 0
+                } completion: { [weak self, weak overlay] _ in
+                    overlay?.removeFromSuperview()
+                    if let overlay, self?.lensTransitionOverlay === overlay {
+                        self?.lensTransitionOverlay = nil
+                    }
+                }
+            }
         }
 
         @objc func handleTap(_ sender: UITapGestureRecognizer) {
@@ -95,6 +163,8 @@ struct CameraPreviewView: UIViewRepresentable {
                 case .changed:
                     let proposed = min(max(pinchStartZoom * scale, 1.0), CameraManager.shared.maxZoomFactor)
                     CameraManager.shared.setZoom(factor: proposed)
+                case .ended, .cancelled:
+                    CameraManager.shared.snapToNearestOpticalStop()
                 default:
                     break
                 }
@@ -138,6 +208,7 @@ struct CameraPreviewView: UIViewRepresentable {
                         parent.onSwipeLeft?()
                     }
                     panDirection = .undetermined
+                    CameraManager.shared.snapToNearestOpticalStop()
 
                 default:
                     break

@@ -419,6 +419,15 @@ import Accelerate
         }
     }
 
+    /// Snaps zoom to the nearest optical stop when within `threshold` zoom units.
+    /// Call this at gesture end to give optical stops a magnetic quality without
+    /// interfering with smooth tracking during the gesture itself.
+    func snapToNearestOpticalStop(threshold: CGFloat = 0.1) {
+        guard let nearest = opticalZoomStops.min(by: { abs($0 - zoomFactor) < abs($1 - zoomFactor) }),
+              abs(nearest - zoomFactor) <= threshold else { return }
+        setZoom(factor: nearest)
+    }
+
     func setZoom(factor: CGFloat) {
         guard let deviceInput = session.inputs.first(where: {
             ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true
