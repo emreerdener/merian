@@ -170,16 +170,41 @@ final class CameraViewModel {
 
                         if let cgImage = inferenceCGImage {
                             let rawImage = UIImage(cgImage: cgImage)
-                            let finalSafeData = rawImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? Data()
+                            let finalSafeData: Data = autoreleasepool {
+                                let renderData = NSMutableData()
+                                guard let destination = CGImageDestinationCreateWithData(
+                                    renderData as CFMutableData,
+                                    UTType.webP.identifier as CFString,
+                                    1,
+                                    nil
+                                ) else { return Data() }
+                                let options: [CFString: Any] = [
+                                    kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
+                                ]
+                                CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                                guard CGImageDestinationFinalize(destination) else { return Data() }
+                                return Data(renderData)
+                            }
 
                             // Display payload: 2048 px — written to disk so the insight sheet and
-                            // scan library render without JPEG blocking artifacts.
+                            // scan library render crisp.
                             let displaySafeData: Data = autoreleasepool {
                                 guard let displayCGImage = ImageDownsampler.shared.downsample(url: validUrl, maxSize: MerianConfig.displayImageMaxSize) else {
                                     return finalSafeData
                                 }
-                                let displayImage = UIImage(cgImage: displayCGImage)
-                                return displayImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? finalSafeData
+                                let renderData = NSMutableData()
+                                guard let destination = CGImageDestinationCreateWithData(
+                                    renderData as CFMutableData,
+                                    UTType.webP.identifier as CFString,
+                                    1,
+                                    nil
+                                ) else { return finalSafeData }
+                                let options: [CFString: Any] = [
+                                    kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
+                                ]
+                                CGImageDestinationAddImage(destination, displayCGImage, options as CFDictionary)
+                                guard CGImageDestinationFinalize(destination) else { return finalSafeData }
+                                return Data(renderData)
                             }
 
                             await MainActor.run {

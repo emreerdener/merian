@@ -42,9 +42,10 @@ enum MerianConfig {
 
     // MARK: - Image Quality
 
-    /// JPEG compression quality applied when downsampling captures before storage or upload.
+    /// Lossy compression quality applied to WebP-encoded captures before storage or upload.
     /// 0.8 balances file size against perceptible quality loss on modern iPhone sensors.
-    static let jpegCompressionQuality: CGFloat = 0.8
+    /// Passed as `kCGImageDestinationLossyCompressionQuality` to `CGImageDestination`.
+    static let imageCompressionQuality: CGFloat = 0.8
 
     /// Longest-edge pixel cap for images sent to the AI inference pipeline.
     /// 1024 px is sufficient for Gemini species identification and keeps the base64
@@ -54,8 +55,7 @@ enum MerianConfig {
     /// Longest-edge pixel cap for images written to disk and shown in the insight sheet
     /// and scan library. 2048 px covers the full-width pixel density of the largest
     /// current iPhone (Pro Max 3× → 1290 px) and iPad Pro (2× → 2048 px) without
-    /// upscaling, eliminating the JPEG blocking artifacts visible at 1024 px.
-    /// Stored files average ~300–700 KB vs ~100–250 KB at inference quality.
+    /// upscaling. Stored as WebP; files average ~300–700 KB vs ~100–250 KB at inference quality.
     static let displayImageMaxSize: CGFloat = 2048
 
     // MARK: - On-Device Vision Classification

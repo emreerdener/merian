@@ -108,7 +108,7 @@ import os
             }
             
             // Move from ephemeral network cache to a stable temporary boundary to prevent URLSession auto-destruct
-            let stableURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+            let stableURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".webp")
             do { try FileManager.default.removeItem(at: stableURL) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
             try FileManager.default.moveItem(at: downloadedURL, to: stableURL)
             tempFileURL = stableURL
@@ -258,7 +258,7 @@ actor ArchiveDatabaseActor {
                     continue
                 }
                 
-                let filename = UUID().uuidString + ".jpg"
+                let filename = UUID().uuidString + ".webp"
                 let fileURL = documentsDirectory.appendingPathComponent(filename)
                 
                 try FileManager.default.moveItem(at: tempURL, to: fileURL)

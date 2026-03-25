@@ -76,14 +76,14 @@ export async function evaluateAndProcessPayload(
       let index = 0;
       for (const base64 of imageBase64s) {
         const fallbackUUID = crypto.randomUUID();
-        const fileName = r2ObjectKeys?.[index]?.split("/").pop() || `${fallbackUUID}.jpg`;
+        const fileName = r2ObjectKeys?.[index]?.split("/").pop() || `${fallbackUUID}.webp`;
         const publicUploadKey = `public_uploads/${tier}/${userId}/${fileName}`;
         const targetS3Url = `${endpoint}/${bucketName}/${publicUploadKey}`;
 
         const arrayBuffer = decodeBase64(base64);
         const uploadReq = new Request(targetS3Url, {
           method: "PUT",
-          headers: { "Content-Type": "image/jpeg" },
+          headers: { "Content-Type": "image/webp" },
           body: arrayBuffer as unknown as BodyInit
         });
         const signedUpload = await s3Client.sign(uploadReq);

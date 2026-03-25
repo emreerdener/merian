@@ -18,7 +18,7 @@ serve((req: Request) =>
     const urls = await Promise.all(
       fileNames.map(async (fileName: string) => {
         const imageId = crypto.randomUUID();
-        const key = `staging/${user.id}/${imageId}.jpg`;
+        const key = `staging/${user.id}/${imageId}.webp`;
         const urlString = `${endpoint}/${bucketName}/${key}`;
 
         const putUrl = new URL(urlString);
@@ -26,7 +26,7 @@ serve((req: Request) =>
 
         const signedPut = await s3Client.sign(putUrl.toString(), {
           method: "PUT",
-          headers: { "Content-Type": "image/jpeg" },
+          headers: { "Content-Type": "image/webp" },
           aws: { signQuery: true }
         });
 

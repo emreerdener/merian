@@ -102,14 +102,14 @@ struct ImageCropProcessor {
                 let renderData = NSMutableData()
                 
                 // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
-                guard let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else {
+                guard let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) else {
                     return nil
                 }
-                
+
                 let options: [CFString: Any] = [
                     kCGImageDestinationLossyCompressionQuality: 0.7,
                     kCGImagePropertyOrientation: cgOrientation.rawValue,
-                    kCGImageDestinationImageMaxPixelSize: 768 // Force maximum gemini down-render dynamically
+                    kCGImageDestinationImageMaxPixelSize: 1024 // Force maximum gemini down-render dynamically
                 ]
                 
                 CGImageDestinationAddImage(destination, finalCG, options as CFDictionary)
@@ -164,14 +164,14 @@ struct ImageCropProcessor {
                 let renderData = NSMutableData()
                 
                 // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
-                guard let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else {
+                guard let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) else {
                     return nil
                 }
-                
+
                 let options: [CFString: Any] = [
                     kCGImageDestinationLossyCompressionQuality: 0.7,
                     kCGImagePropertyOrientation: cgOrientation.rawValue,
-                    kCGImageDestinationImageMaxPixelSize: 768 // Force maximum gemini down-render dynamically natively guaranteeing speed
+                    kCGImageDestinationImageMaxPixelSize: 1024 // Force maximum gemini down-render dynamically natively guaranteeing speed
                 ]
                 
                 CGImageDestinationAddImage(destination, finalCG, options as CFDictionary)

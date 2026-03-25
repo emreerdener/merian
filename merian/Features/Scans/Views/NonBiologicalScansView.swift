@@ -196,7 +196,7 @@ extension BackgroundDatabaseActor {
     func bulkDeleteNonBiologicalScans(payloads: [ScanErasurePayload]) {
         let documentsDirectory = URL.documentsDirectory
         for payload in payloads {
-            // Delete the raw .jpg bytes physically
+            // Delete the raw .webp bytes physically
             for path in payload.imagePaths {
                 let fileURL = documentsDirectory.appendingPathComponent(path)
                 try? FileManager.default.removeItem(at: fileURL)

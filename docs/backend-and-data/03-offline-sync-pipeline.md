@@ -28,7 +28,7 @@ Batch sizing is governed by `MerianConfig`:
 - **`pendingScanFetchLimit`** (50): maximum `OfflineQueuedScan` records fetched per cycle via `BackgroundDatabaseActor.fetchPendingScans(limit:)`.
 - **`uploadBatchSize`** (5): maximum scans dispatched to R2 staging per cycle for Pro users (`.prefix(MerianConfig.uploadBatchSize)`). Free users use `freeScansRemaining` as their effective batch limit.
 
-Active upload tasks are deduplicated against `backgroundSession.allTasks` before dispatching, preventing double-uploads on relaunch. Each image is first copied to a temp file in `URL.cachesDirectory` (`<scanId>_<index>_temp_upload.jpg`) before being handed to `URLSession.uploadTask(with:fromFile:)`. The OS background session owns byte transmission from here, handling interruption and resume transparently.
+Active upload tasks are deduplicated against `backgroundSession.allTasks` before dispatching, preventing double-uploads on relaunch. Each image is first copied to a temp file in `URL.cachesDirectory` (`<scanId>_<index>_temp_upload.webp`) before being handed to `URLSession.uploadTask(with:fromFile:)`. The `URLRequest` carries a `Content-Type: image/webp` header, which must match the `image/webp` Content-Type baked into the Cloudflare R2 pre-signed URL by the `generate-upload-urls` Edge function. The OS background session owns byte transmission from here, handling interruption and resume transparently.
 
 **Concurrent staging (`withTaskGroup`)**: Pre-flight guards — URL validation, file existence checks, and tombstoning — remain serial. Once all guards clear, the `FileManager.copyItem` and `uploadTask` creation for each image are fanned out concurrently via `withTaskGroup`. For a 3-image scan this eliminates 500 ms–2 s of head-of-line blocking before the background session takes ownership.
 
@@ -77,7 +77,7 @@ Deletion follows a strict ordering designed to guarantee consistency: **database
 
 1. `offlineQueue.softDeleteQueuedScan(scanId:)` — tombstone any in-flight upload.
 2. Insert `PendingCloudDeletionTask` + `modelContext.delete(record)` + `modelContext.save()` — **atomic DB commit**. If the save fails, the method returns immediately without touching disk; state remains fully consistent.
-3. `FileIOActor.shared.deleteImages(at:)` — purge local `.jpg` files asynchronously, skipping remote R2 URLs (those are cloud-owned). Runs only after the DB commit succeeds.
+3. `FileIOActor.shared.deleteImages(at:)` — purge local `.webp` files asynchronously, skipping remote R2 URLs (those are cloud-owned). Runs only after the DB commit succeeds.
 4. `offlineQueue.syncPendingDeletions()` async — attempt the cloud deletion immediately; retry on next connectivity cycle.
 
 ### 2. Cloud Deletion Tasking (`PendingCloudDeletionTask`)

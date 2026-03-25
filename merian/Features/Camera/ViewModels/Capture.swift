@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 extension CameraViewModel {
     
     // MARK: - UI Coordination
@@ -60,21 +61,43 @@ extension CameraViewModel {
                         guard let cgImage = safeCGImage else { return Data() }
                         return autoreleasepool {
                             // kCGImageSourceCreateThumbnailWithTransform already bakes the EXIF
-                            // orientation into the CGImage pixels — use .up to avoid a second rotation.
-                            let tempRawImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
-                            return tempRawImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? Data()
+                            // orientation into the CGImage pixels — no orientation option needed.
+                            let renderData = NSMutableData()
+                            guard let destination = CGImageDestinationCreateWithData(
+                                renderData as CFMutableData,
+                                UTType.webP.identifier as CFString,
+                                1,
+                                nil
+                            ) else { return Data() }
+                            let options: [CFString: Any] = [
+                                kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
+                            ]
+                            CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                            guard CGImageDestinationFinalize(destination) else { return Data() }
+                            return Data(renderData)
                         }
                     }()
 
                     // Display payload: 2048 px longest edge — written to disk so the insight
-                    // sheet and scan library render without JPEG blocking artifacts. The AI
-                    // never sees this data; only finalSafeData is base64-encoded for Gemini.
+                    // sheet and scan library render crisp. The AI never sees this data;
+                    // only finalSafeData is base64-encoded for Gemini.
                     let displaySafeData: Data = autoreleasepool {
                         guard let displayCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.displayImageMaxSize) else {
                             return finalSafeData // fallback to inference quality
                         }
-                        let displayImage = UIImage(cgImage: displayCGImage, scale: 1.0, orientation: .up)
-                        return displayImage.jpegData(compressionQuality: MerianConfig.jpegCompressionQuality) ?? finalSafeData
+                        let renderData = NSMutableData()
+                        guard let destination = CGImageDestinationCreateWithData(
+                            renderData as CFMutableData,
+                            UTType.webP.identifier as CFString,
+                            1,
+                            nil
+                        ) else { return finalSafeData }
+                        let options: [CFString: Any] = [
+                            kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
+                        ]
+                        CGImageDestinationAddImage(destination, displayCGImage, options as CFDictionary)
+                        guard CGImageDestinationFinalize(destination) else { return finalSafeData }
+                        return Data(renderData)
                     }
 
                     if !finalSafeData.isEmpty, let validCGImage = safeCGImage {

@@ -201,7 +201,7 @@ extension OfflineQueueManager {
                             continue
                         }
 
-                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_\(index)_temp_upload.jpg")
+                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_\(index)_temp_upload.webp")
 
                         group.addTask {
                             try? FileManager.default.removeItem(at: tempFileURL)
@@ -213,7 +213,7 @@ extension OfflineQueueManager {
                             }
                             var request = URLRequest(url: remoteUrl)
                             request.httpMethod = "PUT"
-                            request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                            request.setValue("image/webp", forHTTPHeaderField: "Content-Type")
                             let uploadTask = session.uploadTask(with: request, fromFile: tempFileURL)
                             uploadTask.taskDescription = "\(scanId)_\(index)"
                             uploadTask.resume()

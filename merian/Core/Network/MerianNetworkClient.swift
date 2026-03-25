@@ -179,7 +179,7 @@ final class MerianNetworkClient {
             "r2ObjectKeys": r2ObjectKeys,
             "imageBase64s": base64ImageDatas,
             "user_id": userId,
-            "mimeType": "image/jpeg",
+            "mimeType": "image/webp",
             "depthScaleText": depthScaleText,
             "zoomFactor": telemetry.zoomFactor.map { Double($0) },
             "gpsLatitude": telemetry.gpsLatitude,
@@ -211,7 +211,7 @@ final class MerianNetworkClient {
         return try JSONDecoder().decode(PreSignedURLResponse.self, from: data).urls
     }
 
-    func uploadToR2(url: String, data: Data, mimeType: String = "image/jpeg") async throws {
+    func uploadToR2(url: String, data: Data, mimeType: String = "image/webp") async throws {
         guard let signedUrl = URL(string: url) else { throw NetworkError.invalidURL }
 
         var request = URLRequest(url: signedUrl)

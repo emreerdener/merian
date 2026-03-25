@@ -139,7 +139,7 @@ serve((req: Request) =>
             const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
 
             const urls = scan.image_storage_urls || [];
-            const mRows = urls.map((url: string) => `${scan.id},${url},image/jpeg`);
+            const mRows = urls.map((url: string) => `${scan.id},${url},image/webp`);
 
             return { occurrenceRow, mRows };
           })

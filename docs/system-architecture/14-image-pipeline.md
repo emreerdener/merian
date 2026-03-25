@@ -45,15 +45,17 @@ The two resulting `Data` values are staged separately in `CameraViewModel`:
 
 **Why 1024 px for inference?** Sufficient for Gemini species identification. Keeps the base64 payload at ~100–250 KB, reducing token cost and upload latency by ~15× versus the previous 4000 px ceiling.
 
-**Why 2048 px for display?** Covers the full-width pixel density of all current iOS devices without upscaling (iPhone Pro Max at 3× = 1290 px native; iPad Pro at 2× = 2048 px native). Eliminates the JPEG blocking artifacts that were visible when the insight sheet and scan library rendered the same 1024 px image that was sent to the AI. Stored files average ~300–700 KB vs ~100–250 KB at inference quality.
+**Why 2048 px for display?** Covers the full-width pixel density of all current iOS devices without upscaling (iPhone Pro Max at 3× = 1290 px native; iPad Pro at 2× = 2048 px native). Stored as WebP, display-quality files are free from the blocking artifacts associated with lossy JPEG compression at lower resolutions. Files average ~300–700 KB vs ~100–250 KB at inference quality.
 
 **Why two `CGImageSourceCreateThumbnailAtIndex` calls instead of one?** Both operate on the compressed source bytes (JPEG / HEIC) without ever expanding the full 12 MP raster. The cost is two lightweight thumbnail decodes from the same buffer — negligible compared to the AVFoundation capture itself.
 
-**Crop export path**: `ImageCropProcessor` uses `maxSize: 768` (tighter, crop-optimised for crop-view thumbnails). This path is unaffected by the inference/display split.
+**Crop export path**: `ImageCropProcessor` uses `maxSize: 1024` for the manual-crop path, matching the baseline inference camera path. Output is encoded as WebP via `CGImageDestinationCreateWithData`. This path is unaffected by the inference/display split.
 
 **Implementation**: Uses `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceCreateThumbnailFromImageAlways: true` and `kCGImageSourceShouldCache: false`. This instructs ImageIO to decode only a scaled thumbnail directly from the compressed source, never loading the full pixel buffer into RAM.
 
-**`autoreleasepool`**: Both display and inference downsample calls — and the `UIImage.jpegData` encoding that follows each — are wrapped in `autoreleasepool` so intermediate CoreGraphics allocations are released immediately.
+**Image encoding (WebP)**: After downsampling, both the inference and display payloads are encoded as lossy WebP via `CGImageDestinationCreateWithData` with `UTType.webP` and `kCGImageDestinationLossyCompressionQuality` set to `MerianConfig.imageCompressionQuality`. This eliminates the intermediate `UIImage` wrapper previously used for `.jpegData(compressionQuality:)`, reducing peak allocation by one full decoded-pixel buffer per encode. WebP is natively decoded by `UIImage(data:)` on iOS 14+ and is supported by all Gemini multimodal APIs (`image/webp` MIME type).
+
+**`autoreleasepool`**: Both display and inference downsample calls — and the `CGImageDestination` WebP encoding that follows each — are wrapped in `autoreleasepool` so intermediate CoreGraphics allocations are released immediately.
 
 **`nonisolated` methods**: Both `downsample(url:maxSize:)` and `downsample(data:maxSize:)` are declared `nonisolated`, making them synchronous and callable without `await`. This allows concurrent grid loads to decode in parallel on the cooperative thread pool. The `autoreleasepool` inside each call remains safe because CoreGraphics is thread-safe at the frame level.
 
@@ -73,7 +75,7 @@ FileIOActor.shared.deleteImages(at: [String])
 
 - **OOM risk**: Writing large arrays of image `Data` on the main thread blocks the UI and spikes memory.
 - **Mitigation**: By running on its own isolated actor, `FileIOActor` guarantees that disk writes never contend with SwiftData saves (`BackgroundDatabaseActor`) or UI rendering.
-- **Path format**: Only the filename (e.g. `"uuid_scan.jpg"`) is stored in SwiftData — never the full absolute sandbox path. This prevents broken image renders caused by iOS randomizing container UUIDs on reboots and app updates.
+- **Path format**: Only the filename (e.g. `"uuid_scan.webp"`) is stored in SwiftData — never the full absolute sandbox path. This prevents broken image renders caused by iOS randomizing container UUIDs on reboots and app updates.
 
 ---
 
@@ -132,7 +134,7 @@ This means the grid renders correctly with cloud images immediately, and any loc
 
 ## Upload Path (Offline Queue)
 
-For captures that go into the offline queue, images are written to disk by `FileIOActor.writeTemporaryImages` before the `OfflineQueuedScan` SwiftData record is inserted. During upload, `OfflineQueueManager` copies each image to a temp file in `URL.cachesDirectory` (naming convention: `<scanId>_<index>_temp_upload.jpg`) and hands the path to `URLSession.uploadTask(with:fromFile:)`. The OS background session owns the byte transmission from that point. On upload completion, the temp staging file is deleted unconditionally regardless of success or failure.
+For captures that go into the offline queue, images are written to disk by `FileIOActor.writeTemporaryImages` before the `OfflineQueuedScan` SwiftData record is inserted. During upload, `OfflineQueueManager` copies each image to a temp file in `URL.cachesDirectory` (naming convention: `<scanId>_<index>_temp_upload.webp`) and hands the path to `URLSession.uploadTask(with:fromFile:)`. The `Content-Type: image/webp` header is applied to the `URLRequest` before the upload task is created. The OS background session owns the byte transmission from that point. On upload completion, the temp staging file is deleted unconditionally regardless of success or failure.
 
 **Offline queue image quality**: The offline queue stores inference-quality images only (1024 px). When an offline scan is reprocessed, `InferenceProcessingActor.parseAndSave` receives `displayDatas = []` and falls back to writing the inference-quality files to disk. This is a deliberate trade-off: the full-resolution photo is already saved to Camera Roll at capture time, so 1024 px on-disk files are an acceptable fallback for the subset of scans that passed through the offline queue. Live captures and gallery picks both produce display-quality on-disk files.
 

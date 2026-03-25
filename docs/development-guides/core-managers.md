@@ -103,7 +103,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 | `diskSpaceThreshold` | 500 MB | `ArchiveManager` |
 | `archiveRescueWindowStartDays` | 80 | `ArchiveManager` |
 | `archiveRescueWindowEndDays` | 88 | `ArchiveManager` |
-| `jpegCompressionQuality` | 0.8 | `Capture`, `CameraViewModel` |
+| `imageCompressionQuality` | 0.8 | `Capture`, `CameraViewModel` |
 | `visionConfidenceThreshold` | 0.65 | `Analysis` (Vision pre-classifier) |
 | `visionConfidenceMargin` | 0.15 | `Analysis` (margin guard vs. second-best) |
 | `scanningPhaseSubjectDelayNs` | 3 s | `Analysis` (delay before subject phrases) |

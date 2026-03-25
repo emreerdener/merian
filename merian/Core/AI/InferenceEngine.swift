@@ -99,7 +99,7 @@ private struct WikiSummaryResponse: Decodable {
 
                 let base64Strings = await InferenceProcessingActor.shared.encodeBase64(compressedDatas: compressedDatas)
                 let resolvedUserId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
-                let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString).jpg"
+                let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString).webp"
 
                 try Task.checkCancellation()
 

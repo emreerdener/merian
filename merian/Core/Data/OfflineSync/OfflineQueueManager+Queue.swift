@@ -77,7 +77,7 @@ extension OfflineQueueManager {
     func enqueueCapture(imageDatas: [Data], telemetry: CaptureTelemetry, blurScore: Double? = nil) {
         let documentsDirectory = URL.documentsDirectory
         let pairs = imageDatas.map { _ -> (name: String, url: URL) in
-            let name = "\(UUID().uuidString).jpg"
+            let name = "\(UUID().uuidString).webp"
             return (name, documentsDirectory.appendingPathComponent(name))
         }
         let fileNames = pairs.map(\.name)

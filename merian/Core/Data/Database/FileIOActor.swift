@@ -26,9 +26,9 @@ public actor FileIOActor {
         for (i, data) in imageDatas.enumerated() {
             let filename: String
             if i == 0 {
-                filename = "\(UUID().uuidString)_scan.jpg"
+                filename = "\(UUID().uuidString)_scan.webp"
             } else {
-                filename = "\(UUID().uuidString)_additional_\(i).jpg"
+                filename = "\(UUID().uuidString)_additional_\(i).webp"
             }
             
             do {

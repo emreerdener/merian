@@ -79,8 +79,8 @@ extension OfflineQueueManager {
 
         // Clean up the temp staging file regardless of upload outcome.
         let tempFileName = indexPart.isEmpty
-            ? "\(scanId)_temp_upload.jpg"
-            : "\(scanId)_\(indexPart)_temp_upload.jpg"
+            ? "\(scanId)_temp_upload.webp"
+            : "\(scanId)_\(indexPart)_temp_upload.webp"
         try? FileManager.default.removeItem(at: URL.cachesDirectory.appendingPathComponent(tempFileName))
 
         // Handle transport-level errors.

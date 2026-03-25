@@ -11,7 +11,7 @@ To fetch cryptographic keys for direct-to-Cloudflare uploads, the client sends a
 ```json
 {
   "user_id": "Supabase Auth UUID linking RevenueCat and PostHog",
-  "fileNames": ["photo_1.jpg", "photo_2.jpg"]
+  "fileNames": ["photo_1.webp", "photo_2.webp"]
 }
 ```
 
@@ -21,13 +21,15 @@ The server extracts the verified user identity from the `Authorization` Header J
 {
   "urls": [
     {
-      "fileName": "photo_1.jpg",
+      "fileName": "photo_1.webp",
       "signedUrl": "https://<R2_URL>?X-Amz-Signature=...",
-      "objectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_photo_1.jpg"
+      "objectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_photo_1.webp"
     }
   ]
 }
 ```
+
+> The pre-signed URL is generated with `Content-Type: image/webp`. The iOS `URLRequest` must send a matching `Content-Type: image/webp` header on the `PUT`, or Cloudflare R2 will reject the upload with `403 SignatureDoesNotMatch`.
 
 ---
 
@@ -40,8 +42,8 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server 
 ```json
 {
   "r2ObjectKeys": [
-    "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_1.jpg",
-    "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_2.jpg"
+    "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_1.webp",
+    "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_2.webp"
   ],
   "imageBase64s": ["<base64 encoded string array for instant processing (up to 2 limits, skips r2ObjectKeys)>"],
   "user_id": "Supabase Auth UUID linking via GoTrue Session",
@@ -66,6 +68,8 @@ To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
 - **Dynamic Token Truncation (Non-biological targets)**: When processing non-biological subjects, the Deno node removes `taxonomy`, `insight_data`, `diagnostic_comparison`, and `ecology_type` from the `required: []` array and passes `is_biological_subject: false`. The Swift layer maps the absent fields to native Optionals.
 
 If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to simultaneously support both the Pro schema and Free text-prompt shapes without causing `JSONDecoder()` failures.
+
+> **Image format**: All images in this pipeline are encoded as lossy **WebP** (`image/webp`). The `inlineData.mimeType` field passed to the Gemini SDK in `index.ts` must always be `"image/webp"`. Gemini 2.5 Flash and Pro both accept `image/webp` natively. If this value is changed to `image/jpeg` while the actual bytes are WebP, Gemini will reject or misinterpret the payload.
 
 **Critical Formatting Rule**: The Edge Function instructs Gemini to output `common_name` in Title Case (e.g. "Monarch Butterfly"). For safety, the Swift decoding layer also applies `.capitalized` on rendering to ensure older cached results display consistently without requiring DB migrations.
 

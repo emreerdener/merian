@@ -241,7 +241,7 @@ serve((req: Request) =>
     // deno-lint-ignore no-explicit-any
     const parts: any[] = base64Payloads.map(payload => ({
       inlineData: {
-        mimeType: "image/jpeg",
+        mimeType: "image/webp",
         data: payload,
       },
     }));
