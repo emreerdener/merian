@@ -20,6 +20,7 @@ final class HapticManager {
 
     // MARK: - Lifecycle
     private init() {
+        UserDefaults.standard.register(defaults: ["isHapticsEnabled": true])
         Task { @MainActor in
             // Delay preparation to avoid boot stutters.
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -61,5 +62,19 @@ final class HapticManager {
 
     func triggerSuccessPulse() {
         if UserDefaults.standard.bool(forKey: "isHapticsEnabled") { success.notificationOccurred(.success) }
+    }
+
+    func triggerLightImpact(intensity: CGFloat? = nil) {
+        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") {
+            if let intensity { light.impactOccurred(intensity: intensity) }
+            else { light.impactOccurred() }
+        }
+    }
+
+    func triggerHeavyImpact(intensity: CGFloat? = nil) {
+        if UserDefaults.standard.bool(forKey: "isHapticsEnabled") {
+             if let intensity { heavy.impactOccurred(intensity: intensity) }
+             else { heavy.impactOccurred() }
+        }
     }
 }

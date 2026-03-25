@@ -34,7 +34,7 @@ struct ScansGrid<MenuContent: View>: View {
         LazyVGrid(columns: columns, spacing: 2) {
             ForEach(scans) { scan in
                 Button(action: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    HapticManager.shared.triggerSheetSpring()
                     onSelect(scan)
                 }) {
                     ScanThumbnail(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl, maxDimension: thumbnailSize)
@@ -75,7 +75,7 @@ struct ScansGrid<MenuContent: View>: View {
             
             if let onAddScans = onAddScans {
                 Button(action: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    HapticManager.shared.triggerSheetSpring()
                     onAddScans()
                 }) {
                     ZStack {

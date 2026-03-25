@@ -157,6 +157,7 @@ struct ZoomSliderView: View {
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundColor(.black)
                     .contentTransition(.numericText())
+                    .scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(Capsule().fill(zoomYellow))
@@ -208,9 +209,9 @@ struct ZoomSliderView: View {
         })
 
         if opticalStopTicks.contains(currentTick) {
-            UIImpactFeedbackGenerator(style: .heavy).impactOccurred(intensity: 1.0)
+            HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
         } else {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.4)
+            HapticManager.shared.triggerLightImpact(intensity: 0.4)
         }
     }
 

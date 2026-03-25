@@ -19,7 +19,7 @@ struct MainTabBar: View {
                 iconName: "safari",
                 title: "Explore",
                 action: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    HapticManager.shared.triggerSheetSpring()
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                         showComingSoon = true
                     }
@@ -62,7 +62,7 @@ struct MainTabBar: View {
                 iconName: "rectangle.stack",
                 title: "Scans",
                 action: {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    HapticManager.shared.triggerSheetSpring()
                     isScansOpen = true
                 },
                 showBadge: hasUnseenScan
@@ -73,7 +73,7 @@ struct MainTabBar: View {
                 iconName: "person",
                 title: "Profile",
                 action: { 
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    HapticManager.shared.triggerSheetSpring()
                     isUserProfileOpen = true 
                 }
             )

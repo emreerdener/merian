@@ -6,7 +6,7 @@ struct FlashButton: View {
     
     var body: some View {
         Button(action: {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            HapticManager.shared.triggerMediumPulse()
             onToggleFlash()
         }) {
             Image(systemName: isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")

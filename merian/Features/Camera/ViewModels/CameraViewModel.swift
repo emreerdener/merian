@@ -72,17 +72,34 @@ final class CameraViewModel {
             .store(in: &cancellables)
     }
     
+    // MARK: - Background Reset Policy
+
+    /// Controls whether the staging state is preserved when the app enters the background.
+    ///
+    /// Return `true` to keep staged images and the active scan toolbar intact on foreground return.
+    /// Return `false` to wipe staging and return to the default camera view.
+    ///
+    /// Add cases here as new interrupt-sensitive states are introduced.
+    private var shouldPreserveStagingOnBackground: Bool {
+        // User has images staged for submission — a brief background trip should not discard their work.
+        !activeScanImages.isEmpty
+    }
+
     private func resetModalsForBackground() {
-        // Reset sheet boundaries so the user always returns to a clean camera view
+        // Sheets and crop state always close — they hold UI locks and must not reopen stale.
         activeSheet = nil
         imageToCrop = nil
         editingCropIndex = nil
-        activeScannedDatas.removeAll()
-        activeScanImages.removeAll()
-        activeOriginals.removeAll()
-        activeDisplayDatas.removeAll()
-        selectedPhotoItems.removeAll()
-        
+
+        // Only wipe staged images if no active workflow should survive the background transition.
+        if !shouldPreserveStagingOnBackground {
+            activeScannedDatas.removeAll()
+            activeScanImages.removeAll()
+            activeOriginals.removeAll()
+            activeDisplayDatas.removeAll()
+            selectedPhotoItems.removeAll()
+        }
+
         // Always clear the analysis overlay when the app leaves the foreground.
         // handleBackgroundPhase() owns inference cancellation and re-queuing separately —
         // keeping isAnalyzingFullscreen = true here would hold the camera blocked on return

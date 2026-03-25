@@ -31,7 +31,22 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay).
 
 1. `CameraManager.stopSession()` — halts AVFoundation to preserve thermal budget and release hardware resources.
-2. Posts `.appDidEnterInactivePhase` (`Notification.Name.appDidEnterInactivePhase`, defined in `Core/Utilities/NotificationNames.swift`) — consumed by `CameraViewModel` (and other observers) to reset view state (e.g., dismiss result sheets) without directly coupling `AppLifecycleManager` to individual ViewModels.
+2. Posts `.appDidEnterInactivePhase` (`Notification.Name.appDidEnterInactivePhase`, defined in `Core/Utilities/NotificationNames.swift`) — consumed by `CameraViewModel` (and other observers) to reset view state without directly coupling `AppLifecycleManager` to individual ViewModels.
+
+#### `CameraViewModel` background reset policy
+
+`CameraViewModel.resetModalsForBackground()` handles the inactive notification with selective state preservation:
+
+**Always reset (unconditionally):**
+- `activeSheet`, `imageToCrop`, `editingCropIndex` — sheets hold UI locks and must not reopen stale.
+- `isAnalyzingFullscreen` + `phaseRotationTask` — keeps the camera unblocked on foreground return; inference rescue is handled separately by `handleBackgroundPhase()`.
+
+**Conditionally preserved — governed by `shouldPreserveStagingOnBackground`:**
+- `activeScannedDatas`, `activeScanImages`, `activeOriginals`, `activeDisplayDatas`, `selectedPhotoItems` — staged captures are only wiped when `shouldPreserveStagingOnBackground` returns `false`.
+
+`shouldPreserveStagingOnBackground` is a private computed property that returns `true` when the user has images staged in the Active Scan Toolbar (`activeScanImages` is non-empty). This prevents a brief background trip (e.g. switching apps momentarily) from silently discarding the user's in-progress scan workflow.
+
+To add new interrupt-sensitive states in the future, add a condition to `shouldPreserveStagingOnBackground` — the wipe path is already gated on it.
 
 > `CameraViewModel` intentionally **does not** nil out active ML payloads on this notification — that is reserved for `handleBackgroundPhase()` to prevent a race condition where UI cleanup runs before the background rescue can read the payload.
 

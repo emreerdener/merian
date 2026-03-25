@@ -15,7 +15,7 @@ struct ShutterButton: View {
         }
         .environment(\.colorScheme, .dark)
         .onTapGesture {
-            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+            HapticManager.shared.triggerFocusSnap()
             onCapture()
         }
         .padding(.bottom, 32)

@@ -145,7 +145,7 @@ final class InsightSheetViewModel {
                 let isValidCelebration = data.isNewDiscovery && data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object"
                 
                 if !isValidCelebration {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    HapticManager.shared.triggerSheetSpring()
                 }
             }
         }

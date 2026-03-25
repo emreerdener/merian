@@ -27,7 +27,7 @@ struct ConfidenceBadge: View {
             let data = badgeData
             
             Button(action: {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                HapticManager.shared.triggerSheetSpring()
                 activeDetent = .fraction(0.65)
                 allowedDetents = [.fraction(0.65), .large]
                 isShowingExplanation = true

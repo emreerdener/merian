@@ -21,7 +21,7 @@ struct MediaModeToggle: View {
                 Button(action: {
                     if mode == .audio {
                         // Throw the "Coming soon" toast for Audio staging!
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        HapticManager.shared.triggerSheetSpring()
                         onModeChange()
                     } else {
                         // Triggers the Apple-tier spring slide natively for Visual

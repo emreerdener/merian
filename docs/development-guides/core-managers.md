@@ -22,6 +22,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `HapticManager`
 - Governs `UIImpactFeedbackGenerator` tactile feedback.
 - Generates `NotificationFeedback` for success/failure workflows without requiring `AudioToolbox` imports.
+- **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or `.sensoryFeedback` modifiers directly in views. Always route haptic feedback through `HapticManager.shared` API methods (e.g., `triggerSheetSpring()`, `triggerLightImpact()`) to ensure the user's `isHapticsEnabled` preference is respected globally.
 
 ### `PushNotificationManager`
 - Encapsulates `UNUserNotificationCenter` operations on the `@MainActor` thread.
