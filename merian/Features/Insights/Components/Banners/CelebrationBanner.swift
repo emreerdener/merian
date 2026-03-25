@@ -15,8 +15,8 @@ struct CelebrationBanner: View {
                         }
                     }
                 )
-                // 72pt guarantees clearance perfectly bypassing the physical UIKit NavigationBar and floating exactly below the Confidence Badge
-                .padding(.top, 72)
+                // 32pt places the banner natively at the top of the header, exactly where the Confidence Badge sits
+                .padding(.top, 32)
                 Spacer()
             }
             .transition(.move(edge: .top).combined(with: .opacity))
@@ -37,22 +37,9 @@ private struct NewDiscoveryCelebrationView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Icon Fallback
-            if !hardwareOrchestrator.isCriticalHeatWarningActive {
-                if #available(iOS 17.0, *) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(.yellow)
-                } else {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(.yellow)
-                }
-            } else {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.yellow)
-            }
+            Image(systemName: "star.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.yellow)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text("New discovery")
