@@ -61,10 +61,6 @@ struct MerianApp: App {
             .injectAppDependencies(container: diContainer)
             .onAppear {
                 diContainer.revenueCatManager.configure()
-                applyTheme(themeMode) // Apply strictly on initial application foregrounding
-            }
-            .onChange(of: themeMode) { _, newTheme in
-                applyTheme(newTheme) // Force dynamic UIWindow overrides across all views cleanly synchronously
             }
             .onOpenURL { url in
                 if GIDSignIn.sharedInstance.handle(url) {
@@ -94,19 +90,5 @@ struct MerianApp: App {
         }
     }
     
-    // MARK: - Application Theming
-    private func applyTheme(_ theme: ThemeMode) {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
-        
-        let style: UIUserInterfaceStyle
-        switch theme {
-        case .system: style = .unspecified
-        case .light: style = .light
-        case .dark: style = .dark
-        }
-        
-        for window in windowScene.windows {
-            window.overrideUserInterfaceStyle = style
-        }
-    }
+
 }

@@ -436,7 +436,11 @@ import Accelerate
             do {
                 try device.lockForConfiguration()
                 defer { device.unlockForConfiguration() }
-                device.videoZoomFactor = clamped
+                // ramp() lets the capture pipeline prepare for the upcoming lens switch,
+                // which eliminates the jump visible in the preview around optical stops like 2×.
+                // A rate of 300×/sec is imperceptible as lag but smooths the hardware transition.
+                device.cancelVideoZoomRamp()
+                device.ramp(toVideoZoomFactor: clamped, withRate: 300)
             } catch {
                 MerianLog.hardware.debug("setZoom: lockForConfiguration failed: \(error, privacy: .private)")
             }

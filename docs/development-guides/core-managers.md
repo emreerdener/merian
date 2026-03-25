@@ -79,6 +79,8 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Offloads search index rebuilds from the main `.onChange()` thread to avoid stalls on large scan lists.
 - Uses an O(1) delta update pattern: computes `oldIds.subtracting(newIds)` and `newIds.subtracting(oldIds)` via Swift Set operations, updating only the affected entries rather than rebuilding the full index on every change.
 - Runs extraction inside `indexingTask = Task.detached`, delegating to `SearchDatabaseActor` so identifier evaluation stays off the main thread and within JetSam memory limits.
+- **`searchString` composition**: Each scan's search index string is built as `commonName + scientificName + ecologyType + semanticTags + taxonomyClass + taxonomyOrder + taxonomyFamily + commonGroupName`. The `commonGroupName` is derived by `SearchDatabaseActor.commonGroupName(for:)`, which maps Latin class names to plain-English synonyms (e.g. `"aves"` → `"bird birds avian"`, `"mammalia"` → `"mammal mammals"`). This means casual searches like "bird" resolve without knowing the Latin taxonomy, while expert queries like "aves" or "passeriformes" also work.
+- **`semanticTags` composition**: Assembled at write time in `BackgroundDatabaseActor` and `ScanRepository` as `[commonName, scientificName] + colors + groupTags`. `groupTags` are the 2–4 plain-English categorical labels returned by Gemini's `group_tags` field (e.g. `["bird", "songbird"]`) and stored in the `group_tags TEXT[]` column of the `scans` table.
 
 ### `ArchiveManager` (Archive Safety Protocol)
 - Background worker that protects Free tier user data against the Cloudflare R2 90-day purge (`00004_storage_lifecycle_sync.sql`).
@@ -116,7 +118,10 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 |---|---|---|
 | `hasUnseenScan` | `"hasUnseenScan"` | `MainTabBar` (read), `Analysis` (write), `CameraSheetRouter` (clear) |
 | `isPushNotificationsEnabled` | `"isPushNotificationsEnabled"` | `NotificationSettingsView`, `PushNotificationManager`, `InferenceEngine`, `OfflineQueueManager+URLSession` |
-| `isLiveInferencePaused` | `"isLiveInferencePaused"` | `SettingsTabView`, `CameraManager` |
+| `isLiveInferencePaused` | `"isLiveInferencePaused"` | `CameraSettingsView`, `CameraManager` |
+| `invertZoomDirection` | `"invertZoomDirection"` | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView` |
+| `zoomSideLeft` | `"zoomSideLeft"` | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView` |
+| `zoomSliderVisible` | `"zoomSliderVisible"` | `ZoomSliderView`, `CameraSettingsView` |
 
 ## Networking
 

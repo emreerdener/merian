@@ -114,7 +114,7 @@ serve((req: Request) =>
         );
     }
 
-    const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case. 4) CRITICAL: Evaluate the combined visual context of all provided images organically to compute the absolute most accurate identification. 5) CRITICAL: If the images display multiple distinct biological species, strictly identify exactly ONE primary species (the most prominent or centered subject in the first image) and briefly mention the secondary species within the insight_data description. 6) CRITICAL: If the subject is non-biological (is_biological_subject = false), you MUST completely OMIT all taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, and colors fields to conserve output tokens.`;
+    const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case. 4) CRITICAL: Evaluate the combined visual context of all provided images organically to compute the absolute most accurate identification. 5) CRITICAL: If the images display multiple distinct biological species, strictly identify exactly ONE primary species (the most prominent or centered subject in the first image) and briefly mention the secondary species within the insight_data description. 6) CRITICAL: If the subject is non-biological (is_biological_subject = false), you MUST completely OMIT all taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, colors, and group_tags fields to conserve output tokens. 7) Output group_tags: 2-4 plain English categorical labels for the subject from broadest to most specific (e.g. ["bird", "songbird"] for a robin; ["tree", "deciduous tree"] for an oak; ["insect", "butterfly"] for a monarch). These are used for search — prefer common terms a non-expert would type.`;
 
     const targetModel = userTier === "pro"
       ? "gemini-2.5-pro"
@@ -222,6 +222,11 @@ serve((req: Request) =>
         colors: {
           type: SchemaType.ARRAY,
           items: { type: SchemaType.STRING },
+        },
+        group_tags: {
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
+          description: "2-4 plain English categorical labels for the subject, broadest to most specific (e.g. ['bird', 'songbird']).",
         },
       },
       required: [
@@ -485,6 +490,7 @@ serve((req: Request) =>
             ecology_type: parsedData.ecology_type,
             is_invasive: parsedData.is_invasive,
             colors: parsedData.colors,
+            group_tags: parsedData.group_tags,
             regional_status_rationale:
               parsedData.insight_data.regional_status_rationale,
             is_live_capture: parsedData.is_live_capture,

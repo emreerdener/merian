@@ -31,6 +31,10 @@ struct ZoomSliderView: View {
     @State private var lastHapticTick: Int? = nil
     @State private var dragStartFactor: CGFloat = 1.0
     @State private var isDragging: Bool = false
+    /// Drives the tick-elongation effect in `rulerView`. Animated 0→1 when zooming
+    /// starts and 1→0 when the idle timer fires; the Canvas re-draws on every frame
+    /// of both the gesture and the collapse animation.
+    @State private var zoomActivityStrength: CGFloat = 0
 
     var body: some View {
         Group {
@@ -49,12 +53,16 @@ struct ZoomSliderView: View {
         }
         .onChange(of: camera.zoomFactor) { _, newValue in
             isActivelyZooming = true
+            withAnimation(.easeOut(duration: 0.12)) { zoomActivityStrength = 1.0 }
             triggerHapticIfNeeded(factor: newValue)
             zoomIdleTask?.cancel()
             zoomIdleTask = Task {
                 try? await Task.sleep(for: .seconds(1.5))
                 guard !Task.isCancelled else { return }
-                await MainActor.run { isActivelyZooming = false }
+                await MainActor.run {
+                    isActivelyZooming = false
+                    withAnimation(.easeInOut(duration: 0.45)) { zoomActivityStrength = 0.0 }
+                }
             }
         }
     }
@@ -65,10 +73,17 @@ struct ZoomSliderView: View {
         let fraction = fillFraction(for: camera.zoomFactor)
         // Default: top = max zoom, bottom = 1×. Inverted: top = 1×, bottom = max zoom.
         let indicatorY = indicatorTickOffset + (invertZoomDirection ? fraction * trackHeight : (1.0 - fraction) * trackHeight)
+        // 1× is always at the extreme end of the track (fraction = 0).
+        let setPointY = indicatorTickOffset + (invertZoomDirection ? 0 : trackHeight)
+        let showSetPoint = camera.zoomFactor > 1.1
 
         return ZStack(alignment: .top) {
             rulerView
                 .padding(.top, 11)
+            setPointIndicator
+                .offset(y: setPointY)
+                .opacity(showSetPoint ? 1 : 0)
+                .animation(.easeInOut(duration: 0.2), value: showSetPoint)
             currentZoomIndicator
                 .offset(y: indicatorY)
                 .animation(isDragging ? nil : .spring(response: 0.4, dampingFraction: 0.75), value: indicatorY)
@@ -102,6 +117,9 @@ struct ZoomSliderView: View {
         // Half a tick's width in log-space — mirrors the log scale used by the indicator and drag gesture.
         let halfTickLog = maxZoom > 1.0 && logMax > 0 ? logMax / CGFloat(tickCount - 1) * 0.5 : 0
         let inverted = invertZoomDirection
+        // Captured for the tick-elongation effect; Canvas re-draws whenever these change.
+        let currentFraction = fillFraction(for: camera.zoomFactor)
+        let activityStrength = zoomActivityStrength
 
         return Canvas { ctx, size in
             guard maxZoom > 1.0 else { return }
@@ -113,12 +131,21 @@ struct ZoomSliderView: View {
                 // Log-spaced to match the indicator position and drag gesture (both use log scale).
                 // Default: top = max zoom (logMax), bottom = 1× (0). Inverted: reversed.
                 let tickLog = inverted ? t * logMax : (1.0 - t) * logMax
+                // Fraction in 0–1 zoom space for this tick, matching currentFraction's scale.
+                let tickFraction: CGFloat = inverted ? t : (1.0 - t)
                 let isOpticalStop = stops.contains { abs(log(max($0, 1.0)) - tickLog) < halfTickLog }
                 // Max zoom tick: i=0 in default (top), i=tickCount-1 in inverted (bottom)
                 let isMaxZoom = inverted ? i == tickCount - 1 : i == 0
 
+                // Gaussian falloff centred on the current zoom fraction.
+                // σ = 0.18 covers ~5–6 ticks either side; peak extension = 8 pt (leftward).
+                // activityStrength gates the whole effect so it fades cleanly in/out.
+                let d = tickFraction - currentFraction
+                let influence = exp(-d * d / (2 * 0.18 * 0.18)) * activityStrength
+                let extraLength: CGFloat = influence * 8
+
                 var line = Path()
-                let x0 = size.width - shortTickWidth + opticalTickInset
+                let x0 = size.width - shortTickWidth + opticalTickInset - extraLength
                 line.move(to: CGPoint(x: x0, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
 
@@ -171,13 +198,34 @@ struct ZoomSliderView: View {
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
             }
 
-            // Hair-line connector to the ruler ticks — subtler when showing the dot
+            // Hair-line connector to the ruler ticks — subtler when showing the dot.
+            // Width switches between shortTickWidth (pill) and dotRightOffset (dot) so that
+            // the dot center lands at the same x as the Canvas optical-stop dots.
             Color.white
-                .frame(width: shortTickWidth, height: showText ? 1.5 : 0.5)
+                .frame(width: showText ? shortTickWidth : dotRightOffset, height: showText ? 1.5 : 0.5)
                 .opacity(showText ? 0.7 : 0.15)
         }
         .frame(width: componentWidth, height: 20)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: showText)
+    }
+
+    // MARK: - 1× set point indicator
+
+    /// A static white marker that appears at the 1× position whenever the current
+    /// zoom indicator has moved away from it. Mirrors the structural layout of
+    /// `currentZoomIndicator` (same frame, same hairline connector) but uses a
+    /// muted white fill so it reads as a reference point rather than the active cue.
+    private var setPointIndicator: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            Circle()
+                .fill(Color.white.opacity(0.55))
+                .frame(width: 4, height: 4)
+            Color.white
+                .frame(width: dotRightOffset, height: 0.5)
+                .opacity(0.15)
+        }
+        .frame(width: componentWidth, height: 20)
     }
 
     // MARK: - Math

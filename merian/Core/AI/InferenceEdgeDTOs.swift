@@ -26,6 +26,7 @@ struct EdgeResponse: Codable {
     let common_name: String?
     let confidence_score: Double?
     let colors: [String]?
+    let group_tags: [String]?
 
     struct Taxonomy: Codable {
         let kingdom: String?

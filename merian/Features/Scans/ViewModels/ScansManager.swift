@@ -283,12 +283,13 @@ actor SearchDatabaseActor {
             
             if let record = self.modelContext.model(for: id) as? LocalScanRecord {
                 let tags = record.semanticTags.joined(separator: " ")
-                // insightDescription is a long paragraph — omitting it prevents faulting the
-                // heaviest text field for every scan during index builds, which would force
-                // SQLite to load kilobytes of prose per record just to build a search string.
-                // commonName, scientificName, ecologyType, and semanticTags cover all practical
-                // user search patterns without the memory cost.
-                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags)".lowercased()
+                // Taxonomy class/order/family are appended so users can search Latin names
+                // (e.g. "aves", "passeriformes"). commonGroupName maps the class to plain
+                // English synonyms (e.g. "aves" → "bird birds") so casual queries work too.
+                let taxonomyTerms = [record.taxonomyClass, record.taxonomyOrder, record.taxonomyFamily]
+                    .compactMap { $0 }.joined(separator: " ")
+                let groupName = SearchDatabaseActor.commonGroupName(for: record.taxonomyClass)
+                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(taxonomyTerms) \(groupName)".lowercased()
                 
                 processed.append(SearchableScan(
                     id: record.id,
@@ -302,6 +303,22 @@ actor SearchDatabaseActor {
         }
         
         return processed
+    }
+
+    /// Maps a taxonomy class name to plain-English group synonyms so users can search
+    /// "bird", "mammal", "spider" etc. without knowing the Latin class name.
+    static func commonGroupName(for taxonomyClass: String?) -> String {
+        switch taxonomyClass?.lowercased() {
+        case "aves":                                        return "bird birds avian"
+        case "mammalia":                                    return "mammal mammals"
+        case "insecta", "entognatha":                       return "insect insects bug bugs"
+        case "arachnida":                                   return "spider spiders arachnid arachnids"
+        case "reptilia", "squamata":                        return "reptile reptiles"
+        case "amphibia":                                    return "amphibian amphibians frog frogs toad toads"
+        case "actinopterygii", "chondrichthyes",
+             "sarcopterygii":                               return "fish"
+        default:                                            return ""
+        }
     }
 }
 

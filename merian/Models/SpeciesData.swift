@@ -87,6 +87,7 @@ struct SpeciesData {
     var gpsLatitude: Double?
     var gpsLongitude: Double?
     var colors: [String]?
+    var groupTags: [String]?
     let iucnRedListStatus: String?
     var zoomFactor: Double?
 }
@@ -153,6 +154,7 @@ extension SpeciesData {
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
         self.colors = edgeRes.colors
+        self.groupTags = edgeRes.group_tags
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
         self.zoomFactor = nil  // populated by the caller from CaptureTelemetry
     }
@@ -184,6 +186,7 @@ extension SpeciesData {
         gpsLatitude: Double? = nil,
         gpsLongitude: Double? = nil,
         colors: [String]? = nil,
+        groupTags: [String]? = nil,
         iucnRedListStatus: String? = nil,
         zoomFactor: Double? = nil
     ) {
@@ -208,6 +211,7 @@ extension SpeciesData {
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
         self.colors = colors
+        self.groupTags = groupTags
         self.iucnRedListStatus = iucnRedListStatus
         self.zoomFactor = zoomFactor
     }

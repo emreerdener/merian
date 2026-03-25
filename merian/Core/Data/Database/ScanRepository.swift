@@ -125,7 +125,7 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, species_dictionary(*)")
+                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, group_tags, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, species_dictionary(*)")
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
@@ -272,6 +272,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let is_invasive: Bool?
     let is_live_capture: Bool?
     let colors: [String]?
+    let group_tags: [String]?
     let semantic_location: String?
     let gps_lat_exact: Double?
     let gps_long_exact: Double?
@@ -446,7 +447,7 @@ actor HistoricalDatabaseActor {
                 insightDescription: desc,
                 timestamp: parsedDate,
                 localImagePath: rawR2Image,
-                semanticTags: [cName, sciName] + (scan.colors ?? []),
+                semanticTags: [cName, sciName] + (scan.colors ?? []) + (scan.group_tags ?? []),
                 isPoisonous: dict?.is_poisonous ?? false,
                 isBiological: true,
                 isLiveCapture: scan.is_live_capture ?? true,

@@ -106,7 +106,8 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
         "Hindwing patterning: Subject has no horizontal black line vs Viceroy Pattern has distinct horizontal line across veins"
       ]
     },
-  "colors": ["orange", "black", "white"]
+  "colors": ["orange", "black", "white"],
+  "group_tags": ["insect", "butterfly"]
 }
 ```
 
