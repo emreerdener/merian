@@ -16,7 +16,7 @@ struct CameraRootView: View {
     // MARK: - View Model & State
     @State private var viewModel = CameraViewModel()
     @State private var captureMode: CaptureMode = .visual
-    @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
+    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
 
     // MARK: - Focus Indicator State
     @State private var focusLocation: CGPoint? = nil
@@ -139,7 +139,7 @@ struct CameraRootView: View {
                             PhotoLibraryButton(
                                 selectedPhotoItems: $viewModel.selectedPhotoItems,
                                 latestThumbnail: photoLibraryManager.latestThumbnail,
-                                maxSelectionCount: multiImageScanMode ? max(1, 2 - viewModel.activeScanImages.count) : 1
+                                maxSelectionCount: isMultiCaptureEnabled ? max(1, 2 - viewModel.activeScanImages.count) : 1
                             )
                             .opacity(captureMode == .visual ? 1 : 0)
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
@@ -224,7 +224,7 @@ struct CameraRootView: View {
         }
         .onChange(of: viewModel.activeScanImages.count) { _, count in
             guard count == 1,
-                  !UserDefaults.standard.bool(forKey: "multiImageScanMode") else { return }
+                  !UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") else { return }
             viewModel.submitActiveScan(modelContext: modelContext)
         }
         .onChange(of: captureMode) { _, newMode in

@@ -6,12 +6,11 @@ struct Preferences: View {
     @Environment(SupabaseManager.self) private var supabase
 
     @Binding var isHapticsEnabled: Bool
-    @Binding var saveToCameraRoll: Bool
     @Binding var defaultGeoprivacy: String
     @Binding var managePlanActive: Bool
 
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
-    @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
+    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
 
     @Binding var notificationSettingsActive: Bool
     @Binding var cameraSettingsActive: Bool
@@ -64,12 +63,12 @@ struct Preferences: View {
             }
 
 
-            // MARK: - Multi-Image Scans
+            // MARK: - Multi-Capture Scans
             SettingsToggleRow(
-                title: "Multi-image scans",
-                description: "Attach up to 2 images before submitting. By default a single capture is sent to AI immediately.",
-                isOn: $multiImageScanMode,
-                icon: "photo.on.rectangle.angled.fill",
+                title: "Multi-capture mode",
+                description: "Attach up to 2 items (photos or audio clips) before submitting. By default, a single capture is sent to AI immediately.",
+                isOn: $isMultiCaptureEnabled,
+                icon: "rectangle.stack.badge.plus",
                 iconColor: .blue
             )
 
@@ -92,15 +91,6 @@ struct Preferences: View {
                 isOn: $isHapticsEnabled,
                 icon: "waveform",
                 iconColor: .pink
-            )
-
-            // MARK: - Save to Camera Roll
-            SettingsToggleRow(
-                title: "Save to camera roll",
-                description: "Automatically save each captured photo to your iPhone's Photos library.",
-                isOn: $saveToCameraRoll,
-                icon: "square.and.arrow.down",
-                iconColor: .teal
             )
 
             // MARK: - Geoprivacy
@@ -212,6 +202,7 @@ struct CameraSettingsView: View {
     @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
     @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
     @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = false
+    @AppStorage("saveToCameraRoll") private var saveToCameraRoll: Bool = true
 
     var body: some View {
         List {
@@ -225,6 +216,17 @@ struct CameraSettingsView: View {
                 )
             } header: {
                 Text("Viewfinder")
+            }
+            Section {
+                SettingsToggleRow(
+                    title: "Save to camera roll",
+                    description: "Automatically save each captured photo to your iPhone's Photos library.",
+                    isOn: $saveToCameraRoll,
+                    icon: "square.and.arrow.down",
+                    iconColor: .teal
+                )
+            } header: {
+                Text("Capture")
             }
             Section {
                 SettingsToggleRow(

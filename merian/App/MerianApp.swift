@@ -25,6 +25,13 @@ struct MerianApp: App {
     
     // MARK: - Lifecycle Bootstrapping
     init() {
+        // Migrate old multiImageScanMode to the new isMultiCaptureEnabled key
+        if UserDefaults.standard.object(forKey: "multiImageScanMode") != nil {
+            let oldVal = UserDefaults.standard.bool(forKey: "multiImageScanMode")
+            UserDefaults.standard.set(oldVal, forKey: "isMultiCaptureEnabled")
+            UserDefaults.standard.removeObject(forKey: "multiImageScanMode")
+        }
+
         do {
             let schema = Schema(versionedSchema: MerianSchemaV13.self)
             let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -39,7 +46,7 @@ struct MerianApp: App {
         // is not @MainActor, configure() runs on the background thread pool as intended.
         AppTelemetry.initialize()
         Task.detached(priority: .background) {
-            await PostHogManager.shared.configure()
+            PostHogManager.shared.configure()
         }
     }
 

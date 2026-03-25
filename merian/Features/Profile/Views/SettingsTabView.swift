@@ -10,7 +10,6 @@ struct SettingsTabView: View {
     // MARK: - Feature Toggles
     @AppStorage("isExpeditionModeActive") private var isExpeditionModeActive = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
-    @AppStorage("saveToCameraRoll") private var saveToCameraRoll = true
 
     // MARK: - State
     @State private var isExporting = false
@@ -27,7 +26,6 @@ struct SettingsTabView: View {
         List {
             Preferences(
                 isHapticsEnabled: $isHapticsEnabled,
-                saveToCameraRoll: $saveToCameraRoll,
                 defaultGeoprivacy: $viewModel.defaultGeoprivacy,
                 managePlanActive: $managePlanActive,
                 notificationSettingsActive: $notificationSettingsActive,

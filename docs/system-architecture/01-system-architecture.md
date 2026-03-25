@@ -43,7 +43,7 @@ flowchart TD
 ### 3. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
 
 - A Cloud-native workflow decoupling Apple users from raw API logic.
-- The `identify` Deno Edge node accepts pre-signed multi-image iOS uploads. It handles concurrent R2 array streams via `Promise.allSettled`, enforcing a strict 5 MB cumulative buffer size constraint to shield the Deno V8 engine from OOM heap crashes before evaluating the combined visual context across all images.
+- The `identify` Deno Edge node accepts pre-signed multi-capture iOS uploads. It handles concurrent R2 array streams via `Promise.allSettled`, enforcing a strict 5 MB cumulative buffer size constraint to shield the Deno V8 engine from OOM heap crashes before evaluating the combined visual context across all images.
 - `Task.checkCancellation()` boundaries are injected inside `InferenceEngine` before transferring `URLSession` data payloads to Cloudflare R2. If the iOS Watchdog or the user cancels a processing scan, execution aborts immediately to prevent cellular bandwidth leakage.
 
 ### 4. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)

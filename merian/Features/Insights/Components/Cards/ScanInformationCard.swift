@@ -88,7 +88,7 @@ struct ScanInformationCard: View {
                         }
                         .frame(height: 200)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(radius: 0)
+                        .shadow(color: .clear, radius: 0)
                         .allowsHitTesting(false)
                         .padding(.top, 4)
                     }
