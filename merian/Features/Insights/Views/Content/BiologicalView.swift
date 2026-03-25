@@ -14,13 +14,13 @@ struct BiologicalView: View {
     var body: some View {
         VStack(spacing: 24) {
             
-            // Primary Identifiers
             InsightHeader(
                 title: viewModel.headerTitle,
                 subtitle: viewModel.headerSubtitle,
                 isPoisonous: viewModel.isPoisonous,
                 paragraphs: viewModel.headerParagraphs,
-                badgeItems: viewModel.headerBadgeItems
+                badgeItems: viewModel.headerBadgeItems,
+                confidenceScore: inferenceEngine.speciesData?.confidenceScore
             )
             ToxicityBanner()
 

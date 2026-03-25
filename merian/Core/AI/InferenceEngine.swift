@@ -98,7 +98,8 @@ private struct WikiSummaryResponse: Decodable {
                 let client = MerianNetworkClient.shared
 
                 let base64Strings = await InferenceProcessingActor.shared.encodeBase64(compressedDatas: compressedDatas)
-                let targetObjectKey = "staging/\(UUID().uuidString).jpg"
+                let resolvedUserId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
+                let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString).jpg"
 
                 try Task.checkCancellation()
 

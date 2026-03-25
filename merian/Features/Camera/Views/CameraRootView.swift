@@ -12,6 +12,7 @@ struct CameraRootView: View {
     @Environment(PhotoLibraryManager.self) var photoLibraryManager
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
 
     // MARK: - View Model & State
     @State private var viewModel = CameraViewModel()
@@ -231,7 +232,10 @@ struct CameraRootView: View {
             HapticManager.shared.triggerSheetSpring()
             if newMode == .audio {
                 cameraManager.stopSession()
-            } else if !viewModel.isAnalyzingFullscreen {
+            } else if !viewModel.isAnalyzingFullscreen && scenePhase == .active {
+                // Only start the camera if the app is fully active.
+                // Guarding this prevents deadlocking the hardware queue if the mode shifts
+                // while the app is suspending (e.g., closing a full-screen sheet on background).
                 cameraManager.startSession()
             }
         }
@@ -239,7 +243,12 @@ struct CameraRootView: View {
             viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
             if isFullscreen {
                 cameraManager.stopSession()
-            } else if captureMode == .visual {
+            } else if captureMode == .visual && scenePhase == .active {
+                // Must explicitly guard against `scenePhase == .active`.
+                // When an app sweeps into the background, the UI implicitly closes modal sheets
+                // which broadcasts `isFullscreen = false`. Without this guard, we'd fire a
+                // hardware start request into the `AVCaptureSession` while suspended,
+                // permanently hanging the video data queue on foreground return.
                 cameraManager.startSession()
             }
         }

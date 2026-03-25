@@ -227,7 +227,7 @@ extension OfflineQueueManager {
 
         do {
             let pipelineStart = CFAbsoluteTimeGetCurrent()
-            let userId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+            let userId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
             let resolvedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
 
             await MainActor.run { SyncStateManager.shared.beginInferencing() }

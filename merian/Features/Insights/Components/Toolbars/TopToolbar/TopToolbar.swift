@@ -4,7 +4,6 @@ struct TopToolbar: ToolbarContent {
     @Environment(\.dismiss) var dismiss
     
     let commonName: String
-    let confidenceScore: Double?
     let isCommonNameScrolledPast: Bool
     @Binding var isFlagIssuePresented: Bool
     @Binding var isSavingPhotos: Bool
@@ -22,7 +21,6 @@ struct TopToolbar: ToolbarContent {
         ToolbarItem(placement: .principal) {
             TopToolbarTitleView(
                 commonName: commonName,
-                confidenceScore: confidenceScore,
                 isCommonNameScrolledPast: isCommonNameScrolledPast
             )
         }
@@ -50,7 +48,6 @@ struct TopToolbar: ToolbarContent {
 // MARK: - Isolated Header Component
 private struct TopToolbarTitleView: View {
     let commonName: String
-    let confidenceScore: Double?
     let isCommonNameScrolledPast: Bool
     
     var body: some View {
@@ -65,9 +62,6 @@ private struct TopToolbarTitleView: View {
                     .padding(.vertical, 6)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
-            } else {
-                ConfidenceBadge(confidenceScore: confidenceScore)
                     .transition(.opacity.combined(with: .scale(scale: 0.85)))
             }
         }

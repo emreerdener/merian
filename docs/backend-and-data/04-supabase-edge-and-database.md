@@ -57,7 +57,7 @@ Researchers trigger the `export-dwca` function to extract global occurrence data
 
 User blocking routes through a dedicated Edge Function to bypass RLS policies that operate on anonymous IDFV boundaries:
 
-1. iOS reads the internal UUID from `DeviceIdentityManager.shared.deviceId` and attaches its active JWT. A missing session throws `NetworkError` before any API call is made.
+1. iOS validates the active Supabase JWT via `SupabaseManager` and attaches it to the request. A missing session throws a `NetworkError` before any API call is made.
 2. The `{"blocked_id": "..."}` payload is sent via the REST API. The Edge Function extracts `blocker_id` via `supabase.auth.getUser()`. If `blocked_id` is missing from the request body, the function returns `jsonResponse({ error: "..." }, 400)` rather than throwing an unhandled Error (which previously produced an incorrect 500 response).
 3. `supabaseAdmin.from('user_blocks').insert()` runs with the service role key, bypassing RLS without exposing the table structure to the client.
 

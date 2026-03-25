@@ -115,7 +115,6 @@ private extension InsightSheetView {
     var sheetToolbar: some ToolbarContent {
         TopToolbar(
             commonName: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject...",
-            confidenceScore: inferenceEngine.speciesData?.confidenceScore,
             isCommonNameScrolledPast: viewModel.isCommonNameScrolledPast,
             isFlagIssuePresented: $viewModel.isFlagIssuePresented,
             isSavingPhotos: $viewModel.isSavingPhotos,

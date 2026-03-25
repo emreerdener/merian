@@ -66,9 +66,6 @@ struct ConfidenceBadge: View {
                             )
                     }
                 )
-                // Stacked shadows: structural drop + ambient semantic glow
-                .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-                .shadow(color: data.color.opacity(0.25), radius: 12, x: 0, y: 0)
             }
             .buttonStyle(.plain)
             .onAppear {

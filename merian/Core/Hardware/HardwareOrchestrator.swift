@@ -86,8 +86,7 @@ extension UIDevice {
     func evaluateConstraints(isLowPowerModeEnabled: Bool? = nil, thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
 
-        let isUserForcedExpedition = UserDefaults.standard.bool(forKey: "isExpeditionModeActive")
-        isExpeditionModeActive = isUserForcedExpedition || (isLowPowerModeEnabled ?? processInfo.isLowPowerModeEnabled)
+        isExpeditionModeActive = UserDefaults.standard.bool(forKey: "isExpeditionModeActive")
 
         // Do not overwrite FPS while idling at 1fps.
         guard !isIdleLocked else { return }

@@ -165,7 +165,7 @@ final class MerianNetworkClient {
     func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, telemetry: CaptureTelemetry) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
 
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let userId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
         let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
         let currentMonth = Calendar.current.component(.month, from: Date())
 
@@ -178,7 +178,7 @@ final class MerianNetworkClient {
         let payload: [String: Any?] = [
             "r2ObjectKeys": r2ObjectKeys,
             "imageBase64s": base64ImageDatas,
-            "user_id": deviceId,
+            "user_id": userId,
             "mimeType": "image/jpeg",
             "depthScaleText": depthScaleText,
             "zoomFactor": telemetry.zoomFactor.map { Double($0) },
@@ -203,8 +203,8 @@ final class MerianNetworkClient {
 
     func generateUploadURLs(fileNames: [String]) async throws -> [PreSignedURL] {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/generate-upload-urls")!
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-        let payload: [String: Any] = ["fileNames": fileNames, "user_id": deviceId]
+        let userId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
+        let payload: [String: Any] = ["fileNames": fileNames, "user_id": userId]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)

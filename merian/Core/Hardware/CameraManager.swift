@@ -85,15 +85,6 @@ import Accelerate
         NotificationCenter.default.publisher(for: AVCaptureDevice.subjectAreaDidChangeNotification)
             .sink { [weak self] _ in self?.resetFocusAndExposure() }
             .store(in: &cancellables)
-
-        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
-            .sink { [weak self] _ in
-                Task { @MainActor in
-                    self?.isFlashEnabled = false
-                    self?.setZoom(factor: 1.0)
-                }
-            }
-            .store(in: &cancellables)
     }
 
     private func trackFPS() {
@@ -207,9 +198,15 @@ import Accelerate
 
     // MARK: - Session Lifecycle
 
+    /// Starts the capture session on the dedicated background queue.
+    ///
+    /// `session.isRunning` is intentionally evaluated inside `queue.async` rather than
+    /// on the caller's thread. `AVCaptureSession.isRunning` is highly synchronous; querying it
+    /// from the Main Thread while it spins up/down on a background thread risks deadlocking
+    /// the session pipeline.
     func startSession() {
-        guard !session.isRunning else { return }
         queue.async {
+            guard !self.session.isRunning else { return }
             let needsConfig = self.stateLock.withLock { () -> Bool in
                 if !self.isSessionConfigured {
                     self.isSessionConfigured = true
@@ -238,9 +235,11 @@ import Accelerate
         }
     }
 
+    /// Stops the capture session securely.
+    /// Safely queued to avoid main-thread blocking if `stopRunning` is blocked.
     func stopSession() {
-        guard session.isRunning else { return }
         queue.async {
+            guard self.session.isRunning else { return }
             self.session.stopRunning()
             Task { @MainActor in
                 self.isSessionRunning = false

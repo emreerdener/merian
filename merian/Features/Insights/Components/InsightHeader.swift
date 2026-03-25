@@ -6,9 +6,12 @@ struct InsightHeader: View {
     let isPoisonous: Bool
     let paragraphs: [String]
     let badgeItems: [BadgeItem]
+    let confidenceScore: Double?
     
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
+             ConfidenceBadge(confidenceScore: confidenceScore)
+             
              VStack(alignment: .center, spacing: 8) {
                 Text(subtitle)
                     .font(.system(.title3))
