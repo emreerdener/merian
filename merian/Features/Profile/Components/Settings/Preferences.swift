@@ -5,7 +5,6 @@ struct Preferences: View {
     @Environment(HardwareOrchestrator.self) private var hardwareOrchestrator
     @Environment(SupabaseManager.self) private var supabase
 
-    @Binding var isLiveInferencePaused: Bool
     @Binding var isHapticsEnabled: Bool
     @Binding var saveToCameraRoll: Bool
     @Binding var defaultGeoprivacy: String
@@ -35,7 +34,12 @@ struct Preferences: View {
 
             // MARK: - Camera
             Button { cameraSettingsActive = true } label: {
-                SettingsNavigationRow(title: "Camera", icon: "camera.fill", iconColor: .gray)
+                SettingsNavigationRow(
+                    title: "Camera",
+                    description: "Zoom controls, viewfinder hints, and capture preferences.",
+                    icon: "camera.fill",
+                    iconColor: .gray
+                )
             }
 
             // MARK: - Manage Plan
@@ -50,7 +54,12 @@ struct Preferences: View {
 
             // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
-                SettingsNavigationRow(title: "Notifications", icon: "bell.fill", iconColor: .red)
+                SettingsNavigationRow(
+                    title: "Notifications",
+                    description: "Configure alerts for new discoveries and achievement milestones.",
+                    icon: "bell.fill",
+                    iconColor: .red
+                )
             }
 
             // MARK: - Multi-Image Scans
@@ -74,18 +83,10 @@ struct Preferences: View {
                 hardwareOrchestrator.evaluateConstraints()
             }
 
-            // MARK: - Live Viewfinder Hints
-            SettingsToggleRow(
-                title: "Live viewfinder hints",
-                description: "Provides real-time AI scanning suggestions before you press the shutter. Turn off to reduce thermal load or battery drain.",
-                isOn: hintsDisabled,
-                icon: "sparkles",
-                iconColor: .indigo
-            )
-
             // MARK: - System Haptics
             SettingsToggleRow(
                 title: "System haptics",
+                description: "Tactile feedback on zoom ticks, captures, and key interactions.",
                 isOn: $isHapticsEnabled,
                 icon: "waveform",
                 iconColor: .pink
@@ -94,6 +95,7 @@ struct Preferences: View {
             // MARK: - Save to Camera Roll
             SettingsToggleRow(
                 title: "Save to camera roll",
+                description: "Automatically save each captured photo to your iPhone's Photos library.",
                 isOn: $saveToCameraRoll,
                 icon: "photo.fill",
                 iconColor: .teal
@@ -103,17 +105,24 @@ struct Preferences: View {
             NavigationLink {
                 GeoprivacyPickerView(defaultGeoprivacy: $defaultGeoprivacy)
             } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "location.fill")
-                        .foregroundStyle(.blue)
-                        .font(.system(size: 17, weight: .medium))
-                        .frame(width: 24)
-                    Text("Geoprivacy")
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Text(defaultGeoprivacy.capitalized)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "location.fill")
+                            .foregroundStyle(.blue)
+                            .font(.system(size: 17, weight: .medium))
+                            .frame(width: 24)
+                        Text("Geoprivacy")
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Text(defaultGeoprivacy.capitalized)
+                            .foregroundColor(.secondary)
+                    }
+                    Text("Control how precisely your location is recorded on each scan.")
+                        .font(.caption)
                         .foregroundColor(.secondary)
+                        .padding(.leading, 36)
                 }
+                .padding(.vertical, 4)
             }
         } header: {
             Text("Preferences")
@@ -194,27 +203,26 @@ struct SettingsToggleRow: View {
     }
 }
 
-// MARK: - Computed Boundaries
-private extension Preferences {
-    var hintsDisabled: Binding<Bool> {
-        Binding<Bool>(
-            get: { !self.isLiveInferencePaused },
-            set: { newValue in
-                self.isLiveInferencePaused = !newValue
-                CameraManager.shared.isLiveInferencePaused = !newValue
-            }
-        )
-    }
-}
-
 // MARK: - Camera Settings
 
 struct CameraSettingsView: View {
     @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
     @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = false
+    @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = false
 
     var body: some View {
         List {
+            Section {
+                SettingsToggleRow(
+                    title: "Live viewfinder hints",
+                    description: "Provides real-time AI scanning suggestions before you press the shutter. Turn off to reduce thermal load or battery drain.",
+                    isOn: hintsEnabled,
+                    icon: "sparkles",
+                    iconColor: .indigo
+                )
+            } header: {
+                Text("Viewfinder")
+            }
             Section {
                 SettingsToggleRow(
                     title: "Left-side zoom slider",
@@ -236,6 +244,16 @@ struct CameraSettingsView: View {
         }
         .navigationTitle("Camera")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var hintsEnabled: Binding<Bool> {
+        Binding<Bool>(
+            get: { !isLiveInferencePaused },
+            set: { newValue in
+                isLiveInferencePaused = !newValue
+                CameraManager.shared.isLiveInferencePaused = !newValue
+            }
+        )
     }
 }
 

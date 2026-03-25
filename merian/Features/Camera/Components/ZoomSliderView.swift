@@ -16,7 +16,7 @@ struct ZoomSliderView: View {
     private let trackHeight: CGFloat = 220
     private let componentWidth: CGFloat = 52
     private let tickCount: Int = 32
-    private let shortTickWidth: CGFloat = 14
+    private let shortTickWidth: CGFloat = 18
     private let dotRightOffset: CGFloat = 18   // white dot distance from trailing edge
     private let opticalTickInset: CGFloat = 4  // extra gap between dot and its tick
     // Aligns indicator center with tick positions: rulerView padding(11) + canvas y-start(4) − half indicator height(10) = 5
@@ -93,7 +93,6 @@ struct ZoomSliderView: View {
         // Half a tick's zoom range — used to snap a tick to the nearest optical stop.
         let halfTickZoom = maxZoom > 1.0 ? (maxZoom - 1.0) / CGFloat(tickCount - 1) * 0.5 : 0
         let inverted = invertZoomDirection
-        let maxLabel = zoomLabel(for: maxZoom)
 
         return Canvas { ctx, size in
             guard maxZoom > 1.0 else { return }
@@ -115,7 +114,7 @@ struct ZoomSliderView: View {
                 let x0: CGFloat
                 if isMaxZoom {
                     tickLength = shortTickWidth
-                    x0 = size.width - tickLength
+                    x0 = size.width - tickLength + opticalTickInset
                 } else {
                     tickLength = isOpticalStop ? shortTickWidth : shortTickWidth * 0.6
                     x0 = size.width - tickLength + (isOpticalStop ? opticalTickInset : 0)
@@ -123,14 +122,16 @@ struct ZoomSliderView: View {
                 line.move(to: CGPoint(x: x0, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
 
-                let tickColor: Color = isMaxZoom ? .white : (isOpticalStop ? .white.opacity(0.8) : .white.opacity(0.45))
-                ctx.stroke(line, with: .color(tickColor), lineWidth: isMaxZoom ? 1.0 : 0.5)
+                let tickColor: Color = isOpticalStop || isMaxZoom ? .white.opacity(0.8) : .white.opacity(0.45)
+                ctx.stroke(line, with: .color(tickColor), lineWidth: 0.5)
 
                 if isMaxZoom {
-                    let label = Text(maxLabel)
-                        .font(.system(size: 7, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.7))
-                    ctx.draw(label, at: CGPoint(x: size.width - shortTickWidth - 5, y: y), anchor: .trailing)
+                    let dotSize: CGFloat = 4
+                    let dotX = size.width - dotRightOffset - dotSize / 2
+                    ctx.fill(
+                        Path(ellipseIn: CGRect(x: dotX, y: y - dotSize / 2, width: dotSize, height: dotSize)),
+                        with: .color(.white.opacity(0.9))
+                    )
                 } else if isOpticalStop {
                     let dotSize: CGFloat = 4
                     let dotX = size.width - dotRightOffset - dotSize / 2

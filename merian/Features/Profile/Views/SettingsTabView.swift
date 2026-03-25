@@ -9,7 +9,6 @@ struct SettingsTabView: View {
 
     // MARK: - Feature Toggles
     @AppStorage("isExpeditionModeActive") private var isExpeditionModeActive = false
-    @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused = UIDevice.current.isModernIPhone
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
     @AppStorage("saveToCameraRoll") private var saveToCameraRoll = true
 
@@ -27,7 +26,6 @@ struct SettingsTabView: View {
     var body: some View {
         List {
             Preferences(
-                isLiveInferencePaused: $isLiveInferencePaused,
                 isHapticsEnabled: $isHapticsEnabled,
                 saveToCameraRoll: $saveToCameraRoll,
                 defaultGeoprivacy: $viewModel.defaultGeoprivacy,
@@ -63,7 +61,6 @@ struct SettingsTabView: View {
         .containerRelativeFrame(.horizontal)
         .onAppear {
             isExpeditionModeActive = HardwareOrchestrator.shared.isExpeditionModeActive
-            isLiveInferencePaused = CameraManager.shared.isLiveInferencePaused
         }
         .sheet(isPresented: $showSafari) {
             if let url = safariUrl {
