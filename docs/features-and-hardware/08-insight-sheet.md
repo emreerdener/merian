@@ -88,10 +88,9 @@ The ZOOM row shows the value formatted as `"3.0×"`. It is omitted for 1× scans
 
 | Node label | Score range |
 |---|---|
-| High confidence | 95% – 100% |
-| Confident | 85% – 94% |
-| Educated guess | 70% – 84% |
-| Low confidence | Below 70% |
+| Strong match | 85% – 100% |
+| Possible match | 70% – 84% |
+| Weak match | Below 70% |
 
 Tapping the spectrum (accessed via `ConfidenceExplanationSheet`) opens the sub-sheet which explains the AI's limitations and how environmental context affects accuracy.
 

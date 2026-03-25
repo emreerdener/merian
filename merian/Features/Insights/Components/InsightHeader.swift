@@ -24,6 +24,14 @@ struct InsightHeader: View {
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: CommonNameScrollOffsetKey.self,
+                                value: geo.frame(in: .named("InsightScrollSpace")).maxY
+                            )
+                        }
+                    )
 
                 if !paragraphs.isEmpty {
                     VStack(spacing: 12) {

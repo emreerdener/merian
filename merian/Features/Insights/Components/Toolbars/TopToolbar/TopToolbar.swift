@@ -52,18 +52,17 @@ private struct TopToolbarTitleView: View {
     
     var body: some View {
         ZStack {
-            if isCommonNameScrolledPast {
-                Text(commonName)
-                    .font(.system(.subheadline, weight: .bold))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
-            }
+            Text(commonName)
+                .font(.system(.subheadline, weight: .bold))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                .opacity(isCommonNameScrolledPast ? 1 : 0)
+                .scaleEffect(isCommonNameScrolledPast ? 1 : 0.85)
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isCommonNameScrolledPast)
     }

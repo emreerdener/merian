@@ -50,7 +50,6 @@ struct InsightContentView: View {
                     .zIndex(1)
             }
             .frame(width: imageSize) // CLAMP: Physically guarantees the content bounds can never expand left/right even if child views attempt to breach safe area X bounds.
-            .background(scrollOffsetTracker, alignment: .top)
         }
         .coordinateSpace(name: "InsightScrollSpace")
         // Forces native underlap of the translucent NavigationBar completely!
@@ -120,16 +119,5 @@ private extension InsightContentView {
         .shadow(color: .black.opacity(0.12), radius: 12, y: -4)
         // OVERSCROLL PROTECTION: Physically expands the drawn background infinitely downwards without affecting structural layout height, sealing any visual gaps when the user pulls up past the bottom natively!
         .padding(.bottom, -1000)
-    }
-    
-    /// Silent transparent Geometry tracker routing scroll physics mathematically to the Navigation Bar offset.
-    @ViewBuilder
-    var scrollOffsetTracker: some View {
-        GeometryReader { geo in
-            Color.clear.preference(
-                key: CommonNameScrollOffsetKey.self,
-                value: geo.frame(in: .scrollView).minY
-            )
-        }
     }
 }

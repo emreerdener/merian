@@ -11,14 +11,12 @@ struct ConfidenceBadge: View {
     private var badgeData: (label: String, color: Color, icon: String) {
         guard let score = confidenceScore else { return ("Unknown", .gray, "questionmark") }
         switch score {
-        case 0.95...:
-            return ("High confidence", Color(red: 0.11, green: 0.52, blue: 0.28), "sparkles.2")
-        case 0.85..<0.95:
-            return ("Confident", Color(red: 0.11, green: 0.52, blue: 0.28), "sparkles.2")
+        case 0.85...:
+            return ("Strong match", .green, "sparkles.2")
         case 0.70..<0.85:
-            return ("Educated guess", .orange, "sparkles.2")
+            return ("Possible match", .orange, "sparkles.2")
         default:
-            return ("Low confidence", .red, "sparkles.2")
+            return ("Weak match", .gray, "sparkles.2")
         }
     }
     
@@ -32,16 +30,54 @@ struct ConfidenceBadge: View {
                 allowedDetents = [.fraction(0.65), .large]
                 isShowingExplanation = true
             }) {
-                Badge(
-                    text: data.label,
-                    color: data.color,
-                    icon: data.icon,
-                    isFilled: true
+                HStack(spacing: 6) {
+                    Image(systemName: data.icon)
+                        .imageScale(.medium)
+                        .frame(width: 16, alignment: .center)
+                    Text(data.label)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .font(.system(.subheadline, weight: .bold))
+                // Text color pops brightly against the deeply tinted glass
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .frame(minHeight: 36)
+                // Liquid Glass Background Stack
+                .background(
+                    ZStack {
+                        // Blurred System Glass Foundation
+                        Capsule()
+                            .fill(.ultraThickMaterial)
+                        
+                        // Volumetric Color Tint
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [data.color.opacity(0.9), data.color.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        
+                        // Glossy Inner Rim Highlight
+                        Capsule()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.6), .white.opacity(0.0), .white.opacity(0.2)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1.5
+                            )
+                    }
                 )
                 // Ambient Static Glass Boundary
                 .overlay(
                     Capsule()
-                        .strokeBorder(data.color.opacity(0.2), lineWidth: 1.5)
+                        .strokeBorder(data.color.opacity(0.2), lineWidth: 1)
                 )
                 // Animated Holographic Glare Sweep
                 .overlay(
@@ -51,26 +87,40 @@ struct ConfidenceBadge: View {
                                 LinearGradient(
                                     stops: [
                                         .init(color: .clear, location: 0.0),
-                                        .init(color: .white.opacity(0.9), location: 0.5),
+                                        .init(color: .white.opacity(0.8), location: 0.45),
+                                        // Solid, stark white highlight that ignores background saturation
+                                        .init(color: .white, location: 0.5),
+                                        .init(color: .white.opacity(0.8), location: 0.55),
                                         .init(color: .clear, location: 1.0)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: geo.size.width)
-                            .offset(x: shimmerPhase * geo.size.width * 2)
-                            .blendMode(.screen)
+                            .frame(width: max(geo.size.width, 1))
+                            .offset(x: shimmerPhase * max(geo.size.width, 1) * 2)
                             .mask(
-                                Capsule().stroke(lineWidth: 1.5)
+                                Capsule()
+                                    .strokeBorder(lineWidth: 1.5)
                             )
                     }
                 )
             }
             .buttonStyle(.plain)
-            .onAppear {
-                withAnimation(.linear(duration: 4.5).repeatForever(autoreverses: false)) {
-                    shimmerPhase = 2.5
+            .task(id: score) {
+                while !Task.isCancelled {
+                    let randomSleepSeconds = Double.random(in: 4.0...10.0)
+                    try? await Task.sleep(for: .seconds(randomSleepSeconds))
+                    
+                    guard !Task.isCancelled else { break }
+                    
+                    shimmerPhase = -1.0
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                    
+                    // Slowed down from 1.8s to 3.5s so it lazily sweeps across the wider capsule
+                    withAnimation(.easeOut(duration: 3.5)) {
+                        shimmerPhase = 2.5
+                    }
                 }
             }
             .sheet(isPresented: $isShowingExplanation) {

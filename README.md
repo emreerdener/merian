@@ -31,7 +31,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Non-biological captures isolated in a dedicated view.
 
 ### Insight Sheet
-- Species header with common name, scientific name, and AI confidence spectrum (4-band visual scale).
+- Species header with common name, scientific name, and AI confidence spectrum (3-band visual scale).
 - Full Linnaean taxonomy (kingdom → genus).
 - Ecological description, Wikipedia extract, and in-app Safari link.
 - Image carousel combining live captures, additional staged images, and GBIF/Wikipedia reference images.

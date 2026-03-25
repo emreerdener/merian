@@ -109,7 +109,9 @@ final class InsightSheetViewModel {
     /// Evaluates dynamic coordinate thresholds actively against negative scroll intersections, routing structural top-bar offsets.
     func evaluateScrollOffset(minY: CGFloat) {
         guard minY != .infinity else { return }
-        let threshold = -(UIScreen.main.bounds.width + 80)
+        // The value passed is actually the Title text's 'maxY'.
+        // When its bottom edge dips below the native sheet NavigationBar (44pt), it has "scrolled past" fully offscreen.
+        let threshold: CGFloat = 44
         let isPast = minY < threshold
         
         if isCommonNameScrolledPast != isPast {

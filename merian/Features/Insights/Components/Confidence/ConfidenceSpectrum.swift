@@ -4,34 +4,26 @@ struct ConfidenceSpectrum: View {
     var body: some View {
         VStack(spacing: 0) {
             SpectrumNode(
-                color: Color(red: 0.25, green: 0.75, blue: 0.35),
-                nextColor: Color(red: 0.11, green: 0.52, blue: 0.28),
-                percentage: "95% - 100%",
-                title: "High confidence",
-                description: "Extremely certain. The key visual structures match the model flawlessly."
-            )
-            
-            SpectrumNode(
-                color: Color(red: 0.11, green: 0.52, blue: 0.28),
+                color: .green,
                 nextColor: .orange,
-                percentage: "85% - 94%",
-                title: "Confident",
-                description: "Highly probable. Traits align perfectly with standard species morphology."
+                percentage: "85% - 100%",
+                title: "Strong match",
+                description: "Extremely certain. The key morphological traits match the model flawlessly."
             )
             
             SpectrumNode(
                 color: .orange,
-                nextColor: .red,
+                nextColor: .gray,
                 percentage: "70% - 84%",
-                title: "Educated guess",
+                title: "Possible match",
                 description: "A likely match, but key identifying traits may be obscured, blurry, or missing."
             )
             
             SpectrumNode(
-                color: .red,
+                color: .gray,
                 nextColor: nil,
                 percentage: "Below 70%",
-                title: "Low confidence",
+                title: "Weak match",
                 description: "The model is uncertain. Try capturing another angle or bringing it into focus."
             )
         }
