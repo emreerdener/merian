@@ -15,4 +15,6 @@ enum UserDefaultsKeys {
     static let invertZoomDirection = "invertZoomDirection"
     /// Whether the zoom slider is placed on the left side of the viewfinder instead of the right.
     static let zoomSideLeft = "zoomSideLeft"
+    /// Whether the zoom slider overlay is visible on the camera viewfinder.
+    static let zoomSliderVisible = "zoomSliderVisible"
 }

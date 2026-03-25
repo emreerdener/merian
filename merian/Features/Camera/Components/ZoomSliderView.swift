@@ -11,12 +11,13 @@ struct ZoomSliderView: View {
     @Environment(CameraManager.self) private var camera
     @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
     @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = false
+    @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
 
     // MARK: - Layout constants
     private let trackHeight: CGFloat = 220
     private let componentWidth: CGFloat = 52
     private let tickCount: Int = 32
-    private let shortTickWidth: CGFloat = 18
+    private let shortTickWidth: CGFloat = 14
     private let dotRightOffset: CGFloat = 18   // white dot distance from trailing edge
     private let opticalTickInset: CGFloat = 4  // extra gap between dot and its tick
     // Aligns indicator center with tick positions: rulerView padding(11) + canvas y-start(4) − half indicator height(10) = 5
@@ -25,6 +26,7 @@ struct ZoomSliderView: View {
 
     // MARK: - State
     @State private var isActivelyZooming: Bool = false
+    @State private var showInitialLabel: Bool = true
     @State private var zoomIdleTask: Task<Void, Never>? = nil
     @State private var lastHapticTick: Int? = nil
     @State private var dragStartFactor: CGFloat = 1.0
@@ -32,13 +34,19 @@ struct ZoomSliderView: View {
 
     var body: some View {
         Group {
-            if camera.isZoomSupported {
+            if camera.isZoomSupported && zoomSliderVisible {
                 sliderBody
                     .scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)
                     .transition(.opacity)
             }
         }
         .animation(.easeIn(duration: 0.5), value: camera.isZoomSupported)
+        .onAppear {
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                await MainActor.run { showInitialLabel = false }
+            }
+        }
         .onChange(of: camera.zoomFactor) { _, newValue in
             isActivelyZooming = true
             triggerHapticIfNeeded(factor: newValue)
@@ -90,8 +98,9 @@ struct ZoomSliderView: View {
     private var rulerView: some View {
         let maxZoom = camera.maxZoomFactor
         let stops = camera.opticalZoomStops.filter { $0 > 1.0 }
-        // Half a tick's zoom range — used to snap a tick to the nearest optical stop.
-        let halfTickZoom = maxZoom > 1.0 ? (maxZoom - 1.0) / CGFloat(tickCount - 1) * 0.5 : 0
+        let logMax = log(maxZoom)
+        // Half a tick's width in log-space — mirrors the log scale used by the indicator and drag gesture.
+        let halfTickLog = maxZoom > 1.0 && logMax > 0 ? logMax / CGFloat(tickCount - 1) * 0.5 : 0
         let inverted = invertZoomDirection
 
         return Canvas { ctx, size in
@@ -101,24 +110,15 @@ struct ZoomSliderView: View {
             for i in 0..<tickCount {
                 let y = 4.0 + CGFloat(i) * spacing
                 let t = CGFloat(i) / CGFloat(tickCount - 1)
-                // Default: top = max zoom, bottom = 1×. Inverted: top = 1×, bottom = max zoom.
-                let tickZoom = inverted
-                    ? 1.0 + t * (maxZoom - 1.0)
-                    : maxZoom - t * (maxZoom - 1.0)
-                let isOpticalStop = stops.contains { abs(tickZoom - $0) < halfTickZoom }
+                // Log-spaced to match the indicator position and drag gesture (both use log scale).
+                // Default: top = max zoom (logMax), bottom = 1× (0). Inverted: reversed.
+                let tickLog = inverted ? t * logMax : (1.0 - t) * logMax
+                let isOpticalStop = stops.contains { abs(log(max($0, 1.0)) - tickLog) < halfTickLog }
                 // Max zoom tick: i=0 in default (top), i=tickCount-1 in inverted (bottom)
                 let isMaxZoom = inverted ? i == tickCount - 1 : i == 0
 
                 var line = Path()
-                let tickLength: CGFloat
-                let x0: CGFloat
-                if isMaxZoom {
-                    tickLength = shortTickWidth
-                    x0 = size.width - tickLength + opticalTickInset
-                } else {
-                    tickLength = isOpticalStop ? shortTickWidth : shortTickWidth * 0.6
-                    x0 = size.width - tickLength + (isOpticalStop ? opticalTickInset : 0)
-                }
+                let x0 = size.width - shortTickWidth + opticalTickInset
                 line.move(to: CGPoint(x: x0, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
 
@@ -148,14 +148,14 @@ struct ZoomSliderView: View {
     // MARK: - Current zoom indicator
 
     private var currentZoomIndicator: some View {
-        let showText = isActivelyZooming || abs(camera.zoomFactor - 1.0) < 0.01
+        let showText = isActivelyZooming || showInitialLabel
 
         return HStack(spacing: 0) {
             Spacer(minLength: 0)
 
             if showText {
                 Text(zoomLabel(for: camera.zoomFactor))
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundColor(.black)
                     .contentTransition(.numericText())
                     .scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)

@@ -208,6 +208,7 @@ struct SettingsToggleRow: View {
 struct CameraSettingsView: View {
     @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
     @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = false
+    @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
     @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = false
 
     var body: some View {
@@ -224,6 +225,13 @@ struct CameraSettingsView: View {
                 Text("Viewfinder")
             }
             Section {
+                SettingsToggleRow(
+                    title: "Show zoom slider",
+                    description: "Display the zoom meter overlay on the camera viewfinder.",
+                    isOn: $zoomSliderVisible,
+                    icon: "slider.vertical.3",
+                    iconColor: .blue
+                )
                 SettingsToggleRow(
                     title: "Left-side zoom slider",
                     description: "Move the zoom meter to the left edge of the viewfinder.",
