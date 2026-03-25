@@ -88,7 +88,10 @@ struct ScanInformationCard: View {
                         }
                         .frame(height: 200)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .clear, radius: 0)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color(UIColor.separator), lineWidth: 0.5)
+                        )
                         .allowsHitTesting(false)
                         .padding(.top, 4)
                     }
