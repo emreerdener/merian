@@ -7,6 +7,7 @@ import SwiftUI
 /// Positioned on the right side of `MainOverlayView` via `.overlay(alignment: .trailing)`.
 struct ZoomSliderView: View {
     @Environment(CameraManager.self) private var camera
+    @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
 
     // MARK: - Layout constants
     private let trackHeight: CGFloat = 200
@@ -94,7 +95,8 @@ struct ZoomSliderView: View {
                         isDragging = true
                         dragStartFactor = camera.zoomFactor
                     }
-                    let delta = deltaFactor(for: -value.translation.height)
+                    // Default: drag up (negative height) = zoom in. Inverted: drag down = zoom in.
+                    let delta = deltaFactor(for: invertZoomDirection ? value.translation.height : -value.translation.height)
                     let proposed = dragStartFactor + delta
                     let newFactor = min(max(proposed, 1.0), camera.maxZoomFactor)
                     camera.setZoom(factor: newFactor)

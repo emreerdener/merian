@@ -13,6 +13,7 @@ struct Preferences: View {
     
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
+    @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
     
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
@@ -65,6 +66,13 @@ struct Preferences: View {
                 title: "Multi-image scans",
                 description: "Attach up to 2 images before submitting. By default a single capture is sent to AI immediately.",
                 isOn: $multiImageScanMode
+            )
+
+            // MARK: - Invert Zoom Direction
+            SettingsToggleRow(
+                title: "Invert zoom direction",
+                description: "Swipe down to zoom in, swipe up to zoom out. Also inverts drag direction on the zoom slider.",
+                isOn: $invertZoomDirection
             )
             
             // MARK: - Expedition Mode  

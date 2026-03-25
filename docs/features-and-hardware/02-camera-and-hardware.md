@@ -32,7 +32,7 @@ A self-contained vertical zoom slider overlaid on the right side of the camera v
 - Hidden automatically when `activeScanImages` is non-empty (image staging mode), via the `activeScanImages.isEmpty` guard in `MainOverlayView`'s `.overlay(alignment: .trailing)`.
 - **Thermometer track**: 200pt `Capsule` with `.ultraThinMaterial` + `.dark` colorScheme (matching `FlashButton`). A white fill grows from the bottom as zoom increases. The thumb circle + zoom label pill (`"1×"`, `"2.1×"`) float above the fill.
 - **Optical stop dots**: Small white circles are rendered on the track at each zoom factor in `CameraManager.opticalZoomStops` where the value is above 1× (the 1× baseline is always at the track bottom and needs no marker). Each dot has a 44×16 pt invisible tap target — tapping snaps directly to that optical zoom level via `camera.setZoom(factor: stop)`. Dots coexist with the `DragGesture(minimumDistance: 1)` on the parent ZStack: a quick tap activates the dot's `onTapGesture` before the drag recogniser's minimum distance threshold is met.
-- **DragGesture math**: Captures `dragStartFactor` at gesture start. Each frame: `deltaFactor = (-translation.y / trackHeight) * (maxZoomFactor - 1.0)`. Proposed = `dragStartFactor + delta`, clamped to `[1.0, maxZoomFactor]`. Accumulating from start rather than per-frame delta eliminates floating-point drift on long drags.
+- **DragGesture math**: Captures `dragStartFactor` at gesture start. Each frame: `deltaFactor = (-translation.y / trackHeight) * (maxZoomFactor - 1.0)`. Proposed = `dragStartFactor + delta`, clamped to `[1.0, maxZoomFactor]`. Accumulating from start rather than per-frame delta eliminates floating-point drift on long drags. When `invertZoomDirection` is enabled, the sign is flipped so dragging down the slider zooms in.
 - **Haptic detents**: `UIImpactFeedbackGenerator(style: .rigid, intensity: 0.6)` fires when `zoomFactor` crosses within ±0.05 of any stop in `camera.opticalZoomStops` (the real hardware lens-switch points, not hardcoded 1/2/3×). A ±0.07 hysteresis band via `lastHapticStop` prevents chattering when hovering near a stop.
 - Zoom changes propagate to all three input surfaces (slider, swipe, pinch) in real time because all call `CameraManager.shared.setZoom(factor:)`, which updates the `@Observable zoomFactor` property.
 - **Zoom as inference context**: `submitActiveScan()` snapshots `CameraManager.zoomFactor` before the first `await` and stores it in `CaptureTelemetry.zoomFactor`. A zoom of exactly 1× is stored as `nil` — it carries no identification signal. The value is forwarded to the Edge function as `Zoom:3.0x` in the Gemini telemetry string (positioned adjacent to the `Depth:` cue), and is persisted to `LocalScanRecord.zoomFactor` (`MerianSchemaV13`) and `OfflineQueuedScan.zoomFactor` so it survives offline queuing and is shown in `ScanInformationCard`.
@@ -44,11 +44,13 @@ Three `UIGestureRecognizer` instances are registered on the `AVCaptureVideoPrevi
 | Gesture | Recognizer | Behaviour |
 |---|---|---|
 | Tap | `UITapGestureRecognizer` | Tap-to-focus & expose at the tapped point |
-| Vertical swipe | `UIPanGestureRecognizer` | Zoom in (up) / zoom out (down) |
+| Vertical swipe | `UIPanGestureRecognizer` | Zoom in (up) / zoom out (down); direction inverted when `invertZoomDirection` is on |
 | Pinch | `UIPinchGestureRecognizer` | Zoom in / zoom out |
 | Horizontal swipe left | `UIPanGestureRecognizer` (same instance) | Reserved — will open audio recording mode |
 
 The single `UIPanGestureRecognizer` handles both vertical zoom and the future horizontal mode switch. Direction is locked on the first `.changed` frame where `abs(velocity.y) > abs(velocity.x)` (vertical) or vice versa, preventing diagonal drift from triggering both actions. The horizontal branch fires `onSwipeLeft?()` on gesture end when `velocity.x < -200 pt/s`; the closure defaults to `nil` until the audio recording view is built.
+
+The zoom delta is `(sign * translation.y / 300) * range`, where `sign` is read from `UserDefaults.standard.bool(forKey: UserDefaultsKeys.invertZoomDirection)` on each gesture frame. Default (`false`): `sign = -1` so upward swipes (negative Y) zoom in. Inverted (`true`): `sign = +1` so downward swipes zoom in.
 
 Pinch zoom captures `pinchStartZoom` at `.began` and computes `proposed = pinchStartZoom * sender.scale` on each `.changed` frame — `scale` is relative to gesture start, so multiplying by the start factor gives the correct absolute zoom without drift.
 

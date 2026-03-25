@@ -127,8 +127,9 @@ struct CameraPreviewView: UIViewRepresentable {
                     }
                     guard panDirection == .vertical else { return }
                     let range = max(1.0, CameraManager.shared.maxZoomFactor - 1.0)
-                    // 300 pt of drag spans the full zoom range. Negative Y = upward = zoom in.
-                    let delta = (-translation.y / 300) * range
+                    // Default: swipe up (negative Y) = zoom in. Inverted: swipe down (positive Y) = zoom in.
+                    let sign: CGFloat = UserDefaults.standard.bool(forKey: UserDefaultsKeys.invertZoomDirection) ? 1.0 : -1.0
+                    let delta = (sign * translation.y / 300) * range
                     let proposed = min(max(panStartZoom + delta, 1.0), CameraManager.shared.maxZoomFactor)
                     CameraManager.shared.setZoom(factor: proposed)
 

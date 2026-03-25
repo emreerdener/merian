@@ -11,4 +11,6 @@ enum UserDefaultsKeys {
     static let isPushNotificationsEnabled = "isPushNotificationsEnabled"
     /// Whether the live on-device inference viewfinder pass is paused (Legacy Viewfinder mode).
     static let isLiveInferencePaused = "isLiveInferencePaused"
+    /// Whether swipe-to-zoom direction is inverted (down = zoom in, up = zoom out).
+    static let invertZoomDirection = "invertZoomDirection"
 }
