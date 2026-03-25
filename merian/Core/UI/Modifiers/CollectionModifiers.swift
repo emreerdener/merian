@@ -80,7 +80,7 @@ struct CollectionActionAlertModifier: ViewModifier {
             if let collectionToDelete = collection {
                 onDeleted?()
                 HapticManager.shared.triggerErrorThump()
-                modelContext.delete(collectionToDelete)
+                collectionToDelete.isDeleted = true
                 finalizeAction(triggerSuccess: false)
             }
             

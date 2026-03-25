@@ -16,7 +16,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV10.self,
             MerianSchemaV11.self,
             MerianSchemaV12.self,
-            MerianSchemaV13.self
+            MerianSchemaV13.self,
+            MerianSchemaV14.self
         ]
     }
 
@@ -33,7 +34,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV9toV10,
             migrateV10toV11,
             migrateV11toV12,
-            migrateV12toV13
+            migrateV12toV13,
+            migrateV13toV14
         ]
     }
 
@@ -95,5 +97,10 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     static let migrateV12toV13 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV12.self,
         toVersion: MerianSchemaV13.self
+    )
+
+    static let migrateV13toV14 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV13.self,
+        toVersion: MerianSchemaV14.self
     )
 }

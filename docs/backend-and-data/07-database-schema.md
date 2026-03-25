@@ -75,7 +75,7 @@ Configures the automated garbage collection pipeline using `pg_cron` and `pg_net
 
 _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application executes a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage` closures that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`) without corrupting local scan data._
 
-**File layout:** Each schema version lives in its own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV13.swift`). The sole remaining purpose of `merian/Models/SchemaVersions.swift` is to declare `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to a new version, add a `SchemaV{N+1}.swift` file, append it to `MerianMigrationPlan.schemas`, add the lightweight stage, and update `Aliases.swift`. No other files need to change.
+**File layout:** Each schema version lives in its own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV14.swift`). The sole remaining purpose of `merian/Models/SchemaVersions.swift` is to declare `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to a new version, add a `SchemaV{N+1}.swift` file, append it to `MerianMigrationPlan.schemas`, add the lightweight stage, and update `Aliases.swift`. No other files need to change.
 
 ### `OfflineQueuedScan`
 
@@ -131,6 +131,7 @@ A top-level album type associated with `LocalScanRecord` nodes, added in `Merian
 - `name`: String
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than encoded objects, reducing memory pressure.)
+- `isDeleted`: Bool (Added in `MerianSchemaV14`. Soft-delete flag explicitly passed to the Edge function for safe cloud erasure instead of destructive state-diffs.)
 
 ### `PendingCloudDeletionTask`
 

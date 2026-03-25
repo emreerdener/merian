@@ -24,7 +24,17 @@ serve((req: Request) =>
     }
 
     const validCollections = collections.filter(c => !c.is_deleted);
+    const deletedCollections = collections.filter(c => c.is_deleted);
     const activeIds = validCollections.map(c => c.id);
+
+    // 0. Process explicit deletions first.
+    if (deletedCollections.length > 0) {
+      const { error: explicitDeleteError } = await supabaseAdmin
+        .from("collections")
+        .delete()
+        .in("id", deletedCollections.map(c => c.id));
+      if (explicitDeleteError) console.error("Explicit collection deletion error:", explicitDeleteError);
+    }
 
     // Build the full desired membership set from the client payload.
     const desiredMappings: { collection_id: string; scan_id: string }[] = [];
@@ -38,7 +48,7 @@ serve((req: Request) =>
 
     // 1. Batch upsert active collections + fetch existing memberships concurrently —
     //    these two operations are independent and can be parallelised.
-    const [upsertResult, existingMembershipsResult, existingCollectionsResult] = await Promise.all([
+    const [upsertResult, existingMembershipsResult] = await Promise.all([
       validCollections.length > 0
         ? supabaseAdmin.from("collections").upsert(
             validCollections.map(c => ({ id: c.id, user_id: user.id, name: c.name, created_at: c.created_at })),
@@ -48,7 +58,6 @@ serve((req: Request) =>
       activeIds.length > 0
         ? supabaseAdmin.from("collection_scans").select("collection_id, scan_id").in("collection_id", activeIds)
         : Promise.resolve({ data: [], error: null }),
-      supabaseAdmin.from("collections").select("id").eq("user_id", user.id),
     ]);
 
     if (upsertResult.error) console.error("Batch upsert error:", upsertResult.error);
@@ -76,10 +85,10 @@ serve((req: Request) =>
         }
         for (const [collectionId, scanIds] of removeByCollection) {
           membershipOps.push(
-            supabaseAdmin.from("collection_scans")
+            Promise.resolve(supabaseAdmin.from("collection_scans")
               .delete()
               .eq("collection_id", collectionId)
-              .in("scan_id", scanIds)
+              .in("scan_id", scanIds))
           );
         }
       }
@@ -87,30 +96,19 @@ serve((req: Request) =>
       if (toAdd.length > 0) {
         // FK violations are expected for scans not yet synced; insert with ignore.
         membershipOps.push(
-          supabaseAdmin.from("collection_scans").upsert(toAdd, { onConflict: "collection_id,scan_id", ignoreDuplicates: true })
+          Promise.resolve(supabaseAdmin.from("collection_scans").upsert(toAdd, { onConflict: "collection_id,scan_id", ignoreDuplicates: true }))
         );
       }
 
       if (membershipOps.length > 0) {
         const membershipResults = await Promise.allSettled(membershipOps);
         for (const r of membershipResults) {
-          if (r.status === "rejected") console.error("Membership delta op failed:", r.reason);
+          if (r.status === "rejected") {
+            console.error("Membership delta promise rejected:", r.reason);
+          } else if (r.value && (r.value as { error: unknown }).error) {
+            console.error("Membership delta DB error:", (r.value as { error: unknown }).error);
+          }
         }
-      }
-    }
-
-    // 3. Diff-delete collections no longer in the active set.
-    if (existingCollectionsResult.data) {
-      const existingIds = (existingCollectionsResult.data as { id: string }[]).map(e => e.id);
-      const toDelete = existingIds.filter(id => !activeIds.includes(id));
-
-      if (toDelete.length > 0) {
-        const { error: deleteError } = await supabaseAdmin
-          .from("collections")
-          .delete()
-          .in("id", toDelete);
-
-        if (deleteError) console.error("Diff collection deletion error:", deleteError);
       }
     }
 

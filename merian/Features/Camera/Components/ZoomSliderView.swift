@@ -41,10 +41,13 @@ struct ZoomSliderView: View {
             if camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible {
                 sliderBody
                     .scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)
-                    .transition(.opacity)
+                    .transition(
+                        .move(edge: zoomSideLeft ? .leading : .trailing)
+                        .combined(with: .opacity)
+                    )
             }
         }
-        .animation(.easeIn(duration: 0.5), value: camera.isZoomSupported && camera.isSessionRunning)
+        .animation(.easeOut(duration: 0.4), value: camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible)
         .onAppear {
             Task {
                 try? await Task.sleep(for: .seconds(2))

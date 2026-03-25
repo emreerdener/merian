@@ -306,6 +306,7 @@ actor BackgroundDatabaseActor {
         let id: String
         let name: String
         let created_at: String
+        let is_deleted: Bool
         let scan_ids: [String]
     }
 
@@ -330,6 +331,7 @@ actor BackgroundDatabaseActor {
                 id: col.id,
                 name: col.name,
                 created_at: DateUtilities.iso8601Formatter.string(from: col.createdAt),
+                is_deleted: col.isDeleted,
                 scan_ids: col.scans?.compactMap(\.id) ?? []
             )
         }

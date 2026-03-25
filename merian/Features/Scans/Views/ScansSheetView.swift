@@ -11,7 +11,7 @@ struct ScansSheetView: View {
     // MARK: - App State Engines
     @State private var searchManager = ScansManager()
     @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == true && $0.commonName != "Unknown Subject" }, sort: \.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
-    @Query(sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
+    @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
     
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) var inferenceEngine
