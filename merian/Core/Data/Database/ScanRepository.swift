@@ -523,8 +523,12 @@ actor HistoricalDatabaseActor {
             if let scans = remote.collection_scans {
                 for scanMapping in scans {
                     if let localScan = localScansLookup[scanMapping.scan_id] {
-                        if col.scans == nil { col.scans = [] }
-                        col.scans?.append(localScan)
+                        // Drive the relationship from the inverse side to avoid the static type
+                        // mismatch between ScanCollection.scans ([V12.LocalScanRecord]) and
+                        // the current-schema LocalScanRecord (V13). SwiftData propagates the
+                        // inverse automatically.
+                        if localScan.collections == nil { localScan.collections = [] }
+                        localScan.collections?.append(col)
                     }
                 }
             }

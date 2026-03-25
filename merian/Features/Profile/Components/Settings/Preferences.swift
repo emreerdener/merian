@@ -55,10 +55,14 @@ struct Preferences: View {
             NavigationLink {
                 NotificationSettingsView()
             } label: {
-                HStack {
-                    Text("Notifications")
-                        .foregroundColor(.primary)
-                }
+                 HStack {
+                        Text("Notifications")
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 14, weight: .semibold))
+                    }
             }
             
              // MARK: - Multi-Image Scans

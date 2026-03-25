@@ -5,7 +5,12 @@ struct CollectionDetailView: View {
     // MARK: - State Dependencies
     @Bindable var collection: ScanCollection
     @Binding var isInsightSheetOpen: Bool
-    
+
+    // Fetch V13-typed scans and filter by this collection.
+    // We can't traverse collection.scans directly because ScanCollection is typealiased
+    // from V12 and its relationship is statically typed as [V12.LocalScanRecord].
+    @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allScans: [LocalScanRecord]
+
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) var inferenceEngine
     
@@ -22,9 +27,10 @@ struct CollectionDetailView: View {
     // MARK: - View Layout
     var body: some View {
         ScrollView {
-            if let scans = collection.scans, !scans.isEmpty {
-                // To ensure visually consistent ordering, sort by timestamp
-                let sortedScans = scans.sorted(by: { $0.timestamp > $1.timestamp })
+            let sortedScans = allScans.filter { scan in
+                scan.collections?.contains(where: { col in col.id == collection.id }) ?? false
+            }
+            if !sortedScans.isEmpty {
                 
                 ScansGrid(scans: sortedScans, onSelect: { scan in
                     selectedScanForInsight = scan
