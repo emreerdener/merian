@@ -88,6 +88,7 @@ actor BackgroundDatabaseActor {
                 gpsLatitude: telemetry?.gpsLatitude,
                 gpsLongitude: telemetry?.gpsLongitude
             )
+            mappedData.zoomFactor = telemetry?.zoomFactor.map { Double($0) }
 
             if mappedData.confidenceScore > 0.0 {
                 inferenceFailed = false
@@ -158,7 +159,8 @@ actor BackgroundDatabaseActor {
                     iucnRedListStatus: mappedData.iucnRedListStatus,
                     gpsLatitude: mappedData.gpsLatitude,
                     gpsLongitude: mappedData.gpsLongitude,
-                    gpsElevation: mappedData.gpsElevation
+                    gpsElevation: mappedData.gpsElevation,
+                    zoomFactor: mappedData.zoomFactor
                 )
                 modelContext.insert(record)
                 do {
@@ -258,7 +260,8 @@ actor BackgroundDatabaseActor {
             iucnRedListStatus: mappedData.iucnRedListStatus,
             gpsLatitude: mappedData.gpsLatitude,
             gpsLongitude: mappedData.gpsLongitude,
-            gpsElevation: mappedData.gpsElevation
+            gpsElevation: mappedData.gpsElevation,
+            zoomFactor: mappedData.zoomFactor
         )
         modelContext.insert(record)
         do {

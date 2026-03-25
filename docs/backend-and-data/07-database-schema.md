@@ -75,11 +75,11 @@ Configures the automated garbage collection pipeline using `pg_cron` and `pg_net
 
 _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application executes a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage` closures that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`) without corrupting local scan data._
 
-**File layout:** Each schema version lives in its own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV12.swift`). The sole remaining purpose of `merian/Models/SchemaVersions.swift` is to declare `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to a new version, add a `SchemaV{N+1}.swift` file, append it to `MerianMigrationPlan.schemas`, add the lightweight stage, and update `Aliases.swift`. No other files need to change.
+**File layout:** Each schema version lives in its own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV13.swift`). The sole remaining purpose of `merian/Models/SchemaVersions.swift` is to declare `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to a new version, add a `SchemaV{N+1}.swift` file, append it to `MerianMigrationPlan.schemas`, add the lightweight stage, and update `Aliases.swift`. No other files need to change.
 
 ### `OfflineQueuedScan`
 
-Captures state when network connectivity is unavailable. `MerianSchemaV12` expands the cached telemetry payload to include additional off-grid context.
+Captures state when network connectivity is unavailable. `MerianSchemaV13` adds `zoomFactor` so the active zoom level is preserved through offline queuing and replayed to the Edge function when connectivity is restored.
 
 - `id`: String (UUID)
 - `timestamp`: Date
@@ -88,6 +88,7 @@ Captures state when network connectivity is unavailable. `MerianSchemaV12` expan
 - `weatherCondition`, `locationName`: String?
 - `weatherTemperatureF`, `blurScore`: Double?
 - `subjectDistanceInMeters`: Float?
+- `zoomFactor`: Double? (Added in `MerianSchemaV13`. Active zoom factor at capture. `nil` at 1× — omitted when it carries no signal.)
 - `isDeleted`: Bool (Soft-delete flag set after receiving HTTP 200 from Edge)
 
 ### `LocalScanRecord` (Scans)
@@ -120,6 +121,7 @@ Tracks locally synchronized species scans for the Scans library.
 - `iucnRedListStatus`: String? (Added in `MerianSchemaV10`. Tracks international species risk status, powering the offline `ConservationBanner`.)
 - `gpsElevation`: Double? (Added in `MerianSchemaV11`. Syncs capture altitude for the offline `InsightLocationWeatherCard`.)
 - `gpsLatitude`, `gpsLongitude`: Double? (Added in `MerianSchemaV12`. Stores raw GPS coordinates for the `ScanInformationCard` MapKit integration.)
+- `zoomFactor`: Double? (Added in `MerianSchemaV13`. Records the active optical zoom at the moment of capture. `nil` for 1× scans and any scan captured before V13. Displayed in `ScanInformationCard` and forwarded to the Edge function as a Gemini telemetry cue.)
 
 ### `ScanCollection` (User Albums)
 

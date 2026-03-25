@@ -181,6 +181,7 @@ final class MerianNetworkClient {
             "user_id": deviceId,
             "mimeType": "image/jpeg",
             "depthScaleText": depthScaleText,
+            "zoomFactor": telemetry.zoomFactor.map { Double($0) },
             "gpsLatitude": telemetry.gpsLatitude,
             "gpsLongitude": telemetry.gpsLongitude,
             "gpsElevation": telemetry.gpsElevation,

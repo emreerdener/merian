@@ -18,7 +18,8 @@ struct ScanInformationCard: View {
             let lonValid = lon >= -180 && lon <= 180
             return latValid && lonValid && !(lat == 0 && lon == 0)
         }()
-        return nameValid || weatherValid || elevationValid || coordsValid || timestamp != nil
+        let zoomValid = sd.zoomFactor != nil
+        return nameValid || weatherValid || elevationValid || coordsValid || zoomValid || timestamp != nil
     }
     
     var body: some View {
@@ -28,6 +29,7 @@ struct ScanInformationCard: View {
         let elevation: Double? = speciesData?.gpsElevation
         let lat: Double? = speciesData?.gpsLatitude
         let lon: Double? = speciesData?.gpsLongitude
+        let zoom: Double? = speciesData?.zoomFactor
         
         if hasValidData {
             VStack(alignment: .leading, spacing: 16) {
@@ -46,6 +48,10 @@ struct ScanInformationCard: View {
                     
                     if let elev = elevation, elev != 0 {
                         KeyValueRow(title: "ELEVATION", value: "\(Int(elev))m")
+                    }
+
+                    if let z = zoom {
+                        KeyValueRow(title: "ZOOM", value: String(format: "%.1f×", z))
                     }
                     
                     if let validTemp = temp, let validCondition = cond {

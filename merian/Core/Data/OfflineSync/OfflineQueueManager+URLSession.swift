@@ -163,7 +163,7 @@ extension OfflineQueueManager {
             }
             guard let scan else { return nil }
 
-            let telemetry = CaptureTelemetry(
+            var telemetry = CaptureTelemetry(
                 subjectDistanceInMeters: scan.subjectDistanceInMeters,
                 gpsLatitude: scan.gpsLatitude,
                 gpsLongitude: scan.gpsLongitude,
@@ -174,6 +174,7 @@ extension OfflineQueueManager {
                 timeOfDay: nil,
                 timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
             )
+            telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
             return ExtractedScanData(
                 telemetry: telemetry,
                 localImagePaths: scan.localImagePaths,

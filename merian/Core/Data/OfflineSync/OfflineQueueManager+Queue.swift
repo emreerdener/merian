@@ -120,6 +120,7 @@ extension OfflineQueueManager {
                         compassHeading: nil,
                         relativeHumidity: nil,
                         uvIndex: nil,
+                        zoomFactor: telemetry.zoomFactor.map { Double($0) },
                         isDeleted: false
                     )
                     guard let modelContext = OfflineQueueManager.shared.modelContext else { return }

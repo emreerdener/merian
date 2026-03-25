@@ -396,7 +396,8 @@ private struct WikiSummaryResponse: Decodable {
             weatherTemperatureF: record.weatherTemperatureF,
             gpsElevation: record.gpsElevation,
             gpsLatitude: record.gpsLatitude,
-            gpsLongitude: record.gpsLongitude
+            gpsLongitude: record.gpsLongitude,
+            zoomFactor: record.zoomFactor
         )
         self.isProcessing = false
 

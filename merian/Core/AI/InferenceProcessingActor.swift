@@ -52,7 +52,7 @@ actor InferenceProcessingActor {
             throw APIError.decodingFailed
         }
 
-        let mappedData = SpeciesData(
+        var mappedData = SpeciesData(
             fromEdgeResponse: parsedWrapper.data,
             locationName: telemetry.locationName,
             weatherCondition: telemetry.weatherCondition,
@@ -61,6 +61,7 @@ actor InferenceProcessingActor {
             gpsLatitude: telemetry.gpsLatitude,
             gpsLongitude: telemetry.gpsLongitude
         )
+        mappedData.zoomFactor = telemetry.zoomFactor.map { Double($0) }
 
         try Task.checkCancellation()
 

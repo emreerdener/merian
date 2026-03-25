@@ -14,6 +14,9 @@ struct CaptureTelemetry: Sendable {
     let weatherTemperatureF: Double?
     let timeOfDay: String?
     let timestamp: String?
+    /// Active zoom factor at shutter press. Nil when 1× (adds no signal).
+    /// Omitted from offline-queue retries since zoom is not persisted in the schema.
+    var zoomFactor: CGFloat? = nil
 }
 
 // MARK: - Convenience Initializers
@@ -34,12 +37,12 @@ extension CaptureTelemetry {
         )
     }
 
-    init(from context: EnvironmentContext, distance: Float?) {
+    init(from context: EnvironmentContext, distance: Float?, zoom: CGFloat? = nil) {
         let reliableElevation: Double? = context.location.flatMap { loc in
             (loc.verticalAccuracy >= 0 && loc.verticalAccuracy <= 25) ? loc.altitude : nil
         }
 
-        self.init(
+        var t = CaptureTelemetry(
             subjectDistanceInMeters: distance,
             gpsLatitude: context.location?.coordinate.latitude,
             gpsLongitude: context.location?.coordinate.longitude,
@@ -50,6 +53,8 @@ extension CaptureTelemetry {
             timeOfDay: nil,
             timestamp: DateUtilities.iso8601Formatter.string(from: context.location?.timestamp ?? Date())
         )
+        t.zoomFactor = zoom
+        self = t
     }
 }
 
@@ -83,6 +88,7 @@ struct SpeciesData {
     var gpsLongitude: Double?
     var colors: [String]?
     let iucnRedListStatus: String?
+    var zoomFactor: Double?
 }
 
 // MARK: - Edge Response Init
@@ -148,6 +154,7 @@ extension SpeciesData {
         self.gpsLongitude = gpsLongitude
         self.colors = edgeRes.colors
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
+        self.zoomFactor = nil  // populated by the caller from CaptureTelemetry
     }
 }
 
@@ -177,7 +184,8 @@ extension SpeciesData {
         gpsLatitude: Double? = nil,
         gpsLongitude: Double? = nil,
         colors: [String]? = nil,
-        iucnRedListStatus: String? = nil
+        iucnRedListStatus: String? = nil,
+        zoomFactor: Double? = nil
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -201,6 +209,7 @@ extension SpeciesData {
         self.gpsLongitude = gpsLongitude
         self.colors = colors
         self.iucnRedListStatus = iucnRedListStatus
+        self.zoomFactor = zoomFactor
     }
 }
 

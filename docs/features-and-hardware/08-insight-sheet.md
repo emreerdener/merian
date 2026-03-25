@@ -20,6 +20,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
 | `AIReasoningCard` | Diagnostic comparison — primary rationale, lookalike name, key differentiators |
 | `WikipediaCard` | Wikipedia extract with SafariServices deep link |
+| `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
 | `ToxicityBanner` | Red warning banner for poisonous subjects |
 | `ConservationBanner` | IUCN Red List status banner |
 | `CelebrationBanner` | "New Discovery" confetti overlay |
@@ -58,6 +59,26 @@ The carousel merges three image sources in order:
 All images are loaded through `AsyncLocalImageView`, which handles RAM cache hits, request coalescing, and local-vs-remote routing transparently.
 
 Invalid carousel URLs are purged from state via `InferenceEngine.dropInvalidCarouselImage(_:)`, which removes the entry from `validHistoricImagePaths` or from the comma-separated `speciesData.referenceImageUrl` without throwing index-out-of-bounds errors.
+
+---
+
+## Scan Information Card
+
+`ScanInformationCard` renders the spatiotemporal context captured at the moment of the scan. It is hidden entirely when `hasValidData` is false (no location, weather, zoom, elevation, or timestamp is available), preventing the card from appearing as an empty placeholder.
+
+Rows displayed when present:
+
+| Row | Source | Condition |
+|---|---|---|
+| LOCATION | `speciesData.locationName` | Non-empty string |
+| ELEVATION | `speciesData.gpsElevation` | Non-nil, non-zero |
+| ZOOM | `speciesData.zoomFactor` | Non-nil (1× scans omit this row) |
+| WEATHER | `speciesData.weatherTemperatureF` + `weatherCondition` | Both non-nil |
+| DATE | `timestamp` parameter | Non-nil |
+| TIME | `timestamp` parameter | Non-nil |
+| Map | `speciesData.gpsLatitude` + `gpsLongitude` | Valid coordinate pair, not `(0, 0)` |
+
+The ZOOM row shows the value formatted as `"3.0×"`. It is omitted for 1× scans because `CaptureTelemetry.zoomFactor` is set to `nil` when zoom is at 1× — a 1× value carries no useful signal for identification. The row is also absent for scans captured on single-lens hardware (`CameraManager.isZoomSupported == false`) and any scan recorded before `MerianSchemaV13`.
 
 ---
 

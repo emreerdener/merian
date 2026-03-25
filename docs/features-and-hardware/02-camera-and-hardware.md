@@ -35,6 +35,7 @@ A self-contained vertical zoom slider overlaid on the right side of the camera v
 - **DragGesture math**: Captures `dragStartFactor` at gesture start. Each frame: `deltaFactor = (-translation.y / trackHeight) * (maxZoomFactor - 1.0)`. Proposed = `dragStartFactor + delta`, clamped to `[1.0, maxZoomFactor]`. Accumulating from start rather than per-frame delta eliminates floating-point drift on long drags.
 - **Haptic detents**: `UIImpactFeedbackGenerator(style: .rigid, intensity: 0.6)` fires when `zoomFactor` crosses within ±0.05 of any stop in `camera.opticalZoomStops` (the real hardware lens-switch points, not hardcoded 1/2/3×). A ±0.07 hysteresis band via `lastHapticStop` prevents chattering when hovering near a stop.
 - Zoom changes propagate to all three input surfaces (slider, swipe, pinch) in real time because all call `CameraManager.shared.setZoom(factor:)`, which updates the `@Observable zoomFactor` property.
+- **Zoom as inference context**: `submitActiveScan()` snapshots `CameraManager.zoomFactor` before the first `await` and stores it in `CaptureTelemetry.zoomFactor`. A zoom of exactly 1× is stored as `nil` — it carries no identification signal. The value is forwarded to the Edge function as `Zoom:3.0x` in the Gemini telemetry string (positioned adjacent to the `Depth:` cue), and is persisted to `LocalScanRecord.zoomFactor` (`MerianSchemaV13`) and `OfflineQueuedScan.zoomFactor` so it survives offline queuing and is shown in `ScanInformationCard`.
 
 ### `CameraPreviewView` — Viewfinder Gestures
 

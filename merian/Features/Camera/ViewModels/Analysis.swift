@@ -42,6 +42,10 @@ extension CameraViewModel {
 
         Task {
             // 5. Resolve the pre-fetched environment context (started at shutter press).
+            // Snapshot zoom before the first await — at 1× it carries no signal, so nil is sent.
+            let capturedZoom: CGFloat? = diContainer.cameraManager.zoomFactor > 1.0
+                ? diContainer.cameraManager.zoomFactor
+                : nil
             let resolvedContext = await capturedPreFetchTask?.value
 
             // Build telemetry — prefer the pre-fetched context; fall back to the
@@ -50,9 +54,11 @@ extension CameraViewModel {
             if let context = resolvedContext {
                 telemetry = CaptureTelemetry(
                     from: context,
-                    distance: diContainer.cameraManager.subjectDistanceInMeters
+                    distance: diContainer.cameraManager.subjectDistanceInMeters,
+                    zoom: capturedZoom
                 )
             } else if let historicalContext = capturedOriginals.first?.environmentContext {
+                // Library photo — zoom at original capture time is unknown; omit.
                 telemetry = CaptureTelemetry(
                     from: historicalContext,
                     distance: nil
@@ -67,7 +73,8 @@ extension CameraViewModel {
                     weatherCondition: nil,
                     weatherTemperatureF: nil,
                     timeOfDay: nil,
-                    timestamp: DateUtilities.iso8601Formatter.string(from: Date())
+                    timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
+                    zoomFactor: capturedZoom
                 )
             }
 
