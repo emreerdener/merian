@@ -36,7 +36,7 @@ struct Preferences: View {
             // MARK: - Upgrades
             Button { managePlanActive = true } label: {
                 SettingsNavigationRow(
-                    title: "Upgrades",
+                    title: "Upgrade",
                     description: "Upgrade or manage your active subscription tier.",
                     icon: "bag.fill",
                     iconColor: .orange
@@ -209,7 +209,7 @@ struct SettingsToggleRow: View {
 
 struct CameraSettingsView: View {
     @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
-    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = false
+    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
     @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
     @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = false
 
@@ -235,9 +235,9 @@ struct CameraSettingsView: View {
                     iconColor: .blue
                 )
                 SettingsToggleRow(
-                    title: "Left-side zoom slider",
-                    description: "Move the zoom meter to the left edge of the viewfinder.",
-                    isOn: $zoomSideLeft,
+                    title: "Right-side zoom slider",
+                    description: "Move the zoom meter to the right edge of the viewfinder.",
+                    isOn: Binding(get: { !zoomSideLeft }, set: { zoomSideLeft = !$0 }),
                     icon: "arrow.left.and.right",
                     iconColor: .blue
                 )

@@ -97,6 +97,7 @@
 		6356EBB8806D941FDC54BC20 /* SchemaV8.swift in Sources */ = {isa = PBXBuildFile; fileRef = F889D0D98E53361B54700587 /* SchemaV8.swift */; };
 		636FC2A87E6506B7889EBB19 /* HapticManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D45E7DA9D9A12974FD515C /* HapticManagerTests.swift */; };
 		63836C7BBD19D43863AF1F17 /* FlashButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F615780D12416A23B56634BD /* FlashButton.swift */; };
+		63B604B72E7F6BC77FA580AD /* AudioRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3859639FA7CD70EDAE8CC617 /* AudioRecordingView.swift */; };
 		642D8BF584E77058DF0BD037 /* Aliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE003E7C60B8D9CA8F55C02E /* Aliases.swift */; };
 		644AC7482721DF32D38384AE /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEAD18C5C37A28E00DE6D1ED /* Toast.swift */; };
 		64CE9C8E1C4F98305888BB99 /* InferenceProcessingActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4600486E12E14AAA049FB5 /* InferenceProcessingActor.swift */; };
@@ -311,6 +312,7 @@
 		32F31F1296ED7CCA1F086905 /* PostHogManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostHogManagerTests.swift; sourceTree = "<group>"; };
 		33FD2D0B0B8D49842926B1FC /* AppDIContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDIContainer.swift; sourceTree = "<group>"; };
 		34856C34F2EF3A759D27C2AB /* NonBiologicalScansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonBiologicalScansView.swift; sourceTree = "<group>"; };
+		3859639FA7CD70EDAE8CC617 /* AudioRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecordingView.swift; sourceTree = "<group>"; };
 		3A10BFC565A6DAC1C222423A /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		3A310C2AC0758FEE43F5E7C3 /* ImageCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCacheTests.swift; sourceTree = "<group>"; };
 		3EC0CD2961B5B50E5D1DA82A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -753,6 +755,7 @@
 		3DE4C9B8084FAA7DFDF3F474 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				3859639FA7CD70EDAE8CC617 /* AudioRecordingView.swift */,
 				6072187CC076F9ED5E76E569 /* CameraPreviewView.swift */,
 				78375CD55F4173FF02D793A7 /* CameraRootView.swift */,
 				EC25E93A028D3A4A055F1CE8 /* MainOverlayView.swift */,
@@ -1619,6 +1622,7 @@
 				49AFB5ED7392376CEC7AB1C8 /* ArchiveManager.swift in Sources */,
 				779400A9CDCA13C818524D5E /* ArchivedVisualsView.swift in Sources */,
 				315BB8FA36AF6F5629574D4C /* AsyncLocalImageView.swift in Sources */,
+				63B604B72E7F6BC77FA580AD /* AudioRecordingView.swift in Sources */,
 				59A9228BFC923088610F7BB9 /* AwardCard.swift in Sources */,
 				1D86A1C91ECD0958BF77DDE9 /* BackgroundDatabaseActor.swift in Sources */,
 				BA5F42E28A2CCE151E666D42 /* BackgroundTaskWrapper.swift in Sources */,

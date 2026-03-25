@@ -61,7 +61,7 @@ struct ManagePlanView: View {
                 }
             }
         }
-        .navigationTitle("Upgrades")
+        .navigationTitle("Upgrade")
         .sheet(isPresented: $showPaywall) {
             PaywallView()
                 .environment(revenueCatManager)

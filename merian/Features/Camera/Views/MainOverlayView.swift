@@ -3,87 +3,24 @@ import PhotosUI
 
 struct MainOverlayView: View {
     // MARK: - Dependencies
-    let latestThumbnail: UIImage?
-    let isFlashEnabled: Bool
-    let isTooltipVisible: Bool
-    @Binding var selectedPhotoItems: [PhotosPickerItem]
-    @Binding var activeSheet: CameraViewModel.ActiveSheet?
     let activeScanImages: [UIImage]
-    let onCapture: () -> Void
-    let onToggleFlash: () -> Void
-    let onThumbnailTap: (Int) -> Void
-    let onSubmitScan: () -> Void
-    let onCancelScan: () -> Void
-    let onModeChange: () -> Void
-    
-    // MARK: - Local Staging State
-    @State private var activeMode: CaptureMode = .visual
-    @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
-    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = false
-    
+
+    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
+
     // MARK: - Interface Layout
     var body: some View {
         VStack {
-            // MARK: - Media Mode Scoping (Staging)
-            if activeScanImages.count < 2 {
-                MediaModeToggle(
-                    activeMode: $activeMode,
-                    isTooltipVisible: isTooltipVisible,
-                    onModeChange: onModeChange
-                )
-                    .padding(.top, 16) // Natively clears the safe area boundaries
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-            
             Spacer()
-            
+
             // MARK: - Dynamic Intelligence
             if activeScanImages.count < 2 {
                 ViewfinderHints()
+                    // Padding keeps hints above the fixed capture-bar + tab-bar overlay.
+                    .padding(.bottom, 240)
                     .transition(.opacity)
             }
-            
-            // MARK: - Hardware Capture Bar
-            if activeScanImages.count < 2 {
-                HStack(alignment: .center) {
-                    PhotoLibraryButton(
-                        selectedPhotoItems: $selectedPhotoItems,
-                        latestThumbnail: latestThumbnail,
-                        maxSelectionCount: multiImageScanMode ? max(1, 2 - activeScanImages.count) : 1
-                    )
-                    
-                    Spacer()
-                    
-                    ShutterButton(onCapture: onCapture)
-                    
-                    Spacer()
-                    
-                    FlashButton(isFlashEnabled: isFlashEnabled, onToggleFlash: onToggleFlash)
-                }
-                .padding(.bottom, activeScanImages.isEmpty ? 24 : 16)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            
-            // MARK: - Global App Navigation & Active Scan Panel
-            // Maps MainTabBar tabs directly to their overarching CameraSheetRouter payloads 
-            if activeScanImages.isEmpty {
-                MainTabBar(
-                    isScansOpen: $activeSheet.mapped(to: .scans),
-                    isUserProfileOpen: $activeSheet.mapped(to: .profile)
-                )
-                .padding(.bottom, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else {
-                ActiveScanToolbar(
-                    images: activeScanImages,
-                    selectedPhotoItems: $selectedPhotoItems,
-                    onThumbnailTap: onThumbnailTap,
-                    onCancel: onCancelScan,
-                    onSubmit: onSubmitScan
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
         }
+        .frame(maxWidth: .infinity)
         .overlay(alignment: zoomSideLeft ? .leading : .trailing) {
             if activeScanImages.count < 2 {
                 ZoomSliderView()

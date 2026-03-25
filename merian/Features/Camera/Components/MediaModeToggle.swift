@@ -9,26 +9,38 @@ enum CaptureMode: String, CaseIterable {
 /// A highly modular, glassmorphic capsule toggle controlling the active environmental capture state natively!
 struct MediaModeToggle: View {
     @Binding var activeMode: CaptureMode
-    let isTooltipVisible: Bool
     let onModeChange: () -> Void
-    
-    // Apple-tier smooth sliding pill animation explicitly bound geometrically
-    @Namespace private var toggleAnimation
-    
+
+    @State private var dragOffset: CGFloat = 0
+    @State private var toggleSize: CGSize = .zero
+
+    private var segmentWidth: CGFloat { toggleSize.width / 2 }
+
+    private var pillX: CGFloat {
+        if activeMode == .visual {
+            return max(0, min(dragOffset, segmentWidth))
+        } else {
+            return segmentWidth + max(-segmentWidth, min(dragOffset, 0))
+        }
+    }
+
+    private func labelColor(for mode: CaptureMode) -> Color {
+        guard segmentWidth > 0 else {
+            return activeMode == mode ? .black : .white.opacity(0.85)
+        }
+        let fraction = pillX / segmentWidth
+        let isActive = mode == .visual ? fraction < 0.5 : fraction >= 0.5
+        return isActive ? .black : .white.opacity(0.85)
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             ForEach(CaptureMode.allCases, id: \.self) { mode in
                 Button(action: {
-                    if mode == .audio {
-                        // Throw the "Coming soon" toast for Audio staging!
-                        HapticManager.shared.triggerSheetSpring()
-                        onModeChange()
-                    } else {
-                        // Triggers the Apple-tier spring slide natively for Visual
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                            activeMode = mode
-                        }
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        activeMode = mode
                     }
+                    onModeChange()
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: mode == .visual ? "viewfinder" : "waveform")
@@ -36,47 +48,65 @@ struct MediaModeToggle: View {
                     }
                     .font(.subheadline)
                     .fontWeight(.bold)
-                    // Dynamic contrast for readability!
-                    .foregroundColor(activeMode == mode ? .black : .white.opacity(0.85))
+                    .foregroundColor(labelColor(for: mode))
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
-                    .contentShape(Rectangle()) // Huge hit-box
-                    // The sliding visual indicator natively anchors behind the active payload cleanly!
-                    .background {
-                        if activeMode == mode {
-                            Capsule()
-                                .fill(Color.white)
-                                .matchedGeometryEffect(id: "ActiveModeIndicator", in: toggleAnimation)
-                        }
-                    }
-                    .overlay(
-                        Group {
-                            if mode == .audio && isTooltipVisible {
-                                Text("Coming soon")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .fixedSize(horizontal: true, vertical: false)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        Capsule()
-                                            .fill(Color.blue)
-                                    )
-                                    // Pushes the toolip seamlessly DOWN explicitly avoiding the iOS notch boundaries
-                                    .offset(y: 45)
-                                    .transition(.scale(scale: 0.5, anchor: .top).combined(with: .opacity))
-                                    .zIndex(100)
-                            }
-                        }
-                        .allowsHitTesting(false)
-                    )
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(PlainButtonStyle()) // Blocks default SwiftUI native blue highlighting
+                .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding(4) // Snug bounding container explicitly enclosing the slide path!
+        // Size probe
+        .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { toggleSize = geo.size }
+                    .onChange(of: geo.size) { _, size in toggleSize = size }
+            }
+        }
+        // White pill lives BEHIND the buttons so text renders on top and stays readable.
+        .background(alignment: .leading) {
+            if toggleSize != .zero {
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: segmentWidth, height: toggleSize.height)
+                    .offset(x: pillX)
+            }
+        }
+        // Drag gesture on the container — only activates when starting on the active segment.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 5, coordinateSpace: .local)
+                .onChanged { value in
+                    let startInActive = activeMode == .visual
+                        ? value.startLocation.x < segmentWidth
+                        : value.startLocation.x >= segmentWidth
+                    guard startInActive else { return }
+                    if activeMode == .visual {
+                        dragOffset = max(0, min(value.translation.width, segmentWidth))
+                    } else {
+                        dragOffset = max(-segmentWidth, min(value.translation.width, 0))
+                    }
+                }
+                .onEnded { value in
+                    let startInActive = activeMode == .visual
+                        ? value.startLocation.x < segmentWidth
+                        : value.startLocation.x >= segmentWidth
+                    if startInActive {
+                        let threshold = segmentWidth / 2
+                        if activeMode == .visual && dragOffset > threshold {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { activeMode = .audio }
+                            onModeChange()
+                        } else if activeMode == .audio && dragOffset < -threshold {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { activeMode = .visual }
+                            onModeChange()
+                        }
+                    }
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { dragOffset = 0 }
+                }
+        )
+        .padding(4)
         .background(.ultraThinMaterial, in: Capsule())
-        .environment(\.colorScheme, .dark) // Forces the material to physically render dark glassmorphism
+        .environment(\.colorScheme, .dark)
         .overlay(
             Capsule()
                 .strokeBorder(

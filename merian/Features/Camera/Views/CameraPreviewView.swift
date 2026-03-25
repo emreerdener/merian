@@ -11,6 +11,9 @@ struct CameraPreviewView: UIViewRepresentable {
     /// Called when the user swipes right-to-left across the viewfinder.
     /// Reserved for the future audio recording mode transition — pass `nil` until that view exists.
     var onSwipeLeft: (() -> Void)? = nil
+    /// Called with `true` when a vertical (zoom) drag locks in, `false` when it ends.
+    /// Use this to disable the outer paging ScrollView during active zoom drags.
+    var onVerticalDragActiveChanged: ((Bool) -> Void)? = nil
     
     // MARK: - UIKit Substrate Layer
     // The literal backing geometry that receives AVFoundation visual frames.
@@ -36,6 +39,7 @@ struct CameraPreviewView: UIViewRepresentable {
 
         let panGesture = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
         panGesture.cancelsTouchesInView = false
+        panGesture.delegate = context.coordinator
         view.addGestureRecognizer(panGesture)
 
         let pinchGesture = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinch(_:)))
@@ -65,7 +69,7 @@ struct CameraPreviewView: UIViewRepresentable {
         Coordinator(self)
     }
     
-    class Coordinator: NSObject {
+    class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var parent: CameraPreviewView
 
         // MARK: - Gesture state
@@ -82,6 +86,18 @@ struct CameraPreviewView: UIViewRepresentable {
 
         init(_ parent: CameraPreviewView) {
             self.parent = parent
+        }
+
+        // MARK: - UIGestureRecognizerDelegate
+
+        /// Allows the camera pan recognizer to fire alongside the outer UIScrollView's
+        /// pan recognizer. Without this, the inner pan wins the gesture competition and
+        /// blocks the paging scroll view from recognizing horizontal swipes.
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            otherGestureRecognizer is UIPanGestureRecognizer
         }
 
         // MARK: - Lens-switch crossfade
@@ -191,6 +207,7 @@ struct CameraPreviewView: UIViewRepresentable {
                     if panDirection == .undetermined {
                         if abs(velocity.y) > abs(velocity.x) {
                             panDirection = .vertical
+                            parent.onVerticalDragActiveChanged?(true)
                         } else if abs(velocity.x) > abs(velocity.y) {
                             panDirection = .horizontal
                         }
@@ -206,6 +223,9 @@ struct CameraPreviewView: UIViewRepresentable {
                 case .ended, .cancelled:
                     if panDirection == .horizontal && velocity.x < -200 {
                         parent.onSwipeLeft?()
+                    }
+                    if panDirection == .vertical {
+                        parent.onVerticalDragActiveChanged?(false)
                     }
                     panDirection = .undetermined
                     CameraManager.shared.snapToNearestOpticalStop()

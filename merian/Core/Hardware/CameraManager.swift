@@ -242,7 +242,10 @@ import Accelerate
         guard session.isRunning else { return }
         queue.async {
             self.session.stopRunning()
-            Task { @MainActor in self.isSessionRunning = false }
+            Task { @MainActor in
+                self.isSessionRunning = false
+                self.isFlashEnabled = false
+            }
         }
     }
 

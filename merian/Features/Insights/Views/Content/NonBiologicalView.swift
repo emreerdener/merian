@@ -6,18 +6,25 @@ struct NonBiologicalView: View {
     var timestamp: Date? = nil
 
     var body: some View {
-        VStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: 24) {
+            VStack(alignment: .center, spacing: 8) {           
                 Text(commonName)
-                    .font(.system(.largeTitle, design: .serif))
-                    .fontWeight(.bold)
+                    .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
-                
-                Text(species.insightData.description)
-                    .font(.system(.body, design: .serif))
-                    .foregroundColor(.secondary)
-                    .lineSpacing(6)
-            }
+                    .multilineTextAlignment(.center)
+
+                if !species.insightData.description.isEmpty {
+                    VStack(spacing: 12) {
+                         Text(species.insightData.description)
+                                .font(.system(.body))
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(4)
+                    }
+                    .padding(.top, 8) // Separates the text distinctively from the bold title
+                }
+             }
+            .frame(maxWidth: .infinity)
             .card()
             
             ScanInformationCard(speciesData: species, timestamp: timestamp)

@@ -10,7 +10,7 @@ import SwiftUI
 struct ZoomSliderView: View {
     @Environment(CameraManager.self) private var camera
     @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
-    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = false
+    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
     @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
 
     // MARK: - Layout constants
