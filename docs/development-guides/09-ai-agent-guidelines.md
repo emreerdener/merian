@@ -44,6 +44,7 @@ The workspace enforces this layout inside `merian/`:
 - iOS Background limitations severely constrain API requests. Any heavy file I/O operations must be decoupled via `Task.detached(priority: .background)`.
 - Image conversions (e.g. `downsampleImage`) or large JSON parsing must occur off the Main thread to prevent 60FPS UI stutters.
 - Avoid forcing `.isHighResolutionCaptureEnabled` without throttling image loads via `ImageIO` `CGImageSourceCreateThumbnailAtIndex` bounded logic. A full 12MP–48MP uncompressed capture will cause iOS Out of Memory (OOM) crashes if repeatedly appended array buffers are allocated without bounds.
+- **UI Lifecycle Triggers for Hardware**: Never bind `AVCaptureSession` or heavy hardware drivers to Swift UI sheet closures like `.onAppear` or `.onDismiss`. In iOS 16+, rapid presentation state changes or `.scenePhase` background sweeps can cause these closures to fire out of order, permanently deadlocking the backend AV queue. Always use deterministic `.onChange(of: stateVariable)` observers guarded by `scenePhase == .active`.
 
 ## 5. UI and Glassmorphism (Aesthetics)
 - **Stunning UIs are mandatory**: The user should be wowed at first glance.

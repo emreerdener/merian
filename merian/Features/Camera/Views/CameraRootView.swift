@@ -232,8 +232,8 @@ struct CameraRootView: View {
             HapticManager.shared.triggerSheetSpring()
             if newMode == .audio {
                 cameraManager.stopSession()
-            } else if !viewModel.isAnalyzingFullscreen && scenePhase == .active {
-                // Only start the camera if the app is fully active.
+            } else if !viewModel.isAnalyzingFullscreen && scenePhase == .active && viewModel.activeSheet == nil {
+                // Only start the camera if the app is fully active and not occluded by a sheet.
                 // Guarding this prevents deadlocking the hardware queue if the mode shifts
                 // while the app is suspending (e.g., closing a full-screen sheet on background).
                 cameraManager.startSession()
@@ -243,12 +243,22 @@ struct CameraRootView: View {
             viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
             if isFullscreen {
                 cameraManager.stopSession()
-            } else if captureMode == .visual && scenePhase == .active {
+            } else if captureMode == .visual && scenePhase == .active && viewModel.activeSheet == nil {
                 // Must explicitly guard against `scenePhase == .active`.
                 // When an app sweeps into the background, the UI implicitly closes modal sheets
                 // which broadcasts `isFullscreen = false`. Without this guard, we'd fire a
                 // hardware start request into the `AVCaptureSession` while suspended,
                 // permanently hanging the video data queue on foreground return.
+                cameraManager.startSession()
+            }
+        }
+        .onChange(of: viewModel.activeSheet) { _, newSheet in
+            if newSheet != nil {
+                cameraManager.stopSession()
+            } else if captureMode == .visual && scenePhase == .active && !viewModel.isAnalyzingFullscreen {
+                // Strictly guard the un-pause with `scenePhase == .active`, ensuring the
+                // startSession() hardware call can never fire indiscriminately during
+                // backgrounding transitions when the UI naturally dismisses sheets.
                 cameraManager.startSession()
             }
         }

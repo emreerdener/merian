@@ -6,9 +6,7 @@ struct CameraSheetRouter: ViewModifier {
     
     func body(content: Content) -> some View {
         content
-            .sheet(item: $viewModel.activeSheet, onDismiss: {
-                viewModel.handleSheetDismiss()
-            }) { sheet in
+            .sheet(item: $viewModel.activeSheet) { sheet in
                 Group {
                     switch sheet {
                     case .insight:
@@ -35,9 +33,6 @@ struct CameraSheetRouter: ViewModifier {
                 }
                 .presentationDragIndicator(.hidden)
                 .preferredColorScheme(themeMode.colorScheme) // Ensure dynamic toggle state actively penetrates iOS nested isolation bounds smoothly!
-                .onAppear {
-                    viewModel.handleSheetAppear()
-                }
             }
     }
 }

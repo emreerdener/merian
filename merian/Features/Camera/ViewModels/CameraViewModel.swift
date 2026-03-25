@@ -233,12 +233,4 @@ final class CameraViewModel {
             }
         }
     }
-    
-    func handleSheetAppear() {
-        diContainer.cameraManager.stopSession()
-    }
-    
-    func handleSheetDismiss() {
-        diContainer.cameraManager.startSession()
-    }
 }
