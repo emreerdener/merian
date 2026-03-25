@@ -19,7 +19,7 @@ struct SettingsTabView: View {
     @State private var safariUrl: URL?
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
-    @State private var showPaywall = false
+    @State private var managePlanActive = false
     @State private var notificationSettingsActive = false
     @State private var cameraSettingsActive = false
 
@@ -29,7 +29,7 @@ struct SettingsTabView: View {
                 isHapticsEnabled: $isHapticsEnabled,
                 saveToCameraRoll: $saveToCameraRoll,
                 defaultGeoprivacy: $viewModel.defaultGeoprivacy,
-                showPaywall: $showPaywall,
+                managePlanActive: $managePlanActive,
                 notificationSettingsActive: $notificationSettingsActive,
                 cameraSettingsActive: $cameraSettingsActive
             )
@@ -57,6 +57,10 @@ struct SettingsTabView: View {
         .navigationDestination(isPresented: $cameraSettingsActive) {
             CameraSettingsView()
         }
+        .navigationDestination(isPresented: $managePlanActive) {
+            ManagePlanView()
+                .environment(RevenueCatManager.shared)
+        }
         .listStyle(InsetGroupedListStyle())
         .containerRelativeFrame(.horizontal)
         .onAppear {
@@ -66,10 +70,6 @@ struct SettingsTabView: View {
             if let url = safariUrl {
                 SafariView(url: url)
             }
-        }
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
-                .environment(RevenueCatManager.shared)
         }
         .confirmationDialog(
             "Are you sure you want to permanently delete your account and all associated data?",

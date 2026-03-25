@@ -48,7 +48,7 @@ struct PlanCard: View {
                 HStack {
                     Image(systemName: revenueCat.isProActive ? "gearshape" : "arrow.up.circle")
                         .font(.system(size: 20, weight: .semibold))
-                    Text(revenueCat.isProActive ? "Manage subscription" : "Upgrade for more")
+                    Text(revenueCat.isProActive ? "Manage plan" : "Upgrade for more")
                         .fontWeight(.bold)
                     Spacer()
                     Image(systemName: "chevron.right")

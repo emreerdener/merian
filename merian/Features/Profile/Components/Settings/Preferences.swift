@@ -8,7 +8,7 @@ struct Preferences: View {
     @Binding var isHapticsEnabled: Bool
     @Binding var saveToCameraRoll: Bool
     @Binding var defaultGeoprivacy: String
-    @Binding var showPaywall: Bool
+    @Binding var managePlanActive: Bool
 
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
@@ -32,22 +32,13 @@ struct Preferences: View {
             }
             .padding(.vertical, 4)
 
-            // MARK: - Camera
-            Button { cameraSettingsActive = true } label: {
+           
+            // MARK: - Upgrades
+            Button { managePlanActive = true } label: {
                 SettingsNavigationRow(
-                    title: "Camera",
-                    description: "Zoom controls, viewfinder hints, and capture preferences.",
-                    icon: "camera.fill",
-                    iconColor: .gray
-                )
-            }
-
-            // MARK: - Manage Plan
-            Button { showPaywall = true } label: {
-                SettingsNavigationRow(
-                    title: "Manage plan",
+                    title: "Upgrades",
                     description: "Upgrade or manage your active subscription tier.",
-                    icon: "crown.fill",
+                    icon: "bag.fill",
                     iconColor: .orange
                 )
             }
@@ -62,12 +53,23 @@ struct Preferences: View {
                 )
             }
 
+             // MARK: - Camera
+            Button { cameraSettingsActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Camera",
+                    description: "Zoom controls, viewfinder hints, and capture preferences.",
+                    icon: "camera.fill",
+                    iconColor: .gray
+                )
+            }
+
+
             // MARK: - Multi-Image Scans
             SettingsToggleRow(
                 title: "Multi-image scans",
                 description: "Attach up to 2 images before submitting. By default a single capture is sent to AI immediately.",
                 isOn: $multiImageScanMode,
-                icon: "photo.stack.fill",
+                icon: "photo.on.rectangle.angled.fill",
                 iconColor: .blue
             )
 
@@ -76,7 +78,7 @@ struct Preferences: View {
                 title: "Expedition mode",
                 description: "Maximizes battery life off-grid by capping camera frame rates and disabling heavy visual effects.",
                 isOn: $hwOrchestrator.isExpeditionModeActive,
-                icon: "leaf.fill",
+                icon: "map.fill",
                 iconColor: .green
             )
             .onChange(of: hwOrchestrator.isExpeditionModeActive) { _, _ in
@@ -97,7 +99,7 @@ struct Preferences: View {
                 title: "Save to camera roll",
                 description: "Automatically save each captured photo to your iPhone's Photos library.",
                 isOn: $saveToCameraRoll,
-                icon: "photo.fill",
+                icon: "square.and.arrow.down",
                 iconColor: .teal
             )
 

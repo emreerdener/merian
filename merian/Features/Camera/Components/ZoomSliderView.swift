@@ -77,17 +77,10 @@ struct ZoomSliderView: View {
         let fraction = fillFraction(for: camera.zoomFactor)
         // Default: top = max zoom, bottom = 1×. Inverted: top = 1×, bottom = max zoom.
         let indicatorY = indicatorTickOffset + (invertZoomDirection ? fraction * trackHeight : (1.0 - fraction) * trackHeight)
-        // 1× is always at the extreme end of the track (fraction = 0).
-        let setPointY = indicatorTickOffset + (invertZoomDirection ? 0 : trackHeight)
-        let showSetPoint = camera.zoomFactor > 1.1
 
         return ZStack(alignment: .top) {
             rulerView
                 .padding(.top, 11)
-            setPointIndicator
-                .offset(y: setPointY)
-                .opacity(showSetPoint ? 1 : 0)
-                .animation(.easeInOut(duration: 0.2), value: showSetPoint)
             currentZoomIndicator
                 .offset(y: indicatorY)
                 .animation(isDragging ? nil : .easeOut(duration: 0.25), value: indicatorY)
@@ -143,6 +136,7 @@ struct ZoomSliderView: View {
                 let isOpticalStop = stops.contains { abs(log(max($0, 1.0)) - tickLog) < halfTickLog }
                 // Max zoom tick: i=0 in default (top), i=tickCount-1 in inverted (bottom)
                 let isMaxZoom = inverted ? i == tickCount - 1 : i == 0
+                let isMinZoom = inverted ? i == 0 : i == tickCount - 1
 
                 // Gaussian falloff centred on the current zoom fraction.
                 // σ = 0.18 covers ~5–6 ticks either side; peak extension = 8 pt (leftward).
@@ -156,17 +150,10 @@ struct ZoomSliderView: View {
                 line.move(to: CGPoint(x: x0, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
 
-                let tickColor: Color = isOpticalStop || isMaxZoom ? .white.opacity(0.8) : .white.opacity(0.45)
+                let tickColor: Color = isOpticalStop || isMaxZoom || isMinZoom ? .white.opacity(0.8) : .white.opacity(0.45)
                 ctx.stroke(line, with: .color(tickColor), lineWidth: 0.5)
 
-                if isMaxZoom {
-                    let dotSize: CGFloat = 4
-                    let dotX = size.width - dotRightOffset - dotSize / 2
-                    ctx.fill(
-                        Path(ellipseIn: CGRect(x: dotX, y: y - dotSize / 2, width: dotSize, height: dotSize)),
-                        with: .color(.white.opacity(0.9))
-                    )
-                } else if isOpticalStop {
+                if isMaxZoom || isMinZoom || isOpticalStop {
                     let dotSize: CGFloat = 4
                     let dotX = size.width - dotRightOffset - dotSize / 2
                     ctx.fill(
@@ -216,22 +203,7 @@ struct ZoomSliderView: View {
         .animation(.easeOut(duration: 0.3), value: showText)
     }
 
-    // MARK: - 1× set point indicator
 
-    /// A static white marker that appears at the 1× position whenever the current
-    /// zoom indicator has moved away from it. Styled identically to the Canvas
-    /// optical-stop dots: 4 pt circle, white.opacity(0.9), no hairline connector,
-    /// trailing padding of `dotRightOffset` so its centre lands at the same x.
-    private var setPointIndicator: some View {
-        HStack(spacing: 0) {
-            Spacer(minLength: 0)
-            Circle()
-                .fill(Color.white.opacity(0.9))
-                .frame(width: 4, height: 4)
-                .padding(.trailing, dotRightOffset)
-        }
-        .frame(width: componentWidth, height: 20)
-    }
 
     // MARK: - Math
 
