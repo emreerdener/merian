@@ -13,11 +13,14 @@ struct Preferences: View {
     
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
-    @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
+
+    @Binding var notificationSettingsActive: Bool
+    @Binding var cameraSettingsActive: Bool
     
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
         Section {
+
             // MARK: - Theme
             VStack(alignment: .leading, spacing: 8) {
                 Picker("Theme", selection: $themeMode) {
@@ -30,41 +33,24 @@ struct Preferences: View {
             }
             .padding(.vertical, 4)
 
-            // MARK: - Manage Plan
-            VStack(alignment: .leading, spacing: 8) {
-                Button(action: {
-                    showPaywall = true
-                }) {
-                    HStack {
-                        Text("Manage plan")
-                            .foregroundColor(.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                }
-                
-                Text("Upgrade or manage your active subscription tier.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+             // MARK: - Camera
+            Button { cameraSettingsActive = true } label: {
+                SettingsNavigationRow(title: "Camera")
             }
-            .padding(.vertical, 4)
 
-                 // MARK: - Push Notifications
-            NavigationLink {
-                NotificationSettingsView()
-            } label: {
-                 HStack {
-                        Text("Notifications")
-                            .foregroundColor(.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 14, weight: .semibold))
-                    }
+            // MARK: - Manage Plan
+            Button { showPaywall = true } label: {
+                SettingsNavigationRow(
+                    title: "Manage plan",
+                    description: "Upgrade or manage your active subscription tier."
+                )
             }
-            
+
+            // MARK: - Push Notifications
+            Button { notificationSettingsActive = true } label: {
+                SettingsNavigationRow(title: "Notifications")
+            }
+
              // MARK: - Multi-Image Scans
             SettingsToggleRow(
                 title: "Multi-image scans",
@@ -72,14 +58,7 @@ struct Preferences: View {
                 isOn: $multiImageScanMode
             )
 
-            // MARK: - Invert Zoom Direction
-            SettingsToggleRow(
-                title: "Invert zoom direction",
-                description: "Swipe down to zoom in, swipe up to zoom out. Also inverts drag direction on the zoom slider.",
-                isOn: $invertZoomDirection
-            )
-            
-            // MARK: - Expedition Mode  
+            // MARK: - Expedition Mode
             SettingsToggleRow(
                 title: "Expedition mode",
                 description: "Maximizes battery life off-grid by capping camera frame rates and disabling heavy visual effects.",
@@ -121,6 +100,34 @@ struct Preferences: View {
     
 }
 
+/// A reusable row for settings items that navigate or trigger an action.
+/// Renders a title, optional description caption, and a trailing chevron.
+/// Use as the label of a `Button` (with `.navigationDestination`) rather than
+/// `NavigationLink`, which would add a second system disclosure indicator.
+struct SettingsNavigationRow: View {
+    let title: String
+    var description: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .foregroundColor(.primary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            if let description {
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 /// A reusable generic primitives extracting duplicate VStack, Toggle, and Caption architectures globally.
 struct SettingsToggleRow: View {
     let title: String
@@ -148,6 +155,34 @@ private extension Preferences {
                 CameraManager.shared.isLiveInferencePaused = !newValue
             }
         )
+    }
+}
+
+// MARK: - Camera Settings
+
+struct CameraSettingsView: View {
+    @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
+    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = false
+
+    var body: some View {
+        List {
+            Section {
+                SettingsToggleRow(
+                    title: "Left-side zoom slider",
+                    description: "Move the zoom meter to the left edge of the viewfinder.",
+                    isOn: $zoomSideLeft
+                )
+                SettingsToggleRow(
+                    title: "Invert zoom direction",
+                    description: "Swipe down to zoom in, swipe up to zoom out.",
+                    isOn: $invertZoomDirection
+                )
+            } header: {
+                Text("Zoom")
+            }
+        }
+        .navigationTitle("Camera")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

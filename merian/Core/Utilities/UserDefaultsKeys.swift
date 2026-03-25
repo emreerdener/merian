@@ -13,4 +13,6 @@ enum UserDefaultsKeys {
     static let isLiveInferencePaused = "isLiveInferencePaused"
     /// Whether swipe-to-zoom direction is inverted (down = zoom in, up = zoom out).
     static let invertZoomDirection = "invertZoomDirection"
+    /// Whether the zoom slider is placed on the left side of the viewfinder instead of the right.
+    static let zoomSideLeft = "zoomSideLeft"
 }

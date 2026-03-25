@@ -21,6 +21,8 @@ struct SettingsTabView: View {
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var showPaywall = false
+    @State private var notificationSettingsActive = false
+    @State private var cameraSettingsActive = false
 
     var body: some View {
         List {
@@ -29,7 +31,9 @@ struct SettingsTabView: View {
                 isHapticsEnabled: $isHapticsEnabled,
                 saveToCameraRoll: $saveToCameraRoll,
                 defaultGeoprivacy: $viewModel.defaultGeoprivacy,
-                showPaywall: $showPaywall
+                showPaywall: $showPaywall,
+                notificationSettingsActive: $notificationSettingsActive,
+                cameraSettingsActive: $cameraSettingsActive
             )
 
             ExportScans(
@@ -48,6 +52,12 @@ struct SettingsTabView: View {
                 isDeleting: $isDeleting,
                 showDeleteConfirmation: $showDeleteConfirmation
             )
+        }
+        .navigationDestination(isPresented: $notificationSettingsActive) {
+            NotificationSettingsView()
+        }
+        .navigationDestination(isPresented: $cameraSettingsActive) {
+            CameraSettingsView()
         }
         .listStyle(InsetGroupedListStyle())
         .containerRelativeFrame(.horizontal)

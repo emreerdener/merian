@@ -62,9 +62,6 @@ enum MerianConfig {
 
     /// Minimum Vision confidence score for an observation to drive subject-specific scan phrases.
     static let visionConfidenceThreshold: Float = 0.65
-    /// Minimum gap between the top two Vision observations required to trust the classification.
-    /// Guards against ambiguous frames where two categories score similarly (e.g., plant vs. bird).
-    static let visionConfidenceMargin: Float = 0.15
 
     // MARK: - Scanning Phase UX Timing
 

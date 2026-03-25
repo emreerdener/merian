@@ -19,6 +19,7 @@ struct MainOverlayView: View {
     // MARK: - Local Staging State
     @State private var activeMode: CaptureMode = .visual
     @AppStorage("multiImageScanMode") private var multiImageScanMode: Bool = false
+    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = false
     
     // MARK: - Interface Layout
     var body: some View {
@@ -83,10 +84,10 @@ struct MainOverlayView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .overlay(alignment: .trailing) {
-            if activeScanImages.isEmpty {
+        .overlay(alignment: zoomSideLeft ? .leading : .trailing) {
+            if activeScanImages.count < 2 {
                 ZoomSliderView()
-                    .padding(.trailing, 16)
+                    .padding(zoomSideLeft ? .leading : .trailing, 16)
                     .padding(.bottom, 110)
             }
         }

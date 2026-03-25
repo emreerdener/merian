@@ -185,18 +185,12 @@ extension CameraViewModel {
     ]
 
     /// Returns subject-specific phrases when Vision identifies a category with confidence ≥
-    /// `MerianConfig.visionConfidenceThreshold` and a clear margin over the second-best observation.
+    /// `MerianConfig.visionConfidenceThreshold`.
     /// Returns nil when no observation clears the threshold — caller should keep the generic series.
     ///
-    /// Only the top 5 observations are checked. The confidence threshold and margin guard
-    /// prevent cross-category misclassification (e.g., a plant briefly scoring as "bird")
-    /// from surfacing subject-specific phrases that would be jarring or incorrect.
+    /// Only the top 5 observations are checked. The confidence threshold prevents low-confidence
+    /// or cross-category misclassifications from surfacing subject-specific phrases.
     private nonisolated static func specificPhraseSeries(for observations: [VNClassificationObservation]) -> [String]? {
-        // Require a clear lead over the second-best result to filter split/ambiguous classifications.
-        if observations.count >= 2 {
-            guard observations[0].confidence - observations[1].confidence >= MerianConfig.visionConfidenceMargin else { return nil }
-        }
-
         for obs in observations.prefix(5) where obs.confidence >= MerianConfig.visionConfidenceThreshold {
             let id = obs.identifier.lowercased()
 
