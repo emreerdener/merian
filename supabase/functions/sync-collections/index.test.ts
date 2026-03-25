@@ -33,7 +33,7 @@ Deno.test("Edge Function Payload Mapping & Upsert Validation", async () => {
     assert(validCollections.length === 1, "Failed to whitelist non-deleted collections");
     assert(deletedCollections.length === 0, "Failed to blacklist deleted collections");
 
-    const activeIds = validCollections.map(c => c.id);
+    const _activeIds = validCollections.map(c => c.id);
 
     // 3. Mock Upsert Mapping
     const mockUserId = crypto.randomUUID();
