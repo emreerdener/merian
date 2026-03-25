@@ -38,13 +38,13 @@ struct ZoomSliderView: View {
 
     var body: some View {
         Group {
-            if camera.isZoomSupported && zoomSliderVisible {
+            if camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible {
                 sliderBody
                     .scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)
                     .transition(.opacity)
             }
         }
-        .animation(.easeIn(duration: 0.5), value: camera.isZoomSupported)
+        .animation(.easeIn(duration: 0.5), value: camera.isZoomSupported && camera.isSessionRunning)
         .onAppear {
             Task {
                 try? await Task.sleep(for: .seconds(2))
@@ -113,57 +113,21 @@ struct ZoomSliderView: View {
     private var rulerView: some View {
         let maxZoom = camera.maxZoomFactor
         let stops = camera.opticalZoomStops.filter { $0 > 1.0 }
-        let logMax = log(maxZoom)
-        // Half a tick's width in log-space — mirrors the log scale used by the indicator and drag gesture.
-        let halfTickLog = maxZoom > 1.0 && logMax > 0 ? logMax / CGFloat(tickCount - 1) * 0.5 : 0
-        let inverted = invertZoomDirection
-        // Captured for the tick-elongation effect; Canvas re-draws whenever these change.
         let currentFraction = fillFraction(for: camera.zoomFactor)
-        let activityStrength = zoomActivityStrength
 
-        return Canvas { ctx, size in
-            guard maxZoom > 1.0 else { return }
-            let spacing = trackHeight / CGFloat(tickCount - 1)
-
-            for i in 0..<tickCount {
-                let y = 4.0 + CGFloat(i) * spacing
-                let t = CGFloat(i) / CGFloat(tickCount - 1)
-                // Log-spaced to match the indicator position and drag gesture (both use log scale).
-                // Default: top = max zoom (logMax), bottom = 1× (0). Inverted: reversed.
-                let tickLog = inverted ? t * logMax : (1.0 - t) * logMax
-                // Fraction in 0–1 zoom space for this tick, matching currentFraction's scale.
-                let tickFraction: CGFloat = inverted ? t : (1.0 - t)
-                let isOpticalStop = stops.contains { abs(log(max($0, 1.0)) - tickLog) < halfTickLog }
-                // Max zoom tick: i=0 in default (top), i=tickCount-1 in inverted (bottom)
-                let isMaxZoom = inverted ? i == tickCount - 1 : i == 0
-                let isMinZoom = inverted ? i == 0 : i == tickCount - 1
-
-                // Gaussian falloff centred on the current zoom fraction.
-                // σ = 0.18 covers ~5–6 ticks either side; peak extension = 8 pt (leftward).
-                // activityStrength gates the whole effect so it fades cleanly in/out.
-                let d = tickFraction - currentFraction
-                let influence = exp(-d * d / (2 * 0.18 * 0.18)) * activityStrength
-                let extraLength: CGFloat = influence * 8
-
-                var line = Path()
-                let x0 = size.width - shortTickWidth + opticalTickInset - extraLength
-                line.move(to: CGPoint(x: x0, y: y))
-                line.addLine(to: CGPoint(x: size.width, y: y))
-
-                let tickColor: Color = isOpticalStop || isMaxZoom || isMinZoom ? .white.opacity(0.8) : .white.opacity(0.45)
-                ctx.stroke(line, with: .color(tickColor), lineWidth: 0.5)
-
-                if isMaxZoom || isMinZoom || isOpticalStop {
-                    let dotSize: CGFloat = 4
-                    let dotX = size.width - dotRightOffset - dotSize / 2
-                    ctx.fill(
-                        Path(ellipseIn: CGRect(x: dotX, y: y - dotSize / 2, width: dotSize, height: dotSize)),
-                        with: .color(.white.opacity(0.9))
-                    )
-                }
-            }
-        }
-        .frame(width: componentWidth, height: trackHeight + 8)
+        return TickRulerCanvas(
+            maxZoom: maxZoom,
+            tickCount: tickCount,
+            trackHeight: trackHeight,
+            shortTickWidth: shortTickWidth,
+            opticalTickInset: opticalTickInset,
+            dotRightOffset: dotRightOffset,
+            componentWidth: componentWidth,
+            invertZoomDirection: invertZoomDirection,
+            stops: stops,
+            currentFraction: currentFraction,
+            activityStrength: zoomActivityStrength
+        )
     }
 
     // MARK: - Current zoom indicator
@@ -196,7 +160,7 @@ struct ZoomSliderView: View {
             // Width switches between shortTickWidth (pill) and dotRightOffset (dot) so that
             // the dot center lands at the same x as the Canvas optical-stop dots.
             Color.white
-                .frame(width: showText ? shortTickWidth : dotRightOffset, height: showText ? 1.5 : 0.5)
+                .frame(width: showText ? shortTickWidth : dotRightOffset - 2, height: showText ? 1.5 : 0.5)
                 .opacity(showText ? 0.7 : 0.15)
         }
         .frame(width: componentWidth, height: 20)
@@ -251,3 +215,89 @@ struct ZoomSliderView: View {
         return String(format: "%.1f×", rounded)
     }
 }
+
+/// A dedicated canvas for drawing the tick marks in the zoom ruler.
+///
+/// This view is extracted from `ZoomSliderView` to explicitly conform to `Animatable`.
+/// By exposing `currentFraction` and `activityStrength` as an `AnimatablePair`, SwiftUI
+/// natively interpolates these properties during active animations like `.easeOut`. The Canvas
+/// then evaluates continuously with these intermediate values, providing a fluid tick-bulge 
+/// expansion during zoom, and a smooth retraction transition when zooming finishes natively.
+private struct TickRulerCanvas: View, Animatable {
+    var maxZoom: CGFloat
+    var tickCount: Int
+    var trackHeight: CGFloat
+    var shortTickWidth: CGFloat
+    var opticalTickInset: CGFloat
+    var dotRightOffset: CGFloat
+    var componentWidth: CGFloat
+    var invertZoomDirection: Bool
+    var stops: [CGFloat]
+
+    /// The current relative progress (0.0 to 1.0) along the zoom range in log-space.
+    /// This dictates where the tick-elongation "bulge" is vertically centered.
+    var currentFraction: CGFloat
+
+    /// The overall intensity of the tick expansion effect (0.0 to 1.0).
+    /// Used to smoothly fade the expansion in and out without jumping when panning starts or stops.
+    var activityStrength: CGFloat
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(currentFraction, activityStrength) }
+        set {
+            currentFraction = newValue.first
+            activityStrength = newValue.second
+        }
+    }
+
+    var body: some View {
+        let logMax = log(maxZoom)
+        // Half a tick's width in log-space — mirrors the log scale used by the indicator and drag gesture.
+        let halfTickLog = maxZoom > 1.0 && logMax > 0 ? logMax / CGFloat(tickCount - 1) * 0.5 : 0
+
+        Canvas { ctx, size in
+            guard maxZoom > 1.0 else { return }
+            let spacing = trackHeight / CGFloat(tickCount - 1)
+
+            for i in 0..<tickCount {
+                let y = 4.0 + CGFloat(i) * spacing
+                let t = CGFloat(i) / CGFloat(tickCount - 1)
+                // Log-spaced to match the indicator position and drag gesture (both use log scale).
+                // Default: top = max zoom (logMax), bottom = 1× (0). Inverted: reversed.
+                let tickLog = invertZoomDirection ? t * logMax : (1.0 - t) * logMax
+                // Fraction in 0–1 zoom space for this tick, matching currentFraction's scale.
+                let tickFraction: CGFloat = invertZoomDirection ? t : (1.0 - t)
+                let isOpticalStop = stops.contains { abs(log(max($0, 1.0)) - tickLog) < halfTickLog }
+                // Max zoom tick: i=0 in default (top), i=tickCount-1 in inverted (bottom)
+                let isMaxZoom = invertZoomDirection ? i == tickCount - 1 : i == 0
+                let isMinZoom = invertZoomDirection ? i == 0 : i == tickCount - 1
+
+                // Gaussian falloff centred on the current zoom fraction.
+                // σ = 0.18 covers ~5–6 ticks either side; peak extension = 8 pt (leftward).
+                // activityStrength gates the whole effect so it fades cleanly in/out.
+                let d = tickFraction - currentFraction
+                let influence = exp(-d * d / (2 * 0.18 * 0.18)) * activityStrength
+                let extraLength: CGFloat = influence * 8
+
+                var line = Path()
+                let x0 = size.width - shortTickWidth + opticalTickInset - extraLength
+                line.move(to: CGPoint(x: x0, y: y))
+                line.addLine(to: CGPoint(x: size.width, y: y))
+
+                let tickColor: Color = isOpticalStop || isMaxZoom || isMinZoom ? .white.opacity(0.8) : .white.opacity(0.45)
+                ctx.stroke(line, with: .color(tickColor), lineWidth: 0.5)
+
+                if isMaxZoom || isMinZoom || isOpticalStop {
+                    let dotSize: CGFloat = 4
+                    let dotX = size.width - dotRightOffset - dotSize / 2
+                    ctx.fill(
+                        Path(ellipseIn: CGRect(x: dotX, y: y - dotSize / 2, width: dotSize, height: dotSize)),
+                        with: .color(.white.opacity(0.9))
+                    )
+                }
+            }
+        }
+        .frame(width: componentWidth, height: trackHeight + 8)
+    }
+}
+

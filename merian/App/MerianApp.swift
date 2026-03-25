@@ -34,10 +34,10 @@ struct MerianApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
         
-        // Initialize Zero-PII Crash & Anonymous Usage Metrics off the main thread
+        // Initialize telemetry synchronously — just stores config, safe on main thread.
+        // PostHog configure is async so it stays on a background task.
+        AppTelemetry.initialize()
         Task.detached(priority: .background) {
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            AppTelemetry.initialize()
             await PostHogManager.shared.configure()
         }
     }

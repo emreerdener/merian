@@ -42,18 +42,17 @@ struct ScanInformationCard: View {
                 }
                 
                 VStack(spacing: 12) {
+                    // Location
                     if let validName = name, !validName.trimmingCharacters(in: .whitespaces).isEmpty {
                         KeyValueRow(title: "LOCATION", value: validName)
                     }
                     
+                    // Elevation
                     if let elev = elevation, elev != 0 {
                         KeyValueRow(title: "ELEVATION", value: "\(Int(elev))m")
                     }
-
-                    if let z = zoom {
-                        KeyValueRow(title: "ZOOM", value: String(format: "%.1f×", z))
-                    }
                     
+                    // Weather
                     if let validTemp = temp, let validCondition = cond {
                         KeyValueRow(
                             title: "WEATHER", 
@@ -62,6 +61,7 @@ struct ScanInformationCard: View {
                         )
                     }
                     
+                    // Date & Time
                     if let ts = timestamp {
                         KeyValueRow(
                             title: "DATE",
@@ -72,6 +72,11 @@ struct ScanInformationCard: View {
                             title: "TIME",
                             value: ts.formatted(date: .omitted, time: .shortened)
                         )
+                    }
+
+                    // Zoom
+                    if let z = zoom {
+                        KeyValueRow(title: "CAMERA ZOOM", value: String(format: "%.1f×", z))
                     }
                     
                     // Map

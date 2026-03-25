@@ -52,7 +52,7 @@ To preserve a sub-1-second camera boot experience, both Apple TelemetryDeck and 
 Monitors core system stability using PII-free Apple anonymous strings.
 
 - Calls `.initialize(config)` to bind the platform key.
-- **Uninitialized State Protection**: To prevent the 500ms async `.initialize(config)` boot delay from causing a `fatalError` when early-cycle tracking (or unit test mocks lacking `XCODE_RUNNING_FOR_PREVIEWS`) invoke `.send()` prematurely, `AppTelemetry` uses an internal thread-safe `NSLock` property (`isInitialized`). This protects all external tracking methods and drops events silently until the SDK is mounted.
+- **Synchronous initialization**: `AppTelemetry.initialize()` is called directly in `MerianApp.init()` before any view is constructed. `TelemetryManager.initialize(with:)` is purely synchronous config storage — safe on the main thread. The previous pattern of deferring initialization inside a `Task.detached` with a 500ms sleep caused a `fatalError` whenever anything accessed `TelemetryManager.shared` during that window. The internal `isInitialized` NSLock guard is still present to protect unit-test contexts (e.g. `HardwareOrchestratorTests` which initializes the SDK with a stub ID) from calling `.send()` before `.initialize()`.
 - Custom signals track camera activity (`trackScan`).
 - The hardware orchestrator calls `.trackThermalThrottling(fpsLimit:)` to record heat warnings and provide data on Apple thermal management performance.
 

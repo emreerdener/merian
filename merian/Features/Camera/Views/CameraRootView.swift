@@ -47,64 +47,74 @@ struct CameraRootView: View {
                 // explicit .frame(), bypassing any ambiguity in containerRelativeFrame's
                 // safe-area-vs-full-screen reference resolution.
                 GeometryReader { proxy in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 0) {
+                    ScrollViewReader { scrollProxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 0) {
 
-                            // MARK: Page 1 — Camera
-                            ZStack {
-                                // 1. Optical Bridge
-                                CameraPreviewView(
-                                    session: cameraManager.session,
-                                    onTap: { layerPoint, devicePoint in
-                                        viewModel.handleFocusTap(devicePoint: devicePoint)
+                                // MARK: Page 1 — Camera
+                                ZStack {
+                                    // 1. Optical Bridge
+                                    CameraPreviewView(
+                                        session: cameraManager.session,
+                                        onTap: { layerPoint, devicePoint in
+                                            viewModel.handleFocusTap(devicePoint: devicePoint)
 
-                                        // Drive the focus indicator from the UIKit layer point — the SwiftUI
-                                        // gesture modifier can't compete with the UITapGestureRecognizer on
-                                        // the preview layer.
-                                        focusLocation = layerPoint
-                                        showFocusIndicator = true
-                                        focusHideTask?.cancel()
-                                        focusHideTask = Task { @MainActor in
-                                            try? await Task.sleep(nanoseconds: 1_500_000_000)
-                                            guard !Task.isCancelled else { return }
-                                            withAnimation(.easeOut) { showFocusIndicator = false }
-                                        }
-                                    },
-                                    onVerticalDragActiveChanged: { isVerticalZooming = $0 }
-                                )
-                                .ignoresSafeArea()
-                                .background(Color.black.ignoresSafeArea())
-                                .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
-
-                                // 2. Hardware Effects (Flash Snap)
-                                Color.black
+                                            // Drive the focus indicator from the UIKit layer point — the SwiftUI
+                                            // gesture modifier can't compete with the UITapGestureRecognizer on
+                                            // the preview layer.
+                                            focusLocation = layerPoint
+                                            showFocusIndicator = true
+                                            focusHideTask?.cancel()
+                                            focusHideTask = Task { @MainActor in
+                                                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                                guard !Task.isCancelled else { return }
+                                                withAnimation(.easeOut) { showFocusIndicator = false }
+                                            }
+                                        },
+                                        onVerticalDragActiveChanged: { isVerticalZooming = $0 }
+                                    )
                                     .ignoresSafeArea()
-                                    .opacity(viewModel.flashOpacity)
-                                    .allowsHitTesting(false)
+                                    .background(Color.black.ignoresSafeArea())
+                                    .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
 
-                                // 3. Thermal Overlay
-                                ThermalWarningView()
+                                    // 2. Hardware Effects (Flash Snap)
+                                    Color.black
+                                        .ignoresSafeArea()
+                                        .opacity(viewModel.flashOpacity)
+                                        .allowsHitTesting(false)
 
-                                // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
-                                CameraControlsLayer(
-                                    activeScanImages: viewModel.activeScanImages,
-                                    isAnalyzingFullscreen: viewModel.isAnalyzingFullscreen
-                                )
-                            }
-                            .frame(width: proxy.size.width, height: proxy.size.height)
-                            .id(CaptureMode.visual)
+                                    // 3. Thermal Overlay
+                                    ThermalWarningView()
 
-                            // MARK: Page 2 — Audio Recording
-                            AudioRecordingView()
+                                    // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
+                                    CameraControlsLayer(
+                                        activeScanImages: viewModel.activeScanImages,
+                                        isAnalyzingFullscreen: viewModel.isAnalyzingFullscreen
+                                    )
+                                }
                                 .frame(width: proxy.size.width, height: proxy.size.height)
-                                .id(CaptureMode.audio)
+                                .id(CaptureMode.visual)
+
+                                // MARK: Page 2 — Audio Recording
+                                AudioRecordingView()
+                                    .frame(width: proxy.size.width, height: proxy.size.height)
+                                    .id(CaptureMode.audio)
+                            }
+                            .scrollTargetLayout()
                         }
-                        .scrollTargetLayout()
+                        .scrollTargetBehavior(.paging)
+                        .scrollPosition(id: captureModeScrollBinding)
+                        .scrollDisabled(isVerticalZooming)
+                        .background(ScrollBounceDisabler())
+                        // Explicit programmatic scroll when captureMode changes from outside
+                        // the scroll view (e.g. MediaModeToggle tap/drag). scrollPosition(id:)
+                        // handles user-swipe → captureMode; this handles captureMode → scroll.
+                        .onChange(of: captureMode) { _, newMode in
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                scrollProxy.scrollTo(newMode, anchor: .leading)
+                            }
+                        }
                     }
-                    .scrollTargetBehavior(.paging)
-                    .scrollPosition(id: captureModeScrollBinding)
-                    .scrollDisabled(isVerticalZooming)
-                    .background(ScrollBounceDisabler())
                 }
                 .ignoresSafeArea()
 
@@ -119,12 +129,12 @@ struct CameraRootView: View {
                     .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.activeScanImages.count)
                 }
 
-                // MARK: Fixed Overlay — Capture Controls + Navigation (bottom)
-                VStack {
-                    Spacer()
-
-                    // Capture bar: library · shutter/record · flash
-                    if viewModel.activeScanImages.count < 2 {
+                // MARK: Fixed Overlay — Capture Controls (bottom, independent of toolbar)
+                // Pinned to a fixed absolute bottom offset so toolbar height changes
+                // (MainTabBar vs ActiveScanToolbar) never shift the shutter row.
+                if viewModel.activeScanImages.count < 2 {
+                    VStack {
+                        Spacer()
                         HStack(alignment: .bottom) {
                             PhotoLibraryButton(
                                 selectedPhotoItems: $viewModel.selectedPhotoItems,
@@ -147,11 +157,16 @@ struct CameraRootView: View {
                             .opacity(captureMode == .visual ? 1 : 0)
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
                         }
-                        .padding(.bottom, 48)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 140)
                     }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.activeScanImages.count)
+                }
 
-                    // Navigation / scan toolbar
+                // MARK: Fixed Overlay — Navigation / scan toolbar (bottom, independent of capture bar)
+                VStack {
+                    Spacer()
+
                     if viewModel.activeScanImages.isEmpty {
                         MainTabBar(
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),
@@ -213,6 +228,7 @@ struct CameraRootView: View {
             viewModel.submitActiveScan(modelContext: modelContext)
         }
         .onChange(of: captureMode) { _, newMode in
+            HapticManager.shared.triggerSheetSpring()
             if newMode == .audio {
                 cameraManager.stopSession()
             } else if !viewModel.isAnalyzingFullscreen {

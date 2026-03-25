@@ -58,7 +58,7 @@ flowchart TD
 
 ### 6. UI Initialization & Memory Operations
 
-- **Instant Cold Boot:** SDK injections (`AppTelemetry`, `PostHog`) and heavy `CameraManager` hardware initialization (`AVCaptureSession.beginConfiguration`) are deferred onto a `Task.detached(priority: .background)` executor, preventing the Main Actor from blocking and ensuring a sub-1-second boot for the Camera pipeline.
+- **Instant Cold Boot:** `AppTelemetry.initialize()` runs synchronously in `MerianApp.init()` (it is just config storage — no I/O). `PostHog.configure()` and heavy `CameraManager` hardware initialization (`AVCaptureSession.beginConfiguration`) are deferred onto a `Task.detached(priority: .background)` executor, preventing the Main Actor from blocking and ensuring a sub-1-second boot for the Camera pipeline.
 - **RAM Image Cache (`ImageCache`):** A thread-safe `@unchecked Sendable` `NSCache` stores downsampled scan thumbnails in RAM, avoiding massive disk I/O thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM crashes and micro-stutters by capping at ~100 thumbnail entries, with iOS memory pressure controlling eviction.
 - **Asynchronous Grid Downsampling:** Image-heavy views (`ScansSearchView`, `InsightSheetView`, `InsightCarousel`) offload decoding onto a CPU pool using `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex`, bounds-checking 12 MP files without allocating generic `Data` blocks. This keeps scrolling locked to 60fps on edge devices.
 

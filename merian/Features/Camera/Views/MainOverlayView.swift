@@ -16,7 +16,7 @@ struct MainOverlayView: View {
             if activeScanImages.count < 2 {
                 ViewfinderHints()
                     // Padding keeps hints above the fixed capture-bar + tab-bar overlay.
-                    .padding(.bottom, 240)
+                    .padding(.bottom, 250)
                     .transition(.opacity)
             }
         }
