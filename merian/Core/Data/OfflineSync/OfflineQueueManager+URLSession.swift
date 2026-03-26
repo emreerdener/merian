@@ -227,7 +227,15 @@ extension OfflineQueueManager {
 
         do {
             let pipelineStart = CFAbsoluteTimeGetCurrent()
-            let userId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
+            // The R2 object key must match the key the Edge Function stored on upload, which
+            // includes the authenticated user's UUID. If auth state hasn't loaded yet (e.g., cold
+            // relaunch before Supabase SDK initialises), fall back to the next sync cycle rather
+            // than using the device ID — a device-ID path fails the Edge Function's IDOR check.
+            let authUserId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString }
+            guard let userId = authUserId else {
+                MerianLog.data.debug("Offline inference deferred — auth state not loaded for \(scanId, privacy: .private). Will retry on next sync.")
+                return
+            }
             let resolvedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
 
             await MainActor.run { SyncStateManager.shared.beginInferencing() }
