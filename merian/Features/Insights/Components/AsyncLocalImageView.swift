@@ -30,7 +30,7 @@ struct AsyncLocalImageView: View {
         .task(id: "\(path ?? "")|\(fallbackImageUrl ?? "")") {
             loadedImage = nil
             hasFailedToLoad = false
-            let img = await LocalImageLoader.shared.loadImage(fromPath: path, fallbackUrl: fallbackImageUrl)
+            let img = await LocalImageLoader.shared.loadImage(fromPath: path, fallbackUrl: fallbackImageUrl, maxDimension: Int(MerianConfig.displayImageMaxSize))
             guard !Task.isCancelled else { return }
             if let img {
                 loadedImage = img

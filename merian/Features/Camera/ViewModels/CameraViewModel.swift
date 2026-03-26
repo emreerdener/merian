@@ -35,6 +35,13 @@ final class CameraViewModel {
     /// larger payload — only `activeScannedDatas` (1024 px) is base64-encoded for Gemini.
     var activeDisplayDatas: [Data] = []
     
+    // MARK: - Composing Zone
+    /// Vertical center of the on-screen composing zone as a fraction of screen height (0–1).
+    /// Set by CameraRootView once layout is measured. The capture pipeline uses this to
+    /// center the auto-crop on the region the user actually frames their subject in,
+    /// rather than the geometric center of the full sensor image.
+    var composingZoneVerticalCenter: CGFloat = 0.5
+
     // MARK: - Camera & Scanning State
     var isCapturing: Bool = false
     var flashOpacity: Double = 0.0

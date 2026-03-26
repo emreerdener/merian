@@ -107,9 +107,9 @@ struct ImageCropProcessor {
                 }
 
                 let options: [CFString: Any] = [
-                    kCGImageDestinationLossyCompressionQuality: 0.7,
+                    kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality,
                     kCGImagePropertyOrientation: cgOrientation.rawValue,
-                    kCGImageDestinationImageMaxPixelSize: 1024 // Force maximum gemini down-render dynamically
+                    kCGImageDestinationImageMaxPixelSize: 1024
                 ]
                 
                 CGImageDestinationAddImage(destination, finalCG, options as CFDictionary)
@@ -124,6 +124,22 @@ struct ImageCropProcessor {
         return processedBytes ?? Data()
     }
     
+    // MARK: - Composing-Zone-Aware Square Crop
+    /// Crops a downsampled CGImage to the largest centered square, biasing the vertical
+    /// center toward `verticalCenterFraction` (0 = top, 0.5 = geometric center, 1 = bottom).
+    /// Pass the fraction measured from the on-screen composing zone so the crop reflects
+    /// where the user actually framed their subject, not the dead center of the sensor.
+    nonisolated static func squareCrop(_ cgImage: CGImage, verticalCenterFraction: CGFloat) -> CGImage? {
+        let cW = CGFloat(cgImage.width)
+        let cH = CGFloat(cgImage.height)
+        let side = min(cW, cH)
+
+        let cropX = (cW - side) / 2.0
+        let cropY = max(0, min(cH * verticalCenterFraction - side / 2.0, cH - side))
+
+        return cgImage.cropping(to: CGRect(x: cropX, y: cropY, width: side, height: side))
+    }
+
     // MARK: - Zero-Latency Auto-Crop Pipeline (Active Scan)
     nonisolated static func generateAutoCenterCrop(image: UIImage) async -> Data {
         // MARK: - Sendable Isolation Wrappers

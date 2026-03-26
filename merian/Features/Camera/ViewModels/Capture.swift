@@ -41,6 +41,7 @@ extension CameraViewModel {
                     // 3. Hardware Interfacing
                     // Securing the optical frame and geographical context precisely at shutter click
                     let instantLocation = diContainer.environmentContextManager.cachedLocation
+                    let composingCenter = composingZoneVerticalCenter
                     let captureData = try await diContainer.cameraManager.captureImage()
                     
                     // Actively push the original 12MP buffer down natively into the user's Camera Roll securely without blocking UI sweeps natively
@@ -57,8 +58,15 @@ extension CameraViewModel {
                     // The full-resolution photo was already saved to Camera Roll above.
                     let safeCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.inferenceImageMaxSize)
 
+                    // Crop to a square centered on the composing zone — the visible area between
+                    // the mode toggle (top) and the capture button row (bottom). Falls back to the
+                    // uncropped downsampled image if cropping fails (should never happen in practice).
+                    let croppedCGImage = safeCGImage.flatMap {
+                        ImageCropProcessor.squareCrop($0, verticalCenterFraction: composingCenter)
+                    } ?? safeCGImage
+
                     let finalSafeData: Data = {
-                        guard let cgImage = safeCGImage else { return Data() }
+                        guard let cgImage = croppedCGImage else { return Data() }
                         return autoreleasepool {
                             // kCGImageSourceCreateThumbnailWithTransform already bakes the EXIF
                             // orientation into the CGImage pixels — no orientation option needed.
@@ -81,10 +89,12 @@ extension CameraViewModel {
                     // Display payload: 2048 px longest edge — written to disk so the insight
                     // sheet and scan library render crisp. The AI never sees this data;
                     // only finalSafeData is base64-encoded for Gemini.
+                    // Same composing-zone crop applied for visual consistency with the inference frame.
                     let displaySafeData: Data = autoreleasepool {
                         guard let displayCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.displayImageMaxSize) else {
                             return finalSafeData // fallback to inference quality
                         }
+                        let croppedDisplayCGImage = ImageCropProcessor.squareCrop(displayCGImage, verticalCenterFraction: composingCenter) ?? displayCGImage
                         let renderData = NSMutableData()
                         guard let destination = CGImageDestinationCreateWithData(
                             renderData as CFMutableData,
@@ -95,7 +105,7 @@ extension CameraViewModel {
                         let options: [CFString: Any] = [
                             kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
                         ]
-                        CGImageDestinationAddImage(destination, displayCGImage, options as CFDictionary)
+                        CGImageDestinationAddImage(destination, croppedDisplayCGImage, options as CFDictionary)
                         guard CGImageDestinationFinalize(destination) else { return finalSafeData }
                         return Data(renderData)
                     }

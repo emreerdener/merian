@@ -115,6 +115,16 @@ struct CameraRootView: View {
                                 scrollProxy.scrollTo(newMode, anchor: .leading)
                             }
                         }
+                        .onAppear {
+                            // Measure the composing zone: the open area between the mode toggle
+                            // (top overlay, 16pt padding + ~48pt height) and the capture button row
+                            // (bottom overlay, 140pt padding + 80pt button height).
+                            // proxy uses the full-screen frame (.ignoresSafeArea on the GeometryReader)
+                            // so safe-area insets must be accounted for explicitly.
+                            let toggleBottom     = proxy.safeAreaInsets.top + 16 + 48
+                            let captureButtonTop = proxy.size.height - proxy.safeAreaInsets.bottom - 140 - 80
+                            viewModel.composingZoneVerticalCenter = ((toggleBottom + captureButtonTop) / 2) / proxy.size.height
+                        }
                     }
                 }
                 .ignoresSafeArea()
