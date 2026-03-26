@@ -25,13 +25,15 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     public func safeEnd() {
         let idToEnd: UIBackgroundTaskIdentifier = lock.withLock {
             guard _id != .invalid else { return .invalid }
-            defer { _id = .invalid }
-            return _id
+            let oldId = _id
+            _id = .invalid
+            return oldId
         }
+        
         guard idToEnd != .invalid else { return }
-        Task { @MainActor in
-            UIApplication.shared.endBackgroundTask(idToEnd)
-        }
+        #if os(iOS)
+        UIApplication.shared.endBackgroundTask(idToEnd)
+        #endif
     }
 
     /// Begins a named background task, runs `operation`, then ends the task.

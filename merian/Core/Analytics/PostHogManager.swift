@@ -9,7 +9,13 @@ final class PostHogManager {
     static let shared = PostHogManager()
     private init() {}
 
-    private(set) var isConfigured = false
+    private var _isConfigured = false
+    private var pendingUserId: String?
+    private let lock = NSLock()
+
+    var isConfigured: Bool {
+        lock.withLock { _isConfigured }
+    }
 
     // MARK: - Configuration
 
@@ -29,18 +35,34 @@ final class PostHogManager {
         configuration.sessionReplay = false
 
         PostHogSDK.shared.setup(configuration)
-        isConfigured = true
+        
+        var pendingId: String? = nil
+        lock.withLock {
+            _isConfigured = true
+            pendingId = pendingUserId
+            pendingUserId = nil
+        }
+        
         MerianLog.general.debug("PostHog initialized.")
+        
+        if let idToIdentify = pendingId {
+            identifyUser(userId: idToIdentify)
+        }
     }
 
     // MARK: - Identity
 
     /// Identifies the current user session in PostHog.
     func identifyUser(userId: String) {
-        guard isConfigured else {
-            MerianLog.general.warning("PostHogManager.identifyUser() called before configure() — identity dropped.")
+        lock.lock()
+        guard _isConfigured else {
+            MerianLog.general.warning("PostHogManager.identifyUser() called before configure() — identity buffered.")
+            pendingUserId = userId
+            lock.unlock()
             return
         }
+        lock.unlock()
+
         PostHogSDK.shared.identify(userId)
         MerianLog.general.debug("PostHog identified user: \(userId, privacy: .private)")
     }
