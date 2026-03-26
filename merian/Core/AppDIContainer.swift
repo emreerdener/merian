@@ -18,7 +18,9 @@ import SwiftData
     var viewfinderIntelligence = ViewfinderIntelligence.shared
     
     // MARK: - Dependencies (Core Services)
+    @ObservationIgnored
     var environmentContextManager = EnvironmentContextManager.shared
+    var appEventPublisher = AppEventPublisher.shared
 
     // MARK: - Dependencies (Data & Sync)
     var scanRepository = ScanRepository.shared

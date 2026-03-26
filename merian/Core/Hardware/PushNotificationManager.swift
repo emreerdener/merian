@@ -95,7 +95,7 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         if let scanId = userInfo["scanId"] as? String {
             Task { @MainActor in
                 MerianLog.hardware.debug("Push notification tapped — routing to scanId \(scanId, privacy: .private)")
-                NotificationCenter.default.post(name: NSNotification.Name("AppDidEnterActivePhaseWithScan"), object: nil, userInfo: ["scanId": scanId])
+                AppEventPublisher.shared.send(.appDidEnterActivePhaseWithScan(scanId: scanId))
             }
         }
 

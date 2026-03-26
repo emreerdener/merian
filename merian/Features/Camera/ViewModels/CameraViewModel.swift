@@ -63,23 +63,17 @@ final class CameraViewModel {
             _ = try? await SupabaseManager.shared.getValidAuthHeaders()
         }
 
-        NotificationCenter.default.publisher(for: .appDidEnterInactivePhase)
+        // Centralized System Event Routing (AppEventPublisher)
+        diContainer.appEventPublisher.publisher
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.resetModalsForBackground() }
-            .store(in: &cancellables)
-            
-        NotificationCenter.default.publisher(for: NSNotification.Name("TriggerPaywall"))
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.activeSheet = .paywall
-                self?.isAnalyzingFullscreen = false
-            }
-            .store(in: &cancellables)
-            
-        NotificationCenter.default.publisher(for: NSNotification.Name("AppDidEnterActivePhaseWithScan"))
-            .receive(on: RunLoop.main)
-            .sink { [weak self] notification in
-                if let scanId = notification.userInfo?["scanId"] as? String {
+            .sink { [weak self] event in
+                switch event {
+                case .appDidEnterInactivePhase:
+                    self?.resetModalsForBackground()
+                case .triggerPaywall:
+                    self?.activeSheet = .paywall
+                    self?.isAnalyzingFullscreen = false
+                case .appDidEnterActivePhaseWithScan(let scanId):
                     self?.handleDeepLinkRoute(scanId: scanId)
                 }
             }

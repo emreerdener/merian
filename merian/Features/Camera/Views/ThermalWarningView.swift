@@ -17,6 +17,9 @@ struct ThermalWarningView: View {
                 Spacer()
             }
             .padding(.top, 40)
+            .allowsHitTesting(false)
+            .transition(.opacity)
         }
+        .animation(.easeInOut(duration: 0.3), value: hardwareOrchestrator.isCriticalHeatWarningActive)
     }
 }

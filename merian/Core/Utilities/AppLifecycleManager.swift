@@ -59,8 +59,8 @@ final class AppLifecycleManager {
         container.cameraManager.stopSession()
 
         // Notify observers (e.g. CameraViewModel) to reset modal state.
-        // Posted as a notification to avoid coupling AppLifecycleManager to CameraViewModel.
-        NotificationCenter.default.post(name: .appDidEnterInactivePhase, object: nil)
+        // Posted via AppEventPublisher to safely broadcast cross-module states back to @MainActor observers.
+        container.appEventPublisher.send(.appDidEnterInactivePhase)
     }
 
     /// Handles application transition to background.

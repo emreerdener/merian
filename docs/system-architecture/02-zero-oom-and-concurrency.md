@@ -32,6 +32,13 @@ Under the legacy `ObservableObject` protocol, whenever a core engine like `Infer
 
 All environmental managers (`AppDIContainer`, `CameraManager`, `HardwareOrchestrator`, `InferenceEngine`, and `ScansManager`) were migrated to Swift `@Observable` classes. This drops CPU render overhead because SwiftUI tracks property access at runtime directly inside view closures. High-frequency background mutations (`subjectDistanceInMeters`) no longer thrash the global environment, preserving 120Hz refresh rates and reducing thermal loads. All `@EnvironmentObject`, `@StateObject`, and `@ObservedObject` injections were remapped to modern `@Environment()`, `@State`, and `@Bindable` constraints.
 
+### Centralized AppEventPublisher Routing (`NotificationCenter` Migration)
+Historically, implicit app state changes (e.g., crossing daily usage limits, handling active deep link phases) were broadcast globally via string-keyed `NotificationCenter.default.post` calls. This posed two architectural risks:
+1. **Thread Hopping**: Notifications originating from detached backend tasks could inadvertently trigger UI modifications on a background thread if subscribers omitted `.receive(on: RunLoop.main)` guards.
+2. **Type Safety & Retain Cycles**: String-keyed payloads (like `userInfo["scanId"]`) bypassed Swift compiler checks, and dangling `.sink` observer scopes without `[weak self]` caused invisible memory cycles.
+
+**The Refactor**: The architecture deprecates internal string broadcasts globally. `AppDIContainer` now mounts a unified `@MainActor final class AppEventPublisher` exposing a constrained `AppEvent` enum (e.g., `.triggerPaywall`, `.appDidEnterActivePhaseWithScan(scanId: String)`). By wrapping these explicitly through `diContainer.appEventPublisher.publisher.sink`, the view models enforce hard memory constraints, type-checked payload unpacking, and guaranteed `@MainActor` thread-safety execution across the app boundary.
+
 ### SwiftUI 17 Environment Macros (`HapticManager`)
 Injecting singleton managers into the view hierarchy via `.environment(container.hapticManager)` when those managers did not broadcast state (such as pure hardware execution wrappers with no `@Published` or `@State` variables) compiled cleanly in older Swift versions. Merian targets iOS 18/Swift 6, which requires every object passed into `.environment()` to be an `@Observable` macro instance so the SwiftUI engine can track rendering graphs uniformly. Classes like `HapticManager` adopt `@Observable` despite having no view bindings, satisfying the `AppDIContainer` expansion boundaries.
 
