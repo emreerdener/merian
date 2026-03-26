@@ -279,8 +279,24 @@ extension OfflineQueueManager {
                 OfflineQueueManager.shared.updateUnsyncedItemCount()
                 CircuitBreakerManager.shared.recordSuccess()
             }
+        } catch let NetworkError.httpError(code, message) where (400...499).contains(code) {
+            MerianLog.data.debug("Inference failed permanently for \(scanId, privacy: .private) [\(code)]: \(message, privacy: .private) — tombstoning scan")
+            await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
         } catch {
-            MerianLog.data.debug("Inference failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            let retries = await MainActor.run { () -> Int in
+                let next = (OfflineQueueManager.shared.uploadRetryCount[scanId] ?? 0) + 1
+                OfflineQueueManager.shared.uploadRetryCount[scanId] = next
+                return next
+            }
+            if retries >= OfflineQueueManager.maxUploadRetries {
+                MerianLog.data.debug("Inference retry limit reached for \(scanId, privacy: .private) — tombstoning scan")
+                await MainActor.run {
+                    OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
+                    OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
+                }
+            } else {
+                MerianLog.data.debug("Inference failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            }
         }
     }
 }

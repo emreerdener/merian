@@ -9,6 +9,7 @@ enum NetworkError: Error {
     case uploadFailed
     case invalidResponse
     case decodingFailed
+    case httpError(statusCode: Int, message: String)
 }
 
 // MARK: - Pre-Signed URL DTOs
@@ -163,7 +164,7 @@ final class MerianNetworkClient {
                 return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
             }
 
-            throw NetworkError.invalidResponse
+            throw NetworkError.httpError(statusCode: httpResponse.statusCode, message: errString)
         }
 
         return (data, httpResponse)
