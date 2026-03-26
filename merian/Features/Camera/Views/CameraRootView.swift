@@ -194,6 +194,7 @@ struct CameraRootView: View {
                                 viewModel.activeScanImages.removeAll()
                                 viewModel.activeScannedDatas.removeAll()
                                 viewModel.activeOriginals.removeAll()
+                                viewModel.activeDisplayDatas.removeAll()
                             },
                             onSubmit: { viewModel.submitActiveScan(modelContext: modelContext) }
                         )

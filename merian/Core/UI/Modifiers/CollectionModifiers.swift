@@ -91,10 +91,9 @@ struct CollectionActionAlertModifier: ViewModifier {
             modelContext.insert(newCollection)
             
             if let record = relatedRecord {
-                if record.collections == nil {
-                    record.collections = []
-                }
-                record.collections?.append(newCollection)
+                var updatedCollections = record.collections ?? []
+                updatedCollections.append(newCollection)
+                record.collections = updatedCollections
             }
             
             collectionNameInputValue = ""

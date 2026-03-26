@@ -215,17 +215,17 @@ final class InsightSheetViewModel {
     func toggleScanInCollection(_ collection: ScanCollection, modelContext: ModelContext) {
         guard let record = activeLocalRecord else { return }
         
-        if record.collections == nil {
-            record.collections = []
-        }
+        var updatedCollections = record.collections ?? []
         
-        if record.collections?.contains(where: { $0.id == collection.id }) == true {
-            record.collections?.removeAll(where: { $0.id == collection.id })
+        if updatedCollections.contains(where: { $0.id == collection.id }) {
+            updatedCollections.removeAll(where: { $0.id == collection.id })
+            record.collections = updatedCollections
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 toastMessage = "Removed from \(collection.name)"
             }
         } else {
-            record.collections?.append(collection)
+            updatedCollections.append(collection)
+            record.collections = updatedCollections
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 toastMessage = "Added to \(collection.name)"
             }

@@ -528,8 +528,11 @@ actor HistoricalDatabaseActor {
                         // mismatch between ScanCollection.scans ([V12.LocalScanRecord]) and
                         // the current-schema LocalScanRecord (V13). SwiftData propagates the
                         // inverse automatically.
-                        if localScan.collections == nil { localScan.collections = [] }
-                        localScan.collections?.append(col)
+                        var updatedCollections = localScan.collections ?? []
+                        if !updatedCollections.contains(where: { $0.id == col.id }) {
+                            updatedCollections.append(col)
+                            localScan.collections = updatedCollections
+                        }
                     }
                 }
             }

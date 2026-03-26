@@ -98,6 +98,21 @@ private struct WikiSummaryResponse: Decodable {
                 let client = MerianNetworkClient.shared
 
                 let base64Strings = await InferenceProcessingActor.shared.encodeBase64(compressedDatas: compressedDatas)
+                let validBase64Strings = base64Strings.filter { !$0.isEmpty }
+                guard !validBase64Strings.isEmpty else {
+                    MerianLog.general.error("All base64 payloads are empty — corrupted capture data. Refunding scan.")
+                    UsageManager.shared.refundScan()
+                    return
+                }
+
+                // Detect actual encoding from JPEG magic bytes (FF D8 FF).
+                // Falls back to WebP when the image was encoded with the primary path.
+                let imageMimeType: String = {
+                    guard let first = compressedDatas.first, first.count >= 3 else { return "image/webp" }
+                    let prefix = [UInt8](first.prefix(3))
+                    return (prefix[0] == 0xFF && prefix[1] == 0xD8 && prefix[2] == 0xFF) ? "image/jpeg" : "image/webp"
+                }()
+
                 let resolvedUserId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
                 let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString).webp"
 
@@ -106,7 +121,8 @@ private struct WikiSummaryResponse: Decodable {
                 let inferenceStart = CFAbsoluteTimeGetCurrent()
                 let resultData = try await client.analyzeSubject(
                     r2ObjectKeys: [targetObjectKey],
-                    base64ImageDatas: base64Strings,
+                    base64ImageDatas: validBase64Strings,
+                    mimeType: imageMimeType,
                     telemetry: telemetry
                 )
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")

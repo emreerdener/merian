@@ -71,12 +71,10 @@ extension CameraViewModel {
                             // kCGImageSourceCreateThumbnailWithTransform already bakes the EXIF
                             // orientation into the CGImage pixels — no orientation option needed.
                             let renderData = NSMutableData()
-                            guard let destination = CGImageDestinationCreateWithData(
-                                renderData as CFMutableData,
-                                UTType.webP.identifier as CFString,
-                                1,
-                                nil
-                            ) else { return Data() }
+                            guard let destination =
+                                CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
+                                CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
+                            else { return Data() }
                             let options: [CFString: Any] = [
                                 kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
                             ]
@@ -96,12 +94,10 @@ extension CameraViewModel {
                         }
                         let croppedDisplayCGImage = ImageCropProcessor.squareCrop(displayCGImage, verticalCenterFraction: composingCenter) ?? displayCGImage
                         let renderData = NSMutableData()
-                        guard let destination = CGImageDestinationCreateWithData(
-                            renderData as CFMutableData,
-                            UTType.webP.identifier as CFString,
-                            1,
-                            nil
-                        ) else { return finalSafeData }
+                        guard let destination =
+                            CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
+                            CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
+                        else { return finalSafeData }
                         let options: [CFString: Any] = [
                             kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
                         ]
@@ -126,9 +122,7 @@ extension CameraViewModel {
                             self.activeOriginals.append(identifiable)
                             self.activeScannedDatas.append(finalSafeData)
                             self.activeDisplayDatas.append(displaySafeData)
-                            if let thumbnail = UIImage(data: finalSafeData) {
-                                self.activeScanImages.append(thumbnail)
-                            }
+                            self.activeScanImages.append(backgroundRawImage)
                         }
                     }
                 } catch {

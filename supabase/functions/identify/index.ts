@@ -17,6 +17,7 @@ serve((req: Request) =>
       r2ObjectKeys,
       imageBase64s,
       user_id,
+      mimeType,
       gpsLatitude,
       gpsLongitude,
       gpsElevation,
@@ -59,12 +60,16 @@ serve((req: Request) =>
       if (imageBase64s.length > 5) {
         return jsonResponse({ error: "Too many images." }, 400);
       }
-      const totalB64Bytes = imageBase64s.reduce((sum: number, s: string) => sum + s.length, 0);
+      const validBase64s: string[] = imageBase64s.filter((s: string) => s.length > 0);
+      if (validBase64s.length === 0) {
+        return jsonResponse({ error: "Bad Request: imageBase64s contains no valid image data." }, 400);
+      }
+      const totalB64Bytes = validBase64s.reduce((sum: number, s: string) => sum + s.length, 0);
       // base64 inflates raw size ~4/3; 5 MB raw ≈ 6.7 MB encoded
       if (totalB64Bytes > 7 * 1024 * 1024) {
         return jsonResponse({ error: "Payload Too Large: base64 payload exceeds 5 MB raw limit." }, 413);
       }
-      base64Payloads.push(...imageBase64s);
+      base64Payloads.push(...validBase64s);
     } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {
       const { s3Client, bucketName, endpoint } = getR2Config();
 
@@ -241,7 +246,7 @@ serve((req: Request) =>
     // deno-lint-ignore no-explicit-any
     const parts: any[] = base64Payloads.map(payload => ({
       inlineData: {
-        mimeType: "image/webp",
+        mimeType: mimeType || "image/webp",
         data: payload,
       },
     }));

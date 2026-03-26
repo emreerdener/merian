@@ -162,7 +162,7 @@ final class MerianNetworkClient {
 
     // MARK: - Inference
 
-    func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, telemetry: CaptureTelemetry) async throws -> Data {
+    func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
 
         let userId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
@@ -179,7 +179,7 @@ final class MerianNetworkClient {
             "r2ObjectKeys": r2ObjectKeys,
             "imageBase64s": base64ImageDatas,
             "user_id": userId,
-            "mimeType": "image/webp",
+            "mimeType": mimeType,
             "depthScaleText": depthScaleText,
             "zoomFactor": telemetry.zoomFactor.map { Double($0) },
             "gpsLatitude": telemetry.gpsLatitude,

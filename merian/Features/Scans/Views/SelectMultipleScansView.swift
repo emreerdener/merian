@@ -61,12 +61,15 @@ struct SelectMultipleScansView: View {
     // MARK: - Action Handlers
     private func toggleSelection(scan: LocalScanRecord) {
         if let existingScans = collection.scans, existingScans.contains(where: { $0.id == scan.id }) {
-            scan.collections?.removeAll(where: { $0.id == collection.id })
+            var updatedCollections = scan.collections ?? []
+            updatedCollections.removeAll(where: { $0.id == collection.id })
+            scan.collections = updatedCollections
         } else {
-            if scan.collections == nil {
-                scan.collections = []
+            var updatedCollections = scan.collections ?? []
+            if !updatedCollections.contains(where: { $0.id == collection.id }) {
+                updatedCollections.append(collection)
+                scan.collections = updatedCollections
             }
-            scan.collections?.append(collection)
         }
         try? modelContext.save()
         OfflineQueueManager.shared.syncCollections()

@@ -338,10 +338,9 @@ actor BackgroundDatabaseActor {
         }
 
         do {
-            let headers = try await SupabaseManager.shared.getValidAuthHeaders()
             try await SupabaseManager.shared.client.functions.invoke(
                 "sync-collections",
-                options: .init(headers: headers, body: SyncRequestPayload(collections: payloadList))
+                options: .init(body: SyncRequestPayload(collections: payloadList))
             )
             MerianLog.data.debug("✅ Pushed \(payloadList.count, privacy: .public) collections to Edge")
         } catch {
