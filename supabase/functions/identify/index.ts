@@ -165,14 +165,13 @@ serve((req: Request) =>
 
     const combinedPrompt = `Context: ${telemetryItems.join(", ")}. Perform biological identification.`;
 
-    const merianResponseSchema: ResponseSchema = {
+    const merianResponseSchema = {
       type: SchemaType.OBJECT,
       properties: {
         is_biological_subject: { type: SchemaType.BOOLEAN },
         is_live_capture: { type: SchemaType.BOOLEAN },
         ecology_type: {
           type: SchemaType.STRING,
-          format: "enum",
           enum: ["wild", "urban", "domesticated", "unknown"],
         },
         scientific_name: { type: SchemaType.STRING },
@@ -186,7 +185,6 @@ serve((req: Request) =>
         is_invasive: { type: SchemaType.BOOLEAN },
         iucn_red_list_status: {
           type: SchemaType.STRING,
-          format: "enum",
           enum: [
             "not_evaluated",
             "data_deficient",
@@ -284,7 +282,7 @@ serve((req: Request) =>
             contents: [{ role: "user", parts }],
             generationConfig: {
                 responseMimeType: "application/json",
-                responseSchema: merianResponseSchema,
+                responseSchema: merianResponseSchema as unknown as ResponseSchema,
             },
         });
         const candidate = result.response.candidates?.[0];
