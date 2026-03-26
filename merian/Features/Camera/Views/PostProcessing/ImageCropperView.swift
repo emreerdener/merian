@@ -17,7 +17,7 @@ struct ImageCropperView: View {
     let initialOffset: CGSize
     
     // MARK: - Callbacks
-    var onCrop: (Data, CGFloat, CGSize) -> Void
+    var onCrop: (Data, CGFloat, CGSize, CGFloat) -> Void
     var onCancel: () -> Void
     var onDelete: (() -> Void)? = nil
     
@@ -27,7 +27,7 @@ struct ImageCropperView: View {
     @State private var offset: CGSize
     @State private var currentOffset: CGSize = .zero
     
-    init(image: UIImage, initialScale: CGFloat = 1.0, initialOffset: CGSize = .zero, onCrop: @escaping (Data, CGFloat, CGSize) -> Void, onCancel: @escaping () -> Void, onDelete: (() -> Void)? = nil) {
+    init(image: UIImage, initialScale: CGFloat = 1.0, initialOffset: CGSize = .zero, onCrop: @escaping (Data, CGFloat, CGSize, CGFloat) -> Void, onCancel: @escaping () -> Void, onDelete: (() -> Void)? = nil) {
         self.image = image
         self.initialScale = initialScale
         self.initialOffset = initialOffset
@@ -177,7 +177,7 @@ struct ImageCropperView: View {
                 offset: offset,
                 currentOffset: currentOffset
             )
-            onCrop(processedData, scale, offset)
+            onCrop(processedData, scale, offset, displaySize)
         }
     }
     

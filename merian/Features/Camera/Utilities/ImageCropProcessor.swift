@@ -11,7 +11,8 @@ struct ImageCropProcessor {
         scale: CGFloat,
         currentScale: CGFloat,
         offset: CGSize,
-        currentOffset: CGSize
+        currentOffset: CGSize,
+        maxPixelSize: Int? = 1024
     ) async -> Data {
         
         // MARK: - UI Bounds Math
@@ -106,11 +107,11 @@ struct ImageCropProcessor {
                     return nil
                 }
 
-                let options: [CFString: Any] = [
+                var options: [CFString: Any] = [
                     kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality,
                     kCGImagePropertyOrientation: cgOrientation.rawValue,
-                    kCGImageDestinationImageMaxPixelSize: 1024
                 ]
+                if let maxPixelSize { options[kCGImageDestinationImageMaxPixelSize] = maxPixelSize }
                 
                 CGImageDestinationAddImage(destination, finalCG, options as CFDictionary)
                 
