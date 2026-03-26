@@ -174,7 +174,7 @@ final class MerianNetworkClient {
     func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
 
-        let userId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
+        let userId = await MainActor.run { (SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId).lowercased() }
         let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
         let currentMonth = Calendar.current.component(.month, from: Date())
 
@@ -214,7 +214,7 @@ final class MerianNetworkClient {
 
     func generateUploadURLs(fileNames: [String]) async throws -> [PreSignedURL] {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/generate-upload-urls")!
-        let userId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
+        let userId = await MainActor.run { (SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId).lowercased() }
         let payload: [String: Any] = ["fileNames": fileNames, "user_id": userId]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
 

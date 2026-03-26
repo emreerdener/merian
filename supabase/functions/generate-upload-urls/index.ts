@@ -17,8 +17,9 @@ serve((req: Request) =>
 
     const urls = await Promise.all(
       fileNames.map(async (fileName: string) => {
-        const imageId = crypto.randomUUID();
-        const key = `staging/${user.id}/${imageId}.webp`;
+        // Sanitize fileName to prevent directory traversal
+        const safeFileName = fileName.replace(/[^a-zA-Z0-9_.-]/g, "_");
+        const key = `staging/${user.id}/${safeFileName}`;
         const urlString = `${endpoint}/${bucketName}/${key}`;
 
         const putUrl = new URL(urlString);

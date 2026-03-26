@@ -17,6 +17,8 @@ To fetch cryptographic keys for direct-to-Cloudflare uploads, the client sends a
 
 The server extracts the verified user identity from the `Authorization` Header JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the request body. Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours). This extended window gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting 403 errors.
 
+The Edge function uses the `fileName` parameter from the JSON body (after applying basic sanitization to prevent path traversal vectors) rather than generating random internal UUIDs. This guarantees that the pre-signed S3 `objectKey` will deterministically match the paths requested by the iOS client during subsequent offline inference triggers.
+
 ```json
 {
   "urls": [
@@ -37,7 +39,9 @@ The server extracts the verified user identity from the `Authorization` Header J
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
-When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server enforces that all paths within `r2ObjectKeys` begin with `staging/${user.id}/` and rejects `../` traversal attempts with `HTTP 400`.
+When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server enforces that all paths within `r2ObjectKeys` begin with `staging/${user.id}/` and rejects `../` traversal attempts with `HTTP 400`. 
+
+> **Important IDOR Constraint:** The `user.id` resolved by the Deno Edge Function from the Supabase JWT is always a **lowercase** Postgres UUID format. Swift's `UUID().uuidString` evaluates to uppercase by default. Therefore, the iOS client must explicitly lowercase any user UUID injected into `r2ObjectKeys` payloads; otherwise, the case-sensitive string matching (`!r2ObjectKey.startsWith`) will fail the IDOR check and return a `403 Forbidden`.
 
 ```json
 {

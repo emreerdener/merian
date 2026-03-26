@@ -1,4 +1,6 @@
 import SwiftUI
+import Vision
+import CoreImage
 
 // MARK: - Semantic Modal Anchor
 // Acts as the global UI isolation layer, completely blacking out the camera viewfinder 
@@ -24,11 +26,19 @@ struct ScanningOverlayView: View {
             // 2. Optical Scaler Plane
             HStack(spacing: 4) {
                 ForEach(0..<images.count, id: \.self) { index in
-                    Image(uiImage: images[index])
-                        .resizable()
-                        .scaledToFill()
-                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                        .clipped()
+                    ZStack {
+                        Image(uiImage: images[index])
+                            .resizable()
+                            .scaledToFill()
+                        
+                        // Apple Intelligence Saliency Bloom
+                        // Overlay the neural glow exclusively onto the primary focal subject
+                        if index == 0 {
+                            SubjectSaliencyGlowView(sourceImage: images[index])
+                        }
+                    }
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                    .clipped()
                 }
             }
             .aspectRatio(1.0, contentMode: .fit)
@@ -42,7 +52,7 @@ struct ScanningOverlayView: View {
             // Displays the dynamic engine checkpoints ("Identifying...", "Extracting context...")
             VStack {
                 Text(scanningPhaseText)
-                    .font(.system(.callout, design: .rounded, weight: .semibold))
+                    .font(.system(.callout, weight: .medium))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .shadow(color: .black.opacity(0.8), radius: 6, x: 0, y: 2) // Ensure contrast over complex camera views
@@ -58,7 +68,7 @@ struct ScanningOverlayView: View {
                             pillScale = 1.0
                         }
                     }
-                    .padding(.top, 80)
+                    .padding(.top, 100)
                 
                 Spacer()
             }
@@ -158,5 +168,98 @@ struct PremiumScanningOverlay: View {
             }
         )
         .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Subject Saliency Heatmap
+// Extracts the primary subject from the photo using Apple's Vision framework
+// and renders it as a breathing neon heatmap.
+struct SubjectSaliencyGlowView: View {
+    let sourceImage: UIImage
+    @State private var saliencyMask: Image?
+    @State private var isPulsing = false
+    
+    var body: some View {
+        Group {
+            if let mask = saliencyMask {
+                mask
+                    .resizable()
+                    // Scaled to fill perfectly matches the parent image modifier
+                    .scaledToFill()
+                    // Multiply turns the white heatmap core into vibrant cyan
+                    .colorMultiply(.cyan)
+                    // Screen blend makes the black non-salient background completely transparent
+                    .blendMode(.screen)
+                    // Blur the low-res saliency map heavily to create an organic, atmospheric bloom
+                    .blur(radius: 20)
+                    .opacity(isPulsing ? 1.0 : 0.3)
+                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isPulsing)
+                    .onAppear {
+                        isPulsing = true
+                    }
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: sourceImage) {
+            await generateSaliency(from: sourceImage)
+        }
+    }
+    
+    private func generateSaliency(from image: UIImage) async {
+        guard let cgImage = image.cgImage else { return }
+        
+        // Use Apple's built-in subject attention classifier
+        let request = VNGenerateAttentionBasedSaliencyImageRequest()
+        
+        // Pass the precise image orientation so the Vision pipeline 
+        // reads the pixels geographically identically to the screen UI.
+        let orientation = CGImagePropertyOrientation(image.imageOrientation)
+        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation, options: [:])
+        
+        do {
+            // Push off the main thread—Vision blocks natively
+            try await Task.detached(priority: .userInitiated) {
+                try handler.perform([request])
+                // Swift 6: Native type inference makes casting redundant
+                if let results = request.results,
+                   let result = results.first {
+                    let pixelBuffer = result.pixelBuffer
+                    let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+                    
+                    // Swift 6: Instantiate CIContext strictly within the detached task to avoid @MainActor isolation crossing
+                    let localContext = CIContext(options: [.cacheIntermediates: false])
+                    
+                    // Generate hardware-accelerated static bitmap
+                    if let cgResult = localContext.createCGImage(ciImage, from: ciImage.extent) {
+                        // Crucially format the result BACK to the origin UIImage orientation 
+                        // so it perfectly aligns physically over the photo array layout.
+                        let resultImg = UIImage(cgImage: cgResult, scale: 1.0, orientation: image.imageOrientation)
+                        await MainActor.run {
+                            self.saliencyMask = Image(uiImage: resultImg)
+                        }
+                    }
+                }
+            }.value
+        } catch {
+            print("Vision Saliency Extraction Error: \(error)")
+        }
+    }
+}
+
+// MARK: - CGImagePropertyOrientation Translation Matcher
+extension CGImagePropertyOrientation {
+    init(_ uiOrientation: UIImage.Orientation) {
+        switch uiOrientation {
+        case .up: self = .up
+        case .upMirrored: self = .upMirrored
+        case .down: self = .down
+        case .downMirrored: self = .downMirrored
+        case .left: self = .left
+        case .leftMirrored: self = .leftMirrored
+        case .right: self = .right
+        case .rightMirrored: self = .rightMirrored
+        @unknown default: self = .up
+        }
     }
 }

@@ -231,7 +231,7 @@ extension OfflineQueueManager {
             // includes the authenticated user's UUID. If auth state hasn't loaded yet (e.g., cold
             // relaunch before Supabase SDK initialises), fall back to the next sync cycle rather
             // than using the device ID — a device-ID path fails the Edge Function's IDOR check.
-            let authUserId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString }
+            let authUserId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString.lowercased() }
             guard let userId = authUserId else {
                 MerianLog.data.debug("Offline inference deferred — auth state not loaded for \(scanId, privacy: .private). Will retry on next sync.")
                 return

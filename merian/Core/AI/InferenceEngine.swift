@@ -115,8 +115,8 @@ private struct WikiSummaryResponse: Decodable {
                     return (prefix[0] == 0xFF && prefix[1] == 0xD8 && prefix[2] == 0xFF) ? "image/jpeg" : "image/webp"
                 }()
 
-                let resolvedUserId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId }
-                let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString).webp"
+                let resolvedUserId = await MainActor.run { (SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId).lowercased() }
+                let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString.lowercased()).webp"
 
                 try Task.checkCancellation()
 
