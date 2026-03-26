@@ -37,9 +37,11 @@ let displayCGImage = ImageDownsampler.shared.downsample(
     url: validUrl, maxSize: MerianConfig.displayImageMaxSize)
 ```
 
+After downsampling, a **composing-zone-aware square crop** is applied to both payloads before WebP encoding. The crop geometry is calculated from the on-screen UI layout: `CameraRootView` measures the vertical center of the composing zone (the open area between the mode toggle at the top and the capture button row at the bottom) using the existing full-screen `GeometryReader` and stores it as `CameraViewModel.composingZoneVerticalCenter` (a fraction of screen height, e.g. ~0.42 on iPhone 15 Pro). `ImageCropProcessor.squareCrop(_:verticalCenterFraction:)` then crops each downsampled `CGImage` to the largest centered square, biasing the crop center to that fraction rather than 0.5 (geometric center). This aligns what Gemini analyzes with where the user actually framed their subject, rather than the dead center of the sensor image — a meaningful correction on tall-screen iPhones where the bottom chrome (shutter row + tab bar) occupies significantly more vertical space than the top chrome (mode toggle).
+
 The two resulting `Data` values are staged separately in `CameraViewModel`:
-- `activeScannedDatas` — 1024 px inference payloads
-- `activeDisplayDatas` — 2048 px display payloads
+- `activeScannedDatas` — 1024 px inference payloads (square-cropped)
+- `activeDisplayDatas` — 2048 px display payloads (square-cropped, same geometry)
 
 `Analysis.submitActiveScan()` passes both arrays to `InferenceEngine.analyze(imageDatas:displayDatas:)`. Inside the engine, `imageDatas` is base64-encoded for the AI call; `displayDatas` is forwarded to `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via `FileIOActor.writeTemporaryImages`. The AI never receives the larger payload.
 
@@ -49,7 +51,14 @@ The two resulting `Data` values are staged separately in `CameraViewModel`:
 
 **Why two `CGImageSourceCreateThumbnailAtIndex` calls instead of one?** Both operate on the compressed source bytes (JPEG / HEIC) without ever expanding the full 12 MP raster. The cost is two lightweight thumbnail decodes from the same buffer — negligible compared to the AVFoundation capture itself.
 
-**Crop export path**: `ImageCropProcessor` uses `maxSize: 1024` for the manual-crop path, matching the baseline inference camera path. Output is encoded as WebP via `CGImageDestinationCreateWithData`. This path is unaffected by the inference/display split.
+**Manual crop export path**: `ImageCropProcessor.generateCrop(image:displaySize:scale:currentScale:offset:currentOffset:maxPixelSize:)` handles the manual crop tool (`ImageCropperView`). The `maxPixelSize` parameter defaults to `1024`, capping the inference output to match the baseline camera path. Compression quality uses `MerianConfig.imageCompressionQuality` throughout (previously hardcoded at 0.7, now consistent with the capture path).
+
+When the user confirms a manual crop, `CropSheetModifier` updates both the inference and display payloads to keep them in sync:
+
+1. **Inference payload** (`activeScannedDatas[i]`): `generateCrop` is called on the 1024 px source with `maxPixelSize: 1024` — identical to the pre-crop result.
+2. **Display payload** (`activeDisplayDatas[i]`): `generateCrop` is called again on the 2048 px WebP source (decoded off the main thread) with `maxPixelSize: nil` (no cap). The same `scale`, `offset`, and `displaySize` parameters are passed, so the crop geometry is pixel-accurately equivalent. The result (~1536 px at 1× zoom from a 2048 px source) replaces the original auto-cropped 2048 px file.
+
+Without this sync, the scan library would show the original auto-crop while Gemini analyzed the user's manually-adjusted crop — a visual mismatch in multi-capture mode.
 
 **Implementation**: Uses `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceCreateThumbnailFromImageAlways: true` and `kCGImageSourceShouldCache: false`. This instructs ImageIO to decode only a scaled thumbnail directly from the compressed source, never loading the full pixel buffer into RAM.
 
@@ -86,10 +95,18 @@ FileIOActor.shared.deleteImages(at: [String])
 `LocalImageLoader.shared` (`Core/Data/Images/LocalImageLoader.swift`) is a Swift `actor` that serves as the single entry point for all image loads — both local and remote.
 
 ```swift
+// Scan library thumbnail (ScanThumbnail) — small decode for grid cells
 LocalImageLoader.shared.loadImage(
-    fromPath: record.localImagePath,   // filename or http:// URL
+    fromPath: record.localImagePath,
     fallbackUrl: record.referenceImageUrl,
-    maxDimension: 1024
+    maxDimension: 600   // default; ScansGrid passes a computed cell-pixel value
+)
+
+// Insight sheet carousel (AsyncLocalImageView) — full display-quality decode
+LocalImageLoader.shared.loadImage(
+    fromPath: record.localImagePath,
+    fallbackUrl: record.referenceImageUrl,
+    maxDimension: Int(MerianConfig.displayImageMaxSize)  // 2048
 )
 ```
 
@@ -106,7 +123,9 @@ LocalImageLoader.shared.loadImage(
 - **Thundering herd prevention**: The `activeTasks: [String: Task<UIImage?, Never>]` dictionary ensures that 50 cells requesting the same image key in a single scroll frame all await one download, not 50 parallel downloads.
 - **OOM risk during scroll**: Loading full-resolution images for every visible grid cell would exhaust RAM on large libraries.
 - **Adaptive `maxDimension`**: `ScansGrid` computes the actual cell pixel size from screen width, column count, and display scale — `Int((screenWidth - spacing) / columns * scale)` — and passes it to `ScanThumbnail` as `maxDimension`. On a 3-column iPhone 15 at 3× scale this is roughly 390px, versus the previous hardcoded 1024px. `LocalImageLoader` threads `maxDimension` through to both local and remote load paths. Remote fallback downloads previously capped at a hardcoded 500px now use the same caller-provided value.
-- **`maxDimension` default**: `600` in `ScanThumbnail` (used when a caller omits the parameter, e.g. single-image detail views).
+- **`maxDimension` by caller**:
+  - `ScanThumbnail`: `600` default (ScansGrid overrides with a computed cell-pixel size).
+  - `AsyncLocalImageView` (insight sheet carousel): `Int(MerianConfig.displayImageMaxSize)` = 2048. The 2048 px files are stored on disk; decoding them at full resolution ensures crisp display on Pro Max (1290 px native width) and iPad Pro (2048 px native width). Previously defaulted to 1024, producing visibly soft full-screen images on large devices.
 
 ### 5. RAM Cache (`ImageCache`)
 
