@@ -154,6 +154,7 @@ private struct WikiSummaryResponse: Decodable {
 
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
+                    HapticManager.shared.triggerSuccessPulse()
                     // Populate on-disk paths before speciesData so the carousel has the user's
                     // image ready the moment the insight sheet renders. Clear live in-memory
                     // data afterwards — validHistoricImagePaths takes over as the image source.
@@ -201,6 +202,7 @@ private struct WikiSummaryResponse: Decodable {
                 if let apiError = error as? APIError, apiError == .decodingFailed {
                     AppTelemetry.trackError("APIDecodingFailure")
                     UsageManager.shared.refundScan()
+                    HapticManager.shared.triggerErrorThump()
                     self.speciesData = SpeciesData(
                         scanId: nil,
                         commonName: "Analysis Failed",
@@ -230,6 +232,7 @@ private struct WikiSummaryResponse: Decodable {
                 // Network failure — refund the scan since the user never got a result.
                 AppTelemetry.trackError("InferenceNetworkFailure")
                 UsageManager.shared.refundScan()
+                HapticManager.shared.triggerErrorThump()
 
                 if RevenueCatManager.shared.isProActive {
                     CircuitBreakerManager.shared.recordFailure()

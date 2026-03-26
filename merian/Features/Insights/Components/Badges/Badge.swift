@@ -23,49 +23,57 @@ struct Badge: View {
                 .truncationMode(.tail)
         }
         .font(.system(.subheadline, weight: .bold))
-        // Force pristine contrast on dark glass
-        .foregroundColor(.white)
-        .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+        // Adapt contrast based on the fill style
+        .foregroundColor(isFilled ? .white : color)
+        .shadow(color: isFilled ? .black.opacity(0.15) : .clear, radius: 2, x: 0, y: 1)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .frame(minHeight: 36)
         .fixedSize(horizontal: true, vertical: false)
-        // Liquid Glass Background Stack applied globally
         .background(
-            ZStack {
-                // Blurred System Glass Foundation
-                Capsule()
-                    .fill(.ultraThickMaterial)
-                
-                // Volumetric Color Tint adapting to passed properties
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                isNeutralColor ? .gray.opacity(0.6) : color.opacity(0.9),
-                                isNeutralColor ? .gray.opacity(0.5) : color.opacity(0.8)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                
-                // Glossy Inner Rim Highlight
-                Capsule()
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [.white.opacity(0.6), .white.opacity(0.0), .white.opacity(0.2)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1.5
-                    )
+            Group {
+                if isFilled {
+                    // Liquid Glass Background Stack applied globally
+                    ZStack {
+                        // Blurred System Glass Foundation
+                        Capsule()
+                            .fill(.ultraThickMaterial)
+                        
+                        // Volumetric Color Tint adapting to passed properties
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        isNeutralColor ? .gray.opacity(0.6) : color.opacity(0.9),
+                                        isNeutralColor ? .gray.opacity(0.5) : color.opacity(0.8)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        
+                        // Glossy Inner Rim Highlight
+                        Capsule()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.6), .white.opacity(0.0), .white.opacity(0.2)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1.5
+                            )
+                    }
+                } else {
+                    // Outlined metadata tag background
+                    Capsule()
+                        .fill(color.opacity(0.15))
+                }
             }
         )
         // Ambient Static Glass Boundary
         .overlay(
             Capsule()
-                .strokeBorder(isNeutralColor ? .gray.opacity(0.2) : color.opacity(0.2), lineWidth: 1)
+                .strokeBorder(isFilled ? (isNeutralColor ? .gray.opacity(0.2) : color.opacity(0.2)) : color.opacity(0.5), lineWidth: 1.5)
         )
         .transition(.opacity.combined(with: .scale(scale: 0.85)))
     }
