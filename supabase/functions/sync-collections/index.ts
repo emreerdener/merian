@@ -56,7 +56,7 @@ serve((req: Request) =>
           )
         : Promise.resolve({ error: null }),
       activeIds.length > 0
-        ? supabaseAdmin.from("collection_scans").select("collection_id, scan_id").in("collection_id", activeIds)
+        ? supabaseAdmin.from("collection_scans").select("collection_id, scan_id").in("collection_id", activeIds).returns<{collection_id: string; scan_id: string}[]>()
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -65,7 +65,7 @@ serve((req: Request) =>
     // 2. Diff-based membership sync — only write the delta, not the entire set.
     if (activeIds.length > 0) {
       type MembershipRow = { collection_id: string; scan_id: string };
-      const existingMemberships: MembershipRow[] = (existingMembershipsResult.data as MembershipRow[]) ?? [];
+      const existingMemberships: MembershipRow[] = existingMembershipsResult.data ?? [];
 
       const membershipKey = (cid: string, sid: string) => `${cid}::${sid}`;
       const existingSet = new Set(existingMemberships.map(m => membershipKey(m.collection_id, m.scan_id)));

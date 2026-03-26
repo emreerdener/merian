@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
-import { GoogleGenerativeAI, SchemaType, SafetyRating } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { GoogleGenerativeAI, SchemaType, SafetyRating, Part, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHandler.ts";
@@ -165,13 +165,14 @@ serve((req: Request) =>
 
     const combinedPrompt = `Context: ${telemetryItems.join(", ")}. Perform biological identification.`;
 
-    const merianResponseSchema = {
+    const merianResponseSchema: ResponseSchema = {
       type: SchemaType.OBJECT,
       properties: {
         is_biological_subject: { type: SchemaType.BOOLEAN },
         is_live_capture: { type: SchemaType.BOOLEAN },
         ecology_type: {
           type: SchemaType.STRING,
+          format: "enum",
           enum: ["wild", "urban", "domesticated", "unknown"],
         },
         scientific_name: { type: SchemaType.STRING },
@@ -185,6 +186,7 @@ serve((req: Request) =>
         is_invasive: { type: SchemaType.BOOLEAN },
         iucn_red_list_status: {
           type: SchemaType.STRING,
+          format: "enum",
           enum: [
             "not_evaluated",
             "data_deficient",
@@ -259,8 +261,7 @@ serve((req: Request) =>
       ],
     };
 
-    // deno-lint-ignore no-explicit-any
-    const parts: any[] = base64Payloads.map(payload => ({
+    const parts: Part[] = base64Payloads.map(payload => ({
       inlineData: {
         mimeType: mimeType || "image/webp",
         data: payload,
@@ -283,8 +284,7 @@ serve((req: Request) =>
             contents: [{ role: "user", parts }],
             generationConfig: {
                 responseMimeType: "application/json",
-                // deno-lint-ignore no-explicit-any
-                responseSchema: merianResponseSchema as any,
+                responseSchema: merianResponseSchema,
             },
         });
         const candidate = result.response.candidates?.[0];

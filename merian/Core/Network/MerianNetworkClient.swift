@@ -184,26 +184,28 @@ final class MerianNetworkClient {
         let timeOfDay = formatter.string(from: Date())
 
         let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
-        let payload: [String: Any?] = [
-            "r2ObjectKeys": r2ObjectKeys,
-            "imageBase64s": base64ImageDatas,
-            "user_id": userId,
-            "mimeType": mimeType,
-            "depthScaleText": depthScaleText,
-            "zoomFactor": telemetry.zoomFactor.map { Double($0) },
-            "gpsLatitude": telemetry.gpsLatitude,
-            "gpsLongitude": telemetry.gpsLongitude,
-            "gpsElevation": telemetry.gpsElevation,
-            "semanticLocation": telemetry.locationName,
-            "weatherCondition": telemetry.weatherCondition,
-            "weatherTemperatureF": telemetry.weatherTemperatureF,
-            "deviceLocale": deviceLocale,
-            "currentMonth": currentMonth,
-            "timeOfDay": timeOfDay,
-            "timestamp": telemetry.timestamp
-        ]
-
-        let bodyData = try JSONSerialization.data(withJSONObject: payload.compactMapValues { $0 })
+        let bodyData = try await Task.detached(priority: .userInitiated) {
+            let isolatedPayload: [String: Any?] = [
+                "r2ObjectKeys": r2ObjectKeys,
+                "imageBase64s": base64ImageDatas,
+                "user_id": userId,
+                "mimeType": mimeType,
+                "depthScaleText": depthScaleText,
+                "zoomFactor": telemetry.zoomFactor.map { Double($0) },
+                "gpsLatitude": telemetry.gpsLatitude,
+                "gpsLongitude": telemetry.gpsLongitude,
+                "gpsElevation": telemetry.gpsElevation,
+                "semanticLocation": telemetry.locationName,
+                "weatherCondition": telemetry.weatherCondition,
+                "weatherTemperatureF": telemetry.weatherTemperatureF,
+                "deviceLocale": deviceLocale,
+                "currentMonth": currentMonth,
+                "timeOfDay": timeOfDay,
+                "timestamp": telemetry.timestamp
+            ]
+            
+            return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+        }.value
         // Inference calls can take up to 25–30s on gemini-2.5-pro with slow connections.
         // Use a 90s timeout matching timeoutIntervalForResource to prevent false timeouts.
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 90.0)
