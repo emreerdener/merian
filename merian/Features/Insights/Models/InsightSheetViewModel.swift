@@ -232,7 +232,7 @@ final class InsightSheetViewModel {
         }
         
         try? modelContext.save()
-        OfflineQueueManager.shared.syncCollections()
+        OfflineQueueManager.shared.enqueueCollectionSync()
         HapticManager.shared.triggerSelectionPulse()
     }
     

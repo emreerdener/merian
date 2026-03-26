@@ -72,6 +72,6 @@ struct SelectMultipleScansView: View {
             }
         }
         try? modelContext.save()
-        OfflineQueueManager.shared.syncCollections()
+        OfflineQueueManager.shared.enqueueCollectionSync()
     }
 }

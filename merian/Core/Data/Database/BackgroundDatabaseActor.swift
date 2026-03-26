@@ -314,7 +314,7 @@ actor BackgroundDatabaseActor {
         let collections: [SyncCollectionPayload]
     }
 
-    func pushCollectionsToEdge() async {
+    func pushCollectionsToEdge() async -> Bool {
         let collections: [ScanCollection]
         do {
             var descriptor = FetchDescriptor<ScanCollection>(
@@ -324,7 +324,7 @@ actor BackgroundDatabaseActor {
             collections = try modelContext.fetch(descriptor)
         } catch {
             MerianLog.data.debug("pushCollectionsToEdge: fetch failed: \(error, privacy: .private)")
-            return
+            return false
         }
 
         let payloadList = collections.compactMap { col -> SyncCollectionPayload? in
@@ -343,8 +343,10 @@ actor BackgroundDatabaseActor {
                 options: .init(body: SyncRequestPayload(collections: payloadList))
             )
             MerianLog.data.debug("✅ Pushed \(payloadList.count, privacy: .public) collections to Edge")
+            return true
         } catch {
             MerianLog.data.debug("pushCollectionsToEdge: sync failed: \(error, privacy: .private)")
+            return false
         }
     }
 }

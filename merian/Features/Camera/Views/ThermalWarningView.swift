@@ -4,8 +4,8 @@ struct ThermalWarningView: View {
     @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
     
     var body: some View {
-        if hardwareOrchestrator.isCriticalHeatWarningActive {
-            VStack {
+        Group {
+            if hardwareOrchestrator.isCriticalHeatWarningActive {
                 Text("DEVICE CRITICAL HEAT")
                     .font(.caption)
                     .fontWeight(.bold)
@@ -14,11 +14,11 @@ struct ThermalWarningView: View {
                     .padding(.vertical, 8)
                     .background(Color.red.opacity(0.8))
                     .cornerRadius(8)
-                Spacer()
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
             }
-            .padding(.top, 40)
-            .allowsHitTesting(false)
-            .transition(.opacity)
         }
         .animation(.easeInOut(duration: 0.3), value: hardwareOrchestrator.isCriticalHeatWarningActive)
     }

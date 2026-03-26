@@ -111,8 +111,13 @@ final class ScanRepository {
             // the cloud first, those unsynced collections will be deleted during the sync pass.
             // Pushing here ensures every local collection reaches Supabase before we treat
             // the cloud as the source of truth for the delete pass.
-            let pushActor = BackgroundDatabaseActor(modelContainer: container)
-            await pushActor.pushCollectionsToEdge()
+            if UserDefaults.standard.bool(forKey: "needsCollectionSync") {
+                let pushActor = BackgroundDatabaseActor(modelContainer: container)
+                let success = await pushActor.pushCollectionsToEdge()
+                if success {
+                    UserDefaults.standard.set(false, forKey: "needsCollectionSync")
+                }
+            }
 
             // --- Paginated scans — streamed page-by-page through the actor ---
             // Never accumulate the full history into memory. For power users with 10k+ scans

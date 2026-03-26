@@ -16,7 +16,7 @@ enum AppEvent {
 /// A centralized, `@MainActor`-bound event bus for system-wide internal message routing.
 /// Prevents memory leaks and ensures UI-modifying events are cleanly delivered to the main thread.
 @MainActor
-@MainActor final class AppEventPublisher {
+final class AppEventPublisher {
     static let shared = AppEventPublisher()
     
     let publisher = PassthroughSubject<AppEvent, Never>()

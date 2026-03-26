@@ -228,14 +228,27 @@ extension OfflineQueueManager {
 
     // MARK: - Collections
 
-    /// Pushes local `ScanCollection` records to the `sync-collections` Edge function.
-    /// No-ops when offline or unauthenticated. The "Favorites" collection is excluded — it is managed locally only.
-    func syncCollections() {
+    /// Marks collections as needing sync and attempts to push them immediately if online.
+    /// The "Favorites" collection is excluded — it is managed locally only.
+    func enqueueCollectionSync() {
+        // ALWAYS set the flag when enqueued (so offline edits are remembered)
+        UserDefaults.standard.set(true, forKey: "needsCollectionSync")
+        syncCollectionsIfPending()
+    }
+
+    /// Pushes local `ScanCollection` records to the `sync-collections` Edge function if changes are pending.
+    /// No-ops when offline or unauthenticated.
+    func syncCollectionsIfPending() {
+        guard UserDefaults.standard.bool(forKey: "needsCollectionSync") else { return }
         guard isOnline, SupabaseManager.shared.isAuthenticated else { return }
         guard let container = modelContext?.container else { return }
+        
         BackgroundTaskWrapper.execute(name: "CollectionSync") { _ in
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            await dbActor.pushCollectionsToEdge()
+            let success = await dbActor.pushCollectionsToEdge()
+            if success {
+                UserDefaults.standard.set(false, forKey: "needsCollectionSync")
+            }
         }
     }
 }

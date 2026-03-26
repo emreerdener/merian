@@ -85,7 +85,7 @@ import os
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     self?.syncPendingScans()
                     await self?.syncPendingDeletions()
-                    self?.syncCollections()
+                    self?.syncCollectionsIfPending()
                 } else {
                     // Circuit-break active uploads immediately on connectivity loss.
                     self?.syncTask?.cancel()

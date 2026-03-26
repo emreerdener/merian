@@ -104,7 +104,7 @@ struct CollectionActionAlertModifier: ViewModifier {
     
     private func finalizeAction(triggerSuccess: Bool) {
         try? modelContext.save()
-        OfflineQueueManager.shared.syncCollections()
+        OfflineQueueManager.shared.enqueueCollectionSync()
         if triggerSuccess {
             HapticManager.shared.triggerSuccessPulse()
         }
