@@ -192,7 +192,7 @@ Synchronizes locally created Scan Collections with the PostgreSQL `collections` 
 ### Safety and Transactional Integrity
 
 1. **Batch Upserts**: All valid collections are written via a single atomic `.upsert(collectionPayloads)` call, resolving PostgreSQL `TIMESTAMPTZ` and `UUID` types without timing out.
-2. **Bulk Insertion (N+1 Prevention)**: Pushing `collection_scans` entries in a `for` loop triggered N+1 query timeouts. The Edge Node routes the entire array into a single `.insert(allMappings)` call. If a user groups a scan while offline and the backend `scans` row hasn't arrived yet, Supabase catches the constraint error in `insertError` without crashing the container.
+2. **Bulk Insertion & Mismatched FK Protection**: Setting up `collection_scans` relationships natively in a single atomic upsert avoids N+1 query timeouts. To prevent PostgreSQL Foreign Key violations from crashing the overarching chunk transaction, the Edge Node dynamically pre-validates all incoming `scan_id` payloads against the core `scans` table. If a user groups a scan while fully offline and the physical cloud `scans` row hasn't populated yet, mapping intelligently bypasses that specific missing scan natively. The pending relationship rests securely offline on the user's iPhone until the next sync pulse.
 3. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running `.select()` across the user's DB rows, building a `toDelete` array in memory and passing it to `.delete().in("id", toDelete)`. This avoids `.not("id", "in", "(...)")` string-builder failures.
 
 **Critical Kong API Gateway Requirement**:

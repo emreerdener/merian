@@ -520,7 +520,24 @@ actor HistoricalDatabaseActor {
             }
 
             col.name = remote.name
-            col.scans?.removeAll()
+            
+            let remoteScanIds = Set(remote.collection_scans?.map { $0.scan_id } ?? [])
+            
+            // Remove local scans that are NOT in the remote list,
+            // EXCEPT for those that are still pending upload (offline captures).
+            // A reliable heuristic: if the image path is local (doesn't start with http/https), it hasn't synced yet.
+            if let currentScans = col.scans {
+                for scan in currentScans {
+                    if !remoteScanIds.contains(scan.id) {
+                        let isSynced = scan.localImagePath?.starts(with: "http") == true || scan.localImagePath?.starts(with: "https") == true || scan.localImagePath == nil
+                        if isSynced {
+                            // Drive the removal from the inverse side
+                            scan.collections?.removeAll(where: { $0.id == col.id })
+                        }
+                    }
+                }
+            }
+            
             if let scans = remote.collection_scans {
                 for scanMapping in scans {
                     if let localScan = localScansLookup[scanMapping.scan_id] {
