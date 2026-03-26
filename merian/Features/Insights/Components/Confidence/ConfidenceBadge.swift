@@ -7,13 +7,12 @@ struct ConfidenceBadge: View {
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
     @State private var allowedDetents: Set<PresentationDetent> = [.fraction(0.65), .large]
     
-    // Natively interprets raw Float outputs into deeply semantic structural thresholds
     private var badgeData: (label: String, color: Color, icon: String) {
         guard let score = confidenceScore else { return ("Unknown", .gray, "questionmark") }
         switch score {
-        case 0.85...:
+        case MerianConfig.confidenceStrongThreshold...:
             return ("Strong match", .green, "sparkles.2")
-        case 0.70..<0.85:
+        case MerianConfig.confidencePossibleThreshold..<MerianConfig.confidenceStrongThreshold:
             return ("Possible match", .orange, "sparkles.2")
         default:
             return ("Weak match", .gray, "sparkles.2")

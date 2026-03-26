@@ -56,6 +56,13 @@ final class CameraViewModel {
     
     // MARK: - Lifecycle
     init() {
+        // Pre-warm the HTTPS connection to Supabase and refresh the auth token while the
+        // user composes their shot. Eliminates TCP/TLS handshake (~200–400ms) and token
+        // refresh latency from the scan critical path on cold app launch.
+        Task {
+            _ = try? await SupabaseManager.shared.getValidAuthHeaders()
+        }
+
         NotificationCenter.default.publisher(for: .appDidEnterInactivePhase)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.resetModalsForBackground() }

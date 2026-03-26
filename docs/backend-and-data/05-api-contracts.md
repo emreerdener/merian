@@ -64,7 +64,7 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server 
 ### The JSON Response Schema (From Gemini Back to Swift)
 
 To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
-- **Model Routing**: The system routes `isProActive` subscribers to `gemini-2.5-pro` and base-tier users to `gemini-2.5-flash`. Both tiers use the `merianResponseSchema` constraint to protect SQLite UI logic.
+- **Model Routing**: The system routes Pro-tier subscribers to `gemini-2.5-pro` (maximum depth for rare species, fossils, subspecies, and cultivars) and free-tier users to `gemini-2.5-flash` (2–3× lower latency). Tier is resolved via a single lightweight `SELECT subscription_tier` on the critical path, with a module-scope `_tierCache` (5-minute TTL) that eliminates the DB round-trip on repeat scans within a warm isolate. Both tiers use the `merianResponseSchema` constraint to protect SQLite UI logic.
 - **Dynamic Token Truncation (Non-biological targets)**: When processing non-biological subjects, the Deno node removes `taxonomy`, `insight_data`, `diagnostic_comparison`, and `ecology_type` from the `required: []` array and passes `is_biological_subject: false`. The Swift layer maps the absent fields to native Optionals.
 
 If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to simultaneously support both the Pro schema and Free text-prompt shapes without causing `JSONDecoder()` failures.
@@ -190,6 +190,9 @@ Synchronizes locally created Scan Collections with the PostgreSQL `collections` 
 1. **Batch Upserts**: All valid collections are written via a single atomic `.upsert(collectionPayloads)` call, resolving PostgreSQL `TIMESTAMPTZ` and `UUID` types without timing out.
 2. **Bulk Insertion (N+1 Prevention)**: Pushing `collection_scans` entries in a `for` loop triggered N+1 query timeouts. The Edge Node routes the entire array into a single `.insert(allMappings)` call. If a user groups a scan while offline and the backend `scans` row hasn't arrived yet, Supabase catches the constraint error in `insertError` without crashing the container.
 3. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running `.select()` across the user's DB rows, building a `toDelete` array in memory and passing it to `.delete().in("id", toDelete)`. This avoids `.not("id", "in", "(...)")` string-builder failures.
+
+**Critical Kong API Gateway Requirement**:
+To allow `sync-collections` to manually parse and extract the JWT using Deno `.headers.get("Authorization")`, the edge function must be explicitly exposed in `supabase/config.toml` with `verify_jwt = false`. If not disabled, Kong dynamically strips the `Authorization` header before it reaches Deno to prevent replay attacks, causing a `401 Unauthorized: Missing Authorization header` response from the Edge Runtime.
 
 ---
 
@@ -332,3 +335,41 @@ Generates a Darwin Core Archive (DwC-A) containing the user's biological capture
 
 - Extracts user identity from the GoTrue header via `supabaseAdmin.auth.getUser(jwt)`.
 - **DwC-A Global Geoprivacy Leak Prevention**: Enforces ownership gating for exact coordinates. Evaluates `canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId)`. For global exports, users receive perturbed coordinates (50km obfuscation) for scans they do not own. Exact `gps_lat_exact` / `gps_long_exact` values are only included when the authenticated `user.id` matches the scan's `user_id`.
+
+---
+
+## Deno `/auto-purge-nonbio` Edge Node
+
+A daily cron-job endpoint responsible for removing stale `.is_biological_subject = false` scans to prevent arbitrary file bloat on Cloudflare R2 and PostgreSQL.
+
+### Request Payload
+No JSON body is required. The cron trigger issues an empty POST request.
+
+### Authentication Enforcement
+- Enforces strict cron authorization via `timingSafeCompare` against a `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` Authorization header. Returns `401` if invalid.
+- Prevents accidental `GET` evaluations by aggressively validating `req.method === "POST"`.
+
+### Deletion Safety
+1. Queries scans isolated strictly to `is_biological_subject == false` where `timestamp < 30 days ago`.
+2. Employs `.limit(500)` memory pagination barriers to prevent container timeout triggers.
+3. Clears Cloudflare R2 binary references using parallel promises.
+4. Executes the `.delete().in(...)` cascade against PostgreSQL only if R2 deletion doesn't crash the Node isolate.
+
+---
+
+## Deno `/revenuecat-webhook` Edge Node
+
+Receives POST push events triggered natively from the RevenueCat subscription platform to update Supabase row bounds directly, bypassing the iOS SDK entirely.
+
+### Request Payload
+Receives a raw RevenueCat Webhook structure wrapper targeting an internal JSON `.event`.
+
+### Authentication Enforcement
+- Reads `REVENUECAT_WEBHOOK_SECRET` environment bindings locally.
+- Authenticates the RevenueCat push via `timingSafeCompare` comparing the `Authorization: Bearer` against the secret boundary.
+
+### Migration Mechanics
+- Upgrades (`INITIAL_PURCHASE`, `RENEWAL`, `UNCANCELLATION`) convert `subscription_tier` to `pro`.
+- Downgrades (`EXPIRATION`) revert the tier to `free`.
+- **R2 Storage Relocation**: Migrates files between the `free` and `pro` prefix buckets in Cloudflare R2. To prevent execution timeouts on users with thousands of photos, the script iterates through SQL constraints utilizing a `size: 1000` chunk-by-chunk lookup bound in an independent `EdgeRuntime.waitUntil` detached thread.
+- Defends against IDOR manipulations silently: If a user attempts to execute an R2 copy belonging to an external User UUID through manipulated array data, the proxy blocks the migration sequence logic and reports a silent violation to Edge telemetry logs.

@@ -7,7 +7,12 @@ struct ScanningOverlayView: View {
     // MARK: - Dependencies
     let images: [UIImage]
     let scanningPhaseText: String
-    
+
+    // MARK: - Animation State
+    /// Drives a brief micro-scale bounce on the pill each time the phrase updates,
+    /// giving physical feedback that new analysis state has arrived.
+    @State private var pillScale: CGFloat = 1.0
+
     // MARK: - View Engine
     var body: some View {
         ZStack {
@@ -15,7 +20,7 @@ struct ScanningOverlayView: View {
             // Darkening layer for maximum neon contrast
             Color.black.opacity(0.85)
                 .ignoresSafeArea()
-            
+
             // 2. Optical Scaler Plane
             HStack(spacing: 4) {
                 ForEach(0..<images.count, id: \.self) { index in
@@ -29,38 +34,31 @@ struct ScanningOverlayView: View {
             .aspectRatio(1.0, contentMode: .fit)
             // Perfectly clips the unified images flush to the continuous squircle
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(PremiumScanningOverlay()) 
+            .overlay(PremiumScanningOverlay())
             .shadow(color: .black.opacity(0.6), radius: 30, x: 0, y: 15)
             .padding(.horizontal, 32)
-            
+
             // 3. Floating Status Pill
             // Displays the dynamic engine checkpoints ("Identifying...", "Extracting context...")
             VStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles.2")
-                        .foregroundColor(.yellow)
-                        .symbolEffect(.variableColor) 
-                    
-                    Text(scanningPhaseText)
-                        .font(.system(.title3, design: .rounded, weight: .medium))
-                        .foregroundColor(.white)
-                        .contentTransition(.opacity)
-                        .animation(.easeInOut(duration: 0.35), value: scanningPhaseText)
-                }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
-                .background(
-                    Capsule()
-                        .fill(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark)
-                )
-                // Microscopic inner rim to simulate a physical glass edge
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
-                )
-                .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
-                .padding(.top, 80)
+                Text(scanningPhaseText)
+                    .font(.system(.callout, design: .rounded, weight: .semibold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .shadow(color: .black.opacity(0.8), radius: 6, x: 0, y: 2) // Ensure contrast over complex camera views
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.4), value: scanningPhaseText)
+                    .scaleEffect(pillScale)
+                    .onChange(of: scanningPhaseText) { _, _ in
+                        // Pop up then settle — spring physics gives it a natural snap.
+                        withAnimation(.spring(response: 0.18, dampingFraction: 0.45)) {
+                            pillScale = 1.04
+                        }
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7).delay(0.1)) {
+                            pillScale = 1.0
+                        }
+                    }
+                    .padding(.top, 80)
                 
                 Spacer()
             }

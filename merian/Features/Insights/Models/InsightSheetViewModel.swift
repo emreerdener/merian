@@ -52,11 +52,11 @@ final class InsightSheetViewModel {
     }
     
     var hasLive: Bool {
-        !(inferenceEngine?.activeLiveCaptureDatas.isEmpty ?? true)
+        !(inferenceEngine?.activeDisplayDatas.isEmpty ?? true)
     }
     
     var liveCount: Int {
-        inferenceEngine?.activeLiveCaptureDatas.count ?? 0
+        inferenceEngine?.activeDisplayDatas.count ?? 0
     }
     
     var totalImages: Int {

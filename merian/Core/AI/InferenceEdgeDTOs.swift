@@ -25,6 +25,7 @@ struct EdgeResponse: Codable {
     let scientific_name: String?
     let common_name: String?
     let confidence_score: Double?
+    let blur_score: Double?
     let colors: [String]?
     let group_tags: [String]?
 

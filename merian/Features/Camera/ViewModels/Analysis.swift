@@ -131,8 +131,13 @@ extension CameraViewModel {
     /// Low-confidence or ambiguous results (e.g., broad taxonomy ancestors like "arthropod" scoring
     /// 0.2 for a plant image) leave the generic series running uninterrupted.
     private func classifySubjectLocally(from data: Data) {
-        // Start generic phrases immediately — no blank state while Vision runs.
-        startPhaseRotation(phrases: Self.genericFallbackPhrases)
+        // Shuffle generic phrases (keeping "Scanning subject..." anchored first) so the
+        // sequence feels fresh on repeat scans rather than memorisable.
+        var shuffled = Self.genericFallbackPhrases
+        let anchor = shuffled.removeFirst()
+        shuffled.shuffle()
+        shuffled.insert(anchor, at: 0)
+        startPhaseRotation(phrases: shuffled)
 
         Task.detached(priority: .userInitiated) { [weak self] in
             guard let cgImage = UIImage(data: data)?.cgImage else { return }
@@ -141,11 +146,12 @@ extension CameraViewModel {
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             try? handler.perform([request])
 
-            // specificPhraseSeries returns nil when no observation clears the confidence bar
-            // or the margin check fails — generic rotation continues without interruption.
+            // specificPhraseSeries returns nil when no observation clears the confidence
+            // threshold or the margin check fails — generic rotation continues without
+            // interruption.
             guard let phrases = Self.specificPhraseSeries(for: request.results ?? []) else { return }
 
-            // Hold for 3 seconds before switching. This ensures the generic series always
+            // Hold for 1.5 seconds before switching. This ensures the generic series always
             // plays through the first phase of a scan, and subject-specific phrases only
             // appear once the inference call is well underway — reducing how long an
             // incorrect category label is visible if Vision misclassified the subject.
@@ -158,15 +164,21 @@ extension CameraViewModel {
         }
     }
 
+    /// Cycles `phrases` indefinitely until the task is cancelled.
+    ///
+    /// The loop runs until `phaseRotationTask` is cancelled (by `synchronizeAnalysisState`
+    /// when the overlay closes, or by the next `startPhaseRotation` call). This prevents
+    /// the overlay from showing a frozen final phrase on long inference calls — notably
+    /// gemini-2.5-pro responses that can take 25–30s on slow connections.
     private func startPhaseRotation(phrases: [String]) {
         phaseRotationTask?.cancel()
         phaseRotationTask = Task { @MainActor [weak self] in
-            for (index, phrase) in phrases.enumerated() {
-                guard !Task.isCancelled, let self else { return }
-                self.scanningPhaseText = phrase
-                // Don't sleep after the final phrase — let it sit until inference completes.
-                guard index < phrases.count - 1 else { return }
+            var index = 0
+            while !Task.isCancelled {
+                guard let self else { return }
+                self.scanningPhaseText = phrases[index]
                 try? await Task.sleep(nanoseconds: MerianConfig.scanningPhaseRotationIntervalNs)
+                index = (index + 1) % phrases.count
             }
         }
     }
@@ -184,17 +196,26 @@ extension CameraViewModel {
         "Awaiting identification...",
     ]
 
-    /// Returns subject-specific phrases when Vision identifies a category with confidence ≥
-    /// `MerianConfig.visionConfidenceThreshold`.
-    /// Returns nil when no observation clears the threshold — caller should keep the generic series.
+    /// Returns subject-specific phrases when Vision identifies a category with:
+    /// 1. Top observation confidence ≥ `MerianConfig.visionConfidenceThreshold` (0.65), and
+    /// 2. A margin ≥ `MerianConfig.visionMarginThreshold` (0.15) over the second-best observation.
     ///
-    /// Only the top 5 observations are checked. The confidence threshold prevents low-confidence
-    /// or cross-category misclassifications from surfacing subject-specific phrases.
+    /// The margin guard prevents split results (e.g. 0.67 bird / 0.60 plant) from triggering
+    /// a confident subject-specific series that would be visually wrong. Returns nil to keep
+    /// the generic series running when either condition fails.
     private nonisolated static func specificPhraseSeries(for observations: [VNClassificationObservation]) -> [String]? {
-        for obs in observations.prefix(5) where obs.confidence >= MerianConfig.visionConfidenceThreshold {
-            let id = obs.identifier.lowercased()
+        guard let top = observations.first,
+              top.confidence >= MerianConfig.visionConfidenceThreshold else { return nil }
 
-            if id.contains("bird") || id.contains("avian") || id.contains("raptor") ||
+        // Margin guard: require a clear lead over the second-best to prevent ambiguous
+        // split results from surfacing subject-specific phrases.
+        if observations.count >= 2 {
+            guard top.confidence - observations[1].confidence >= MerianConfig.visionMarginThreshold else { return nil }
+        }
+
+        let id = top.identifier.lowercased()
+
+        if id.contains("bird") || id.contains("avian") || id.contains("raptor") ||
                id.contains("songbird") || id.contains("waterfowl") || id.contains("owl") {
                 return [
                     "Spotted avian subject...",
@@ -351,10 +372,9 @@ extension CameraViewModel {
                     "Checking population range boundaries...",
                     "Awaiting species confirmation...",
                 ]
-            }
         }
 
-        // No observation cleared the confidence threshold — caller keeps the generic series.
+        // Subject category not recognised — caller keeps the generic series.
         return nil
     }
 }

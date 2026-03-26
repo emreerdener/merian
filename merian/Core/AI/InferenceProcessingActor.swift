@@ -16,7 +16,7 @@ actor InferenceProcessingActor {
         var results = [String](repeating: "", count: compressedDatas.count)
         await withTaskGroup(of: (Int, String).self) { group in
             for (i, data) in compressedDatas.enumerated() {
-                group.addTask { (i, data.base64EncodedString()) }
+                group.addTask(priority: .userInitiated) { (i, data.base64EncodedString()) }
             }
             for await (i, encoded) in group {
                 results[i] = encoded

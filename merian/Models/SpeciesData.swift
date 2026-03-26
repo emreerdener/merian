@@ -67,6 +67,9 @@ struct SpeciesData {
     let scientificName: String
     let insightData: InsightData
     let confidenceScore: Double
+    /// Gemini's self-reported image sharpness score (0 = sharp, 1 = very blurry).
+    /// Populated from live inference only — nil when loading from local SwiftData records.
+    let blurScore: Double?
     let diagnosticComparison: DiagnosticComparison?
     var wikipediaUrl: String?
     var wikipediaExtract: String?
@@ -138,6 +141,7 @@ extension SpeciesData {
         self.scientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
         self.insightData = insight
         self.confidenceScore = edgeRes.confidence_score ?? 0.0
+        self.blurScore = edgeRes.blur_score
         self.diagnosticComparison = parsedDiagnostic
         self.wikipediaUrl = edgeRes.wikipedia_url
         self.wikipediaExtract = edgeRes.wikipedia_extract
@@ -170,6 +174,7 @@ extension SpeciesData {
         scientificName: String,
         insightData: InsightData,
         confidenceScore: Double,
+        blurScore: Double? = nil,
         diagnosticComparison: DiagnosticComparison? = nil,
         wikipediaUrl: String? = nil,
         wikipediaExtract: String? = nil,
@@ -195,6 +200,7 @@ extension SpeciesData {
         self.scientificName = scientificName
         self.insightData = insightData
         self.confidenceScore = confidenceScore
+        self.blurScore = blurScore
         self.diagnosticComparison = diagnosticComparison
         self.wikipediaUrl = wikipediaUrl
         self.wikipediaExtract = wikipediaExtract

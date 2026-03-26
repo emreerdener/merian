@@ -29,6 +29,7 @@ private struct WikiSummaryResponse: Decodable {
     var isProcessing: Bool = false
     var activeImageData: Data? = nil
     var activeLiveCaptureDatas: [Data] = []
+    var activeDisplayDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData? = nil
 
@@ -67,6 +68,7 @@ private struct WikiSummaryResponse: Decodable {
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
         self.activeLiveCaptureDatas = imageDatas
+        self.activeDisplayDatas = displayDatas.isEmpty ? imageDatas : displayDatas
         self.validHistoricImagePaths = []
         self.speciesData = nil
         self.isBackgroundRescued = false
@@ -118,6 +120,7 @@ private struct WikiSummaryResponse: Decodable {
 
                 try Task.checkCancellation()
 
+                MerianLog.general.debug("[⏱ BENCH] Pre-flight (encode+auth): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
                 let inferenceStart = CFAbsoluteTimeGetCurrent()
                 let resultData = try await client.analyzeSubject(
                     r2ObjectKeys: [targetObjectKey],
@@ -127,6 +130,7 @@ private struct WikiSummaryResponse: Decodable {
                 )
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
+                let postFlightStart = CFAbsoluteTimeGetCurrent()
                 let (finalMappedData, isNewDisc, savedImagePaths) = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
                     telemetry: telemetry,
@@ -138,13 +142,14 @@ private struct WikiSummaryResponse: Decodable {
                 if var mappedData = finalMappedData {
                     if isNewDisc {
                         mappedData.isNewDiscovery = true
-                        await MainActor.run { GamificationManager.shared.recordNewSpeciesDiscovered() }
+                        GamificationManager.shared.recordNewSpeciesDiscovered()
                     }
 
                     if let container = modelContext?.container {
                         let profileActor = ProfileDatabaseActor(modelContainer: container)
                         let updatedAwards = await profileActor.calculateAwards()
-                        await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards) }
+                        // Already on @MainActor — no hop needed.
+                        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
                     }
 
                     CircuitBreakerManager.shared.recordSuccess()
@@ -156,23 +161,23 @@ private struct WikiSummaryResponse: Decodable {
                     self.speciesData = mappedData
                     self.activeImageData = nil
                     self.activeLiveCaptureDatas.removeAll()
+                    self.activeDisplayDatas.removeAll()
 
                     // Send a background notification if the user left while the scan was running.
                     // The offline queue path sends its own notification; this covers live inference only.
                     #if canImport(UIKit)
-                    await MainActor.run {
-                        if UIApplication.shared.applicationState != .active,
-                           UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
-                           let scanId = mappedData.scanId {
-                            PushNotificationManager.shared.sendInferenceCompleteNotification(
-                                speciesName: mappedData.commonName,
-                                scanId: scanId
-                            )
-                        }
+                    if UIApplication.shared.applicationState != .active,
+                       UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
+                       let scanId = mappedData.scanId {
+                        PushNotificationManager.shared.sendInferenceCompleteNotification(
+                            speciesName: mappedData.commonName,
+                            scanId: scanId
+                        )
                     }
                     #endif
 
-                    MerianLog.general.debug("Total pipeline (upload + AI + DB) completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s.")
+                    MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
+                    MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
                     if mappedData.isBiological {
                         Task {
@@ -327,6 +332,7 @@ private struct WikiSummaryResponse: Decodable {
         self.speciesData = nil
         activeImageData = nil
         activeLiveCaptureDatas.removeAll()
+        activeDisplayDatas.removeAll()
         validHistoricImagePaths.removeAll()
         activeLatitude = nil
         activeLongitude = nil
@@ -363,6 +369,7 @@ private struct WikiSummaryResponse: Decodable {
 
         self.activeImageData = nil
         self.activeLiveCaptureDatas = []
+        self.activeDisplayDatas = []
         self.validHistoricImagePaths = []
 
         var paths: [String] = []

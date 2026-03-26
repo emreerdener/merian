@@ -10,8 +10,15 @@ import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHan
 const _geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
 const _genAI = new GoogleGenerativeAI(_geminiApiKey);
 
+// Worker-level tier cache — persists across warm isolate re-use, eliminating the DB round-trip
+// for every scan after the first. TTL of 5 minutes is short enough to pick up subscription
+// changes without holding stale data across a full user session.
+const _tierCache = new Map<string, { tier: string; ts: number }>();
+const _TIER_CACHE_TTL_MS = 5 * 60_000;
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const fnStart = Date.now();
     const body = await req.json();
     const {
       r2ObjectKeys,
@@ -71,6 +78,7 @@ serve((req: Request) =>
       }
       base64Payloads.push(...validBase64s);
     } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {
+      console.log(`[⏱ BENCH] base64_validated: ${Date.now() - fnStart}ms`);
       const { s3Client, bucketName, endpoint } = getR2Config();
 
       const r2Responses = await Promise.allSettled(
@@ -100,30 +108,38 @@ serve((req: Request) =>
       }
     }
 
-    let userTier = "free";
-    const { data: existingUser } = await supabaseAdmin
-      .from("users")
-      .select("subscription_tier")
-      .eq("id", user.id)
-      .maybeSingle();
+    console.log(`[⏱ BENCH] payload_resolved: ${Date.now() - fnStart}ms`);
 
-    if (existingUser) {
-      userTier = existingUser.subscription_tier;
+    // Resolve tier for model selection. Cache hit (common case after first scan within a
+    // 5-minute window) is near-instant. On miss: one lightweight SELECT — no upsert on the
+    // critical path (ghost-user creation stays in the background task).
+    let userTierForModel = "free";
+    const cachedTierEntry = _tierCache.get(user.id);
+    if (cachedTierEntry && Date.now() - cachedTierEntry.ts < _TIER_CACHE_TTL_MS) {
+      userTierForModel = cachedTierEntry.tier;
     } else {
-      // Ensure the Ghost User exists before proceeding
-      await supabaseAdmin
+      const { data: tierData } = await supabaseAdmin
         .from("users")
-        .upsert(
-          { id: user.id, subscription_tier: "free" },
-          { onConflict: "id", ignoreDuplicates: true },
-        );
+        .select("subscription_tier")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (tierData) {
+        userTierForModel = tierData.subscription_tier as string;
+        _tierCache.set(user.id, { tier: userTierForModel, ts: Date.now() });
+      }
+      // Ghost users: default "free" for model selection; upsert happens in background task
     }
 
-    const systemInstruction = `Merian AI: Identify biology. 1) Enforce liveness check. 2) Evaluate is_invasive based on GPS. 3) Output common_name in strict title case. 4) CRITICAL: Evaluate the combined visual context of all provided images organically to compute the absolute most accurate identification. 5) CRITICAL: If the images display multiple distinct biological species, strictly identify exactly ONE primary species (the most prominent or centered subject in the first image) and briefly mention the secondary species within the insight_data description. 6) CRITICAL: If the subject is non-biological (is_biological_subject = false), you MUST completely OMIT all taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, colors, and group_tags fields to conserve output tokens. 7) Output group_tags: 2-4 plain English categorical labels for the subject from broadest to most specific (e.g. ["bird", "songbird"] for a robin; ["tree", "deciduous tree"] for an oak; ["insect", "butterfly"] for a monarch). These are used for search — prefer common terms a non-expert would type.`;
+    // Pro users get gemini-2.5-pro for maximum identification depth (rare species, fossils,
+    // subspecies, cultivars). Free users use gemini-2.5-flash for 2–3× lower latency.
+    const targetModel = userTierForModel === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
 
-    const targetModel = userTier === "pro"
-      ? "gemini-2.5-pro"
-      : "gemini-2.5-flash";
+    // Liveness instruction clarification: "liveness check" previously caused Flash to treat
+    // fossils/specimens as is_biological_subject=false, returning generic names like
+    // "Fossilized Shell" instead of the correct species common name (e.g. "Devil's Toenail"
+    // for Gryphaea). Fossils and preserved specimens are biological subjects — only
+    // is_live_capture changes.
+    const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in strict title case (e.g. "Devil's Toenail" not "Fossilized Shell", "Monarch Butterfly" not "Butterfly"). 4) CRITICAL: Evaluate all provided images together. 5) CRITICAL: Multiple species → identify ONE primary (most prominent in first image). 6) CRITICAL: is_biological_subject=false → OMIT taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, colors, group_tags.`;
 
     const model = _genAI.getGenerativeModel({
       model: targetModel,
@@ -252,10 +268,13 @@ serve((req: Request) =>
     }));
     parts.push({ text: combinedPrompt });
 
+    console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
+    const geminiStart = Date.now();
+
     let finishReason: string | undefined;
     let safetyRatings: SafetyRating[] | undefined;
     let responseText = "";
-    
+
     let llmPromptTokens: number | null = null;
     let llmCandidateTokens: number | null = null;
     let llmTotalTokens: number | null = null;
@@ -280,6 +299,7 @@ serve((req: Request) =>
             llmCandidateTokens = usage.candidatesTokenCount;
             llmTotalTokens = usage.totalTokenCount;
         }
+        console.log(`[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${Date.now() - geminiStart}ms inference`);
     } catch (genError) {
         console.error("AI generation failed:", genError);
         return jsonResponse({ error: "AI processing error. Please try again." }, 400);
@@ -307,13 +327,41 @@ serve((req: Request) =>
 
     const backgroundTask = (async () => {
       try {
+        // Tier lookup is only needed for the R2 storage path in moderation and to ensure
+        // the ghost-user record exists before the scans FK insert. Both usages are here in
+        // the background task, so the DB round-trip is completely off the Gemini critical path.
+        let backgroundTier = "free";
+        const cachedTier = _tierCache.get(user.id);
+        if (cachedTier && Date.now() - cachedTier.ts < _TIER_CACHE_TTL_MS) {
+          backgroundTier = cachedTier.tier;
+        } else {
+          const { data: existingUser } = await supabaseAdmin
+            .from("users")
+            .select("subscription_tier")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (existingUser) {
+            backgroundTier = existingUser.subscription_tier as string;
+            _tierCache.set(user.id, { tier: backgroundTier, ts: Date.now() });
+          } else {
+            // Ghost user — create the record required for the scans FK constraint.
+            await supabaseAdmin
+              .from("users")
+              .upsert(
+                { id: user.id, subscription_tier: "free" },
+                { onConflict: "id", ignoreDuplicates: true },
+              );
+            _tierCache.set(user.id, { tier: "free", ts: Date.now() });
+          }
+        }
+
         const modResult = await evaluateAndProcessPayload(
           user.id,
           r2ObjectKeys,
           imageBase64s,
           finishReason,
           safetyRatings,
-          userTier,
+          backgroundTier,
         );
         if (
           modResult.status === "SHADOWBANNED" ||
@@ -541,6 +589,7 @@ serve((req: Request) =>
 
     runBackground(backgroundTask);
 
+    console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
     return jsonResponse({ success: true, data: parsedData }, 200);
   })
 );

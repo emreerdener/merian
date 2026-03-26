@@ -7,7 +7,7 @@ struct InsightHeader: View {
     let paragraphs: [String]
     let badgeItems: [BadgeItem]
     let confidenceScore: Double?
-    
+
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
              ConfidenceBadge(confidenceScore: confidenceScore)

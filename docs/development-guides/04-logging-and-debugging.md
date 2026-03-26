@@ -91,16 +91,38 @@ During a debug build, all `.debug` messages appear in the Xcode console. To filt
 
 ## Performance Logging Pattern
 
-Time-sensitive operations should log their duration for regression detection:
+Time-sensitive operations log their duration using `CFAbsoluteTimeGetCurrent()`:
 
 ```swift
 let start = CFAbsoluteTimeGetCurrent()
 // ... work ...
-let duration = CFAbsoluteTimeGetCurrent() - start
-MerianLog.general.debug("⏱️ [Performance] Inference completed in \(String(format: "%.3f", duration), privacy: .public) seconds.")
+MerianLog.general.debug("⏱️ operation completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - start), privacy: .public)s")
 ```
 
-This pattern is used in `InferenceEngine` for both the Gemini edge call and the total pipeline (upload + AI + DB). Add it to any operation where latency matters.
+### Benchmark Timing (`[⏱ BENCH]`)
+
+The inference pipeline emits structured `[⏱ BENCH]` markers at each stage to make latency breakdowns visible without an attached profiler. These use `.debug` level and are filtered by the prefix in the Xcode console or Console.app.
+
+**iOS — `InferenceEngine.swift`** (filter in Xcode console: `⏱ BENCH`):
+
+```
+[⏱ BENCH] Pre-flight (encode+auth): 0.052s      ← base64 encode + auth headers
+[⏱ BENCH] Post-flight (parse+save+state): 0.087s ← parseAndSave + awards + state commit
+[⏱ BENCH] Total pipeline: 4.123s                 ← shutter to insight sheet
+```
+
+The existing `"Gemini inference completed in X.XXXs"` log (also `MerianLog.general`) captures the Gemini round-trip alone. The three `[⏱ BENCH]` lines bracket it so the pre-flight and post-flight overhead are separately visible.
+
+**Edge Function — `identify/index.ts`** (Supabase Dashboard → Edge Functions → identify → Logs):
+
+```
+[⏱ BENCH] payload_resolved: 12ms    ← after base64 validation or R2 fetch
+[⏱ BENCH] pre_gemini: 14ms          ← total overhead before Gemini call
+[⏱ BENCH] gemini_done: 4203ms total, 4189ms inference
+[⏱ BENCH] total_to_response: 4218ms
+```
+
+Note: `tier_resolved` does not appear in these logs — tier resolution runs in the background task after the response is sent and is not on the critical path.
 
 ---
 

@@ -13,10 +13,11 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `InsightContentView` | Routes to `BiologicalView` or `NonBiologicalView` based on `speciesData.isBiological` |
 | `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic |
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
-| `InsightHeader` | Scrollable header with image carousel, species name, description, badges |
+| `InsightHeader` | Scrollable header with species name, description, badges, and `ConfidenceBadge` |
 | `ImagesCarousel` | Horizontally scrolling image strip combining live captures + historic paths + reference images |
-| `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels |
-| `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale |
+| `ConfidenceBadge` | Tappable capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap |
+| `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
+| `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
 | `AIReasoningCard` | Diagnostic comparison — primary rationale, lookalike name, key differentiators |
 | `WikipediaCard` | Wikipedia extract with SafariServices deep link |
@@ -54,7 +55,7 @@ The carousel merges three image sources in order:
 
 **Seamless image source handoff**: On a live scan, `validHistoricImagePaths` is populated with the on-disk paths returned by `parseAndSave` *before* `speciesData` is set and *before* `activeLiveCaptureDatas` is cleared. This means the carousel has the user's saved image ready the instant the insight sheet renders — the reference image is never the only page shown on first open. The `NativePageCarousel` is keyed on `scanId` so that when `speciesData` is set (changing the key), the initial page build already includes the on-disk image paths.
 
-**On-disk image quality**: The files written to `validHistoricImagePaths` are 2048 px JPEG (display-quality path). This covers the full native pixel width of all current iOS devices without upscaling (iPhone Pro Max at 3× ≈ 1290 px; iPad Pro at 2× = 2048 px), eliminating the JPEG blocking artifacts that appeared when the carousel rendered the 1024 px inference payload directly. The AI inference path remains at 1024 px — see [Image Pipeline → Dual-Path Downsample](../system-architecture/14-image-pipeline.md) for the full architecture.
+**On-disk image quality**: The files written to `validHistoricImagePaths` are 2048 px WebP (display-quality path). This covers the full native pixel width of all current iOS devices without upscaling (iPhone Pro Max at 3× ≈ 1290 px; iPad Pro at 2× = 2048 px), eliminating the JPEG blocking artifacts that appeared when the carousel rendered the 1024 px inference payload directly. The AI inference path remains at 1024 px — see [Image Pipeline → Dual-Path Downsample](../system-architecture/14-image-pipeline.md) for the full architecture.
 
 All images are loaded through `AsyncLocalImageView`, which handles RAM cache hits, request coalescing, and local-vs-remote routing transparently.
 
@@ -82,17 +83,23 @@ The ZOOM row shows the value formatted as `"3.0×"`. It is omitted for 1× scans
 
 ---
 
-## Confidence Spectrum
+## Confidence Badge and Spectrum
 
-`ConfidenceSpectrum` renders a vertical list of `SpectrumNode` items, each describing a confidence band. The bands as defined in the component are:
+`ConfidenceBadge` is a tappable liquid-glass capsule that shows the AI's confidence band for the current scan. The band label, color, and icon are derived from `confidenceScore` against the `MerianConfig` thresholds. An animated holographic shimmer sweeps across the badge rim every 4–10 seconds. Tapping it opens `ConfidenceExplanationSheet`.
 
-| Node label | Score range |
-|---|---|
-| Strong match | 85% – 100% |
-| Possible match | 70% – 84% |
-| Weak match | Below 70% |
+Band thresholds (single source of truth in `MerianConfig`):
 
-Tapping the spectrum (accessed via `ConfidenceExplanationSheet`) opens the sub-sheet which explains the AI's limitations and how environmental context affects accuracy.
+| Band label | Color | Score range |
+|---|---|---|
+| Strong match | Green | ≥ 90% (`confidenceStrongThreshold`) |
+| Possible match | Orange | 70% – 89% (`confidencePossibleThreshold` – `confidenceStrongThreshold`) |
+| Weak match | Gray | Below 70% |
+
+`ConfidenceSpectrum` renders a vertical list of `SpectrumNode` items using the same `MerianConfig` constants so the displayed percentage ranges are always in sync with the badge logic.
+
+`ConfidenceExplanationSheet` opens as a bottom sheet from the badge tap. It contains `ConfidenceHeader`, `ConfidenceSpectrum`, `AIMistakesBanner`, and `ProTips` (which conditionally shows a location permission prompt when GPS access is not granted).
+
+`blur_score` is populated from live inference only (`SpeciesData.blurScore` maps to `EdgeResponse.blur_score`). It is `nil` for scans loaded from the local SwiftData library since it is not persisted to `LocalScanRecord`.
 
 ---
 

@@ -43,7 +43,7 @@ struct ImagesCarousel: View {
     private var carouselPages: [AnyView] {
         var pages: [AnyView] = []
         if hasLive {
-            for data in inferenceEngine.activeLiveCaptureDatas {
+            for data in inferenceEngine.activeDisplayDatas {
                 pages.append(AnyView(LiveCapturePageView(data: data)))
             }
         }

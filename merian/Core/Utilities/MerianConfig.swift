@@ -43,9 +43,11 @@ enum MerianConfig {
     // MARK: - Image Quality
 
     /// Lossy compression quality applied to WebP-encoded captures before storage or upload.
-    /// 0.8 balances file size against perceptible quality loss on modern iPhone sensors.
+    /// 0.85 preserves fine morphological detail (feather barbs, insect wing venation, leaf
+    /// margins) relevant to species identification. File size increase over 0.80 is ~10–15%
+    /// and stays well within the 5 MB payload limit.
     /// Passed as `kCGImageDestinationLossyCompressionQuality` to `CGImageDestination`.
-    static let imageCompressionQuality: CGFloat = 0.8
+    static let imageCompressionQuality: CGFloat = 0.85
 
     /// Longest-edge pixel cap for images sent to the AI inference pipeline.
     /// 1024 px is sufficient for Gemini species identification and keeps the base64
@@ -58,17 +60,32 @@ enum MerianConfig {
     /// upscaling. Stored as WebP; files average ~300–700 KB vs ~100–250 KB at inference quality.
     static let displayImageMaxSize: CGFloat = 2048
 
+    // MARK: - AI Confidence Bands
+
+    /// Minimum `confidence_score` for a scan to be labelled "Strong match" (green).
+    /// Set conservatively at 0.90 so the label only appears when the AI is essentially certain.
+    /// Scans in the 0.85–0.89 range show "Possible match" — appropriate given residual uncertainty.
+    static let confidenceStrongThreshold: Double = 0.90
+
+    /// Minimum `confidence_score` for a scan to be labelled "Possible match" (orange).
+    /// Scores below this threshold show "Weak match" (gray) and prompt the user to re-photograph.
+    static let confidencePossibleThreshold: Double = 0.70
+
     // MARK: - On-Device Vision Classification
 
     /// Minimum Vision confidence score for an observation to drive subject-specific scan phrases.
     static let visionConfidenceThreshold: Float = 0.65
+
+    /// Minimum confidence margin the top Vision observation must lead the second-best by.
+    /// Split or ambiguous results (e.g. 0.52 bird / 0.48 plant) stay on the generic phrase series.
+    static let visionMarginThreshold: Float = 0.15
 
     // MARK: - Scanning Phase UX Timing
 
     /// How long to display the generic scan phrases before switching to subject-specific ones.
     /// Ensures the generic series always plays through the opening of a scan and reduces the
     /// chance of an incorrect category label being visible if Vision misclassifies early frames.
-    static let scanningPhaseSubjectDelayNs: UInt64 = 3_000_000_000   // 3.0 s
+    static let scanningPhaseSubjectDelayNs: UInt64 = 1_500_000_000   // 1.5 s (was 3.0 s)
     /// Pause between consecutive subject-specific phase phrases during an active scan.
     static let scanningPhaseRotationIntervalNs: UInt64 = 2_300_000_000 // 2.3 s
 }

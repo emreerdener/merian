@@ -154,6 +154,15 @@ final class MerianNetworkClient {
                 }
             }
 
+            // 5xx — transient server/Edge Function error. Retry once after a brief pause
+            // so a cold-start or momentary Deno isolate failure doesn't surface as a permanent
+            // user-facing "Network Timeout". Only safe on idempotent callers (inference, reads).
+            if httpResponse.statusCode >= 500 && !isRetry {
+                MerianLog.network.debug("Server error \(httpResponse.statusCode, privacy: .public) — retrying in 2s.")
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+            }
+
             throw NetworkError.invalidResponse
         }
 
@@ -195,7 +204,9 @@ final class MerianNetworkClient {
         ]
 
         let bodyData = try JSONSerialization.data(withJSONObject: payload.compactMapValues { $0 })
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        // Inference calls can take up to 25–30s on gemini-2.5-pro with slow connections.
+        // Use a 90s timeout matching timeoutIntervalForResource to prevent false timeouts.
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 90.0)
         return data
     }
 
