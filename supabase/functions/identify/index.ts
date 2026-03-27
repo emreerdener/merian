@@ -100,6 +100,8 @@ async function fetchStaticEncyclopedicData(
       },
     });
 
+    // Gemini occasionally wraps JSON in markdown fences or preamble text even with
+    // responseMimeType:"application/json", so extract the outermost object explicitly.
     const responseText = result.response.text();
     const startIndex = responseText.indexOf("{");
     const endIndex = responseText.lastIndexOf("}");
@@ -201,13 +203,11 @@ async function fetchExternalEnrichment(scientificName: string) {
 
   return {
     wikipediaUrl: wikiUrl,
-    wikiExtract: wikiExtract,
-    gbifKey: gbifKey,
+    wikiExtract,
+    gbifKey,
     referenceImageUrl: combinedImageUrls,
   };
 }
-
-
 
 async function fetchGroupTags(
   scientificName: string,
@@ -245,6 +245,8 @@ async function fetchGroupTags(
         responseSchema: schema as unknown as ResponseSchema,
       },
     });
+    // Gemini occasionally wraps JSON in markdown fences or preamble text even with
+    // responseMimeType:"application/json", so extract the outermost object explicitly.
     const text = result.response.text();
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
@@ -430,7 +432,7 @@ serve((req: Request) =>
 
     const model = _genAI.getGenerativeModel({
       model: targetModel,
-      systemInstruction: systemInstruction,
+      systemInstruction,
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 1000,
@@ -580,6 +582,7 @@ serve((req: Request) =>
 
     const generatedScanId = crypto.randomUUID();
     const payloadReadyForClient = { ...parsedData, scan_id: generatedScanId };
+    const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
     let speciesId: string | null = null;
     // Hoisted so the background task can reference it for the Cache Miss enrichment upsert.
     let cachedSpecies: {
@@ -603,7 +606,7 @@ serve((req: Request) =>
       group_tags: string[] | null;
     } | null = null;
 
-    if (parsedData.is_biological_subject && parsedData.scientific_name) {
+    if (isIdentifiedBio) {
       const { data: _cachedSpecies } = await supabaseAdmin
         .from("species_dictionary")
         .select(
@@ -695,22 +698,20 @@ serve((req: Request) =>
 
     const backgroundTask = (async () => {
       try {
-        // Tier lookup is only needed for the R2 storage path in moderation and to ensure
-        // the ghost-user record exists before the scans FK insert. Both usages are here in
-        // the background task, so the DB round-trip is completely off the Gemini critical path.
-        let backgroundTier = "free";
-        const cachedTier = _tierCache.get(user.id);
-        if (cachedTier && Date.now() - cachedTier.ts < _TIER_CACHE_TTL_MS) {
-          backgroundTier = cachedTier.tier;
-        } else {
+        // Tier was already resolved on the critical path. The only remaining task here is
+        // ghost-user creation: if the main path never found the user in the DB, the cache
+        // entry was never set, so we upsert them now before the scans FK insert.
+        if (!_tierCache.has(user.id)) {
           const { data: existingUser } = await supabaseAdmin
             .from("users")
             .select("subscription_tier")
             .eq("id", user.id)
             .maybeSingle();
           if (existingUser) {
-            backgroundTier = existingUser.subscription_tier as string;
-            _tierCache.set(user.id, { tier: backgroundTier, ts: Date.now() });
+            _tierCache.set(user.id, {
+              tier: existingUser.subscription_tier as string,
+              ts: Date.now(),
+            });
           } else {
             // Ghost user — create the record required for the scans FK constraint.
             await supabaseAdmin
@@ -729,7 +730,7 @@ serve((req: Request) =>
           imageBase64s,
           finishReason,
           safetyRatings,
-          backgroundTier,
+          userTierForModel,
         );
         if (
           modResult.status === "SHADOWBANNED" ||
@@ -743,8 +744,7 @@ serve((req: Request) =>
         // Start diagnostic and group-tag Flash calls in parallel with enrichment.
         // Both are cheap, species-level, and skipped when already cached.
         const needsDiagnostic =
-          parsedData.is_biological_subject &&
-          parsedData.scientific_name &&
+          isIdentifiedBio &&
           (parsedData.confidence_score ?? 1) < DIAGNOSTIC_THRESHOLD &&
           !cachedSpecies?.diagnostic_primary_rationale;
         const diagnosticPromise = needsDiagnostic
@@ -752,8 +752,7 @@ serve((req: Request) =>
           : Promise.resolve(null);
 
         const needsGroupTags =
-          parsedData.is_biological_subject &&
-          parsedData.scientific_name &&
+          isIdentifiedBio &&
           !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
           ? fetchGroupTags(parsedData.scientific_name, _genAI)
@@ -761,11 +760,7 @@ serve((req: Request) =>
 
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
         // Runs after moderation so we don't persist data for flagged content.
-        if (
-          !speciesId &&
-          parsedData.is_biological_subject &&
-          parsedData.scientific_name
-        ) {
+        if (!speciesId && isIdentifiedBio) {
           const bgEnrichStart = Date.now();
           const [textResult, externalData] = await Promise.all([
             fetchStaticEncyclopedicData(
@@ -831,8 +826,7 @@ serve((req: Request) =>
           );
         } else if (
           cachedSpecies &&
-          parsedData.is_biological_subject &&
-          parsedData.scientific_name &&
+          isIdentifiedBio &&
           (!cachedSpecies.habitat_description ||
             !cachedSpecies.global_distribution_regions?.length)
         ) {
@@ -865,7 +859,7 @@ serve((req: Request) =>
             id: generatedScanId,
             user_id: user.id,
             species_id: speciesId,
-            timestamp: timestamp ? timestamp : undefined,
+            timestamp: timestamp ?? undefined,
             gps_lat_exact: gpsLatitude,
             gps_long_exact: gpsLongitude,
             gps_elevation: gpsElevation,
@@ -885,17 +879,16 @@ serve((req: Request) =>
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_total_tokens: llmTotalTokens,
-            image_storage_urls:
-              modResult.publicUrls && modResult.publicUrls.length > 0
-                ? modResult.publicUrls
-                : [],
+            image_storage_urls: modResult.publicUrls?.length
+              ? modResult.publicUrls
+              : [],
           });
 
         if (scanInsertError) {
           console.error("Failed to insert scan:", scanInsertError);
 
           // Revert and purge R2 promotional uploads to prevent untracked orphans
-          if (modResult.publicUrls && modResult.publicUrls.length > 0) {
+          if (modResult.publicUrls?.length) {
             console.log("Rolling back R2 uploads due to database failure.");
             const r2Config = getR2Config();
             const { deleteR2Object } = await import("../_shared/aws.ts");

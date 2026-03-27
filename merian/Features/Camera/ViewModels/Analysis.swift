@@ -143,9 +143,8 @@ extension CameraViewModel {
             guard let cgImage = UIImage(data: data)?.cgImage else { return }
 
             let request = VNClassifyImageRequest()
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            
             autoreleasepool {
+                let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
                 try? handler.perform([request])
             }
 

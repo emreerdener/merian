@@ -3,6 +3,29 @@ import UniformTypeIdentifiers
 
 // MARK: - Native Image Cropping Engine
 struct ImageCropProcessor {
+
+    // MARK: - Private Helpers
+
+    private static func cgOrientation(from orientation: UIImage.Orientation) -> CGImagePropertyOrientation {
+        switch orientation {
+        case .up:           return .up
+        case .down:         return .down
+        case .left:         return .left
+        case .right:        return .right
+        case .upMirrored:   return .upMirrored
+        case .downMirrored: return .downMirrored
+        case .leftMirrored: return .leftMirrored
+        case .rightMirrored: return .rightMirrored
+        @unknown default:   return .up
+        }
+    }
+
+    /// Attempts WebP first; falls back to JPEG when WebP codec is unavailable.
+    /// Both destinations write to the same buffer because the first call writes nothing on failure.
+    private static func makeImageDestination(_ renderData: NSMutableData) -> CGImageDestination? {
+        CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
+        CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
+    }
     
     // MARK: - Async Generation Boundary
     nonisolated static func generateCrop(
@@ -81,30 +104,17 @@ struct ImageCropProcessor {
                 }
                 
                 // MARK: 3. CGImagePropertyOrientation Translation
-                // Map UIImage.Orientation directly to CGImagePropertyOrientation natively
-                let cgOrientation: CGImagePropertyOrientation
-                switch targetOrientation {
-                case .up: cgOrientation = .up
-                case .down: cgOrientation = .down
-                case .left: cgOrientation = .left
-                case .right: cgOrientation = .right
-                case .upMirrored: cgOrientation = .upMirrored
-                case .downMirrored: cgOrientation = .downMirrored
-                case .leftMirrored: cgOrientation = .leftMirrored
-                case .rightMirrored: cgOrientation = .rightMirrored
-                @unknown default: cgOrientation = .up
-                }
-                
+                let cgOrientation = cgOrientation(from: targetOrientation)
+
                 // MARK: 4. Native Bitmap Payload Dispatch
                 // Isolate memory extraction cleanly in the background CPU pool natively
                 // Fallback to original cgImg if cropping fails to ensure off-main-thread processing
                 let finalCG = cgImg.cropping(to: cropRect) ?? cgImg
-                
+
                 let renderData = NSMutableData()
-                
+
                 // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
-                guard let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
-                                        CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else {
+                guard let destination = makeImageDestination(renderData) else {
                     return nil
                 }
 
@@ -163,27 +173,15 @@ struct ImageCropProcessor {
                 let cropRect = CGRect(x: cropX, y: cropY, width: shortestSide, height: shortestSide)
                 
                 // MARK: 1. CGImagePropertyOrientation Translation
-                let cgOrientation: CGImagePropertyOrientation
-                switch targetOrientation {
-                case .up: cgOrientation = .up
-                case .down: cgOrientation = .down
-                case .left: cgOrientation = .left
-                case .right: cgOrientation = .right
-                case .upMirrored: cgOrientation = .upMirrored
-                case .downMirrored: cgOrientation = .downMirrored
-                case .leftMirrored: cgOrientation = .leftMirrored
-                case .rightMirrored: cgOrientation = .rightMirrored
-                @unknown default: cgOrientation = .up
-                }
-                
+                let cgOrientation = cgOrientation(from: targetOrientation)
+
                 // MARK: 2. Native Bitmap Payload Dispatch
                 let finalCG = cgImg.cropping(to: cropRect) ?? cgImg
-                
+
                 let renderData = NSMutableData()
-                
+
                 // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
-                guard let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
-                                        CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else {
+                guard let destination = makeImageDestination(renderData) else {
                     return nil
                 }
 

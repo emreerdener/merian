@@ -110,7 +110,7 @@ struct PremiumInsightsCard: View {
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 24)
                     } else {
-                        Text("Unlock deep ecology insights for this scan and everything else you find this week for $2.99.")
+                        Text("Unlock deep ecology insights and global distribution data.")
                             .font(.subheadline)
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
@@ -124,14 +124,18 @@ struct PremiumInsightsCard: View {
                     }
 
                     Button(action: {
-                        Task { await triggerEnrichment() }
+                        if RevenueCatManager.shared.isProActive {
+                            Task { await triggerEnrichment() }
+                        } else {
+                            AppDIContainer.shared.appEventPublisher.send(.triggerPaywall)
+                        }
                     }) {
                         HStack {
                             if isUnlocking {
                                 ProgressView()
                                     .tint(.white)
                             } else {
-                                Text(RevenueCatManager.shared.isProActive ? "Retry" : "Unlock 7-Day Pass - $2.99")
+                                Text(RevenueCatManager.shared.isProActive ? "Retry" : "Unlock Premium Insights")
                                     .fontWeight(.semibold)
                             }
                         }
@@ -170,20 +174,6 @@ struct PremiumInsightsCard: View {
         defer { isUnlocking = false }
 
         do {
-            // Purchase if not already Pro
-            if !RevenueCatManager.shared.isProActive {
-                if let currentOffering = RevenueCatManager.shared.currentOfferings?.current,
-                   let pkg = currentOffering.weekly ?? currentOffering.availablePackages.first(where: {
-                       $0.storeProduct.productIdentifier.contains("7_day_pass") ||
-                       $0.storeProduct.productIdentifier.contains("weekly")
-                   }) {
-                    try await RevenueCatManager.shared.purchase(pkg)
-                } else {
-                    unlockError = "7-Day Pass not found in current offerings."
-                    return
-                }
-            }
-
             await inferenceEngine.fetchAndApplyEnrichment(modelContext: modelContext)
             HapticManager.shared.triggerSuccessPulse()
         } catch {

@@ -47,6 +47,8 @@ export async function fetchDiagnosticComparison(
       },
     });
     const text = result.response.text();
+    // Gemini occasionally wraps JSON in markdown fences or preamble text even with
+    // responseMimeType:"application/json", so extract the outermost object explicitly.
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start === -1 || end === -1) throw new Error("Malformed response");

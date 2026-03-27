@@ -126,7 +126,7 @@ serve(async (req: Request) => {
       .from("users")
       .upsert({ id: userId, subscription_tier: "free" }, { onConflict: "id", ignoreDuplicates: true });
 
-    if (["INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION"].includes(eventType)) {
+    if (["INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION", "NON_RENEWING_PURCHASE"].includes(eventType)) {
       const { error: updateError } = await supabaseAdmin
         .from("users")
         .update({ subscription_tier: "pro" })
