@@ -173,14 +173,8 @@ struct PremiumInsightsCard: View {
         unlockError = nil
         defer { isUnlocking = false }
 
-        do {
-            await inferenceEngine.fetchAndApplyEnrichment(modelContext: modelContext)
-            HapticManager.shared.triggerSuccessPulse()
-        } catch {
-            unlockError = error.localizedDescription
-            MerianLog.general.error("Failed to unlock insights: \(error, privacy: .private)")
-            HapticManager.shared.triggerErrorThump()
-        }
+        await inferenceEngine.fetchAndApplyEnrichment(modelContext: modelContext)
+        HapticManager.shared.triggerSuccessPulse()
     }
 }
 
