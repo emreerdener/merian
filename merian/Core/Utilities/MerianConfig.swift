@@ -43,11 +43,11 @@ enum MerianConfig {
     // MARK: - Image Quality
 
     /// Lossy compression quality applied to WebP-encoded captures before storage or upload.
-    /// 0.93 preserves fine morphological detail (feather barbs, insect wing venation, leaf
+    /// 0.85 preserves fine morphological detail (feather barbs, insect wing venation, leaf
     /// margins) relevant to species identification. File size increase over 0.80 is ~10–15%
     /// and stays well within the 5 MB payload limit.
     /// Passed as `kCGImageDestinationLossyCompressionQuality` to `CGImageDestination`.
-    static let imageCompressionQuality: CGFloat = 0.93
+    static let imageCompressionQuality: CGFloat = 0.85
 
     /// Longest-edge pixel cap for images sent to the AI inference pipeline.
     /// 1024 px is sufficient for Gemini species identification and keeps the base64

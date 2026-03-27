@@ -13,9 +13,11 @@ actor LocalImageLoader {
     
     // MARK: - Asset Orchestration
     func loadImage(fromPath imagePath: String?, fallbackUrl: String? = nil, maxDimension: Int = 1024) async -> UIImage? {
-        guard let cacheKey = imagePath ?? fallbackUrl else {
+        guard let baseKey = imagePath ?? fallbackUrl else {
             return nil
         }
+        
+        let cacheKey = "\(baseKey)_\(maxDimension)"
         
         // 1. RAM Cache Hit
         if let cached = ImageCache.shared.get(forKey: cacheKey) {

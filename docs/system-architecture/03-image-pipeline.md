@@ -77,7 +77,7 @@ Without this sync, the scan library would show the original auto-crop while Gemi
 
 **Alpha channel stripping**: Camera-captured frames decoded via `CGImageSourceCreateThumbnailAtIndex` inherit the `AlphaPremulLast` pixel format from the sensor buffer, even when the image is fully opaque. JPEG and WebP encoders emit an "is trying to save an opaque image with 'AlphaPremulLast'" warning when they encounter this format, and some encoding paths silently degrade quality. `ImageDownsampler` calls a private `stripAlpha(from:)` method on the downsampled `CGImage` before encoding. The method composites the image into a new `CGContext` with `CGImageAlphaInfo.noneSkipLast`, producing an RGB-only `CGImage` without any library dependency. The compositing context is created at the image's native dimensions, so no extra scaling occurs. Only images that actually carry an alpha channel go through the compositing path — images already declared `.none`, `.noneSkipLast`, or `.noneSkipFirst` are returned unchanged.
 
-**`imageCompressionQuality` (0.93)**: Raised from 0.85 to preserve fine morphological detail (feather barbs, insect wing venation, leaf margins) that influences AI identification accuracy. File size increase is ~10–15%, well within the 5 MB payload limit. All WebP encoding paths use `MerianConfig.imageCompressionQuality` as a single source of truth — inference payload, display payload, and manual crop tool all apply the same quality setting.
+**`imageCompressionQuality` (0.85)**: Raised from 0.80 to preserve fine morphological detail (feather barbs, insect wing venation, leaf margins) that influences AI identification accuracy. File size increase is ~10–15%, well within the 5 MB payload limit. All WebP encoding paths use `MerianConfig.imageCompressionQuality` as a single source of truth — inference payload, display payload, and manual crop tool all apply the same quality setting.
 
 **`nonisolated` methods**: Both `downsample(url:maxSize:)` and `downsample(data:maxSize:)` are declared `nonisolated`, making them synchronous and callable without `await`. This allows concurrent grid loads to decode in parallel on the cooperative thread pool. The `autoreleasepool` inside each call remains safe because CoreGraphics is thread-safe at the frame level.
 
@@ -153,6 +153,7 @@ Every `set(_:forKey:)` call computes the pixel-area cost (`width × height × 4 
 
 - **Automatic eviction**: `NSCache` evicts entries under system memory pressure without any manual intervention. With `totalCostLimit` set, eviction is triggered by *actual byte usage* rather than just entry count.
 - **No strong references**: Images in `NSCache` do not prevent deallocation, so they are released when iOS signals a memory warning.
+- **Dimension-aware Cache Keys**: `LocalImageLoader` appends the requested `maxDimension` to the underlying file path or URL to form the cache key (e.g., `filename.webp_600`). This isolates payloads by size, preventing memory collisions where a low-resolution grid thumbnail (600px) could erroneously fulfill a subsequent high-resolution display request (2048px) for the same underlying file.
 
 ---
 
