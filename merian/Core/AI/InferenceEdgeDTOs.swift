@@ -40,7 +40,8 @@ struct EdgeResponse: Codable {
     let taxonomy: Taxonomy?
 
     struct Insight: Codable {
-        let description: String?
+        /// Per-scan vision model reasoning — unique to the specific photo submitted.
+        let ai_reasoning: String?
         /// Hazard classification: "none" | "poisonous" | "venomous" | "allergenic" | "irritant"
         let hazard_type: String?
         let regional_status_rationale: String?

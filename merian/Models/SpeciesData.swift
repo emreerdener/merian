@@ -113,7 +113,7 @@ extension SpeciesData {
         gpsLongitude: Double? = nil
     ) {
         let insight = InsightData(
-            description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
+            description: edgeRes.insight_data?.ai_reasoning ?? "No ecological description available for this subject.",
             hazardType: edgeRes.insight_data?.hazard_type ?? "none",
             regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
         )
@@ -151,7 +151,7 @@ extension SpeciesData {
         self.colors = edgeRes.colors
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
         self.zoomFactor = nil  // populated by the caller from CaptureTelemetry
-        self.aiReasoning = edgeRes.premium_insights?.ai_reasoning
+        self.aiReasoning = edgeRes.insight_data?.ai_reasoning  // per-scan; unique to the specific photo submitted
         self.habitatDescription = edgeRes.premium_insights?.habitat_description
         self.globalDistributionRegions = edgeRes.premium_insights?.global_distribution_regions
     }

@@ -680,7 +680,7 @@ serve((req: Request) =>
       );
 
       payloadReadyForClient.insight_data = {
-        description: parsedData.ai_reasoning || "Reasoning omitted.",
+        ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
         regional_status_rationale: calculatedRegionalStatus,
         hazard_type: staticData.hazard_type,
       };
@@ -769,7 +769,7 @@ serve((req: Request) =>
           const [textResult, externalData] = await Promise.all([
             fetchStaticEncyclopedicData(
               parsedData.scientific_name,
-              "en",
+              deviceLocale || "en",
               _genAI,
             ),
             fetchExternalEnrichment(parsedData.scientific_name),
@@ -843,8 +843,7 @@ serve((req: Request) =>
           cachedSpecies &&
           parsedData.is_biological_subject &&
           parsedData.scientific_name &&
-          !cachedSpecies.habitat_description &&
-          !(cachedSpecies.global_distribution_regions?.length)
+          (!cachedSpecies.habitat_description || !(cachedSpecies.global_distribution_regions?.length))
         ) {
           // Premium gap-fill: species exists in the DB but was stored before premium fields
           // were introduced. Fetch from Flash and backfill silently for all tiers.
@@ -853,7 +852,7 @@ serve((req: Request) =>
           const bgPremiumStart = Date.now();
           const textResult = await fetchStaticEncyclopedicData(
             parsedData.scientific_name,
-            "en",
+            deviceLocale || "en",
             _genAI,
           );
           await supabaseAdmin

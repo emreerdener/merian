@@ -29,7 +29,7 @@ struct InferenceEngineTests {
                     "genus": "Procyon"
                 },
                 "insight_data": {
-                    "description": "A medium-sized mammal native to North America.",
+                    "ai_reasoning": "A medium-sized mammal native to North America.",
                     "hazard_type": "none",
                     "regional_status_rationale": "Least Concern"
                 },
@@ -59,7 +59,7 @@ struct InferenceEngineTests {
         
         #expect(edgeResponse.taxonomy?.family == "Procyonidae")
         #expect(edgeResponse.insight_data?.hazard_type == "none")
-        #expect(edgeResponse.insight_data?.description?.contains("mammal") == true)
+        #expect(edgeResponse.insight_data?.ai_reasoning?.contains("mammal") == true)
         #expect(edgeResponse.wikipedia_url == "https://en.wikipedia.org/wiki/Raccoon")
     }
 
@@ -151,7 +151,7 @@ struct InferenceEngineTests {
                 "common_name": "Monarch Butterfly",
                 "scientific_name": "Danaus plexippus",
                 "confidence_score": 0.98,
-                "insight_data": { "description": "A migratory butterfly.", "hazard_type": "none" },
+                "insight_data": { "ai_reasoning": "A migratory butterfly.", "hazard_type": "none" },
                 "premium_insights": {
                     "ai_reasoning": "The orange and black wing pattern with white spots along the margins is diagnostic for Danaus plexippus.",
                     "habitat_description": "Open fields, meadows, and roadsides with milkweed.",
@@ -164,7 +164,6 @@ struct InferenceEngineTests {
         let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
         let premium = try #require(wrapper.data.premium_insights, "premium_insights must be present for Pro scans")
 
-        #expect(premium.ai_reasoning?.contains("Danaus plexippus") == true)
         #expect(premium.habitat_description?.contains("milkweed") == true)
         #expect(premium.global_distribution_regions == ["US-TX", "US-CA", "MX"])
     }
@@ -179,7 +178,7 @@ struct InferenceEngineTests {
                 "common_name": "Raccoon",
                 "scientific_name": "Procyon lotor",
                 "confidence_score": 0.91,
-                "insight_data": { "description": "A medium-sized mammal.", "hazard_type": "none" }
+                "insight_data": { "ai_reasoning": "A medium-sized mammal.", "hazard_type": "none" }
             }
         }
         """
@@ -199,7 +198,7 @@ struct InferenceEngineTests {
                 "common_name": "Firefly",
                 "scientific_name": "Photinus pyralis",
                 "confidence_score": 0.95,
-                "insight_data": { "description": "A bioluminescent beetle.", "hazard_type": "none" },
+                "insight_data": { "ai_reasoning": "A bioluminescent beetle.", "hazard_type": "none" },
                 "premium_insights": {
                     "ai_reasoning": "The characteristic light organ on the abdomen and flight pattern confirm Photinus pyralis.",
                     "habitat_description": "Warm temperate meadows and forest edges.",
@@ -212,7 +211,7 @@ struct InferenceEngineTests {
         let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
         let speciesData = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
 
-        #expect(speciesData.aiReasoning?.contains("Photinus pyralis") == true)
+        #expect(speciesData.aiReasoning?.contains("bioluminescent beetle") == true, "aiReasoning must be populated per-scan from insight_data.ai_reasoning")
         #expect(speciesData.habitatDescription?.contains("meadows") == true)
         #expect(speciesData.globalDistributionRegions == ["US", "CA"])
     }
@@ -224,7 +223,7 @@ struct InferenceEngineTests {
             "data": {
                 "is_biological_subject": true,
                 "common_name": "Raccoon",
-                "insight_data": { "description": "A mammal.", "hazard_type": "none" }
+                "insight_data": { "ai_reasoning": "A mammal.", "hazard_type": "none" }
             }
         }
         """
