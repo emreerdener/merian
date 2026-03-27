@@ -130,7 +130,7 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, group_tags, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, species_dictionary(*)")
+                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, group_tags, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, species_dictionary(*)")
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
@@ -264,6 +264,8 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
     let common_names: [String: String?]?
     let descriptions: [String: String?]?
     let iucn_red_list_status: String?
+    let habitat_description: String?
+    let global_distribution_regions: [String]?
 }
 
 struct HistoricalScanResponse: Decodable, Sendable {
@@ -282,6 +284,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let gps_lat_exact: Double?
     let gps_long_exact: Double?
     let gps_elevation: Double?
+    let ai_reasoning: String?
     let species_dictionary: CloudSpeciesDictionary?
 }
 
@@ -384,7 +387,8 @@ actor HistoricalDatabaseActor {
             var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
             descriptor.propertiesToFetch = [\.id, \.localImagePath, \.additionalImagePaths,
                                              \.referenceImageUrl, \.locationName,
-                                             \.gpsLatitude, \.gpsLongitude, \.gpsElevation]
+                                             \.gpsLatitude, \.gpsLongitude, \.gpsElevation,
+                                             \.aiReasoning, \.habitatDescription, \.globalDistributionRegionsJson]
             let chunk_records: [LocalScanRecord] = {
                 do { return try modelContext.fetch(descriptor) }
                 catch { MerianLog.data.error("🚨 updateExistingScans: fetch failed: \(error, privacy: .private)"); return [] }
@@ -418,6 +422,20 @@ actor HistoricalDatabaseActor {
                 existing.gpsLongitude = remoteLon
                 existing.gpsElevation = res.gps_elevation
                 didUpdate = true
+            }
+            if let newReasoning = res.ai_reasoning, existing.aiReasoning != newReasoning {
+                existing.aiReasoning = newReasoning; didUpdate = true
+            }
+            let dict = res.species_dictionary
+            if let newHabitat = dict?.habitat_description, existing.habitatDescription != newHabitat {
+                existing.habitatDescription = newHabitat; didUpdate = true
+            }
+            if let newDist = dict?.global_distribution_regions {
+                if let encoded = try? JSONEncoder().encode(newDist), let str = String(data: encoded, encoding: .utf8) {
+                    if existing.globalDistributionRegionsJson != str {
+                        existing.globalDistributionRegionsJson = str; didUpdate = true
+                    }
+                }
             }
         }
 
@@ -476,7 +494,15 @@ actor HistoricalDatabaseActor {
                 iucnRedListStatus: dict?.iucn_red_list_status,
                 gpsLatitude: scan.gps_lat_exact,
                 gpsLongitude: scan.gps_long_exact,
-                gpsElevation: scan.gps_elevation
+                gpsElevation: scan.gps_elevation,
+                aiReasoning: scan.ai_reasoning,
+                habitatDescription: dict?.habitat_description,
+                globalDistributionRegionsJson: {
+                    if let dist = dict?.global_distribution_regions, let encoded = try? JSONEncoder().encode(dist) {
+                        return String(data: encoded, encoding: .utf8)
+                    }
+                    return nil
+                }()
             )
 
             modelContext.insert(record)

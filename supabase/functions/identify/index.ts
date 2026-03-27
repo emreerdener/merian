@@ -16,6 +16,261 @@ const _genAI = new GoogleGenerativeAI(_geminiApiKey);
 const _tierCache = new Map<string, { tier: string; ts: number }>();
 const _TIER_CACHE_TTL_MS = 5 * 60_000;
 
+// Maps ISO 3166-1 alpha-2 country codes to the natural-language name variants that CLGeocoder
+// returns on iOS. Kept to the countries where Merian users are most active to avoid table bloat.
+const COUNTRY_ALIASES: Record<string, string[]> = {
+  "US": ["UNITED STATES", "USA"],
+  "GB": ["UNITED KINGDOM", "GREAT BRITAIN", "ENGLAND", "SCOTLAND", "WALES"],
+  "CA": ["CANADA"],
+  "AU": ["AUSTRALIA"],
+  "DE": ["GERMANY"],
+  "FR": ["FRANCE"],
+  "JP": ["JAPAN"],
+  "CN": ["CHINA"],
+  "IN": ["INDIA"],
+  "BR": ["BRAZIL"],
+  "MX": ["MEXICO"],
+  "RU": ["RUSSIA"],
+  "ZA": ["SOUTH AFRICA"],
+  "IT": ["ITALY"],
+  "ES": ["SPAIN"],
+  "PT": ["PORTUGAL"],
+  "NL": ["NETHERLANDS"],
+  "SE": ["SWEDEN"],
+  "NO": ["NORWAY"],
+  "DK": ["DENMARK"],
+  "FI": ["FINLAND"],
+  "PL": ["POLAND"],
+  "TR": ["TURKEY"],
+  "AR": ["ARGENTINA"],
+  "CL": ["CHILE"],
+  "CO": ["COLOMBIA"],
+  "PE": ["PERU"],
+  "NZ": ["NEW ZEALAND"],
+  "TH": ["THAILAND"],
+  "VN": ["VIETNAM"],
+  "MY": ["MALAYSIA"],
+  "ID": ["INDONESIA"],
+  "PH": ["PHILIPPINES"],
+  "KR": ["SOUTH KOREA"],
+  "NG": ["NIGERIA"],
+  "KE": ["KENYA"],
+  "EG": ["EGYPT"],
+  "ET": ["ETHIOPIA"],
+  "TZ": ["TANZANIA"],
+};
+
+// Maps US state two-letter ISO 3166-2 sub-codes to their full uppercased names.
+// iOS CLGeocoder returns "Austin, Texas, United States" rather than "Austin, TX, United States",
+// so we need this reverse lookup to match "US-TX" against the full name.
+const US_STATE_FULL_NAMES: Record<string, string> = {
+  "AL": "ALABAMA", "AK": "ALASKA", "AZ": "ARIZONA", "AR": "ARKANSAS",
+  "CA": "CALIFORNIA", "CO": "COLORADO", "CT": "CONNECTICUT", "DE": "DELAWARE",
+  "FL": "FLORIDA", "GA": "GEORGIA", "HI": "HAWAII", "ID": "IDAHO",
+  "IL": "ILLINOIS", "IN": "INDIANA", "IA": "IOWA", "KS": "KANSAS",
+  "KY": "KENTUCKY", "LA": "LOUISIANA", "ME": "MAINE", "MD": "MARYLAND",
+  "MA": "MASSACHUSETTS", "MI": "MICHIGAN", "MN": "MINNESOTA", "MS": "MISSISSIPPI",
+  "MO": "MISSOURI", "MT": "MONTANA", "NE": "NEBRASKA", "NV": "NEVADA",
+  "NH": "NEW HAMPSHIRE", "NJ": "NEW JERSEY", "NM": "NEW MEXICO", "NY": "NEW YORK",
+  "NC": "NORTH CAROLINA", "ND": "NORTH DAKOTA", "OH": "OHIO", "OK": "OKLAHOMA",
+  "OR": "OREGON", "PA": "PENNSYLVANIA", "RI": "RHODE ISLAND", "SC": "SOUTH CAROLINA",
+  "SD": "SOUTH DAKOTA", "TN": "TENNESSEE", "TX": "TEXAS", "UT": "UTAH",
+  "VT": "VERMONT", "VA": "VIRGINIA", "WA": "WASHINGTON", "WV": "WEST VIRGINIA",
+  "WI": "WISCONSIN", "WY": "WYOMING", "DC": "DISTRICT OF COLUMBIA",
+};
+
+// Returns true if `regionCode` (ISO 3166-1 "US" or ISO 3166-2 "US-TX") is present in the
+// uppercased geocoded location string. Handles both abbreviated formats ("Austin, TX, ...")
+// and full-name formats ("Austin, Texas, United States") that CLGeocoder produces.
+function locationMatchesRegion(loc: string, regionCode: string): boolean {
+  const parts = regionCode.toUpperCase().split("-");
+  const countryCode = parts[0];
+  const subCode = parts.length > 1 ? parts[1] : null;
+
+  // A "token match" prevents "IN" from false-matching "INDIANA" as a standalone country.
+  const tokenMatch = (s: string) =>
+    loc === s ||
+    loc.startsWith(s + ",") ||
+    loc.endsWith(", " + s) ||
+    loc.includes(", " + s + ",") ||
+    loc.includes(", " + s + " ");
+
+  const countryPresent =
+    tokenMatch(countryCode) ||
+    (COUNTRY_ALIASES[countryCode] ?? []).some(alias => loc.includes(alias));
+
+  if (!countryPresent) return false;
+  if (!subCode) return true;
+
+  // Sub-region: try the raw abbreviated code first (e.g. "TX" in "Austin, TX, ..."),
+  // then fall back to full state name for US (e.g. "TEXAS" in "Austin, Texas, ...").
+  if (tokenMatch(subCode)) return true;
+  if (countryCode === "US") {
+    const fullName = US_STATE_FULL_NAMES[subCode];
+    if (fullName && loc.includes(fullName)) return true;
+  }
+
+  return false;
+}
+
+function calculateRegionalStatus(semanticLocation: string | null, isInvasive: boolean, regions: string[] | null): string {
+  if (isInvasive) return "Regarded as an invasive species in this region.";
+  if (!regions || regions.length === 0) return "Global distribution unverified.";
+
+  const loc = (semanticLocation || "").toUpperCase();
+  const isNative = regions.some(r => r.length >= 2 && locationMatchesRegion(loc, r));
+
+  return isNative
+    ? "Native to this region based on exact spatial distribution bounds."
+    : "Introduced or unverified native presence in this exact capturing area.";
+}
+
+async function fetchStaticEncyclopedicData(scientificName: string, locale: string, genAI: any) {
+  const textModel = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: `You are a world-class biologist. Provide encyclopedic identification traits, taxonomy, habitat, toxicity, conservation status, and global distribution for the provided scientific name. Keep descriptions concise. ALL text responses (insight_description, habitat_description, common_name) must be returned in the following ISO language locale: ${locale}.`,
+    generationConfig: { temperature: 0.1, maxOutputTokens: 1500 }
+  });
+
+  const cacheSchema: Record<string, unknown> = {
+    type: SchemaType.OBJECT,
+    properties: {
+      common_name: { type: SchemaType.STRING, description: `The localized common name in the requested locale (${locale}).` },
+      taxonomy: {
+        type: SchemaType.OBJECT,
+        properties: {
+          kingdom: { type: SchemaType.STRING },
+          phylum: { type: SchemaType.STRING },
+          class: { type: SchemaType.STRING },
+          order: { type: SchemaType.STRING },
+          family: { type: SchemaType.STRING },
+          genus: { type: SchemaType.STRING },
+        },
+        required: ["kingdom", "phylum", "class", "order", "family", "genus"],
+      },
+      is_poisonous: { type: SchemaType.BOOLEAN },
+      iucn_red_list_status: {
+        type: SchemaType.STRING,
+        enum: [
+          "not_evaluated",
+          "data_deficient",
+          "least_concern",
+          "near_threatened",
+          "vulnerable",
+          "endangered",
+          "critically_endangered",
+          "extinct_in_the_wild",
+          "extinct",
+        ],
+      },
+      habitat_description: { type: SchemaType.STRING },
+      global_distribution_regions: { 
+        type: SchemaType.ARRAY, 
+        items: { type: SchemaType.STRING }
+      }
+    },
+    required: ["common_name", "taxonomy", "is_poisonous", "iucn_red_list_status", "habitat_description", "global_distribution_regions"]
+  };
+
+  try {
+    const result = await textModel.generateContent({
+      contents: [{ role: "user", parts: [{ text: `Generate metadata for the species: ${scientificName}` }] }],
+      generationConfig: { responseMimeType: "application/json", responseSchema: cacheSchema as unknown as ResponseSchema }
+    });
+
+    const responseText = result.response.text();
+    const startIndex = responseText.indexOf('{');
+    const endIndex = responseText.lastIndexOf('}');
+    const cleanJsonString = responseText.substring(startIndex, endIndex + 1);
+    return JSON.parse(cleanJsonString);
+  } catch(e) {
+    console.error("Text Inference Miss fallback failed:", e);
+    return {
+       common_name: scientificName,
+       taxonomy: { kingdom: "Unknown", phylum: "Unknown", class: "Unknown", order: "Unknown", family: "Unknown", genus: "Unknown" },
+       iucn_red_list_status: "not_evaluated",
+       is_poisonous: false,
+       habitat_description: "No habitat data available.",
+       global_distribution_regions: []
+    };
+  }
+}
+
+async function fetchExternalEnrichment(scientificName: string) {
+    let wikiUrl: string | null = null;
+    let wikiExtract: string | null = null;
+    let gbifKey: number | null = null;
+    let combinedImageUrls: string | null = null;
+
+    try {
+      const fetchedUrls: string[] = [];
+
+      const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
+        (async () => {
+          let key: number | null = null;
+          let urls: string[] = [];
+          const gbifRes = await fetch(
+            `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`,
+            { signal: AbortSignal.timeout(2500) }
+          );
+          if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
+          const gbifJson = await gbifRes.json();
+          key = gbifJson.usageKey || null;
+
+          if (key) {
+            const mediaRes = await fetch(
+              `https://api.gbif.org/v1/species/${key}/media`,
+              { signal: AbortSignal.timeout(2500) }
+            );
+            if (mediaRes.ok) {
+              const mediaJson = await mediaRes.json();
+              if (mediaJson.results && mediaJson.results.length > 0) {
+                urls = mediaJson.results
+                  .filter((m: Record<string, string>) => m.type === "StillImage" && m.identifier)
+                  .map((m: Record<string, string>) => m.identifier)
+                  .slice(0, 5);
+              }
+            }
+          }
+          return { key, urls };
+        })(),
+
+        (async () => {
+          const wikiRes = await fetch(
+            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(scientificName.replace(/ /g, "_"))}`,
+            { signal: AbortSignal.timeout(2500) }
+          );
+          if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
+          const wikiJson = await wikiRes.json();
+          const url = wikiJson.content_urls?.desktop?.page || null;
+          const extract = wikiJson.extract || null;
+          const img = wikiJson.originalimage?.source || wikiJson.thumbnail?.source || null;
+          return { url, extract, img };
+        })()
+      ]);
+
+      if (gbifOutcome.status === "fulfilled") {
+        gbifKey = gbifOutcome.value.key;
+        fetchedUrls.push(...gbifOutcome.value.urls);
+      }
+      if (wikiOutcome.status === "fulfilled") {
+        wikiUrl = wikiOutcome.value.url;
+        wikiExtract = wikiOutcome.value.extract;
+        if (wikiOutcome.value.img) {
+          fetchedUrls.unshift(wikiOutcome.value.img);
+        }
+      }
+
+      if (fetchedUrls.length > 0) {
+        combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
+      }
+    } catch (e) {
+      console.log("Data enrichment failed silently: ", e);
+    }
+    
+    return { wikipediaUrl: wikiUrl, wikiExtract: wikiExtract, gbifKey: gbifKey, referenceImageUrl: combinedImageUrls };
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
@@ -139,14 +394,14 @@ serve((req: Request) =>
     // "Fossilized Shell" instead of the correct species common name (e.g. "Devil's Toenail"
     // for Gryphaea). Fossils and preserved specimens are biological subjects — only
     // is_live_capture changes.
-    const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in strict title case (e.g. "Devil's Toenail" not "Fossilized Shell", "Monarch Butterfly" not "Butterfly"). 4) CRITICAL: Evaluate all provided images together. 5) CRITICAL: Multiple species → identify ONE primary (most prominent in first image). 6) CRITICAL: is_biological_subject=false → OMIT taxonomy, insight_data, diagnostic_comparison, iucn_red_list_status, is_invasive, ecology_type, scientific_name, colors, group_tags.`;
+    const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in strict title case. 4) CRITICAL: Evaluate all provided images together. 5) CRITICAL: Multiple species → identify ONE primary. 6) CRITICAL: is_biological_subject=false → OMIT diagnostic_comparison, is_invasive, ecology_type, scientific_name, colors, group_tags, regional_status_rationale, common_name.`;
 
     const model = _genAI.getGenerativeModel({
       model: targetModel,
       systemInstruction: systemInstruction,
       generationConfig: {
         temperature: 0.1,
-        maxOutputTokens: 800,
+        maxOutputTokens: 1000,
       },
     });
 
@@ -165,7 +420,7 @@ serve((req: Request) =>
 
     const combinedPrompt = `Context: ${telemetryItems.join(", ")}. Perform biological identification.`;
 
-    const merianResponseSchema = {
+    const merianResponseSchema: Record<string, any> = {
       type: SchemaType.OBJECT,
       properties: {
         is_biological_subject: { type: SchemaType.BOOLEAN },
@@ -175,53 +430,10 @@ serve((req: Request) =>
           enum: ["wild", "urban", "domesticated", "unknown"],
         },
         scientific_name: { type: SchemaType.STRING },
-        common_name: { type: SchemaType.STRING },
-        confidence_score: {
-          type: SchemaType.NUMBER,
-        },
-        blur_score: {
-          type: SchemaType.NUMBER,
-        },
+        confidence_score: { type: SchemaType.NUMBER },
+        blur_score: { type: SchemaType.NUMBER },
         is_invasive: { type: SchemaType.BOOLEAN },
-        iucn_red_list_status: {
-          type: SchemaType.STRING,
-          enum: [
-            "not_evaluated",
-            "data_deficient",
-            "least_concern",
-            "near_threatened",
-            "vulnerable",
-            "endangered",
-            "critically_endangered",
-            "extinct_in_the_wild",
-            "extinct",
-          ],
-        },
-        taxonomy: {
-          type: SchemaType.OBJECT,
-          properties: {
-            kingdom: { type: SchemaType.STRING },
-            phylum: { type: SchemaType.STRING },
-            class: { type: SchemaType.STRING },
-            order: { type: SchemaType.STRING },
-            family: { type: SchemaType.STRING },
-            genus: { type: SchemaType.STRING },
-          },
-          required: ["kingdom", "phylum", "class", "order", "family", "genus"],
-        },
-        insight_data: {
-          type: SchemaType.OBJECT,
-          properties: {
-            description: { type: SchemaType.STRING },
-            regional_status_rationale: { type: SchemaType.STRING },
-            is_poisonous: { type: SchemaType.BOOLEAN },
-          },
-          required: [
-            "description",
-            "regional_status_rationale",
-            "is_poisonous",
-          ],
-        },
+        ai_reasoning: { type: SchemaType.STRING, description: "Detailed 2-4 sentence explanation of why this specific species or object was identified based solely on the visual evidence provided." },
         diagnostic_comparison: {
           type: SchemaType.OBJECT,
           nullable: true,
@@ -247,17 +459,33 @@ serve((req: Request) =>
         group_tags: {
           type: SchemaType.ARRAY,
           items: { type: SchemaType.STRING },
-          description: "2-4 plain English categorical labels for the subject, broadest to most specific (e.g. ['bird', 'songbird']).",
+          description: "2-4 plain English categorical labels for the subject, broadest to most specific.",
         },
       },
       required: [
         "is_biological_subject",
         "is_live_capture",
-        "common_name",
+        "ai_reasoning",
         "confidence_score",
         "blur_score",
       ],
     };
+
+    if (targetModel === "gemini-2.5-pro") {
+      merianResponseSchema.properties.premium_insights = {
+        type: SchemaType.OBJECT,
+        nullable: true,
+        properties: {
+          habitat_description: { type: SchemaType.STRING, description: "A description of the natural habitat where this species is typically found." },
+          global_distribution_regions: { 
+            type: SchemaType.ARRAY, 
+            items: { type: SchemaType.STRING },
+            description: "An array of standardized ISO-3166-2 region codes (e.g. 'US-TX', 'GB') where this species is natively found. Must be lightweight strings, do NOT generate GeoJSON coordinates."
+          }
+        },
+        required: ["habitat_description", "global_distribution_regions"]
+      };
+    }
 
     const parts: Part[] = base64Payloads.map(payload => ({
       inlineData: {
@@ -321,7 +549,115 @@ serve((req: Request) =>
     }
 
     const generatedScanId = crypto.randomUUID();
-    parsedData.scan_id = generatedScanId;
+    const payloadReadyForClient = { ...parsedData, scan_id: generatedScanId };
+    let speciesId: string | null = null;
+
+    if (parsedData.is_biological_subject && parsedData.scientific_name) {
+      const { data: cachedSpecies } = await supabaseAdmin
+        .from("species_dictionary")
+        .select("id, common_names, kingdom, phylum, class, order, family, genus, descriptions, is_poisonous, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, global_distribution_regions, gbif_taxon_key")
+        .eq("scientific_name", parsedData.scientific_name)
+        .maybeSingle();
+
+      let staticData: any = null;
+
+      if (cachedSpecies && cachedSpecies.kingdom) {
+        console.log(`Cache Hit: Generating payload from DB for ${parsedData.scientific_name}`);
+        staticData = {
+          taxonomy: {
+            kingdom: cachedSpecies.kingdom,
+            phylum: cachedSpecies.phylum,
+            class: cachedSpecies.class,
+            order: cachedSpecies.order,
+            family: cachedSpecies.family,
+            genus: cachedSpecies.genus,
+          },
+          iucn_red_list_status: cachedSpecies.iucn_red_list_status,
+          is_poisonous: cachedSpecies.is_poisonous || false,
+          premium_habitat: cachedSpecies.habitat_description,
+          premium_regions: cachedSpecies.global_distribution_regions
+        };
+        speciesId = cachedSpecies.id;
+        payloadReadyForClient.common_name = cachedSpecies.common_names?.["en"] || cachedSpecies.common_names?.["default"] || Object.values(cachedSpecies.common_names ?? {})[0];
+        payloadReadyForClient.reference_image_url = cachedSpecies.reference_image_url;
+        payloadReadyForClient.wikipedia_url = cachedSpecies.wikipedia_url;
+        payloadReadyForClient.wikipedia_extract = cachedSpecies.descriptions?.["en"]?.wikipedia;
+      } else {
+        console.log(`Cache Miss: Executing text inference and external fetching concurrently for ${parsedData.scientific_name}`);
+        const [textResult, externalData] = await Promise.all([
+           fetchStaticEncyclopedicData(parsedData.scientific_name, "en", _genAI),
+           fetchExternalEnrichment(parsedData.scientific_name)
+        ]);
+        
+        staticData = {
+            taxonomy: textResult.taxonomy,
+            iucn_red_list_status: textResult.iucn_red_list_status,
+            is_poisonous: textResult.is_poisonous,
+            premium_habitat: textResult.habitat_description,
+            premium_regions: textResult.global_distribution_regions
+        };
+        
+        const cachedWikiUrl = cachedSpecies?.wikipedia_url || externalData.wikipediaUrl;
+        const cachedGbifKey = cachedSpecies?.gbif_taxon_key || externalData.gbifKey;
+        const cachedReferenceImages = cachedSpecies?.reference_image_url || externalData.referenceImageUrl;
+        const cachedWikiExtract = cachedSpecies?.descriptions?.["en"]?.wikipedia || externalData.wikiExtract;
+
+        const newDescriptions = cachedSpecies 
+            ? { ...cachedSpecies.descriptions, ...(externalData.wikiExtract && { "en": { ...cachedSpecies.descriptions?.["en"], wikipedia: externalData.wikiExtract } }) } 
+            : { ...(externalData.wikiExtract && { "en": { wikipedia: externalData.wikiExtract } }) };
+            
+        const newCommonNames = cachedSpecies ? { ...cachedSpecies.common_names, "en": textResult.common_name } : { "en": textResult.common_name };
+        
+        // Prefer any previously stored taxonomy / toxicity / IUCN / habitat over the Flash-generated
+        // values to prevent lower-quality data from overwriting Pro-sourced entries.
+        const { data: upsertedSpecies } = await supabaseAdmin.from("species_dictionary").upsert({
+            scientific_name: parsedData.scientific_name,
+            common_names: newCommonNames,
+            kingdom: cachedSpecies?.kingdom ?? textResult.taxonomy.kingdom,
+            phylum: cachedSpecies?.phylum ?? textResult.taxonomy.phylum,
+            class: cachedSpecies?.class ?? textResult.taxonomy.class,
+            order: cachedSpecies?.order ?? textResult.taxonomy.order,
+            family: cachedSpecies?.family ?? textResult.taxonomy.family,
+            genus: cachedSpecies?.genus ?? textResult.taxonomy.genus,
+            descriptions: newDescriptions,
+            is_poisonous: cachedSpecies?.is_poisonous ?? textResult.is_poisonous,
+            native_region: "Unknown",
+            iucn_red_list_status: cachedSpecies?.iucn_red_list_status ?? textResult.iucn_red_list_status,
+            habitat_description: cachedSpecies?.habitat_description ?? textResult.habitat_description,
+            global_distribution_regions: (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0
+                ? cachedSpecies!.global_distribution_regions
+                : textResult.global_distribution_regions,
+            wikipedia_url: cachedWikiUrl,
+            gbif_taxon_key: cachedGbifKey,
+            reference_image_url: cachedReferenceImages
+        }, { onConflict: "scientific_name", ignoreDuplicates: false }).select("id").maybeSingle();
+        
+        speciesId = upsertedSpecies?.id || cachedSpecies?.id || null;
+        payloadReadyForClient.common_name = textResult.common_name;
+        payloadReadyForClient.wikipedia_url = cachedWikiUrl;
+        payloadReadyForClient.reference_image_url = cachedReferenceImages;
+        payloadReadyForClient.wikipedia_extract = externalData.wikiExtract || cachedWikiExtract;
+      }
+
+      payloadReadyForClient.taxonomy = staticData.taxonomy;
+      payloadReadyForClient.iucn_red_list_status = staticData.iucn_red_list_status;
+      
+      const calculatedRegionalStatus = calculateRegionalStatus(semanticLocation, !!parsedData.is_invasive, staticData.premium_regions);
+
+      payloadReadyForClient.insight_data = {
+         description: parsedData.ai_reasoning || "Reasoning omitted.",
+         regional_status_rationale: calculatedRegionalStatus,
+         is_poisonous: staticData.is_poisonous
+      };
+
+      if (targetModel === "gemini-2.5-pro") {
+         if (!payloadReadyForClient.premium_insights) {
+            payloadReadyForClient.premium_insights = {};
+         }
+         payloadReadyForClient.premium_insights.habitat_description = staticData.premium_habitat;
+         payloadReadyForClient.premium_insights.global_distribution_regions = staticData.premium_regions;
+      }
+    }
 
     const backgroundTask = (async () => {
       try {
@@ -370,161 +706,8 @@ serve((req: Request) =>
           );
           return;
         }
-        let speciesId = null;
-
-        // Upsert species dictionary entry
-        if (
-          parsedData.is_biological_subject &&
-          parsedData.scientific_name &&
-          parsedData.taxonomy
-        ) {
-          let wikiUrl: string | null = null;
-          let wikiExtract: string | null = null;
-          let gbifKey: number | null = null;
-          let combinedImageUrls: string | null = null;
-
-          try {
-            const fetchedUrls: string[] = [];
-
-            const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
-              // GBIF taxonomy lookup
-              (async () => {
-                let key: number | null = null;
-                let urls: string[] = [];
-                const gbifRes = await fetch(
-                  `https://api.gbif.org/v1/species/match?name=${
-                    encodeURIComponent(parsedData.scientific_name)
-                  }`,
-                  { signal: AbortSignal.timeout(2500) },
-                );
-                if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
-                const gbifJson = await gbifRes.json();
-                key = gbifJson.usageKey || null;
-
-                if (key) {
-                  const mediaRes = await fetch(
-                    `https://api.gbif.org/v1/species/${key}/media`,
-                    { signal: AbortSignal.timeout(2500) },
-                  );
-                  if (mediaRes.ok) {
-                    const mediaJson = await mediaRes.json();
-                    if (mediaJson.results && mediaJson.results.length > 0) {
-                      urls = mediaJson.results
-                        .filter(
-                          (m: Record<string, string>) =>
-                            m.type === "StillImage" && m.identifier,
-                        )
-                        .map((m: Record<string, string>) => m.identifier)
-                        .slice(0, 5);
-                    }
-                  }
-                }
-                return { key, urls };
-              })(),
-
-              // Wikipedia page summary lookup
-              (async () => {
-                const wikiRes = await fetch(
-                  `https://en.wikipedia.org/api/rest_v1/page/summary/${
-                    encodeURIComponent(
-                      parsedData.scientific_name.replace(/ /g, "_"),
-                    )
-                  }`,
-                  { signal: AbortSignal.timeout(2500) },
-                );
-                if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
-                const wikiJson = await wikiRes.json();
-                const url = wikiJson.content_urls?.desktop?.page || null;
-                const extract = wikiJson.extract || null;
-                const img = wikiJson.originalimage?.source ||
-                  wikiJson.thumbnail?.source ||
-                  null;
-                return { url, extract, img };
-              })(),
-            ]);
-
-            if (gbifOutcome.status === "fulfilled") {
-              gbifKey = gbifOutcome.value.key;
-              fetchedUrls.push(...gbifOutcome.value.urls);
-            }
-            if (wikiOutcome.status === "fulfilled") {
-              wikiUrl = wikiOutcome.value.url;
-              wikiExtract = wikiOutcome.value.extract;
-              if (wikiOutcome.value.img) {
-                fetchedUrls.unshift(wikiOutcome.value.img);
-              }
-            }
-
-            if (fetchedUrls.length > 0) {
-              combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
-            }
-          } catch (e) {
-            console.log("Data enrichment failed silently: ", e);
-          }
-
-          const { data: unifiedSpecies, error: upsertError } =
-            await supabaseAdmin
-              .from("species_dictionary")
-              .upsert(
-                {
-                  scientific_name: parsedData.scientific_name,
-                  common_names: { default: parsedData.common_name },
-                  kingdom: parsedData.taxonomy.kingdom,
-                  phylum: parsedData.taxonomy.phylum,
-                  class: parsedData.taxonomy.class,
-                  order: parsedData.taxonomy.order,
-                  family: parsedData.taxonomy.family,
-                  genus: parsedData.taxonomy.genus,
-                  descriptions: {
-                    insight: parsedData.insight_data.description,
-                    wikipedia: wikiExtract,
-                  },
-                  is_poisonous: parsedData.insight_data.is_poisonous,
-                  wikipedia_url: wikiUrl,
-                  gbif_taxon_key: gbifKey,
-                  reference_image_url: combinedImageUrls,
-                  native_region: "Unknown",
-                  iucn_red_list_status: parsedData.iucn_red_list_status,
-                },
-                { onConflict: "scientific_name", ignoreDuplicates: true },
-              )
-              .select("id, wikipedia_url, reference_image_url, descriptions")
-              .maybeSingle();
-
-          if (upsertError) {
-            console.error("Upsert failed: ", upsertError);
-          }
-
-          let resolvedSpecies = unifiedSpecies;
-
-          // If 'ignoreDuplicates' returns null on concurrent upsert conflict, fall back to a direct SELECT.
-          if (!resolvedSpecies && !upsertError) {
-            const { data: existingSpecies, error: selectError } =
-              await supabaseAdmin
-                .from("species_dictionary")
-                .select("id, wikipedia_url, reference_image_url, descriptions")
-                .eq("scientific_name", parsedData.scientific_name)
-                .single();
-
-            if (selectError) {
-              console.error(
-                "Failed to fetch existing species cleanly: ",
-                selectError,
-              );
-            } else {
-              resolvedSpecies = existingSpecies;
-            }
-          }
-
-          if (resolvedSpecies) {
-            speciesId = resolvedSpecies.id;
-            parsedData.wikipedia_url = resolvedSpecies.wikipedia_url;
-            parsedData.wikipedia_extract =
-              resolvedSpecies.descriptions?.wikipedia || wikiExtract;
-            parsedData.reference_image_url =
-              resolvedSpecies.reference_image_url;
-          }
-        }
+        // Asynchronous non-blocking persistence
+        // Wiki & GBIF has logically been moved natively into Cache Miss concurrency.
 
         const { error: scanInsertError } = await supabaseAdmin
           .from("scans")
@@ -536,15 +719,10 @@ serve((req: Request) =>
             gps_lat_exact: gpsLatitude,
             gps_long_exact: gpsLongitude,
             gps_elevation: gpsElevation,
-            ai_confidence_score: parsedData.confidence_score,
-            blur_score: parsedData.blur_score,
-            ecology_type: parsedData.ecology_type,
-            is_invasive: parsedData.is_invasive,
-            colors: parsedData.colors,
-            group_tags: parsedData.group_tags,
-            regional_status_rationale:
-              parsedData.insight_data.regional_status_rationale,
-            is_live_capture: parsedData.is_live_capture,
+            ai_confidence_score: payloadReadyForClient.confidence_score,
+            blur_score: payloadReadyForClient.blur_score,
+            ecology_type: payloadReadyForClient.ecology_type,
+            is_invasive: payloadReadyForClient.is_invasive,
             weather_condition: weatherCondition,
             weather_temperature_f: weatherTemperatureF,
             semantic_location: semanticLocation,
@@ -552,6 +730,7 @@ serve((req: Request) =>
             current_month: currentMonth,
             time_of_day: timeOfDay,
             depth_scale_text: depthScaleText,
+            ai_reasoning: parsedData.ai_reasoning ?? null,
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_total_tokens: llmTotalTokens,
@@ -588,6 +767,6 @@ serve((req: Request) =>
     runBackground(backgroundTask);
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
-    return jsonResponse({ success: true, data: parsedData }, 200);
+    return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
   })
 );

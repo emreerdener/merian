@@ -53,6 +53,13 @@ struct EdgeResponse: Codable {
     }
     let diagnostic_comparison: Diagnostic?
 
+    struct Premium: Codable {
+        let ai_reasoning: String?
+        let habitat_description: String?
+        let global_distribution_regions: [String]?
+    }
+    let premium_insights: Premium?
+
     let wikipedia_url: String?
     let wikipedia_extract: String?
     let reference_image_url: String?

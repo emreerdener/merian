@@ -93,6 +93,11 @@ struct SpeciesData {
     var groupTags: [String]?
     let iucnRedListStatus: String?
     var zoomFactor: Double?
+
+    // Premium Insights
+    var aiReasoning: String?
+    var habitatDescription: String?
+    var globalDistributionRegions: [String]?
 }
 
 // MARK: - Edge Response Init
@@ -161,6 +166,9 @@ extension SpeciesData {
         self.groupTags = edgeRes.group_tags
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
         self.zoomFactor = nil  // populated by the caller from CaptureTelemetry
+        self.aiReasoning = edgeRes.premium_insights?.ai_reasoning
+        self.habitatDescription = edgeRes.premium_insights?.habitat_description
+        self.globalDistributionRegions = edgeRes.premium_insights?.global_distribution_regions
     }
 }
 
@@ -193,7 +201,10 @@ extension SpeciesData {
         colors: [String]? = nil,
         groupTags: [String]? = nil,
         iucnRedListStatus: String? = nil,
-        zoomFactor: Double? = nil
+        zoomFactor: Double? = nil,
+        aiReasoning: String? = nil,
+        habitatDescription: String? = nil,
+        globalDistributionRegions: [String]? = nil
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -220,6 +231,9 @@ extension SpeciesData {
         self.groupTags = groupTags
         self.iucnRedListStatus = iucnRedListStatus
         self.zoomFactor = zoomFactor
+        self.aiReasoning = aiReasoning
+        self.habitatDescription = habitatDescription
+        self.globalDistributionRegions = globalDistributionRegions
     }
 }
 

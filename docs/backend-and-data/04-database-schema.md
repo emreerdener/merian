@@ -21,11 +21,13 @@ The global source-of-truth for biological models.
 
 - `id` (UUID): Primary key.
 - `scientific_name` (Text): Unique. (e.g., _Danaus plexippus_)
-- `common_names` (JSONB): e.g., `{"default": "Monarch Butterfly"}`
+- `common_names` (JSONB): Keyed by ISO 639-1 language code. e.g., `{"en": "Monarch Butterfly"}`. Always written under the `"en"` key by the identify Cache Miss path.
 - `kingdom`, `phylum`, `class`, `order`, `family`, `genus` (Text): Standard Linnaean taxonomy.
 - `descriptions`, `is_poisonous` (Boolean): Stores liability-relevant biological properties.
 - `wikipedia_url`, `wikipedia_extract`, `gbif_taxon_key`, `reference_image_url`: Extended biological context.
 - `native_region` (Text): Origin markers.
+- `habitat_description` (Text): Summarizes the expected ecosystem parameters for the species.
+- `global_distribution_regions` (JSONB): An array of standard ISO/GBIF strings (e.g. `["US-TX", "US-NM"]`) explicitly enforcing lightweight geospatial boundaries without hallucinated GeoJSONs.
 
 ### `scans`
 
@@ -41,7 +43,8 @@ The transaction log for every successful identification.
 - `is_live_capture` (Boolean): AI flags whether this was a real photo vs a screen/book capture.
 - `ecology_type` (ENUM): `'wild'` | `'urban'` | `'domesticated'` | `'unknown'`
 - `colors` (Text Array): 1–3 dominant biological colors extracted by Gemini for semantic searchability.
-- `weather_condition`, `regional_status_rationale`, `semantic_location`, `device_locale`, `time_of_day`, `depth_scale_text` (Text)
+- `weather_condition`, `semantic_location`, `device_locale`, `time_of_day`, `depth_scale_text` (Text)
+- `ai_reasoning` (Text): Visual justification text natively returned by Gemini detailing the identification reasoning. Stitched universally into the initial scan block.
 - `weather_temperature_f` (Float)
 - `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_total_tokens` (Int): Token counts from `usageMetadata` per scan.
 - `current_month` (Int)
@@ -75,7 +78,7 @@ Configures the automated garbage collection pipeline using `pg_cron` and `pg_net
 
 _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application executes a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage` closures that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`) without corrupting local scan data._
 
-**File layout:** Each schema version lives in its own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV14.swift`). The sole remaining purpose of `merian/Models/SchemaVersions.swift` is to declare `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to a new version, add a `SchemaV{N+1}.swift` file, append it to `MerianMigrationPlan.schemas`, add the lightweight stage, and update `Aliases.swift`. No other files need to change.
+**File layout:** Each schema version lives in its own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV15.swift`). The sole remaining purpose of `merian/Models/SchemaVersions.swift` is to declare `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to a new version, add a `SchemaV{N+1}.swift` file, append it to `MerianMigrationPlan.schemas`, add the lightweight stage, and update `Aliases.swift`. No other files need to change.
 
 ### `OfflineQueuedScan`
 
@@ -122,6 +125,9 @@ Tracks locally synchronized species scans for the Scans library.
 - `gpsElevation`: Double? (Added in `MerianSchemaV11`. Syncs capture altitude for the offline `InsightLocationWeatherCard`.)
 - `gpsLatitude`, `gpsLongitude`: Double? (Added in `MerianSchemaV12`. Stores raw GPS coordinates for the `ScanInformationCard` MapKit integration.)
 - `zoomFactor`: Double? (Added in `MerianSchemaV13`. Records the active optical zoom at the moment of capture. `nil` for 1× scans and any scan captured before V13. Displayed in `ScanInformationCard` and forwarded to the Edge function as a Gemini telemetry cue.)
+- `aiReasoning`: String? (Added in `MerianSchemaV15`. Mirrors the `scans.ai_reasoning` column — Gemini's 2–4 sentence visual justification for this specific identification. Populated on cloud sync from the `ai_reasoning` field in the `scans` select query.)
+- `habitatDescription`: String? (Added in `MerianSchemaV15`. Pro users receive this in the initial `/identify` response; free users unlock it via the `PremiumInsightsCard` paywall, which calls `/enrich-scan`. The function checks `species_dictionary` first and returns cached data if present, only calling Gemini when the species has never been enriched.)
+- `globalDistributionRegionsJson`: String? (Added in `MerianSchemaV15`. Stored as a JSON-encoded string array (e.g. `["US-TX","MX"]`) due to SwiftData's lack of native typed array codable support. Decoded to `[String]` in `InferenceEngine` for `SpeciesData.globalDistributionRegions`.)
 
 ### `ScanCollection` (User Albums)
 

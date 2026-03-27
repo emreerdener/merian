@@ -426,7 +426,15 @@ private struct WikiSummaryResponse: Decodable {
             gpsElevation: record.gpsElevation,
             gpsLatitude: record.gpsLatitude,
             gpsLongitude: record.gpsLongitude,
-            zoomFactor: record.zoomFactor
+            zoomFactor: record.zoomFactor,
+            aiReasoning: record.aiReasoning,
+            habitatDescription: record.habitatDescription,
+            globalDistributionRegions: {
+                guard let jsonStr = record.globalDistributionRegionsJson,
+                      let data = jsonStr.data(using: .utf8),
+                      let regions = try? JSONDecoder().decode([String].self, from: data) else { return nil }
+                return regions
+            }()
         )
         self.isProcessing = false
 

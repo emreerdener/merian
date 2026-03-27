@@ -22,6 +22,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `AIReasoningCard` | Diagnostic comparison — primary rationale, lookalike name, key differentiators |
 | `WikipediaCard` | Wikipedia extract with SafariServices deep link |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
+| `PremiumInsightsCard` | Enriched intelligence hook: Encyclopedic habitat parameters, and global distribution vector heatmaps. If the user is Free it acts as a 7-Day pass glassmorphism paywall unlocking via RevenueCat. |
 | `ToxicityBanner` | Red warning banner for poisonous subjects |
 | `ConservationBanner` | IUCN Red List status banner |
 | `CelebrationBanner` | "New Discovery" confetti overlay |
@@ -80,6 +81,16 @@ Rows displayed when present:
 | Map | `speciesData.gpsLatitude` + `gpsLongitude` | Valid coordinate pair, not `(0, 0)` |
 
 The ZOOM row shows the value formatted as `"3.0×"`. It is omitted for 1× scans because `CaptureTelemetry.zoomFactor` is set to `nil` when zoom is at 1× — a 1× value carries no useful signal for identification. The row is also absent for scans captured on single-lens hardware (`CameraManager.isZoomSupported == false`) and any scan recorded before `MerianSchemaV13`.
+
+---
+
+## Premium Insights
+
+`PremiumInsightsCard` dynamically bridges real-time Edge validation and local SwiftData memory to render deep encyclopedic intelligence.
+
+- **Pro Users**: The `/identify` response includes a `premium_insights` block for Pro-tier requests, populated from `species_dictionary` (Cache Hit) or from the concurrent `fetchStaticEncyclopedicData` call (Cache Miss). The card renders immediately with no additional network call.
+- **Free Users — Paywall State**: If the scan has no `habitatDescription` and `isProActive` is `false`, the card renders as a glassmorphism paywall offering a frictionless $2.99 7-Day Pass via the RevenueCat `weekly` package.
+- **Free Users — Ad-Hoc Enrichment**: Once the pass is active (or if the user is already Pro), tapping "Generate Insights" calls `/enrich-scan`. That function checks `species_dictionary` first — because the `/identify` Cache Miss path writes habitat and distribution data on every new species regardless of tier, the DB-first check resolves immediately for most scans with no Gemini call or added latency. The returned data is saved to `LocalScanRecord` and bound back to `InferenceEngine.speciesData.habitatDescription` in-place.
 
 ---
 

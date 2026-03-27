@@ -32,6 +32,7 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 - Initializes via `.configure(withAPIKey:)`, pulling the active iOS `ProcessInfo` values mapped to `.xcconfig` secure layers.
 - Uses `logIn(currentAppUserID)` to bind the IDFV tracking string.
 - Evaluates `isProActive` via `.customerInfo()`, checking for active entitlements across `pro` and `7_day_pass` identifiers and updating SwiftUI state. The `PlanCard` observes this property in the Profile header, redrawing the subscription tier card to reflect the current state (e.g., Naturalist UNLIMITED SCANS vs Explorer 2 SCANS DAILY) and surfacing the `PaywallView` sheet.
+- **Premium Insights Hook**: Embedded directly in the `InsightSheetView` via the `PremiumInsightsCard`. If `isProActive` evaluates to false on an older scan, the card surfaces an inline $2.99 7-Day Pass upsell extracting the `weekly` package from `RevenueCatManager.shared.currentOfferings`. This frictionless checkout skips the `PaywallView` entirely and triggers the ad-hoc `/enrich-scan` Edge function payload.
 
 ## RevenueCat Webhook (`revenuecat-webhook`)
 

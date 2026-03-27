@@ -45,6 +45,16 @@ struct BiologicalView: View {
                 timestamp: timestamp
             )
             
+            // Premium Insights Extractor
+            if let data = inferenceEngine.speciesData {
+                PremiumInsightsCard(
+                    habitatDescription: data.habitatDescription,
+                    globalDistributionRegions: data.globalDistributionRegions,
+                    scientificName: data.scientificName,
+                    scanId: data.scanId
+                )
+            }
+            
             // Diagnostic Evaluation
             if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.8, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
                 AIReasoningCard(diagnosticData: diagnosticData)

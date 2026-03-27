@@ -160,7 +160,16 @@ actor BackgroundDatabaseActor {
                     gpsLatitude: mappedData.gpsLatitude,
                     gpsLongitude: mappedData.gpsLongitude,
                     gpsElevation: mappedData.gpsElevation,
-                    zoomFactor: mappedData.zoomFactor
+                    zoomFactor: mappedData.zoomFactor,
+                    aiReasoning: mappedData.aiReasoning,
+                    habitatDescription: mappedData.habitatDescription,
+                    globalDistributionRegionsJson: {
+                        guard let dist = mappedData.globalDistributionRegions else { return nil }
+                        do {
+                            let data = try JSONEncoder().encode(dist)
+                            return String(data: data, encoding: .utf8)
+                        } catch { return nil }
+                    }()
                 )
                 modelContext.insert(record)
                 do {
@@ -261,7 +270,16 @@ actor BackgroundDatabaseActor {
             gpsLatitude: mappedData.gpsLatitude,
             gpsLongitude: mappedData.gpsLongitude,
             gpsElevation: mappedData.gpsElevation,
-            zoomFactor: mappedData.zoomFactor
+            zoomFactor: mappedData.zoomFactor,
+            aiReasoning: mappedData.aiReasoning,
+            habitatDescription: mappedData.habitatDescription,
+            globalDistributionRegionsJson: {
+                guard let dist = mappedData.globalDistributionRegions else { return nil }
+                do {
+                    let data = try JSONEncoder().encode(dist)
+                    return String(data: data, encoding: .utf8)
+                } catch { return nil }
+            }()
         )
         modelContext.insert(record)
         do {
