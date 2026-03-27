@@ -62,3 +62,27 @@ export async function deleteR2Object(key: string, config: R2Config): Promise<Res
   const deleteUrl = `${endpoint}/${bucketName}/${key}`;
   return await s3Client.fetch(deleteUrl, { method: "DELETE" });
 }
+
+/**
+ * Generates a presigned PUT URL for an R2 object.
+ *
+ * @param config  R2 config from `getR2Config()`.
+ * @param key     Object key (e.g. `staging/{userId}/{fileName}`).
+ * @param expirySeconds  URL lifetime in seconds (default 86400 = 24 h).
+ * @returns The signed URL string ready for the client to PUT to.
+ */
+export async function generatePresignedPutUrl(
+  config: R2Config,
+  key: string,
+  expirySeconds = 86400,
+): Promise<string> {
+  const { s3Client, bucketName, endpoint } = config;
+  const url = new URL(`${endpoint}/${bucketName}/${key}`);
+  url.searchParams.set("X-Amz-Expires", String(expirySeconds));
+  const signed = await s3Client.sign(url.toString(), {
+    method: "PUT",
+    headers: { "Content-Type": "image/webp" },
+    aws: { signQuery: true },
+  });
+  return signed.url;
+}

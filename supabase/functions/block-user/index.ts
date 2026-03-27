@@ -1,14 +1,13 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { requireParams } from "../_shared/validation.ts";
 
-serve((req: Request) => 
+serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const body = await req.json();
+    const paramErr = requireParams(body, ["blocked_id"]);
+    if (paramErr) return paramErr;
     const { blocked_id } = body;
-
-    if (!blocked_id) {
-      return jsonResponse({ error: "Missing 'blocked_id' in request body." }, 400);
-    }
     const { error } = await supabaseAdmin
       .from("user_blocks")
       .insert({ 

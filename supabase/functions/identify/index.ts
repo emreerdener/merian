@@ -2,7 +2,6 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 import {
-  GoogleGenerativeAI,
   SchemaType,
   SafetyRating,
   Part,
@@ -16,16 +15,12 @@ import {
   runBackground,
 } from "../_shared/edgeHandler.ts";
 import { fetchDiagnosticComparison } from "../_shared/diagnostic.ts";
-
-// Instantiated once at module scope so warm isolate re-use avoids re-initialization overhead.
-const _geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
-const _genAI = new GoogleGenerativeAI(_geminiApiKey);
-
-// Worker-level tier cache — persists across warm isolate re-use, eliminating the DB round-trip
-// for every scan after the first. TTL of 5 minutes is short enough to pick up subscription
-// changes without holding stale data across a full user session.
-const _tierCache = new Map<string, { tier: string; ts: number }>();
-const _TIER_CACHE_TTL_MS = 5 * 60_000;
+import { _genAI, createFlashModel, extractJson } from "../_shared/gemini.ts";
+import {
+  getTierForUser,
+  hasTierCached,
+  setTierCache,
+} from "../_shared/tierCache.ts";
 
 // Scans below this threshold trigger an async diagnostic comparison via Flash.
 const DIAGNOSTIC_THRESHOLD = 0.85;
@@ -33,13 +28,11 @@ const DIAGNOSTIC_THRESHOLD = 0.85;
 async function fetchStaticEncyclopedicData(
   scientificName: string,
   locale: string,
-  genAI: GoogleGenerativeAI,
 ) {
-  const textModel = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    systemInstruction: `You are a world-class biologist. Provide encyclopedic identification traits, taxonomy, habitat, toxicity, conservation status, and global distribution for the provided scientific name. Keep descriptions concise. ALL text responses (habitat_description) must be returned in the following ISO language locale: ${locale}.`,
-    generationConfig: { temperature: 0.1, maxOutputTokens: 1500 },
-  });
+  const textModel = createFlashModel(
+    `You are a world-class biologist. Provide encyclopedic identification traits, taxonomy, habitat, toxicity, conservation status, and global distribution for the provided scientific name. Keep descriptions concise. ALL text responses (habitat_description) must be returned in the following ISO language locale: ${locale}.`,
+    1500,
+  );
 
   const cacheSchema: Record<string, unknown> = {
     type: SchemaType.OBJECT,
@@ -100,13 +93,7 @@ async function fetchStaticEncyclopedicData(
       },
     });
 
-    // Gemini occasionally wraps JSON in markdown fences or preamble text even with
-    // responseMimeType:"application/json", so extract the outermost object explicitly.
-    const responseText = result.response.text();
-    const startIndex = responseText.indexOf("{");
-    const endIndex = responseText.lastIndexOf("}");
-    const cleanJsonString = responseText.substring(startIndex, endIndex + 1);
-    return JSON.parse(cleanJsonString);
+    return extractJson(result.response.text());
   } catch (e) {
     console.error("Text Inference Miss fallback failed:", e);
     return {
@@ -211,14 +198,11 @@ async function fetchExternalEnrichment(scientificName: string) {
 
 async function fetchGroupTags(
   scientificName: string,
-  genAI: GoogleGenerativeAI,
 ): Promise<string[] | null> {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    systemInstruction:
-      'You are a world-class biologist. Given a species scientific name, return 1–5 categorical group labels ordered from most broad to most specific (e.g. ["animal", "bird", "songbird", "warbler"]). Use plain lowercase English nouns only. Omit proper names and scientific names.',
-    generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
-  });
+  const model = createFlashModel(
+    'You are a world-class biologist. Given a species scientific name, return 1–5 categorical group labels ordered from most broad to most specific (e.g. ["animal", "bird", "songbird", "warbler"]). Use plain lowercase English nouns only. Omit proper names and scientific names.',
+    100,
+  );
 
   const schema: Record<string, unknown> = {
     type: SchemaType.OBJECT,
@@ -245,15 +229,7 @@ async function fetchGroupTags(
         responseSchema: schema as unknown as ResponseSchema,
       },
     });
-    // Gemini occasionally wraps JSON in markdown fences or preamble text even with
-    // responseMimeType:"application/json", so extract the outermost object explicitly.
-    const text = result.response.text();
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end === -1) throw new Error("Malformed response");
-    const parsed = JSON.parse(text.substring(start, end + 1)) as {
-      group_tags: string[];
-    };
+    const parsed = extractJson<{ group_tags: string[] }>(result.response.text());
     return parsed.group_tags ?? null;
   } catch (e) {
     console.error("fetchGroupTags failed:", e);
@@ -398,25 +374,7 @@ serve((req: Request) =>
     // Resolve tier for model selection. Cache hit (common case after first scan within a
     // 5-minute window) is near-instant. On miss: one lightweight SELECT — no upsert on the
     // critical path (ghost-user creation stays in the background task).
-    let userTierForModel = "free";
-    const cachedTierEntry = _tierCache.get(user.id);
-    if (
-      cachedTierEntry &&
-      Date.now() - cachedTierEntry.ts < _TIER_CACHE_TTL_MS
-    ) {
-      userTierForModel = cachedTierEntry.tier;
-    } else {
-      const { data: tierData } = await supabaseAdmin
-        .from("users")
-        .select("subscription_tier")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (tierData) {
-        userTierForModel = tierData.subscription_tier as string;
-        _tierCache.set(user.id, { tier: userTierForModel, ts: Date.now() });
-      }
-      // Ghost users: default "free" for model selection; upsert happens in background task
-    }
+    const userTierForModel = await getTierForUser(user.id, supabaseAdmin);
 
     // Pro users get gemini-2.5-pro for maximum identification depth (rare species, fossils,
     // subspecies, cultivars). Free users use gemini-2.5-flash for 2–3× lower latency.
@@ -557,25 +515,13 @@ serve((req: Request) =>
       );
     }
 
-    // Strip any markdown wrapper if the model produces non-JSON preamble
-    const startIndex = responseText.indexOf("{");
-    const endIndex = responseText.lastIndexOf("}");
-
-    if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
-      console.error("Failed to extract JSON from AI response:", responseText);
-      return jsonResponse(
-        { error: "Processing Error: Malformed AI response." },
-        422,
-      );
-    }
-    const cleanJsonString = responseText.substring(startIndex, endIndex + 1);
     let parsedData;
     try {
-      parsedData = JSON.parse(cleanJsonString);
+      parsedData = extractJson(responseText);
     } catch (parseError) {
-      console.error("Failed to parse AI response JSON:", parseError);
+      console.error("Failed to parse AI response:", parseError);
       return jsonResponse(
-        { error: "Processing Error: Invalid AI response format." },
+        { error: "Processing Error: Malformed AI response." },
         422,
       );
     }
@@ -621,8 +567,8 @@ serve((req: Request) =>
         taxonomy?: Record<string, string>;
         iucn_red_list_status?: string;
         hazard_type: string;
-        premium_habitat?: string;
-        premium_regions?: string[];
+        speciesHabitat?: string;
+        speciesRegions?: string[];
       };
 
       if (cachedSpecies && cachedSpecies.kingdom) {
@@ -641,8 +587,8 @@ serve((req: Request) =>
           iucn_red_list_status:
             cachedSpecies.iucn_red_list_status ?? "not_evaluated",
           hazard_type: cachedSpecies.hazard_type || "none",
-          premium_habitat: cachedSpecies.habitat_description ?? undefined,
-          premium_regions:
+          speciesHabitat: cachedSpecies.habitat_description ?? undefined,
+          speciesRegions:
             cachedSpecies.global_distribution_regions ?? undefined,
         };
         speciesId = cachedSpecies.id;
@@ -655,8 +601,13 @@ serve((req: Request) =>
         if (cachedSpecies.group_tags && cachedSpecies.group_tags.length > 0) {
           payloadReadyForClient.group_tags = cachedSpecies.group_tags;
         }
+        // gbif_taxon_key is available to all tiers — it is a deterministic REST-sourced
+        // lookup key, not AI-generated.
+        if (cachedSpecies.gbif_taxon_key != null) {
+          payloadReadyForClient.gbif_taxon_key = cachedSpecies.gbif_taxon_key;
+        }
       } else {
-        // Cache Miss: taxonomy, IUCN, and premium insights are not in the vision response.
+        // Cache Miss: taxonomy, IUCN, and species insights are not in the vision response.
         // DB enrichment (Flash text + GBIF/Wikipedia upsert) runs in the background task so
         // the next scan of the same species becomes a Cache Hit with full metadata.
         console.log(
@@ -682,16 +633,13 @@ serve((req: Request) =>
         hazard_type: staticData.hazard_type,
       };
 
-      // Premium insights are sourced exclusively from the DB (Cache Hit) — never from the
-      // vision model. Pro users receive them when already stored; otherwise the client
-      // triggers a follow-up enrich-scan call.
-      if (
-        targetModel === "gemini-2.5-pro" &&
-        (staticData.premium_habitat || staticData.premium_regions)
-      ) {
-        payloadReadyForClient.premium_insights = {
-          habitat_description: staticData.premium_habitat,
-          global_distribution_regions: staticData.premium_regions,
+      // Species insights are sourced exclusively from the DB (Cache Hit) — never from the
+      // vision model. Served to all tiers when already stored; otherwise the client
+      // triggers a follow-up enrich-scan call to populate them.
+      if (staticData.speciesHabitat || staticData.speciesRegions) {
+        payloadReadyForClient.species_insights = {
+          habitat_description: staticData.speciesHabitat,
+          global_distribution_regions: staticData.speciesRegions,
         };
       }
     }
@@ -701,17 +649,14 @@ serve((req: Request) =>
         // Tier was already resolved on the critical path. The only remaining task here is
         // ghost-user creation: if the main path never found the user in the DB, the cache
         // entry was never set, so we upsert them now before the scans FK insert.
-        if (!_tierCache.has(user.id)) {
+        if (!hasTierCached(user.id)) {
           const { data: existingUser } = await supabaseAdmin
             .from("users")
             .select("subscription_tier")
             .eq("id", user.id)
             .maybeSingle();
           if (existingUser) {
-            _tierCache.set(user.id, {
-              tier: existingUser.subscription_tier as string,
-              ts: Date.now(),
-            });
+            setTierCache(user.id, existingUser.subscription_tier as string);
           } else {
             // Ghost user — create the record required for the scans FK constraint.
             await supabaseAdmin
@@ -720,7 +665,7 @@ serve((req: Request) =>
                 { id: user.id, subscription_tier: "free" },
                 { onConflict: "id", ignoreDuplicates: true },
               );
-            _tierCache.set(user.id, { tier: "free", ts: Date.now() });
+            setTierCache(user.id, "free");
           }
         }
 
@@ -748,14 +693,14 @@ serve((req: Request) =>
           (parsedData.confidence_score ?? 1) < DIAGNOSTIC_THRESHOLD &&
           !cachedSpecies?.diagnostic_primary_rationale;
         const diagnosticPromise = needsDiagnostic
-          ? fetchDiagnosticComparison(parsedData.scientific_name, _genAI)
+          ? fetchDiagnosticComparison(parsedData.scientific_name)
           : Promise.resolve(null);
 
         const needsGroupTags =
           isIdentifiedBio &&
           !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
-          ? fetchGroupTags(parsedData.scientific_name, _genAI)
+          ? fetchGroupTags(parsedData.scientific_name)
           : Promise.resolve(null);
 
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
@@ -766,7 +711,6 @@ serve((req: Request) =>
             fetchStaticEncyclopedicData(
               parsedData.scientific_name,
               deviceLocale || "en",
-              _genAI,
             ),
             fetchExternalEnrichment(parsedData.scientific_name),
           ]);
@@ -830,15 +774,12 @@ serve((req: Request) =>
           (!cachedSpecies.habitat_description ||
             !cachedSpecies.global_distribution_regions?.length)
         ) {
-          // Premium gap-fill: species exists in the DB but was stored before premium fields
-          // were introduced. Fetch from Flash and backfill silently for all tiers.
-          // Pro users see the data on their next scan (Cache Hit); free users' data is stored
-          // but not returned until they upgrade.
-          const bgPremiumStart = Date.now();
+          // Enrichment gap-fill: species exists in the DB but was stored before enrichment
+          // fields were introduced. Fetch from Flash and backfill silently for all tiers.
+          const bgEnrichStart = Date.now();
           const textResult = await fetchStaticEncyclopedicData(
             parsedData.scientific_name,
             deviceLocale || "en",
-            _genAI,
           );
           await supabaseAdmin
             .from("species_dictionary")
@@ -849,7 +790,7 @@ serve((req: Request) =>
             })
             .eq("id", cachedSpecies.id);
           console.log(
-            `[⏱ BENCH] bg_premium_fill: ${Date.now() - bgPremiumStart}ms`,
+            `[⏱ BENCH] bg_enrichment_fill: ${Date.now() - bgEnrichStart}ms`,
           );
         }
 

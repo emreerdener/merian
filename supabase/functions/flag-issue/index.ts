@@ -1,13 +1,13 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { requireParams } from "../_shared/validation.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const { scanId, flagReason, userSuggestion } = await req.json();
-
-    if (!scanId || !flagReason) {
-      return jsonResponse({ error: "Missing required parameters: 'scanId' and 'flagReason' must be provided." }, 400);
-    }
+    const body = await req.json();
+    const paramErr = requireParams(body, ["scanId", "flagReason"]);
+    if (paramErr) return paramErr;
+    const { scanId, flagReason, userSuggestion } = body;
 
     // 1. Insert a moderation queue record
     const { error: insertError } = await supabaseAdmin

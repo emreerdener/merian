@@ -1,13 +1,13 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { requireParams } from "../_shared/validation.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const { ghost_id } = await req.json();
-
-    if (!ghost_id) {
-      return jsonResponse({ error: "Missing 'ghost_id' parameter in payload." }, 400);
-    }
+    const body = await req.json();
+    const paramErr = requireParams(body, ["ghost_id"]);
+    if (paramErr) return paramErr;
+    const { ghost_id } = body;
 
     if (ghost_id === user.id) {
       return jsonResponse({ message: "No merge required: ghost_id matches current user." }, 200);

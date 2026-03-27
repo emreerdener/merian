@@ -20,7 +20,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV14.self,
             MerianSchemaV15.self,
             MerianSchemaV16.self,
-            MerianSchemaV17.self
+            MerianSchemaV17.self,
+            MerianSchemaV18.self
         ]
     }
 
@@ -41,7 +42,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV13toV14,
             migrateV14toV15,
             migrateV15toV16,
-            migrateV16toV17
+            migrateV16toV17,
+            migrateV17toV18
         ]
     }
 
@@ -138,6 +140,11 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             try context.save()
             _poisonousIds = []
         }
+    )
+
+    static let migrateV17toV18 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV17.self,
+        toVersion: MerianSchemaV18.self
     )
 
     static let migrateV16toV17 = MigrationStage.custom(

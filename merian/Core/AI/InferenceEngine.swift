@@ -46,7 +46,7 @@ private struct WikiSummaryResponse: Decodable {
     private(set) var activeFlashFired: Bool? = nil
     private(set) var activeDistanceInMeters: Float? = nil
 
-    var isPremiumLoading: Bool = false
+    var isEnrichmentLoading: Bool = false
 
     // MARK: - Background Rescue State
     /// Set to `true` by `cancelActiveRequest()` before cancelling the task, so the task's
@@ -186,10 +186,8 @@ private struct WikiSummaryResponse: Decodable {
                         Task {
                             await self.fetchWikipediaAndHydrate(for: mappedData.scientificName, scanId: mappedData.scanId, modelContext: modelContext)
                         }
-                        if RevenueCatManager.shared.isProActive {
-                            Task {
-                                await self.fetchAndApplyEnrichment(modelContext: modelContext)
-                            }
+                        Task {
+                            await self.fetchAndApplyEnrichment(modelContext: modelContext)
                         }
                     }
                 }
@@ -331,13 +329,13 @@ private struct WikiSummaryResponse: Decodable {
         }
     }
 
-    // MARK: - Premium Enrichment
+    // MARK: - Species Enrichment
 
     /// Fetches habitat, distribution, and (if low-confidence) diagnostic data from `enrich-scan`
     /// and patches the live `speciesData` in-place, then persists the result to SwiftData.
     ///
-    /// Called automatically after a successful scan (Pro only) and when reloading a historical
-    /// record that is missing enrichment data. Silently ignores 403s (free-tier gate).
+    /// Called automatically after every successful biological scan and when reloading a historical
+    /// record that is missing enrichment data.
     func fetchAndApplyEnrichment(modelContext: ModelContext?) async {
         guard let data = speciesData,
               let scanId = data.scanId,
@@ -345,8 +343,8 @@ private struct WikiSummaryResponse: Decodable {
               !data.scientificName.isEmpty,
               data.scientificName.lowercased() != "taxonomy unavailable" else { return }
 
-        isPremiumLoading = true
-        defer { isPremiumLoading = false }
+        isEnrichmentLoading = true
+        defer { isEnrichmentLoading = false }
 
         do {
             let response = try await MerianNetworkClient.shared.fetchEnrichment(
@@ -356,6 +354,7 @@ private struct WikiSummaryResponse: Decodable {
 
             speciesData?.habitatDescription = enrichData.habitat_description
             speciesData?.globalDistributionRegions = enrichData.global_distribution_regions
+            if let key = enrichData.gbif_taxon_key { speciesData?.gbifTaxonKey = key }
 
             if data.confidenceScore < 0.85,
                let diag = enrichData.diagnostic_comparison,
@@ -377,6 +376,7 @@ private struct WikiSummaryResponse: Decodable {
                         scanId: scanId,
                         habitatDescription: enrichData.habitat_description,
                         globalDistributionRegions: enrichData.global_distribution_regions,
+                        gbifTaxonKey: enrichData.gbif_taxon_key,
                         diagnosticPrimaryRationale: enrichData.diagnostic_comparison?.primary_match_rationale,
                         diagnosticLookalikeName: enrichData.diagnostic_comparison?.confusing_lookalike_name,
                         diagnosticKeyDifferentiators: enrichData.diagnostic_comparison?.key_differentiators
@@ -501,7 +501,8 @@ private struct WikiSummaryResponse: Decodable {
                       let data = jsonStr.data(using: .utf8),
                       let regions = try? JSONDecoder().decode([String].self, from: data) else { return nil }
                 return regions
-            }()
+            }(),
+            gbifTaxonKey: record.gbifTaxonKey
         )
         self.isProcessing = false
 
@@ -513,10 +514,11 @@ private struct WikiSummaryResponse: Decodable {
             }
         }
 
-        // Fetch enrichment for Pro users when the record is missing premium data or
-        // is a low-confidence scan that hasn't had diagnostic comparison generated yet.
-        if record.isBiological && RevenueCatManager.shared.isProActive {
+        // Fetch enrichment for any record missing habitat data, a GBIF key,
+        // or (for low-confidence scans) a diagnostic comparison.
+        if record.isBiological {
             let needsEnrichment = record.habitatDescription == nil ||
+                record.gbifTaxonKey == nil ||
                 ((record.confidenceScore ?? 1.0) < 0.85 && record.diagnosticPrimaryRationale == nil)
             if needsEnrichment {
                 let safeContext = record.modelContext

@@ -1,19 +1,13 @@
-import {
-  GoogleGenerativeAI,
-  SchemaType,
-  ResponseSchema,
-} from "https://esm.sh/@google/generative-ai@0.24.1";
+import { SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { createFlashModel, extractJson } from "./gemini.ts";
 
 export async function fetchDiagnosticComparison(
   scientificName: string,
-  genAI: GoogleGenerativeAI,
 ) {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    systemInstruction:
-      "You are a world-class biologist. Given a species scientific name, return a brief diagnostic comparison explaining the primary identification rationale, the most commonly confused lookalike species, and the key morphological or behavioural features that differentiate them.",
-    generationConfig: { temperature: 0.1, maxOutputTokens: 400 },
-  });
+  const model = createFlashModel(
+    "You are a world-class biologist. Given a species scientific name, return a brief diagnostic comparison explaining the primary identification rationale, the most commonly confused lookalike species, and the key morphological or behavioural features that differentiate them.",
+    400,
+  );
 
   const schema: Record<string, unknown> = {
     type: SchemaType.OBJECT,
@@ -46,17 +40,11 @@ export async function fetchDiagnosticComparison(
         responseSchema: schema as unknown as ResponseSchema,
       },
     });
-    const text = result.response.text();
-    // Gemini occasionally wraps JSON in markdown fences or preamble text even with
-    // responseMimeType:"application/json", so extract the outermost object explicitly.
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end === -1) throw new Error("Malformed response");
-    return JSON.parse(text.substring(start, end + 1)) as {
+    return extractJson<{
       primary_match_rationale: string;
       confusing_lookalike_name: string;
       key_differentiators: string[];
-    };
+    }>(result.response.text());
   } catch (e) {
     console.error("fetchDiagnosticComparison failed:", e);
     return null;

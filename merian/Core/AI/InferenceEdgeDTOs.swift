@@ -48,13 +48,16 @@ struct EdgeResponse: Codable {
     }
     let insight_data: Insight?
 
-    // Present on Cache Hit for Pro users — sourced from species_dictionary.
-    struct Premium: Codable {
+    // Present on Cache Hit for all users when already stored — sourced from species_dictionary.
+    struct SpeciesInsights: Codable {
         let habitat_description: String?
         let global_distribution_regions: [String]?
     }
-    let premium_insights: Premium?
+    let species_insights: SpeciesInsights?
 
+    /// GBIF species usage key for occurrence density heatmap tiles. Present on Cache Hit
+    /// for all tiers — sourced from species_dictionary, not AI-generated.
+    let gbif_taxon_key: Int?
     let wikipedia_url: String?
     let wikipedia_overview: String?
     let reference_image_url: String?
@@ -63,7 +66,7 @@ struct EdgeResponse: Codable {
 
 // MARK: - Enrich-Scan Response
 
-/// Returned by the enrich-scan Edge Function for async premium + diagnostic loading.
+/// Returned by the enrich-scan Edge Function for async enrichment + diagnostic loading.
 struct EnrichScanResponse: Codable {
     let success: Bool?
     let data: EnrichData?
@@ -71,6 +74,7 @@ struct EnrichScanResponse: Codable {
     struct EnrichData: Codable {
         let habitat_description: String?
         let global_distribution_regions: [String]?
+        let gbif_taxon_key: Int?
         let diagnostic_comparison: DiagnosticData?
 
         struct DiagnosticData: Codable {

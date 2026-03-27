@@ -45,9 +45,16 @@ struct BiologicalView: View {
                 timestamp: timestamp
             )
             
-            // Premium Insights Extractor
+            // Global Occurrence Heatmap — available to all users when GBIF key is present
+            if let key = inferenceEngine.speciesData?.gbifTaxonKey {
+                GBIFHeatmapMapView(taxonKey: key)
+                    .frame(height: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+
+            // Habitat & Distribution
             if let data = inferenceEngine.speciesData {
-                PremiumInsightsCard(
+                SpeciesInsightsCard(
                     habitatDescription: data.habitatDescription,
                     globalDistributionRegions: data.globalDistributionRegions,
                     scientificName: data.scientificName,

@@ -1,15 +1,14 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { getR2Config, deleteR2Objects } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { requireParams } from "../_shared/validation.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const requestBody = await req.json();
+    const paramErr = requireParams(requestBody, ["scanId"]);
+    if (paramErr) return paramErr;
     const { scanId } = requestBody;
-
-    if (!scanId) {
-      return jsonResponse({ error: "Missing 'scanId' parameter in request body." }, 400);
-    }
 
     // 1. Fetch the scan record
     const { data: scan, error: fetchError } = await supabaseAdmin

@@ -168,7 +168,8 @@ actor BackgroundDatabaseActor {
                             let data = try JSONEncoder().encode(dist)
                             return String(data: data, encoding: .utf8)
                         } catch { return nil }
-                    }()
+                    }(),
+                    gbifTaxonKey: mappedData.gbifTaxonKey
                 )
                 modelContext.insert(record)
                 do {
@@ -277,7 +278,8 @@ actor BackgroundDatabaseActor {
                     let data = try JSONEncoder().encode(dist)
                     return String(data: data, encoding: .utf8)
                 } catch { return nil }
-            }()
+            }(),
+            gbifTaxonKey: mappedData.gbifTaxonKey
         )
         modelContext.insert(record)
         do {
@@ -316,12 +318,13 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    // MARK: - Premium Enrichment
+    // MARK: - Species Enrichment
 
     func updateScanWithEnrichment(
         scanId: String,
         habitatDescription: String?,
         globalDistributionRegions: [String]?,
+        gbifTaxonKey: Int?,
         diagnosticPrimaryRationale: String?,
         diagnosticLookalikeName: String?,
         diagnosticKeyDifferentiators: [String]?
@@ -336,6 +339,7 @@ actor BackgroundDatabaseActor {
            let json = String(data: encoded, encoding: .utf8) {
             record.globalDistributionRegionsJson = json
         }
+        if let key = gbifTaxonKey { record.gbifTaxonKey = key }
         if let rationale = diagnosticPrimaryRationale { record.diagnosticPrimaryRationale = rationale }
         if let lookalike = diagnosticLookalikeName { record.diagnosticLookalikeName = lookalike }
         if let diffs = diagnosticKeyDifferentiators,

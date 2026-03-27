@@ -1,8 +1,7 @@
 import SwiftUI
 import SwiftData
-import RevenueCat
 
-struct PremiumInsightsCard: View {
+struct SpeciesInsightsCard: View {
     let habitatDescription: String?
     let globalDistributionRegions: [String]?
     let scientificName: String?
@@ -11,33 +10,27 @@ struct PremiumInsightsCard: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) private var inferenceEngine
 
-    @State private var isUnlocking = false
-    @State private var unlockError: String? = nil
+    @State private var isRetrying = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: "sparkles")
+                Image(systemName: "leaf.fill")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.yellow)
+                    .foregroundColor(.green)
                     .frame(width: 28, height: 28)
-                    .background(Color.yellow.opacity(0.15))
+                    .background(Color.green.opacity(0.15))
                     .clipShape(Circle())
 
-                Text("Premium Insights")
+                Text("Habitat & Distribution")
                     .font(.headline)
                     .foregroundStyle(.primary)
             }
             .padding(.horizontal)
 
             if let habitat = habitatDescription {
-                // UNLOCKED STATE
+                // LOADED STATE
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Habitat & Distribution")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-
                     Text(habitat)
                         .font(.body)
                         .lineSpacing(4)
@@ -65,14 +58,9 @@ struct PremiumInsightsCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .padding(.horizontal)
 
-            } else if inferenceEngine.isPremiumLoading {
+            } else if inferenceEngine.isEnrichmentLoading {
                 // LOADING STATE
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Habitat & Distribution")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(0..<3, id: \.self) { _ in
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
@@ -101,67 +89,36 @@ struct PremiumInsightsCard: View {
                 .padding(.horizontal)
 
             } else {
-                // PAYWALL / RETRY STATE
-                VStack(spacing: 16) {
-                    if RevenueCatManager.shared.isProActive {
-                        Text("Habitat and distribution data couldn't be loaded. Tap to retry.")
-                            .font(.subheadline)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 24)
-                    } else {
-                        Text("Unlock deep ecology insights and global distribution data.")
-                            .font(.subheadline)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 24)
-                    }
-
-                    if let error = unlockError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
+                // RETRY STATE
+                VStack(spacing: 12) {
+                    Text("Habitat and distribution data couldn't be loaded.")
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 24)
 
                     Button(action: {
-                        if RevenueCatManager.shared.isProActive {
-                            Task { await triggerEnrichment() }
-                        } else {
-                            AppDIContainer.shared.appEventPublisher.send(.triggerPaywall)
-                        }
+                        Task { await triggerEnrichment() }
                     }) {
                         HStack {
-                            if isUnlocking {
-                                ProgressView()
-                                    .tint(.white)
+                            if isRetrying {
+                                ProgressView().tint(.white)
                             } else {
-                                Text(RevenueCatManager.shared.isProActive ? "Retry" : "Unlock Premium Insights")
-                                    .fontWeight(.semibold)
+                                Text("Retry").fontWeight(.semibold)
                             }
                         }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background {
-                            LinearGradient(
-                                colors: [Color.accentColor, Color.purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        }
+                        .padding(.vertical, 12)
+                        .background(Color.accentColor)
                         .clipShape(Capsule())
                     }
-                    .disabled(isUnlocking)
+                    .disabled(isRetrying)
                 }
-                .padding(.vertical, 24)
+                .padding(.vertical, 20)
                 .padding(.horizontal)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                .background(Color(uiColor: .tertiarySystemFill))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .padding(.horizontal)
             }
         }
@@ -169,10 +126,8 @@ struct PremiumInsightsCard: View {
 
     @MainActor
     private func triggerEnrichment() async {
-        isUnlocking = true
-        unlockError = nil
-        defer { isUnlocking = false }
-
+        isRetrying = true
+        defer { isRetrying = false }
         await inferenceEngine.fetchAndApplyEnrichment(modelContext: modelContext)
         HapticManager.shared.triggerSuccessPulse()
     }

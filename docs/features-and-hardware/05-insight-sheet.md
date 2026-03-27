@@ -22,7 +22,8 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `AIReasoningCard` | Diagnostic comparison — primary rationale, lookalike name, key differentiators |
 | `WikipediaCard` | Wikipedia extract with SafariServices deep link |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
-| `PremiumInsightsCard` | Enriched intelligence hook: Encyclopedic habitat parameters and global distribution region tags. Has four states: (1) **Loaded** — habitat/distribution content rendered; (2) **Loading** — shimmer skeleton shown while `inferenceEngine.isPremiumLoading` is `true`; (3) **Pro retry** — Pro user missing data, tap to retry; (4) **Paywall** — free user, offers $2.99 7-Day Pass via RevenueCat. |
+| `GBIFHeatmapMapView` | `UIViewRepresentable` wrapping `MKMapView` with a `MKTileOverlay` fetching GBIF occurrence density tiles (`api.gbif.org/v2/map/occurrence/density`). Rendered inline in `BiologicalView` for **all users** when `speciesData.gbifTaxonKey` is non-nil (Cache Hit). Uses `@2x` 512 px tiles. Non-interactive world-level region. |
+| `SpeciesInsightsCard` | Habitat and distribution card: encyclopedic habitat parameters and global distribution region tags. Has three states: (1) **Loaded** — habitat text + scrollable region capsules; (2) **Loading** — shimmer skeleton shown while `inferenceEngine.isEnrichmentLoading` is `true`; (3) **Retry** — data missing, tap to re-trigger `fetchAndApplyEnrichment`. |
 | `ToxicityBanner` | Hazard warning banner shown when `insightData.hazardType != "none"`. Displays hazard-specific copy: venomous (bite/sting), allergenic (allergic reaction), irritant (skin/eye), or poisonous (ingestion/contact). |
 | `ConservationBanner` | IUCN Red List status banner |
 | `CelebrationBanner` | "New Discovery" confetti overlay |
@@ -85,37 +86,29 @@ The ZOOM row shows the value formatted as `"3.0×"`. It is omitted for 1× scans
 
 ---
 
-## Premium Insights
+## Species Insights
 
-`PremiumInsightsCard` renders habitat and distribution intelligence for the identified species, gated on the Pro subscription tier.
+`SpeciesInsightsCard` renders habitat and distribution intelligence for the identified species. Available to all users.
 
-### Loading Flow (Pro users — new scans)
+### Loading Flow (new scans)
 
-After a successful biological scan, `InferenceEngine.analyze()` fires `fetchAndApplyEnrichment(modelContext:)` in a background `Task` for Pro users. While this request is in flight:
+After a successful biological scan, `InferenceEngine.analyze()` fires `fetchAndApplyEnrichment(modelContext:)` in a background `Task` for all users. While this request is in flight:
 
-- `inferenceEngine.isPremiumLoading` is `true`
-- `PremiumInsightsCard` renders an animated shimmer skeleton (three placeholder text lines + three region chip placeholders)
+- `inferenceEngine.isEnrichmentLoading` is `true`
+- `SpeciesInsightsCard` renders an animated shimmer skeleton (three placeholder text lines + three region chip placeholders)
 - When data arrives (typically 2–3 seconds post-scan), `speciesData.habitatDescription` and `speciesData.globalDistributionRegions` are patched in-place on `@MainActor`, the skeleton is replaced by content with no navigation required, and the data is persisted to `LocalScanRecord`
 
-### Loading Flow (Pro users — historical scans)
+### Loading Flow (historical scans)
 
-When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `habitatDescription` — or has a low confidence score without a cached diagnostic — it automatically fires `fetchAndApplyEnrichment`. This gap-fills enrichment for scans captured before the Pro feature shipped.
+When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `habitatDescription`, `gbifTaxonKey`, or has a low confidence score without a cached diagnostic, it automatically fires `fetchAndApplyEnrichment`. This gap-fills enrichment for scans captured before the enrichment pipeline shipped.
 
 ### States
 
 | State | Trigger | Rendered |
 |---|---|---|
 | **Loaded** | `habitatDescription != nil` | Habitat text + scrollable region capsules |
-| **Loading** | `inferenceEngine.isPremiumLoading == true` | Shimmer skeleton (3 text lines, 3 chip placeholders) |
-| **Pro retry** | Pro user, no data, not loading | "Retry" button → calls `inferenceEngine.fetchAndApplyEnrichment` |
-| **Paywall** | Free user, no data | Glassmorphism card with $2.99 7-Day Pass button |
-
-### Unlock Flow (Free users)
-
-Tapping the paywall button calls `triggerEnrichment()`:
-1. If not already Pro, purchases the `weekly` RevenueCat package.
-2. Calls `inferenceEngine.fetchAndApplyEnrichment(modelContext:)` — the same path used by Pro users automatically.
-3. The `/enrich-scan` Edge Function enforces a Pro tier gate server-side (`403 Forbidden` if not Pro). The purchase step must succeed before enrichment is fetched.
+| **Loading** | `inferenceEngine.isEnrichmentLoading == true` | Shimmer skeleton (3 text lines, 3 chip placeholders) |
+| **Retry** | No data, not loading | "Retry" button → calls `inferenceEngine.fetchAndApplyEnrichment` |
 
 ### Diagnostic Comparison Display Gate
 

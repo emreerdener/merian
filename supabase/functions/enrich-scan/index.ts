@@ -1,11 +1,11 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { GoogleGenerativeAI, SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { fetchDiagnosticComparison } from "../_shared/diagnostic.ts";
-const DIAGNOSTIC_THRESHOLD = 0.85;
+import { createFlashModel, extractJson } from "../_shared/gemini.ts";
+import { requireParams } from "../_shared/validation.ts";
 
-const _geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
-const _genAI = new GoogleGenerativeAI(_geminiApiKey);
+const DIAGNOSTIC_THRESHOLD = 0.85;
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -13,20 +13,8 @@ serve((req: Request) =>
     const body = await req.json();
     const { scan_id, scientific_name } = body;
 
-    if (!scan_id || !scientific_name) {
-      return jsonResponse({ error: "Missing required parameters: scan_id and scientific_name are required." }, 400);
-    }
-
-    // Gate on Pro tier — free users' data is stored but not surfaced until they upgrade.
-    const { data: userData } = await supabaseAdmin
-      .from("users")
-      .select("subscription_tier")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!userData || userData.subscription_tier !== "pro") {
-      return jsonResponse({ error: "Forbidden: Premium insights require a Pro subscription." }, 403);
-    }
+    const paramErr = requireParams(body, ["scan_id", "scientific_name"]);
+    if (paramErr) return paramErr;
 
     // Verify ownership and fetch confidence score.
     const { data: scanData, error: scanError } = await supabaseAdmin
@@ -40,7 +28,7 @@ serve((req: Request) =>
       return jsonResponse({ error: "Forbidden: Scan not found or does not belong to the user." }, 403);
     }
 
-    // Check species_dictionary for both premium insights and cached diagnostic data.
+    // Check species_dictionary for both enrichment data and cached diagnostic data.
     // identify's background task races this call on Cache Miss — poll briefly to let it land
     // before deciding a Flash call is needed, avoiding a duplicate token spend.
     let cachedSpecies: {
@@ -49,6 +37,7 @@ serve((req: Request) =>
       diagnostic_primary_rationale: string | null;
       diagnostic_lookalike_name: string | null;
       diagnostic_differentiators_json: string | null;
+      gbif_taxon_key: number | null;
     } | null = null;
 
     const POLL_ATTEMPTS = 3;
@@ -56,7 +45,7 @@ serve((req: Request) =>
     for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
       const { data } = await supabaseAdmin
         .from("species_dictionary")
-        .select("habitat_description, global_distribution_regions, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json")
+        .select("habitat_description, global_distribution_regions, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json, gbif_taxon_key")
         .eq("scientific_name", scientific_name)
         .maybeSingle();
       cachedSpecies = data;
@@ -69,16 +58,17 @@ serve((req: Request) =>
       }
     }
 
-    const hasPremium = !!(cachedSpecies?.habitat_description && (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0);
+    const hasEnrichment = !!(cachedSpecies?.habitat_description && (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0);
     const needsDiagnostic = (scanData.ai_confidence_score ?? 1) < DIAGNOSTIC_THRESHOLD;
     const hasDiagnostic = !!cachedSpecies?.diagnostic_primary_rationale;
 
     // If everything is already stored, return immediately.
-    if (hasPremium && (!needsDiagnostic || hasDiagnostic)) {
+    if (hasEnrichment && (!needsDiagnostic || hasDiagnostic)) {
       console.log(`[⏱ BENCH] enrich_scan full cache hit in ${Date.now() - fnStart}ms`);
       return jsonResponse({ success: true, data: {
         habitat_description: cachedSpecies!.habitat_description,
         global_distribution_regions: cachedSpecies!.global_distribution_regions,
+        gbif_taxon_key: cachedSpecies!.gbif_taxon_key ?? null,
         diagnostic_comparison: hasDiagnostic ? {
           primary_match_rationale: cachedSpecies!.diagnostic_primary_rationale,
           confusing_lookalike_name: cachedSpecies!.diagnostic_lookalike_name,
@@ -87,14 +77,13 @@ serve((req: Request) =>
       }}, 200);
     }
 
-    const model = _genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: "You are a world-class biologist. Provide encyclopedic habitat and global distribution for the provided scientific name. Keep descriptions concise and accessible.",
-      generationConfig: { temperature: 0.1, maxOutputTokens: 600 },
-    });
+    const model = createFlashModel(
+      "You are a world-class biologist. Provide encyclopedic habitat and global distribution for the provided scientific name. Keep descriptions concise and accessible.",
+      600,
+    );
 
-    // Fire premium and diagnostic Flash calls in parallel for whatever is missing.
-    const premiumPromise = hasPremium
+    // Fire enrichment and diagnostic Flash calls in parallel for whatever is missing.
+    const enrichmentPromise = hasEnrichment
       ? Promise.resolve(cachedSpecies)
       : (async () => {
           const enrichSchema: Record<string, unknown> = {
@@ -110,29 +99,28 @@ serve((req: Request) =>
             required: ["habitat_description", "global_distribution_regions"],
           };
           const result = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: `Premium insights for: ${scientific_name}` }] }],
+            contents: [{ role: "user", parts: [{ text: `Species enrichment for: ${scientific_name}` }] }],
             generationConfig: { responseMimeType: "application/json", responseSchema: enrichSchema as unknown as ResponseSchema },
           });
-          const text = result.response.text();
-          const s = text.indexOf("{"), e = text.lastIndexOf("}");
-          if (s === -1 || e === -1) throw new Error("Malformed premium response");
-          return JSON.parse(text.substring(s, e + 1)) as { habitat_description: string; global_distribution_regions: string[] };
+          return extractJson<{ habitat_description: string; global_distribution_regions: string[] }>(
+            result.response.text(),
+          );
         })();
 
     const diagnosticPromise = (!needsDiagnostic || hasDiagnostic)
       ? Promise.resolve(null)
-      : fetchDiagnosticComparison(scientific_name, _genAI);
+      : fetchDiagnosticComparison(scientific_name);
 
     try {
-      const [premiumResult, diagnosticResult] = await Promise.all([premiumPromise, diagnosticPromise]);
+      const [enrichmentResult, diagnosticResult] = await Promise.all([enrichmentPromise, diagnosticPromise]);
 
       // Persist whatever was freshly generated.
       const persistOps: PromiseLike<unknown>[] = [];
-      if (!hasPremium && premiumResult) {
+      if (!hasEnrichment && enrichmentResult) {
         persistOps.push(
           supabaseAdmin.from("species_dictionary").update({
-            habitat_description: (premiumResult as { habitat_description: string }).habitat_description,
-            global_distribution_regions: (premiumResult as { global_distribution_regions: string[] }).global_distribution_regions ?? [],
+            habitat_description: (enrichmentResult as { habitat_description: string }).habitat_description,
+            global_distribution_regions: (enrichmentResult as { global_distribution_regions: string[] }).global_distribution_regions ?? [],
           }).eq("scientific_name", scientific_name)
         );
       }
@@ -149,8 +137,9 @@ serve((req: Request) =>
 
       console.log(`[⏱ BENCH] enrich_scan completed in ${Date.now() - fnStart}ms`);
       return jsonResponse({ success: true, data: {
-        habitat_description: (premiumResult as { habitat_description: string } | null)?.habitat_description ?? null,
-        global_distribution_regions: (premiumResult as { global_distribution_regions: string[] } | null)?.global_distribution_regions ?? null,
+        habitat_description: (enrichmentResult as { habitat_description: string } | null)?.habitat_description ?? null,
+        global_distribution_regions: (enrichmentResult as { global_distribution_regions: string[] } | null)?.global_distribution_regions ?? null,
+        gbif_taxon_key: cachedSpecies?.gbif_taxon_key ?? null,
         diagnostic_comparison: diagnosticResult ?? (hasDiagnostic ? {
           primary_match_rationale: cachedSpecies!.diagnostic_primary_rationale,
           confusing_lookalike_name: cachedSpecies!.diagnostic_lookalike_name,
