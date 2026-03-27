@@ -1,9 +1,8 @@
 import SwiftUI
 import SwiftData
 
-struct SpeciesInsightsCard: View {
+struct HabitatAndDistributionCard: View {
     let habitatDescription: String?
-    let globalDistributionRegions: [String]?
     let scientificName: String?
     let scanId: String?
 
@@ -14,49 +13,25 @@ struct SpeciesInsightsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
+            HStack(spacing: 8) {
                 Image(systemName: "leaf.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.green)
-                    .frame(width: 28, height: 28)
-                    .background(Color.green.opacity(0.15))
-                    .clipShape(Circle())
-
-                Text("Habitat & Distribution")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.secondary)
+                Text("Habitat & distribution")
+                    .font(.system(.headline))
+                    .foregroundColor(.primary)
             }
-            .padding(.horizontal)
+
+            if let key = inferenceEngine.speciesData?.gbifTaxonKey {
+                GBIFHeatmapMapView(taxonKey: key)
+                .frame(height: 200)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
 
             if let habitat = habitatDescription {
                 // LOADED STATE
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(habitat)
-                        .font(.body)
-                        .lineSpacing(4)
-
-                    if let regions = globalDistributionRegions, !regions.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                ForEach(regions, id: \.self) { region in
-                                    Text(region)
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.accentColor.opacity(0.1))
-                                        .foregroundStyle(Color.accentColor)
-                                        .clipShape(Capsule())
-                                }
-                            }
-                        }
-                        .padding(.top, 4)
-                    }
-                }
-                .padding()
-                .background(Color(uiColor: .tertiarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.horizontal)
+                Text(habitat)
+                    .font(.body)
+                    .lineSpacing(4)
 
             } else if inferenceEngine.isEnrichmentLoading {
                 // LOADING STATE
@@ -74,19 +49,7 @@ struct SpeciesInsightsCard: View {
                     }
                     .redacted(reason: .placeholder)
                     .shimmering()
-
-                    HStack(spacing: 8) {
-                        ForEach(0..<3, id: \.self) { _ in
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.accentColor.opacity(0.12))
-                                .frame(width: 72, height: 28)
-                        }
-                    }
                 }
-                .padding()
-                .background(Color(uiColor: .tertiarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.horizontal)
 
             } else {
                 // RETRY STATE
@@ -115,13 +78,9 @@ struct SpeciesInsightsCard: View {
                     }
                     .disabled(isRetrying)
                 }
-                .padding(.vertical, 20)
-                .padding(.horizontal)
-                .background(Color(uiColor: .tertiarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.horizontal)
             }
         }
+        .card()
     }
 
     @MainActor

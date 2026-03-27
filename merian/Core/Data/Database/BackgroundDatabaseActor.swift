@@ -162,13 +162,6 @@ actor BackgroundDatabaseActor {
                     zoomFactor: mappedData.zoomFactor,
                     aiReasoning: mappedData.aiReasoning,
                     habitatDescription: mappedData.habitatDescription,
-                    globalDistributionRegionsJson: {
-                        guard let dist = mappedData.globalDistributionRegions else { return nil }
-                        do {
-                            let data = try JSONEncoder().encode(dist)
-                            return String(data: data, encoding: .utf8)
-                        } catch { return nil }
-                    }(),
                     gbifTaxonKey: mappedData.gbifTaxonKey
                 )
                 modelContext.insert(record)
@@ -272,13 +265,6 @@ actor BackgroundDatabaseActor {
             zoomFactor: mappedData.zoomFactor,
             aiReasoning: mappedData.aiReasoning,
             habitatDescription: mappedData.habitatDescription,
-            globalDistributionRegionsJson: {
-                guard let dist = mappedData.globalDistributionRegions else { return nil }
-                do {
-                    let data = try JSONEncoder().encode(dist)
-                    return String(data: data, encoding: .utf8)
-                } catch { return nil }
-            }(),
             gbifTaxonKey: mappedData.gbifTaxonKey
         )
         modelContext.insert(record)
@@ -323,7 +309,6 @@ actor BackgroundDatabaseActor {
     func updateScanWithEnrichment(
         scanId: String,
         habitatDescription: String?,
-        globalDistributionRegions: [String]?,
         gbifTaxonKey: Int?,
         diagnosticPrimaryRationale: String?,
         diagnosticLookalikeName: String?,
@@ -334,11 +319,6 @@ actor BackgroundDatabaseActor {
         guard let record = try? modelContext.fetch(descriptor).first else { return }
 
         if let habitat = habitatDescription { record.habitatDescription = habitat }
-        if let regions = globalDistributionRegions,
-           let encoded = try? JSONEncoder().encode(regions),
-           let json = String(data: encoded, encoding: .utf8) {
-            record.globalDistributionRegionsJson = json
-        }
         if let key = gbifTaxonKey { record.gbifTaxonKey = key }
         if let rationale = diagnosticPrimaryRationale { record.diagnosticPrimaryRationale = rationale }
         if let lookalike = diagnosticLookalikeName { record.diagnosticLookalikeName = lookalike }

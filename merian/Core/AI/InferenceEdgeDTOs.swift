@@ -51,7 +51,6 @@ struct EdgeResponse: Codable {
     // Present on Cache Hit for all users when already stored — sourced from species_dictionary.
     struct SpeciesInsights: Codable {
         let habitat_description: String?
-        let global_distribution_regions: [String]?
     }
     let species_insights: SpeciesInsights?
 
@@ -73,7 +72,6 @@ struct EnrichScanResponse: Codable {
 
     struct EnrichData: Codable {
         let habitat_description: String?
-        let global_distribution_regions: [String]?
         let gbif_taxon_key: Int?
         let diagnostic_comparison: DiagnosticData?
 

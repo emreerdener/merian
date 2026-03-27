@@ -19,11 +19,11 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
 | `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
-| `AIReasoningCard` | Diagnostic comparison — primary rationale, lookalike name, key differentiators |
+| `DiagnosticComparisonCard` | Diagnostic comparison — primary rationale, lookalike name, key differentiators |
 | `WikipediaCard` | Wikipedia extract with SafariServices deep link |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
-| `GBIFHeatmapMapView` | `UIViewRepresentable` wrapping `MKMapView` with a `MKTileOverlay` fetching GBIF occurrence density tiles (`api.gbif.org/v2/map/occurrence/density`). Rendered inline in `BiologicalView` for **all users** when `speciesData.gbifTaxonKey` is non-nil (Cache Hit). Uses `@2x` 512 px tiles. Non-interactive world-level region. |
-| `SpeciesInsightsCard` | Habitat and distribution card: encyclopedic habitat parameters and global distribution region tags. Has three states: (1) **Loaded** — habitat text + scrollable region capsules; (2) **Loading** — shimmer skeleton shown while `inferenceEngine.isEnrichmentLoading` is `true`; (3) **Retry** — data missing, tap to re-trigger `fetchAndApplyEnrichment`. |
+| `GBIFHeatmapMapView` | `UIViewRepresentable` wrapping `MKMapView` with a `MKTileOverlay` fetching GBIF occurrence density tiles (`api.gbif.org/v2/map/occurrence/density`). Rendered inline in `HabitatAndDistributionCard` for **all users** when `speciesData.gbifTaxonKey` is non-nil (Cache Hit). Uses `@2x` 512 px tiles. Non-interactive. Always shows a world-level view — the GBIF tile overlay itself communicates the species range empirically. |
+| `HabitatAndDistributionCard` | Habitat and distribution card: encyclopedic habitat text. Has three states: (1) **Loaded** — habitat text; (2) **Loading** — shimmer skeleton shown while `inferenceEngine.isEnrichmentLoading` is `true`; (3) **Retry** — data missing, tap to re-trigger `fetchAndApplyEnrichment`. |
 | `ToxicityBanner` | Hazard warning banner shown when `insightData.hazardType != "none"`. Displays hazard-specific copy: venomous (bite/sting), allergenic (allergic reaction), irritant (skin/eye), or poisonous (ingestion/contact). |
 | `ConservationBanner` | IUCN Red List status banner |
 | `CelebrationBanner` | "New Discovery" confetti overlay |
@@ -88,15 +88,15 @@ The ZOOM row shows the value formatted as `"3.0×"`. It is omitted for 1× scans
 
 ## Species Insights
 
-`SpeciesInsightsCard` renders habitat and distribution intelligence for the identified species. Available to all users.
+`HabitatAndDistributionCard` renders habitat and distribution intelligence for the identified species. Available to all users.
 
 ### Loading Flow (new scans)
 
 After a successful biological scan, `InferenceEngine.analyze()` fires `fetchAndApplyEnrichment(modelContext:)` in a background `Task` for all users. While this request is in flight:
 
 - `inferenceEngine.isEnrichmentLoading` is `true`
-- `SpeciesInsightsCard` renders an animated shimmer skeleton (three placeholder text lines + three region chip placeholders)
-- When data arrives (typically 2–3 seconds post-scan), `speciesData.habitatDescription` and `speciesData.globalDistributionRegions` are patched in-place on `@MainActor`, the skeleton is replaced by content with no navigation required, and the data is persisted to `LocalScanRecord`
+- `HabitatAndDistributionCard` renders an animated shimmer skeleton (three placeholder text lines)
+- When data arrives (typically 2–3 seconds post-scan), `speciesData.habitatDescription` is patched in-place on `@MainActor`, the skeleton is replaced by content with no navigation required, and the data is persisted to `LocalScanRecord`
 
 ### Loading Flow (historical scans)
 
@@ -106,13 +106,13 @@ When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `ha
 
 | State | Trigger | Rendered |
 |---|---|---|
-| **Loaded** | `habitatDescription != nil` | Habitat text + scrollable region capsules |
-| **Loading** | `inferenceEngine.isEnrichmentLoading == true` | Shimmer skeleton (3 text lines, 3 chip placeholders) |
+| **Loaded** | `habitatDescription != nil` | Habitat text |
+| **Loading** | `inferenceEngine.isEnrichmentLoading == true` | Shimmer skeleton (3 text lines) |
 | **Retry** | No data, not loading | "Retry" button → calls `inferenceEngine.fetchAndApplyEnrichment` |
 
 ### Diagnostic Comparison Display Gate
 
-`diagnostic_comparison` data is only displayed (in `AIReasoningCard` in `BiologicalView`) when the scan's `confidenceScore < 0.85`. This gate is enforced client-side regardless of whether diagnostic data is present in `LocalScanRecord`. `InferenceEngine.fetchAndApplyEnrichment` also only writes `speciesData.diagnosticComparison` when the threshold is met.
+`diagnostic_comparison` data is only displayed (in `DiagnosticComparisonCard` in `BiologicalView`) when the scan's `confidenceScore < 0.85`. This gate is enforced client-side regardless of whether diagnostic data is present in `LocalScanRecord`. `InferenceEngine.fetchAndApplyEnrichment` also only writes `speciesData.diagnosticComparison` when the threshold is met.
 
 ---
 

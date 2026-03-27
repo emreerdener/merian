@@ -64,16 +64,11 @@ async function fetchStaticEncyclopedicData(
         ],
       },
       habitat_description: { type: SchemaType.STRING },
-      global_distribution_regions: {
-        type: SchemaType.ARRAY,
-        items: { type: SchemaType.STRING },
-      },
     },
     required: [
       "taxonomy",
       "iucn_red_list_status",
       "habitat_description",
-      "global_distribution_regions",
     ],
   };
 
@@ -107,7 +102,6 @@ async function fetchStaticEncyclopedicData(
       },
       iucn_red_list_status: "not_evaluated",
       habitat_description: "No habitat data available.",
-      global_distribution_regions: [],
     };
   }
 }
@@ -546,7 +540,6 @@ serve((req: Request) =>
       wikipedia_url: string | null;
       iucn_red_list_status: string | null;
       habitat_description: string | null;
-      global_distribution_regions: string[] | null;
       gbif_taxon_key: number | null;
       diagnostic_primary_rationale: string | null;
       group_tags: string[] | null;
@@ -556,7 +549,7 @@ serve((req: Request) =>
       const { data: _cachedSpecies } = await supabaseAdmin
         .from("species_dictionary")
         .select(
-          "id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, global_distribution_regions, gbif_taxon_key, diagnostic_primary_rationale, group_tags",
+          "id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key, diagnostic_primary_rationale, group_tags",
         )
         .eq("scientific_name", parsedData.scientific_name)
         .maybeSingle();
@@ -568,7 +561,6 @@ serve((req: Request) =>
         iucn_red_list_status?: string;
         hazard_type: string;
         speciesHabitat?: string;
-        speciesRegions?: string[];
       };
 
       if (cachedSpecies && cachedSpecies.kingdom) {
@@ -588,8 +580,6 @@ serve((req: Request) =>
             cachedSpecies.iucn_red_list_status ?? "not_evaluated",
           hazard_type: cachedSpecies.hazard_type || "none",
           speciesHabitat: cachedSpecies.habitat_description ?? undefined,
-          speciesRegions:
-            cachedSpecies.global_distribution_regions ?? undefined,
         };
         speciesId = cachedSpecies.id;
         // common_name is always sourced from the vision model — DB value is locale storage only.
@@ -636,10 +626,9 @@ serve((req: Request) =>
       // Species insights are sourced exclusively from the DB (Cache Hit) — never from the
       // vision model. Served to all tiers when already stored; otherwise the client
       // triggers a follow-up enrich-scan call to populate them.
-      if (staticData.speciesHabitat || staticData.speciesRegions) {
+      if (staticData.speciesHabitat) {
         payloadReadyForClient.species_insights = {
           habitat_description: staticData.speciesHabitat,
-          global_distribution_regions: staticData.speciesRegions,
         };
       }
     }
@@ -747,10 +736,6 @@ serve((req: Request) =>
                 habitat_description:
                   cachedSpecies?.habitat_description ??
                   textResult.habitat_description,
-                global_distribution_regions:
-                  (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0
-                    ? cachedSpecies!.global_distribution_regions
-                    : textResult.global_distribution_regions,
                 wikipedia_url:
                   cachedSpecies?.wikipedia_url || externalData.wikipediaUrl,
                 gbif_taxon_key:
@@ -771,8 +756,7 @@ serve((req: Request) =>
         } else if (
           cachedSpecies &&
           isIdentifiedBio &&
-          (!cachedSpecies.habitat_description ||
-            !cachedSpecies.global_distribution_regions?.length)
+          !cachedSpecies.habitat_description
         ) {
           // Enrichment gap-fill: species exists in the DB but was stored before enrichment
           // fields were introduced. Fetch from Flash and backfill silently for all tiers.
@@ -785,8 +769,6 @@ serve((req: Request) =>
             .from("species_dictionary")
             .update({
               habitat_description: textResult.habitat_description,
-              global_distribution_regions:
-                textResult.global_distribution_regions,
             })
             .eq("id", cachedSpecies.id);
           console.log(

@@ -5,6 +5,7 @@ import MapKit
 
 /// Renders a live GBIF occurrence density heatmap tile overlay for a given taxon key.
 /// Tiles are served from the GBIF Maps API (v2) as hex-binned classic poly overlays.
+/// Always shows the world view — the GBIF tile layer itself communicates the species range.
 struct GBIFHeatmapMapView: UIViewRepresentable {
     let taxonKey: Int
 
@@ -22,23 +23,18 @@ struct GBIFHeatmapMapView: UIViewRepresentable {
         mapView.addOverlay(overlay, level: .aboveRoads)
         mapView.delegate = context.coordinator
 
-        // World-level zoom so the global distribution is visible.
-        let worldRegion = MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 20, longitude: 0),
-            span: MKCoordinateSpan(latitudeDelta: 160, longitudeDelta: 360)
-        )
-        mapView.setRegion(worldRegion, animated: false)
-
+        mapView.setRegion(Self.worldRegion, animated: false)
         return mapView
     }
 
-    func updateUIView(_ uiView: MKMapView, context: Context) {
-        // taxonKey is immutable at construction — no dynamic update needed.
-    }
+    func updateUIView(_ uiView: MKMapView, context: Context) {}
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    private static let worldRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+        span: MKCoordinateSpan(latitudeDelta: 170, longitudeDelta: 360)
+    )
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {

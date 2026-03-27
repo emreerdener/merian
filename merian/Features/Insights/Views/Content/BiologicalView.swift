@@ -6,14 +6,14 @@ struct BiologicalView: View {
     @Bindable var viewModel: InsightSheetViewModel
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?
-    
+
     // MARK: - Context State
     var timestamp: Date? = nil
 
     // MARK: - Visual Layout
     var body: some View {
         VStack(spacing: 24) {
-            
+
             InsightHeader(
                 title: viewModel.headerTitle,
                 subtitle: viewModel.headerSubtitle,
@@ -26,12 +26,26 @@ struct BiologicalView: View {
 
             // Global Footprint
             ConservationBanner()
-            
+
+            // Diagnostic Evaluation
+            if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.8, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
+                DiagnosticComparisonCard(diagnosticData: diagnosticData)
+            }
+
             // Educational Reference
             WikipediaCard(
-                isSafariPresented: $isSafariPresented, 
+                isSafariPresented: $isSafariPresented,
                 selectedWikiURL: $selectedWikiURL
             )
+
+            // Habitat & Distribution
+            if let data = inferenceEngine.speciesData {
+                HabitatAndDistributionCard(
+                    habitatDescription: data.habitatDescription,
+                    scientificName: data.scientificName,
+                    scanId: data.scanId
+                )
+            }
 
              // Biological Classification
             TaxonomyCard(
@@ -41,31 +55,9 @@ struct BiologicalView: View {
 
             // Spatiotemporal Context
             ScanInformationCard(
-                speciesData: inferenceEngine.speciesData, 
+                speciesData: inferenceEngine.speciesData,
                 timestamp: timestamp
             )
-            
-            // Global Occurrence Heatmap — available to all users when GBIF key is present
-            if let key = inferenceEngine.speciesData?.gbifTaxonKey {
-                GBIFHeatmapMapView(taxonKey: key)
-                    .frame(height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
-
-            // Habitat & Distribution
-            if let data = inferenceEngine.speciesData {
-                SpeciesInsightsCard(
-                    habitatDescription: data.habitatDescription,
-                    globalDistributionRegions: data.globalDistributionRegions,
-                    scientificName: data.scientificName,
-                    scanId: data.scanId
-                )
-            }
-            
-            // Diagnostic Evaluation
-            if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.8, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
-                DiagnosticComparisonCard(diagnosticData: diagnosticData)
-            }
         }
         .padding(.horizontal)
     }

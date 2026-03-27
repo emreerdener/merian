@@ -265,7 +265,6 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
     let wikipedia_overview: String?
     let iucn_red_list_status: String?
     let habitat_description: String?
-    let global_distribution_regions: [String]?
     let group_tags: [String]?
 }
 
@@ -388,7 +387,7 @@ actor HistoricalDatabaseActor {
             descriptor.propertiesToFetch = [\.id, \.localImagePath, \.additionalImagePaths,
                                              \.referenceImageUrl, \.locationName,
                                              \.gpsLatitude, \.gpsLongitude, \.gpsElevation,
-                                             \.aiReasoning, \.habitatDescription, \.globalDistributionRegionsJson]
+                                             \.aiReasoning, \.habitatDescription]
             let chunk_records: [LocalScanRecord] = {
                 do { return try modelContext.fetch(descriptor) }
                 catch { MerianLog.data.error("🚨 updateExistingScans: fetch failed: \(error, privacy: .private)"); return [] }
@@ -429,13 +428,6 @@ actor HistoricalDatabaseActor {
             let dict = res.species_dictionary
             if let newHabitat = dict?.habitat_description, existing.habitatDescription != newHabitat {
                 existing.habitatDescription = newHabitat; didUpdate = true
-            }
-            if let newDist = dict?.global_distribution_regions {
-                if let encoded = try? JSONEncoder().encode(newDist), let str = String(data: encoded, encoding: .utf8) {
-                    if existing.globalDistributionRegionsJson != str {
-                        existing.globalDistributionRegionsJson = str; didUpdate = true
-                    }
-                }
             }
         }
 
@@ -494,13 +486,7 @@ actor HistoricalDatabaseActor {
                 gpsLongitude: scan.gps_long_exact,
                 gpsElevation: scan.gps_elevation,
                 aiReasoning: scan.ai_reasoning,
-                habitatDescription: dict?.habitat_description,
-                globalDistributionRegionsJson: {
-                    if let dist = dict?.global_distribution_regions, let encoded = try? JSONEncoder().encode(dist) {
-                        return String(data: encoded, encoding: .utf8)
-                    }
-                    return nil
-                }()
+                habitatDescription: dict?.habitat_description
             )
 
             modelContext.insert(record)

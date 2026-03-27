@@ -353,7 +353,6 @@ private struct WikiSummaryResponse: Decodable {
             guard let enrichData = response.data else { return }
 
             speciesData?.habitatDescription = enrichData.habitat_description
-            speciesData?.globalDistributionRegions = enrichData.global_distribution_regions
             if let key = enrichData.gbif_taxon_key { speciesData?.gbifTaxonKey = key }
 
             if data.confidenceScore < 0.85,
@@ -375,7 +374,6 @@ private struct WikiSummaryResponse: Decodable {
                     await dbActor.updateScanWithEnrichment(
                         scanId: scanId,
                         habitatDescription: enrichData.habitat_description,
-                        globalDistributionRegions: enrichData.global_distribution_regions,
                         gbifTaxonKey: enrichData.gbif_taxon_key,
                         diagnosticPrimaryRationale: enrichData.diagnostic_comparison?.primary_match_rationale,
                         diagnosticLookalikeName: enrichData.diagnostic_comparison?.confusing_lookalike_name,
@@ -496,12 +494,6 @@ private struct WikiSummaryResponse: Decodable {
             zoomFactor: record.zoomFactor,
             aiReasoning: record.aiReasoning,
             habitatDescription: record.habitatDescription,
-            globalDistributionRegions: {
-                guard let jsonStr = record.globalDistributionRegionsJson,
-                      let data = jsonStr.data(using: .utf8),
-                      let regions = try? JSONDecoder().decode([String].self, from: data) else { return nil }
-                return regions
-            }(),
             gbifTaxonKey: record.gbifTaxonKey
         )
         self.isProcessing = false

@@ -21,7 +21,7 @@ The main thread owns the SwiftUI view hierarchy and the primary `ModelContext`. 
 - `processAndCleanupOfflineScan(...)` — decodes an edge inference result, inserts a `LocalScanRecord`, deletes the `OfflineQueuedScan`, purges local images on failure
 - `saveLiveScanRecord(mappedData:localImagePaths:)` — persists a real-time scan result after live inference
 - `updateScanWithWikipedia(...)` — retroactively hydrates a scan with Wikipedia data
-- `updateScanWithEnrichment(scanId:habitatDescription:globalDistributionRegions:gbifTaxonKey:diagnosticPrimaryRationale:diagnosticLookalikeName:diagnosticKeyDifferentiators:)` — retroactively persists premium enrichment data returned by the `enrich-scan` Edge Function. Called by `InferenceEngine.fetchAndApplyEnrichment` after the async enrichment call completes. Updates `habitatDescription`, `globalDistributionRegionsJson`, `gbifTaxonKey`, and (when confidence < 0.85 and diagnostic was returned) the three diagnostic fields on `LocalScanRecord`.
+- `updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:diagnosticPrimaryRationale:diagnosticLookalikeName:diagnosticKeyDifferentiators:)` — retroactively persists enrichment data returned by the `enrich-scan` Edge Function. Called by `InferenceEngine.fetchAndApplyEnrichment` after the async enrichment call completes. Updates `habitatDescription`, `gbifTaxonKey`, and (when confidence < 0.85 and diagnostic was returned) the three diagnostic fields on `LocalScanRecord`.
 - `pushCollectionsToEdge()` — serializes local `ScanCollection` records and calls the `sync-collections` Edge function
 
 **When to create**: Always create ad-hoc per operation:

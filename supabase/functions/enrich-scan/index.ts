@@ -18,7 +18,7 @@ serve((req: Request) =>
 
     // Fetch confidence score for the diagnostic threshold check.
     // No ownership filter — enrichment returns only public species biology data (habitat,
-    // distribution, GBIF key, diagnostic comparison), so there is nothing user-private to gate.
+    // GBIF key, diagnostic comparison), so there is nothing user-private to gate.
     // Historical scans opened from the library may have been created under a different ghost
     // session; enforcing user_id would permanently block enrichment for those records.
     const { data: scanData } = await supabaseAdmin
@@ -34,7 +34,6 @@ serve((req: Request) =>
     // before deciding a Flash call is needed, avoiding a duplicate token spend.
     let cachedSpecies: {
       habitat_description: string | null;
-      global_distribution_regions: string[] | null;
       diagnostic_primary_rationale: string | null;
       diagnostic_lookalike_name: string | null;
       diagnostic_differentiators_json: string | null;
@@ -46,12 +45,12 @@ serve((req: Request) =>
     for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
       const { data } = await supabaseAdmin
         .from("species_dictionary")
-        .select("habitat_description, global_distribution_regions, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json, gbif_taxon_key")
+        .select("habitat_description, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json, gbif_taxon_key")
         .eq("scientific_name", scientific_name)
         .maybeSingle();
       cachedSpecies = data;
 
-      const settled = !!(cachedSpecies?.habitat_description && (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0);
+      const settled = !!cachedSpecies?.habitat_description;
       if (settled) break; // background task landed — no Flash call needed
 
       if (attempt < POLL_ATTEMPTS - 1) {
@@ -59,7 +58,7 @@ serve((req: Request) =>
       }
     }
 
-    const hasEnrichment = !!(cachedSpecies?.habitat_description && (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0);
+    const hasEnrichment = !!cachedSpecies?.habitat_description;
     const needsDiagnostic = ((scanData?.ai_confidence_score ?? 1) as number) < DIAGNOSTIC_THRESHOLD;
     const hasDiagnostic = !!cachedSpecies?.diagnostic_primary_rationale;
 
@@ -68,7 +67,6 @@ serve((req: Request) =>
       console.log(`[⏱ BENCH] enrich_scan full cache hit in ${Date.now() - fnStart}ms`);
       return jsonResponse({ success: true, data: {
         habitat_description: cachedSpecies!.habitat_description,
-        global_distribution_regions: cachedSpecies!.global_distribution_regions,
         gbif_taxon_key: cachedSpecies!.gbif_taxon_key ?? null,
         diagnostic_comparison: hasDiagnostic ? {
           primary_match_rationale: cachedSpecies!.diagnostic_primary_rationale,
@@ -79,7 +77,7 @@ serve((req: Request) =>
     }
 
     const model = createFlashModel(
-      "You are a world-class biologist. Provide encyclopedic habitat and global distribution for the provided scientific name. Keep descriptions concise and accessible.",
+      "You are a world-class biologist. Provide encyclopedic habitat for the provided scientific name. Keep descriptions concise and accessible.",
       600,
     );
 
@@ -91,19 +89,14 @@ serve((req: Request) =>
             type: SchemaType.OBJECT,
             properties: {
               habitat_description: { type: SchemaType.STRING },
-              global_distribution_regions: {
-                type: SchemaType.ARRAY,
-                items: { type: SchemaType.STRING },
-                description: "ISO-3166-2 region codes (e.g. 'US-TX', 'GB'). Lightweight strings only — no GeoJSON.",
-              },
             },
-            required: ["habitat_description", "global_distribution_regions"],
+            required: ["habitat_description"],
           };
           const result = await model.generateContent({
             contents: [{ role: "user", parts: [{ text: `Species enrichment for: ${scientific_name}` }] }],
             generationConfig: { responseMimeType: "application/json", responseSchema: enrichSchema as unknown as ResponseSchema },
           });
-          return extractJson<{ habitat_description: string; global_distribution_regions: string[] }>(
+          return extractJson<{ habitat_description: string }>(
             result.response.text(),
           );
         })();
@@ -121,7 +114,6 @@ serve((req: Request) =>
         persistOps.push(
           supabaseAdmin.from("species_dictionary").update({
             habitat_description: (enrichmentResult as { habitat_description: string }).habitat_description,
-            global_distribution_regions: (enrichmentResult as { global_distribution_regions: string[] }).global_distribution_regions ?? [],
           }).eq("scientific_name", scientific_name)
         );
       }
@@ -139,7 +131,6 @@ serve((req: Request) =>
       console.log(`[⏱ BENCH] enrich_scan completed in ${Date.now() - fnStart}ms`);
       return jsonResponse({ success: true, data: {
         habitat_description: (enrichmentResult as { habitat_description: string } | null)?.habitat_description ?? null,
-        global_distribution_regions: (enrichmentResult as { global_distribution_regions: string[] } | null)?.global_distribution_regions ?? null,
         gbif_taxon_key: cachedSpecies?.gbif_taxon_key ?? null,
         diagnostic_comparison: diagnosticResult ?? (hasDiagnostic ? {
           primary_match_rationale: cachedSpecies!.diagnostic_primary_rationale,
