@@ -23,7 +23,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `WikipediaCard` | Wikipedia extract with SafariServices deep link |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
 | `PremiumInsightsCard` | Enriched intelligence hook: Encyclopedic habitat parameters and global distribution region tags. Has four states: (1) **Loaded** — habitat/distribution content rendered; (2) **Loading** — shimmer skeleton shown while `inferenceEngine.isPremiumLoading` is `true`; (3) **Pro retry** — Pro user missing data, tap to retry; (4) **Paywall** — free user, offers $2.99 7-Day Pass via RevenueCat. |
-| `ToxicityBanner` | Red warning banner for poisonous subjects |
+| `ToxicityBanner` | Hazard warning banner shown when `insightData.hazardType != "none"`. Displays hazard-specific copy: venomous (bite/sting), allergenic (allergic reaction), irritant (skin/eye), or poisonous (ingestion/contact). |
 | `ConservationBanner` | IUCN Red List status banner |
 | `CelebrationBanner` | "New Discovery" confetti overlay |
 
@@ -37,7 +37,8 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 
 ```swift
 var headerTitle: String { inferenceEngine?.speciesData?.commonName.capitalized ?? "Scanning subject..." }
-var isPoisonous: Bool { inferenceEngine?.speciesData?.insightData.isPoisonous ?? false }
+var hazardType: String { inferenceEngine?.speciesData?.insightData.hazardType ?? "none" }
+var isHazardous: Bool { hazardType != "none" }
 var refUrls: [String] { /* parsed from comma-separated referenceImageUrl */ }
 var totalImages: Int { liveCount + validHistoricImagePaths.count + refUrls.count }
 ```
@@ -162,7 +163,7 @@ if data.isNewDiscovery && data.isBiological
 }
 ```
 
-`showCelebration = true` triggers the `CelebrationBanner` confetti overlay. VoiceOver users receive an accessibility announcement instead — including a poisonous warning if `isPoisonous` is true.
+`showCelebration = true` triggers the `CelebrationBanner` confetti overlay. VoiceOver users receive an accessibility announcement instead — including a hazard-specific warning (venomous / allergenic / irritant / toxic) when `hazardType != "none"`.
 
 ---
 

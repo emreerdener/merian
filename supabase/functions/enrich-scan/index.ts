@@ -41,12 +41,33 @@ serve((req: Request) =>
     }
 
     // Check species_dictionary for both premium insights and cached diagnostic data.
-    // identify's background task usually stores this before the client's request arrives.
-    const { data: cachedSpecies } = await supabaseAdmin
-      .from("species_dictionary")
-      .select("habitat_description, global_distribution_regions, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json")
-      .eq("scientific_name", scientific_name)
-      .maybeSingle();
+    // identify's background task races this call on Cache Miss — poll briefly to let it land
+    // before deciding a Flash call is needed, avoiding a duplicate token spend.
+    let cachedSpecies: {
+      habitat_description: string | null;
+      global_distribution_regions: string[] | null;
+      diagnostic_primary_rationale: string | null;
+      diagnostic_lookalike_name: string | null;
+      diagnostic_differentiators_json: string | null;
+    } | null = null;
+
+    const POLL_ATTEMPTS = 3;
+    const POLL_DELAY_MS = 2000;
+    for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+      const { data } = await supabaseAdmin
+        .from("species_dictionary")
+        .select("habitat_description, global_distribution_regions, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json")
+        .eq("scientific_name", scientific_name)
+        .maybeSingle();
+      cachedSpecies = data;
+
+      const settled = !!(cachedSpecies?.habitat_description && (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0);
+      if (settled) break; // background task landed — no Flash call needed
+
+      if (attempt < POLL_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_DELAY_MS));
+      }
+    }
 
     const hasPremium = !!(cachedSpecies?.habitat_description && (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0);
     const needsDiagnostic = (scanData.ai_confidence_score ?? 1) < DIAGNOSTIC_THRESHOLD;

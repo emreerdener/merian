@@ -68,7 +68,7 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server 
 ### The JSON Response Schema (From Gemini Back to Swift)
 
 To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
-- **Model Routing**: The system routes Pro-tier subscribers to `gemini-2.5-pro` (maximum depth for rare species, fossils, subspecies, and cultivars) and free-tier users to `gemini-2.5-flash` (2–3× lower latency). Tier is resolved via a single lightweight `SELECT subscription_tier` on the critical path, with a module-scope `_tierCache` (5-minute TTL) that eliminates the DB round-trip on repeat scans within a warm isolate. Both tiers use the `merianResponseSchema` constraint to protect SQLite UI logic.
+- **Model Routing**: The vision identification call routes Pro-tier subscribers to `gemini-2.5-pro` (maximum depth for rare species, fossils, subspecies, and cultivars) and free-tier users to `gemini-2.5-flash` (2–3× lower latency). All text-only calls — `fetchStaticEncyclopedicData`, `fetchDiagnosticComparison`, and all `enrich-scan` generation — always use `gemini-2.5-flash` regardless of tier. `gemini-2.5-pro` is exclusively for the multimodal vision identification step. Tier is resolved via a single lightweight `SELECT subscription_tier` on the critical path, with a module-scope `_tierCache` (5-minute TTL) that eliminates the DB round-trip on repeat scans within a warm isolate. Both tiers use the `merianResponseSchema` constraint to protect SQLite UI logic.
 - **Dynamic Token Truncation (Non-biological targets)**: When processing non-biological subjects, the Deno node removes `taxonomy`, `insight_data`, and `ecology_type` from the `required: []` array and passes `is_biological_subject: false`. The Swift layer maps the absent fields to native Optionals.
 
 If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts` Deno code AND the `MerianNetworkClient.swift` Codable struct to simultaneously support both the Pro schema and Free text-prompt shapes without causing `JSONDecoder()` failures.
@@ -90,12 +90,11 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
   "confidence_score": 0.98,
   "blur_score": 0.1,
   "is_invasive": false,
-  "is_poisonous": true,
   "colors": ["orange", "black", "white"],
   "insight_data": {
-    "description": "Detailed breakdown of wing pattern matches and ecology parameters justifying the exact outcome...",
+    "ai_reasoning": "The distinctive orange and black wing pattern with white-spotted margins, combined with the milkweed habitat context, is diagnostic for Danaus plexippus. The ventral hindwing silver spots confirm this is not the mimicking Viceroy.",
     "regional_status_rationale": "Native bounds active during summer months.",
-    "is_poisonous": true
+    "hazard_type": "none"
   },
   "wikipedia_url": "https://en.wikipedia.org/wiki/Monarch_butterfly",
   "wikipedia_extract": "The monarch butterfly or simply monarch is a milkweed butterfly in the family Nymphalidae...",
@@ -120,7 +119,7 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
 }
 ```
 
-> **Vision schema lean principle**: The vision model response (`identify`) is optimized strictly for identification. `taxonomy`, `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `premium_insights` is only present on Cache Hit for Pro-tier users. `diagnostic_comparison` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function only when confidence is below the diagnostic threshold (0.85). `group_tags` has been removed from the schema entirely. This approach minimizes output tokens on the critical identification path.
+> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification. `insight_data.ai_reasoning` is always present for biological subjects — it is the Gemini vision model's per-scan reasoning about the specific photo submitted and is unique per scan. `taxonomy` and `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `premium_insights` is only present on Cache Hit for Pro-tier users when `habitat_description` or `global_distribution_regions` is already stored. `diagnostic_comparison` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function only when confidence is below the diagnostic threshold (0.85). `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit (authoritative) or from the vision model on Cache Miss (stored in `species_dictionary` for future hits). The `hazard_type` column exists only on `species_dictionary`, not on `scans`.
 
 ### Error Responses
 
@@ -197,7 +196,7 @@ A Pro-gated enrichment endpoint that asynchronously surfaces habitat, distributi
 
 **Parallel Flash Generation**: If any data is missing, premium insights Flash and diagnostic Flash run concurrently via `Promise.all`. Both use `gemini-2.5-flash` with `temperature: 0.1`. Premium uses `maxOutputTokens: 600`, diagnostic uses `maxOutputTokens: 400`. Results are persisted to `species_dictionary` (species-level, not per-scan) before the response is returned.
 
-**Timing**: The `identify` background task starts writing to `species_dictionary` the moment Gemini inference completes, typically 100–500ms before the iOS client sends the `/enrich-scan` request. This means most calls are full or partial cache hits, and the Gemini fallback is rarely triggered.
+**Race Condition Mitigation (Poll Before Flash)**: On a Cache Miss, `identify`'s background task and the iOS `/enrich-scan` request race to populate `species_dictionary`. To avoid a duplicate Flash token spend, `enrich-scan` polls `species_dictionary` up to 3 times with 2-second intervals before deciding to call Flash. If the background task lands before the 3rd poll, `enrich-scan` returns the cached data with no AI call. The background task typically completes within 2–4 seconds, so the first or second poll usually hits the data. This poll runs only when `habitat_description` or `global_distribution_regions` is missing from the cache.
 
 ### Response Schema
 
