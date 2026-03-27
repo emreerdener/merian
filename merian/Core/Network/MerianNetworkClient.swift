@@ -213,6 +213,14 @@ final class MerianNetworkClient {
         return data
     }
 
+    func fetchEnrichment(scanId: String, scientificName: String) async throws -> EnrichScanResponse {
+        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/enrich-scan")!
+        let payload: [String: Any] = ["scan_id": scanId, "scientific_name": scientificName]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try JSONDecoder().decode(EnrichScanResponse.self, from: data)
+    }
+
     // MARK: - R2 Storage
 
     func generateUploadURLs(fileNames: [String]) async throws -> [PreSignedURL] {

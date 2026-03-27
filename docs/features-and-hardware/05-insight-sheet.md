@@ -22,7 +22,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `AIReasoningCard` | Diagnostic comparison — primary rationale, lookalike name, key differentiators |
 | `WikipediaCard` | Wikipedia extract with SafariServices deep link |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
-| `PremiumInsightsCard` | Enriched intelligence hook: Encyclopedic habitat parameters, and global distribution vector heatmaps. If the user is Free it acts as a 7-Day pass glassmorphism paywall unlocking via RevenueCat. |
+| `PremiumInsightsCard` | Enriched intelligence hook: Encyclopedic habitat parameters and global distribution region tags. Has four states: (1) **Loaded** — habitat/distribution content rendered; (2) **Loading** — shimmer skeleton shown while `inferenceEngine.isPremiumLoading` is `true`; (3) **Pro retry** — Pro user missing data, tap to retry; (4) **Paywall** — free user, offers $2.99 7-Day Pass via RevenueCat. |
 | `ToxicityBanner` | Red warning banner for poisonous subjects |
 | `ConservationBanner` | IUCN Red List status banner |
 | `CelebrationBanner` | "New Discovery" confetti overlay |
@@ -86,11 +86,39 @@ The ZOOM row shows the value formatted as `"3.0×"`. It is omitted for 1× scans
 
 ## Premium Insights
 
-`PremiumInsightsCard` dynamically bridges real-time Edge validation and local SwiftData memory to render deep encyclopedic intelligence.
+`PremiumInsightsCard` renders habitat and distribution intelligence for the identified species, gated on the Pro subscription tier.
 
-- **Pro Users**: The `/identify` response includes a `premium_insights` block for Pro-tier requests, populated from `species_dictionary` (Cache Hit) or from the concurrent `fetchStaticEncyclopedicData` call (Cache Miss). The card renders immediately with no additional network call.
-- **Free Users — Paywall State**: If the scan has no `habitatDescription` and `isProActive` is `false`, the card renders as a glassmorphism paywall offering a frictionless $2.99 7-Day Pass via the RevenueCat `weekly` package.
-- **Free Users — Ad-Hoc Enrichment**: Once the pass is active (or if the user is already Pro), tapping "Generate Insights" calls `/enrich-scan`. That function checks `species_dictionary` first — because the `/identify` Cache Miss path writes habitat and distribution data on every new species regardless of tier, the DB-first check resolves immediately for most scans with no Gemini call or added latency. The returned data is saved to `LocalScanRecord` and bound back to `InferenceEngine.speciesData.habitatDescription` in-place.
+### Loading Flow (Pro users — new scans)
+
+After a successful biological scan, `InferenceEngine.analyze()` fires `fetchAndApplyEnrichment(modelContext:)` in a background `Task` for Pro users. While this request is in flight:
+
+- `inferenceEngine.isPremiumLoading` is `true`
+- `PremiumInsightsCard` renders an animated shimmer skeleton (three placeholder text lines + three region chip placeholders)
+- When data arrives (typically 2–3 seconds post-scan), `speciesData.habitatDescription` and `speciesData.globalDistributionRegions` are patched in-place on `@MainActor`, the skeleton is replaced by content with no navigation required, and the data is persisted to `LocalScanRecord`
+
+### Loading Flow (Pro users — historical scans)
+
+When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `habitatDescription` — or has a low confidence score without a cached diagnostic — it automatically fires `fetchAndApplyEnrichment`. This gap-fills enrichment for scans captured before the Pro feature shipped.
+
+### States
+
+| State | Trigger | Rendered |
+|---|---|---|
+| **Loaded** | `habitatDescription != nil` | Habitat text + scrollable region capsules |
+| **Loading** | `inferenceEngine.isPremiumLoading == true` | Shimmer skeleton (3 text lines, 3 chip placeholders) |
+| **Pro retry** | Pro user, no data, not loading | "Retry" button → calls `inferenceEngine.fetchAndApplyEnrichment` |
+| **Paywall** | Free user, no data | Glassmorphism card with $2.99 7-Day Pass button |
+
+### Unlock Flow (Free users)
+
+Tapping the paywall button calls `triggerEnrichment()`:
+1. If not already Pro, purchases the `weekly` RevenueCat package.
+2. Calls `inferenceEngine.fetchAndApplyEnrichment(modelContext:)` — the same path used by Pro users automatically.
+3. The `/enrich-scan` Edge Function enforces a Pro tier gate server-side (`403 Forbidden` if not Pro). The purchase step must succeed before enrichment is fetched.
+
+### Diagnostic Comparison Display Gate
+
+`diagnostic_comparison` data is only displayed (in `AIReasoningCard` in `BiologicalView`) when the scan's `confidenceScore < 0.85`. This gate is enforced client-side regardless of whether diagnostic data is present in `LocalScanRecord`. `InferenceEngine.fetchAndApplyEnrichment` also only writes `speciesData.diagnosticComparison` when the threshold is met.
 
 ---
 

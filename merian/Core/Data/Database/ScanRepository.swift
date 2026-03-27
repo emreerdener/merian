@@ -260,7 +260,7 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
     let genus: String?
     let wikipedia_url: String?
     let reference_image_url: String?
-    let is_poisonous: Bool?
+    let hazard_type: String?
     let common_names: [String: String?]?
     let descriptions: [String: String?]?
     let iucn_red_list_status: String?
@@ -471,7 +471,7 @@ actor HistoricalDatabaseActor {
                 timestamp: parsedDate,
                 localImagePath: rawR2Image,
                 semanticTags: [cName, sciName] + (scan.colors ?? []) + (scan.group_tags ?? []),
-                isPoisonous: dict?.is_poisonous ?? false,
+                hazardType: dict?.hazard_type ?? "none",
                 isBiological: true,
                 isLiveCapture: scan.is_live_capture ?? true,
                 isInvasive: scan.is_invasive ?? false,

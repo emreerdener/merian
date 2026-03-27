@@ -47,7 +47,7 @@ serve((req: Request) =>
           wikipedia_url,
           reference_image_url,
           iucn_red_list_status,
-          is_poisonous,
+          hazard_type,
           kingdom,
           descriptions
         ),

@@ -91,7 +91,7 @@ struct ScanCollectionTests {
             timestamp: Date(),
             localImagePath: nil,
             semanticTags: [],
-            isPoisonous: false,
+            hazardType: "none",
             isBiological: true,
             isLiveCapture: true,
             isInvasive: false,

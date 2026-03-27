@@ -17,7 +17,7 @@ struct BiologicalView: View {
             InsightHeader(
                 title: viewModel.headerTitle,
                 subtitle: viewModel.headerSubtitle,
-                isPoisonous: viewModel.isPoisonous,
+                hazardType: viewModel.hazardType,
                 paragraphs: viewModel.headerParagraphs,
                 badgeItems: viewModel.headerBadgeItems,
                 confidenceScore: inferenceEngine.speciesData?.confidenceScore

@@ -3,7 +3,7 @@ import SwiftUI
 struct InsightHeader: View {
     let title: String
     let subtitle: String
-    let isPoisonous: Bool
+    let hazardType: String
     let paragraphs: [String]
     let badgeItems: [BadgeItem]
     let confidenceScore: Double?
@@ -23,7 +23,7 @@ struct InsightHeader: View {
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(isPoisonous ? [] : .isHeader)
+                    .accessibilityAddTraits(hazardType != "none" ? [] : .isHeader)
                     .background(
                         GeometryReader { geo in
                             Color.clear.preference(

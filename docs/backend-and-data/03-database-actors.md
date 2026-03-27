@@ -21,6 +21,7 @@ The main thread owns the SwiftUI view hierarchy and the primary `ModelContext`. 
 - `processAndCleanupOfflineScan(...)` — decodes an edge inference result, inserts a `LocalScanRecord`, deletes the `OfflineQueuedScan`, purges local images on failure
 - `saveLiveScanRecord(mappedData:localImagePaths:)` — persists a real-time scan result after live inference
 - `updateScanWithWikipedia(...)` — retroactively hydrates a scan with Wikipedia data
+- `updateScanWithEnrichment(scanId:habitatDescription:globalDistributionRegions:diagnosticPrimaryRationale:diagnosticLookalikeName:diagnosticKeyDifferentiators:)` — retroactively persists premium enrichment data returned by the `enrich-scan` Edge Function. Called by `InferenceEngine.fetchAndApplyEnrichment` after the async enrichment call completes. Updates `habitatDescription`, `globalDistributionRegionsJson`, and (when confidence < 0.85 and diagnostic was returned) the three diagnostic fields on `LocalScanRecord`.
 - `pushCollectionsToEdge()` — serializes local `ScanCollection` records and calls the `sync-collections` Edge function
 
 **When to create**: Always create ad-hoc per operation:
@@ -163,3 +164,4 @@ All `@ModelActor` actors are created ad-hoc (per operation) rather than stored a
 | Delete image files from disk | `FileIOActor.shared` |
 | Validate image paths | `FileIOActor.shared` |
 | Push collections to Edge | `BackgroundDatabaseActor` (ad-hoc) |
+| Persist enrichment data after enrich-scan returns | `BackgroundDatabaseActor` (ad-hoc) |

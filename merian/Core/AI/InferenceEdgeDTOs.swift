@@ -15,7 +15,7 @@ struct EdgeResponseWrapper: Codable {
     let data: EdgeResponse
 }
 
-/// Exact JSON schema returned by the Gemini Edge Function.
+/// Exact JSON schema returned by the identify Edge Function.
 struct EdgeResponse: Codable {
     let scan_id: String?
     let is_biological_subject: Bool?
@@ -27,8 +27,8 @@ struct EdgeResponse: Codable {
     let confidence_score: Double?
     let blur_score: Double?
     let colors: [String]?
-    let group_tags: [String]?
 
+    // Present on Cache Hit — sourced from species_dictionary.
     struct Taxonomy: Codable {
         let kingdom: String?
         let phylum: String?
@@ -41,20 +41,14 @@ struct EdgeResponse: Codable {
 
     struct Insight: Codable {
         let description: String?
-        let is_poisonous: Bool?
+        /// Hazard classification: "none" | "poisonous" | "venomous" | "allergenic" | "irritant"
+        let hazard_type: String?
         let regional_status_rationale: String?
     }
     let insight_data: Insight?
 
-    struct Diagnostic: Codable {
-        let primary_match_rationale: String?
-        let confusing_lookalike_name: String?
-        let key_differentiators: [String]?
-    }
-    let diagnostic_comparison: Diagnostic?
-
+    // Present on Cache Hit for Pro users — sourced from species_dictionary.
     struct Premium: Codable {
-        let ai_reasoning: String?
         let habitat_description: String?
         let global_distribution_regions: [String]?
     }
@@ -64,4 +58,24 @@ struct EdgeResponse: Codable {
     let wikipedia_extract: String?
     let reference_image_url: String?
     let iucn_red_list_status: String?
+}
+
+// MARK: - Enrich-Scan Response
+
+/// Returned by the enrich-scan Edge Function for async premium + diagnostic loading.
+struct EnrichScanResponse: Codable {
+    let success: Bool?
+    let data: EnrichData?
+
+    struct EnrichData: Codable {
+        let habitat_description: String?
+        let global_distribution_regions: [String]?
+        let diagnostic_comparison: DiagnosticData?
+
+        struct DiagnosticData: Codable {
+            let primary_match_rationale: String?
+            let confusing_lookalike_name: String?
+            let key_differentiators: [String]?
+        }
+    }
 }

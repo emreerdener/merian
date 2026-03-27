@@ -30,7 +30,7 @@ struct InferenceEngineTests {
                 },
                 "insight_data": {
                     "description": "A medium-sized mammal native to North America.",
-                    "is_poisonous": false,
+                    "hazard_type": "none",
                     "regional_status_rationale": "Least Concern"
                 },
                 "wikipedia_url": "https://en.wikipedia.org/wiki/Raccoon",
@@ -58,7 +58,7 @@ struct InferenceEngineTests {
         #expect(edgeResponse.is_invasive == false)
         
         #expect(edgeResponse.taxonomy?.family == "Procyonidae")
-        #expect(edgeResponse.insight_data?.is_poisonous == false)
+        #expect(edgeResponse.insight_data?.hazard_type == "none")
         #expect(edgeResponse.insight_data?.description?.contains("mammal") == true)
         #expect(edgeResponse.wikipedia_url == "https://en.wikipedia.org/wiki/Raccoon")
     }
@@ -99,7 +99,7 @@ struct InferenceEngineTests {
             insightDescription: "A milkweed butterfly in the family Nymphalidae.",
             localImagePath: "monarch.jpg",
             semanticTags: ["butterfly", "insect"],
-            isPoisonous: true,
+            hazardType: "poisonous",
             isBiological: true,
             isLiveCapture: true,
             isInvasive: false,
@@ -127,7 +127,7 @@ struct InferenceEngineTests {
         #expect(resultingData.commonName == "Monarch Butterfly")
         #expect(resultingData.scientificName == "Danaus plexippus")
         #expect(resultingData.confidenceScore == 0.99)
-        #expect(resultingData.insightData.isPoisonous == true)
+        #expect(resultingData.insightData.hazardType == "poisonous")
         #expect(resultingData.insightData.description.contains("Nymphalidae"))
         #expect(resultingData.taxonomy?.genus == "Danaus")
 
@@ -151,7 +151,7 @@ struct InferenceEngineTests {
                 "common_name": "Monarch Butterfly",
                 "scientific_name": "Danaus plexippus",
                 "confidence_score": 0.98,
-                "insight_data": { "description": "A migratory butterfly.", "is_poisonous": false },
+                "insight_data": { "description": "A migratory butterfly.", "hazard_type": "none" },
                 "premium_insights": {
                     "ai_reasoning": "The orange and black wing pattern with white spots along the margins is diagnostic for Danaus plexippus.",
                     "habitat_description": "Open fields, meadows, and roadsides with milkweed.",
@@ -179,7 +179,7 @@ struct InferenceEngineTests {
                 "common_name": "Raccoon",
                 "scientific_name": "Procyon lotor",
                 "confidence_score": 0.91,
-                "insight_data": { "description": "A medium-sized mammal.", "is_poisonous": false }
+                "insight_data": { "description": "A medium-sized mammal.", "hazard_type": "none" }
             }
         }
         """
@@ -199,7 +199,7 @@ struct InferenceEngineTests {
                 "common_name": "Firefly",
                 "scientific_name": "Photinus pyralis",
                 "confidence_score": 0.95,
-                "insight_data": { "description": "A bioluminescent beetle.", "is_poisonous": false },
+                "insight_data": { "description": "A bioluminescent beetle.", "hazard_type": "none" },
                 "premium_insights": {
                     "ai_reasoning": "The characteristic light organ on the abdomen and flight pattern confirm Photinus pyralis.",
                     "habitat_description": "Warm temperate meadows and forest edges.",
@@ -224,7 +224,7 @@ struct InferenceEngineTests {
             "data": {
                 "is_biological_subject": true,
                 "common_name": "Raccoon",
-                "insight_data": { "description": "A mammal.", "is_poisonous": false }
+                "insight_data": { "description": "A mammal.", "hazard_type": "none" }
             }
         }
         """

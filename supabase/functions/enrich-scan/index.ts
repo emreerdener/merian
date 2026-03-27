@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { GoogleGenerativeAI, SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 
+const DIAGNOSTIC_THRESHOLD = 0.85;
+
 const _geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
 const _genAI = new GoogleGenerativeAI(_geminiApiKey);
 
@@ -15,10 +17,21 @@ serve((req: Request) =>
       return jsonResponse({ error: "Missing required parameters: scan_id and scientific_name are required." }, 400);
     }
 
-    // Explicitly verify the user owns the scan they are trying to enrich
+    // Gate on Pro tier — free users' data is stored but not surfaced until they upgrade.
+    const { data: userData } = await supabaseAdmin
+      .from("users")
+      .select("subscription_tier")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!userData || userData.subscription_tier !== "pro") {
+      return jsonResponse({ error: "Forbidden: Premium insights require a Pro subscription." }, 403);
+    }
+
+    // Verify ownership and fetch confidence score.
     const { data: scanData, error: scanError } = await supabaseAdmin
       .from("scans")
-      .select("id, user_id")
+      .select("id, user_id, ai_confidence_score")
       .eq("id", scan_id)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -27,86 +40,125 @@ serve((req: Request) =>
       return jsonResponse({ error: "Forbidden: Scan not found or does not belong to the user." }, 403);
     }
 
-    // Check species_dictionary before calling AI — the identify function writes habitat and
-    // distribution on every Cache Miss regardless of tier, so this data is usually already present.
+    // Check species_dictionary for both premium insights and cached diagnostic data.
+    // identify's background task usually stores this before the client's request arrives.
     const { data: cachedSpecies } = await supabaseAdmin
       .from("species_dictionary")
-      .select("habitat_description, global_distribution_regions")
+      .select("habitat_description, global_distribution_regions, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json")
       .eq("scientific_name", scientific_name)
       .maybeSingle();
 
-    if (cachedSpecies?.habitat_description && (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0) {
-      console.log(`[⏱ BENCH] enrich_scan cache hit in ${Date.now() - fnStart}ms`);
+    const hasPremium = !!(cachedSpecies?.habitat_description && (cachedSpecies?.global_distribution_regions?.length ?? 0) > 0);
+    const needsDiagnostic = (scanData.ai_confidence_score ?? 1) < DIAGNOSTIC_THRESHOLD;
+    const hasDiagnostic = !!cachedSpecies?.diagnostic_primary_rationale;
+
+    // If everything is already stored, return immediately.
+    if (hasPremium && (!needsDiagnostic || hasDiagnostic)) {
+      console.log(`[⏱ BENCH] enrich_scan full cache hit in ${Date.now() - fnStart}ms`);
       return jsonResponse({ success: true, data: {
-        habitat_description: cachedSpecies.habitat_description,
-        global_distribution_regions: cachedSpecies.global_distribution_regions,
+        habitat_description: cachedSpecies!.habitat_description,
+        global_distribution_regions: cachedSpecies!.global_distribution_regions,
+        diagnostic_comparison: hasDiagnostic ? {
+          primary_match_rationale: cachedSpecies!.diagnostic_primary_rationale,
+          confusing_lookalike_name: cachedSpecies!.diagnostic_lookalike_name,
+          key_differentiators: JSON.parse(cachedSpecies!.diagnostic_differentiators_json ?? "[]"),
+        } : null,
       }}, 200);
     }
 
-    const systemInstruction = `You are a world-class biologist. Provide encyclopedic identification traits, habitat, and global distribution for the provided scientific name. Keep descriptions concise and accessible.`;
-    
-    // Using gemini-2.5-flash for text-only rapid inference to keep cost at $0.000003 per scan
     const model = _genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: systemInstruction,
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 1500,
-      },
+      systemInstruction: "You are a world-class biologist. Provide encyclopedic habitat and global distribution for the provided scientific name. Keep descriptions concise and accessible.",
+      generationConfig: { temperature: 0.1, maxOutputTokens: 600 },
     });
 
-    const enrichSchema: Record<string, unknown> = {
-      type: SchemaType.OBJECT,
-      properties: {
-        habitat_description: { type: SchemaType.STRING, description: "A description of the natural habitat where this species is typically found." },
-        global_distribution_regions: { 
-          type: SchemaType.ARRAY, 
-          items: { type: SchemaType.STRING },
-          description: "An array of standardized ISO-3166-2 region codes (e.g. 'US-TX', 'GB') where this species is natively found. Must be lightweight strings, do NOT generate GeoJSON coordinates."
-        }
-      },
-      required: ["habitat_description", "global_distribution_regions"]
-    };
+    // Fire premium and diagnostic Flash calls in parallel for whatever is missing.
+    const premiumPromise = hasPremium
+      ? Promise.resolve(cachedSpecies)
+      : (async () => {
+          const enrichSchema: Record<string, unknown> = {
+            type: SchemaType.OBJECT,
+            properties: {
+              habitat_description: { type: SchemaType.STRING },
+              global_distribution_regions: {
+                type: SchemaType.ARRAY,
+                items: { type: SchemaType.STRING },
+                description: "ISO-3166-2 region codes (e.g. 'US-TX', 'GB'). Lightweight strings only — no GeoJSON.",
+              },
+            },
+            required: ["habitat_description", "global_distribution_regions"],
+          };
+          const result = await model.generateContent({
+            contents: [{ role: "user", parts: [{ text: `Premium insights for: ${scientific_name}` }] }],
+            generationConfig: { responseMimeType: "application/json", responseSchema: enrichSchema as unknown as ResponseSchema },
+          });
+          const text = result.response.text();
+          const s = text.indexOf("{"), e = text.lastIndexOf("}");
+          if (s === -1 || e === -1) throw new Error("Malformed premium response");
+          return JSON.parse(text.substring(s, e + 1)) as { habitat_description: string; global_distribution_regions: string[] };
+        })();
 
-    const prompt = `Generate premium insights for the species: ${scientific_name}`;
+    const diagnosticPromise = (!needsDiagnostic || hasDiagnostic)
+      ? Promise.resolve(null)
+      : (async () => {
+          const diagModel = _genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            systemInstruction: "You are a world-class biologist. Given a species scientific name, return a brief diagnostic comparison: the primary identification rationale, the most commonly confused lookalike species, and key differentiating features.",
+            generationConfig: { temperature: 0.1, maxOutputTokens: 400 },
+          });
+          const diagSchema: Record<string, unknown> = {
+            type: SchemaType.OBJECT,
+            properties: {
+              primary_match_rationale: { type: SchemaType.STRING },
+              confusing_lookalike_name: { type: SchemaType.STRING },
+              key_differentiators: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            },
+            required: ["primary_match_rationale", "confusing_lookalike_name", "key_differentiators"],
+          };
+          const result = await diagModel.generateContent({
+            contents: [{ role: "user", parts: [{ text: `Diagnostic comparison for: ${scientific_name}` }] }],
+            generationConfig: { responseMimeType: "application/json", responseSchema: diagSchema as unknown as ResponseSchema },
+          });
+          const text = result.response.text();
+          const s = text.indexOf("{"), e = text.lastIndexOf("}");
+          if (s === -1 || e === -1) throw new Error("Malformed diagnostic response");
+          return JSON.parse(text.substring(s, e + 1)) as { primary_match_rationale: string; confusing_lookalike_name: string; key_differentiators: string[] };
+        })();
 
     try {
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: enrichSchema as unknown as ResponseSchema,
-        },
-      });
+      const [premiumResult, diagnosticResult] = await Promise.all([premiumPromise, diagnosticPromise]);
 
-      const responseText = result.response.text();
-      
-      const startIndex = responseText.indexOf('{');
-      const endIndex = responseText.lastIndexOf('}');
-
-      if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
-          throw new Error("Malformed AI response");
+      // Persist whatever was freshly generated.
+      const persistOps: PromiseLike<unknown>[] = [];
+      if (!hasPremium && premiumResult) {
+        persistOps.push(
+          supabaseAdmin.from("species_dictionary").update({
+            habitat_description: (premiumResult as { habitat_description: string }).habitat_description,
+            global_distribution_regions: (premiumResult as { global_distribution_regions: string[] }).global_distribution_regions ?? [],
+          }).eq("scientific_name", scientific_name)
+        );
       }
-      
-      const cleanJsonString = responseText.substring(startIndex, endIndex + 1);
-      const parsedData = JSON.parse(cleanJsonString);
-
-
-
-      const { error: speciesUpdateError } = await supabaseAdmin
-        .from("species_dictionary")
-        .update({
-          habitat_description: parsedData.habitat_description,
-          global_distribution_regions: parsedData.global_distribution_regions || [],
-        })
-        .eq("scientific_name", scientific_name);
-        
-      if (speciesUpdateError) {
-          console.error("Failed to update species dictionary with habitat info:", speciesUpdateError);
+      if (!hasDiagnostic && diagnosticResult) {
+        persistOps.push(
+          supabaseAdmin.from("scans").update({
+            diagnostic_primary_rationale: diagnosticResult.primary_match_rationale,
+            diagnostic_lookalike_name: diagnosticResult.confusing_lookalike_name,
+            diagnostic_differentiators_json: JSON.stringify(diagnosticResult.key_differentiators),
+          }).eq("id", scan_id)
+        );
       }
+      await Promise.allSettled(persistOps);
 
       console.log(`[⏱ BENCH] enrich_scan completed in ${Date.now() - fnStart}ms`);
-      return jsonResponse({ success: true, data: parsedData }, 200);
+      return jsonResponse({ success: true, data: {
+        habitat_description: (premiumResult as { habitat_description: string } | null)?.habitat_description ?? null,
+        global_distribution_regions: (premiumResult as { global_distribution_regions: string[] } | null)?.global_distribution_regions ?? null,
+        diagnostic_comparison: diagnosticResult ?? (hasDiagnostic ? {
+          primary_match_rationale: cachedSpecies!.diagnostic_primary_rationale,
+          confusing_lookalike_name: cachedSpecies!.diagnostic_lookalike_name,
+          key_differentiators: JSON.parse(cachedSpecies!.diagnostic_differentiators_json ?? "[]"),
+        } : null),
+      }}, 200);
 
     } catch (genError) {
       console.error("AI generation failed for enrichment:", genError);

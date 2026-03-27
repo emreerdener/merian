@@ -2,20 +2,39 @@ import SwiftUI
 
 struct ToxicityBanner: View {
     @Environment(InferenceEngine.self) var inferenceEngine
-    
-    private var isPoisonous: Bool {
-        inferenceEngine.speciesData?.insightData.isPoisonous ?? false
+
+    private var hazardType: String {
+        inferenceEngine.speciesData?.insightData.hazardType ?? "none"
     }
-    
+
+    private var bannerTitle: String {
+        switch hazardType {
+        case "venomous":   return "Caution: Venomous"
+        case "allergenic": return "Caution: Allergenic"
+        case "irritant":   return "Caution: Irritant"
+        case "poisonous":  return "Caution: Toxic"
+        default:           return "Caution: Toxic"
+        }
+    }
+
+    private var bannerSubtitle: String {
+        switch hazardType {
+        case "venomous":   return "Can inject venom through bite or sting. Do not handle."
+        case "allergenic": return "May trigger severe allergic reactions in some individuals."
+        case "irritant":   return "May cause skin or eye irritation on contact."
+        default:           return "This species may be harmful. Avoid physical contact."
+        }
+    }
+
     var body: some View {
-        if isPoisonous {
+        if hazardType != "none" {
             HStack {
                 Image(systemName: "exclamationmark.circle")
                     .font(.title)
                 VStack(alignment: .leading) {
-                    Text("Toxic")
+                    Text(bannerTitle)
                         .font(.system(.headline))
-                    Text("This subject could be poisonous.")
+                    Text(bannerSubtitle)
                         .font(.system(.subheadline))
                 }
                 Spacer()

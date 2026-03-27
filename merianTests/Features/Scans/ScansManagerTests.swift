@@ -33,7 +33,7 @@ final class ScansManagerTests: XCTestCase {
             timestamp: Date(),
             localImagePath: nil,
             semanticTags: semanticTags,
-            isPoisonous: false,
+            hazardType: "none",
             isBiological: true,
             isLiveCapture: true,
             isInvasive: false,

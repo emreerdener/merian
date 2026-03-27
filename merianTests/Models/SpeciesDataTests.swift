@@ -7,7 +7,7 @@ struct SpeciesDataTests {
         // Arrange
         let insightData = InsightData(
             description: "A small, glowing beetle.",
-            isPoisonous: false,
+            hazardType: "none",
             regionalStatusRationale: "Common in North America"
         )
         
@@ -46,7 +46,7 @@ struct SpeciesDataTests {
         #expect(species.isBiological == true)
         #expect(species.isNewDiscovery == false, "Default or explicitly set state should be honored")
         
-        #expect(species.insightData.isPoisonous == false)
+        #expect(species.insightData.hazardType == "none")
         #expect(species.taxonomy?.family == "Lampyridae")
     }
     
@@ -54,7 +54,7 @@ struct SpeciesDataTests {
         // Arrange
         let insightData = InsightData(
             description: "Default description",
-            isPoisonous: true,
+            hazardType: "poisonous",
             regionalStatusRationale: nil
         )
 
@@ -89,7 +89,7 @@ struct SpeciesDataTests {
     // MARK: - Premium Insights: default nil state
 
     @Test func testPremiumFieldsDefaultToNilWhenOmitted() {
-        let insightData = InsightData(description: "A beetle.", isPoisonous: false, regionalStatusRationale: nil)
+        let insightData = InsightData(description: "A beetle.", hazardType: "none", regionalStatusRationale: nil)
         let species = SpeciesData(
             commonName: "Firefly",
             scientificName: "Photinus pyralis",
@@ -103,7 +103,7 @@ struct SpeciesDataTests {
     }
 
     @Test func testPremiumFieldsMutability() {
-        let insightData = InsightData(description: "A beetle.", isPoisonous: false, regionalStatusRationale: nil)
+        let insightData = InsightData(description: "A beetle.", hazardType: "none", regionalStatusRationale: nil)
         var species = SpeciesData(
             commonName: "Firefly",
             scientificName: "Photinus pyralis",
@@ -121,7 +121,7 @@ struct SpeciesDataTests {
     }
 
     @Test func testPremiumFieldsRoundTripThroughInit() {
-        let insightData = InsightData(description: "A monarch.", isPoisonous: false, regionalStatusRationale: nil)
+        let insightData = InsightData(description: "A monarch.", hazardType: "none", regionalStatusRationale: nil)
         let species = SpeciesData(
             commonName: "Monarch Butterfly",
             scientificName: "Danaus plexippus",

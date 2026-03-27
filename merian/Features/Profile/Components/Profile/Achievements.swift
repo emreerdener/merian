@@ -9,7 +9,7 @@ extension ProfileDatabaseActor {
         descriptor.propertiesToFetch = [
             \.scientificName, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType,
             \.weatherTemperatureF, \.gpsElevation, \.timestamp, \.isInvasive,
-            \.iucnRedListStatus, \.isPoisonous, \.confidenceScore
+            \.iucnRedListStatus, \.hazardType, \.confidenceScore
         ]
         
         guard let allRecords = try? modelContext.fetch(descriptor) else { return [] }

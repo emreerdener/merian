@@ -59,8 +59,8 @@ struct AchievementsCalculator {
             if let status = record.iucnRedListStatus, !status.isEmpty, status != "LC", status != "NE", status != "DD", !conservationSpecies.contains(name) { 
                 conservationSpecies.insert(name); conservationDate = conservationDate ?? timestamp 
             }
-            if record.isPoisonous && !poisonousSpecies.contains(name) { 
-                poisonousSpecies.insert(name); poisonousDate = poisonousDate ?? timestamp 
+            if record.hazardType != "none" && !poisonousSpecies.contains(name) {
+                poisonousSpecies.insert(name); poisonousDate = poisonousDate ?? timestamp
             }
             if let score = record.confidenceScore, score >= 0.98, !perfectLensSpecies.contains(name) { 
                 perfectLensSpecies.insert(name); perfectLensDate = perfectLensDate ?? timestamp 

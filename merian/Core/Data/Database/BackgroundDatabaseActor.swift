@@ -135,7 +135,7 @@ actor BackgroundDatabaseActor {
                     timestamp: originalTimestamp,
                     localImagePath: originalImagePaths.first,
                     semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
-                    isPoisonous: mappedData.insightData.isPoisonous,
+                    hazardType: mappedData.insightData.hazardType,
                     isBiological: mappedData.isBiological,
                     isLiveCapture: mappedData.isLiveCapture,
                     isInvasive: mappedData.isInvasive,
@@ -245,7 +245,7 @@ actor BackgroundDatabaseActor {
             timestamp: Date(),
             localImagePath: firstPath,
             semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
-            isPoisonous: mappedData.insightData.isPoisonous,
+            hazardType: mappedData.insightData.hazardType,
             isBiological: mappedData.isBiological,
             isLiveCapture: mappedData.isLiveCapture,
             isInvasive: mappedData.isInvasive,
@@ -316,6 +316,37 @@ actor BackgroundDatabaseActor {
         } catch {
             MerianLog.data.error("updateScanWithWikipedia: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
+    }
+
+    // MARK: - Premium Enrichment
+
+    func updateScanWithEnrichment(
+        scanId: String,
+        habitatDescription: String?,
+        globalDistributionRegions: [String]?,
+        diagnosticPrimaryRationale: String?,
+        diagnosticLookalikeName: String?,
+        diagnosticKeyDifferentiators: [String]?
+    ) {
+        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let record = try? modelContext.fetch(descriptor).first else { return }
+
+        if let habitat = habitatDescription { record.habitatDescription = habitat }
+        if let regions = globalDistributionRegions,
+           let encoded = try? JSONEncoder().encode(regions),
+           let json = String(data: encoded, encoding: .utf8) {
+            record.globalDistributionRegionsJson = json
+        }
+        if let rationale = diagnosticPrimaryRationale { record.diagnosticPrimaryRationale = rationale }
+        if let lookalike = diagnosticLookalikeName { record.diagnosticLookalikeName = lookalike }
+        if let diffs = diagnosticKeyDifferentiators,
+           let encoded = try? JSONEncoder().encode(diffs),
+           let json = String(data: encoded, encoding: .utf8) {
+            record.diagnosticDifferentiatorsJson = json
+        }
+
+        try? modelContext.save()
     }
 
     // MARK: - Collections Edge Sync

@@ -70,7 +70,7 @@ struct SpeciesData {
     /// Gemini's self-reported image sharpness score (0 = sharp, 1 = very blurry).
     /// Populated from live inference only — nil when loading from local SwiftData records.
     let blurScore: Double?
-    let diagnosticComparison: DiagnosticComparison?
+    var diagnosticComparison: DiagnosticComparison?
     var wikipediaUrl: String?
     var wikipediaExtract: String?
     var referenceImageUrl: String?
@@ -90,7 +90,6 @@ struct SpeciesData {
     var gpsLatitude: Double?
     var gpsLongitude: Double?
     var colors: [String]?
-    var groupTags: [String]?
     let iucnRedListStatus: String?
     var zoomFactor: Double?
 
@@ -115,7 +114,7 @@ extension SpeciesData {
     ) {
         let insight = InsightData(
             description: edgeRes.insight_data?.description ?? "No ecological description available for this subject.",
-            isPoisonous: edgeRes.insight_data?.is_poisonous ?? false,
+            hazardType: edgeRes.insight_data?.hazard_type ?? "none",
             regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
         )
 
@@ -128,26 +127,13 @@ extension SpeciesData {
             genus: edgeRes.taxonomy?.genus
         )
 
-        var parsedDiagnostic: DiagnosticComparison?
-        if let diag = edgeRes.diagnostic_comparison,
-           let rationale = diag.primary_match_rationale,
-           let lookalike = diag.confusing_lookalike_name,
-           let diffs = diag.key_differentiators,
-           !diffs.isEmpty {
-            parsedDiagnostic = DiagnosticComparison(
-                primaryMatchRationale: rationale,
-                confusingLookalikeName: lookalike,
-                keyDifferentiators: diffs
-            )
-        }
-
         self.scanId = edgeRes.scan_id
         self.commonName = edgeRes.common_name ?? "Unknown Subject"
         self.scientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
         self.insightData = insight
         self.confidenceScore = edgeRes.confidence_score ?? 0.0
         self.blurScore = edgeRes.blur_score
-        self.diagnosticComparison = parsedDiagnostic
+        self.diagnosticComparison = nil  // populated async via enrich-scan
         self.wikipediaUrl = edgeRes.wikipedia_url
         self.wikipediaExtract = edgeRes.wikipedia_extract
         self.referenceImageUrl = edgeRes.reference_image_url
@@ -163,7 +149,6 @@ extension SpeciesData {
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
         self.colors = edgeRes.colors
-        self.groupTags = edgeRes.group_tags
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
         self.zoomFactor = nil  // populated by the caller from CaptureTelemetry
         self.aiReasoning = edgeRes.premium_insights?.ai_reasoning
@@ -199,7 +184,6 @@ extension SpeciesData {
         gpsLatitude: Double? = nil,
         gpsLongitude: Double? = nil,
         colors: [String]? = nil,
-        groupTags: [String]? = nil,
         iucnRedListStatus: String? = nil,
         zoomFactor: Double? = nil,
         aiReasoning: String? = nil,
@@ -228,7 +212,6 @@ extension SpeciesData {
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
         self.colors = colors
-        self.groupTags = groupTags
         self.iucnRedListStatus = iucnRedListStatus
         self.zoomFactor = zoomFactor
         self.aiReasoning = aiReasoning
@@ -250,8 +233,11 @@ struct TaxonomyData {
 
 struct InsightData {
     let description: String
-    let isPoisonous: Bool
+    /// AI-classified hazard type. One of: `"none"` | `"poisonous"` | `"venomous"` | `"allergenic"` | `"irritant"`.
+    let hazardType: String
     let regionalStatusRationale: String?
+
+    var isHazardous: Bool { hazardType != "none" }
 }
 
 struct DiagnosticComparison {

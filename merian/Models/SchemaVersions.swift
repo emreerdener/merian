@@ -18,7 +18,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV12.self,
             MerianSchemaV13.self,
             MerianSchemaV14.self,
-            MerianSchemaV15.self
+            MerianSchemaV15.self,
+            MerianSchemaV16.self
         ]
     }
 
@@ -37,7 +38,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV11toV12,
             migrateV12toV13,
             migrateV13toV14,
-            migrateV14toV15
+            migrateV14toV15,
+            migrateV15toV16
         ]
     }
 
@@ -109,5 +111,35 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     static let migrateV14toV15 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV14.self,
         toVersion: MerianSchemaV15.self
+    )
+
+    // Temporary storage for passing poisonous IDs from willMigrate (V15 context) to didMigrate (V16 context).
+    nonisolated(unsafe) static var _poisonousIds: Set<String> = []
+
+    static let migrateV15toV16 = MigrationStage.custom(
+        fromVersion: MerianSchemaV15.self,
+        toVersion: MerianSchemaV16.self,
+        willMigrate: { context in
+            // Read all records that were marked isPoisonous = true in V15.
+            let descriptor = FetchDescriptor<MerianSchemaV15.LocalScanRecord>(
+                predicate: #Predicate { $0.isPoisonous == true }
+            )
+            let poisonousRecords = try context.fetch(descriptor)
+            _poisonousIds = Set(poisonousRecords.map { $0.id })
+        },
+        didMigrate: { context in
+            // Set hazardType = "poisonous" for the records that had isPoisonous = true.
+            for id in _poisonousIds {
+                var descriptor = FetchDescriptor<MerianSchemaV16.LocalScanRecord>(
+                    predicate: #Predicate { $0.id == id }
+                )
+                descriptor.fetchLimit = 1
+                if let record = try context.fetch(descriptor).first {
+                    record.hazardType = "poisonous"
+                }
+            }
+            try context.save()
+            _poisonousIds = []
+        }
     )
 }

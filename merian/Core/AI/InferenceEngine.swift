@@ -46,6 +46,8 @@ private struct WikiSummaryResponse: Decodable {
     private(set) var activeFlashFired: Bool? = nil
     private(set) var activeDistanceInMeters: Float? = nil
 
+    var isPremiumLoading: Bool = false
+
     // MARK: - Background Rescue State
     /// Set to `true` by `cancelActiveRequest()` before cancelling the task, so the task's
     /// cancellation handler knows the scan was intentionally backgrounded and should not refund.
@@ -184,6 +186,11 @@ private struct WikiSummaryResponse: Decodable {
                         Task {
                             await self.fetchWikipediaAndHydrate(for: mappedData.scientificName, scanId: mappedData.scanId, modelContext: modelContext)
                         }
+                        if RevenueCatManager.shared.isProActive {
+                            Task {
+                                await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                            }
+                        }
                     }
                 }
             } catch {
@@ -207,7 +214,7 @@ private struct WikiSummaryResponse: Decodable {
                         scanId: nil,
                         commonName: "Analysis Failed",
                         scientificName: "Data Unreadable",
-                        insightData: InsightData(description: "The AI failed to understand the image or produced an unreadable schema.", isPoisonous: false, regionalStatusRationale: nil),
+                        insightData: InsightData(description: "The AI failed to understand the image or produced an unreadable schema.", hazardType: "none", regionalStatusRationale: nil),
                         confidenceScore: 0,
                         diagnosticComparison: nil,
                         wikipediaUrl: nil,
@@ -247,7 +254,7 @@ private struct WikiSummaryResponse: Decodable {
                     scanId: nil,
                     commonName: "Network Timeout",
                     scientificName: "Offline Mode",
-                    insightData: InsightData(description: "Please check your network connection and try again.", isPoisonous: false, regionalStatusRationale: nil),
+                    insightData: InsightData(description: "Please check your network connection and try again.", hazardType: "none", regionalStatusRationale: nil),
                     confidenceScore: 0,
                     diagnosticComparison: nil,
                     wikipediaUrl: nil,
@@ -321,6 +328,66 @@ private struct WikiSummaryResponse: Decodable {
             }
         } catch {
             MerianLog.general.debug("Wikipedia hydration skipped: \(error, privacy: .private)")
+        }
+    }
+
+    // MARK: - Premium Enrichment
+
+    /// Fetches habitat, distribution, and (if low-confidence) diagnostic data from `enrich-scan`
+    /// and patches the live `speciesData` in-place, then persists the result to SwiftData.
+    ///
+    /// Called automatically after a successful scan (Pro only) and when reloading a historical
+    /// record that is missing enrichment data. Silently ignores 403s (free-tier gate).
+    func fetchAndApplyEnrichment(modelContext: ModelContext?) async {
+        guard let data = speciesData,
+              let scanId = data.scanId,
+              data.isBiological,
+              !data.scientificName.isEmpty,
+              data.scientificName.lowercased() != "taxonomy unavailable" else { return }
+
+        isPremiumLoading = true
+        defer { isPremiumLoading = false }
+
+        do {
+            let response = try await MerianNetworkClient.shared.fetchEnrichment(
+                scanId: scanId, scientificName: data.scientificName
+            )
+            guard let enrichData = response.data else { return }
+
+            speciesData?.habitatDescription = enrichData.habitat_description
+            speciesData?.globalDistributionRegions = enrichData.global_distribution_regions
+
+            if data.confidenceScore < 0.85,
+               let diag = enrichData.diagnostic_comparison,
+               let rationale = diag.primary_match_rationale,
+               let lookalike = diag.confusing_lookalike_name,
+               let diffs = diag.key_differentiators, !diffs.isEmpty {
+                speciesData?.diagnosticComparison = DiagnosticComparison(
+                    primaryMatchRationale: rationale,
+                    confusingLookalikeName: lookalike,
+                    keyDifferentiators: diffs
+                )
+            }
+
+            if let context = modelContext {
+                let container = context.container
+                Task {
+                    let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                    await dbActor.updateScanWithEnrichment(
+                        scanId: scanId,
+                        habitatDescription: enrichData.habitat_description,
+                        globalDistributionRegions: enrichData.global_distribution_regions,
+                        diagnosticPrimaryRationale: enrichData.diagnostic_comparison?.primary_match_rationale,
+                        diagnosticLookalikeName: enrichData.diagnostic_comparison?.confusing_lookalike_name,
+                        diagnosticKeyDifferentiators: enrichData.diagnostic_comparison?.key_differentiators
+                    )
+                }
+            }
+        } catch let error as NetworkError {
+            if case .httpError(let code, _) = error, code == 403 { return }
+            MerianLog.general.debug("Enrichment fetch failed: \(error, privacy: .private)")
+        } catch {
+            MerianLog.general.debug("Enrichment fetch failed: \(error, privacy: .private)")
         }
     }
 
@@ -402,7 +469,7 @@ private struct WikiSummaryResponse: Decodable {
             scanId: record.id,
             commonName: record.commonName,
             scientificName: record.scientificName,
-            insightData: InsightData(description: record.insightDescription, isPoisonous: record.isPoisonous, regionalStatusRationale: nil),
+            insightData: InsightData(description: record.insightDescription, hazardType: record.hazardType, regionalStatusRationale: nil),
             confidenceScore: record.confidenceScore ?? 1.0,
             diagnosticComparison: parsedDiagnostic,
             wikipediaUrl: record.wikipediaUrl,
@@ -443,6 +510,19 @@ private struct WikiSummaryResponse: Decodable {
             let safeContext = record.modelContext
             Task {
                 await self.fetchWikipediaAndHydrate(for: record.scientificName, scanId: record.id, modelContext: safeContext)
+            }
+        }
+
+        // Fetch enrichment for Pro users when the record is missing premium data or
+        // is a low-confidence scan that hasn't had diagnostic comparison generated yet.
+        if record.isBiological && RevenueCatManager.shared.isProActive {
+            let needsEnrichment = record.habitatDescription == nil ||
+                ((record.confidenceScore ?? 1.0) < 0.85 && record.diagnosticPrimaryRationale == nil)
+            if needsEnrichment {
+                let safeContext = record.modelContext
+                Task {
+                    await self.fetchAndApplyEnrichment(modelContext: safeContext)
+                }
             }
         }
     }

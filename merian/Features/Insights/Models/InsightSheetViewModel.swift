@@ -72,9 +72,11 @@ final class InsightSheetViewModel {
         inferenceEngine?.speciesData?.scientificName ?? "Awaiting taxonomy"
     }
     
-    var isPoisonous: Bool {
-        inferenceEngine?.speciesData?.insightData.isPoisonous ?? false
+    var hazardType: String {
+        inferenceEngine?.speciesData?.insightData.hazardType ?? "none"
     }
+
+    var isHazardous: Bool { hazardType != "none" }
     
     var headerParagraphs: [String] {
         guard let species = inferenceEngine?.speciesData, !species.insightData.description.isEmpty else { return [] }
@@ -124,11 +126,19 @@ final class InsightSheetViewModel {
     // MARK: - Lifecycle Handlers
     
     func evaluateVoiceOverAndCelebration(inferenceEngine: InferenceEngine) {
-        let isPoisonous = inferenceEngine.speciesData?.insightData.isPoisonous ?? false
+        let hazardType = inferenceEngine.speciesData?.insightData.hazardType ?? "none"
         let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
-        
+
         if UIAccessibility.isVoiceOverRunning {
-            let announcement = isPoisonous ? "\(commonName). Warning: This subject is poisonous." : commonName
+            let hazardWarning: String
+            switch hazardType {
+            case "venomous":   hazardWarning = "Warning: This species is venomous."
+            case "allergenic": hazardWarning = "Warning: This species may trigger allergic reactions."
+            case "irritant":   hazardWarning = "Warning: This species may cause skin or eye irritation."
+            case "poisonous":  hazardWarning = "Warning: This species is toxic."
+            default:           hazardWarning = ""
+            }
+            let announcement = hazardWarning.isEmpty ? commonName : "\(commonName). \(hazardWarning)"
             UIAccessibility.post(notification: .announcement, argument: announcement)
         }
         
