@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct AIReasoningCard: View {
+struct DiagnosticComparisonCard: View {
     let diagnosticData: DiagnosticComparison
     
     var body: some View {

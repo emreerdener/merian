@@ -66,7 +66,8 @@ User blocking routes through a dedicated Edge Function to bypass RLS policies th
 ## Security & Environment Validation
 
 - The `GEMINI_API_KEY` is absent from the iOS client bundle (`Info.plist` and `.xcconfig`). All LLM calls go through the `identify` Edge Function, which holds the key server-side.
-- All Edge Functions disable the default GoTrue middleware (`verify_jwt = false` in `config.toml`) and perform manual JWT verification via the Supabase SDK.
+- All Edge Functions set `verify_jwt = false` in `config.toml` and perform manual JWT verification via `requireAuth` inside `withEdgeHandler`. This is mandatory: omitting an entry causes Supabase's Kong gateway to default to `verify_jwt = true`, which validates the JWT at the gateway layer before the function code runs and rejects valid ES256 anonymous sessions with `401 Invalid JWT`. The sole exception is `merge-ghost-profile`, which keeps `verify_jwt = true` because it is invoked via the Supabase Swift SDK's `client.functions.invoke()` (which handles JWT attachment at the SDK level) rather than `MerianNetworkClient`'s manual `Authorization` header path.
+- **Rule for new Edge Functions**: Every new function directory under `supabase/functions/` MUST have a corresponding `[functions.<name>]` entry with `verify_jwt = false` in `config.toml` before deployment.
 
 ## Database Indexing & Performance
 

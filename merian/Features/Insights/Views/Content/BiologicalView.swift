@@ -64,7 +64,7 @@ struct BiologicalView: View {
             
             // Diagnostic Evaluation
             if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.8, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
-                AIReasoningCard(diagnosticData: diagnosticData)
+                DiagnosticComparisonCard(diagnosticData: diagnosticData)
             }
         }
         .padding(.horizontal)
