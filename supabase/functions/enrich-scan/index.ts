@@ -126,11 +126,11 @@ serve((req: Request) =>
       }
       if (!hasDiagnostic && diagnosticResult) {
         persistOps.push(
-          supabaseAdmin.from("scans").update({
+          supabaseAdmin.from("species_dictionary").update({
             diagnostic_primary_rationale: diagnosticResult.primary_match_rationale,
             diagnostic_lookalike_name: diagnosticResult.confusing_lookalike_name,
             diagnostic_differentiators_json: JSON.stringify(diagnosticResult.key_differentiators),
-          }).eq("id", scan_id)
+          }).eq("scientific_name", scientific_name)
         );
       }
       await Promise.allSettled(persistOps);
