@@ -11,7 +11,27 @@ enum MerianSchemaV15: VersionedSchema {
 
     typealias PendingCloudDeletionTask = MerianSchemaV14.PendingCloudDeletionTask
     typealias OfflineQueuedScan = MerianSchemaV14.OfflineQueuedScan
-    typealias ScanCollection = MerianSchemaV14.ScanCollection
+
+    // ScanCollection is redeclared (structurally identical to V14) so its inverse relationship
+    // points to V15.LocalScanRecord instead of V14.LocalScanRecord. Without this, SwiftData
+    // computes the same checksum for V14 and V15, crashing with "Duplicate version checksums".
+    @Model
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
+
+        @Relationship(inverse: \LocalScanRecord.collections) var scans: [LocalScanRecord]? = []
+
+        init(id: String = UUID().uuidString, name: String, createdAt: Date = Date(), isDeleted: Bool = false, scans: [LocalScanRecord]? = []) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
+    }
 
     @Model
     final class LocalScanRecord {
