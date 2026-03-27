@@ -1,11 +1,21 @@
 import SwiftUI
 import MapKit
 
+// MARK: - GBIF Capabilities Response
+
+private struct GBIFCapabilitiesResponse: Decodable {
+    let minLat: Double
+    let maxLat: Double
+    let minLng: Double
+    let maxLng: Double
+    let total: Int
+}
+
 // MARK: - GBIF Heatmap Map View
 
 /// Renders a live GBIF occurrence density heatmap tile overlay for a given taxon key.
 /// Tiles are served from the GBIF Maps API (v2) as hex-binned classic poly overlays.
-/// Always shows the world view — the GBIF tile layer itself communicates the species range.
+/// Automatically fetches the taxonomic capabilities bounding box to frame the heatmap.
 struct GBIFHeatmapMapView: UIViewRepresentable {
     let taxonKey: Int
 
@@ -23,7 +33,12 @@ struct GBIFHeatmapMapView: UIViewRepresentable {
         mapView.addOverlay(overlay, level: .aboveRoads)
         mapView.delegate = context.coordinator
 
+        // Start with the full world view.
         mapView.setRegion(Self.worldRegion, animated: false)
+        
+        // Fetch the bounding box and animate the zoom.
+        fetchCapabilitiesAndZoom(for: mapView)
+
         return mapView
     }
 
@@ -36,6 +51,41 @@ struct GBIFHeatmapMapView: UIViewRepresentable {
         span: MKCoordinateSpan(latitudeDelta: 170, longitudeDelta: 360)
     )
 
+    private func fetchCapabilitiesAndZoom(for mapView: MKMapView) {
+        let urlString = "https://api.gbif.org/v2/map/occurrence/density/capabilities.json?taxonKey=\(taxonKey)"
+        guard let url = URL(string: urlString) else { return }
+
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                if let response = try? JSONDecoder().decode(GBIFCapabilitiesResponse.self, from: data), response.total > 0 {
+                    await MainActor.run {
+                        let centerLat = (response.minLat + response.maxLat) / 2
+                        let centerLng = (response.minLng + response.maxLng) / 2
+                        let latDelta = abs(response.maxLat - response.minLat)
+                        let lngDelta = abs(response.maxLng - response.minLng)
+
+                        // Add 40% padding around the edges to avoid cutting off peripheral hex bins.
+                        let spanLat = latDelta * 1.4
+                        let spanLng = lngDelta * 1.4
+
+                        // Constrain the span to avoid over-zooming on isolated points and wrap at map edges.
+                        let finalLatDelta = min(max(spanLat, 10.0), 170.0)
+                        let finalLngDelta = min(max(spanLng, 10.0), 360.0)
+
+                        let region = MKCoordinateRegion(
+                            center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLng),
+                            span: MKCoordinateSpan(latitudeDelta: finalLatDelta, longitudeDelta: finalLngDelta)
+                        )
+                        mapView.setRegion(region, animated: true)
+                    }
+                }
+            } catch {
+                print("Failed to fetch GBIF capabilities for taxonKey \(taxonKey): \(error)")
+            }
+        }
+    }
+    
     final class Coordinator: NSObject, MKMapViewDelegate {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             guard let tileOverlay = overlay as? MKTileOverlay else {
