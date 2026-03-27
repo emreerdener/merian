@@ -93,11 +93,10 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
   "colors": ["orange", "black", "white"],
   "insight_data": {
     "ai_reasoning": "The distinctive orange and black wing pattern with white-spotted margins, combined with the milkweed habitat context, is diagnostic for Danaus plexippus. The ventral hindwing silver spots confirm this is not the mimicking Viceroy.",
-    "regional_status_rationale": "Native bounds active during summer months.",
     "hazard_type": "none"
   },
   "wikipedia_url": "https://en.wikipedia.org/wiki/Monarch_butterfly",
-  "wikipedia_extract": "The monarch butterfly or simply monarch is a milkweed butterfly in the family Nymphalidae...",
+  "wikipedia_overview": "The monarch butterfly or simply monarch is a milkweed butterfly in the family Nymphalidae...",
   "reference_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Monarch_In_May.jpg/320px-Monarch_In_May.jpg",
 
   "// Cache Hit only — sourced from species_dictionary:": "",

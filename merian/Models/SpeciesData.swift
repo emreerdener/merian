@@ -72,7 +72,8 @@ struct SpeciesData {
     let blurScore: Double?
     var diagnosticComparison: DiagnosticComparison?
     var wikipediaUrl: String?
-    var wikipediaExtract: String?
+    /// Wikipedia summary paragraph cached from the Wikipedia REST API.
+    var wikipediaOverview: String?
     var referenceImageUrl: String?
 
     let isBiological: Bool
@@ -90,6 +91,7 @@ struct SpeciesData {
     var gpsLatitude: Double?
     var gpsLongitude: Double?
     var colors: [String]?
+    var groupTags: [String]?
     let iucnRedListStatus: String?
     var zoomFactor: Double?
 
@@ -113,9 +115,8 @@ extension SpeciesData {
         gpsLongitude: Double? = nil
     ) {
         let insight = InsightData(
-            description: edgeRes.insight_data?.ai_reasoning ?? "No ecological description available for this subject.",
-            hazardType: edgeRes.insight_data?.hazard_type ?? "none",
-            regionalStatusRationale: edgeRes.insight_data?.regional_status_rationale
+            aiReasoning: edgeRes.insight_data?.ai_reasoning ?? "No ecological description available for this subject.",
+            hazardType: edgeRes.insight_data?.hazard_type ?? "none"
         )
 
         let taxonomyData = TaxonomyData(
@@ -135,7 +136,7 @@ extension SpeciesData {
         self.blurScore = edgeRes.blur_score
         self.diagnosticComparison = nil  // populated async via enrich-scan
         self.wikipediaUrl = edgeRes.wikipedia_url
-        self.wikipediaExtract = edgeRes.wikipedia_extract
+        self.wikipediaOverview = edgeRes.wikipedia_overview
         self.referenceImageUrl = edgeRes.reference_image_url
         self.isBiological = edgeRes.is_biological_subject ?? true
         self.isLiveCapture = edgeRes.is_live_capture ?? true
@@ -149,6 +150,7 @@ extension SpeciesData {
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
         self.colors = edgeRes.colors
+        self.groupTags = edgeRes.group_tags
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
         self.zoomFactor = nil  // populated by the caller from CaptureTelemetry
         self.aiReasoning = edgeRes.insight_data?.ai_reasoning  // per-scan; unique to the specific photo submitted
@@ -170,7 +172,7 @@ extension SpeciesData {
         blurScore: Double? = nil,
         diagnosticComparison: DiagnosticComparison? = nil,
         wikipediaUrl: String? = nil,
-        wikipediaExtract: String? = nil,
+        wikipediaOverview: String? = nil,
         referenceImageUrl: String? = nil,
         isBiological: Bool = true,
         isLiveCapture: Bool = true,
@@ -184,6 +186,7 @@ extension SpeciesData {
         gpsLatitude: Double? = nil,
         gpsLongitude: Double? = nil,
         colors: [String]? = nil,
+        groupTags: [String]? = nil,
         iucnRedListStatus: String? = nil,
         zoomFactor: Double? = nil,
         aiReasoning: String? = nil,
@@ -198,7 +201,7 @@ extension SpeciesData {
         self.blurScore = blurScore
         self.diagnosticComparison = diagnosticComparison
         self.wikipediaUrl = wikipediaUrl
-        self.wikipediaExtract = wikipediaExtract
+        self.wikipediaOverview = wikipediaOverview
         self.referenceImageUrl = referenceImageUrl
         self.isBiological = isBiological
         self.isLiveCapture = isLiveCapture
@@ -212,6 +215,7 @@ extension SpeciesData {
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
         self.colors = colors
+        self.groupTags = groupTags
         self.iucnRedListStatus = iucnRedListStatus
         self.zoomFactor = zoomFactor
         self.aiReasoning = aiReasoning
@@ -232,11 +236,10 @@ struct TaxonomyData {
 }
 
 struct InsightData {
-    let description: String
+    /// Per-scan AI vision reasoning — unique to the specific photo submitted.
+    let aiReasoning: String
     /// AI-classified hazard type. One of: `"none"` | `"poisonous"` | `"venomous"` | `"allergenic"` | `"irritant"`.
     let hazardType: String
-    let regionalStatusRationale: String?
-
     var isHazardous: Bool { hazardType != "none" }
 }
 

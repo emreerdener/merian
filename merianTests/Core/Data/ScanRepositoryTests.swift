@@ -9,19 +9,18 @@ struct ScanRepositoryTests {
     // Helper to create an isolated SwiftData container caching out to disk due to iOS 18 simulator array appending bugs.
     @MainActor
     private func createIsolatedContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV9.models)
+        let schema = Schema(MerianSchemaV17.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         let context = ModelContext(container)
-        ScanRepository.shared.configure(with: context) // Mock offline dependencies
+        ScanRepository.shared.configure(with: context)
         return context
     }
 
-    // Helper for V15-schema tests (aiReasoning, habitatDescription, globalDistributionRegionsJson).
     @MainActor
-    private func createV15IsolatedContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV15.models)
+    private func createPremiumFieldsContext() throws -> ModelContext {
+        let schema = Schema(MerianSchemaV17.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -37,8 +36,7 @@ struct ScanRepositoryTests {
         let record = LocalScanRecord(
             speciesId: "test-species",
             scientificName: "Test scientific",
-            commonName: "Test common",
-            insightDescription: "Test description"
+            commonName: "Test common"
         )
         ctx.insert(record)
         
@@ -74,8 +72,7 @@ struct ScanRepositoryTests {
         let record = LocalScanRecord(
             speciesId: "test-species-archive",
             scientificName: "Archive Phase",
-            commonName: "Test Archive state",
-            insightDescription: "Archive test scope"
+            commonName: "Test Archive state"
         )
         ctx.insert(record)
         
@@ -97,12 +94,11 @@ struct ScanRepositoryTests {
     // MARK: - V15 Premium Insights persistence
 
     @Test func testV15AiReasoningPersistsRoundTrip() async throws {
-        let ctx = try createV15IsolatedContext()
+        let ctx = try createPremiumFieldsContext()
         let record = LocalScanRecord(
             speciesId: "v15-species",
             scientificName: "Danaus plexippus",
             commonName: "Monarch Butterfly",
-            insightDescription: "The orange-black wing pattern is diagnostic.",
             aiReasoning: "Orange and black wing pattern with white marginal spots confirms Danaus plexippus."
         )
         ctx.insert(record)
@@ -116,12 +112,11 @@ struct ScanRepositoryTests {
     }
 
     @Test func testV15HabitatDescriptionPersistsRoundTrip() async throws {
-        let ctx = try createV15IsolatedContext()
+        let ctx = try createPremiumFieldsContext()
         let record = LocalScanRecord(
             speciesId: "v15-habitat",
             scientificName: "Photinus pyralis",
             commonName: "Firefly",
-            insightDescription: "A bioluminescent beetle.",
             habitatDescription: "Warm temperate meadows and forest edges near standing water."
         )
         ctx.insert(record)
@@ -135,14 +130,13 @@ struct ScanRepositoryTests {
     }
 
     @Test func testV15GlobalDistributionRegionsJsonRoundTrip() async throws {
-        let ctx = try createV15IsolatedContext()
+        let ctx = try createPremiumFieldsContext()
         let regions = ["US-TX", "US-CA", "MX"]
         let regionsJson = try String(data: JSONEncoder().encode(regions), encoding: .utf8)!
         let record = LocalScanRecord(
             speciesId: "v15-regions",
             scientificName: "Danaus plexippus",
             commonName: "Monarch Butterfly",
-            insightDescription: "A migratory butterfly.",
             globalDistributionRegionsJson: regionsJson
         )
         ctx.insert(record)
@@ -158,12 +152,11 @@ struct ScanRepositoryTests {
     }
 
     @Test func testV15PremiumFieldsDefaultToNilOnLegacyRecord() async throws {
-        let ctx = try createV15IsolatedContext()
+        let ctx = try createPremiumFieldsContext()
         let record = LocalScanRecord(
             speciesId: "v15-legacy",
             scientificName: "Procyon lotor",
-            commonName: "Raccoon",
-            insightDescription: "A medium-sized mammal."
+            commonName: "Raccoon"
         )
         ctx.insert(record)
         try ctx.save()

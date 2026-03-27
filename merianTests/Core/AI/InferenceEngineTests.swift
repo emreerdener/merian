@@ -30,8 +30,7 @@ struct InferenceEngineTests {
                 },
                 "insight_data": {
                     "ai_reasoning": "A medium-sized mammal native to North America.",
-                    "hazard_type": "none",
-                    "regional_status_rationale": "Least Concern"
+                    "hazard_type": "none"
                 },
                 "wikipedia_url": "https://en.wikipedia.org/wiki/Raccoon",
                 "reference_image_url": "https://example.com/raccoon.jpg"
@@ -96,7 +95,6 @@ struct InferenceEngineTests {
             speciesId: "species_abc",
             scientificName: "Danaus plexippus",
             commonName: "Monarch Butterfly",
-            insightDescription: "A milkweed butterfly in the family Nymphalidae.",
             localImagePath: "monarch.jpg",
             semanticTags: ["butterfly", "insect"],
             hazardType: "poisonous",
@@ -104,6 +102,7 @@ struct InferenceEngineTests {
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "Terrestrial",
+            aiReasoning: "A milkweed butterfly in the family Nymphalidae.",
             wikipediaUrl: "https://en.wikipedia.org/wiki/Monarch_butterfly",
             referenceImageUrl: "https://example.com/monarch.jpg",
             additionalImagePaths: ["monarch2.jpg"],
@@ -128,7 +127,7 @@ struct InferenceEngineTests {
         #expect(resultingData.scientificName == "Danaus plexippus")
         #expect(resultingData.confidenceScore == 0.99)
         #expect(resultingData.insightData.hazardType == "poisonous")
-        #expect(resultingData.insightData.description.contains("Nymphalidae"))
+        #expect(resultingData.insightData.aiReasoning.contains("Nymphalidae"))
         #expect(resultingData.taxonomy?.genus == "Danaus")
 
         // Assert image paths are stitched properly into activeImageDatas for the UI Carousel
@@ -244,7 +243,6 @@ struct InferenceEngineTests {
             speciesId: "species_v15",
             scientificName: "Danaus plexippus",
             commonName: "Monarch Butterfly",
-            insightDescription: "The orange-black wing pattern is diagnostic.",
             aiReasoning: "The orange and black wing pattern with white marginal spots is diagnostic for Danaus plexippus.",
             habitatDescription: "Open fields and meadows with milkweed.",
             globalDistributionRegionsJson: regionsJson
@@ -263,7 +261,6 @@ struct InferenceEngineTests {
             speciesId: "species_malformed",
             scientificName: "Unknown",
             commonName: "Unknown",
-            insightDescription: "Test",
             globalDistributionRegionsJson: "NOT_VALID_JSON"
         )
         let engine = InferenceEngine()
@@ -278,8 +275,7 @@ struct InferenceEngineTests {
         let record = LocalScanRecord(
             speciesId: "species_legacy",
             scientificName: "Procyon lotor",
-            commonName: "Raccoon",
-            insightDescription: "A medium-sized mammal."
+            commonName: "Raccoon"
         )
         let engine = InferenceEngine()
         engine.load(from: record)

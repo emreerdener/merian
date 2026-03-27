@@ -262,7 +262,7 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
     let reference_image_url: String?
     let hazard_type: String?
     let common_names: [String: String?]?
-    let descriptions: [String: String?]?
+    let wikipedia_overview: String?
     let iucn_red_list_status: String?
     let habitat_description: String?
     let global_distribution_regions: [String]?
@@ -456,8 +456,7 @@ actor HistoricalDatabaseActor {
             let dict = scan.species_dictionary
             let sciName = dict?.scientific_name ?? "Unknown Subject"
             let cName = dict?.common_names?.compactMap { $0.value }.first ?? sciName
-            let desc = dict?.descriptions?["insight"]?.flatMap { $0 } ?? "No ecological description available for this subject."
-            let wikiExtract = dict?.descriptions?["wikipedia"]?.flatMap { $0 }
+            let wikiExtract = dict?.wikipedia_overview
 
             let rawR2Image = scan.image_storage_urls?.first
             let additionalUrls = scan.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
@@ -467,7 +466,6 @@ actor HistoricalDatabaseActor {
                 speciesId: UUID().uuidString,
                 scientificName: sciName,
                 commonName: cName,
-                insightDescription: desc,
                 timestamp: parsedDate,
                 localImagePath: rawR2Image,
                 semanticTags: [cName, sciName] + (scan.colors ?? []) + (scan.group_tags ?? []),
@@ -477,7 +475,7 @@ actor HistoricalDatabaseActor {
                 isInvasive: scan.is_invasive ?? false,
                 ecologyType: scan.ecology_type ?? "unknown",
                 wikipediaUrl: dict?.wikipedia_url,
-                wikipediaExtract: wikiExtract,
+                wikipediaOverview: wikiExtract,
                 referenceImageUrl: dict?.reference_image_url,
                 additionalImagePaths: additionalUrls,
                 confidenceScore: scan.ai_confidence_score,

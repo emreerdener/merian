@@ -1,9 +1,10 @@
 import Foundation
 import SwiftData
 
-// Changed: isPoisonous: Bool → hazardType: String ("none" | "poisonous" | "venomous" | "allergenic" | "irritant")
-enum MerianSchemaV16: VersionedSchema {
-    static var versionIdentifier = Schema.Version(16, 0, 0)
+// Changed: insightDescription: String → removed (use aiReasoning: String? instead)
+//          wikipediaExtract: String? → wikipediaOverview: String? (clarifies source)
+enum MerianSchemaV17: VersionedSchema {
+    static var versionIdentifier = Schema.Version(17, 0, 0)
 
     static var models: [any PersistentModel.Type] {
         [LocalScanRecord.self, OfflineQueuedScan.self, ScanCollection.self, PendingCloudDeletionTask.self]
@@ -12,7 +13,7 @@ enum MerianSchemaV16: VersionedSchema {
     typealias PendingCloudDeletionTask = MerianSchemaV15.PendingCloudDeletionTask
     typealias OfflineQueuedScan        = MerianSchemaV15.OfflineQueuedScan
 
-    // ScanCollection redeclared so its inverse relationship points to V16.LocalScanRecord.
+    // ScanCollection redeclared so its inverse relationship points to V17.LocalScanRecord.
     @Model
     final class ScanCollection {
         @Attribute(.unique) var id: String = UUID().uuidString
@@ -37,7 +38,6 @@ enum MerianSchemaV16: VersionedSchema {
         var speciesId: String
         var scientificName: String
         var commonName: String
-        var insightDescription: String
         var timestamp: Date
         var localImagePath: String?
 
@@ -49,7 +49,8 @@ enum MerianSchemaV16: VersionedSchema {
         var isInvasive: Bool
         var ecologyType: String
         var wikipediaUrl: String?
-        var wikipediaExtract: String?
+        /// Wikipedia summary paragraph for this species. Cached from the Wikipedia REST API.
+        @Attribute(originalName: "wikipediaExtract") var wikipediaOverview: String?
         var referenceImageUrl: String?
         var additionalImagePaths: [String]?
         var confidenceScore: Double?
@@ -78,6 +79,7 @@ enum MerianSchemaV16: VersionedSchema {
         @Attribute var gpsElevation: Double? = nil
         @Attribute var zoomFactor: Double? = nil
 
+        /// Per-scan AI vision reasoning — unique to the specific photo submitted.
         @Attribute var aiReasoning: String? = nil
         @Attribute var habitatDescription: String? = nil
         @Attribute var globalDistributionRegionsJson: String? = nil
@@ -86,7 +88,6 @@ enum MerianSchemaV16: VersionedSchema {
              speciesId: String,
              scientificName: String,
              commonName: String,
-             insightDescription: String,
              timestamp: Date = Date(),
              localImagePath: String? = nil,
              semanticTags: [String] = [],
@@ -96,7 +97,7 @@ enum MerianSchemaV16: VersionedSchema {
              isInvasive: Bool = false,
              ecologyType: String = "unknown",
              wikipediaUrl: String? = nil,
-             wikipediaExtract: String? = nil,
+             wikipediaOverview: String? = nil,
              referenceImageUrl: String? = nil,
              additionalImagePaths: [String]? = nil,
              confidenceScore: Double? = nil,
@@ -127,7 +128,6 @@ enum MerianSchemaV16: VersionedSchema {
             self.speciesId = speciesId
             self.scientificName = scientificName
             self.commonName = commonName
-            self.insightDescription = insightDescription
             self.timestamp = timestamp
             self.localImagePath = localImagePath
             self.semanticTags = semanticTags
@@ -137,7 +137,7 @@ enum MerianSchemaV16: VersionedSchema {
             self.isInvasive = isInvasive
             self.ecologyType = ecologyType
             self.wikipediaUrl = wikipediaUrl
-            self.wikipediaExtract = wikipediaExtract
+            self.wikipediaOverview = wikipediaOverview
             self.referenceImageUrl = referenceImageUrl
             self.additionalImagePaths = additionalImagePaths
             self.confidenceScore = confidenceScore

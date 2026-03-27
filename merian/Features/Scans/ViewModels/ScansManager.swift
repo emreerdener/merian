@@ -275,13 +275,20 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 @ModelActor
 actor SearchDatabaseActor {
     func extractSearchablePayloads(from ids: [PersistentIdentifier]) -> [SearchableScan] {
+        // model(for:) performs an internal forced cast that crashes when the entity
+        // stored in the PersistentIdentifier doesn't resolve cleanly to LocalScanRecord
+        // within this actor's context. Fetch all records once and index by persistentModelID
+        // to avoid the unsafe cast entirely.
+        let allRecords = (try? modelContext.fetch(FetchDescriptor<LocalScanRecord>())) ?? []
+        let byID = Dictionary(uniqueKeysWithValues: allRecords.map { ($0.persistentModelID, $0) })
+
         var processed: [SearchableScan] = []
         processed.reserveCapacity(ids.count)
-        
+
         for id in ids {
             if Task.isCancelled { break }
-            
-            if let record = self.modelContext.model(for: id) as? LocalScanRecord {
+
+            if let record = byID[id] {
                 let tags = record.semanticTags.joined(separator: " ")
                 // Taxonomy class/order/family are appended so users can search Latin names
                 // (e.g. "aves", "passeriformes"). commonGroupName maps the class to plain
@@ -290,7 +297,7 @@ actor SearchDatabaseActor {
                     .compactMap { $0 }.joined(separator: " ")
                 let groupName = SearchDatabaseActor.commonGroupName(for: record.taxonomyClass)
                 let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(taxonomyTerms) \(groupName)".lowercased()
-                
+
                 processed.append(SearchableScan(
                     id: record.id,
                     searchString: rawString,
@@ -299,9 +306,9 @@ actor SearchDatabaseActor {
                     className: record.taxonomyClass?.lowercased() ?? ""
                 ))
             }
-            
+
         }
-        
+
         return processed
     }
 

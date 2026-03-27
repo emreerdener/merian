@@ -48,8 +48,7 @@ serve((req: Request) =>
           reference_image_url,
           iucn_red_list_status,
           hazard_type,
-          kingdom,
-          descriptions
+          kingdom
         ),
         users!inner(is_shadowbanned)
       `)

@@ -131,7 +131,6 @@ actor BackgroundDatabaseActor {
                     speciesId: activeSpeciesId,
                     scientificName: mappedData.scientificName,
                     commonName: mappedData.commonName,
-                    insightDescription: mappedData.insightData.description,
                     timestamp: originalTimestamp,
                     localImagePath: originalImagePaths.first,
                     semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
@@ -241,10 +240,9 @@ actor BackgroundDatabaseActor {
             speciesId: activeSpeciesId,
             scientificName: mappedData.scientificName,
             commonName: mappedData.commonName,
-            insightDescription: mappedData.insightData.description,
             timestamp: Date(),
             localImagePath: firstPath,
-            semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
+            semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
             hazardType: mappedData.insightData.hazardType,
             isBiological: mappedData.isBiological,
             isLiveCapture: mappedData.isLiveCapture,
@@ -296,7 +294,7 @@ actor BackgroundDatabaseActor {
     func updateScanWithWikipedia(scanId: String, extract: String, url: String, imageUrl: String?) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        descriptor.propertiesToFetch = [\.wikipediaExtract, \.wikipediaUrl, \.referenceImageUrl]
+        descriptor.propertiesToFetch = [\.wikipediaOverview, \.wikipediaUrl, \.referenceImageUrl]
         let record: LocalScanRecord?
         do {
             record = try modelContext.fetch(descriptor).first
@@ -306,7 +304,7 @@ actor BackgroundDatabaseActor {
         }
         guard let record else { return }
 
-        record.wikipediaExtract = extract
+        record.wikipediaOverview = extract
         record.wikipediaUrl = url
         if let img = imageUrl, !img.isEmpty {
             record.referenceImageUrl = img

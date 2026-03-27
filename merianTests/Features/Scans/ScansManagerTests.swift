@@ -21,15 +21,13 @@ final class ScansManagerTests: XCTestCase {
         ecologyType: String,
         semanticTags: [String] = [],
         taxonomyClass: String? = nil,
-        taxonomyKingdom: String? = nil,
-        insightDescription: String = "Test insight"
+        taxonomyKingdom: String? = nil
     ) -> LocalScanRecord {
         return LocalScanRecord(
             id: UUID().uuidString,
             speciesId: UUID().uuidString,
             scientificName: scientificName,
             commonName: commonName,
-            insightDescription: insightDescription,
             timestamp: Date(),
             localImagePath: nil,
             semanticTags: semanticTags,
@@ -39,7 +37,7 @@ final class ScansManagerTests: XCTestCase {
             isInvasive: false,
             ecologyType: ecologyType,
             wikipediaUrl: nil,
-            wikipediaExtract: nil,
+            wikipediaOverview: nil,
             referenceImageUrl: nil,
             additionalImagePaths: nil,
             confidenceScore: 0.99,

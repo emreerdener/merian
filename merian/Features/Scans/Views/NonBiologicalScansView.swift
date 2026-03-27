@@ -151,7 +151,7 @@ struct NonBiologicalScansView: View {
         
         activeRecord.isBiological = true
         activeRecord.ecologyType = "unknown"
-        activeRecord.insightDescription = ""
+        activeRecord.aiReasoning = nil
         
         // Crucially mutates the semantic bounds to escape the `commonName == "Unknown Subject"` queries
         // which inherently routes it completely out of the Non-Bio vault and straight into the Main Scans Library!

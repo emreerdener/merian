@@ -6,9 +6,8 @@ struct SpeciesDataTests {
     @Test func testSpeciesDataInitialization() {
         // Arrange
         let insightData = InsightData(
-            description: "A small, glowing beetle.",
-            hazardType: "none",
-            regionalStatusRationale: "Common in North America"
+            aiReasoning: "A small, glowing beetle.",
+            hazardType: "none"
         )
         
         let taxonomyData = TaxonomyData(
@@ -29,7 +28,7 @@ struct SpeciesDataTests {
             confidenceScore: 0.98,
             diagnosticComparison: nil,
             wikipediaUrl: "https://en.wikipedia.org/wiki/Firefly",
-            wikipediaExtract: nil,
+            wikipediaOverview: nil,
             referenceImageUrl: nil,
             isBiological: true,
             isLiveCapture: true,
@@ -53,9 +52,8 @@ struct SpeciesDataTests {
     @Test func testSpeciesDataMutability() {
         // Arrange
         let insightData = InsightData(
-            description: "Default description",
-            hazardType: "poisonous",
-            regionalStatusRationale: nil
+            aiReasoning: "Default description",
+            hazardType: "poisonous"
         )
 
         var species = SpeciesData(
@@ -66,7 +64,7 @@ struct SpeciesDataTests {
             confidenceScore: 0.5,
             diagnosticComparison: nil,
             wikipediaUrl: nil,
-            wikipediaExtract: nil,
+            wikipediaOverview: nil,
             referenceImageUrl: nil,
             isBiological: true,
             isLiveCapture: true,
@@ -89,7 +87,7 @@ struct SpeciesDataTests {
     // MARK: - Premium Insights: default nil state
 
     @Test func testPremiumFieldsDefaultToNilWhenOmitted() {
-        let insightData = InsightData(description: "A beetle.", hazardType: "none", regionalStatusRationale: nil)
+        let insightData = InsightData(aiReasoning: "A beetle.", hazardType: "none")
         let species = SpeciesData(
             commonName: "Firefly",
             scientificName: "Photinus pyralis",
@@ -103,7 +101,7 @@ struct SpeciesDataTests {
     }
 
     @Test func testPremiumFieldsMutability() {
-        let insightData = InsightData(description: "A beetle.", hazardType: "none", regionalStatusRationale: nil)
+        let insightData = InsightData(aiReasoning: "A beetle.", hazardType: "none")
         var species = SpeciesData(
             commonName: "Firefly",
             scientificName: "Photinus pyralis",
@@ -121,7 +119,7 @@ struct SpeciesDataTests {
     }
 
     @Test func testPremiumFieldsRoundTripThroughInit() {
-        let insightData = InsightData(description: "A monarch.", hazardType: "none", regionalStatusRationale: nil)
+        let insightData = InsightData(aiReasoning: "A monarch.", hazardType: "none")
         let species = SpeciesData(
             commonName: "Monarch Butterfly",
             scientificName: "Danaus plexippus",

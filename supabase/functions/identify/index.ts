@@ -15,7 +15,6 @@ import {
   withEdgeHandler,
   runBackground,
 } from "../_shared/edgeHandler.ts";
-import { calculateRegionalStatus } from "../_shared/regionalStatus.ts";
 
 // Instantiated once at module scope so warm isolate re-use avoids re-initialization overhead.
 const _geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
@@ -264,6 +263,56 @@ async function fetchDiagnosticComparison(
   }
 }
 
+async function fetchGroupTags(
+  scientificName: string,
+  genAI: GoogleGenerativeAI,
+): Promise<string[] | null> {
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction:
+      'You are a world-class biologist. Given a species scientific name, return 1–5 categorical group labels ordered from most broad to most specific (e.g. ["animal", "bird", "songbird", "warbler"]). Use plain lowercase English nouns only. Omit proper names and scientific names.',
+    generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
+  });
+
+  const schema: Record<string, unknown> = {
+    type: SchemaType.OBJECT,
+    properties: {
+      group_tags: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        description: "1–5 categorical group labels, broad to specific.",
+      },
+    },
+    required: ["group_tags"],
+  };
+
+  try {
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `Group tags for: ${scientificName}` }],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: schema as unknown as ResponseSchema,
+      },
+    });
+    const text = result.response.text();
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end === -1) throw new Error("Malformed response");
+    const parsed = JSON.parse(text.substring(start, end + 1)) as {
+      group_tags: string[];
+    };
+    return parsed.group_tags ?? null;
+  } catch (e) {
+    console.error("fetchGroupTags failed:", e);
+    return null;
+  }
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
@@ -475,7 +524,7 @@ serve((req: Request) =>
       ai_reasoning: {
         type: SchemaType.STRING,
         description:
-          "A precise 2-4 sentence expert biological analysis detailing why the subject was identified as this specific species. Point out the key diagnostic features, phenotypic traits, and contextual clues present in the image that led to this exact conclusion.",
+          "A 2-4 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence extracted from the image that substantiate this classification.",
       },
       colors: {
         type: SchemaType.ARRAY,
@@ -491,7 +540,8 @@ serve((req: Request) =>
         type: SchemaType.STRING,
         format: "enum",
         enum: ["none", "poisonous", "venomous", "allergenic", "irritant"],
-        description: "Hazard classification: 'none' if safe, 'poisonous' if harmful by ingestion/contact, 'venomous' if injects toxin via bite/sting, 'allergenic' if triggers allergic reactions, 'irritant' if causes skin/eye irritation.",
+        description:
+          "Hazard classification: 'none' if safe, 'poisonous' if harmful by ingestion/contact, 'venomous' if injects toxin via bite/sting, 'allergenic' if triggers allergic reactions, 'irritant' if causes skin/eye irritation.",
       },
     };
 
@@ -594,7 +644,7 @@ serve((req: Request) =>
       order: string | null;
       family: string | null;
       genus: string | null;
-      descriptions: Record<string, Record<string, string>> | null;
+      wikipedia_overview: string | null;
       hazard_type: string | null;
       reference_image_url: string | null;
       wikipedia_url: string | null;
@@ -603,13 +653,14 @@ serve((req: Request) =>
       global_distribution_regions: string[] | null;
       gbif_taxon_key: number | null;
       diagnostic_primary_rationale: string | null;
+      group_tags: string[] | null;
     } | null = null;
 
     if (parsedData.is_biological_subject && parsedData.scientific_name) {
       const { data: _cachedSpecies } = await supabaseAdmin
         .from("species_dictionary")
         .select(
-          "id, common_names, kingdom, phylum, class, order, family, genus, descriptions, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, global_distribution_regions, gbif_taxon_key, diagnostic_primary_rationale",
+          "id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, global_distribution_regions, gbif_taxon_key, diagnostic_primary_rationale, group_tags",
         )
         .eq("scientific_name", parsedData.scientific_name)
         .maybeSingle();
@@ -649,8 +700,11 @@ serve((req: Request) =>
         payloadReadyForClient.reference_image_url =
           cachedSpecies.reference_image_url;
         payloadReadyForClient.wikipedia_url = cachedSpecies.wikipedia_url;
-        payloadReadyForClient.wikipedia_extract =
-          cachedSpecies.descriptions?.["en"]?.wikipedia;
+        payloadReadyForClient.wikipedia_overview =
+          cachedSpecies.wikipedia_overview;
+        if (cachedSpecies.group_tags && cachedSpecies.group_tags.length > 0) {
+          payloadReadyForClient.group_tags = cachedSpecies.group_tags;
+        }
       } else {
         // Cache Miss: taxonomy, IUCN, and premium insights are not in the vision response.
         // DB enrichment (Flash text + GBIF/Wikipedia upsert) runs in the background task so
@@ -673,15 +727,8 @@ serve((req: Request) =>
           staticData.iucn_red_list_status;
       }
 
-      const calculatedRegionalStatus = calculateRegionalStatus(
-        semanticLocation,
-        !!parsedData.is_invasive,
-        staticData.premium_regions ?? null,
-      );
-
       payloadReadyForClient.insight_data = {
         ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
-        regional_status_rationale: calculatedRegionalStatus,
         hazard_type: staticData.hazard_type,
       };
 
@@ -746,9 +793,8 @@ serve((req: Request) =>
           );
           return;
         }
-        // Start diagnostic Flash in parallel with enrichment — it's cheap (400 tokens) and
-        // only fires for low-confidence scans. Awaited after the scan INSERT.
-        // Skip if the species already has cached diagnostic data — no need to re-run Flash.
+        // Start diagnostic and group-tag Flash calls in parallel with enrichment.
+        // Both are cheap, species-level, and skipped when already cached.
         const needsDiagnostic =
           parsedData.is_biological_subject &&
           parsedData.scientific_name &&
@@ -756,6 +802,14 @@ serve((req: Request) =>
           !cachedSpecies?.diagnostic_primary_rationale;
         const diagnosticPromise = needsDiagnostic
           ? fetchDiagnosticComparison(parsedData.scientific_name, _genAI)
+          : Promise.resolve(null);
+
+        const needsGroupTags =
+          parsedData.is_biological_subject &&
+          parsedData.scientific_name &&
+          !cachedSpecies?.group_tags?.length;
+        const groupTagsPromise = needsGroupTags
+          ? fetchGroupTags(parsedData.scientific_name, _genAI)
           : Promise.resolve(null);
 
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
@@ -779,22 +833,6 @@ serve((req: Request) =>
             ? { ...cachedSpecies.common_names, en: parsedData.common_name }
             : { en: parsedData.common_name };
 
-          const newDescriptions = cachedSpecies
-            ? {
-                ...cachedSpecies.descriptions,
-                ...(externalData.wikiExtract && {
-                  en: {
-                    ...cachedSpecies.descriptions?.["en"],
-                    wikipedia: externalData.wikiExtract,
-                  },
-                }),
-              }
-            : {
-                ...(externalData.wikiExtract && {
-                  en: { wikipedia: externalData.wikiExtract },
-                }),
-              };
-
           // Never overwrite data a previous scan already stored in the DB.
           const { data: upsertedSpecies } = await supabaseAdmin
             .from("species_dictionary")
@@ -808,9 +846,14 @@ serve((req: Request) =>
                 order: cachedSpecies?.order ?? textResult.taxonomy.order,
                 family: cachedSpecies?.family ?? textResult.taxonomy.family,
                 genus: cachedSpecies?.genus ?? textResult.taxonomy.genus,
-                descriptions: newDescriptions,
+                wikipedia_overview:
+                  cachedSpecies?.wikipedia_overview ??
+                  externalData.wikiExtract ??
+                  null,
                 hazard_type:
-                  cachedSpecies?.hazard_type ?? (parsedData.hazard_type ?? "none"),
+                  cachedSpecies?.hazard_type ??
+                  parsedData.hazard_type ??
+                  "none",
                 native_region: "Unknown",
                 iucn_red_list_status:
                   cachedSpecies?.iucn_red_list_status ??
@@ -843,7 +886,8 @@ serve((req: Request) =>
           cachedSpecies &&
           parsedData.is_biological_subject &&
           parsedData.scientific_name &&
-          (!cachedSpecies.habitat_description || !(cachedSpecies.global_distribution_regions?.length))
+          (!cachedSpecies.habitat_description ||
+            !cachedSpecies.global_distribution_regions?.length)
         ) {
           // Premium gap-fill: species exists in the DB but was stored before premium fields
           // were introduced. Fetch from Flash and backfill silently for all tiers.
@@ -890,6 +934,7 @@ serve((req: Request) =>
             time_of_day: timeOfDay,
             depth_scale_text: depthScaleText,
             ai_reasoning: parsedData.ai_reasoning ?? null,
+            colors: parsedData.colors ?? [],
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_total_tokens: llmTotalTokens,
@@ -917,25 +962,34 @@ serve((req: Request) =>
           return;
         }
 
-        // Await the diagnostic Flash call started above and UPDATE the scan record.
-        // Runs for all tiers — display is gated client-side based on confidence threshold.
-        if (needsDiagnostic) {
+        // Await species-level Flash calls and upsert results to species_dictionary.
+        const [diagResult, groupTagsResult] = await Promise.all([
+          diagnosticPromise,
+          groupTagsPromise,
+        ]);
+
+        if (needsDiagnostic && diagResult) {
           const diagStart = Date.now();
-          const diagResult = await diagnosticPromise;
-          if (diagResult) {
-            await supabaseAdmin
-              .from("species_dictionary")
-              .update({
-                diagnostic_primary_rationale:
-                  diagResult.primary_match_rationale,
-                diagnostic_lookalike_name: diagResult.confusing_lookalike_name,
-                diagnostic_differentiators_json: JSON.stringify(
-                  diagResult.key_differentiators,
-                ),
-              })
-              .eq("scientific_name", parsedData.scientific_name);
-          }
+          await supabaseAdmin
+            .from("species_dictionary")
+            .update({
+              diagnostic_primary_rationale: diagResult.primary_match_rationale,
+              diagnostic_lookalike_name: diagResult.confusing_lookalike_name,
+              diagnostic_differentiators_json: JSON.stringify(
+                diagResult.key_differentiators,
+              ),
+            })
+            .eq("scientific_name", parsedData.scientific_name);
           console.log(`[⏱ BENCH] bg_diagnostic: ${Date.now() - diagStart}ms`);
+        }
+
+        if (needsGroupTags && groupTagsResult && groupTagsResult.length > 0) {
+          const tagsStart = Date.now();
+          await supabaseAdmin
+            .from("species_dictionary")
+            .update({ group_tags: groupTagsResult })
+            .eq("scientific_name", parsedData.scientific_name);
+          console.log(`[⏱ BENCH] bg_group_tags: ${Date.now() - tagsStart}ms`);
         }
       } catch (e) {
         // Log structured context so failed ingestions are visible and retryable.

@@ -4,14 +4,14 @@ When generating or modifying code for Merian, follow these constraints to ensure
 
 ## 0. The Documentation Directory
 The `docs/` folder contains the master reference for the application:
-- Refer to `docs/system-architecture/system-overview.md` for overall architecture and pipeline logic.
-- Refer to `docs/system-architecture/13-zero-oom-and-concurrency.md` for strict P0 iOS and Deno concurrency/memory safety rules.
-- Refer to `docs/features-and-hardware/02-camera-and-hardware.md` for hardware integrations like LiDAR and precise telemetry snapshots.
-- Refer to `docs/backend-and-data/07-database-schema.md` for PostgreSQL & SwiftData schemas.
-- Refer to `docs/backend-and-data/08-api-contracts.md` for all network request/response shapes.
-- Refer to `docs/backend-and-data/03-offline-sync-pipeline.md` for offline queue, sync state machine, and deletion architecture.
+- Refer to `docs/system-architecture/01-system-architecture.md` for overall architecture and pipeline logic.
+- Refer to `docs/system-architecture/02-zero-oom-and-concurrency.md` for strict P0 iOS and Deno concurrency/memory safety rules.
+- Refer to `docs/features-and-hardware/01-camera-and-hardware.md` for hardware integrations like LiDAR and precise telemetry snapshots.
+- Refer to `docs/backend-and-data/04-database-schema.md` for PostgreSQL & SwiftData schemas.
+- Refer to `docs/backend-and-data/05-api-contracts.md` for all network request/response shapes.
+- Refer to `docs/backend-and-data/01-offline-sync-pipeline.md` for offline queue, sync state machine, and deletion architecture.
 - Refer to `docs/development-guides/02-app-lifecycle.md` for `AppLifecycleManager` phase contracts and trigger ordering.
-- Refer to `docs/system-architecture/14-image-pipeline.md` for capture → disk → cache → display image flow.
+- Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk → cache → display image flow.
 
 ## 1. Project Generation (XcodeGen)
 - **NEVER** directly modify `Merian.xcodeproj`.
@@ -56,7 +56,7 @@ The workspace enforces this layout inside `merian/`:
 ## 6. Supabase & Deno Edge
 - The `identify` Edge node abstracts all `generativelanguage` (Google) calls.
 - Never write direct Gemini inference code inside iOS Swift controllers — this leaks API keys and bypasses edge limits.
-- Keep the Deno Edge `index.ts` files synchronized with the Swift `IdentifyResponse` API Contract mapped in `08-API-Contracts.md`.
+- Keep the Deno Edge `index.ts` files synchronized with the Swift `IdentifyResponse` API Contract mapped in `docs/backend-and-data/05-api-contracts.md`.
 - Ensure all unstructured display text (e.g. `common_name`) is locked via `systemInstruction` rules to format as Title Case, preventing lowercase UI outputs before values are cached to the database.
 
 ## 7. Database Safeties

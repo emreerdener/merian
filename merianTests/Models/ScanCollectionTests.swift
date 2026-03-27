@@ -87,7 +87,6 @@ struct ScanCollectionTests {
             speciesId: UUID().uuidString,
             scientificName: "Testus buggus",
             commonName: "Test Bug",
-            insightDescription: "A bug for testing.",
             timestamp: Date(),
             localImagePath: nil,
             semanticTags: [],

@@ -13,9 +13,9 @@ struct NonBiologicalView: View {
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
 
-                if !species.insightData.description.isEmpty {
+                if !species.insightData.aiReasoning.isEmpty {
                     VStack(spacing: 12) {
-                         Text(species.insightData.description)
+                         Text(species.insightData.aiReasoning)
                                 .font(.system(.body))
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)

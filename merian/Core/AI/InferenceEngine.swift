@@ -214,11 +214,11 @@ private struct WikiSummaryResponse: Decodable {
                         scanId: nil,
                         commonName: "Analysis Failed",
                         scientificName: "Data Unreadable",
-                        insightData: InsightData(description: "The AI failed to understand the image or produced an unreadable schema.", hazardType: "none", regionalStatusRationale: nil),
+                        insightData: InsightData(aiReasoning: "The AI failed to understand the image or produced an unreadable schema.", hazardType: "none"),
                         confidenceScore: 0,
                         diagnosticComparison: nil,
                         wikipediaUrl: nil,
-                        wikipediaExtract: nil,
+                        wikipediaOverview: nil,
                         referenceImageUrl: nil,
                         isBiological: true,
                         isLiveCapture: true,
@@ -254,11 +254,11 @@ private struct WikiSummaryResponse: Decodable {
                     scanId: nil,
                     commonName: "Network Timeout",
                     scientificName: "Offline Mode",
-                    insightData: InsightData(description: "Please check your network connection and try again.", hazardType: "none", regionalStatusRationale: nil),
+                    insightData: InsightData(aiReasoning: "Please check your network connection and try again.", hazardType: "none"),
                     confidenceScore: 0,
                     diagnosticComparison: nil,
                     wikipediaUrl: nil,
-                    wikipediaExtract: nil,
+                    wikipediaOverview: nil,
                     referenceImageUrl: nil,
                     isBiological: true,
                     isLiveCapture: true,
@@ -311,7 +311,7 @@ private struct WikiSummaryResponse: Decodable {
 
             await MainActor.run {
                 if self.speciesData?.scientificName == species {
-                    self.speciesData?.wikipediaExtract = extract
+                    self.speciesData?.wikipediaOverview = extract
                     self.speciesData?.wikipediaUrl = webUrl
                     if let img = imageUrl, !img.isEmpty {
                         self.speciesData?.referenceImageUrl = img
@@ -469,11 +469,11 @@ private struct WikiSummaryResponse: Decodable {
             scanId: record.id,
             commonName: record.commonName,
             scientificName: record.scientificName,
-            insightData: InsightData(description: record.insightDescription, hazardType: record.hazardType, regionalStatusRationale: nil),
+            insightData: InsightData(aiReasoning: record.aiReasoning ?? "No ecological description available for this subject.", hazardType: record.hazardType),
             confidenceScore: record.confidenceScore ?? 1.0,
             diagnosticComparison: parsedDiagnostic,
             wikipediaUrl: record.wikipediaUrl,
-            wikipediaExtract: record.wikipediaExtract,
+            wikipediaOverview: record.wikipediaOverview,
             referenceImageUrl: record.referenceImageUrl,
             isBiological: record.isBiological,
             isLiveCapture: record.isLiveCapture,
@@ -506,7 +506,7 @@ private struct WikiSummaryResponse: Decodable {
         self.isProcessing = false
 
         // Retroactively hydrate legacy scans that missed Wikipedia data on initial save.
-        if record.isBiological && (record.wikipediaExtract == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty) {
+        if record.isBiological && (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty) {
             let safeContext = record.modelContext
             Task {
                 await self.fetchWikipediaAndHydrate(for: record.scientificName, scanId: record.id, modelContext: safeContext)

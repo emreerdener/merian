@@ -7,9 +7,9 @@ struct WikipediaCard: View {
     @Binding var selectedWikiURL: URL?
     
     var body: some View {
-        if let data = inferenceEngine.speciesData, (data.wikipediaExtract != nil || data.wikipediaUrl != nil) {
+        if let data = inferenceEngine.speciesData, (data.wikipediaOverview != nil || data.wikipediaUrl != nil) {
             VStack(alignment: .leading, spacing: 16) {
-                if let wikiExtract = data.wikipediaExtract {
+                if let wikiExtract = data.wikipediaOverview {
                     VStack(alignment: .leading, spacing: 4) {
                         
                         HStack(spacing: 8) {

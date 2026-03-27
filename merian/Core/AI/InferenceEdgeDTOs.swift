@@ -27,6 +27,7 @@ struct EdgeResponse: Codable {
     let confidence_score: Double?
     let blur_score: Double?
     let colors: [String]?
+    let group_tags: [String]?
 
     // Present on Cache Hit — sourced from species_dictionary.
     struct Taxonomy: Codable {
@@ -44,7 +45,6 @@ struct EdgeResponse: Codable {
         let ai_reasoning: String?
         /// Hazard classification: "none" | "poisonous" | "venomous" | "allergenic" | "irritant"
         let hazard_type: String?
-        let regional_status_rationale: String?
     }
     let insight_data: Insight?
 
@@ -56,7 +56,7 @@ struct EdgeResponse: Codable {
     let premium_insights: Premium?
 
     let wikipedia_url: String?
-    let wikipedia_extract: String?
+    let wikipedia_overview: String?
     let reference_image_url: String?
     let iucn_red_list_status: String?
 }

@@ -79,8 +79,8 @@ final class InsightSheetViewModel {
     var isHazardous: Bool { hazardType != "none" }
     
     var headerParagraphs: [String] {
-        guard let species = inferenceEngine?.speciesData, !species.insightData.description.isEmpty else { return [] }
-        return species.insightData.description
+        guard let species = inferenceEngine?.speciesData, !species.insightData.aiReasoning.isEmpty else { return [] }
+        return species.insightData.aiReasoning
             .components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     }
