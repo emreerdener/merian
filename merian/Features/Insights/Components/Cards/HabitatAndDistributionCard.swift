@@ -14,7 +14,7 @@ struct HabitatAndDistributionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
-                Image(systemName: "leaf.fill")
+                Image(systemName: "leaf")
                     .foregroundColor(.secondary)
                 Text("Habitat & distribution")
                     .font(.system(.headline))
@@ -25,6 +25,12 @@ struct HabitatAndDistributionCard: View {
                 GBIFHeatmapMapView(taxonKey: key)
                 .frame(height: 200)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if inferenceEngine.isEnrichmentLoading {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(uiColor: .systemFill))
+                    .frame(height: 200)
+                    .redacted(reason: .placeholder)
+                    .shimmering()
             }
 
             if let habitat = habitatDescription {

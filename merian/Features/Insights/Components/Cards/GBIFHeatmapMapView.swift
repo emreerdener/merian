@@ -60,16 +60,23 @@ struct GBIFHeatmapMapView: UIViewRepresentable {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 if let response = try? JSONDecoder().decode(GBIFCapabilitiesResponse.self, from: data), response.total > 0 {
                     await MainActor.run {
-                        let centerLat = (response.minLat + response.maxLat) / 2
-                        let centerLng = (response.minLng + response.maxLng) / 2
+                        let centerLatRaw = (response.minLat + response.maxLat) / 2
+                        let centerLngRaw = (response.minLng + response.maxLng) / 2
                         let latDelta = abs(response.maxLat - response.minLat)
                         let lngDelta = abs(response.maxLng - response.minLng)
+                        
+                        // Normalize latitude and longitude bounds to prevent MapKit NSInvalidArgumentException
+                        let centerLat = min(max(centerLatRaw, -89.9), 89.9)
+                        var centerLng = centerLngRaw.truncatingRemainder(dividingBy: 360.0)
+                        if centerLng > 180.0 { centerLng -= 360.0 }
+                        else if centerLng < -180.0 { centerLng += 360.0 }
 
                         // Add 40% padding around the edges to avoid cutting off peripheral hex bins.
                         let spanLat = latDelta * 1.4
                         let spanLng = lngDelta * 1.4
 
                         // Constrain the span to avoid over-zooming on isolated points and wrap at map edges.
+                        // MapKit limits Mercator latitudes to roughly 170 span to avoid infinite distortion.
                         let finalLatDelta = min(max(spanLat, 10.0), 170.0)
                         let finalLngDelta = min(max(spanLng, 10.0), 360.0)
 
