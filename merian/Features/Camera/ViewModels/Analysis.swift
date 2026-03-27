@@ -144,7 +144,10 @@ extension CameraViewModel {
 
             let request = VNClassifyImageRequest()
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            try? handler.perform([request])
+            
+            autoreleasepool {
+                try? handler.perform([request])
+            }
 
             // specificPhraseSeries returns nil when no observation clears the confidence
             // threshold or the margin check fails — generic rotation continues without

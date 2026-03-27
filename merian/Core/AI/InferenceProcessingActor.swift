@@ -1,13 +1,12 @@
 import Foundation
 import SwiftData
-import CoreImage
+
 
 // MARK: - Inference Processing Actor
 
 /// Off-main-actor worker for CPU-bound inference tasks: base64 encoding and response parsing/persistence.
 actor InferenceProcessingActor {
     static let shared = InferenceProcessingActor()
-    nonisolated let visionContext = CIContext(options: [.cacheIntermediates: false])
 
     /// Encodes image data payloads to base64 strings, preserving order.
     /// Multi-image scans are encoded concurrently across worker threads to overlap CPU time.

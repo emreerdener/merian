@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { GoogleGenerativeAI, SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-
+import { fetchDiagnosticComparison } from "../_shared/diagnostic.ts";
 const DIAGNOSTIC_THRESHOLD = 0.85;
 
 const _geminiApiKey = Deno.env.get("GEMINI_API_KEY")!;
@@ -121,30 +121,7 @@ serve((req: Request) =>
 
     const diagnosticPromise = (!needsDiagnostic || hasDiagnostic)
       ? Promise.resolve(null)
-      : (async () => {
-          const diagModel = _genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
-            systemInstruction: "You are a world-class biologist. Given a species scientific name, return a brief diagnostic comparison: the primary identification rationale, the most commonly confused lookalike species, and key differentiating features.",
-            generationConfig: { temperature: 0.1, maxOutputTokens: 400 },
-          });
-          const diagSchema: Record<string, unknown> = {
-            type: SchemaType.OBJECT,
-            properties: {
-              primary_match_rationale: { type: SchemaType.STRING },
-              confusing_lookalike_name: { type: SchemaType.STRING },
-              key_differentiators: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-            },
-            required: ["primary_match_rationale", "confusing_lookalike_name", "key_differentiators"],
-          };
-          const result = await diagModel.generateContent({
-            contents: [{ role: "user", parts: [{ text: `Diagnostic comparison for: ${scientific_name}` }] }],
-            generationConfig: { responseMimeType: "application/json", responseSchema: diagSchema as unknown as ResponseSchema },
-          });
-          const text = result.response.text();
-          const s = text.indexOf("{"), e = text.lastIndexOf("}");
-          if (s === -1 || e === -1) throw new Error("Malformed diagnostic response");
-          return JSON.parse(text.substring(s, e + 1)) as { primary_match_rationale: string; confusing_lookalike_name: string; key_differentiators: string[] };
-        })();
+      : fetchDiagnosticComparison(scientific_name, _genAI);
 
     try {
       const [premiumResult, diagnosticResult] = await Promise.all([premiumPromise, diagnosticPromise]);

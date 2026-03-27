@@ -43,7 +43,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 **Multi-File Structure**: The engine is split across three files:
 - `InferenceEngine.swift` — the main engine with its public API unchanged.
-- `InferenceProcessingActor.swift` — a dedicated actor for base64 encoding and response parsing/persistence. It heavily isolates the memory-intensive `CIContext` (`visionContext`) required for Vision ML bounding box rendering, averting main-thread stalls during Saliency heatmap processing. It receives all data as parameters and has no access to `InferenceEngine`'s private state. It exposes two methods: `encodeBase64(compressedDatas:)` and `parseAndSave(resultData:telemetry:modelContext:compressedDatas:)`. `parseAndSave` returns `(SpeciesData?, Bool, [String])` — the third element is the list of local file paths written by `FileIOActor.shared.writeTemporaryImages`, surfaced so `InferenceEngine` can populate `validHistoricImagePaths` immediately without a separate round-trip.
+- `InferenceProcessingActor.swift` — a dedicated actor for base64 encoding and response parsing/persistence. It receives all data as parameters and has no access to `InferenceEngine`'s private state. It exposes two methods: `encodeBase64(compressedDatas:)` and `parseAndSave(resultData:telemetry:modelContext:compressedDatas:)`. `parseAndSave` returns `(SpeciesData?, Bool, [String])` — the third element is the list of local file paths written by `FileIOActor.shared.writeTemporaryImages`, surfaced so `InferenceEngine` can populate `validHistoricImagePaths` immediately without a separate round-trip.
 - `InferenceEdgeDTOs.swift` — contains `APIError`, `EdgeResponseWrapper`, `EdgeResponse`, and nested types (`Taxonomy`, `Insight`, `Diagnostic`). These were previously nested inside `InferenceEngine`.
 
 ### `OfflineQueueManager`
@@ -136,6 +136,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 ### Edge Network Operations (`S3` & `PostgreSQL` Bulk Insertions)
 - **Centralized Cloudflare R2 Operations (`_shared/aws.ts`)**: `copyR2Object()` and `deleteR2Object()` are defined once and shared across `moderation`, `export-dwca`, and `revenuecat-webhook`, rather than duplicating `aws.sign(...)` headers in each.
+- **Shared Diagnostic Prompts (`_shared/diagnostic.ts`)**: The AI prompting logic for `fetchDiagnosticComparison` is extracted into a shared utility, preventing 1:1 duplication between the `identify` and `enrich-scan` Edge functions.
 - **N+1 Query Prevention (`sync-collections`)**: Instead of issuing sequential Supabase inserts per record, the layer collects all mappings into an array and issues a single `.insert(allMappings)` call, eliminating connection exhaustion under high collection counts.
 
 ### `SupabaseManager`
