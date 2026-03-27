@@ -18,7 +18,7 @@ const _tierCache = new Map<string, { tier: string; ts: number }>();
 const _TIER_CACHE_TTL_MS = 5 * 60_000;
 
 
-async function fetchStaticEncyclopedicData(scientificName: string, locale: string, genAI: any) {
+async function fetchStaticEncyclopedicData(scientificName: string, locale: string, genAI: GoogleGenerativeAI) {
   const textModel = genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
     systemInstruction: `You are a world-class biologist. Provide encyclopedic identification traits, taxonomy, habitat, toxicity, conservation status, and global distribution for the provided scientific name. Keep descriptions concise. ALL text responses (insight_description, habitat_description, common_name) must be returned in the following ISO language locale: ${locale}.`,
@@ -313,13 +313,12 @@ serve((req: Request) =>
 
     const combinedPrompt = `Context: ${telemetryItems.join(", ")}. Perform biological identification.`;
 
-    const merianResponseSchema: Record<string, any> = {
-      type: SchemaType.OBJECT,
-      properties: {
+    const schemaProperties: Record<string, ResponseSchema> = {
         is_biological_subject: { type: SchemaType.BOOLEAN },
         is_live_capture: { type: SchemaType.BOOLEAN },
         ecology_type: {
           type: SchemaType.STRING,
+          format: "enum",
           enum: ["wild", "urban", "domesticated", "unknown"],
         },
         scientific_name: { type: SchemaType.STRING },
@@ -354,18 +353,10 @@ serve((req: Request) =>
           items: { type: SchemaType.STRING },
           description: "2-4 plain English categorical labels for the subject, broadest to most specific.",
         },
-      },
-      required: [
-        "is_biological_subject",
-        "is_live_capture",
-        "ai_reasoning",
-        "confidence_score",
-        "blur_score",
-      ],
     };
 
     if (targetModel === "gemini-2.5-pro") {
-      merianResponseSchema.properties.premium_insights = {
+      schemaProperties.premium_insights = {
         type: SchemaType.OBJECT,
         nullable: true,
         properties: {
@@ -379,6 +370,18 @@ serve((req: Request) =>
         required: ["habitat_description", "global_distribution_regions"]
       };
     }
+
+    const merianResponseSchema: ResponseSchema = {
+      type: SchemaType.OBJECT,
+      properties: schemaProperties,
+      required: [
+        "is_biological_subject",
+        "is_live_capture",
+        "ai_reasoning",
+        "confidence_score",
+        "blur_score",
+      ],
+    };
 
     const parts: Part[] = base64Payloads.map(payload => ({
       inlineData: {
@@ -403,7 +406,7 @@ serve((req: Request) =>
             contents: [{ role: "user", parts }],
             generationConfig: {
                 responseMimeType: "application/json",
-                responseSchema: merianResponseSchema as unknown as ResponseSchema,
+                responseSchema: merianResponseSchema,
             },
         });
         const candidate = result.response.candidates?.[0];
@@ -452,7 +455,13 @@ serve((req: Request) =>
         .eq("scientific_name", parsedData.scientific_name)
         .maybeSingle();
 
-      let staticData: any = null;
+      let staticData: {
+        taxonomy: Record<string, string>;
+        iucn_red_list_status: string;
+        is_poisonous: boolean;
+        premium_habitat?: string;
+        premium_regions?: string[];
+      } | null = null;
 
       if (cachedSpecies && cachedSpecies.kingdom) {
         console.log(`Cache Hit: Generating payload from DB for ${parsedData.scientific_name}`);
@@ -535,7 +544,7 @@ serve((req: Request) =>
       payloadReadyForClient.taxonomy = staticData.taxonomy;
       payloadReadyForClient.iucn_red_list_status = staticData.iucn_red_list_status;
       
-      const calculatedRegionalStatus = calculateRegionalStatus(semanticLocation, !!parsedData.is_invasive, staticData.premium_regions);
+      const calculatedRegionalStatus = calculateRegionalStatus(semanticLocation, !!parsedData.is_invasive, staticData!.premium_regions ?? null);
 
       payloadReadyForClient.insight_data = {
          description: parsedData.ai_reasoning || "Reasoning omitted.",
