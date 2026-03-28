@@ -50,17 +50,25 @@ serve(async (req: Request) => {
 
     const r2Config = getR2Config();
     const idsToUpdate: string[] = [];
+    const deleteTasks: (() => Promise<void>)[] = [];
 
-    // 2. Delete R2 images for each scan
+    // 2. Prepare R2 deletion tasks
     for (const scan of scans) {
       idsToUpdate.push(scan.id);
       const urls: string[] = scan.image_storage_urls || [];
       if (urls.length > 0) {
-        await deleteR2Objects(urls, r2Config);
+        deleteTasks.push(() => deleteR2Objects(urls, r2Config));
       }
     }
 
-    // 3. Zero-out the image URLs in the database (preserve row offline data)
+    // 3. Execute deletions concurrently in chunks of 50 to avoid R2 rate limits and Edge timeouts
+    const chunkSize = 50;
+    for (let i = 0; i < deleteTasks.length; i += chunkSize) {
+      const chunk = deleteTasks.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(task => task()));
+    }
+
+    // 4. Zero-out the image URLs in the database (preserve row offline data)
     if (idsToUpdate.length > 0) {
       const { error: updateError } = await supabaseAdmin
         .from("scans")

@@ -95,20 +95,21 @@ User blocking routes through a dedicated Edge Function to bypass RLS policies th
 
 The `auto-purge-nonbio` Edge Function, triggered by `pg_cron` via `pg_net`, removes non-biological scans after 30 days. A standard Cloudflare R2 Object Lifecycle rule cannot be used here because R2 lifecycle rules operate on object age and prefix, not on the PostgreSQL `is_biological_subject = false` flag. A bare Postgres `DELETE` without R2 coordination would orphan stored objects. The Edge Function handles both the database deletion and the R2 object removal atomically. Webhook secret validation in this function uses `timingSafeCompare()` for constant-time comparison.
 
+### Targeted 90-Day Domesticated Purge
+
+The `auto-purge-domesticated` Edge Function reclaims heavy storage costs by purging 90-day-old `domesticated` ecology scans from Free tier users without touching valuable `wild` and `invasive` specimens. To safely avoid Deno's wall-clock timeouts when issuing hundreds of network API calls to Cloudflare, the R2 `deleteObjects` requests are batched and executed concurrently using `Promise.all` in chunks of 50. This perfectly balances the V8 event loop against R2's concurrency rate limits. It zeroes out the `image_storage_urls` array rather than dropping the row, ensuring the user's localized text record safely remains in their app gallery.
+
 ### Cloudflare R2 Object Lifecycle Rules
 
-The following four Object Lifecycle Rules must be configured in the Cloudflare R2 Dashboard under **Settings → Object Lifecycle**:
+The following three Object Lifecycle Rules must be configured in the Cloudflare R2 Dashboard under **Settings → Object Lifecycle**:
 
 1. **Default Multipart Abort Rule**
    - **Prefix:** `--`
    - **Action:** Abort incomplete multipart uploads after `7` days
-2. **Free Tier Expiration**
-   - **Prefix:** `public_uploads/free/`
-   - **Action:** Delete objects after `90` days
-3. **Purge staging objects after 1 day**
+2. **Purge staging objects after 1 day**
    - **Prefix:** `staging/`
    - **Action:** Delete objects after `1` day
-4. **Quarantine Cleanup**
+3. **Quarantine Cleanup**
    - **Prefix:** `quarantine/`
    - **Action:** Delete objects after `1` day
 
