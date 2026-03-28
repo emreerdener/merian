@@ -132,7 +132,14 @@ extension CameraViewModel {
         guard !isStillProcessing else { return }
         isAnalyzingFullscreen = false
         if diContainer.inferenceEngine.speciesData != nil {
-            activeSheet = .insight
+            // For live scans, route to the insight sheet.
+            // Historical scans (e.g. from the Scans library or User Profile) preserve
+            // their active parent sheet (.scans, .profile), relying on local view
+            // bindings to present InsightSheetView over the current context.
+            if activeSheet == nil || activeSheet == .paywall {
+                activeSheet = .insight
+            }
+            
             // Mark a new unread scan only for real results (scanId is nil on error placeholders
             // like "Analysis Failed" / "Network Timeout" which are not persisted to the library).
             if diContainer.inferenceEngine.speciesData?.scanId != nil {

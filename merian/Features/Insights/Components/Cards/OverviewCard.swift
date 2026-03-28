@@ -63,9 +63,7 @@ struct OverviewCard: View {
                                     .foregroundColor(.secondary)
                                 
                                 Text(val)
-                                    .font(.system(.subheadline))
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.primary)
+                                    .font(.system(.body))
                                     .multilineTextAlignment(.leading)
                             }
                             .padding(.top, 4)
@@ -92,7 +90,7 @@ struct OverviewCard: View {
                         }) {
                             HStack(spacing: 8) {
                                 Image(systemName: "safari")
-                                Text("Learn more on Wikipedia")
+                                Text("Read more on Wikipedia")
                                     .font(.headline)
                             }
                             .frame(maxWidth: .infinity)

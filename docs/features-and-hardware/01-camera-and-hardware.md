@@ -145,7 +145,9 @@ Placeholder content for the audio recording capture mode. Renders a full-bleed b
 
 **`CaptureButton`**: The shutter button transitions its inner `Circle` fill between `.white` (camera) and `.red` (audio) in place via `.animation(.easeInOut(duration: 0.25))`. Taps are ignored when `captureMode == .audio`.
 
-**Session lifecycle**: `onChange(of: captureMode)` fires `HapticManager.shared.triggerSheetSpring()` on every mode switch (tap, drag, or swipe), then stops the camera session when switching to `.audio` and restarts it on return to `.visual` (unless `isAnalyzingFullscreen` is active). This prevents the `AVCaptureSession` from running unnecessarily while the audio page is visible.
+**Session lifecycle**: The camera session is tightly coupled to the UI state to conserve thermal budget and prevent hardware deadlocks.
+- `onChange(of: captureMode)` fires `HapticManager.shared.triggerSheetSpring()` on every mode switch, then stops the camera session when switching to `.audio` and restarts it on return to `.visual` (unless `isAnalyzingFullscreen` is active).
+- **Sheet Occlusion Guard**: `CameraRootView.onChange(of: viewModel.activeSheet)` explicitly stops the `AVCaptureSession` whenever `activeSheet != nil` (e.g., when the Scans Library or Insight sheet is open). When processing completes via `viewModel.handleInferenceProcessingChange()`, the system forces `activeSheet = .insight` *only* for live scans (where `activeSheet` is `nil` or `.paywall`). For historical scans opened from the library, it preserves the existing parent sheet (`.scans` or `.profile`), relying on their local bindings (like `selectedScanForInsight`) to present the Insight view. This strict state retention prevents SwiftUI sheet transition collisions and ensures that the background camera remains cleanly paused while viewing historical data.
 
 ---
 
