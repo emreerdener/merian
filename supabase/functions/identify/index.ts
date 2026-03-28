@@ -25,11 +25,6 @@ import {
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { fetchStaticEncyclopedicData } from "../_shared/encyclopedic.ts";
 
-// Scans below this threshold trigger an async diagnostic comparison via Flash.
-const DIAGNOSTIC_THRESHOLD = 0.85;
-
-
-
 export interface MerianIdentification {
   is_biological_subject: boolean;
   is_live_capture: boolean;
@@ -43,7 +38,12 @@ export interface MerianIdentification {
   common_name?: string;
   hazard_type?: "none" | "poisonous" | "venomous" | "allergenic" | "irritant";
   life_stage?: "egg" | "larva" | "juvenile" | "adult" | "unknown";
-  reproductive_condition?: "flowering" | "fruiting" | "sporing" | "dormant" | "not_applicable";
+  reproductive_condition?:
+    | "flowering"
+    | "fruiting"
+    | "sporing"
+    | "dormant"
+    | "not_applicable";
   individual_count?: number;
   ecological_interactions?: string[];
 }
@@ -66,8 +66,6 @@ export interface ClientPayload extends MerianIdentification {
   };
   inference_tier: string;
 }
-
-
 
 async function fetchExternalEnrichment(scientificName: string) {
   let wikiUrl: string | null = null;
@@ -686,9 +684,14 @@ serve((req: Request) =>
         }
         // Start diagnostic and group-tag Flash calls in parallel with enrichment.
         // Both are cheap, species-level, and skipped when already cached.
+        let diagnosticThreshold = 0.88; // Default to free/flash threshold
+        if (userTierForModel === "pro") {
+          diagnosticThreshold = 0.8; // Harder threshold for pro users
+        }
+
         const needsDiagnostic =
           isIdentifiedBio &&
-          (parsedData.confidence_score ?? 1) < DIAGNOSTIC_THRESHOLD &&
+          (parsedData.confidence_score ?? 1) < diagnosticThreshold &&
           !cachedSpecies?.diagnostic_primary_rationale;
         const diagnosticPromise = needsDiagnostic
           ? fetchDiagnosticComparison(user, parsedData.scientific_name!)
@@ -815,8 +818,9 @@ serve((req: Request) =>
             image_storage_urls: modResult.publicUrls?.length
               ? modResult.publicUrls
               : [],
-            life_stage: parsedData.life_stage ?? 'unknown',
-            reproductive_condition: parsedData.reproductive_condition ?? 'not_applicable',
+            life_stage: parsedData.life_stage ?? "unknown",
+            reproductive_condition:
+              parsedData.reproductive_condition ?? "not_applicable",
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: parsedData.ecological_interactions ?? [],
             estimated_size_cm: estimated_size_cm ?? null,

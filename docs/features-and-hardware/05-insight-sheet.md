@@ -112,7 +112,7 @@ When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `ha
 
 ### Diagnostic Comparison Display Gate
 
-`diagnostic_comparison` data is only displayed (in `DiagnosticComparisonCard` in `BiologicalView`) when the scan's `confidenceScore` is below the user's tiered `.diagnosticTrigger` threshold (0.88 for Free/Flash; 0.80 for Premium/Pro). This gate is enforced client-side regardless of whether diagnostic data is present in `LocalScanRecord`. `InferenceEngine.fetchAndApplyEnrichment` also observes an edge threshold before writing `speciesData.diagnosticComparison`.
+`diagnostic_comparison` data is only displayed (in `DiagnosticComparisonCard` in `BiologicalView`) when the scan's `confidenceScore` is below the user's tiered `.diagnosticTrigger` threshold (0.88 for Free/Flash; 0.80 for Premium/Pro). This gate is enforced client-side regardless of whether diagnostic data is present in `LocalScanRecord`. `InferenceEngine.fetchAndApplyEnrichment` also observes this same dynamic threshold before writing `speciesData.diagnosticComparison`.
 
 ---
 
