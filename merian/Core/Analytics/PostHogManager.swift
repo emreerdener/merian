@@ -63,8 +63,14 @@ final class PostHogManager {
         }
         lock.unlock()
 
-        PostHogSDK.shared.identify(userId)
-        MerianLog.general.debug("PostHog identified user: \(userId, privacy: .private)")
+        #if targetEnvironment(simulator)
+        let finalUserId = "simulator"
+        #else
+        let finalUserId = userId
+        #endif
+
+        PostHogSDK.shared.identify(finalUserId)
+        MerianLog.general.debug("PostHog identified user: \(finalUserId, privacy: .private)")
     }
 
     // MARK: - Session

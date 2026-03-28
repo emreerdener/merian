@@ -13,17 +13,17 @@ struct InsightBottomToolbar: ToolbarContent {
     var body: some ToolbarContent {
         if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
             ToolbarItemGroup(placement: .bottomBar) {
-                AddCollectionButton(
+                ShareButton(shareDiscovery: shareDiscovery)
+
+                Spacer()
+
+                 AddCollectionButton(
                     collections: collections,
                     activeLocalRecord: activeLocalRecord,
                     toggleScanInCollection: toggleScanInCollection,
                     showNewCollectionAlert: $showNewCollectionAlert,
                     hasScanId: speciesData.scanId != nil
                 )
-                
-                Spacer()
-                
-                ShareButton(shareDiscovery: shareDiscovery)
             }
         }
     }

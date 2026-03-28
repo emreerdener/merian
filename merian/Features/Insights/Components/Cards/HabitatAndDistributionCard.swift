@@ -12,81 +12,104 @@ struct HabitatAndDistributionCard: View {
     @State private var isRetrying = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
-                Image(systemName: "leaf")
-                    .foregroundColor(.secondary)
-                Text("Habitat & distribution")
-                    .font(.system(.headline))
-                    .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: 0) {
+            // MARK: - Map View
+            ZStack(alignment: .bottom) {
+                if inferenceEngine.isEnrichmentLoading {
+                    TopRoundedRectangle(radius: 24)
+                        .fill(Color(uiColor: .systemFill))
+                        .frame(height: 280)
+                        .redacted(reason: .placeholder)
+                        .shimmering()
+                } else {
+                    GBIFHeatmapMapView(taxonKey: inferenceEngine.speciesData?.gbifTaxonKey)
+                        .frame(height: 280)
+                        .clipShape(TopRoundedRectangle(radius: 24))
+                    
+                    if inferenceEngine.speciesData?.gbifTaxonKey == nil {
+                        Text("No distribution data available")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.6))
+                            .clipShape(Capsule())
+                            .padding(.bottom, 12)
+                    }
+                }
             }
 
-            if let key = inferenceEngine.speciesData?.gbifTaxonKey {
-                GBIFHeatmapMapView(taxonKey: key)
-                .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            } else if inferenceEngine.isEnrichmentLoading {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(uiColor: .systemFill))
-                    .frame(height: 200)
-                    .redacted(reason: .placeholder)
-                    .shimmering()
-            }
+            // MARK: - Content Below Map
+            VStack(alignment: .leading, spacing: 16) {
+                // MARK: - Header
+                HStack(spacing: 8) {
+                    Image(systemName: "leaf")
+                        .foregroundColor(.secondary)
+                    Text("Habitat & distribution")
+                        .font(.system(.headline))
+                        .foregroundColor(.primary)
+                }
 
-            if let habitat = habitatDescription {
-                // LOADED STATE
-                Text(habitat)
-                    .font(.body)
-                    .lineSpacing(4)
+                // MARK: - Habitat Description
+                if let habitat = habitatDescription {
+                    // MARK: - LOADED STATE
+                    Text(habitat)
+                        .font(.body)
+                        .lineSpacing(4)
 
-            } else if inferenceEngine.isEnrichmentLoading {
-                // LOADING STATE
-                VStack(alignment: .leading, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(0..<3, id: \.self) { _ in
+                } else if inferenceEngine.isEnrichmentLoading {
+                    // MARK: - LOADING STATE
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(Color(uiColor: .systemFill))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 14)
+                            }
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(Color(uiColor: .systemFill))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 14)
+                                .frame(width: 160, height: 14)
                         }
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color(uiColor: .systemFill))
-                            .frame(width: 160, height: 14)
+                        .redacted(reason: .placeholder)
+                        .shimmering()
                     }
-                    .redacted(reason: .placeholder)
-                    .shimmering()
-                }
 
-            } else {
-                // RETRY STATE
-                VStack(spacing: 12) {
-                    Text("Habitat and distribution data couldn't be loaded.")
-                        .font(.subheadline)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 24)
+                } else {
+                    // RETRY STATE
+                    VStack(spacing: 12) {
+                        Text("Habitat and distribution data couldn't be loaded.")
+                            .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 24)
 
-                    Button(action: {
-                        Task { await triggerEnrichment() }
-                    }) {
-                        HStack {
-                            if isRetrying {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("Retry").fontWeight(.semibold)
+                        Button(action: {
+                            Task { await triggerEnrichment() }
+                        }) {
+                            HStack {
+                                if isRetrying {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Text("Retry").fontWeight(.semibold)
+                                }
                             }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.accentColor)
+                            .clipShape(Capsule())
                         }
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor)
-                        .clipShape(Capsule())
+                        .disabled(isRetrying)
                     }
-                    .disabled(isRetrying)
                 }
             }
+            .padding(.horizontal, 32)
+            .padding(.top, 32)
+            .padding(.bottom, 16)
         }
-        .card()
+        .padding(.horizontal, -16) // Reaches edge of standard container bounds
     }
 
     @MainActor
@@ -132,5 +155,20 @@ private struct ShimmerModifier: ViewModifier {
 private extension View {
     func shimmering() -> some View {
         modifier(ShimmerModifier())
+    }
+}
+
+// MARK: - Top Rounded Rectangle
+
+private struct TopRoundedRectangle: Shape {
+    var radius: CGFloat
+    
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: [.topLeft, .topRight],
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }

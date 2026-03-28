@@ -22,38 +22,41 @@ struct BiologicalView: View {
                 badgeItems: viewModel.headerBadgeItems,
                 confidenceScore: inferenceEngine.speciesData?.confidenceScore
             )
+
+            // MARK: - Toxicity Banner
             ToxicityBanner()
 
-            // Global Footprint
+            // MARK: - Global Footprint
             ConservationBanner()
 
-            // Diagnostic Evaluation
+            // MARK: - Diagnostic Evaluation
             if let score = inferenceEngine.speciesData?.confidenceScore, score < MerianConfig.confidenceBands(for: RevenueCatManager.shared.isProActive).diagnosticTrigger, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
                 DiagnosticComparisonCard(diagnosticData: diagnosticData)
             }
 
-            // Educational Reference
+            // MARK: - Educational Reference
             WikipediaCard(
                 isSafariPresented: $isSafariPresented,
                 selectedWikiURL: $selectedWikiURL
             )
 
-            // Habitat & Distribution
+            // MARK: - Habitat & Distribution
             if let data = inferenceEngine.speciesData {
                 HabitatAndDistributionCard(
                     habitatDescription: data.habitatDescription,
                     scientificName: data.scientificName,
                     scanId: data.scanId
                 )
+                .padding(.top, 8)
             }
 
-             // Biological Classification
+            // MARK: - Biological Classification
             TaxonomyCard(
                 taxonomyData: inferenceEngine.speciesData?.taxonomy,
                 scientificName: inferenceEngine.speciesData?.scientificName
             )
 
-            // Spatiotemporal Context
+            // MARK: - Spatiotemporal Context
             ScanInformationCard(
                 speciesData: inferenceEngine.speciesData,
                 timestamp: timestamp

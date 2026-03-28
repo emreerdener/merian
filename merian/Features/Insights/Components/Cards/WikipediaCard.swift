@@ -7,10 +7,12 @@ struct WikipediaCard: View {
     @Binding var selectedWikiURL: URL?
     
     var body: some View {
-        if let data = inferenceEngine.speciesData, (data.wikipediaOverview != nil || data.wikipediaUrl != nil) {
+        if let data = inferenceEngine.speciesData, 
+           let wikiExtract = data.wikipediaOverview, 
+           wikiExtract.count >= 60 {
+            
             VStack(alignment: .leading, spacing: 16) {
-                if let wikiExtract = data.wikipediaOverview {
-                    VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 4) {
                         
                         HStack(spacing: 8) {
                             Image(systemName: "book")
@@ -25,7 +27,6 @@ struct WikipediaCard: View {
                             .font(.system(.body))
                             .foregroundColor(.secondary)
                     }
-                }
                     
                 if let wikiString = data.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
                     Button(action: {
