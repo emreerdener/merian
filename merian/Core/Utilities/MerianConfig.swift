@@ -91,9 +91,9 @@ enum MerianConfig {
         diagnosticTrigger: 0.80   // Only trigger diagnostics on truly ambiguous scans
     )
     
-    /// Helper to grab the correct bands based on the active user's entitlement.
-    static func confidenceBands(for isPro: Bool) -> ConfidenceBands {
-        return isPro ? proConfidence : flashConfidence
+    /// Helper to grab the correct bands based on the exact inference model tier used.
+    static func confidenceBands(forInferenceTier tier: String?) -> ConfidenceBands {
+        return tier == "pro" ? proConfidence : flashConfidence
     }
 
     // MARK: - On-Device Vision Classification

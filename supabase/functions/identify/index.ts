@@ -64,6 +64,7 @@ export interface ClientPayload extends MerianIdentification {
   species_insights?: {
     habitat_description: string;
   };
+  inference_tier: string;
 }
 
 
@@ -521,6 +522,7 @@ serve((req: Request) =>
     const payloadReadyForClient: ClientPayload = {
       ...parsedData,
       scan_id: generatedScanId,
+      inference_tier: userTierForModel === "pro" ? "pro" : "flash",
     };
     const isIdentifiedBio = !!(
       parsedData.is_biological_subject && parsedData.scientific_name
@@ -813,6 +815,7 @@ serve((req: Request) =>
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: parsedData.ecological_interactions ?? [],
             estimated_size_cm: estimated_size_cm ?? null,
+            inference_tier: userTierForModel === "pro" ? "pro" : "flash",
           });
 
         if (scanInsertError) {

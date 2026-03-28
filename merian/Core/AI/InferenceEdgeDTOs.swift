@@ -68,6 +68,7 @@ struct EdgeResponse: Codable {
     let wikipedia_overview: String?
     let reference_image_url: String?
     let iucn_red_list_status: String?
+    let inference_tier: String?
 }
 
 // MARK: - Enrich-Scan Response

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConfidenceBadge: View {
     let confidenceScore: Double?
+    let inferenceTier: String?
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isShowingExplanation = false
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
@@ -9,7 +10,7 @@ struct ConfidenceBadge: View {
     
     private var badgeData: (label: String, color: Color, icon: String) {
         guard let score = confidenceScore else { return ("Unknown", .gray, "questionmark") }
-        let bands = MerianConfig.confidenceBands(for: RevenueCatManager.shared.isProActive)
+        let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
         switch score {
         case bands.strong...:
             return ("Strong match", .green, "sparkles.2")
@@ -124,7 +125,7 @@ struct ConfidenceBadge: View {
                 }
             }
             .sheet(isPresented: $isShowingExplanation) {
-                ConfidenceExplanationSheet()
+                ConfidenceExplanationSheet(inferenceTier: inferenceTier)
                     .presentationDetents(allowedDetents, selection: $activeDetent)
                     .presentationCornerRadius(32)
                     .presentationBackground(.ultraThinMaterial)

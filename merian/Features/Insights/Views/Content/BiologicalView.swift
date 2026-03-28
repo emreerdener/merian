@@ -19,7 +19,8 @@ struct BiologicalView: View {
                 subtitle: viewModel.headerSubtitle,
                 hazardType: viewModel.hazardType,
                 paragraphs: viewModel.headerParagraphs,
-                confidenceScore: inferenceEngine.speciesData?.confidenceScore
+                confidenceScore: inferenceEngine.speciesData?.confidenceScore,
+                inferenceTier: inferenceEngine.speciesData?.inferenceTier
             )
 
             // MARK: - Toxicity Banner
@@ -29,7 +30,7 @@ struct BiologicalView: View {
             ConservationBanner()
 
             // MARK: - Diagnostic Evaluation
-            if let score = inferenceEngine.speciesData?.confidenceScore, score < MerianConfig.confidenceBands(for: RevenueCatManager.shared.isProActive).diagnosticTrigger, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
+            if let score = inferenceEngine.speciesData?.confidenceScore, score < MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
                 DiagnosticComparisonCard(diagnosticData: diagnosticData)
             }
 

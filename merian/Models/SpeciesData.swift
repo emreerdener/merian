@@ -109,6 +109,7 @@ struct SpeciesData {
     var aiReasoning: String?
     var habitatDescription: String?
     var gbifTaxonKey: Int?
+    var inferenceTier: String?
 }
 
 // MARK: - Edge Response Init
@@ -171,6 +172,7 @@ extension SpeciesData {
         self.aiReasoning = edgeRes.insight_data?.ai_reasoning  // per-scan; unique to the specific photo submitted
         self.habitatDescription = edgeRes.species_insights?.habitat_description
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
+        self.inferenceTier = edgeRes.inference_tier
     }
 }
 
@@ -211,7 +213,8 @@ extension SpeciesData {
         ecologicalInteractions: [String]? = nil,
         aiReasoning: String? = nil,
         habitatDescription: String? = nil,
-        gbifTaxonKey: Int? = nil
+        gbifTaxonKey: Int? = nil,
+        inferenceTier: String? = nil
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -246,6 +249,7 @@ extension SpeciesData {
         self.aiReasoning = aiReasoning
         self.habitatDescription = habitatDescription
         self.gbifTaxonKey = gbifTaxonKey
+        self.inferenceTier = inferenceTier
     }
 }
 

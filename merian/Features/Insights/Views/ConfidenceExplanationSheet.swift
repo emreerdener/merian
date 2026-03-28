@@ -2,6 +2,7 @@ import SwiftUI
 import CoreLocation
 
 struct ConfidenceExplanationSheet: View {
+    let inferenceTier: String?
     @Environment(EnvironmentContextManager.self) private var environmentContext
 
     private var showLocationPrompt: Bool {
@@ -16,7 +17,7 @@ struct ConfidenceExplanationSheet: View {
                 ConfidenceHeader()
 
                 // MARK: - Continuous Spectrum Timeline
-                ConfidenceSpectrum()
+                ConfidenceSpectrum(inferenceTier: inferenceTier)
                 
                 // MARK: - AI Acknowledgment Banner
                 AIMistakesBanner()

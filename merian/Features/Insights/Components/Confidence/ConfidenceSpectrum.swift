@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct ConfidenceSpectrum: View {
+    let inferenceTier: String?
+
     // Derived from MerianConfig so the displayed percentages always match the live thresholds.
-    private var bands: MerianConfig.ConfidenceBands { MerianConfig.confidenceBands(for: RevenueCatManager.shared.isProActive) }
+    private var bands: MerianConfig.ConfidenceBands { MerianConfig.confidenceBands(forInferenceTier: inferenceTier) }
     private var strongPct: Int { Int(bands.strong * 100) }
     private var possiblePct: Int { Int(bands.possible * 100) }
 

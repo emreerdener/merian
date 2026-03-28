@@ -6,12 +6,13 @@ struct InsightHeader: View {
     let hazardType: String
     let paragraphs: [String]
     let confidenceScore: Double?
+    let inferenceTier: String?
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
              VStack(spacing: 16) {
-                 ConfidenceBadge(confidenceScore: confidenceScore)
-                 ModelTierBanner(confidenceScore: confidenceScore)
+                 ConfidenceBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
+                 ModelTierBanner(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
              }
              
              VStack(alignment: .center, spacing: 8) {

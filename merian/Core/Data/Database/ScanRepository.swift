@@ -130,7 +130,7 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, species_dictionary(*)")
+                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, inference_tier, species_dictionary(*)")
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
@@ -289,6 +289,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let reproductive_condition: String?
     let individual_count: Int?
     let ecological_interactions: [String]?
+    let inference_tier: String?
     let species_dictionary: CloudSpeciesDictionary?
 }
 
@@ -394,7 +395,7 @@ actor HistoricalDatabaseActor {
                                              \.gpsLatitude, \.gpsLongitude, \.gpsElevation,
                                              \.aiReasoning, \.habitatDescription,
                                              \.estimatedSizeCm, \.lifeStage, \.reproductiveCondition,
-                                             \.individualCount, \.ecologicalInteractions]
+                                             \.individualCount, \.ecologicalInteractions, \.inferenceTier]
             let chunk_records: [LocalScanRecord] = {
                 do { return try modelContext.fetch(descriptor) }
                 catch { MerianLog.data.error("🚨 updateExistingScans: fetch failed: \(error, privacy: .private)"); return [] }
@@ -450,6 +451,9 @@ actor HistoricalDatabaseActor {
             }
             if let newInter = res.ecological_interactions, existing.ecologicalInteractions != newInter {
                 existing.ecologicalInteractions = newInter; didUpdate = true
+            }
+            if let newTier = res.inference_tier, existing.inferenceTier != newTier {
+                existing.inferenceTier = newTier; didUpdate = true
             }
         }
 
@@ -513,7 +517,8 @@ actor HistoricalDatabaseActor {
                 lifeStage: scan.life_stage,
                 reproductiveCondition: scan.reproductive_condition,
                 individualCount: scan.individual_count,
-                ecologicalInteractions: scan.ecological_interactions
+                ecologicalInteractions: scan.ecological_interactions,
+                inferenceTier: scan.inference_tier ?? "flash"
             )
 
             modelContext.insert(record)
