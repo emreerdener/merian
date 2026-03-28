@@ -62,14 +62,39 @@ enum MerianConfig {
 
     // MARK: - AI Confidence Bands
 
-    /// Minimum `confidence_score` for a scan to be labelled "Strong match" (green).
-    /// Set conservatively at 0.90 so the label only appears when the AI is essentially certain.
-    /// Scans in the 0.85–0.89 range show "Possible match" — appropriate given residual uncertainty.
-    static let confidenceStrongThreshold: Double = 0.90
-
-    /// Minimum `confidence_score` for a scan to be labelled "Possible match" (orange).
-    /// Scores below this threshold show "Weak match" (gray) and prompt the user to re-photograph.
-    static let confidencePossibleThreshold: Double = 0.70
+    /// Defines the UX threshold boundaries for AI confidence scores.
+    struct ConfidenceBands {
+        /// Minimum score for the green "Strong match" UI.
+        let strong: Double
+        /// Minimum score for the orange "Possible match" UI. Below this is a "Weak match".
+        let possible: Double
+        /// The threshold below which the Diagnostic Comparison (Lookalike) UI is triggered.
+        let diagnosticTrigger: Double
+    }
+    
+    /// Gemini 2.5 Flash (Free Tier)
+    /// Flash is fast but can be overconfident on edge cases. We enforce stricter
+    /// thresholds here to ensure we don't confidently misidentify lookalikes.
+    static let flashConfidence = ConfidenceBands(
+        strong: 0.93,             // Require higher certainty for the green badge
+        possible: 0.75,
+        diagnosticTrigger: 0.88   // Trigger the diagnostic lookalike UI more frequently
+    )
+    
+    /// Gemini 2.5 Pro (Premium Tier)
+    /// Pro is a deep reasoning engine. It is more cautious and better calibrated.
+    /// An 85% from Pro is highly trustworthy, so we relax the UI thresholds to 
+    /// reward the premium user with a more decisive experience.
+    static let proConfidence = ConfidenceBands(
+        strong: 0.85,             // Trust the model's rigorous evaluation
+        possible: 0.65,
+        diagnosticTrigger: 0.80   // Only trigger diagnostics on truly ambiguous scans
+    )
+    
+    /// Helper to grab the correct bands based on the active user's entitlement.
+    static func confidenceBands(for isPro: Bool) -> ConfidenceBands {
+        return isPro ? proConfidence : flashConfidence
+    }
 
     // MARK: - On-Device Vision Classification
 

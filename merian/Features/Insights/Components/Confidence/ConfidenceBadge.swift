@@ -9,10 +9,11 @@ struct ConfidenceBadge: View {
     
     private var badgeData: (label: String, color: Color, icon: String) {
         guard let score = confidenceScore else { return ("Unknown", .gray, "questionmark") }
+        let bands = MerianConfig.confidenceBands(for: RevenueCatManager.shared.isProActive)
         switch score {
-        case MerianConfig.confidenceStrongThreshold...:
+        case bands.strong...:
             return ("Strong match", .green, "sparkles.2")
-        case MerianConfig.confidencePossibleThreshold..<MerianConfig.confidenceStrongThreshold:
+        case bands.possible..<bands.strong:
             return ("Possible match", .orange, "sparkles.2")
         default:
             return ("Weak match", .gray, "sparkles.2")

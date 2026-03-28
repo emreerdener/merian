@@ -112,7 +112,7 @@ When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `ha
 
 ### Diagnostic Comparison Display Gate
 
-`diagnostic_comparison` data is only displayed (in `DiagnosticComparisonCard` in `BiologicalView`) when the scan's `confidenceScore < 0.85`. This gate is enforced client-side regardless of whether diagnostic data is present in `LocalScanRecord`. `InferenceEngine.fetchAndApplyEnrichment` also only writes `speciesData.diagnosticComparison` when the threshold is met.
+`diagnostic_comparison` data is only displayed (in `DiagnosticComparisonCard` in `BiologicalView`) when the scan's `confidenceScore` is below the user's tiered `.diagnosticTrigger` threshold (0.88 for Free/Flash; 0.80 for Premium/Pro). This gate is enforced client-side regardless of whether diagnostic data is present in `LocalScanRecord`. `InferenceEngine.fetchAndApplyEnrichment` also observes an edge threshold before writing `speciesData.diagnosticComparison`.
 
 ---
 
@@ -120,13 +120,21 @@ When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `ha
 
 `ConfidenceBadge` is a tappable liquid-glass capsule that shows the AI's confidence band for the current scan. The band label, color, and icon are derived from `confidenceScore` against the `MerianConfig` thresholds. An animated holographic shimmer sweeps across the badge rim every 4–10 seconds. Tapping it opens `ConfidenceExplanationSheet`.
 
-Band thresholds (single source of truth in `MerianConfig`):
+Band thresholds (managed dynamically via `MerianConfig.confidenceBands(for: isPro)`):
 
+**Gemini 2.5 Flash (Free Tier)**
 | Band label | Color | Score range |
 |---|---|---|
-| Strong match | Green | ≥ 90% (`confidenceStrongThreshold`) |
-| Possible match | Orange | 70% – 89% (`confidencePossibleThreshold` – `confidenceStrongThreshold`) |
-| Weak match | Gray | Below 70% |
+| Strong match | Green | ≥ 93% |
+| Possible match | Orange | 75% – 92% |
+| Weak match | Gray | Below 75% |
+
+**Gemini 2.5 Pro (Premium Tier)**
+| Band label | Color | Score range |
+|---|---|---|
+| Strong match | Green | ≥ 85% |
+| Possible match | Orange | 65% – 84% |
+| Weak match | Gray | Below 65% |
 
 `ConfidenceSpectrum` renders a vertical list of `SpectrumNode` items using the same `MerianConfig` constants so the displayed percentage ranges are always in sync with the badge logic.
 

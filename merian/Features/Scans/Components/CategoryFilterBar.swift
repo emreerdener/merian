@@ -19,7 +19,10 @@ struct CategoryFilterBar: View {
                             onCategorySelected(category)
                         }
                     }) {
-                        Text(category)
+                        HStack(spacing: 6) {
+                            Image(systemName: iconFor(category))
+                            Text(category)
+                        }
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .padding(.horizontal, 16)
@@ -35,5 +38,20 @@ struct CategoryFilterBar: View {
         .padding(.top, 8)
         .padding(.bottom, 8)
         .background(Color(UIColor.systemBackground))
+    }
+    
+    // MARK: - Helpers
+    private func iconFor(_ category: String) -> String {
+        switch category {
+        case "All": return "square.grid.2x2.fill"
+        case "Plants": return "leaf.fill"
+        case "Fungi": return "camera.macro"
+        case "Insects": return "ant.fill"
+        case "Birds": return "bird.fill"
+        case "Mammals": return "pawprint.fill"
+        case "Reptiles": return "lizard.fill"
+        case "Other": return "sparkles"
+        default: return "magnifyingglass"
+        }
     }
 }

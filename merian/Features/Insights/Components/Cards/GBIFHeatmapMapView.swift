@@ -60,20 +60,30 @@ struct GBIFHeatmapMapView: UIViewRepresentable {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 if let response = try? JSONDecoder().decode(GBIFCapabilitiesResponse.self, from: data), response.total > 0 {
                     await MainActor.run {
-                        let centerLatRaw = (response.minLat + response.maxLat) / 2
-                        let centerLngRaw = (response.minLng + response.maxLng) / 2
                         let latDelta = abs(response.maxLat - response.minLat)
                         let lngDelta = abs(response.maxLng - response.minLng)
-                        
+
+                        // When the distribution spans more than half the globe longitudinally,
+                        // the bounding-box midpoint lands in an uninhabited ocean between two
+                        // range clusters (e.g. North America + Eurasia → midpoint over Africa).
+                        // Show the world view instead of centering on a misleading midpoint.
+                        if lngDelta > 180 {
+                            mapView.setRegion(Self.worldRegion, animated: true)
+                            return
+                        }
+
+                        let centerLatRaw = (response.minLat + response.maxLat) / 2
+                        let centerLngRaw = (response.minLng + response.maxLng) / 2
+
                         // Normalize latitude and longitude bounds to prevent MapKit NSInvalidArgumentException
                         let centerLat = min(max(centerLatRaw, -89.9), 89.9)
                         var centerLng = centerLngRaw.truncatingRemainder(dividingBy: 360.0)
                         if centerLng > 180.0 { centerLng -= 360.0 }
                         else if centerLng < -180.0 { centerLng += 360.0 }
 
-                        // Add 40% padding around the edges to avoid cutting off peripheral hex bins.
-                        let spanLat = latDelta * 1.4
-                        let spanLng = lngDelta * 1.4
+                        // Add 60% padding around the edges so the distribution has breathing room from the map border.
+                        let spanLat = latDelta * 1.6
+                        let spanLng = lngDelta * 1.6
 
                         // Constrain the span to avoid over-zooming on isolated points and wrap at map edges.
                         // MapKit limits Mercator latitudes to roughly 170 span to avoid infinite distortion.

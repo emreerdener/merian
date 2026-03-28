@@ -40,7 +40,7 @@ A global `.viewModifier` that intercepts `.contextMenu` or `Menu` delete interac
 **Location**: `Features/Insights/Components/Confidence/ConfidenceBadge.swift`
 
 A tappable liquid-glass capsule shown in `InsightHeader` that communicates the AI's confidence band for a scan.
-- **Band logic**: Derives label, color, and icon from `confidenceScore` against `MerianConfig.confidenceStrongThreshold` (0.90) and `MerianConfig.confidencePossibleThreshold` (0.70). Three bands: Strong (green ≥ 90%), Possible (orange 70–89%), Weak (gray < 70%).
+- **Band logic**: Derives label, color, and icon dynamically from `confidenceScore` against `MerianConfig.confidenceBands(for: isPro)`. High constraints for Free tier (≥ 93%), relaxed bounds for Pro (≥ 85%). Three bands exist: Strong (green), Possible (orange), Weak (gray).
 - **Liquid glass aesthetic**: Layered `ZStack` — `ultraThickMaterial` base, volumetric color tint, glossy inner rim gradient, ambient border, animated holographic glare sweep.
 - **Shimmer animation**: An idle `.task` loop triggers a 3.5-second `easeOut` glare sweep every 4–10 seconds (random interval), creating a living feel without continuous CPU usage.
 - **Sheet integration**: Tap opens `ConfidenceExplanationSheet`.
@@ -49,5 +49,5 @@ A tappable liquid-glass capsule shown in `InsightHeader` that communicates the A
 **Location**: `Features/Insights/Components/Confidence/ConfidenceSpectrum.swift`
 
 A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`, explaining what each band means.
-- **Threshold parity**: Band percentage strings are computed from `MerianConfig.confidenceStrongThreshold` and `MerianConfig.confidencePossibleThreshold` at type scope (`private static let`), so the displayed ranges always match the live badge thresholds without manual string updates.
-- **Current bands**: Strong (90–100%), Possible (70–89%), Weak (below 70%).
+- **Threshold parity**: Band percentage strings are computed dynamically based on the current user's entitlement tier via `MerianConfig.confidenceBands(for: isPro)`. This ensures that the displayed ranges in the UI always match the live badge thresholds exactly.
+- **Current bands**: Strong (≥ 93% Flash / ≥ 85% Pro), Possible (75-92% Flash / 65-84% Pro), Weak (below 75% Flash / below 65% Pro).

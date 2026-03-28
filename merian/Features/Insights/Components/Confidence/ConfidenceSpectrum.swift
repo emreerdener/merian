@@ -2,15 +2,16 @@ import SwiftUI
 
 struct ConfidenceSpectrum: View {
     // Derived from MerianConfig so the displayed percentages always match the live thresholds.
-    private static let strongPct  = Int(MerianConfig.confidenceStrongThreshold   * 100)
-    private static let possiblePct = Int(MerianConfig.confidencePossibleThreshold * 100)
+    private var bands: MerianConfig.ConfidenceBands { MerianConfig.confidenceBands(for: RevenueCatManager.shared.isProActive) }
+    private var strongPct: Int { Int(bands.strong * 100) }
+    private var possiblePct: Int { Int(bands.possible * 100) }
 
     var body: some View {
         VStack(spacing: 0) {
             SpectrumNode(
                 color: .green,
                 nextColor: .orange,
-                percentage: "\(Self.strongPct)% – 100%",
+                percentage: "\(strongPct)% – 100%",
                 title: "Strong match",
                 description: "Extremely certain. The key morphological traits match the model flawlessly."
             )
@@ -18,7 +19,7 @@ struct ConfidenceSpectrum: View {
             SpectrumNode(
                 color: .orange,
                 nextColor: .gray,
-                percentage: "\(Self.possiblePct)% – \(Self.strongPct - 1)%",
+                percentage: "\(possiblePct)% – \(strongPct - 1)%",
                 title: "Possible match",
                 description: "A likely match, but key identifying traits may be obscured, blurry, or missing."
             )
@@ -26,7 +27,7 @@ struct ConfidenceSpectrum: View {
             SpectrumNode(
                 color: .gray,
                 nextColor: nil,
-                percentage: "Below \(Self.possiblePct)%",
+                percentage: "Below \(possiblePct)%",
                 title: "Weak match",
                 description: "The model is uncertain. Try capturing another angle or bringing it into focus."
             )

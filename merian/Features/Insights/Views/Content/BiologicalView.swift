@@ -28,7 +28,7 @@ struct BiologicalView: View {
             ConservationBanner()
 
             // Diagnostic Evaluation
-            if let score = inferenceEngine.speciesData?.confidenceScore, score < 0.8, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
+            if let score = inferenceEngine.speciesData?.confidenceScore, score < MerianConfig.confidenceBands(for: RevenueCatManager.shared.isProActive).diagnosticTrigger, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
                 DiagnosticComparisonCard(diagnosticData: diagnosticData)
             }
 
