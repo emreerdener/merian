@@ -1,36 +1,78 @@
 import SwiftUI
 import RevenueCat
 
+struct PaywallFeature {
+    let icon: String
+    let title: String
+    let description: String
+}
+
+let proFeatures = [
+    PaywallFeature(icon: "infinity", title: "Unlimited Scans", description: "Identify species continuously without daily scan limits."),
+    PaywallFeature(icon: "sparkles", title: "Pro AI Vision", description: "Access our most advanced, diagnostic-grade AI model."),
+    PaywallFeature(icon: "leaf.arrow.triangle.circlepath", title: "Ecological Telemetry", description: "Unlock deep dive insights like size and interactions.")
+]
+
 struct PaywallView: View {
     @Environment(RevenueCatManager.self) var revenueCatManager
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 32) {
+            VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 12) {
-                    Image(systemName: "leaf.circle.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 80, height: 80)
-                        .foregroundColor(.green)
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(
+                            LinearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
+                        .padding(24)
+                        .background(
+                            Circle()
+                                .fill(Color.green.opacity(0.1))
+                        )
+                        .padding(.top, 32)
+                        .padding(.bottom, 8)
 
-                    Text("Unlock the wilderness")
-                        .font(.title)
-                        .fontWeight(.bold)
+                    Text("Merian Pro")
+                        .font(.system(.largeTitle, design: .rounded))
+                        .fontWeight(.heavy)
 
-                    Text("You've used your 2 free daily scans. Keep exploring without limits by choosing an option below.")
+                    Text("Unlock the full power of our AI and explore the wilderness without limits.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        .padding(.horizontal, 32)
                 }
-                .padding(.top, 40)
 
+                // Features
+                VStack(alignment: .leading, spacing: 28) {
+                    ForEach(proFeatures, id: \.title) { feature in
+                        HStack(spacing: 16) {
+                            Image(systemName: feature.icon)
+                                .font(.title2)
+                                .foregroundColor(.green)
+                                .frame(width: 36)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(feature.title)
+                                    .font(.headline)
+                                Text(feature.description)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 16)
+
+                // Subscriptions
                 if revenueCatManager.isFetchingOfferings {
-                    ProgressView("Loading regional packs...")
-                        .padding(.top, 50)
+                    ProgressView("Loading packs...")
+                        .padding(.top, 40)
                 } else if let offerings = revenueCatManager.currentOfferings {
                     VStack(spacing: 16) {
                         if let currentOffering = offerings.current {
@@ -42,10 +84,11 @@ struct PaywallView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
                 }
 
-                Spacer()
+                Spacer(minLength: 24)
 
                 // Footer
                 HStack(spacing: 24) {
@@ -93,18 +136,50 @@ struct PackageCardButton: View {
 
     let package: Package
 
+    private var titleText: String {
+        switch package.packageType {
+        case .annual: return "Naturalist Tier"
+        case .weekly: return "7-Day Pass"
+        case .monthly: return "Explorer Tier"
+        case .lifetime: return "Lifetime Access"
+        default: return package.storeProduct.localizedTitle
+        }
+    }
+    
+    private var subtitleText: String {
+        switch package.packageType {
+        case .annual: return "Yearly subscription"
+        case .weekly: return "One week of Pro features"
+        case .monthly: return "Monthly subscription"
+        case .lifetime: return "Pay once, keep forever"
+        default: return package.storeProduct.localizedDescription
+        }
+    }
+
     var body: some View {
         Button {
             Task { await purchase() }
         } label: {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(package.storeProduct.localizedTitle)
-                        .font(.headline)
-                        .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(titleText)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            
+                        if package.packageType == .annual {
+                            Text("BEST VALUE")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.15))
+                                .clipShape(Capsule())
+                        }
+                    }
 
-                    Text(package.storeProduct.localizedDescription)
-                        .font(.caption)
+                    Text(subtitleText)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
 
@@ -116,13 +191,19 @@ struct PackageCardButton: View {
                     .foregroundColor(.white)
                     .padding(.vertical, 8)
                     .padding(.horizontal, 16)
-                    .background(Color.green.opacity(0.8))
+                    .background(
+                        LinearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
                     .clipShape(Capsule())
             }
             .padding()
             .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .cornerRadius(16)
-            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+            .cornerRadius(20)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.green.opacity(package.packageType == .annual ? 0.3 : 0), lineWidth: 2)
+            )
+            .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
     }
