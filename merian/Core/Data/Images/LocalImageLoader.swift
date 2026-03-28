@@ -29,10 +29,10 @@ actor LocalImageLoader {
             return await existingTask.value
         }
         
-        let fetchTask = Task<UIImage?, Never> {
+        let fetchTask = Task.detached(priority: .userInitiated) {
             // 3. Remote URL Execution (if 'imagePath' is actually a cloud URL payload directly)
             if let safePath = imagePath, safePath.starts(with: "http"), let remoteUrl = URL(string: safePath) {
-                if let networkImage = await fetchNetworkFallback(url: remoteUrl, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
+                if let networkImage = await self.fetchNetworkFallback(url: remoteUrl, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
                     return networkImage
                 }
             }
@@ -55,8 +55,9 @@ actor LocalImageLoader {
                     .compactMap { URL(string: $0) }
                 
                 for url in urls {
-                    if Task.isCancelled { return nil }
-                    if let networkImage = await fetchNetworkFallback(url: url, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
+                    // We intentionally do NOT check `Task.isCancelled` here because this is a 
+                    // detached task serving multiple coalesced callers. We want it to finish caching.
+                    if let networkImage = await self.fetchNetworkFallback(url: url, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
                         return networkImage
                     }
                 }
