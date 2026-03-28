@@ -9,7 +9,7 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
 - Logs species discoveries into `$unlockedSpeciesCount`, persistently updating `.set(unlocked, forKey:)`.
 - Evaluates novel biological insertions by intercepting `LocalScanRecord` writes; if a species has never been cached locally, routes an `isNewDiscovery = true` payload to `InsightSheetView`.
 - **Non-Biological Suppression**: Even when `isNewDiscovery = true` is passed downstream, the UI layer filters out non-biological results (e.g., `not applicable`, `unknown subject`, `inanimate object`) and requires `isBiological == true`. This prevents the app from triggering a discovery celebration for scans of gravel, car tires, or blurry floors.
-- Presents `NewDiscoveryCelebrationView.swift` (when biologically validated) as a glassmorphic floating pill-shaped toast notification docked at the top of the interface. It dismisses automatically via a state-retained `Task.sleep` without blocking user touches, and supports manual swipe/tap-to-dismiss via `DragGesture`. Triggers `HapticManager.shared.triggerSuccessPulse()` and tracks `TelemetryManager.send("NewSpeciesDiscovered")` under Zero-PII offline rules.
+- Presents `NewDiscoveryCelebrationView.swift` (when biologically validated) as a glassmorphic floating pill-shaped toast notification docked at the top of the interface. It dismisses automatically via a state-retained `Task.sleep` without blocking user touches, and supports manual swipe/tap-to-dismiss via `DragGesture`. Triggers `HapticManager.shared.triggerSuccessPulse()` and tracks `TelemetryDeck.signal("NewSpeciesDiscovered")` under Zero-PII offline rules.
 - Triggers `HapticManager.shared.triggerSelectionPulse()` when an achievement (`hasFireflyBadge`) activates after 5 taxonomic finds.
 - Injected via `.environmentObject` into `Terrarium`, which reacts by calling `.setInput("TotalSpeciesCount")` to animate 3D model foliage, fireflies, and natural artifacts using `RiveViewModel` states.
 - **Erasure Mechanics (`decrement_user_species_count`)**: When a user permanently deletes a scan that was their last documented capture of a specific biological species, a PostgreSQL PL/pgSQL database trigger intercepts the deletion and decrements their `users.total_species_discovered` counter, keeping gamification counts accurate regardless of offline delay. Locally, SwiftData recalculates the Scans library and syncs UI state.
@@ -52,13 +52,13 @@ Merian uses two analytics systems with a strict privacy boundary:
 
 ### Initialization
 
-`AppTelemetry.initialize()` is called synchronously in `MerianApp.init()` — `TelemetryManager.initialize(with:)` is pure config storage with no I/O, safe on the main thread.
+`AppTelemetry.initialize()` is called synchronously in `MerianApp.init()` — `TelemetryDeck.initialize(config:)` is pure config storage with no I/O, safe on the main thread.
 
 `PostHogManager.configure()` is dispatched via `Task.detached(priority: .background)`. `PostHogManager` is not `@MainActor`, so the work actually runs on the background thread pool rather than hopping back to the main actor. This keeps the primary UI render pass uncontested on launch.
 
 ### `AppTelemetry` (TelemetryDeck SDK)
 
-Thin enum wrapper around `TelemetryManager`. All sends go through a private `send(_:with:)` helper that checks `isInitialized` and logs a warning (rather than silently no-oping) if called before `initialize()`. The `isInitialized` flag is protected by `NSLock` for thread safety.
+Thin enum wrapper around `TelemetryDeck`. All sends go through a private `send(_:with:)` helper that checks `isInitialized` and logs a warning (rather than silently no-oping) if called before `initialize()`. The `isInitialized` flag is protected by `NSLock` for thread safety.
 
 **Signal inventory:**
 
@@ -88,5 +88,5 @@ Tracks session lifecycle, feature interactions, and backend AI token usage, link
 
 **Edge Functions (`_shared/posthog.ts`)**:
 - Uses the standard PostHog HTTP `/capture/` API to dispatch `ScanCompleted`, `EnrichmentCompleted`, `EncyclopedicLLMCompleted`, `DiagnosticLLMCompleted`, and `GroupTagsLLMCompleted` events directly from the Supabase backend.
-- Attaches AI metrics including `llm_prompt_tokens`, `llm_candidate_tokens`, and `llm_total_tokens` to `user.id` to provide 100% visibility into Flash vs Pro tier token usage across both primary vision routing and background classification tasks.
+- Attaches AI metrics including `llm_model`, `llm_prompt_tokens`, `llm_candidate_tokens`, and `llm_total_tokens` to `user.id` to provide 100% visibility into Flash vs Pro tier token usage across both primary vision routing and background classification tasks.
 - Safely runs inside Deno's async background tasks (using `.waitUntil` / promises) to never block the inference response to the client.

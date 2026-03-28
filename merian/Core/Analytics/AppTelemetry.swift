@@ -19,8 +19,8 @@ enum AppTelemetry {
 
     /// Initializes TelemetryDeck with the app's configured ID.
     static func initialize() {
-        let configuration = TelemetryManagerConfiguration(appID: MerianEnvironment.telemetryAppID)
-        TelemetryManager.initialize(with: configuration)
+        let configuration = TelemetryDeck.Config(appID: MerianEnvironment.telemetryAppID)
+        TelemetryDeck.initialize(config: configuration)
         isInitialized = true
         MerianLog.general.debug("TelemetryDeck initialized.")
     }
@@ -80,9 +80,9 @@ enum AppTelemetry {
             return
         }
         if let params {
-            TelemetryManager.send(signal, with: params)
+            TelemetryDeck.signal(signal, parameters: params)
         } else {
-            TelemetryManager.send(signal)
+            TelemetryDeck.signal(signal)
         }
     }
 }

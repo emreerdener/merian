@@ -50,6 +50,7 @@ export async function fetchDiagnosticComparison(
       );
       await trackPostHogEvent(user, "DiagnosticLLMCompleted", {
         scientific_name: scientificName,
+        llm_model: "gemini-2.5-flash",
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,

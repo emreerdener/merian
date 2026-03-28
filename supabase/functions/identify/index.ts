@@ -190,6 +190,7 @@ async function fetchGroupTags(
       );
       await trackPostHogEvent(user, "GroupTagsLLMCompleted", {
         scientific_name: scientificName,
+        llm_model: "gemini-2.5-flash",
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
@@ -810,6 +811,7 @@ serve((req: Request) =>
         await trackPostHogEvent(user, "ScanCompleted", {
           is_biological_subject: parsedData.is_biological_subject,
           tier: userTierForModel,
+          llm_model: targetModel,
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_total_tokens: llmTotalTokens,
