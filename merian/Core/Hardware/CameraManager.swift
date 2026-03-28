@@ -135,7 +135,13 @@ import Accelerate
             videoOutput.setSampleBufferDelegate(self, queue: queue)
         }
 
-        if session.canAddOutput(depthOutput) {
+        let hasLiDAR = !AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInLiDARDepthCamera],
+            mediaType: .video,
+            position: .back
+        ).devices.isEmpty
+
+        if hasLiDAR, session.canAddOutput(depthOutput) {
             session.addOutput(depthOutput)
             depthOutput.isFilteringEnabled = true
             depthOutput.setDelegate(self, callbackQueue: queue)
