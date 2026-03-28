@@ -59,7 +59,7 @@ Deno.test("Edge Function Payload Mapping & Upsert Validation", async () => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (supabaseUrl && supabaseKey) {
-        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.45.0");
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.1");
         const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
         const upsertResult = await supabaseAdmin.from("collections").upsert(

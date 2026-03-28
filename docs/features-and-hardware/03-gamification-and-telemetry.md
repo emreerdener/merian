@@ -48,7 +48,7 @@ Achievement states (like `isCompleted` or progress counts) are not stored in the
 Merian uses two analytics systems with a strict privacy boundary:
 
 - **TelemetryDeck (`AppTelemetry`)** — anonymous, PII-free product metrics. No user identity is ever attached.
-- **PostHog (`PostHogManager`)** — user-identified session and lifecycle tracking, linked to the Supabase anonymous UUID only (never email, name, or device identifiers).
+- **PostHog (`PostHogManager`)** — user-identified session and lifecycle tracking, linked to the Supabase UUID and dynamically upgraded to include authenticated metadata (email and name) via backend `$set` properties.
 
 ### Initialization
 
@@ -74,12 +74,18 @@ Thin enum wrapper around `TelemetryManager`. All sends go through a private `sen
 | `InferenceNetworkFailure` | `trackError("InferenceNetworkFailure")` | `domain: "InferenceNetworkFailure"` | Network error on live inference (non-cancellation path) |
 | `SystemError` | `trackError(_:)` | `domain: <errorDomain>` | Available for future error domains |
 
-### `PostHogManager`
+### `PostHogManager` & Edge Telemetry
 
-Tracks session lifecycle and user identity, anonymously.
+Tracks session lifecycle, feature interactions, and backend AI token usage, linked anonymously.
 
+**iOS Client (`PostHogManager`)**:
 - Not `@MainActor` — thread-safe wrapper around `PostHogSDK.shared`.
 - Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()` guards on this flag and logs a warning if called before `configure()` finishes (race condition on fast auth restore at launch).
 - `captureApplicationLifecycleEvents = true` for automatic foreground/background tracking. `captureScreenViews` and `captureElementInteractions` are disabled — the former causes iOS 18 layout constraint warnings by inserting `UIKitToolbar` into SwiftUI `UIHostingController` hierarchies.
 - Uses `identify(userId:)` to link the Supabase Anonymous UUID alongside RevenueCat identifiers.
 - Calls `reset()` when `SupabaseManager.shared.signOut()` clears session state.
+
+**Edge Functions (`_shared/posthog.ts`)**:
+- Uses the standard PostHog HTTP `/capture/` API to dispatch `ScanCompleted` and `EnrichmentCompleted` events directly from the Supabase backend.
+- Attaches AI metrics including `llm_prompt_tokens`, `llm_candidate_tokens`, and `llm_total_tokens` to `user.id`.
+- Safely runs inside Deno's async background tasks (using `.waitUntil` / promises) to never block the inference response to the client.

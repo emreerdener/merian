@@ -40,6 +40,12 @@ export async function fetchDiagnosticComparison(
         responseSchema: schema as unknown as ResponseSchema,
       },
     });
+    const usage = result.response.usageMetadata;
+    if (usage) {
+      console.log(
+        `Token Usage [Diagnostic | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
+      );
+    }
     return extractJson<{
       primary_match_rationale: string;
       confusing_lookalike_name: string;

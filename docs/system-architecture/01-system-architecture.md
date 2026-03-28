@@ -54,7 +54,7 @@ flowchart TD
 ### 5. Private Analytics (`AppTelemetry`, `PostHog`)
 
 - PII-free tracking mapping OS limits passively via `TelemetryClient`.
-- Identifies anonymous Day-7 usage funnels across UI interactions with `PostHog`, mapped by UUID without personal data.
+- Identifies usage funnels and telemetry across UI interactions with `PostHog`, mapped by UUID and automatically enriched with Email and Name identifiers from authenticated Supabase sessions.
 
 ### 6. UI Initialization & Memory Operations
 

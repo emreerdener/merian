@@ -137,5 +137,5 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 
 #### V8 Execution Abstractions
 
-- **Explicit Deno ES Modules**: To avoid Supabase CLI bundling failures caused by unresolved local import maps, all edge dependencies use direct HTTP module URLs (e.g., `https://esm.sh/@supabase/supabase-js@2.45.0`). The `supabase/functions/deno.json` config includes `"exclude": ["no-import-prefix"]` to suppress the corresponding `deno-lint` warning locally.
+- **Explicit Deno ES Modules**: To avoid Supabase CLI bundling failures caused by unresolved local import maps, all edge dependencies use direct HTTP module URLs (e.g., `https://esm.sh/@supabase/supabase-js@2.49.1`). The `supabase/functions/deno.json` config includes `"exclude": ["no-import-prefix"]` to suppress the corresponding `deno-lint` warning locally.
 - **`_shared` Utilities**: CORS headers, auth validation, `runBackground`, `jsonResponse`, `getR2Config`, `generatePresignedPutUrl`, `_genAI`/`createFlashModel`/`extractJson`, `getTierForUser`/`hasTierCached`/`setTierCache`, and `requireParams` live in `supabase/functions/_shared/`, shared across all function files.

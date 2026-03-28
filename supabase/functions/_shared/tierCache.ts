@@ -1,4 +1,4 @@
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 // Worker-level tier cache — persists across warm isolate re-use, eliminating the DB round-trip
 // for every scan after the first. TTL of 5 minutes is short enough to pick up subscription

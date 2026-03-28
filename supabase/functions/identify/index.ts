@@ -21,14 +21,60 @@ import {
   hasTierCached,
   setTierCache,
 } from "../_shared/tierCache.ts";
+import { trackPostHogEvent } from "../_shared/posthog.ts";
 
 // Scans below this threshold trigger an async diagnostic comparison via Flash.
 const DIAGNOSTIC_THRESHOLD = 0.85;
 
+export interface EncyclopedicData {
+  taxonomy: {
+    kingdom: string;
+    phylum: string;
+    class: string;
+    order: string;
+    family: string;
+    genus: string;
+  };
+  iucn_red_list_status: string;
+  habitat_description: string;
+}
+
+export interface MerianIdentification {
+  is_biological_subject: boolean;
+  is_live_capture: boolean;
+  ecology_type?: "wild" | "urban" | "domesticated" | "unknown";
+  scientific_name?: string;
+  confidence_score: number;
+  blur_score: number;
+  is_invasive?: boolean;
+  ai_reasoning: string;
+  colors?: string[];
+  common_name?: string;
+  hazard_type?: "none" | "poisonous" | "venomous" | "allergenic" | "irritant";
+}
+
+export interface ClientPayload extends MerianIdentification {
+  scan_id: string;
+  reference_image_url?: string | null;
+  wikipedia_url?: string | null;
+  wikipedia_overview?: string | null;
+  group_tags?: string[] | null;
+  gbif_taxon_key?: number | null;
+  taxonomy?: Record<string, string>;
+  iucn_red_list_status?: string;
+  insight_data?: {
+    ai_reasoning: string;
+    hazard_type: string;
+  };
+  species_insights?: {
+    habitat_description: string;
+  };
+}
+
 async function fetchStaticEncyclopedicData(
   scientificName: string,
   locale: string,
-) {
+): Promise<EncyclopedicData> {
   const textModel = createFlashModel(
     `You are a world-class biologist. Provide encyclopedic identification traits, taxonomy, habitat, toxicity, conservation status, and global distribution for the provided scientific name. Keep descriptions concise. ALL text responses (habitat_description) must be returned in the following ISO language locale: ${locale}.`,
     1500,
@@ -88,7 +134,14 @@ async function fetchStaticEncyclopedicData(
       },
     });
 
-    return extractJson(result.response.text());
+    const usage = result.response.usageMetadata;
+    if (usage) {
+      console.log(
+        `Token Usage [Encyclopedic | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
+      );
+    }
+
+    return extractJson<EncyclopedicData>(result.response.text());
   } catch (e) {
     console.error("Text Inference Miss fallback failed:", e);
     return {
@@ -223,6 +276,14 @@ async function fetchGroupTags(
         responseSchema: schema as unknown as ResponseSchema,
       },
     });
+
+    const usage = result.response.usageMetadata;
+    if (usage) {
+      console.log(
+        `Token Usage [GroupTags | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
+      );
+    }
+
     const parsed = extractJson<{ group_tags: string[] }>(result.response.text());
     return parsed.group_tags ?? null;
   } catch (e) {
@@ -509,9 +570,9 @@ serve((req: Request) =>
       );
     }
 
-    let parsedData;
+    let parsedData: MerianIdentification;
     try {
-      parsedData = extractJson(responseText);
+      parsedData = extractJson<MerianIdentification>(responseText);
     } catch (parseError) {
       console.error("Failed to parse AI response:", parseError);
       return jsonResponse(
@@ -521,7 +582,7 @@ serve((req: Request) =>
     }
 
     const generatedScanId = crypto.randomUUID();
-    const payloadReadyForClient = { ...parsedData, scan_id: generatedScanId };
+    const payloadReadyForClient: ClientPayload = { ...parsedData, scan_id: generatedScanId };
     const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
     let speciesId: string | null = null;
     // Hoisted so the background task can reference it for the Cache Miss enrichment upsert.
@@ -682,14 +743,14 @@ serve((req: Request) =>
           (parsedData.confidence_score ?? 1) < DIAGNOSTIC_THRESHOLD &&
           !cachedSpecies?.diagnostic_primary_rationale;
         const diagnosticPromise = needsDiagnostic
-          ? fetchDiagnosticComparison(parsedData.scientific_name)
+          ? fetchDiagnosticComparison(parsedData.scientific_name!)
           : Promise.resolve(null);
 
         const needsGroupTags =
           isIdentifiedBio &&
           !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
-          ? fetchGroupTags(parsedData.scientific_name)
+          ? fetchGroupTags(parsedData.scientific_name!)
           : Promise.resolve(null);
 
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
@@ -698,10 +759,10 @@ serve((req: Request) =>
           const bgEnrichStart = Date.now();
           const [textResult, externalData] = await Promise.all([
             fetchStaticEncyclopedicData(
-              parsedData.scientific_name,
+              parsedData.scientific_name!,
               deviceLocale || "en",
             ),
-            fetchExternalEnrichment(parsedData.scientific_name),
+            fetchExternalEnrichment(parsedData.scientific_name!),
           ]);
 
           const newCommonNames = cachedSpecies
@@ -762,7 +823,7 @@ serve((req: Request) =>
           // fields were introduced. Fetch from Flash and backfill silently for all tiers.
           const bgEnrichStart = Date.now();
           const textResult = await fetchStaticEncyclopedicData(
-            parsedData.scientific_name,
+            parsedData.scientific_name!,
             deviceLocale || "en",
           );
           await supabaseAdmin
@@ -824,6 +885,16 @@ serve((req: Request) =>
           }
           return;
         }
+
+        // Track successful scan in PostHog
+        await trackPostHogEvent(user, "ScanCompleted", {
+          is_biological_subject: parsedData.is_biological_subject,
+          tier: userTierForModel,
+          llm_prompt_tokens: llmPromptTokens,
+          llm_candidate_tokens: llmCandidateTokens,
+          llm_total_tokens: llmTotalTokens,
+          scientific_name: parsedData.scientific_name,
+        });
 
         // Await species-level Flash calls and upsert results to species_dictionary.
         const [diagResult, groupTagsResult] = await Promise.all([

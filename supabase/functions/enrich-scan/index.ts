@@ -4,11 +4,12 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { fetchDiagnosticComparison } from "../_shared/diagnostic.ts";
 import { createFlashModel, extractJson } from "../_shared/gemini.ts";
 import { requireParams } from "../_shared/validation.ts";
+import { trackPostHogEvent } from "../_shared/posthog.ts";
 
 const DIAGNOSTIC_THRESHOLD = 0.85;
 
 serve((req: Request) =>
-  withEdgeHandler(req, async (user, supabaseAdmin) => {
+  withEdgeHandler(req, async (_user, supabaseAdmin) => {
     const fnStart = Date.now();
     const body = await req.json();
     const { scan_id, scientific_name } = body;
@@ -96,6 +97,18 @@ serve((req: Request) =>
             contents: [{ role: "user", parts: [{ text: `Species enrichment for: ${scientific_name}` }] }],
             generationConfig: { responseMimeType: "application/json", responseSchema: enrichSchema as unknown as ResponseSchema },
           });
+          const usage = result.response.usageMetadata;
+          if (usage) {
+            console.log(
+              `Token Usage [Enrichment | ${scientific_name}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
+            );
+            await trackPostHogEvent(_user, "EnrichmentCompleted", {
+              scientific_name,
+              llm_prompt_tokens: usage.promptTokenCount,
+              llm_candidate_tokens: usage.candidatesTokenCount,
+              llm_total_tokens: usage.totalTokenCount,
+            });
+          }
           return extractJson<{ habitat_description: string }>(
             result.response.text(),
           );
