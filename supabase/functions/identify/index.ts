@@ -439,7 +439,7 @@ serve((req: Request) =>
     // "Fossilized Shell" instead of the correct species common name (e.g. "Devil's Toenail"
     // for Gryphaea). Fossils and preserved specimens are biological subjects — only
     // is_live_capture changes.
-    const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in strict title case. 4) CRITICAL: Evaluate all provided images together. 5) CRITICAL: Multiple species → identify ONE primary. 6) CRITICAL: is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name.`;
+    const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case (e.g., 'Red-tailed Hawk'). Ensure words are spaced correctly. 4) CRITICAL: Evaluate all provided images together. 5) CRITICAL: Multiple species → identify ONE primary. 6) CRITICAL: is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name.`;
 
     const model = _genAI.getGenerativeModel({
       model: targetModel,
@@ -494,7 +494,7 @@ serve((req: Request) =>
       common_name: {
         type: SchemaType.STRING,
         description:
-          "Most specific commonly recognised English name in strict title case.",
+          "Most specific, commonly recognized English name in Title Case. Ensure words are spaced correctly (e.g., 'Red-tailed Hawk').",
       },
       hazard_type: {
         type: SchemaType.STRING,
