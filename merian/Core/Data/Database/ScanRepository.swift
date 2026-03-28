@@ -54,26 +54,9 @@ final class ScanRepository {
 
     // MARK: - Local Fetching
 
-    /// Fetches `LocalScanRecord` entries, optionally filtered by a search string matched against common and scientific name.
-    func fetchLocalScans(modelContext: ModelContext, filter: String? = nil) -> [LocalScanRecord] {
-        var descriptor = FetchDescriptor<LocalScanRecord>()
-
-        if let searchText = filter, !searchText.isEmpty {
-            // SwiftData evaluates localizedStandardContains in SQLite directly with smart case matching
-            descriptor.predicate = #Predicate { record in
-                record.commonName.localizedStandardContains(searchText) || record.scientificName.localizedStandardContains(searchText)
-            }
-        }
-
-        descriptor.sortBy = [SortDescriptor(\.timestamp, order: .reverse)]
-
-        do {
-            return try modelContext.fetch(descriptor)
-        } catch {
-            MerianLog.data.error("Failed to fetch LocalScans from generic repository: \(error, privacy: .private)")
-            return []
-        }
-    }
+    // MARK: - Replaced Manual Fetchers
+    // `fetchLocalCollections` and `fetchLocalScans` have been deleted.
+    // The MainActor UI relies natively on iOS 17 declarative @Query macros over the globally elevated LocalScanRecord structure.
 
     // MARK: - Capture Persistence
 
@@ -170,6 +153,9 @@ final class ScanRepository {
             if totalNewRecords > 0 {
                 MerianLog.data.debug("✅ Merian Sync: Restored \(totalNewRecords, privacy: .public) new historical records.")
             }
+            Task { @MainActor in
+                NotificationCenter.default.post(name: NSNotification.Name("MerianLibraryDidUpdate"), object: nil)
+            }
 
         } catch {
             MerianLog.data.error("🚨 Failed reconciling historical scans from Supabase: \(error, privacy: .private)")
@@ -232,6 +218,8 @@ final class ScanRepository {
         Task {
             await offlineQueue.syncPendingDeletions()
         }
+        
+        NotificationCenter.default.post(name: NSNotification.Name("MerianLibraryDidUpdate"), object: nil)
     }
 
     /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
@@ -242,6 +230,7 @@ final class ScanRepository {
             try modelContext.delete(model: OfflineQueuedScan.self)
             try modelContext.delete(model: PendingCloudDeletionTask.self)
             try modelContext.save()
+            NotificationCenter.default.post(name: NSNotification.Name("MerianLibraryDidUpdate"), object: nil)
             MerianLog.data.debug("✅ Successfully purged all SwiftData records natively.")
         } catch {
             MerianLog.data.error("🚨 Failed to erase local ModelContainer: \(error.localizedDescription, privacy: .private)")
@@ -311,12 +300,6 @@ struct CloudCollectionScan: Decodable, Sendable {
 @ModelActor
 actor HistoricalDatabaseActor {
 
-    // MARK: - Cached sync state
-
-    /// Local scan ID set, pre-computed once per sync session and updated incrementally as
-    /// new records are inserted. Avoids a full-library fetch on every page call.
-    private var cachedLocalIds: Set<String>? = nil
-
     // MARK: - Paged API (primary entry points from syncHistoricalScansDown)
 
     /// Reconciles a single page of remote scan responses against local state.
@@ -328,31 +311,34 @@ actor HistoricalDatabaseActor {
     /// - Returns: The number of new `LocalScanRecord` rows inserted from this page.
     @discardableResult
     func reconcileScanPage(responses: [HistoricalScanResponse]) -> Int {
-        if cachedLocalIds == nil {
-            var desc = FetchDescriptor<LocalScanRecord>()
-            desc.propertiesToFetch = [\.id]
-            let existing = (try? modelContext.fetch(desc)) ?? []
-            cachedLocalIds = Set(existing.map { $0.id })
+        let responseIds = responses.map { $0.id }
+        var existingIds = Set<String>()
+        
+        let chunkSize = 500
+        for chunkStart in stride(from: 0, to: responseIds.count, by: chunkSize) {
+            let chunk = Array(responseIds[chunkStart..<min(chunkStart + chunkSize, responseIds.count)])
+            let desc = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
+            let objectIds = (try? modelContext.fetchIdentifiers(desc)) ?? []
+            for id in objectIds {
+                if let record = modelContext.model(for: id) as? LocalScanRecord {
+                    existingIds.insert(record.id)
+                }
+            }
         }
-        var existingIds = cachedLocalIds!
 
         updateExistingScans(responses: responses, existingIds: existingIds)
 
         let missingScans = responses.filter { !existingIds.contains($0.id) }
         if !missingScans.isEmpty {
             ingestScans(missingScans: missingScans)
-            for scan in missingScans { existingIds.insert(scan.id) }
-            cachedLocalIds = existingIds
         }
 
         return missingScans.count
     }
 
-    /// Reconciles the full remote collection list against local state, then resets the
-    /// cached ID set so the next sync session starts fresh.
+    /// Reconciles the full remote collection list against local state
     func syncCollectionsDown(remoteCollections: [CloudCollectionResponse]) {
         syncCollections(remoteCollections: remoteCollections)
-        cachedLocalIds = nil
     }
 
     // MARK: - Legacy bulk API (kept for test compatibility)
@@ -369,7 +355,6 @@ actor HistoricalDatabaseActor {
         responses: [HistoricalScanResponse],
         collections: [CloudCollectionResponse]
     ) -> Int {
-        cachedLocalIds = nil  // Reset so reconcileScanPage recomputes existingIds from DB
         let newCount = reconcileScanPage(responses: responses)
         syncCollectionsDown(remoteCollections: collections)
         return newCount
@@ -390,18 +375,9 @@ actor HistoricalDatabaseActor {
 
         for chunkStart in stride(from: 0, to: responseIds.count, by: chunkSize) {
             let chunk = Array(responseIds[chunkStart..<min(chunkStart + chunkSize, responseIds.count)])
-            var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
-            descriptor.propertiesToFetch = [\.id, \.localImagePath, \.additionalImagePaths,
-                                             \.referenceImageUrl, \.locationName,
-                                             \.gpsLatitude, \.gpsLongitude, \.gpsElevation,
-                                             \.aiReasoning, \.habitatDescription,
-                                             \.estimatedSizeCm, \.lifeStage, \.reproductiveCondition,
-                                             \.individualCount, \.ecologicalInteractions, \.inferenceTier, \.customTags,
-                                             \.taxonomyKingdom, \.taxonomyPhylum, \.taxonomyClass, \.taxonomyOrder, \.taxonomyFamily, \.taxonomyGenus]
-            let chunk_records: [LocalScanRecord] = {
-                do { return try modelContext.fetch(descriptor) }
-                catch { MerianLog.data.error("🚨 updateExistingScans: fetch failed: \(error, privacy: .private)"); return [] }
-            }()
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
+            let objectIds = (try? modelContext.fetchIdentifiers(descriptor)) ?? []
+            let chunk_records = objectIds.compactMap { modelContext.model(for: $0) as? LocalScanRecord }
             allExistingScans.append(contentsOf: chunk_records)
         }
 
@@ -559,19 +535,16 @@ actor HistoricalDatabaseActor {
 
     private func syncCollections(remoteCollections: [CloudCollectionResponse]) {
         let collectionsDescriptor = FetchDescriptor<ScanCollection>()
-        let existingCollections: [ScanCollection] = {
-            do { return try modelContext.fetch(collectionsDescriptor) }
-            catch { MerianLog.data.error("🚨 syncCollections: collections fetch failed: \(error, privacy: .private)"); return [] }
-        }()
+        let collectionObjectIds = (try? modelContext.fetchIdentifiers(collectionsDescriptor)) ?? []
+        let existingCollections = collectionObjectIds.compactMap { modelContext.model(for: $0) as? ScanCollection }
         var existingLookup = Dictionary(existingCollections.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
         
         // Fetch only the local scan records referenced by the incoming collections.
         let referencedScanIds = remoteCollections.compactMap { $0.collection_scans }.flatMap { $0 }.map { $0.scan_id }
-        var allScansDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { referencedScanIds.contains($0.id) })
-        allScansDescriptor.propertiesToFetch = [\.id]
+        let allScansDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { referencedScanIds.contains($0.id) })
         let localScans: [LocalScanRecord] = referencedScanIds.isEmpty ? [] : {
-            do { return try modelContext.fetch(allScansDescriptor) }
-            catch { MerianLog.data.error("🚨 syncCollections: local scans fetch failed: \(error, privacy: .private)"); return [] }
+            let objectIds = (try? modelContext.fetchIdentifiers(allScansDescriptor)) ?? []
+            return objectIds.compactMap { modelContext.model(for: $0) as? LocalScanRecord }
         }()
         let localScansLookup = Dictionary(localScans.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
 

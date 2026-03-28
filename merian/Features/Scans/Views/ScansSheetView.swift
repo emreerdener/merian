@@ -10,7 +10,11 @@ enum ScansTab {
 struct ScansSheetView: View {
     // MARK: - App State Engines
     @State private var searchManager = ScansManager()
-    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == true && $0.commonName != "Unknown Subject" }, sort: \.timestamp, order: .reverse) private var allRecords: [LocalScanRecord]
+    
+    @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var rawRecords: [LocalScanRecord]
+    private var allRecords: [LocalScanRecord] {
+        rawRecords.filter { $0.isBiological == true && $0.commonName != "Unknown Subject" }
+    }
     @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
     
     @Environment(\.modelContext) private var modelContext
@@ -93,20 +97,26 @@ struct ScansSheetView: View {
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
         }
         .onAppear {
-            searchManager.allScans = allRecords
-            searchManager.performSearch(query: searchManager.searchQuery)
-            prefetchLeadingThumbnails(from: allRecords)
+            syncStateLocally()
+            prefetchLeadingThumbnails(from: searchManager.allScans)
         }
-        .onChange(of: allRecords) { _, newRecords in
-            searchManager.allScans = newRecords
-            searchManager.performSearch(query: searchManager.searchQuery)
+        .onChange(of: rawRecords) { _, _ in
+            syncStateLocally()
         }
-        .onChange(of: collections, initial: true) { _, newCollections in
-            searchManager.collections = newCollections
+        .onChange(of: collections) { _, _ in
+            searchManager.collections = collections
+            searchManager.performSearch(query: searchManager.searchQuery)
         }
     }
     
     // MARK: - Action Handlers & Logic Blocks
+    
+    /// Synchronizes native SwiftData reactive arrays with the offline search manager engine.
+    private func syncStateLocally() {
+        searchManager.allScans = allRecords
+        searchManager.collections = collections
+        searchManager.performSearch(query: searchManager.searchQuery)
+    }
 
     /// Fires 18 concurrent image loads before LazyVGrid renders, filling the first visible
     /// screen (6 rows × 3 columns on the largest supported iPhone) with no gray placeholders.

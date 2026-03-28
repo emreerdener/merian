@@ -33,7 +33,7 @@ struct MerianApp: App {
         }
 
         do {
-            let schema = Schema(versionedSchema: MerianSchemaV20.self)
+            let schema = Schema(versionedSchema: MerianSchemaV22.self)
             let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
             container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
             AppDIContainer.shared.scanRepository.configure(with: container.mainContext)

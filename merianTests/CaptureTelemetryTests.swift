@@ -63,4 +63,40 @@ final class CaptureTelemetryTests: XCTestCase {
         XCTAssertEqual(telemetry.gpsLatitude, 37.7749)
         XCTAssertEqual(telemetry.weatherCondition, "Fog")
     }
+    
+    func testHistoricCapture_SensorDataIsolation() {
+        // Arrange: Simulate an EXIF-extracted historic coordinate and date
+        let historicDate = Date(timeIntervalSince1970: 1600000000) // Historic context
+        let mockCoordinate = CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060)
+        let mockLocation = CLLocation(
+            coordinate: mockCoordinate,
+            altitude: 10.0,
+            horizontalAccuracy: 5.0,
+            verticalAccuracy: 5.0,
+            timestamp: historicDate
+        )
+        
+        let context = EnvironmentContext(
+            location: mockLocation,
+            locationName: "New York",
+            weatherCondition: nil,
+            weatherTemperature: nil,
+            captureDate: historicDate // EXIF extracted capture date
+        )
+        
+        // Act: A historic capture from the camera roll explicitly ignores the active LiDAR distance 
+        // string (which would represent the distance from the phone to their computer monitor or knee)
+        let telemetry = CaptureTelemetry(from: context, distance: nil, zoom: nil)
+        
+        // Assert: Ensure LiDAR distance is nil and date natively inherits the EXIF boundary
+        XCTAssertNil(telemetry.subjectDistanceInMeters, "LiDAR distance MUST remain nil to prevent live sensor leakage on historic photos")
+        XCTAssertNil(telemetry.zoomFactor, "Zoom factor must remain nil on historic captures")
+        
+        XCTAssertEqual(telemetry.gpsLatitude, 40.7128)
+        XCTAssertEqual(telemetry.locationName, "New York")
+        
+        let isoFormatter = DateUtilities.iso8601Formatter
+        let expectedDateString = isoFormatter.string(from: historicDate)
+        XCTAssertEqual(telemetry.timestamp, expectedDateString, "Timestamp MUST map directly to the historic EXIF capture date, not live time")
+    }
 }

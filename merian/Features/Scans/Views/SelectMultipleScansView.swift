@@ -21,7 +21,7 @@ struct SelectMultipleScansView: View {
                 ScrollView {
                     if allRecords.isEmpty {
                         EmptyStateView(
-                            iconName: "photo.on.rectangle.angled",
+                            iconName: "viewfinder",
                             title: "No scans in library",
                             message: "Start exploring and capture your first scan to build your collections natively."
                         )

@@ -13,6 +13,59 @@ function jsonResponse(payload: unknown, status: number = 200) {
   });
 }
 
+export async function generateDwcARow(
+  scan: DBScanRow,
+  export_scope: string,
+  include_precise_coordinates: boolean,
+  requestingUserId: string,
+  secretHashSalt: string
+): Promise<{ occurrenceRow: string; mRows: string[] }> {
+  const species = scan.species_dictionary || {};
+  const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
+  const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
+  let recordedBy = "Merian Citizen Scientist";
+
+  if (!isTombstoned) {
+    if (export_scope === "global") {
+      const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
+      recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
+    } else {
+      recordedBy = scan.user_id;
+    }
+  }
+
+  const isProtected = ["vulnerable", "endangered", "critically_endangered", "near_threatened"]
+    .includes(species.iucn_red_list_status || "");
+  const canAccessPrecise = include_precise_coordinates && (scan.user_id === requestingUserId);
+
+  let lat: number | string | undefined | null = canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
+  let lon: number | string | undefined | null = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
+  const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
+
+  if (isProtected && typeof lat === "number" && typeof lon === "number") {
+    lat = Math.round(lat * 10) / 10;
+    lon = Math.round(lon * 10) / 10;
+  }
+
+  if (lat == null) lat = "";
+  if (lon == null) lon = "";
+
+  const lifeStage = scan.life_stage || "unknown";
+  const reproductiveCondition = scan.reproductive_condition || "not_applicable";
+  const individualCount = scan.individual_count != null ? scan.individual_count : "";
+  const associatedTaxa = scan.ecological_interactions && scan.ecological_interactions.length > 0
+    ? scan.ecological_interactions.join(" | ").replace(/,/g, ";").replace(/"/g, "")
+    : "";
+  const verificationStatus = scan.ai_confidence_score != null ? scan.ai_confidence_score.toFixed(2) : "";
+
+  const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty},${lifeStage},${reproductiveCondition},${individualCount},"${associatedTaxa}",${verificationStatus}`;
+  const urls = scan.image_storage_urls || [];
+  const mRows = urls.map((url: string) => `${scan.id},${url},image/webp`);
+  
+  return { occurrenceRow, mRows };
+}
+
 interface DBScanRow {
   id: string;
   user_id: string;
@@ -143,49 +196,7 @@ serve(async (req: Request) => {
         const subBatchResults = await Promise.all(
           subBatch.map(async (row) => {
             const scan = row as unknown as DBScanRow;
-            const species = scan.species_dictionary || {};
-            const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
-            const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
-            let recordedBy = "Merian Citizen Scientist";
-
-            if (!isTombstoned) {
-              if (export_scope === "global") {
-                const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
-                const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
-                recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
-              } else {
-                recordedBy = scan.user_id;
-              }
-            }
-
-            const isProtected = ["vulnerable", "endangered", "critically_endangered", "near_threatened"]
-              .includes(species.iucn_red_list_status || "");
-            const canAccessPrecise = include_precise_coordinates && (scan.user_id === user_id);
-
-            let lat: number | string | undefined | null = canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
-            let lon: number | string | undefined | null = canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
-            const uncertainty = canAccessPrecise && !isProtected ? scan.coordinate_uncertainty_in_meters || "" : "50000";
-
-            if (isProtected && typeof lat === "number" && typeof lon === "number") {
-              lat = Math.round(lat * 10) / 10;
-              lon = Math.round(lon * 10) / 10;
-            }
-
-            if (lat == null) lat = "";
-            if (lon == null) lon = "";
-
-            const lifeStage = scan.life_stage || "unknown";
-            const reproductiveCondition = scan.reproductive_condition || "not_applicable";
-            const individualCount = scan.individual_count != null ? scan.individual_count : "";
-            const associatedTaxa = scan.ecological_interactions && scan.ecological_interactions.length > 0
-              ? scan.ecological_interactions.join(" | ").replace(/,/g, ";").replace(/"/g, "")
-              : "";
-            const verificationStatus = scan.ai_confidence_score != null ? scan.ai_confidence_score.toFixed(2) : "";
-
-            const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty},${lifeStage},${reproductiveCondition},${individualCount},"${associatedTaxa}",${verificationStatus}`;
-            const urls = scan.image_storage_urls || [];
-            const mRows = urls.map((url: string) => `${scan.id},${url},image/webp`);
-            return { occurrenceRow, mRows };
+            return await generateDwcARow(scan, export_scope, include_precise_coordinates, user_id, secretHashSalt);
           })
         );
         batchResults.push(...subBatchResults);

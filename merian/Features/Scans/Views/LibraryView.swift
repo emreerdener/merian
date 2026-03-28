@@ -55,7 +55,7 @@ struct LibraryView: View {
             ScrollView {
                 if searchManager.filteredScans.isEmpty {
                     EmptyStateView(
-                        iconName: "camera.macro",
+                        iconName: "viewfinder",
                         title: "No scans found",
                         message: {
                             if !searchManager.searchQuery.isEmpty {

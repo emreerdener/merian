@@ -48,7 +48,9 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     init() {
         NotificationCenter.default.addObserver(forName: NSNotification.Name("ScanRequiresSearchIndexUpdate"), object: nil, queue: .main) { [weak self] notification in
             guard let scanId = notification.userInfo?["scanId"] as? String else { return }
-            self?.forceReindex(scanId: scanId)
+            Task { @MainActor [weak self] in
+                self?.forceReindex(scanId: scanId)
+            }
         }
     }
     

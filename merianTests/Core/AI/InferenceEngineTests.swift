@@ -285,4 +285,24 @@ struct InferenceEngineTests {
         #expect(result.habitatDescription == nil)
         #expect(result.globalDistributionRegions == nil)
     }
+
+    // MARK: - Inference Tier Configuration Validation
+    @Test func testInferenceTier_ConfigurationValidation() throws {
+        // Assert Flash Free-Tier thresholds are strict
+        let flashBands = MerianConfig.confidenceBands(forInferenceTier: "flash")
+        #expect(flashBands.strong == 0.96)
+        #expect(flashBands.possible == 0.75)
+        #expect(flashBands.diagnosticTrigger == 0.88)
+        
+        // Assert Pro Premium-Tier thresholds are relaxed
+        let proBands = MerianConfig.confidenceBands(forInferenceTier: "pro")
+        #expect(proBands.strong == 0.85) 
+        #expect(proBands.possible == 0.65)
+        #expect(proBands.diagnosticTrigger == 0.80)
+        
+        // Assert Legacy/Nil scans resolve to Flash thresholds for safety
+        let legacyBands = MerianConfig.confidenceBands(forInferenceTier: nil)
+        #expect(legacyBands.strong == 0.96)
+        #expect(legacyBands.diagnosticTrigger == 0.88)
+    }
 }

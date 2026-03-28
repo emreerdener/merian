@@ -11,6 +11,9 @@ enum MerianSchemaV22: VersionedSchema {
 
     typealias PendingCloudDeletionTask = MerianSchemaV21.PendingCloudDeletionTask
     typealias OfflineQueuedScan        = MerianSchemaV21.OfflineQueuedScan
+}
+
+// ScanCollection extracted natively so its inverse relationship points to the global LocalScanRecord class.
 
     // ScanCollection redeclared so its inverse relationship points to V22.LocalScanRecord.
     @Model
@@ -195,4 +198,3 @@ enum MerianSchemaV22: VersionedSchema {
             self.customTags = customTags
         }
     }
-}

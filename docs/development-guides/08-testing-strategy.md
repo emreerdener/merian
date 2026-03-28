@@ -31,9 +31,12 @@ Tests are organized under `merianTests/Core` and `merianTests/Features`:
 - **`UsageManagerTests.swift`**: Validates daily free quota checks and limits without accessing live API constraints.
 
 ### AI & Data Architectures
-- **`InferenceEngineTests.swift`**: Asserts decoding of `EdgeResponseWrapper` AI payloads, including metadata fields like `is_poisonous`, `ai_confidence_score`, and `TaxonomyData` via `JSONDecoder`.
+- **`InferenceEngineTests.swift`**: Asserts decoding of `EdgeResponseWrapper` AI payloads, including metadata fields like `is_poisonous`, `ai_confidence_score`, and `TaxonomyData` via `JSONDecoder`. Asserts inference tier configuration validation (`.pro` vs `.flash`), verifying confidence boundaries dynamically gate correctly.
 - **`ViewfinderIntelligenceTests.swift`**: Validates real-time analysis logic, ensuring frames are evaluated correctly before inference is triggered.
 - **`ArchiveManagerTests.swift`, `SyncStateManagerTests.swift`, `ScanRepositoryTests.swift`, `BackgroundDatabaseActorTests.swift`**: Verifies bi-directional SwiftData relationship behavior within an isolated in-memory context, without triggering SwiftData loop issues.
+- **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic captures explicitly decouple live sensor leakage (like LiDAR distance vectors or view-finder zoom scopes) away from EXIF bounds.
+- **`ScansManagerTests.swift`**: Validates local string-index mapping (group name taxonomies, semantic tags, and explicitly added `customTags`). Asserts `NotificationCenter` routing dynamically patches specific payloads (`testCustomTag_DynamicHotSwap`) instantly without OOM-burst re-renders!
+- **`LocalImageLoaderTests.swift`**: Explicitly locks concurrent network payload boundaries using overarching `TaskGroup`s. Asserts `fetchNetworkFallback` deduplicates asynchronous URL fetches seamlessly to prevent multi-grid render flooding.
 - **`OfflineQueueManagerTests.swift`**: Mocks queue payload insertions.
   - **In-Memory Isolation**: Spins up a `@MainActor ModelContext` with `.isStoredInMemoryOnly = true` to isolate test data from the user's real offline queue.
   - **Core Lifecycles**: Exercises `.enqueueCapture` (asserting SwiftData record counts increment correctly) and `.purgeSoftDeletedRecords()` (asserting soft-deleted items are removed while undeleted items persist).
@@ -60,3 +63,12 @@ Tests are organized under `merianTests/Core` and `merianTests/Features`:
 ## Mocking Apple Ecosystem Limits (`DeviceIdentityManager`)
 
 When testing across AI boundaries, tests must not pollute real Ghost Session tracking identities via PostHog telemetry. Tests avoid calling `SupabaseManager.shared.initializeGhostSession()` and instead test business logic models decoupled from live Apple ecosystem HTTP constraints.
+
+## Edge Function Testing (Deno)
+
+Merian relies on Supabase Edge Functions for complex operations like biological dataset processing (DwC-A). These pipelines enforce global security bounds and are rigorously checked using `Deno.test`.
+
+### `export-dwca_test.ts`
+- **Global Anonymization**: Evaluates `generateDwcARow` mathematically, ensuring `export_scope: global` safely casts unauthenticated user IDs down to random SHA-256 strings (e.g., `merian_user_...`).
+- **Precision Preservation**: Validates that standard queries correctly map highly precise exact string values.
+- **Protected Species Truncation**: Validates that matching protected statuses (`endangered`, `vulnerable`) explicitly drops exact map coordinates down to single-digit resolution metrics (`Math.round(lat * 10) / 10`) regardless of the original `gps_lat_exact` fields, completely shielding sensitive flora and fauna!
