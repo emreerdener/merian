@@ -51,3 +51,17 @@ A tappable liquid-glass capsule shown in `InsightHeader` that communicates the A
 A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`, explaining what each band means.
 - **Threshold parity**: Band percentage strings are computed dynamically based on the current user's entitlement tier via `MerianConfig.confidenceBands(for: isPro)`. This ensures that the displayed ranges in the UI always match the live badge thresholds exactly.
 - **Current bands**: Strong (≥ 93% Flash / ≥ 85% Pro), Possible (75-92% Flash / 65-84% Pro), Weak (below 75% Flash / below 65% Pro).
+
+## 8. Wikipedia Overview: `WikipediaCard`
+**Location**: `Features/Insights/Components/Cards/WikipediaCard.swift`
+
+An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`) and providing Safari routing to the full article (`wikipediaUrl`).
+- **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. If the string falls below this bound, the entire card prevents rendering, eliminating useless stub blocks or ambiguous disambiguation text (e.g., "Rosa or De Rosa may refer to:").
+
+## 9. Habitat Map: `HabitatAndDistributionCard`
+**Location**: `Features/Insights/Components/Cards/HabitatAndDistributionCard.swift`
+
+An edge-to-edge structural presentation component for the `gbifTaxonKey` density map and LLM `habitatDescription`.
+- **Edge-to-Edge Maps**: Rebuts the `.card()` background modifier found elsewhere, leveraging `-16pt` negative horizontal padding on its root `VStack` to cancel default `BiologicalView` safe area margins, allowing the map frame to stretch across the full width of the interface.
+- **Top Corner Radii**: The 280-pt-tall shimmering loading placeholder and the live `GBIFHeatmapMapView` apply a custom `TopRoundedRectangle` shape, bringing a subtle UI rounding exclusively to their top-left/top-right edges without adding a cutout effect below.
+- **Null Fallbacks**: Wraps the map in a `ZStack` so that if `isEnrichmentLoading` completes but the GBIF occurrence dataset yields no result (nil `gbifTaxonKey`), `GBIFHeatmapMapView` still renders its world-level base map snapshot and drops a distinct "No distribution data available" pill directly atop it.

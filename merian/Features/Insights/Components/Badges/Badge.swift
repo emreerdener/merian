@@ -60,7 +60,7 @@ struct Badge: View {
                                     startPoint: .top,
                                     endPoint: .bottom
                                 ),
-                                lineWidth: 1.5
+                                lineWidth: 1
                             )
                     }
                 } else {
@@ -73,7 +73,7 @@ struct Badge: View {
         // Ambient Static Glass Boundary
         .overlay(
             Capsule()
-                .strokeBorder(isFilled ? (isNeutralColor ? .gray.opacity(0.2) : color.opacity(0.2)) : color.opacity(0.5), lineWidth: 1.5)
+                .strokeBorder(isFilled ? (isNeutralColor ? .gray.opacity(0.2) : color.opacity(0.2)) : color.opacity(0.5), lineWidth: 1)
         )
         .transition(.opacity.combined(with: .scale(scale: 0.85)))
     }

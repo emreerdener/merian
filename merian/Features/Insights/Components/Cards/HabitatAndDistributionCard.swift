@@ -44,7 +44,7 @@ struct HabitatAndDistributionCard: View {
             VStack(alignment: .leading, spacing: 16) {
                 // MARK: - Header
                 HStack(spacing: 8) {
-                    Image(systemName: "leaf")
+                    Image(systemName: "globe")
                         .foregroundColor(.secondary)
                     Text("Habitat & distribution")
                         .font(.system(.headline))
@@ -54,7 +54,7 @@ struct HabitatAndDistributionCard: View {
                 // MARK: - Habitat Description
                 if let habitat = habitatDescription {
                     // MARK: - LOADED STATE
-                    Text(habitat)
+                    Text(styledHabitat(text: habitat, name: scientificName))
                         .font(.body)
                         .lineSpacing(4)
 
@@ -118,6 +118,23 @@ struct HabitatAndDistributionCard: View {
         defer { isRetrying = false }
         await inferenceEngine.fetchAndApplyEnrichment(modelContext: modelContext)
         HapticManager.shared.triggerSuccessPulse()
+    }
+    
+    // MARK: - View Helpers
+    
+    private func styledHabitat(text: String, name: String?) -> AttributedString {
+        var result = AttributedString(text)
+        
+        if let name = name, !name.isEmpty {
+            var searchRange = result.startIndex..<result.endIndex
+            while let range = result[searchRange].range(of: name, options: .caseInsensitive) {
+                result[range].font = .system(.body, design: .monospaced)
+                result[range].backgroundColor = Color.secondary.opacity(0.15)
+                searchRange = range.upperBound..<result.endIndex
+            }
+        }
+        
+        return result
     }
 }
 

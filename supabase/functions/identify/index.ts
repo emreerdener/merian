@@ -111,11 +111,7 @@ async function fetchStaticEncyclopedicData(
       },
       habitat_description: { type: SchemaType.STRING },
     },
-    required: [
-      "taxonomy",
-      "iucn_red_list_status",
-      "habitat_description",
-    ],
+    required: ["taxonomy", "iucn_red_list_status", "habitat_description"],
   };
 
   try {
@@ -284,7 +280,9 @@ async function fetchGroupTags(
       );
     }
 
-    const parsed = extractJson<{ group_tags: string[] }>(result.response.text());
+    const parsed = extractJson<{ group_tags: string[] }>(
+      result.response.text(),
+    );
     return parsed.group_tags ?? null;
   } catch (e) {
     console.error("fetchGroupTags failed:", e);
@@ -486,7 +484,7 @@ serve((req: Request) =>
       ai_reasoning: {
         type: SchemaType.STRING,
         description:
-          "A 2-4 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence extracted from the image that substantiate this classification.",
+          "A 2-3 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence extracted from the image that substantiate this classification.",
       },
       colors: {
         type: SchemaType.ARRAY,
@@ -582,8 +580,13 @@ serve((req: Request) =>
     }
 
     const generatedScanId = crypto.randomUUID();
-    const payloadReadyForClient: ClientPayload = { ...parsedData, scan_id: generatedScanId };
-    const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
+    const payloadReadyForClient: ClientPayload = {
+      ...parsedData,
+      scan_id: generatedScanId,
+    };
+    const isIdentifiedBio = !!(
+      parsedData.is_biological_subject && parsedData.scientific_name
+    );
     let speciesId: string | null = null;
     // Hoisted so the background task can reference it for the Cache Miss enrichment upsert.
     let cachedSpecies: {
@@ -747,8 +750,7 @@ serve((req: Request) =>
           : Promise.resolve(null);
 
         const needsGroupTags =
-          isIdentifiedBio &&
-          !cachedSpecies?.group_tags?.length;
+          isIdentifiedBio && !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
           ? fetchGroupTags(parsedData.scientific_name!)
           : Promise.resolve(null);

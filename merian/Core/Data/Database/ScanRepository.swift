@@ -507,8 +507,8 @@ actor HistoricalDatabaseActor {
             do { return try modelContext.fetch(collectionsDescriptor) }
             catch { MerianLog.data.error("🚨 syncCollections: collections fetch failed: \(error, privacy: .private)"); return [] }
         }()
-        var existingLookup = Dictionary(uniqueKeysWithValues: existingCollections.map { ($0.id, $0) })
-
+        var existingLookup = Dictionary(existingCollections.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
+        
         // Fetch only the local scan records referenced by the incoming collections.
         let referencedScanIds = remoteCollections.compactMap { $0.collection_scans }.flatMap { $0 }.map { $0.scan_id }
         var allScansDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { referencedScanIds.contains($0.id) })
@@ -517,14 +517,15 @@ actor HistoricalDatabaseActor {
             do { return try modelContext.fetch(allScansDescriptor) }
             catch { MerianLog.data.error("🚨 syncCollections: local scans fetch failed: \(error, privacy: .private)"); return [] }
         }()
-        let localScansLookup = Dictionary(uniqueKeysWithValues: localScans.map { ($0.id, $0) })
+        let localScansLookup = Dictionary(localScans.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
 
         for remote in remoteCollections {
             if Task.isCancelled { break }
             let col: ScanCollection
-            if let existing = existingLookup[remote.id] {
+            let remoteIdLower = remote.id.lowercased()
+            if let existing = existingLookup[remoteIdLower] {
                 col = existing
-                existingLookup.removeValue(forKey: remote.id)
+                existingLookup.removeValue(forKey: remoteIdLower)
             } else {
                 col = ScanCollection(name: remote.name)
                 col.id = remote.id
@@ -555,7 +556,7 @@ actor HistoricalDatabaseActor {
             
             if let scans = remote.collection_scans {
                 for scanMapping in scans {
-                    if let localScan = localScansLookup[scanMapping.scan_id] {
+                    if let localScan = localScansLookup[scanMapping.scan_id.lowercased()] {
                         // Drive the relationship from the inverse side to avoid the static type
                         // mismatch between ScanCollection.scans ([V12.LocalScanRecord]) and
                         // the current-schema LocalScanRecord (V13). SwiftData propagates the

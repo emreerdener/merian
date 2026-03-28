@@ -35,10 +35,7 @@ struct BiologicalView: View {
             }
 
             // MARK: - Educational Reference
-            WikipediaCard(
-                isSafariPresented: $isSafariPresented,
-                selectedWikiURL: $selectedWikiURL
-            )
+            WikipediaCard()
 
             // MARK: - Habitat & Distribution
             if let data = inferenceEngine.speciesData {
@@ -61,6 +58,29 @@ struct BiologicalView: View {
                 speciesData: inferenceEngine.speciesData,
                 timestamp: timestamp
             )
+
+            // MARK: - External Links
+            if let wikiString = inferenceEngine.speciesData?.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
+                Button(action: {
+                    selectedWikiURL = wikiUrl
+                    isSafariPresented = true
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "safari")
+                        Text("Learn more on Wikipedia")
+                            .font(.headline)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                }
+                .foregroundColor(.blue)
+                .background(.regularMaterial)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+                )
+            }
         }
         .padding(.horizontal)
     }

@@ -83,6 +83,7 @@ Tracks session lifecycle, feature interactions, and backend AI token usage, link
 - Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()` guards on this flag and logs a warning if called before `configure()` finishes (race condition on fast auth restore at launch).
 - `captureApplicationLifecycleEvents = true` for automatic foreground/background tracking. `captureScreenViews` and `captureElementInteractions` are disabled — the former causes iOS 18 layout constraint warnings by inserting `UIKitToolbar` into SwiftUI `UIHostingController` hierarchies.
 - Uses `identify(userId:)` to link the Supabase Anonymous UUID alongside RevenueCat identifiers.
+- Employs `#if targetEnvironment(simulator)` to alias all development sessions as a static `"simulator"` identifier, aggressively decoupling test telemetry from live production metrics.
 - Calls `reset()` when `SupabaseManager.shared.signOut()` clears session state.
 
 **Edge Functions (`_shared/posthog.ts`)**:
