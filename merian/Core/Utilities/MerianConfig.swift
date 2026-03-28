@@ -76,7 +76,7 @@ enum MerianConfig {
     /// Flash is fast but can be overconfident on edge cases. We enforce stricter
     /// thresholds here to ensure we don't confidently misidentify lookalikes.
     static let flashConfidence = ConfidenceBands(
-        strong: 0.93,             // Require higher certainty for the green badge
+        strong: 0.96,             // Require higher certainty for the green badge
         possible: 0.75,
         diagnosticTrigger: 0.88   // Trigger the diagnostic lookalike UI more frequently
     )
