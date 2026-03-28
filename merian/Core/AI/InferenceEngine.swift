@@ -355,6 +355,16 @@ private struct WikiSummaryResponse: Decodable {
 
             speciesData?.habitatDescription = enrichData.habitat_description
             if let key = enrichData.gbif_taxon_key { speciesData?.gbifTaxonKey = key }
+            if let tax = enrichData.taxonomy {
+                speciesData?.taxonomy = TaxonomyData(
+                    kingdom: tax.kingdom,
+                    phylum: tax.phylum,
+                    className: tax.`class`,
+                    order: tax.order,
+                    family: tax.family,
+                    genus: tax.genus
+                )
+            }
 
             if data.confidenceScore < 0.85,
                let diag = enrichData.diagnostic_comparison,
@@ -378,7 +388,8 @@ private struct WikiSummaryResponse: Decodable {
                         gbifTaxonKey: enrichData.gbif_taxon_key,
                         diagnosticPrimaryRationale: enrichData.diagnostic_comparison?.primary_match_rationale,
                         diagnosticLookalikeName: enrichData.diagnostic_comparison?.confusing_lookalike_name,
-                        diagnosticKeyDifferentiators: enrichData.diagnostic_comparison?.key_differentiators
+                        diagnosticKeyDifferentiators: enrichData.diagnostic_comparison?.key_differentiators,
+                        taxonomy: enrichData.taxonomy
                     )
                 }
             }

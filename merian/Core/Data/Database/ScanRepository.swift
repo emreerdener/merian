@@ -395,7 +395,8 @@ actor HistoricalDatabaseActor {
                                              \.gpsLatitude, \.gpsLongitude, \.gpsElevation,
                                              \.aiReasoning, \.habitatDescription,
                                              \.estimatedSizeCm, \.lifeStage, \.reproductiveCondition,
-                                             \.individualCount, \.ecologicalInteractions, \.inferenceTier]
+                                             \.individualCount, \.ecologicalInteractions, \.inferenceTier,
+                                             \.taxonomyKingdom, \.taxonomyPhylum, \.taxonomyClass, \.taxonomyOrder, \.taxonomyFamily, \.taxonomyGenus]
             let chunk_records: [LocalScanRecord] = {
                 do { return try modelContext.fetch(descriptor) }
                 catch { MerianLog.data.error("🚨 updateExistingScans: fetch failed: \(error, privacy: .private)"); return [] }
@@ -439,6 +440,24 @@ actor HistoricalDatabaseActor {
             }
             if let newSize = res.estimated_size_cm, existing.estimatedSizeCm != newSize {
                 existing.estimatedSizeCm = newSize; didUpdate = true
+            }
+            if let newKingdom = dict?.kingdom, existing.taxonomyKingdom != newKingdom {
+                existing.taxonomyKingdom = newKingdom; didUpdate = true
+            }
+            if let newPhylum = dict?.phylum, existing.taxonomyPhylum != newPhylum {
+                existing.taxonomyPhylum = newPhylum; didUpdate = true
+            }
+            if let newClass = dict?.`class`, existing.taxonomyClass != newClass {
+                existing.taxonomyClass = newClass; didUpdate = true
+            }
+            if let newOrder = dict?.order, existing.taxonomyOrder != newOrder {
+                existing.taxonomyOrder = newOrder; didUpdate = true
+            }
+            if let newFamily = dict?.family, existing.taxonomyFamily != newFamily {
+                existing.taxonomyFamily = newFamily; didUpdate = true
+            }
+            if let newGenus = dict?.genus, existing.taxonomyGenus != newGenus {
+                existing.taxonomyGenus = newGenus; didUpdate = true
             }
             if let newLife = res.life_stage, existing.lifeStage != newLife {
                 existing.lifeStage = newLife; didUpdate = true

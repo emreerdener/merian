@@ -81,6 +81,7 @@ struct EnrichScanResponse: Codable {
     struct EnrichData: Codable {
         let habitat_description: String?
         let gbif_taxon_key: Int?
+        let taxonomy: EdgeResponse.Taxonomy?
         let diagnostic_comparison: DiagnosticData?
 
         struct DiagnosticData: Codable {

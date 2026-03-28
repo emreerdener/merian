@@ -38,6 +38,12 @@ serve((req: Request) =>
       diagnostic_lookalike_name: string | null;
       diagnostic_differentiators_json: string | null;
       gbif_taxon_key: number | null;
+      kingdom: string | null;
+      phylum: string | null;
+      class: string | null;
+      order: string | null;
+      family: string | null;
+      genus: string | null;
     } | null = null;
 
     const POLL_ATTEMPTS = 3;
@@ -45,7 +51,7 @@ serve((req: Request) =>
     for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
       const { data } = await supabaseAdmin
         .from("species_dictionary")
-        .select("habitat_description, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json, gbif_taxon_key")
+        .select("habitat_description, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json, gbif_taxon_key, kingdom, phylum, class, order, family, genus")
         .eq("scientific_name", scientific_name)
         .maybeSingle();
       cachedSpecies = data;
@@ -73,6 +79,14 @@ serve((req: Request) =>
           confusing_lookalike_name: cachedSpecies!.diagnostic_lookalike_name,
           key_differentiators: JSON.parse(cachedSpecies!.diagnostic_differentiators_json ?? "[]"),
         } : null,
+        taxonomy: {
+          kingdom: cachedSpecies!.kingdom ?? "Unknown",
+          phylum: cachedSpecies!.phylum ?? "Unknown",
+          class: cachedSpecies!.class ?? "Unknown",
+          order: cachedSpecies!.order ?? "Unknown",
+          family: cachedSpecies!.family ?? "Unknown",
+          genus: cachedSpecies!.genus ?? "Unknown",
+        }
       }}, 200);
     }
 
@@ -86,7 +100,15 @@ serve((req: Request) =>
             scientific_name,
           });
           
-          return { habitat_description: result.habitat_description };
+          return { 
+            habitat_description: result.habitat_description,
+            kingdom: result.taxonomy.kingdom,
+            phylum: result.taxonomy.phylum,
+            class: result.taxonomy.class,
+            order: result.taxonomy.order,
+            family: result.taxonomy.family,
+            genus: result.taxonomy.genus
+          };
         })();
 
     const diagnosticPromise = (!needsDiagnostic || hasDiagnostic)
@@ -125,6 +147,14 @@ serve((req: Request) =>
           confusing_lookalike_name: cachedSpecies!.diagnostic_lookalike_name,
           key_differentiators: JSON.parse(cachedSpecies!.diagnostic_differentiators_json ?? "[]"),
         } : null),
+        taxonomy: {
+          kingdom: (enrichmentResult as Record<string, string>)?.kingdom ?? cachedSpecies?.kingdom ?? "Unknown",
+          phylum: (enrichmentResult as Record<string, string>)?.phylum ?? cachedSpecies?.phylum ?? "Unknown",
+          class: (enrichmentResult as Record<string, string>)?.class ?? cachedSpecies?.class ?? "Unknown",
+          order: (enrichmentResult as Record<string, string>)?.order ?? cachedSpecies?.order ?? "Unknown",
+          family: (enrichmentResult as Record<string, string>)?.family ?? cachedSpecies?.family ?? "Unknown",
+          genus: (enrichmentResult as Record<string, string>)?.genus ?? cachedSpecies?.genus ?? "Unknown",
+        }
       }}, 200);
 
     } catch (genError) {

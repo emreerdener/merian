@@ -322,7 +322,8 @@ actor BackgroundDatabaseActor {
         gbifTaxonKey: Int?,
         diagnosticPrimaryRationale: String?,
         diagnosticLookalikeName: String?,
-        diagnosticKeyDifferentiators: [String]?
+        diagnosticKeyDifferentiators: [String]?,
+        taxonomy: EdgeResponse.Taxonomy?
     ) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
@@ -336,6 +337,14 @@ actor BackgroundDatabaseActor {
            let encoded = try? JSONEncoder().encode(diffs),
            let json = String(data: encoded, encoding: .utf8) {
             record.diagnosticDifferentiatorsJson = json
+        }
+        if let tax = taxonomy {
+            record.taxonomyKingdom = tax.kingdom
+            record.taxonomyPhylum = tax.phylum
+            record.taxonomyClass = tax.`class`
+            record.taxonomyOrder = tax.order
+            record.taxonomyFamily = tax.family
+            record.taxonomyGenus = tax.genus
         }
 
         try? modelContext.save()
