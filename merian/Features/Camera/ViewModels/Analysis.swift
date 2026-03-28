@@ -71,6 +71,22 @@ extension CameraViewModel {
                     from: historicalContext,
                     distance: nil
                 )
+            } else if capturedOriginals.first?.isFromGallery == true {
+                // Library photo with absolutely no EXIF (no location, no date).
+                // Do not apply live camera metrics (distance, zoom) to an old photo.
+                telemetry = CaptureTelemetry(
+                    subjectDistanceInMeters: nil,
+                    gpsLatitude: nil,
+                    gpsLongitude: nil,
+                    gpsElevation: nil,
+                    locationName: nil,
+                    weatherCondition: nil,
+                    weatherTemperatureF: nil,
+                    timeOfDay: nil,
+                    timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
+                    zoomFactor: nil,
+                    estimatedSizeCm: nil
+                )
             } else {
                 let distance = diContainer.cameraManager.subjectDistanceInMeters
                 var estimatedSizeCm: Double? = nil

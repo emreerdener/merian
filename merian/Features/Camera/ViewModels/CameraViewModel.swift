@@ -166,8 +166,12 @@ final class CameraViewModel {
                     var historicalContext: EnvironmentContext? = nil
                     if let localId = newItem.itemIdentifier {
                         let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
-                        if let asset = fetchResult.firstObject, let location = asset.location, let creationDate = asset.creationDate {
-                            historicalContext = await self.diContainer.environmentContextManager.fetchHistoricalContext(location: location, date: creationDate)
+                        if let asset = fetchResult.firstObject {
+                            if let location = asset.location, let creationDate = asset.creationDate {
+                                historicalContext = await self.diContainer.environmentContextManager.fetchHistoricalContext(location: location, date: creationDate)
+                            } else if let creationDate = asset.creationDate {
+                                historicalContext = EnvironmentContext(location: nil, captureDate: creationDate)
+                            }
                         }
                     }
                     

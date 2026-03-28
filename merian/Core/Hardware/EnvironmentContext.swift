@@ -8,4 +8,5 @@ struct EnvironmentContext {
     var locationName: String? = nil
     var weatherCondition: String? = nil
     var weatherTemperature: Double? = nil
+    var captureDate: Date? = nil
 }

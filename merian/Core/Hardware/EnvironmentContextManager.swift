@@ -123,13 +123,14 @@ import Observation
                     location: location,
                     locationName: locationName,
                     weatherCondition: targetHour.condition.description,
-                    weatherTemperature: targetHour.temperature.converted(to: .fahrenheit).value
+                    weatherTemperature: targetHour.temperature.converted(to: .fahrenheit).value,
+                    captureDate: date
                 )
             } else {
-                return EnvironmentContext(location: location, locationName: locationName)
+                return EnvironmentContext(location: location, locationName: locationName, captureDate: date)
             }
         } catch {
-            return EnvironmentContext(location: location, locationName: locationName)
+            return EnvironmentContext(location: location, locationName: locationName, captureDate: date)
         }
     }
 

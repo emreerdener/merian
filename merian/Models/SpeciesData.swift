@@ -53,7 +53,7 @@ extension CaptureTelemetry {
             weatherCondition: context.weatherCondition,
             weatherTemperatureF: context.weatherTemperature,
             timeOfDay: nil,
-            timestamp: DateUtilities.iso8601Formatter.string(from: context.location?.timestamp ?? Date()),
+            timestamp: DateUtilities.iso8601Formatter.string(from: context.captureDate ?? context.location?.timestamp ?? Date()),
             estimatedSizeCm: estimatedSizeCm
         )
         t.zoomFactor = zoom
