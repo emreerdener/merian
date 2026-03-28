@@ -18,7 +18,7 @@ struct OverviewCard: View {
             
             let colors = (data.colors?.isEmpty == false) ? data.colors?.joined(separator: ", ").capitalized : nil
             let size = data.estimatedSizeCm.map { String(format: "%.1f cm", $0) }
-            let invasive = data.isInvasive ? "Invasive species" : "Non-invasive"
+            let invasive = data.isInvasive ? "Invasive" : "Not invasive"
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
             let lifeStage = (data.lifeStage == "unknown" || data.lifeStage == nil) ? nil : capitalizeFirstLetter(data.lifeStage!)
             let reproduction = (data.reproductiveCondition == "not_applicable" || data.reproductiveCondition == nil) ? nil : capitalizeFirstLetter(data.reproductiveCondition!.replacingOccurrences(of: "_", with: " "))
@@ -50,7 +50,7 @@ struct OverviewCard: View {
                         if let val = ecology {
                             KeyValueRow(title: "ECOLOGY", value: val)
                         }
-                        KeyValueRow(title: "INVASIVE", value: invasive, valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : nil)
+                        KeyValueRow(title: "NATIVE STATUS", value: invasive, valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : nil)
                         if let val = colors, !val.isEmpty {
                             KeyValueRow(title: "DOMINANT COLORS", value: val)
                         }
