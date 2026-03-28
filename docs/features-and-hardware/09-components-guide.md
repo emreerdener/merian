@@ -55,9 +55,9 @@ A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`,
 ## 8. Overview: `OverviewCard`
 **Location**: `Features/Insights/Components/Cards/OverviewCard.swift`
 
-An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`), alongside a suite of dynamic biological `KeyValueRow` metrics.
-- **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, `individualCount`, and `ecologicalInteractions`.
-- **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. If the string falls below this bound, the extract refuses to render, and instead gracefully defaults to rendering the extended biological keys with an italicized fallback indicator for Wikipedia.
+An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`), alongside a suite of dynamic biological `KeyValueRow` metrics, and a native Safari overlay button.
+- **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, and `ecologicalInteractions` while safely omitting empty values. Note: The `individualCount` metric is captured via backend Edge Functions for DWCA telemetry but intentionally omitted from this front-end display to conserve UI space.
+- **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. When valid, the extract is capped at an 8-line truncation limit to avoid walls of text, terminating gracefully into a "Learn more on Wikipedia" pill that relies on injected parent `$isSafariPresented` bindings.
 
 ## 9. Habitat Map: `HabitatAndDistributionCard`
 **Location**: `Features/Insights/Components/Cards/HabitatAndDistributionCard.swift`

@@ -1,40 +1,36 @@
 import SwiftUI
 
 struct ModelTierBanner: View {
+    let confidenceScore: Double?
+    
     var body: some View {
-        if !RevenueCatManager.shared.isProActive {
+        if !RevenueCatManager.shared.isProActive, let score = confidenceScore {
+            let bands = MerianConfig.confidenceBands(for: false)
+            if score >= bands.possible && score < bands.strong {
             Button(action: {
                 AppEventPublisher.shared.send(.triggerPaywall)
             }) {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "sparkles")
-                        .font(.title3)
-                        .foregroundColor(.purple)
-                        .frame(width: 24, alignment: .center)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Upgrade to Pro")
-                            .font(.subheadline.bold())
-                            .foregroundColor(.primary)
+                HStack(alignment: .center, spacing: 6) {
+                    Text("Get higher confidence with Pro")
+                        .font(.footnote.weight(.medium))
                         
-                        Text("Unlock advanced AI vision models for higher accuracy.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.leading)
-                    }
-                    Spacer(minLength: 8)
-                    
                     Image(systemName: "chevron.right")
-                        .font(.footnote.bold())
-                        .foregroundStyle(.tertiary)
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(.secondary)
                 }
-                .padding(16)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    Capsule()
                         .fill(Color(uiColor: .secondarySystemBackground))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color.primary.opacity(0.05), lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
+            }
         }
     }
 }

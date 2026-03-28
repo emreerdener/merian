@@ -22,9 +22,6 @@ struct BiologicalView: View {
                 confidenceScore: inferenceEngine.speciesData?.confidenceScore
             )
 
-            // MARK: - Model Tier Upsell
-            ModelTierBanner()
-
             // MARK: - Toxicity Banner
             ToxicityBanner()
 

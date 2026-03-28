@@ -22,10 +22,9 @@ struct OverviewCard: View {
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
             let lifeStage = (data.lifeStage == "unknown" || data.lifeStage == nil) ? nil : capitalizeFirstLetter(data.lifeStage!)
             let reproduction = (data.reproductiveCondition == "not_applicable" || data.reproductiveCondition == nil) ? nil : capitalizeFirstLetter(data.reproductiveCondition!.replacingOccurrences(of: "_", with: " "))
-            let count = data.individualCount.map { "\($0)" }
             let interactions = data.ecologicalInteractions?.isEmpty == false ? data.ecologicalInteractions?.joined(separator: "; ") : nil
             
-            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || count != nil || interactions != nil || data.isInvasive
+            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || interactions != nil || data.isInvasive
             
             if hasWiki || hasAnyMetadata {
                 VStack(alignment: .leading, spacing: 16) {
@@ -49,9 +48,6 @@ struct OverviewCard: View {
                             if let val = reproduction {
                                 KeyValueRow(title: "REPRODUCTION", value: val)
                             }
-                            if let val = count {
-                                KeyValueRow(title: "COUNT", value: val)
-                            }
                             if let val = ecology {
                                 KeyValueRow(title: "ECOLOGY", value: val)
                             }
@@ -66,7 +62,7 @@ struct OverviewCard: View {
                     }
                     
                     if hasWiki, let extract = wikiExtract {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 8) {
                             if hasAnyMetadata {
                                 Text("WIKIPEDIA")
                                     .font(.caption)
@@ -75,9 +71,8 @@ struct OverviewCard: View {
                             }
                             
                             Text(extract)
-                                .font(.system(.subheadline))
-                                .foregroundColor(.secondary)
-                                .lineLimit(4)
+                                .font(.system(.body))
+                                .lineLimit(8)
                         }
                     }
                     
