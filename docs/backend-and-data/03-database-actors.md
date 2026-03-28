@@ -97,6 +97,22 @@ if let container = modelContext?.container {
 
 ---
 
+### `SearchDatabaseActor` (`Core/Data/Database/SearchDatabaseActor.swift`)
+
+**Declaration**: `@ModelActor actor SearchDatabaseActor`
+
+**Responsibilities:**
+- `extractSearchablePayloads(from:)` — Generates `SearchableScan` structures for O(1) library text filtering. Evaluates attributes including `scientificName`, `ecologyType`, `taxonomy`, location data, and `customTags`. Uses `modelContext.model(for: id)` to map discrete IDs into memory sequentially without faulting the entire SQLite table array, preventing JetSam crashes.
+- `commonGroupName(for:)` — Generates semantic mapping strings from taxonomy class limits (e.g. "Aves" -> "bird", "Insecta" -> "insect", "Mammalia" -> "mammal") to augment layperson searchability alongside AI reasoning text.
+
+**When to create**: Created ad-hoc by `ScansManager` inside `Task.detached` blocks whenever library models mutate, or when `NSNotification.Name("ScanRequiresSearchIndexUpdate")` necessitates a targeted index hot-swap.
+```swift
+let dbActor = SearchDatabaseActor(modelContainer: container)
+let newPayload = await dbActor.extractSearchablePayloads(from: [persistentId])
+```
+
+---
+
 ### `FileIOActor` (`Core/Data/Database/FileIOActor.swift`)
 
 **Declaration**: `public actor FileIOActor`
