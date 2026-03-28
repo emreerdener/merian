@@ -22,22 +22,12 @@ import {
   setTierCache,
 } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
+import { fetchStaticEncyclopedicData } from "../_shared/encyclopedic.ts";
 
 // Scans below this threshold trigger an async diagnostic comparison via Flash.
 const DIAGNOSTIC_THRESHOLD = 0.85;
 
-export interface EncyclopedicData {
-  taxonomy: {
-    kingdom: string;
-    phylum: string;
-    class: string;
-    order: string;
-    family: string;
-    genus: string;
-  };
-  iucn_red_list_status: string;
-  habitat_description: string;
-}
+
 
 export interface MerianIdentification {
   is_biological_subject: boolean;
@@ -71,89 +61,7 @@ export interface ClientPayload extends MerianIdentification {
   };
 }
 
-async function fetchStaticEncyclopedicData(
-  scientificName: string,
-  locale: string,
-): Promise<EncyclopedicData> {
-  const textModel = createFlashModel(
-    `You are a world-class biologist. Provide encyclopedic identification traits, taxonomy, habitat, toxicity, conservation status, and global distribution for the provided scientific name. Keep descriptions concise. ALL text responses (habitat_description) must be returned in the following ISO language locale: ${locale}.`,
-    1500,
-  );
 
-  const cacheSchema: Record<string, unknown> = {
-    type: SchemaType.OBJECT,
-    properties: {
-      taxonomy: {
-        type: SchemaType.OBJECT,
-        properties: {
-          kingdom: { type: SchemaType.STRING },
-          phylum: { type: SchemaType.STRING },
-          class: { type: SchemaType.STRING },
-          order: { type: SchemaType.STRING },
-          family: { type: SchemaType.STRING },
-          genus: { type: SchemaType.STRING },
-        },
-        required: ["kingdom", "phylum", "class", "order", "family", "genus"],
-      },
-      iucn_red_list_status: {
-        type: SchemaType.STRING,
-        enum: [
-          "not_evaluated",
-          "data_deficient",
-          "least_concern",
-          "near_threatened",
-          "vulnerable",
-          "endangered",
-          "critically_endangered",
-          "extinct_in_the_wild",
-          "extinct",
-        ],
-      },
-      habitat_description: { type: SchemaType.STRING },
-    },
-    required: ["taxonomy", "iucn_red_list_status", "habitat_description"],
-  };
-
-  try {
-    const result = await textModel.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: `Generate metadata for the species: ${scientificName}` },
-          ],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: cacheSchema as unknown as ResponseSchema,
-      },
-    });
-
-    const usage = result.response.usageMetadata;
-    if (usage) {
-      console.log(
-        `Token Usage [Encyclopedic | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
-      );
-    }
-
-    return extractJson<EncyclopedicData>(result.response.text());
-  } catch (e) {
-    console.error("Text Inference Miss fallback failed:", e);
-    return {
-      taxonomy: {
-        kingdom: "Unknown",
-        phylum: "Unknown",
-        class: "Unknown",
-        order: "Unknown",
-        family: "Unknown",
-        genus: "Unknown",
-      },
-      iucn_red_list_status: "not_evaluated",
-      habitat_description: "No habitat data available.",
-    };
-  }
-}
 
 async function fetchExternalEnrichment(scientificName: string) {
   let wikiUrl: string | null = null;

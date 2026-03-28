@@ -183,10 +183,12 @@ private struct WikiSummaryResponse: Decodable {
                     MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
                     if mappedData.isBiological {
-                        Task {
+                        Task { [weak self] in
+                            guard let self else { return }
                             await self.fetchWikipediaAndHydrate(for: mappedData.scientificName, scanId: mappedData.scanId, modelContext: modelContext)
                         }
-                        Task {
+                        Task { [weak self] in
+                            guard let self else { return }
                             await self.fetchAndApplyEnrichment(modelContext: modelContext)
                         }
                     }
@@ -444,9 +446,9 @@ private struct WikiSummaryResponse: Decodable {
         if let localPath = record.localImagePath { paths.append(localPath) }
         if let extras = record.additionalImagePaths { paths.append(contentsOf: extras) }
 
-        Task {
+        Task { [weak self] in
             let validPaths = await FileIOActor.shared.validPaths(from: paths)
-            await MainActor.run { self.validHistoricImagePaths = validPaths }
+            await MainActor.run { self?.validHistoricImagePaths = validPaths }
         }
 
         var parsedDiagnostic: DiagnosticComparison? = nil
@@ -501,7 +503,8 @@ private struct WikiSummaryResponse: Decodable {
         // Retroactively hydrate legacy scans that missed Wikipedia data on initial save.
         if record.isBiological && (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty) {
             let safeContext = record.modelContext
-            Task {
+            Task { [weak self] in
+                guard let self else { return }
                 await self.fetchWikipediaAndHydrate(for: record.scientificName, scanId: record.id, modelContext: safeContext)
             }
         }
@@ -514,7 +517,8 @@ private struct WikiSummaryResponse: Decodable {
                 ((record.confidenceScore ?? 1.0) < 0.85 && record.diagnosticPrimaryRationale == nil)
             if needsEnrichment {
                 let safeContext = record.modelContext
-                Task {
+                Task { [weak self] in
+                    guard let self else { return }
                     await self.fetchAndApplyEnrichment(modelContext: safeContext)
                 }
             }

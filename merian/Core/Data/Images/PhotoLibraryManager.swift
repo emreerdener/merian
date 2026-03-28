@@ -163,25 +163,27 @@ import os
     // MARK: - Privacy & EXIF Scrubbing
     /// Resolves memory buffers and strips precise PII GPS dict arrays securely
     nonisolated private func stripGPS(from data: Data) -> Data? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let type = CGImageSourceGetType(source) else {
-            return nil
+        return autoreleasepool {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let type = CGImageSourceGetType(source) else {
+                return nil
+            }
+            
+            let mutableData = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(mutableData, type, 1, nil) else {
+                return nil
+            }
+            
+            guard var properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+                return nil
+            }
+            
+            properties[kCGImagePropertyGPSDictionary] = nil
+            
+            CGImageDestinationAddImageFromSource(destination, source, 0, properties as CFDictionary)
+            guard CGImageDestinationFinalize(destination) else { return nil }
+            
+            return mutableData as Data
         }
-        
-        let mutableData = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(mutableData, type, 1, nil) else {
-            return nil
-        }
-        
-        guard var properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
-            return nil
-        }
-        
-        properties[kCGImagePropertyGPSDictionary] = nil
-        
-        CGImageDestinationAddImageFromSource(destination, source, 0, properties as CFDictionary)
-        guard CGImageDestinationFinalize(destination) else { return nil }
-        
-        return mutableData as Data
     }
 }

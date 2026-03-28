@@ -1,9 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { fetchDiagnosticComparison } from "../_shared/diagnostic.ts";
-import { createFlashModel, extractJson } from "../_shared/gemini.ts";
 import { requireParams } from "../_shared/validation.ts";
+import { fetchStaticEncyclopedicData } from "../_shared/encyclopedic.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 
 const DIAGNOSTIC_THRESHOLD = 0.85;
@@ -77,41 +76,17 @@ serve((req: Request) =>
       }}, 200);
     }
 
-    const model = createFlashModel(
-      "You are a world-class biologist. Provide encyclopedic habitat for the provided scientific name. Keep descriptions concise and accessible.",
-      600,
-    );
-
     // Fire enrichment and diagnostic Flash calls in parallel for whatever is missing.
     const enrichmentPromise = hasEnrichment
       ? Promise.resolve(cachedSpecies)
       : (async () => {
-          const enrichSchema: Record<string, unknown> = {
-            type: SchemaType.OBJECT,
-            properties: {
-              habitat_description: { type: SchemaType.STRING },
-            },
-            required: ["habitat_description"],
-          };
-          const result = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: `Species enrichment for: ${scientific_name}` }] }],
-            generationConfig: { responseMimeType: "application/json", responseSchema: enrichSchema as unknown as ResponseSchema },
+          const result = await fetchStaticEncyclopedicData(scientific_name);
+          
+          await trackPostHogEvent(_user, "EnrichmentCompleted", {
+            scientific_name,
           });
-          const usage = result.response.usageMetadata;
-          if (usage) {
-            console.log(
-              `Token Usage [Enrichment | ${scientific_name}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
-            );
-            await trackPostHogEvent(_user, "EnrichmentCompleted", {
-              scientific_name,
-              llm_prompt_tokens: usage.promptTokenCount,
-              llm_candidate_tokens: usage.candidatesTokenCount,
-              llm_total_tokens: usage.totalTokenCount,
-            });
-          }
-          return extractJson<{ habitat_description: string }>(
-            result.response.text(),
-          );
+          
+          return { habitat_description: result.habitat_description };
         })();
 
     const diagnosticPromise = (!needsDiagnostic || hasDiagnostic)
