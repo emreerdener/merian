@@ -61,6 +61,7 @@ The transaction log for every successful identification.
 - `image_storage_urls` (Text Array): Public Cloudflare links generated after moderation.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for GDPR-compliant account deletions. Anonymizes historical AI data while preserving offline cache continuity.
+- `custom_tags` (Text Array): User-defined plain-text labels for personal categorization. Synchronized via direct PostgREST RPC, favoring the cloud state as the source-of-truth. Added in `20260328221000_add_custom_tags_to_scans.sql`.
 
 ### `flagged_reviews`
 
@@ -111,7 +112,7 @@ _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.
 4. Update all four type aliases in `Aliases.swift` to point to `MerianSchemaV{N+1}`
 5. **Update `MerianApp.swift`**: change `Schema(versionedSchema: MerianSchemaV{N}.self)` to `Schema(versionedSchema: MerianSchemaV{N+1}.self)` — **this step is mandatory**. Omitting it causes a fatal "Failed to cast model" crash at runtime: the migration plan upgrades the on-disk store to V{N+1}, but the `ModelContainer`'s in-memory entity descriptions remain V{N}, making every fetch from `BackgroundDatabaseActor` fail with a type-cast error.
 
-The current active schema is `MerianSchemaV20`.
+The current active schema is `MerianSchemaV22`.
 
 **Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse` contains nested `EnrichData` → `DiagnosticData` structs mapping `habitat_description`, `gbif_taxon_key`, and `diagnostic_comparison` fields. When adding new fields to either Edge Function response, update both the TypeScript schema and the corresponding Swift `Codable` struct simultaneously.
 
@@ -169,6 +170,7 @@ Tracks locally synchronized species scans for the Scans library.
 - `reproductiveCondition`: String? (Added in `MerianSchemaV20`. Phenological state, e.g. "flowering" or "fruiting", extracted by Gemini API.)
 - `individualCount`: Int? (Added in `MerianSchemaV20`. Core population scale within the frame.)
 - `ecologicalInteractions`: [String]? (Added in `MerianSchemaV20`. Array of behavioral interactions observed, such as predation or parasitism.)
+- `customTags`: [String] (Added in `MerianSchemaV22`. User-defined textual tags enabling personal categorization and precise local library search queries.)
 
 ### `ScanCollection` (User Albums)
 

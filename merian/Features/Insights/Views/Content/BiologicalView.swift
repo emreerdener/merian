@@ -61,6 +61,11 @@ struct BiologicalView: View {
                 speciesData: inferenceEngine.speciesData,
                 timestamp: timestamp
             )
+            
+            // MARK: - Custom Tags
+            if let scanId = inferenceEngine.speciesData?.scanId {
+                UserTagsCard(scanId: scanId)
+            }
         }
         .padding(.horizontal)
     }

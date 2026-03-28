@@ -28,6 +28,10 @@ struct NonBiologicalView: View {
             .card()
             
             ScanInformationCard(speciesData: species, timestamp: timestamp)
+            
+            if let scanId = species.scanId {
+                UserTagsCard(scanId: scanId)
+            }
         }
         .padding(.horizontal)
     }

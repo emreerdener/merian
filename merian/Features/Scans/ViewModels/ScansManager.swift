@@ -45,6 +45,13 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     // MARK: - Static Bounds
     let maxBatchSelectionLimit = 20
     
+    init() {
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("ScanRequiresSearchIndexUpdate"), object: nil, queue: .main) { [weak self] notification in
+            guard let scanId = notification.userInfo?["scanId"] as? String else { return }
+            self?.forceReindex(scanId: scanId)
+        }
+    }
+    
     // MARK: - Data Ingestion
     var allScans: [LocalScanRecord] = [] {
         didSet { updateSearchableData(oldScans: oldValue) }
@@ -110,6 +117,23 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 } else {
                     capturedSelf?.searchableData.append(contentsOf: processedNewScans)
                 }
+            }
+        }
+    }
+    
+    // MARK: - Dedicated Reindexing
+    private func forceReindex(scanId: String) {
+        guard let scan = scanMap[scanId], let container = scan.modelContext?.container else { return }
+        let persistentId = scan.persistentModelID
+        self.searchableData.removeAll { $0.id == scanId }
+        
+        Task { [weak self] in
+            let dbActor = SearchDatabaseActor(modelContainer: container)
+            let newPayload = await dbActor.extractSearchablePayloads(from: [persistentId])
+            if Task.isCancelled { return }
+            
+            await MainActor.run {
+                self?.searchableData.append(contentsOf: newPayload)
             }
         }
     }
@@ -301,7 +325,7 @@ actor SearchDatabaseActor {
                 let hazard = record.hazardType == "none" ? "" : record.hazardType
                 let interactions = record.ecologicalInteractions?.joined(separator: " ") ?? ""
                 
-                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(taxonomyTerms) \(groupName) \(reasoning) \(location) \(habitat) \(weather) \(lifeStage) \(reproductive) \(lookalike) \(iucn) \(hazard) \(interactions)".lowercased()
+                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(record.customTags.joined(separator: " ")) \(record.isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(reasoning) \(location) \(habitat) \(weather) \(lifeStage) \(reproductive) \(lookalike) \(iucn) \(hazard) \(interactions)".lowercased()
 
                 processed.append(SearchableScan(
                     id: record.id,
