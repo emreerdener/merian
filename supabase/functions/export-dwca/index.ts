@@ -13,6 +13,33 @@ function jsonResponse(payload: unknown, status: number = 200) {
   });
 }
 
+interface DBScanRow {
+  id: string;
+  user_id: string;
+  timestamp?: string;
+  gps_lat_exact?: number | null;
+  gps_long_exact?: number | null;
+  gps_lat_public?: number | null;
+  gps_long_public?: number | null;
+  coordinate_uncertainty_in_meters?: number | string | null;
+  image_storage_urls?: string[];
+  life_stage?: string;
+  reproductive_condition?: string;
+  individual_count?: number | null;
+  ecological_interactions?: string[];
+  ai_confidence_score?: number | null;
+  species_dictionary?: {
+    scientific_name?: string;
+    kingdom?: string;
+    phylum?: string;
+    class?: string;
+    order?: string;
+    family?: string;
+    genus?: string;
+    iucn_red_list_status?: string;
+  };
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -114,8 +141,8 @@ serve(async (req: Request) => {
       for (let i = 0; i < data.length; i += SUB_BATCH_SIZE) {
         const subBatch = data.slice(i, i + SUB_BATCH_SIZE);
         const subBatchResults = await Promise.all(
-          subBatch.map(async (row: any) => {
-            const scan = row;
+          subBatch.map(async (row) => {
+            const scan = row as unknown as DBScanRow;
             const species = scan.species_dictionary || {};
             const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
             const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
@@ -169,7 +196,7 @@ serve(async (req: Request) => {
         if (res.mRows.length > 0) multimediaRows.push(res.mRows.join("\n"));
       }
 
-      // @ts-ignore
+      // @ts-ignore: Deno garbage collection is manually invoked here
       globalThis.gc?.();
 
       if (data.length < PAGE_SIZE || occurrenceRows.length >= 10000) {
@@ -288,19 +315,22 @@ serve(async (req: Request) => {
 
     return jsonResponse({ success: true }, 200);
 
-  } catch (error: any) {
-    console.error("Export Webhook Error:", error);
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error("Export Webhook Error:", err);
     try {
         if (currentJobId) {
             const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceKey);
             await supabaseAdmin.from("export_jobs").update({ 
                 status: "failed", 
-                error_message: error.message,
+                error_message: err.message,
                 completed_at: new Date().toISOString()
             }).eq("id", currentJobId);
         }
-    } catch (_) {}
+    } catch (_) {
+        // no-op to avoid crashing during error fallback execution
+    }
     
-    return jsonResponse({ error: error.message }, 500);
+    return jsonResponse({ error: err.message }, 500);
   }
 });
