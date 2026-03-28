@@ -14,4 +14,12 @@ enum ThemeMode: String, CaseIterable, Identifiable {
         case .dark:   return .dark
         }
     }
+    
+    var userInterfaceStyle: UIUserInterfaceStyle {
+        switch self {
+        case .system: return .unspecified
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
 }

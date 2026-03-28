@@ -64,11 +64,24 @@ struct MerianApp: App {
                     OnboardingView()
                 }
             }
-            .preferredColorScheme(themeMode.colorScheme)
             .modelContainer(container)
             .injectAppDependencies(container: diContainer)
             .onAppear {
                 diContainer.revenueCatManager.configure()
+                
+                // Bypass SwiftUI .preferredColorScheme(nil) modal inheritance bugs by pushing to UIWindow
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    for window in windowScene.windows {
+                        window.overrideUserInterfaceStyle = themeMode.userInterfaceStyle
+                    }
+                }
+            }
+            .onChange(of: themeMode) { _, newTheme in
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    for window in windowScene.windows {
+                        window.overrideUserInterfaceStyle = newTheme.userInterfaceStyle
+                    }
+                }
             }
             .onOpenURL { url in
                 if GIDSignIn.sharedInstance.handle(url) {

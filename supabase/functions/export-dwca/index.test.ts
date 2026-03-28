@@ -1,5 +1,5 @@
 // supabase/functions/export-dwca/index.test.ts
-import { assert, assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
 /**
  * Mocks the Darwin Core Archive extraction string-building logic

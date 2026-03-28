@@ -10,8 +10,8 @@ struct InsightHeader: View {
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
              VStack(spacing: 16) {
-                 ModelTierBanner(confidenceScore: confidenceScore)
                  ConfidenceBadge(confidenceScore: confidenceScore)
+                 ModelTierBanner(confidenceScore: confidenceScore)
              }
              
              VStack(alignment: .center, spacing: 8) {

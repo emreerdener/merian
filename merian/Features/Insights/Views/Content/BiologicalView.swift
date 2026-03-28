@@ -12,7 +12,7 @@ struct BiologicalView: View {
 
     // MARK: - Visual Layout
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 32) {
 
             InsightHeader(
                 title: viewModel.headerTitle,

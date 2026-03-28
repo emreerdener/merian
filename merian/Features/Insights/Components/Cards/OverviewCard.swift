@@ -16,7 +16,7 @@ struct OverviewCard: View {
             let wikiExtract = data.wikipediaOverview
             let hasWiki = (wikiExtract?.count ?? 0) >= 60
             
-            let colors = data.colors?.joined(separator: ", ").capitalized
+            let colors = (data.colors?.isEmpty == false) ? data.colors?.joined(separator: ", ").capitalized : nil
             let size = data.estimatedSizeCm.map { String(format: "%.1f cm", $0) }
             let invasive = data.isInvasive ? "Invasive species" : "Non-invasive"
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
@@ -26,7 +26,7 @@ struct OverviewCard: View {
             
             let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || interactions != nil || data.isInvasive
             
-            if hasWiki || hasAnyMetadata {
+            if hasAnyMetadata {
                 VStack(alignment: .leading, spacing: 16) {
                     
                     HStack(spacing: 8) {
@@ -37,38 +37,47 @@ struct OverviewCard: View {
                             .foregroundColor(.primary)
                     }
                     
-                    if hasAnyMetadata {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let val = size {
-                                KeyValueRow(title: "EST. SIZE", value: val)
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let val = size {
+                            KeyValueRow(title: "EST. SIZE", value: val)
+                        }
+                        if let val = lifeStage {
+                            KeyValueRow(title: "LIFE STAGE", value: val)
+                        }
+                        if let val = reproduction {
+                            KeyValueRow(title: "REPRODUCTION", value: val)
+                        }
+                        if let val = ecology {
+                            KeyValueRow(title: "ECOLOGY", value: val)
+                        }
+                        KeyValueRow(title: "INVASIVE", value: invasive, valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : nil)
+                        if let val = colors, !val.isEmpty {
+                            KeyValueRow(title: "DOMINANT COLORS", value: val)
+                        }
+                        if let val = interactions {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("INTERACTIONS")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .fontWeight(.bold)
+                                    .tracking(1)
+                                    .foregroundColor(.secondary)
+                                
+                                Text(val)
+                                    .font(.system(.subheadline))
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.leading)
                             }
-                            if let val = lifeStage {
-                                KeyValueRow(title: "LIFE STAGE", value: val)
-                            }
-                            if let val = reproduction {
-                                KeyValueRow(title: "REPRODUCTION", value: val)
-                            }
-                            if let val = ecology {
-                                KeyValueRow(title: "ECOLOGY", value: val)
-                            }
-                            KeyValueRow(title: "INVASIVE", value: invasive, valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : nil)
-                            if let val = colors, !val.isEmpty {
-                                KeyValueRow(title: "DOMINANT COLORS", value: val)
-                            }
-                            if let val = interactions {
-                                KeyValueRow(title: "INTERACTIONS", value: val)
-                            }
+                            .padding(.top, 4)
                         }
                     }
                     
                     if hasWiki, let extract = wikiExtract {
                         VStack(alignment: .leading, spacing: 8) {
-                            if hasAnyMetadata {
-                                Text("WIKIPEDIA")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.secondary)
-                            }
+                            Text("WIKIPEDIA")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
                             
                             Text(extract)
                                 .font(.system(.body))
@@ -76,7 +85,7 @@ struct OverviewCard: View {
                         }
                     }
                     
-                    if let wikiString = data.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
+                    if hasWiki, let wikiString = data.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
                         Button(action: {
                             selectedWikiURL = wikiUrl
                             isSafariPresented = true
