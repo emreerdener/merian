@@ -25,6 +25,7 @@ struct WikipediaCard: View {
                             .foregroundColor(.secondary)
                     }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .card()
         }
     }

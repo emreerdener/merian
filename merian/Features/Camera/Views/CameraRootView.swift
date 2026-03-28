@@ -222,6 +222,7 @@ struct CameraRootView: View {
             viewModel: viewModel
         ))
         .onAppear {
+            viewModel.updateNotificationSuppression()
             cameraManager.startSession()
             photoLibraryManager.startObservingAndFetch()
             AppDIContainer.shared.environmentContextManager.validatePermissions()
@@ -252,6 +253,8 @@ struct CameraRootView: View {
         }
         .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
             viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
+            viewModel.updateNotificationSuppression()
+            
             if isFullscreen {
                 cameraManager.stopSession()
             } else if captureMode == .visual && scenePhase == .active && viewModel.activeSheet == nil {
@@ -264,6 +267,8 @@ struct CameraRootView: View {
             }
         }
         .onChange(of: viewModel.activeSheet) { _, newSheet in
+            viewModel.updateNotificationSuppression()
+            
             if newSheet != nil {
                 cameraManager.stopSession()
             } else if captureMode == .visual && scenePhase == .active && !viewModel.isAnalyzingFullscreen {

@@ -29,7 +29,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Polls `authorizationStatus` to keep the local `@AppStorage(UserDefaultsKeys.isPushNotificationsEnabled)` flag in sync with the OS Settings state. If a user revokes permissions externally, the local flag is corrected asynchronously via `Task { @MainActor in }` (not `DispatchQueue.main.async`) to maintain Swift 6 strict concurrency compliance.
 - Configured as the `UNUserNotificationCenterDelegate`. Injects `scanId` values into `.userInfo` payloads so background offline completions can surface notifications over the lock screen.
 - Intercepts deep link taps from notification actions and routes the UI directly to the relevant `InsightSheet`.
-- Calls `completionHandler([])` to suppress inference banners when the app is in the `.active` foreground state.
+- **Context-Aware Suppression**: Evaluates the `suppressInferenceBanners` UserDefaults flag within `completionHandler` to conditionally suppress "Analysis Complete" banners when the user is actively viewing the camera scanning overlay or the insight sheet. Achievement notifications bypass this suppression and are unconditionally displayed.
 
 ## AI & Offline Synchronization
 
@@ -40,6 +40,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Maps ephemeral telemetry metadata (`gpsLatitude`, `gpsLongitude`, `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, `locationName`) into the parsed `SpeciesData` model, abstracting this detail from the Edge runtime and making it consistent across live and offline inference paths.
 - On network failure, routes the payload to `OfflineQueueManager` and triggers the Graceful Degradation UI state.
 - **Post-inference carousel handoff + buffer release**: On a successful result, `validHistoricImagePaths` is set from the on-disk paths returned by `InferenceProcessingActor.parseAndSave` *before* `speciesData` is assigned and before `activeLiveCaptureDatas` is cleared. This ensures the insight sheet carousel always has the user's saved image available on first render — the reference image is never the only visible page when the sheet opens. After `speciesData` is set, `activeImageData`, `activeCompressedImageData`, and `activeLiveCaptureDatas` are cleared to release the compressed image bytes (potentially several MB per multi-shot capture).
+- **Unconditional Local Notifications**: Dispatches a local "Analysis Complete" push notification upon successful inference regardless of application state. The `PushNotificationManager` delegate is responsible for evaluating the user's active UI context to intelligently suppress the banner if they are already looking at the result.
 
 **Multi-File Structure**: The engine is split across three files:
 - `InferenceEngine.swift` — the main engine with its public API unchanged.
@@ -119,6 +120,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 |---|---|---|
 | `hasUnseenScan` | `"hasUnseenScan"` | `MainTabBar` (read), `Analysis` (write), `CameraSheetRouter` (clear) |
 | `isPushNotificationsEnabled` | `"isPushNotificationsEnabled"` | `NotificationSettingsView`, `PushNotificationManager`, `InferenceEngine`, `OfflineQueueManager+URLSession` |
+| `suppressInferenceBanners` | `"suppressInferenceBanners"` | `CameraViewModel` (write), `PushNotificationManager` (read) |
 | `isLiveInferencePaused` | `"isLiveInferencePaused"` | `CameraSettingsView`, `CameraManager` |
 | `invertZoomDirection` | `"invertZoomDirection"` | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView` |
 | `zoomSideLeft` | `"zoomSideLeft"` | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView` |

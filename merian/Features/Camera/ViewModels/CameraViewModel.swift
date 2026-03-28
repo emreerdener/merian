@@ -261,4 +261,14 @@ final class CameraViewModel {
             }
         }
     }
+    
+    // MARK: - Notification Suppression Context
+    
+    /// Updates the global notification suppression flag used by PushNotificationManager.
+    /// Informs the OS whether the user is actively engaged with the live scan UI.
+    func updateNotificationSuppression() {
+        // Suppress if the user is looking at the analysis spinner OR the final insight sheet.
+        let isActivelyWatchingScan = isAnalyzingFullscreen || activeSheet == .insight
+        UserDefaults.standard.set(isActivelyWatchingScan, forKey: "suppressInferenceBanners")
+    }
 }

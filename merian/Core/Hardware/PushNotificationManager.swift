@@ -71,6 +71,7 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         content.title = "Achievement Unlocked!"
         content.body = "You just earned: \(achievementTitle)"
         content.sound = .default
+        content.userInfo = ["type": "achievement"]
 
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
 
@@ -107,18 +108,12 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Because Merian keeps running in the background via URLSession, iOS fires `willPresent`
-        // even for local notifications. Suppress the banner when the app is already foreground.
-        Task { @MainActor in
-#if canImport(UIKit)
-            if UIApplication.shared.applicationState == .active {
-                completionHandler([])
-            } else {
-                completionHandler([.banner, .sound, .list])
-            }
-#else
+        let type = notification.request.content.userInfo["type"] as? String
+        
+        if type != "achievement", UserDefaults.standard.bool(forKey: "suppressInferenceBanners") {
+            completionHandler([])
+        } else {
             completionHandler([.banner, .sound, .list])
-#endif
         }
     }
 }

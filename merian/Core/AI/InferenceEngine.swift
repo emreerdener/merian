@@ -166,11 +166,10 @@ private struct WikiSummaryResponse: Decodable {
                     self.activeLiveCaptureDatas.removeAll()
                     self.activeDisplayDatas.removeAll()
 
-                    // Send a background notification if the user left while the scan was running.
-                    // The offline queue path sends its own notification; this covers live inference only.
+                    // Send a local notification for inference complete.
+                    // The Offline queue path sends its own notification; this covers live inference.
                     #if canImport(UIKit)
-                    if UIApplication.shared.applicationState != .active,
-                       UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
+                    if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
                        let scanId = mappedData.scanId {
                         PushNotificationManager.shared.sendInferenceCompleteNotification(
                             speciesName: mappedData.commonName,

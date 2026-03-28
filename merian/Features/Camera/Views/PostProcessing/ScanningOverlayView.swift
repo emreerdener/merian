@@ -107,7 +107,7 @@ private struct CornerBracketShape: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()
         let (minX, minY, maxX, maxY) = (rect.minX, rect.minY, rect.maxX, rect.maxY)
-        let r: CGFloat = 4
+        let r: CGFloat = 6
         switch corner {
         case .topLeft:
             p.move(to: CGPoint(x: maxX, y: minY))
