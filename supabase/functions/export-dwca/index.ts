@@ -26,9 +26,12 @@ serve(async (req: Request) => {
     return jsonResponse({ error: "Unauthorized webhook caller" }, 401);
   }
 
+  let currentJobId: string | undefined = undefined;
+
   try {
     const payload = await req.json();
     const { job_id, user_id, export_scope, include_precise_coordinates } = payload;
+    currentJobId = job_id;
 
     if (!job_id || !user_id) {
       return jsonResponse({ error: "Missing job payload" }, 400);
@@ -288,13 +291,13 @@ serve(async (req: Request) => {
   } catch (error: any) {
     console.error("Export Webhook Error:", error);
     try {
-        const payload = await req.json();
-        if (payload?.job_id) {
+        if (currentJobId) {
             const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceKey);
             await supabaseAdmin.from("export_jobs").update({ 
                 status: "failed", 
-                error_message: error.message 
-            }).eq("id", payload.job_id);
+                error_message: error.message,
+                completed_at: new Date().toISOString()
+            }).eq("id", currentJobId);
         }
     } catch (_) {}
     

@@ -29,7 +29,7 @@ actor LocalImageLoader {
             return await existingTask.value
         }
         
-        let fetchTask = Task.detached(priority: .userInitiated) {
+        let fetchTask = Task.detached(priority: .userInitiated) { () -> UIImage? in
             // 3. Remote URL Execution (if 'imagePath' is actually a cloud URL payload directly)
             if let safePath = imagePath, safePath.starts(with: "http"), let remoteUrl = URL(string: safePath) {
                 if let networkImage = await self.fetchNetworkFallback(url: remoteUrl, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {

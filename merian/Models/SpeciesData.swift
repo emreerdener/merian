@@ -83,7 +83,7 @@ struct SpeciesData {
     let isLiveCapture: Bool
     let isInvasive: Bool
     let ecologyType: String
-    let taxonomy: TaxonomyData?
+    var taxonomy: TaxonomyData?
     var isNewDiscovery: Bool = false
 
     // Context metadata from the scan session.

@@ -289,7 +289,7 @@ actor BackgroundDatabaseActor {
     // MARK: - Wikipedia Enrichment
 
     /// Retroactively hydrates a scan record with Wikipedia data post-inference.
-    func updateScanWithWikipedia(scanId: String, extract: String, url: String, imageUrl: String?) {
+    func updateScanWithWikipedia(scanId: String, extract: String?, url: String?, imageUrl: String?) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         descriptor.propertiesToFetch = [\.wikipediaOverview, \.wikipediaUrl, \.referenceImageUrl]
@@ -302,8 +302,8 @@ actor BackgroundDatabaseActor {
         }
         guard let record else { return }
 
-        record.wikipediaOverview = extract
-        record.wikipediaUrl = url
+        if let extract { record.wikipediaOverview = extract }
+        if let url { record.wikipediaUrl = url }
         if let img = imageUrl, !img.isEmpty {
             record.referenceImageUrl = img
         }

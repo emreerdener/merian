@@ -395,7 +395,8 @@ private struct WikiSummaryResponse: Decodable {
             }
             
             // Persist the updated image URLs to SwiftData if possible
-            if let scanId = scanId, let context = modelContext, let finalUrls = await MainActor.run({ self.speciesData?.referenceImageUrl }) {
+            let finalUrls = await MainActor.run { self.speciesData?.referenceImageUrl }
+            if let scanId = scanId, let context = modelContext, let finalUrls = finalUrls {
                 let container = context.container
                 Task {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
