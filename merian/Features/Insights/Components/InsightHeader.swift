@@ -39,7 +39,7 @@ struct InsightHeader: View {
                 if !paragraphs.isEmpty {
                     VStack(spacing: 12) {
                         ForEach(paragraphs, id: \.self) { paragraph in
-                            Text(paragraph)
+                            Text(styledParagraph(text: paragraph, scientificName: subtitle))
                                 .font(.system(.body))
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -51,6 +51,22 @@ struct InsightHeader: View {
              }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func styledParagraph(text: String, scientificName: String) -> AttributedString {
+        let cleanText = text.replacingOccurrences(of: "*", with: "").replacingOccurrences(of: "_", with: "")
+        var result = AttributedString(cleanText)
+        
+        if !scientificName.isEmpty {
+            var searchRange = result.startIndex..<result.endIndex
+            while let range = result[searchRange].range(of: scientificName, options: .caseInsensitive) {
+                result[range].font = .system(.body, design: .monospaced)
+                result[range].backgroundColor = Color.secondary.opacity(0.15)
+                searchRange = range.upperBound..<result.endIndex
+            }
+        }
+        
+        return result
     }
 }
 
