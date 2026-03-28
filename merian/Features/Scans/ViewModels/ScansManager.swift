@@ -289,7 +289,19 @@ actor SearchDatabaseActor {
                 let taxonomyTerms = [record.taxonomyClass, record.taxonomyOrder, record.taxonomyFamily]
                     .compactMap { $0 }.joined(separator: " ")
                 let groupName = SearchDatabaseActor.commonGroupName(for: record.taxonomyClass)
-                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(taxonomyTerms) \(groupName)".lowercased()
+                
+                let reasoning = record.aiReasoning ?? ""
+                let location = record.locationName ?? ""
+                let habitat = record.habitatDescription ?? ""
+                let weather = record.weatherCondition ?? ""
+                let lifeStage = record.lifeStage ?? ""
+                let reproductive = record.reproductiveCondition ?? ""
+                let lookalike = record.diagnosticLookalikeName ?? ""
+                let iucn = record.iucnRedListStatus ?? ""
+                let hazard = record.hazardType == "none" ? "" : record.hazardType
+                let interactions = record.ecologicalInteractions?.joined(separator: " ") ?? ""
+                
+                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(taxonomyTerms) \(groupName) \(reasoning) \(location) \(habitat) \(weather) \(lifeStage) \(reproductive) \(lookalike) \(iucn) \(hazard) \(interactions)".lowercased()
 
                 processed.append(SearchableScan(
                     id: record.id,
