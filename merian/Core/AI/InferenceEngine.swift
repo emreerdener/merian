@@ -190,6 +190,12 @@ private struct WikiSummaryResponse: Decodable {
                             guard let self else { return }
                             await self.fetchAndApplyEnrichment(modelContext: modelContext)
                         }
+                        if let key = mappedData.gbifTaxonKey {
+                            Task { [weak self] in
+                                guard let self else { return }
+                                await self.fetchGBIFImagesAndHydrate(for: key, scanId: mappedData.scanId, modelContext: modelContext)
+                            }
+                        }
                     }
                 }
             } catch {
@@ -330,6 +336,79 @@ private struct WikiSummaryResponse: Decodable {
         }
     }
 
+    // MARK: - GBIF Background Hydration
+
+    private struct GBIFMediaResponse: Decodable {
+        let results: [GBIFResult]?
+        struct GBIFResult: Decodable {
+            let media: [GBIFMedia]?
+        }
+        struct GBIFMedia: Decodable {
+            let type: String?
+            let identifier: String?
+        }
+    }
+
+    /// Fetches high-quality field observations from GBIF (e.g. iNaturalist) once the Taxon Key is known.
+    /// This acts as a robust supplement/fallback to Wikipedia imagery.
+    private func fetchGBIFImagesAndHydrate(for taxonKey: Int, scanId: String?, modelContext: ModelContext?) async {
+        guard let url = URL(string: "https://api.gbif.org/v1/occurrence/search?taxonKey=\(taxonKey)&mediaType=StillImage&limit=4") else { return }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 4.0
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return }
+
+            let decoded = try JSONDecoder().decode(GBIFMediaResponse.self, from: data)
+            
+            var newUrls: [String] = []
+            if let results = decoded.results {
+                for result in results {
+                    if let mediaList = result.media {
+                        for mediaItem in mediaList {
+                            if mediaItem.type == "StillImage", let id = mediaItem.identifier {
+                                newUrls.append(id)
+                                break // Only take the primary image from each observation
+                            }
+                        }
+                    }
+                }
+            }
+
+            guard !newUrls.isEmpty else { return }
+
+            await MainActor.run {
+                if self.speciesData?.gbifTaxonKey == taxonKey {
+                    var currentUrls = self.speciesData?.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
+                    
+                    // Prevent duplicates if already hydrated
+                    for urlStr in newUrls {
+                        if !currentUrls.contains(urlStr) {
+                            currentUrls.append(urlStr)
+                        }
+                    }
+                    
+                    self.speciesData?.referenceImageUrl = currentUrls.joined(separator: ",")
+                }
+            }
+            
+            // Persist the updated image URLs to SwiftData if possible
+            if let scanId = scanId, let context = modelContext, let finalUrls = await MainActor.run({ self.speciesData?.referenceImageUrl }) {
+                let container = context.container
+                Task {
+                    let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                    // We only want to patch the image URL. Re-use updateScanWithWikipedia since it allows patching just the image URL.
+                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: nil, url: nil, imageUrl: finalUrls)
+                }
+            }
+        } catch {
+            // Silently fail on network/timeout
+            MerianLog.general.debug("GBIF image hydration skipped: \(error, privacy: .private)")
+        }
+    }
+
     // MARK: - Species Enrichment
 
     /// Fetches habitat, distribution, and (if low-confidence) diagnostic data from `enrich-scan`
@@ -354,7 +433,13 @@ private struct WikiSummaryResponse: Decodable {
             guard let enrichData = response.data else { return }
 
             speciesData?.habitatDescription = enrichData.habitat_description
-            if let key = enrichData.gbif_taxon_key { speciesData?.gbifTaxonKey = key }
+            if let key = enrichData.gbif_taxon_key {
+                speciesData?.gbifTaxonKey = key
+                Task { [weak self] in
+                    guard let self else { return }
+                    await self.fetchGBIFImagesAndHydrate(for: key, scanId: scanId, modelContext: modelContext)
+                }
+            }
             if let tax = enrichData.taxonomy {
                 speciesData?.taxonomy = TaxonomyData(
                     kingdom: tax.kingdom,
@@ -535,6 +620,14 @@ private struct WikiSummaryResponse: Decodable {
                 Task { [weak self] in
                     guard let self else { return }
                     await self.fetchAndApplyEnrichment(modelContext: safeContext)
+                }
+            } else if let key = record.gbifTaxonKey {
+                // If we didn't need enrichment but have a key, ensure we dynamically hydrate GBIF images 
+                // deduplicating against any existing ones from the DB.
+                let safeContext = record.modelContext
+                Task { [weak self] in
+                    guard let self else { return }
+                    await self.fetchGBIFImagesAndHydrate(for: key, scanId: record.id, modelContext: safeContext)
                 }
             }
         }

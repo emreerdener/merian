@@ -92,19 +92,24 @@ async function fetchExternalEnrichment(scientificName: string) {
 
         if (key) {
           const mediaRes = await fetch(
-            `https://api.gbif.org/v1/species/${key}/media`,
+            `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&mediaType=StillImage&limit=4`,
             { signal: AbortSignal.timeout(2500) },
           );
           if (mediaRes.ok) {
             const mediaJson = await mediaRes.json();
             if (mediaJson.results && mediaJson.results.length > 0) {
-              urls = mediaJson.results
-                .filter(
-                  (m: Record<string, string>) =>
-                    m.type === "StillImage" && m.identifier,
-                )
-                .map((m: Record<string, string>) => m.identifier)
-                .slice(0, 5);
+              const gbifUrls: string[] = [];
+              for (const result of mediaJson.results) {
+                if (result.media && result.media.length > 0) {
+                  for (const m of result.media) {
+                    if (m.type === "StillImage" && m.identifier) {
+                      gbifUrls.push(m.identifier);
+                      break; // take the primary image from each observation
+                    }
+                  }
+                }
+              }
+              urls = gbifUrls.slice(0, 4);
             }
           }
         }
