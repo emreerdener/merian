@@ -26,7 +26,7 @@ struct ModelTierBanner: View {
                     
                     Image(systemName: "chevron.right")
                         .font(.footnote.bold())
-                        .foregroundColor(.tertiary)
+                        .foregroundStyle(.tertiary)
                 }
                 .padding(16)
                 .background(
