@@ -47,14 +47,17 @@ On `EXPIRATION` (user downgrade), the same process runs in reverse, moving objec
 
 Before saving `image_storage_urls` to PostgreSQL, the function strips AWS signature query string parameters from the URL to prevent Cloudflare R2 `403 Forbidden` errors when the object key changes. R2 access uses `getR2Config()` from `_shared/aws.ts`.
 
-## The Scientific Export Node (`export-dwca`)
+## The Scientific Export Pipeline (`request-export-dwca` & `export-dwca`)
 
-Researchers trigger the `export-dwca` function to extract global occurrence data. This node manages both memory and PII:
+Researchers export global and personal occurrence data via a two-step queueing architecture that completely bypasses Edge HTTP timeout constraints:
 
-1. **OOM Streaming**: Uses a `ReadableStream` with AWS `UNSIGNED-PAYLOAD` signatures to stream binary data directly to R2 in chunks, rather than holding a full `JSZip.generateAsync()` blob in the V8 heap.
-2. **Cryptographic Geoprivacy**: User IDs are replaced with stable pseudonyms generated via `crypto.subtle.digest` SHA-256 (e.g. `merian_user_a785f2b...`). Scientists can verify user-level streaks without accessing the underlying Supabase token.
-3. **DaaS Standardization**: Natively maps `life_stage`, `reproductive_condition`, `individual_count`, `estimated_size_cm`, and `ecological_interactions` directly into standard GBIF DwC-A headers (`lifeStage`, `reproductiveCondition`, `individualCount`, etc.).
-4. **Event Loop Management**: Running all SHA-256 digests concurrently via `Promise.all` on large exports starves the Deno event loop, causing 504 timeouts. The function processes digests in sequential sub-batches of 50 using a `for...of` loop, yielding the event loop between batches.
+1. **Queue Insertion (`request-export-dwca`)**: The iOS client hits this lightweight proxy, which verifies the user and inserts a job row into the `export_jobs` PostgreSQL queue. To prevent Resend API spam and queue flooding, it enforces a strict **24-hour rate limit** per user. It returns `200 OK` instantly.
+2. **Postgres Webhook (`pg_net`)**: The queue insertion fires a native Postgres trigger that posts to `/export-dwca`.
+3. **Webhook Worker (`export-dwca`)**: This node receives the job, authenticating via `SUPABASE_SERVICE_ROLE_KEY`. It manages heavy execution:
+   - **OOM Streaming**: Uses a `ReadableStream` with AWS `UNSIGNED-PAYLOAD` signatures to stream binary data directly to R2 in chunks, rather than holding a full `JSZip.generateAsync()` blob in the V8 heap.
+   - **Cryptographic Geoprivacy**: User IDs are replaced with stable pseudonyms generated via `crypto.subtle.digest` SHA-256 (e.g. `merian_user_a785f2b...`). Scientists can verify user-level streaks without accessing the underlying Supabase token. Exact GPS coordinates are scrubbed for any user data apart from the requesting user.
+   - **DaaS Standardization**: Natively maps `life_stage`, `reproductive_condition`, `individual_count`, `estimated_size_cm`, and `ecological_interactions` directly into standard GBIF DwC-A headers (`lifeStage`, `reproductiveCondition`, `individualCount`, etc.).
+   - **Asynchronous Delivery**: Once the ZIP reaches R2, it fetches the user's `auth.users` database email and dispatches a secure Resend email containing an expiring `X-Amz-Expires=86400` download link.
 
 ## The Edge Moderation Node (`block-user`)
 

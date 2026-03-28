@@ -73,6 +73,21 @@ Captures user feedback reporting improper or harmful inferences.
 - `user_suggestion` (Text): Optional custom text feedback.
 - `status` (Text): Defaults to `PENDING_REVIEW`.
 
+### `export_jobs`
+
+Stateful queueing table for asynchronous Darwin Core Archive (DwC-A) exports.
+
+- `id` (UUID): Primary key.
+- `user_id` (UUID - Foreign Key): References `auth.users`. Rate-limited to 1 request per 24 hours per user inside the Edge Function.
+- `status` (ENUM): `'pending'` | `'processing'` | `'completed'` | `'failed'`.
+- `export_scope` (Text): Default `'user'`. Defines whether to export personal captures or global open data.
+- `include_precise_coordinates` (Boolean): Access control flag.
+- `file_url` (Text): The Cloudflare R2 signed URL holding the completed zip. Exists when `status == 'completed'`.
+- `error_message` (Text): Present if `status == 'failed'`.
+- `created_at`, `completed_at` (TIMESTAMPTZ): Lifecycle tracking metrics.
+
+*Note: A `pg_net` Postgres Trigger listens to `INSERT` on this table to invoke the background `export-dwca` Server-to-Server edge function webhook.*
+
 ### `user_blocks`
 
 Registers blocked users so they are excluded from Discovery feeds.

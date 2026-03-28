@@ -132,7 +132,7 @@ The primary identity portal bridging local usage limits with the Supabase Ghost 
 
 ### Privacy & Science
 - **Geoprivacy Control (`SettingsGeoprivacyView`)**: Extracted into a dedicated sub-page explaining coordinate tracking options: `Open` (raw sharing for researchers), `Obscured` (50 km radius randomized blurring), and `Private` (hidden from discovery feed). Modifying selections cascades a Supabase edge update to the `users` PostgreSQL table in the background. Accessible to Ghost Users mapped to their anonymous UUID.
-- **Export Scans (DwC-A)**: *(Auth Required)* Connects to the `/export-dwca` Deno task through a `Task.detached` thread to pull a `.zip` archive URL and render a `ShareLink` payload safely outside memory constraints. A "Sign in with Apple" prompt prevents anonymous users from generating payloads before creating an account.
+- **Export Scans (DwC-A)**: *(Auth Required)* Queues a background zip generation via the `/request-export-dwca` Deno task. Because the export runs as an asynchronous PostgreSQL webhook (`pg_net`), the UI immediately flashes a "queued" alert and releases the main thread. When the Cloudflare R2 archive completes, the system emails a signed `ShareLink` payload directly to the user's inbox via the Resend API. A "Sign in with Apple" prompt prevents anonymous users from generating payloads before creating an account.
 
 ### Danger Zone & Data Lifecycle
 - **Local Cache Management**: Allows dumping `ImageCache.shared` and orphaned `/Caches/` JPG payloads from flash memory. The directory enumerator is guarded (`!fileURL.lastPathComponent.contains("_temp_upload")`), protecting background `OfflineQueueManager` URLSession transfers mid-sync from being cleared during manual cache management.

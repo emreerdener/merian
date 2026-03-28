@@ -390,23 +390,48 @@ Submits a report against an AI inference from the `ReportInsightView`, inserting
 
 ---
 
-## Deno `/export-dwca` Edge Node
+## Deno `/request-export-dwca` Edge Node
 
-Generates a Darwin Core Archive (DwC-A) containing the user's biological captures or a global dataset, zips the occurrence and multimedia data, uploads it to Cloudflare R2, and returns an expiring download URL.
+Queues an asynchronous Darwin Core Archive (DwC-A) export. Because zipping thousands of records exceeds 30-second HTTP connection limits, this endpoint merely validates the user and inserts a job into the `export_jobs` PostgreSQL table, returning a `200 OK` instantly so the iOS client can release its thread.
 
 ### Request Payload
 
 ```json
 {
   "includePreciseCoordinates": true,
-  "exportScope": "global" // or "user"
+  "exportScope": "user" // or "global"
 }
 ```
 
 ### Authentication Enforcement
 
 - Extracts user identity from the GoTrue header via `supabaseAdmin.auth.getUser(jwt)`.
-- **DwC-A Global Geoprivacy Leak Prevention**: Enforces ownership gating for exact coordinates. Evaluates `canAccessPrecise = includePreciseCoordinates && (scan.user_id === userId)`. For global exports, users receive perturbed coordinates (50km obfuscation) for scans they do not own. Exact `gps_lat_exact` / `gps_long_exact` values are only included when the authenticated `user.id` matches the scan's `user_id`.
+- **Database Rate Limit**: Queries `export_jobs` to verify the user has not queued an export in the last 24 hours. If they have, returns `429 Too Many Requests`.
+- Inserts a row into `export_jobs` with status `pending`, triggering the `pg_net` webhook.
+
+---
+
+## Deno `/export-dwca` Edge Node (Webhook Worker)
+
+Generates the DwC-A ZIP, uploads it to Cloudflare R2, and emails the user the download link. This endpoint acts purely as a Server-to-Server webhook triggered by `pg_net` after an `export_jobs` insertion. It does *not* accept iOS client connections.
+
+### Request Payload (From Postgres `pg_net` Webhook)
+
+```json
+{
+  "job_id": "UUID_A",
+  "user_id": "UUID_B",
+  "export_scope": "user",
+  "include_precise_coordinates": true
+}
+```
+
+### Security & Enforcement
+
+- Authenticates the Postgres origin by verifying that `Authorization: Bearer <token>` exactly matches `SUPABASE_SERVICE_ROLE_KEY`.
+- Uses `supabaseAdmin.auth.admin.getUserById(user_id)` to resolve the user's email address for the Resend API delivery.
+- **DwC-A Global Geoprivacy Leak Prevention**: Enforces ownership gating for exact coordinates during ZIP generation. Evaluates `canAccessPrecise = include_precise_coordinates && (scan.user_id === user_id)`. For global exports, users receive perturbed coordinates (50km obfuscation) for scans they do not own. Exact `gps_lat_exact` / `gps_long_exact` values are only included when the origin `user.id` matches the scan's `user_id`.
+- **Async Delivery**: Instead of holding the HTTP response open while zipping gigabytes of images, it uploads the final output to Cloudflare R2 and dispatches the signed expiring download URL to the user's inbox via the **Resend API**. Updates `export_jobs.status` to `completed`.
 
 ---
 

@@ -274,12 +274,15 @@ final class MerianNetworkClient {
 
     // MARK: - Darwin Core Export
 
-    /// Queues a DwC-A export job. Uses a 15s timeout since this only writes a job record
-    /// to Postgres — the actual export runs asynchronously to avoid the 30s Edge CPU limit.
+    /// Queues a DwC-A export job. This endpoint inserts a job into the Postgres
+    /// export_jobs queue, which triggers a background webhook to process the zip
+    /// and email the user the final download link via Resend.
     func requestDwcAExport(scope: String = "user") async throws {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/request-export-dwca")!
         let payload: [String: Any] = ["exportScope": scope, "includePreciseCoordinates": true]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        
+        // This is a fast API call that just inserts a row and returns 200 OK.
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 15.0)
     }
 

@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// Abstracted component providing an isolated pipeline for packaging local JSON and Cloudflare bytes
-/// synchronously into standardized Darwin Core zip folders.
+/// Abstracted component providing an isolated interface for queuing Darwin Core (DwC-A) exports.
+/// Exports are packaged asynchronously via Supabase Edge Function webhooks and emailed to the user.
 struct ExportScans: View {
     let supabase: SupabaseManager
     @Binding var isExporting: Bool
     @Binding var exportUrl: URL?
     @State private var hasRequestedExport = false
+    @State private var errorMessage: String? = nil
     
     var body: some View {
         Section {
@@ -15,8 +16,10 @@ struct ExportScans: View {
                 if hasRequestedExport {
                     HStack {
                         Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                        Text("Exporting... We'll notify you when ready.")
-                            .font(.subheadline)
+                        Text("Export queued! We'll email you the download link when it's ready.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.leading)
                     }
                 } else if let url = exportUrl {
                     ShareLink(item: url) {
@@ -36,9 +39,21 @@ struct ExportScans: View {
                                     self.isExporting = false
                                     withAnimation { self.hasRequestedExport = true }
                                 }
+                            } catch let error as NetworkError {
+                                await MainActor.run { 
+                                    isExporting = false 
+                                    if case .httpError(let statusCode, _) = error, statusCode == 429 {
+                                        self.errorMessage = "You can only generate one Darwin Core Archive every 24 hours. Your most recent export was already emailed to you."
+                                    } else {
+                                        self.errorMessage = "Failed to queue export. Please try again later."
+                                    }
+                                }
                             } catch {
                                 MerianLog.network.error("DwC-A export request failed: \(error, privacy: .private)")
-                                await MainActor.run { isExporting = false }
+                                await MainActor.run { 
+                                    isExporting = false 
+                                    self.errorMessage = "An unexpected error occurred."
+                                }
                             }
                         }
                     }) {
@@ -62,6 +77,16 @@ struct ExportScans: View {
             Text("Export Data")
         } footer: {
             Text("Darwin Core Archive (DwC-A) exports package your entire cloud collection into a standardized scientific format.")
+        }
+        .alert("Export Failed", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            if let errorMessage = errorMessage {
+                Text(errorMessage)
+            }
         }
     }
 }
