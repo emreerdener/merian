@@ -12,7 +12,7 @@ Historically, background threading relied heavily on `Task.detached(priority:)`.
 ### ImageIO, CoreVideo, & UIImage Autoreleasepool Memory Leaks
 When performing bulk downsampling with CoreGraphics (`ImageDownsampler.downsample` and `ImageCropProcessor`), the C-level APIs (`CGImageSourceCreateThumbnailAtIndex`) allocate large transient buffers. In a standard Swift async function looping hundreds of times without yielding, Apple's Objective-C ARC delays flushing these buffers until the overarching task suspends, producing transient RAM spikes that triggered JetSam OOM terminations. Merian resolves this by wrapping the ImageIO rendering blocks inside `autoreleasepool { ... }` boundaries, clearing C-level `NSMutableData` instances immediately on each loop iteration and preserving a clean RAM ceiling.
 
-This identical RAM ceiling violation exists during Apple Vision AI inferences, detached image decoding, and metadata scrubbing. Executing `VNImageRequestHandler` classifications (e.g., `Analysis.swift`), uncompressing raw blobs via `UIImage(data:)` off the main thread (`ImagesCarousel.swift`), or actively parsing EXIF properties during GPS stripping (`PhotoLibraryManager.swift`'s `executePhotoLibraryWrite`) inside detached closures leaves enormous multi-megabyte allocations cached until the CPU rotates out the `Task.detached` context. Merian enforces `autoreleasepool { ... }` wrappers around these entire isolated blocks. This guarantees that unmanaged ImageIO formats and CoreVideo pipelines immediately relinquish memory back to the system, dropping transient spikes completely and averting JetSam OOM kills during rapid captures, exports, or swipes.
+This identical RAM ceiling violation exists during Apple Vision AI inferences, detached image decoding, manual cropping, and metadata scrubbing. Executing `VNImageRequestHandler` classifications (e.g., `Analysis.swift` and `SizeEstimator.swift`), uncompressing raw blobs via `UIImage(data:)` off the main thread (`ImagesCarousel.swift` and `CropSheetModifier.swift`), or actively parsing EXIF properties during GPS stripping (`PhotoLibraryManager.swift`'s `executePhotoLibraryWrite`) inside detached closures leaves enormous multi-megabyte allocations cached until the CPU rotates out the `Task.detached` context. Merian enforces `autoreleasepool { ... }` wrappers around these entire isolated blocks and explicitly deprecates raw `UIImage(data:)` inflations in favor of constrained `ImageDownsampler.downsample(data:maxSize:)` extractions. This guarantees that unmanaged ImageIO formats immediately relinquish memory back to the system, dropping transient spikes completely and averting JetSam OOM kills during rapid captures, exports, exports, or swipes.
 
 ### AVFoundation Deferred Stalling Avoidance
 When interacting with AVFoundation hardware handles like `device.lockForConfiguration()`, invoking early `return` checks or throwing errors before calling `device.unlockForConfiguration()` permanently seized the underlying device bus, resulting in camera black-screens. Dropping CVPixelBuffer lock boundaries also crashed Accelerate vectors. Merian enforces Swift's `defer` closures (`defer { device.unlockForConfiguration() }` and `defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }`) to insulate hardware mutex constraints against unhandled failure states.
@@ -126,7 +126,7 @@ When executing `batchSaveUserPhotos` and `batchShareDiscovery` iteratively, pass
 
 **The Refactor**: The processing boundary decouples the `@MainActor` SQLite arrays. `.map` executes on the UI Thread to create lightweight, `Sendable` structs (`SavePhotosPayload` and `SharePayload`). These pure primitive strings cross the background detached boundary safely, resolving thread violations and eliminating crashes.
 
-Loading local file bytes sequentially via `Data(contentsOf:)` and binding `UIImage(data:)` in batch share arrays bloated uncompressed files into active RAM. Loading 20 concurrent captures crushed iOS memory limits during `UIActivityViewController` presentation. Merian replaces this with `ImageDownsampler.downsample(url: maxSize: 1024)`, fetching `CGImage` thumbnails that constrain the memory footprint and enable smooth sheet rendering.
+Loading local file bytes sequentially via `Data(contentsOf:)` and binding `UIImage(data:)` in batch share arrays bloated uncompressed files into active RAM. Loading 20 concurrent captures crushed iOS memory limits during `UIActivityViewController` presentation. Merian replaces this entirely with `ImageDownsampler.downsample(url: maxSize: 2048)` and `ImageDownsampler.downsample(data: maxSize: 2048)`, fetching bounded `CGImage` thumbnails that constrain the memory footprint and enable smooth sheet rendering wrapped perfectly inside `autoreleasepool`.
 
 ### SwiftData Observer Drop in Presentation Portals (`NonBiologicalScansView`)
 When capturing `@Model` instances (`LocalScanRecord`) into SwiftUI presentation layers like `.alert` or `.confirmationDialog` button closures, SwiftData `@Query` observers routinely lose tracking. Modifying `scan.isBiological = true` and calling `modelContext.save()` inside these disconnected "portals" mutates SQLite correctly but fails to trigger SwiftUI reactive updates, leaving the UI in a stale state.
@@ -252,7 +252,7 @@ The loader protects against "thundering herd" memory leaks. If the UI queries a 
 ### Task Capture Retain Cycles (`EnvironmentContextManager` & `ScansSearchManager`)
 When firing background `@MainActor` executions inside persistent managers (like `reverseGeocode` or `performSearch`), default `Task { ... }` or `Task.detached { ... }` blocks implicitly capture `self` via a strong reference. When a `Task` mutates a local property (e.g., `self.geocodeCache[key]`) and is retained by the class (e.g., `self.searchTask = task`), this creates a retain cycle, permanently locking memory inside zombie ViewModels.
 
-**The Refactor**: The codebase captures `[weak self]` inside `Task` / `Task.detached` closures, dropping the strong pointer. A `guard let self = self else { return }` check precedes any variable mutation, allowing Swift garbage collection to purge mapping classes upon background termination. Inside `EnvironmentContextManager`, asynchronous CoreLocation delegates (`requestSingleLocation`, `locationManager(_:didUpdateLocations:)`, etc.) generated runaway cross-actor memory leaks. These closures were refactored to `Task { @MainActor [weak self] in guard let self = self else { return } }`, correctly flushing hardware sensor data upon completion.
+**The Refactor**: The codebase captures `[weak self]` inside `Task` / `Task.detached` closures, dropping the strong pointer. A `guard let self = self else { return }` check precedes any variable mutation, allowing Swift garbage collection to purge mapping classes upon background termination. Inside `ScansManager` (`searchTask`) and `EnvironmentContextManager` asynchronously created CoreLocation delegates generated runaway cross-actor memory leaks without closure guard isolations. These closures were refactored to extract lightweight parameters securely outside of the suspending boundary before safely accessing `@MainActor` variables locally.
 
 ### Sync Pipeline State Machine (`SyncStateManager`)
 The original `SyncStateManager` used two independent properties (`isSyncing: Bool`, `pendingUploadCount: Int`) to represent upload progress, making it impossible to distinguish between uploading, inferencing, and finalizing phases — all of which appear "in progress" to the UI but have meaningfully different durations and semantics.
@@ -431,18 +431,27 @@ A single `context.save()` runs after all batches settle, batching all successful
 ### `@MainActor` Sort Offload (`ScansManager`)
 When the Scans library has no active filter and the user changes the sort order, `ScansManager` previously re-sorted the full `allScans` array synchronously on the `@MainActor`. For a library with thousands of records a `localizedCaseInsensitiveCompare` sort can take 20–50 ms, producing a visible hitch during the library transition animation.
 
-For the "no active filter" path — which operates on the full dataset — the sort is now offloaded to a `Task.detached(priority: .userInitiated)` worker:
+For the "no active filter" path — which operates on the full dataset — the sort is now offloaded to a `Task.detached(priority: .userInitiated)` worker. However, because `@Model` entities (`LocalScanRecord`) are non-`Sendable` and cannot safely cross isolation boundaries in Swift 6, they are mapped into lightweight primitive structures before offloading:
 
 ```swift
-let snapshot = self.allScans
-let sort = self.sortOption
-let sorted = await Task.detached(priority: .userInitiated) {
-    snapshot.sorted { lhs, rhs in /* sort by sort option */ }
+struct ScanSortPrimitive: Sendable {
+    let id: String
+    let timestamp: Date
+    let commonName: String
+}
+
+let sortOpt = self.sortOption
+let recordsPrimitives = self.allScans.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
+
+let sortedIds = await Task.detached(priority: .userInitiated) {
+    return ScansManager.executeDetachedSort(on: recordsPrimitives, sortOption: sortOpt).map { $0.id }
 }.value
-await MainActor.run { self.filteredScans = sorted }
+
+let finalSorted = sortedIds.compactMap { self.scanMap[$0] }
+await MainActor.run { self.filteredScans = finalSorted }
 ```
 
-The snapshot capture is a value-type copy (`[LocalScanRecord]` is a Swift array), so the detached task holds no reference to the `@MainActor`-isolated `ScansManager`. The main thread is only blocked for the final single-assignment `self.filteredScans = sorted`.
+The snapshot capture is a mapped primitive array, so the detached task holds no reference to the `@MainActor`-isolated `ScansManager` or un-safe model references. The main thread is only blocked for the final O(1) single-assignment `scanMap` hash resolution.
 
 ### O(N) `scanMap` Rebuild (`ScansManager`)
 `ScansManager` maintains a `[String: LocalScanRecord]` dictionary (`scanMap`) for O(1) scan lookups by ID. After every `allScans` change, the previous implementation rebuilt this dictionary from scratch:

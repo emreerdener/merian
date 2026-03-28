@@ -112,12 +112,11 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             
             if Task.isCancelled { return }
             
-            let capturedSelf = self
-            await MainActor.run {
+            await MainActor.run { [weak self] in
                 if needsFullRebuild {
-                    capturedSelf?.searchableData = processedNewScans
+                    self?.searchableData = processedNewScans
                 } else {
-                    capturedSelf?.searchableData.append(contentsOf: processedNewScans)
+                    self?.searchableData.append(contentsOf: processedNewScans)
                 }
             }
         }
@@ -134,7 +133,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             let newPayload = await dbActor.extractSearchablePayloads(from: [persistentId])
             if Task.isCancelled { return }
             
-            await MainActor.run {
+            await MainActor.run { [weak self] in
                 self?.searchableData.append(contentsOf: newPayload)
             }
         }
@@ -154,61 +153,69 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         
         let currentCategory = self.activeCategoryFilter
         
+        let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let catMatch = currentCategory.lowercased()
+        
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 150_000_000) // Debounce typing
             if Task.isCancelled { return }
 
             guard let self = self else { return }
 
-            let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-            let catMatch = currentCategory.lowercased()
-
             if text.isEmpty && catMatch == "all" {
-                // LocalScanRecord is a @Model and not Sendable, so it cannot cross a
-                // Task.detached boundary. The sort (Date/String comparisons over the
-                // existing array) is fast enough to run on the main actor directly.
-                let sortedAll = self.allScans.sorted { lhs, rhs in
-                    switch self.sortOption {
-                    case .newest: return lhs.timestamp > rhs.timestamp
-                    case .oldest: return lhs.timestamp < rhs.timestamp
-                    case .aToZ:   return lhs.commonName.localizedCaseInsensitiveCompare(rhs.commonName) == .orderedAscending
-                    case .zToA:   return lhs.commonName.localizedCaseInsensitiveCompare(rhs.commonName) == .orderedDescending
-                    }
-                }
+                let sortOpt = self.sortOption
+                let recordsPrimitives = self.allScans.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
+                
+                let sortedIds = await Task.detached(priority: .userInitiated) {
+                    return ScansManager.executeDetachedSort(on: recordsPrimitives, sortOption: sortOpt).map { $0.id }
+                }.value
+
                 if Task.isCancelled { return }
-                withAnimation { self.filteredScans = sortedAll }
+                let finalSorted = sortedIds.compactMap { self.scanMap[$0] }
+                withAnimation { self.filteredScans = finalSorted }
                 return
             }
             
-            if searchableData.isEmpty {
+            let searchData = self.searchableData
+            if searchData.isEmpty {
                 withAnimation {
                     self.filteredScans = []
                 }
                 return
             }
             
-            // Offload heavy multi-token String matching entirely off the UI thread
-            let searchData = self.searchableData
-            
             let filterActor = SearchFilterActor()
             let matchingIds = await filterActor.filter(text: text, searchData: searchData, catMatch: catMatch)
             
             if Task.isCancelled { return }
             
-            // Decouple native UI starvation by extracting perfectly O(1) subset arrays completely securely
             let filteredSubset = matchingIds.compactMap { self.scanMap[$0] }
+            let sortOpt = self.sortOption
+            let subsetPrimitives = filteredSubset.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
             
-            let sortedSubset = self.executeSort(on: filteredSubset)
+            let sortedIds = await Task.detached(priority: .userInitiated) {
+                return ScansManager.executeDetachedSort(on: subsetPrimitives, sortOption: sortOpt).map { $0.id }
+            }.value
+            
+            if Task.isCancelled { return }
+            
+            let finalSorted = sortedIds.compactMap { self.scanMap[$0] }
             
             withAnimation {
-                self.filteredScans = sortedSubset
+                self.filteredScans = finalSorted
             }
         }
     }
     
-    // MARK: - Dedicated Sorting Execution
-    private func executeSort(on subset: [LocalScanRecord]) -> [LocalScanRecord] {
-        switch self.sortOption {
+    // MARK: - Detached Primitive Sort Engine
+    struct ScanSortPrimitive: Sendable {
+        let id: String
+        let timestamp: Date
+        let commonName: String
+    }
+    
+    private nonisolated static func executeDetachedSort(on subset: [ScanSortPrimitive], sortOption: ScanSortOption) -> [ScanSortPrimitive] {
+        switch sortOption {
             case .newest: return subset.sorted { $0.timestamp > $1.timestamp }
             case .oldest: return subset.sorted { $0.timestamp < $1.timestamp }
             case .aToZ: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedAscending }
@@ -217,10 +224,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     }
     
     private func applySort() {
-        let sorted = executeSort(on: self.filteredScans)
-        withAnimation {
-            self.filteredScans = sorted
-        }
+        // Run sort without query context
+        performSearch(query: self.searchQuery)
     }
     
     // MARK: - Batch Selection Operations

@@ -13,14 +13,14 @@ actor SizeEstimator {
     ///   - distanceMeters: The physical distance from the camera to the primary foreground subject, computed via LiDAR
     /// - Returns: The estimated maximum linear dimension of the primary subject in centimeters
     static func estimateSize(imageData: Data, distanceMeters: Float) async -> Double? {
-        guard let uiImage = UIImage(data: imageData),
-              let cgImage = uiImage.cgImage else { return nil }
+        return autoreleasepool {
+            guard let cgImage = ImageDownsampler.shared.downsample(data: imageData, maxSize: 512) else { return nil }
         
-        let request = VNGenerateObjectnessBasedSaliencyImageRequest()
-        
-        do {
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            try handler.perform([request])
+            let request = VNGenerateObjectnessBasedSaliencyImageRequest()
+            
+            do {
+                let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+                try handler.perform([request])
             
             // 2. Find the most prominent object observation
             guard let observations = request.results,
@@ -49,8 +49,9 @@ actor SizeEstimator {
             
             // Return size in centimeters
             return maxSizeMeters * 100.0
-        } catch {
-            return nil
+            } catch {
+                return nil
+            }
         }
     }
 }

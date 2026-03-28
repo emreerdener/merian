@@ -179,10 +179,9 @@ extension CameraViewModel {
         startPhaseRotation(phrases: shuffled)
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            guard let cgImage = UIImage(data: data)?.cgImage else { return }
-
             let request = VNClassifyImageRequest()
             autoreleasepool {
+                guard let cgImage = ImageDownsampler.shared.downsample(data: data, maxSize: 512) else { return }
                 let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
                 try? handler.perform([request])
             }

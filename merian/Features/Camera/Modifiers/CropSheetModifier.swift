@@ -14,8 +14,8 @@ struct CropSheetModifier: ViewModifier {
                     onCrop: { croppedData, finalScale, finalOffset, displaySize in
                         if let editIndex = viewModel.editingCropIndex, editIndex < viewModel.activeScannedDatas.count {
                             viewModel.activeScannedDatas[editIndex] = croppedData
-                            if let updatedThumb = UIImage(data: croppedData) {
-                                viewModel.activeScanImages[editIndex] = updatedThumb
+                            if let cgImage = autoreleasepool(invoking: { ImageDownsampler.shared.downsample(data: croppedData, maxSize: 512) }) {
+                                viewModel.activeScanImages[editIndex] = UIImage(cgImage: cgImage)
                             }
                             viewModel.activeOriginals[editIndex].lastCropScale = finalScale
                             viewModel.activeOriginals[editIndex].lastCropOffset = finalOffset
@@ -29,9 +29,14 @@ struct CropSheetModifier: ViewModifier {
                                 let capturedIndex = editIndex
                                 Task {
                                     let displayCropped = await Task.detached {
-                                        guard let src = UIImage(data: capturedDisplayData) else { return Data() }
+                                        let src: UIImage? = autoreleasepool {
+                                            guard let cgImage = ImageDownsampler.shared.downsample(data: capturedDisplayData, maxSize: 2048) else { return nil }
+                                            return UIImage(cgImage: cgImage)
+                                        }
+                                        guard let image = src else { return Data() }
+                                        
                                         return await ImageCropProcessor.generateCrop(
-                                            image: src,
+                                            image: image,
                                             displaySize: displaySize,
                                             scale: finalScale,
                                             currentScale: 1.0,

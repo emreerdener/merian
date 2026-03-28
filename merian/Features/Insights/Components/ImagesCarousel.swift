@@ -248,8 +248,11 @@ private struct LiveCapturePageView: View {
             // UIImage(data:) is synchronous — decode it off the main actor to avoid stalling
             // the 120Hz render loop for large captures on carousel open.
             let img = await Task.detached(priority: .userInitiated) {
-                autoreleasepool {
-                    UIImage(data: data)
+                autoreleasepool { () -> UIImage? in
+                    if let cgImage = ImageDownsampler.shared.downsample(data: data, maxSize: 2048) {
+                        return UIImage(cgImage: cgImage)
+                    }
+                    return nil
                 }
             }.value
             decoded = img

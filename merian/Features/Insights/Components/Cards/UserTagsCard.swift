@@ -36,6 +36,7 @@ struct UserTagsCard: View {
                         showingAddTagAlert = true
                     } label: {
                         Image(systemName: "plus.circle.fill")
+                            .font(.title2)
                             .imageScale(.large)
                             .foregroundColor(.accentColor)
                     }
