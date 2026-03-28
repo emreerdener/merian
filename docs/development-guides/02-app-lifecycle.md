@@ -22,7 +22,7 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 5. `SupabaseManager.initializeGhostSession()` — ensures a valid anonymous or authenticated session exists before any network calls.
 6. `OfflineQueueManager.syncPendingScans()` — drains queued captures immediately if `NWPathMonitor` shows connectivity.
 7. `ScanRepository.syncHistoricalScansDown(modelContext:)` — fetches paginated cloud history and reconciles against local SwiftData (supports reinstalls and multi-device access). **Throttled to once per 15 minutes** via `UserDefaults("lastHistoricalSyncDate")` to prevent redundant full-table network syncs on every foreground transition (e.g. returning from Control Center).
-8. **Archive Safety Protocol** (once per 24 hours via `UserDefaults("lastArchiveRescueDate")`): `ArchiveManager.evaluateAndRescueAgingScans(modelContext:)` — downloads images for Free-tier scans approaching Cloudflare R2's 90-day lifecycle deletion window.
+8. **Archive Safety Protocol** (once per 24 hours via `UserDefaults("lastArchiveRescueDate")`): `ArchiveManager.evaluateAndRescueAgingScans(modelContext:)` — downloads images for Free-tier domesticated scans approaching the targeted 90-day edge function domesticated purge window (wild and invasive scans are permanently archived by the server).
 
 ---
 

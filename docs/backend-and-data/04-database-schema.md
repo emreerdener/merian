@@ -131,7 +131,7 @@ Tracks locally synchronized species scans for the Scans library.
 - `wikipediaUrl`: String? (Hydrated asynchronously by `BackgroundDatabaseActor` via REST)
 - `wikipediaOverview`: String? (Wikipedia summary paragraph cached from the REST API. Renamed from `wikipediaExtract` in `MerianSchemaV17` using `@Attribute(originalName:)` — existing data is preserved automatically via lightweight migration. Written by `BackgroundDatabaseActor.updateScanWithWikipedia`.)
 - `referenceImageUrl`: String? (Stores Wikipedia/GBIF biological reference images only. Kept separate from scan images to prevent duplication in the UI Image Carousel).
-- `isLocallyArchived`: Bool (Managed by the Archive Safety Protocol to track R2 payloads downloaded before the 90-day free tier expiration).
+- `isLocallyArchived`: Bool (Managed by the Archive Safety Protocol to track R2 payloads downloaded before the 90-day free tier domesticated expiration).
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`, `taxonomyFamily`, `taxonomyGenus`: String? (Linnaean taxonomy fields added in `MerianSchemaV3`, enabling background semantic discovery without relying on `ecology_type`.)
 - `locationName`, `weatherCondition`, `weatherTemperatureF`: String/Double? (Added in `MerianSchemaV5`. Stores environmental context via MapKit reverse geocoding, powering the `InsightSheetView`.)
 - `collections`: [ScanCollection]? (Added in `MerianSchemaV6`. Establishes relationships to top-level custom user galleries without duplicating raw data.)

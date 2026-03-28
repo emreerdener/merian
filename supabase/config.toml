@@ -405,6 +405,9 @@ verify_jwt = false
 [functions.auto-purge-nonbio]
 verify_jwt = false
 
+[functions.auto-purge-domesticated]
+verify_jwt = false
+
 [functions.block-user]
 verify_jwt = false
 

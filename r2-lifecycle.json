@@ -21,16 +21,6 @@
       }
     },
     {
-      "ID": "Expire free tier uploads after 90 days",
-      "Status": "Enabled",
-      "Filter": {
-        "Prefix": "public_uploads/free/"
-      },
-      "Expiration": {
-        "Days": 90
-      }
-    },
-    {
       "ID": "Purge staging objects after 1 day",
       "Status": "Enabled",
       "Filter": {

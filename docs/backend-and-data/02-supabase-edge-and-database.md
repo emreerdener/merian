@@ -43,7 +43,7 @@ The `/identify` Edge Function acts as the inference proxy:
 
 The `revenuecat-webhook` function drives async tier migrations (`pro` ↔ `free`). Because Deno enforces a 10-second processing limit, bulk R2 operations are deferred via `runBackground(task)` from `_shared/edgeHandler.ts`. The webhook secret is validated using `timingSafeCompare()`, a constant-time XOR comparison, rather than plain string equality — this prevents timing attacks. The deferred task queries orphaned `public_uploads/free/` objects from the `scans` table and issues `AWS SDK PUT` copy commands to move them into the `/pro/` bucket. To prevent IDOR attacks on S3 deletes, the function validates that the `originalUserId` parsed from `image_storage_urls` matches the `userId` associated with the webhook trigger.
 
-On `EXPIRATION` (user downgrade), the same process runs in reverse, moving objects from `/pro/` back to `/free/`, returning them to the 90-day R2 purge cycle.
+On `EXPIRATION` (user downgrade), the same process runs in reverse, moving objects from `/pro/` back to `/free/`, returning them to the targeted 90-day domesticated purge cycle.
 
 Before saving `image_storage_urls` to PostgreSQL, the function strips AWS signature query string parameters from the URL to prevent Cloudflare R2 `403 Forbidden` errors when the object key changes. R2 access uses `getR2Config()` from `_shared/aws.ts`.
 
