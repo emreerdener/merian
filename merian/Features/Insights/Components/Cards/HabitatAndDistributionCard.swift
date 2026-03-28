@@ -107,7 +107,7 @@ struct HabitatAndDistributionCard: View {
             }
             .padding(.horizontal, 32)
             .padding(.top, 32)
-            .padding(.bottom, 16)
+            .padding(.bottom, 8)
         }
         .padding(.horizontal, -16) // Reaches edge of standard container bounds
     }

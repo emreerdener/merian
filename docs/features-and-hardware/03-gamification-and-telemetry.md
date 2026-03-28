@@ -87,6 +87,6 @@ Tracks session lifecycle, feature interactions, and backend AI token usage, link
 - Calls `reset()` when `SupabaseManager.shared.signOut()` clears session state.
 
 **Edge Functions (`_shared/posthog.ts`)**:
-- Uses the standard PostHog HTTP `/capture/` API to dispatch `ScanCompleted` and `EnrichmentCompleted` events directly from the Supabase backend.
-- Attaches AI metrics including `llm_prompt_tokens`, `llm_candidate_tokens`, and `llm_total_tokens` to `user.id`.
+- Uses the standard PostHog HTTP `/capture/` API to dispatch `ScanCompleted`, `EnrichmentCompleted`, `EncyclopedicLLMCompleted`, `DiagnosticLLMCompleted`, and `GroupTagsLLMCompleted` events directly from the Supabase backend.
+- Attaches AI metrics including `llm_prompt_tokens`, `llm_candidate_tokens`, and `llm_total_tokens` to `user.id` to provide 100% visibility into Flash vs Pro tier token usage across both primary vision routing and background classification tasks.
 - Safely runs inside Deno's async background tasks (using `.waitUntil` / promises) to never block the inference response to the client.

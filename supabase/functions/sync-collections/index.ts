@@ -7,6 +7,7 @@ interface SyncCollectionPayload {
   created_at: string;
   scan_ids: string[];
   is_deleted?: boolean;
+  isDeleted?: boolean;
 }
 
 serve((req: Request) =>
@@ -27,8 +28,9 @@ serve((req: Request) =>
       }, 400);
     }
 
-    const validCollections = collections.filter((c) => !c.is_deleted);
-    const deletedCollections = collections.filter((c) => c.is_deleted);
+    const isDeletedFlag = (c: SyncCollectionPayload) => c.is_deleted === true || c.isDeleted === true;
+    const validCollections = collections.filter((c) => !isDeletedFlag(c));
+    const deletedCollections = collections.filter((c) => isDeletedFlag(c));
     const activeIds = validCollections.map((c) => c.id);
 
     // 0. Process explicit deletions first.

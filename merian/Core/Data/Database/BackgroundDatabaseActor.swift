@@ -373,7 +373,19 @@ actor BackgroundDatabaseActor {
                 "sync-collections",
                 options: .init(body: SyncRequestPayload(collections: payloadList))
             )
-            MerianLog.data.debug("✅ Pushed \(payloadList.count, privacy: .public) collections to Edge")
+            
+            // --- STRICT LOCAL CLEANUP ---
+            // Now that the cloud sync was unequivocally successful, purge tombstones from SwiftData
+            // to prevent these ghost collections from persisting or resurging on subsequent re-installs.
+            let tombstones = collections.filter { $0.isDeleted }
+            for tombstone in tombstones {
+                modelContext.delete(tombstone)
+            }
+            if !tombstones.isEmpty {
+                try? modelContext.save()
+            }
+            
+            MerianLog.data.debug("✅ Pushed \(payloadList.count, privacy: .public) collections to Edge (\(tombstones.count, privacy: .public) tombstones purged)")
             return true
         } catch {
             MerianLog.data.debug("pushCollectionsToEdge: sync failed: \(error, privacy: .private)")

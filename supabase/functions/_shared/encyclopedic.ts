@@ -1,5 +1,7 @@
 import { SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
+import { trackPostHogEvent } from "./posthog.ts";
 
 export interface EncyclopedicData {
   taxonomy: {
@@ -15,6 +17,7 @@ export interface EncyclopedicData {
 }
 
 export async function fetchStaticEncyclopedicData(
+  user: User,
   scientificName: string,
   locale: string = "en",
 ): Promise<EncyclopedicData> {
@@ -78,6 +81,12 @@ export async function fetchStaticEncyclopedicData(
       console.log(
         `Token Usage [Encyclopedic | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
       );
+      await trackPostHogEvent(user, "EncyclopedicLLMCompleted", {
+        scientific_name: scientificName,
+        llm_prompt_tokens: usage.promptTokenCount,
+        llm_candidate_tokens: usage.candidatesTokenCount,
+        llm_total_tokens: usage.totalTokenCount,
+      });
     }
 
     return extractJson<EncyclopedicData>(result.response.text());

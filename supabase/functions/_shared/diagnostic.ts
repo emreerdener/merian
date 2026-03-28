@@ -1,7 +1,10 @@
 import { SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
+import { trackPostHogEvent } from "./posthog.ts";
 
 export async function fetchDiagnosticComparison(
+  user: User,
   scientificName: string,
 ) {
   const model = createFlashModel(
@@ -45,6 +48,12 @@ export async function fetchDiagnosticComparison(
       console.log(
         `Token Usage [Diagnostic | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
       );
+      await trackPostHogEvent(user, "DiagnosticLLMCompleted", {
+        scientific_name: scientificName,
+        llm_prompt_tokens: usage.promptTokenCount,
+        llm_candidate_tokens: usage.candidatesTokenCount,
+        llm_total_tokens: usage.totalTokenCount,
+      });
     }
     return extractJson<{
       primary_match_rationale: string;

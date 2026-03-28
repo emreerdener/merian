@@ -80,7 +80,7 @@ serve((req: Request) =>
     const enrichmentPromise = hasEnrichment
       ? Promise.resolve(cachedSpecies)
       : (async () => {
-          const result = await fetchStaticEncyclopedicData(scientific_name);
+          const result = await fetchStaticEncyclopedicData(_user, scientific_name);
           
           await trackPostHogEvent(_user, "EnrichmentCompleted", {
             scientific_name,
@@ -91,7 +91,7 @@ serve((req: Request) =>
 
     const diagnosticPromise = (!needsDiagnostic || hasDiagnostic)
       ? Promise.resolve(null)
-      : fetchDiagnosticComparison(scientific_name);
+      : fetchDiagnosticComparison(_user, scientific_name);
 
     try {
       const [enrichmentResult, diagnosticResult] = await Promise.all([enrichmentPromise, diagnosticPromise]);

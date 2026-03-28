@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 import {
   SchemaType,
@@ -148,6 +149,7 @@ async function fetchExternalEnrichment(scientificName: string) {
 }
 
 async function fetchGroupTags(
+  user: User,
   scientificName: string,
 ): Promise<string[] | null> {
   const model = createFlashModel(
@@ -186,6 +188,12 @@ async function fetchGroupTags(
       console.log(
         `Token Usage [GroupTags | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
       );
+      await trackPostHogEvent(user, "GroupTagsLLMCompleted", {
+        scientific_name: scientificName,
+        llm_prompt_tokens: usage.promptTokenCount,
+        llm_candidate_tokens: usage.candidatesTokenCount,
+        llm_total_tokens: usage.totalTokenCount,
+      });
     }
 
     const parsed = extractJson<{ group_tags: string[] }>(
@@ -654,13 +662,13 @@ serve((req: Request) =>
           (parsedData.confidence_score ?? 1) < DIAGNOSTIC_THRESHOLD &&
           !cachedSpecies?.diagnostic_primary_rationale;
         const diagnosticPromise = needsDiagnostic
-          ? fetchDiagnosticComparison(parsedData.scientific_name!)
+          ? fetchDiagnosticComparison(user, parsedData.scientific_name!)
           : Promise.resolve(null);
 
         const needsGroupTags =
           isIdentifiedBio && !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
-          ? fetchGroupTags(parsedData.scientific_name!)
+          ? fetchGroupTags(user, parsedData.scientific_name!)
           : Promise.resolve(null);
 
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
@@ -669,6 +677,7 @@ serve((req: Request) =>
           const bgEnrichStart = Date.now();
           const [textResult, externalData] = await Promise.all([
             fetchStaticEncyclopedicData(
+              user,
               parsedData.scientific_name!,
               deviceLocale || "en",
             ),
@@ -733,6 +742,7 @@ serve((req: Request) =>
           // fields were introduced. Fetch from Flash and backfill silently for all tiers.
           const bgEnrichStart = Date.now();
           const textResult = await fetchStaticEncyclopedicData(
+            user,
             parsedData.scientific_name!,
             deviceLocale || "en",
           );

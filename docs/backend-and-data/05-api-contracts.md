@@ -243,7 +243,8 @@ Synchronizes locally created Scan Collections with the PostgreSQL `collections` 
       "name": "My Favorites",
       "created_at": "2026-03-23T12:00:00Z",
       "scan_ids": ["B2C3D4E5-..."],
-      "is_deleted": false
+      "is_deleted": false,
+      "isDeleted": false
     }
   ]
 }
@@ -251,7 +252,8 @@ Synchronizes locally created Scan Collections with the PostgreSQL `collections` 
 
 ### Safety and Transactional Integrity
 
-1. **Batch Upserts**: All valid collections are written via a single atomic `.upsert(collectionPayloads)` call, resolving PostgreSQL `TIMESTAMPTZ` and `UUID` types without timing out.
+1. **Dual Casing Delete Parsing**: To protect against Swift `JSONEncoder` converting structural snake_case keys into camelCase payloads based on codable strategies, the Edge function supports both `is_deleted` and `isDeleted` attributes when resolving the deleted tombstone array.
+2. **Batch Upserts**: All valid collections are written via a single atomic `.upsert(collectionPayloads)` call, resolving PostgreSQL `TIMESTAMPTZ` and `UUID` types without timing out.
 2. **Bulk Insertion & Mismatched FK Protection**: Setting up `collection_scans` relationships natively in a single atomic upsert avoids N+1 query timeouts. To prevent PostgreSQL Foreign Key violations from crashing the overarching chunk transaction, the Edge Node dynamically pre-validates all incoming `scan_id` payloads against the core `scans` table. If a user groups a scan while fully offline and the physical cloud `scans` row hasn't populated yet, mapping intelligently bypasses that specific missing scan natively. The pending relationship rests securely offline on the user's iPhone until the next sync pulse.
 3. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running `.select()` across the user's DB rows, building a `toDelete` array in memory and passing it to `.delete().in("id", toDelete)`. This avoids `.not("id", "in", "(...)")` string-builder failures.
 
