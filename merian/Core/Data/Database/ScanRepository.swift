@@ -130,7 +130,7 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, species_dictionary(*)")
+                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, species_dictionary(*)")
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
@@ -284,6 +284,11 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let gps_long_exact: Double?
     let gps_elevation: Double?
     let ai_reasoning: String?
+    let estimated_size_cm: Double?
+    let life_stage: String?
+    let reproductive_condition: String?
+    let individual_count: Int?
+    let ecological_interactions: [String]?
     let species_dictionary: CloudSpeciesDictionary?
 }
 
@@ -387,7 +392,9 @@ actor HistoricalDatabaseActor {
             descriptor.propertiesToFetch = [\.id, \.localImagePath, \.additionalImagePaths,
                                              \.referenceImageUrl, \.locationName,
                                              \.gpsLatitude, \.gpsLongitude, \.gpsElevation,
-                                             \.aiReasoning, \.habitatDescription]
+                                             \.aiReasoning, \.habitatDescription,
+                                             \.estimatedSizeCm, \.lifeStage, \.reproductiveCondition,
+                                             \.individualCount, \.ecologicalInteractions]
             let chunk_records: [LocalScanRecord] = {
                 do { return try modelContext.fetch(descriptor) }
                 catch { MerianLog.data.error("🚨 updateExistingScans: fetch failed: \(error, privacy: .private)"); return [] }
@@ -428,6 +435,21 @@ actor HistoricalDatabaseActor {
             let dict = res.species_dictionary
             if let newHabitat = dict?.habitat_description, existing.habitatDescription != newHabitat {
                 existing.habitatDescription = newHabitat; didUpdate = true
+            }
+            if let newSize = res.estimated_size_cm, existing.estimatedSizeCm != newSize {
+                existing.estimatedSizeCm = newSize; didUpdate = true
+            }
+            if let newLife = res.life_stage, existing.lifeStage != newLife {
+                existing.lifeStage = newLife; didUpdate = true
+            }
+            if let newRepro = res.reproductive_condition, existing.reproductiveCondition != newRepro {
+                existing.reproductiveCondition = newRepro; didUpdate = true
+            }
+            if let newIndiv = res.individual_count, existing.individualCount != newIndiv {
+                existing.individualCount = newIndiv; didUpdate = true
+            }
+            if let newInter = res.ecological_interactions, existing.ecologicalInteractions != newInter {
+                existing.ecologicalInteractions = newInter; didUpdate = true
             }
         }
 
@@ -486,7 +508,12 @@ actor HistoricalDatabaseActor {
                 gpsLongitude: scan.gps_long_exact,
                 gpsElevation: scan.gps_elevation,
                 aiReasoning: scan.ai_reasoning,
-                habitatDescription: dict?.habitat_description
+                habitatDescription: dict?.habitat_description,
+                estimatedSizeCm: scan.estimated_size_cm,
+                lifeStage: scan.life_stage,
+                reproductiveCondition: scan.reproductive_condition,
+                individualCount: scan.individual_count,
+                ecologicalInteractions: scan.ecological_interactions
             )
 
             modelContext.insert(record)

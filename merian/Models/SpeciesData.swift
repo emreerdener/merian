@@ -17,6 +17,7 @@ struct CaptureTelemetry: Sendable {
     /// Active zoom factor at shutter press. Nil when 1× (adds no signal).
     /// Omitted from offline-queue retries since zoom is not persisted in the schema.
     var zoomFactor: CGFloat? = nil
+    var estimatedSizeCm: Double? = nil
 }
 
 // MARK: - Convenience Initializers
@@ -33,11 +34,12 @@ extension CaptureTelemetry {
             weatherCondition: inferenceEngine.activeWeatherCondition,
             weatherTemperatureF: inferenceEngine.activeTemperatureF,
             timeOfDay: nil,
-            timestamp: DateUtilities.iso8601Formatter.string(from: Date())
+            timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
+            estimatedSizeCm: nil
         )
     }
 
-    init(from context: EnvironmentContext, distance: Float?, zoom: CGFloat? = nil) {
+    init(from context: EnvironmentContext, distance: Float?, zoom: CGFloat? = nil, estimatedSizeCm: Double? = nil) {
         let reliableElevation: Double? = context.location.flatMap { loc in
             (loc.verticalAccuracy >= 0 && loc.verticalAccuracy <= 25) ? loc.altitude : nil
         }
@@ -51,7 +53,8 @@ extension CaptureTelemetry {
             weatherCondition: context.weatherCondition,
             weatherTemperatureF: context.weatherTemperature,
             timeOfDay: nil,
-            timestamp: DateUtilities.iso8601Formatter.string(from: context.location?.timestamp ?? Date())
+            timestamp: DateUtilities.iso8601Formatter.string(from: context.location?.timestamp ?? Date()),
+            estimatedSizeCm: estimatedSizeCm
         )
         t.zoomFactor = zoom
         self = t
@@ -94,6 +97,13 @@ struct SpeciesData {
     var groupTags: [String]?
     let iucnRedListStatus: String?
     var zoomFactor: Double?
+    
+    // Extended Ecological Telemetry
+    var estimatedSizeCm: Double?
+    var lifeStage: String?
+    var reproductiveCondition: String?
+    var individualCount: Int?
+    var ecologicalInteractions: [String]?
 
     // Species Insights
     var aiReasoning: String?
@@ -153,6 +163,11 @@ extension SpeciesData {
         self.groupTags = edgeRes.group_tags
         self.iucnRedListStatus = edgeRes.iucn_red_list_status
         self.zoomFactor = nil  // populated by the caller from CaptureTelemetry
+        self.estimatedSizeCm = edgeRes.estimated_size_cm
+        self.lifeStage = edgeRes.life_stage
+        self.reproductiveCondition = edgeRes.reproductive_condition
+        self.individualCount = edgeRes.individual_count
+        self.ecologicalInteractions = edgeRes.ecological_interactions
         self.aiReasoning = edgeRes.insight_data?.ai_reasoning  // per-scan; unique to the specific photo submitted
         self.habitatDescription = edgeRes.species_insights?.habitat_description
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
@@ -189,6 +204,11 @@ extension SpeciesData {
         groupTags: [String]? = nil,
         iucnRedListStatus: String? = nil,
         zoomFactor: Double? = nil,
+        estimatedSizeCm: Double? = nil,
+        lifeStage: String? = nil,
+        reproductiveCondition: String? = nil,
+        individualCount: Int? = nil,
+        ecologicalInteractions: [String]? = nil,
         aiReasoning: String? = nil,
         habitatDescription: String? = nil,
         gbifTaxonKey: Int? = nil
@@ -218,6 +238,11 @@ extension SpeciesData {
         self.groupTags = groupTags
         self.iucnRedListStatus = iucnRedListStatus
         self.zoomFactor = zoomFactor
+        self.estimatedSizeCm = estimatedSizeCm
+        self.lifeStage = lifeStage
+        self.reproductiveCondition = reproductiveCondition
+        self.individualCount = individualCount
+        self.ecologicalInteractions = ecologicalInteractions
         self.aiReasoning = aiReasoning
         self.habitatDescription = habitatDescription
         self.gbifTaxonKey = gbifTaxonKey

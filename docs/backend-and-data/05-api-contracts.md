@@ -61,7 +61,8 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server 
   "deviceLocale": "en",
   "currentMonth": 3,
   "timeOfDay": "2:00 PM",
-  "timestamp": "2026-03-21T09:46:03.000Z"
+  "timestamp": "2026-03-21T09:46:03.000Z",
+  "estimated_size_cm": 15.2
 }
 ```
 
@@ -91,6 +92,11 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
   "blur_score": 0.1,
   "is_invasive": false,
   "colors": ["orange", "black", "white"],
+  "estimated_size_cm": 15.2,
+  "life_stage": "adult",
+  "reproductive_condition": "none",
+  "individual_count": 1,
+  "ecological_interactions": ["pollinating Asclepias syriaca"],
   "insight_data": {
     "ai_reasoning": "The distinctive orange and black wing pattern with white-spotted margins, combined with the milkweed habitat context, is diagnostic for Danaus plexippus. The ventral hindwing silver spots confirm this is not the mimicking Viceroy.",
     "hazard_type": "none"
@@ -120,7 +126,7 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
 }
 ```
 
-> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification. `insight_data.ai_reasoning` is always present for biological subjects — it is the Gemini vision model's per-scan reasoning about the specific photo submitted and is unique per scan. `taxonomy` and `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `gbif_taxon_key` is present on Cache Hit for **all tiers** — it is GBIF's deterministic species usage key (sourced from a REST call to `api.gbif.org`, not AI-generated) and powers the occurrence density heatmap in `BiologicalView` for free and Pro users alike. `species_insights` is present on Cache Hit for all tiers when `habitat_description` is already stored in `species_dictionary`. `diagnostic_comparison` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function only when confidence is below the diagnostic threshold (0.85 on Edge, dynamically gated on SwiftUI client per User Tier). `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit (authoritative) or from the vision model on Cache Miss (stored in `species_dictionary` for future hits). The `hazard_type` column exists only on `species_dictionary`, not on `scans`.
+> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification and ecosystem measurement. Data-as-a-Service fields (`estimated_size_cm`, `life_stage`, `reproductive_condition`, `individual_count`, `ecological_interactions`) are fully generated on the primary pass avoiding any secondary inference loops. `insight_data.ai_reasoning` is always present for biological subjects — it is the Gemini vision model's per-scan reasoning about the specific photo submitted and is unique per scan. `taxonomy` and `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `gbif_taxon_key` is present on Cache Hit for **all tiers** — it is GBIF's deterministic species usage key (sourced from a REST call to `api.gbif.org`, not AI-generated) and powers the occurrence density heatmap in `BiologicalView` for free and Pro users alike. `species_insights` is present on Cache Hit for all tiers when `habitat_description` is already stored in `species_dictionary`. `diagnostic_comparison` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function only when confidence is below the diagnostic threshold (0.85 on Edge, dynamically gated on SwiftUI client per User Tier). `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit (authoritative) or from the vision model on Cache Miss (stored in `species_dictionary` for future hits). The `hazard_type` column exists only on `species_dictionary`, not on `scans`.
 
 ### Error Responses
 

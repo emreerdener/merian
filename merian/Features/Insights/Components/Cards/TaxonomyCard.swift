@@ -28,6 +28,4 @@ struct TaxonomyCard: View {
             .card()
         }
     }
-    
-// Removed taxonomyRow since KeyValueRow was extracted
 }

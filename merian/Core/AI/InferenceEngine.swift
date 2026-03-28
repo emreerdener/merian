@@ -493,6 +493,11 @@ private struct WikiSummaryResponse: Decodable {
             gpsLatitude: record.gpsLatitude,
             gpsLongitude: record.gpsLongitude,
             zoomFactor: record.zoomFactor,
+            estimatedSizeCm: record.estimatedSizeCm,
+            lifeStage: record.lifeStage,
+            reproductiveCondition: record.reproductiveCondition,
+            individualCount: record.individualCount,
+            ecologicalInteractions: record.ecologicalInteractions,
             aiReasoning: record.aiReasoning,
             habitatDescription: record.habitatDescription,
             gbifTaxonKey: record.gbifTaxonKey

@@ -52,10 +52,18 @@ extension CameraViewModel {
             // historical context baked into the first gallery original if present.
             let telemetry: CaptureTelemetry
             if let context = resolvedContext {
+                let distance = diContainer.cameraManager.subjectDistanceInMeters
+                var estimatedSizeCm: Double? = nil
+                
+                if let dist = distance, let firstData = datasToAnalyze.first {
+                    estimatedSizeCm = await SizeEstimator.estimateSize(imageData: firstData, distanceMeters: dist)
+                }
+
                 telemetry = CaptureTelemetry(
                     from: context,
-                    distance: diContainer.cameraManager.subjectDistanceInMeters,
-                    zoom: capturedZoom
+                    distance: distance,
+                    zoom: capturedZoom,
+                    estimatedSizeCm: estimatedSizeCm
                 )
             } else if let historicalContext = capturedOriginals.first?.environmentContext {
                 // Library photo — zoom at original capture time is unknown; omit.
@@ -64,8 +72,15 @@ extension CameraViewModel {
                     distance: nil
                 )
             } else {
+                let distance = diContainer.cameraManager.subjectDistanceInMeters
+                var estimatedSizeCm: Double? = nil
+                
+                if let dist = distance, let firstData = datasToAnalyze.first {
+                    estimatedSizeCm = await SizeEstimator.estimateSize(imageData: firstData, distanceMeters: dist)
+                }
+
                 telemetry = CaptureTelemetry(
-                    subjectDistanceInMeters: diContainer.cameraManager.subjectDistanceInMeters,
+                    subjectDistanceInMeters: distance,
                     gpsLatitude: nil,
                     gpsLongitude: nil,
                     gpsElevation: nil,
@@ -74,7 +89,8 @@ extension CameraViewModel {
                     weatherTemperatureF: nil,
                     timeOfDay: nil,
                     timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
-                    zoomFactor: capturedZoom
+                    zoomFactor: capturedZoom,
+                    estimatedSizeCm: estimatedSizeCm
                 )
             }
 

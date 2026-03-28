@@ -42,6 +42,10 @@ export interface MerianIdentification {
   colors?: string[];
   common_name?: string;
   hazard_type?: "none" | "poisonous" | "venomous" | "allergenic" | "irritant";
+  life_stage?: "egg" | "larva" | "juvenile" | "adult" | "unknown";
+  reproductive_condition?: "flowering" | "fruiting" | "sporing" | "dormant" | "not_applicable";
+  individual_count?: number;
+  ecological_interactions?: string[];
 }
 
 export interface ClientPayload extends MerianIdentification {
@@ -228,6 +232,7 @@ serve((req: Request) =>
       semanticLocation,
       timeOfDay,
       timestamp,
+      estimated_size_cm,
     } = body;
 
     if (
@@ -355,7 +360,7 @@ serve((req: Request) =>
     // fossils/specimens as is_biological_subject=false, returning generic names like
     // "Fossilized Shell" instead of the correct species common name (e.g. "Devil's Toenail"
     // margins) for correct classification.
-    const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case (e.g., 'Red-tailed Hawk'). Ensure words are spaced correctly. 4) CRITICAL: Evaluate all provided images together. 5) CRITICAL: Multiple species → identify ONE primary. 6) CRITICAL: is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name. 7) Confidence Calibration & Holistic Verification Rule: Do not assign a high confidence_score based solely on localized pattern matching (e.g., leaf shape). Before finalizing your score, you MUST evaluate the plant's holistic growth habit and environmental context. If the localized features match, but the overall structural habit strongly contradicts the species norm (e.g., a wispy upright weed vs. a dense cascading bush), you must penalize the match. In cases of structural dissonance utilize the ai_reasoning field to express your uncertainty.`;
+    const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name. 7) Confidence Calibration & Holistic Verification Rule: Do not assign a high confidence_score based solely on localized features. Before finalizing your score, you MUST evaluate the plant's holistic growth habit and environmental context. 8) If the primary subject is actively interacting with another biological organism (e.g., pollinating a flower, eating a leaf, parasitizing a host), briefly describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count. If a massive swarm/cluster, provide a conservative estimated integer.`;
 
     const model = _genAI.getGenerativeModel({
       model: targetModel,
@@ -418,6 +423,23 @@ serve((req: Request) =>
         enum: ["none", "poisonous", "venomous", "allergenic", "irritant"],
         description:
           "Hazard classification: 'none' if safe, 'poisonous' if harmful by ingestion/contact, 'venomous' if injects toxin via bite/sting, 'allergenic' if triggers allergic reactions, 'irritant' if causes skin/eye irritation.",
+      },
+      life_stage: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["egg", "larva", "juvenile", "adult", "unknown"],
+      },
+      reproductive_condition: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["flowering", "fruiting", "sporing", "dormant", "not_applicable"],
+      },
+      individual_count: {
+        type: SchemaType.INTEGER,
+      },
+      ecological_interactions: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
       },
     };
 
@@ -786,6 +808,11 @@ serve((req: Request) =>
             image_storage_urls: modResult.publicUrls?.length
               ? modResult.publicUrls
               : [],
+            life_stage: parsedData.life_stage ?? 'unknown',
+            reproductive_condition: parsedData.reproductive_condition ?? 'not_applicable',
+            individual_count: parsedData.individual_count ?? null,
+            ecological_interactions: parsedData.ecological_interactions ?? [],
+            estimated_size_cm: estimated_size_cm ?? null,
           });
 
         if (scanInsertError) {

@@ -2,12 +2,6 @@ import SwiftUI
 import SwiftData
 import SafariServices
 
-struct BadgeItem: Hashable {
-    let text: String
-    let color: Color
-    let icon: String
-}
-
 /// Defines the unified local state graph and primary business logic orchestrating the `InsightSheetView` presentation and data actions.
 @MainActor
 @Observable
@@ -83,27 +77,6 @@ final class InsightSheetViewModel {
         return species.insightData.aiReasoning
             .components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-    }
-    
-    var headerBadgeItems: [BadgeItem] {
-        guard let species = inferenceEngine?.speciesData else { return [] }
-        var badges: [BadgeItem] = []
-        
-        if species.isInvasive {
-            badges.append(BadgeItem(text: "Invasive", color: .orange, icon: "exclamationmark.triangle.fill"))
-        }
-        if !species.isBiological {
-            badges.append(BadgeItem(text: "Not biological", color: .gray, icon: "xmark.seal.fill"))
-        }
-        
-        let ecology = species.ecologyType.lowercased()
-        if ecology == "domesticated" || ecology == "urban" {
-            badges.append(BadgeItem(text: species.ecologyType.capitalized, color: .purple, icon: "house.fill"))
-        } else if ecology != "unknown" {
-            badges.append(BadgeItem(text: species.ecologyType.capitalized, color: .blue, icon: "tree.fill"))
-        }
-        
-        return badges
     }
     
     // MARK: - Layout Computations

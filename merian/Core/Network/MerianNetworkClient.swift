@@ -202,7 +202,8 @@ final class MerianNetworkClient {
                 "deviceLocale": deviceLocale,
                 "currentMonth": currentMonth,
                 "timeOfDay": timeOfDay,
-                "timestamp": telemetry.timestamp
+                "timestamp": telemetry.timestamp,
+                "estimated_size_cm": telemetry.estimatedSizeCm
             ]
             
             return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })

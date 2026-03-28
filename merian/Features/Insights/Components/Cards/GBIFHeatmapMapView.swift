@@ -53,7 +53,7 @@ struct GBIFHeatmapMapView: View {
     /// Fetches the GBIF density tile at zoom level 0 — one tile covers the entire world!
     private func fetchGBIFTile() async -> UIImage? {
         guard let key = taxonKey,
-              let url = URL(string: "https://api.gbif.org/v2/map/occurrence/density/0/0/0@2x.png?taxonKey=\(key)&style=classic.poly&bin=hex&hexPerTile=185")
+              let url = URL(string: "https://api.gbif.org/v2/map/occurrence/density/0/0/0@2x.png?taxonKey=\(key)&style=classic.poly&bin=hex&hexPerTile=135")
         else { return nil }
         guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
         return UIImage(data: data)

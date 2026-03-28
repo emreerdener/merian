@@ -162,7 +162,12 @@ actor BackgroundDatabaseActor {
                     zoomFactor: mappedData.zoomFactor,
                     aiReasoning: mappedData.aiReasoning,
                     habitatDescription: mappedData.habitatDescription,
-                    gbifTaxonKey: mappedData.gbifTaxonKey
+                    gbifTaxonKey: mappedData.gbifTaxonKey,
+                    estimatedSizeCm: mappedData.estimatedSizeCm,
+                    lifeStage: mappedData.lifeStage,
+                    reproductiveCondition: mappedData.reproductiveCondition,
+                    individualCount: mappedData.individualCount,
+                    ecologicalInteractions: mappedData.ecologicalInteractions
                 )
                 modelContext.insert(record)
                 do {
@@ -265,7 +270,12 @@ actor BackgroundDatabaseActor {
             zoomFactor: mappedData.zoomFactor,
             aiReasoning: mappedData.aiReasoning,
             habitatDescription: mappedData.habitatDescription,
-            gbifTaxonKey: mappedData.gbifTaxonKey
+            gbifTaxonKey: mappedData.gbifTaxonKey,
+            estimatedSizeCm: mappedData.estimatedSizeCm,
+            lifeStage: mappedData.lifeStage,
+            reproductiveCondition: mappedData.reproductiveCondition,
+            individualCount: mappedData.individualCount,
+            ecologicalInteractions: mappedData.ecologicalInteractions
         )
         modelContext.insert(record)
         do {

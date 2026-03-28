@@ -23,6 +23,11 @@ serve((req: Request) =>
         gps_long_public,
         coordinate_uncertainty_in_meters,
         image_storage_urls,
+        life_stage,
+        reproductive_condition,
+        individual_count,
+        ecological_interactions,
+        ai_confidence_score,
         species_dictionary (
           scientific_name,
           kingdom,
@@ -48,7 +53,7 @@ serve((req: Request) =>
     const secretHashSalt = Deno.env.get("SUPABASE_JWT_SECRET") || "salt";
 
     const occurrenceRows = [
-      "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters"
+      "coreid,basisOfRecord,recordedBy,eventDate,scientificName,kingdom,phylum,class,order,family,genus,decimalLatitude,decimalLongitude,coordinateUncertaintyInMeters,lifeStage,reproductiveCondition,individualCount,associatedTaxa,identificationVerificationStatus"
     ];
 
     const multimediaRows = ["coreid,identifier,format"];
@@ -95,6 +100,11 @@ serve((req: Request) =>
         coordinate_uncertainty_in_meters?: number;
         image_storage_urls?: string[];
         species_dictionary?: SpeciesDictionary;
+        life_stage?: string;
+        reproductive_condition?: string;
+        individual_count?: number;
+        ecological_interactions?: string[];
+        ai_confidence_score?: number;
       }
 
       for (let i = 0; i < data.length; i += SUB_BATCH_SIZE) {
@@ -136,7 +146,15 @@ serve((req: Request) =>
             if (lat === null || lat === undefined) lat = "";
             if (lon === null || lon === undefined) lon = "";
 
-            const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty}`;
+            const lifeStage = scan.life_stage || "unknown";
+            const reproductiveCondition = scan.reproductive_condition || "not_applicable";
+            const individualCount = scan.individual_count != null ? scan.individual_count : "";
+            const associatedTaxa = scan.ecological_interactions && scan.ecological_interactions.length > 0
+              ? scan.ecological_interactions.join(" | ").replace(/,/g, ";").replace(/"/g, "")
+              : "";
+            const verificationStatus = scan.ai_confidence_score != null ? scan.ai_confidence_score.toFixed(2) : "";
+
+            const occurrenceRow = `${scan.id},HumanObservation,${recordedBy},${date},${species.scientific_name || ""},${species.kingdom || ""},${species.phylum || ""},${species.class || ""},${species.order || ""},${species.family || ""},${species.genus || ""},${lat},${lon},${uncertainty},${lifeStage},${reproductiveCondition},${individualCount},"${associatedTaxa}",${verificationStatus}`;
 
             const urls = scan.image_storage_urls || [];
             const mRows = urls.map((url: string) => `${scan.id},${url},image/webp`);
@@ -184,6 +202,11 @@ serve((req: Request) =>
     <field index="11" term="http://rs.tdwg.org/dwc/terms/decimalLatitude" />
     <field index="12" term="http://rs.tdwg.org/dwc/terms/decimalLongitude" />
     <field index="13" term="http://rs.tdwg.org/dwc/terms/coordinateUncertaintyInMeters" />
+    <field index="14" term="http://rs.tdwg.org/dwc/terms/lifeStage" />
+    <field index="15" term="http://rs.tdwg.org/dwc/terms/reproductiveCondition" />
+    <field index="16" term="http://rs.tdwg.org/dwc/terms/individualCount" />
+    <field index="17" term="http://rs.tdwg.org/dwc/terms/associatedTaxa" />
+    <field index="18" term="http://rs.tdwg.org/dwc/terms/identificationVerificationStatus" />
   </core>
   <extension encoding="UTF-8" linesTerminatedBy="\\n" fieldsTerminatedBy="," fieldsEnclosedBy="" ignoreHeaderLines="1" rowType="http://rs.gbif.org/terms/1.0/Multimedia">
     <files><location>multimedia.csv</location></files>

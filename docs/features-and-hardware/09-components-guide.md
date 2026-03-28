@@ -52,11 +52,12 @@ A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`,
 - **Threshold parity**: Band percentage strings are computed dynamically based on the current user's entitlement tier via `MerianConfig.confidenceBands(for: isPro)`. This ensures that the displayed ranges in the UI always match the live badge thresholds exactly.
 - **Current bands**: Strong (≥ 93% Flash / ≥ 85% Pro), Possible (75-92% Flash / 65-84% Pro), Weak (below 75% Flash / below 65% Pro).
 
-## 8. Wikipedia Overview: `WikipediaCard`
-**Location**: `Features/Insights/Components/Cards/WikipediaCard.swift`
+## 8. Overview: `OverviewCard`
+**Location**: `Features/Insights/Components/Cards/OverviewCard.swift`
 
-An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`) and providing Safari routing to the full article (`wikipediaUrl`).
-- **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. If the string falls below this bound, the entire card prevents rendering, eliminating useless stub blocks or ambiguous disambiguation text (e.g., "Rosa or De Rosa may refer to:").
+An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`), alongside a suite of dynamic biological `KeyValueRow` metrics.
+- **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, `individualCount`, and `ecologicalInteractions`.
+- **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. If the string falls below this bound, the extract refuses to render, and instead gracefully defaults to rendering the extended biological keys with an italicized fallback indicator for Wikipedia.
 
 ## 9. Habitat Map: `HabitatAndDistributionCard`
 **Location**: `Features/Insights/Components/Cards/HabitatAndDistributionCard.swift`

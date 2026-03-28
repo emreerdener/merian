@@ -28,6 +28,13 @@ struct EdgeResponse: Codable {
     let blur_score: Double?
     let colors: [String]?
     let group_tags: [String]?
+    
+    // Extended Ecological Telemetry
+    let estimated_size_cm: Double?
+    let life_stage: String?
+    let reproductive_condition: String?
+    let individual_count: Int?
+    let ecological_interactions: [String]?
 
     // Present on Cache Hit — sourced from species_dictionary.
     struct Taxonomy: Codable {
