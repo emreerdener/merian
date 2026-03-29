@@ -70,3 +70,10 @@ The workspace enforces this layout inside `merian/`:
 
 ## 8. Documentation Maintenance
 - **ALWAYS create and update documentation accordingly.** Whenever you implement a new feature, modify a system's architecture, or alter an API contract, update the corresponding markdown file in the `docs/` folder to reflect reality. Do not wait to be asked. Maintain an accurate, synchronized documentation set that matches the codebase.
+
+## 9. Agent Workflows
+Merian maintains reproducible, automated workflows inside the `.agents/workflows/` directory. AI Agents **MUST** execute these runbooks (e.g. via slash commands or manually reading and running) for critical operations instead of guessing:
+- `schema_update.md`: Bumping SwiftData schema versions and snapshotting global active models.
+- `deploy_edge_functions.md`: Deploying TypeScript Supabase modifications and executing type checks.
+- `revenuecat_entitlements.md`: Adding/Modifying in-app purchases and localized StoreKit files.
+- `mock_camera_inference.md`: Faking `AVCapturePhoto` hardware feeds via `InferenceEngine` to test caching lines on the simulator.
