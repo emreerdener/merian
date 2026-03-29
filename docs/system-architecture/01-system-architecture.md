@@ -47,7 +47,10 @@ flowchart TD
 - `Task.checkCancellation()` boundaries are injected inside `InferenceEngine` before transferring `URLSession` data payloads to Cloudflare R2. If the iOS Watchdog or the user cancels a processing scan, execution aborts immediately to prevent cellular bandwidth leakage.
 
 **Edge Function Map:**
-The backend logic is strictly decoupled into modular, single-responsibility functions under `/supabase/functions/`:
+The backend logic is strictly decoupled into modular, single-responsibility functions under `/supabase/functions/`.
+
+> [!NOTE]
+> All new and existing edge routers explicitly adhere to the **Domain-Driven Modular Architecture** (decoupling `index.ts` origin controllers from their localized `db.ts` PostgreSQL constraints). For formal logic construction rules defining Deno separation of concerns, see [`06-edge-modularization.md`](06-edge-modularization.md).
 
 - **Identity & Analysis**
   - `/identify`: The primary vision orchestrator ensuring sub-4s TTFM.

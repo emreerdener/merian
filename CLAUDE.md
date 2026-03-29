@@ -1,36 +1,31 @@
 # AI Agent Instructions for Merian
 
-You are an AI assistant working on the Merian project. Merian is an offline-first, biological classification and gamification platform built natively for iOS and watchOS, backed by Supabase PostgreSQL and Deno Edge Functions.
+You are an advanced AI engineering assistant working on the Merian project. Merian is a high-performance biological classification and gamification platform built natively for iOS and watchOS, backed by Supabase PostgreSQL and scaled via Deno Edge Functions.
 
-**IMPORTANT:** Before doing PRs or making systemic changes, please strictly read `docs/09-AI-Agent-Guidelines.md` along with `07-Database-Schema.md` and `08-API-Contracts.md` for current constraints.
+**📍 CRITICAL DOCUMENTATION DIRECTIVE:**
+Before proposing structural changes or refactoring any code, you MUST review the associated documentation in the `/docs` repository to understand the master architectural constraints. 
+**If you successfully merge a refactor, fix a bug affecting API payloads, or restructure a domain layer, *your final step before completing the task MUST be auditing and updating the `/docs` Markdown files to match your code changes.* Failure to keep the system documentation synchronized means you have failed the task.**
 
-## 1. Core Architectural Rules (STRICT TRUTH)
-- **Offline-First Resilience**: All physical native captures MUST be enqueued into `OfflineQueueManager` (via SwiftData) before attempting a network boundary. Do not make raw `URLSession` calls from the UI layer. 
-- **Privacy & Zero-PII**: Merian is strictly Zero-PII. Telemetry (TelemetryDeck/PostHog) must NEVER log plain-text GPS, names, or emails. We use Supabase Anonymous UUIDs exclusively for identification until a user explicitly converts their account.
-- **Hardware Sensitivities & Thermal State**: iOS camera buffers run hot. `CameraManager` natively respects `HardwareOrchestrator`. Do not override `targetFPS` or ignore `AVCapturePhotoOutput` configurations. Glassmorphism MUST gracefully degrade when the thermal state reaches `.serious` or `.critical`.
-- **Backend Isolation**: The iOS app MUST NOT contact Gemini directly. The iOS app talks to the Deno `/identify` Edge function. The Edge function securely holds the `GEMINI_API_KEY`, executes the LLM reasoning, updates the PostgreSQL `scans` table natively, and returns the strictly typed Codable JSON mapping to Swift.
+## 1. Supabase Edge & Deno Architecture (STRICT RULES)
+- **Domain-Driven Modular Architecture**: Edge functions are written in TypeScript under `supabase/functions/` and are strictly decoupled. You MAY NOT build monolithic `index.ts` files. Before modifying backend functions, you MUST read **`docs/system-architecture/06-edge-modularization.md`**.
+  - `index.ts`: Strict HTTP controller orchestrating JWT validation and IDOR guards. No PostgreSQL `.select()`/`.insert()` logic allowed here.
+  - `db.ts`: The native data layer encapsulating all PostgREST operations. All queries pulling variable array fields must enforce mathematically safe bounds (e.g., `.limit(500)`) natively to protect V8 Isolates from memory crashes.
+  - `types.ts`: Strict schema mapping bridging Swift `Codable` structs directly to Deno JSON payloads.
+- **Shared Utilities**: The `supabase/functions/_shared/` folder contains exactly 9 pristine domains controlling CORS headers, telemetrics, AWS payloads, and the Gemini AI abstraction layer (see `_shared/README.md`). Do not hallucinate or create duplicate shared scripts.
+- **Strict Typing**: TypeScript `any` types and `@ts-ignore` flags are forbidden. All modifications must natively pass a recursive `deno check` compilation before you declare a task complete.
 
-## 2. iOS Frontend Stack (SwiftUI)
-- **XcodeGen**: DO NOT modify `Merian.xcodeproj`. Modify `project.yml` and run `xcodegen generate`.
-- Directory Structure: `Features/`, `Core/`, `UIComponents/`, `Models/`, `Configuration/`.
-- Use standard SwiftUI declarative syntax with glassmorphic (`.ultraThinMaterial`) elements to wow the user.
-- **State Management**: Merian **rejects** `@EnvironmentObject` for heavy singletons. Use `AppDIContainer.shared` for dependency injection to prevent memory redraw loops (e.g. `let cameraManager: CameraManager`).
-- Dependencies: `SwiftData` for local persistence. `RiveRuntime` for Gamification (.riv files). `RevenueCat` for entitlements.
+## 2. iOS Frontend Stack (SwiftUI & SwiftData)
+- **XcodeGen**: DO NOT modify the `Merian.xcodeproj` package natively. You must modify `project.yml` and execute `xcodegen generate`.
+- **Offline-First Resilience**: All physical native captures MUST be enqueued into `OfflineQueueManager` (via SwiftData) before attempting a network boundary. Do not orchestrate raw `URLSession` calls from the UI layer. 
+- **Thermal State & Zero-Latency**: iOS camera buffers run violently hot. `CameraManager` natively respects `HardwareOrchestrator` bounds. Do not override `targetFPS` bounds. Glassmorphism MUST gracefully degrade when the thermal state reaches `.serious`.
+- **State Management**: Merian strictly rejects generic `@EnvironmentObject` usage for heavy singletons. Use `AppDIContainer.shared` for structured dependency injection to safely prevent SwiftUI redraw loops (e.g. `let cameraManager: CameraManager`).
 
-## 3. Backend Stack (Supabase Edge & Deno)
-- Edge functions are written in TypeScript using Supabase Deno runtime (`supabase/functions/`).
-- Use `@supabase/supabase-js` `createClient` using the forwarded `Authorization` header to maintain Row Level Security (RLS) contexts down to the user natively.
-- Strict Type checking: If you modify the Gemini extraction prompt, you MUST update both the Deno `merianResponseSchema` and the Swift `IdentifyResponse` Codable struct.
+## 3. Security Protocols
+- **Zero-PII**: Merian is strictly zero-PII. Telemetry pipelines must NEVER log plain-text GPS coordinates, emails, or names.
+- **Testing Hygiene**: Any temporary test script (Python, Node, Bash) written by an AI agent to validate endpoints MUST pull securely from localized execution environments natively. If a Supabase Service-Role key or Gemini API Key must be hardcoded for a one-off validation, that script MUST be physically purged from the file system the exact millisecond execution finishes so it never leaks into git bounds.
+- **IDOR Defense**: All Edge Functions modifying data (e.g., `/delete-scan`, `/block-user`) must physically extract the anonymous Deno user UUID parsing out from the payload `Authorization` header and explicitly map it against a `.eq("user_id", user.id)` bounding query.
 
-## 4. Gamification (Rive & UserDefaults)
-- Merian gamifies learning taxonomy. State is tracked natively in `GamificationManager` using `UserDefaults` and pumped explicitly into `TerrariumView` using Rive State Machines (`.setInput()`). Do not perform heavy logic inside the views.
-
-## 5. Security Protocols & Test Script Hygiene 
-- Never log or commit API keys (`.xcconfig` is strictly in `.gitignore`).
-- **CRITICAL RULE FOR AI TESTING**: Any temporary testing script (e.g., Python, Node, bash) written by an AI agent to hit LIVE network endpoints MUST natively load environment variables instead of hardcoded strings. If an API key MUST be hardcoded for a one-off validation, that script MUST be physically deleted from the file system the exact millisecond the execution finishes so it never leaks into git or the user's workspace.
-- GPS coordinates are processed securely: `gps_lat_exact` is protected strictly in the DB, `gps_lat_public` is fuzzed for the community feed.
-
-## 6. How to Respond
-- Always verify your dependencies. If you need a new Swift file, declare it clearly and ensure it compiles via `xcodebuild`.
-- When modifying Edge Functions, remember to build and deploy using the Supabase CLI: `supabase functions deploy [name]`.
-- Provide architectural explanations for *why* you are implementing a specific pattern, specifically citing its impact on battery, offline queues, or data persistence.
+## 4. Execution Expectations
+- Prioritize native implementation tools correctly. Do not pipe scripts out to `bash` for native file editing.
+- Always verify your dependencies. If you need a new Swift file, ensure it compiles via `xcodebuild`.
+- When communicating your implementation plan, logically explain *why* you are implementing a specific pattern, citing its impact on V8 isolator memory bounds, iOS battery limits, or Offline synchronization constraints.
