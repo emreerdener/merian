@@ -2,8 +2,42 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { fetchSimilarSpecies } from "../_shared/similar-species.ts";
 import { requireParams } from "../_shared/validation.ts";
-import { fetchStaticEncyclopedicData } from "../_shared/encyclopedic.ts";
+import { fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/encyclopedic.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
+import { getCachedSpecies, updateSpeciesEnrichment } from "./db.ts";
+import { CachedSpeciesData } from "./types.ts";
+
+function formatEnrichmentPayload(
+  cachedSpecies: CachedSpeciesData | null,
+  enrichmentResult: EncyclopedicData | null,
+  similarResult: { similar_species: string[] } | null,
+  needsSimilarSpecies: boolean,
+  hasSimilarSpecies: boolean,
+) {
+  return {
+    habitat_description:
+      enrichmentResult?.habitat_description ??
+      cachedSpecies?.habitat_description ??
+      "No habitat data available.",
+    gbif_taxon_key: cachedSpecies?.gbif_taxon_key,
+    similar_species: needsSimilarSpecies
+      ? similarResult ||
+        (hasSimilarSpecies
+          ? {
+              lookalike_species: cachedSpecies!.similar_species ?? [],
+            }
+          : null)
+      : null,
+    taxonomy: {
+      kingdom: enrichmentResult?.taxonomy?.kingdom ?? cachedSpecies?.kingdom ?? "Unknown",
+      phylum: enrichmentResult?.taxonomy?.phylum ?? cachedSpecies?.phylum ?? "Unknown",
+      class: enrichmentResult?.taxonomy?.class ?? cachedSpecies?.class ?? "Unknown",
+      order: enrichmentResult?.taxonomy?.order ?? cachedSpecies?.order ?? "Unknown",
+      family: enrichmentResult?.taxonomy?.family ?? cachedSpecies?.family ?? "Unknown",
+      genus: enrichmentResult?.taxonomy?.genus ?? cachedSpecies?.genus ?? "Unknown",
+    },
+  };
+}
 
 serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
@@ -14,85 +48,42 @@ serve((req: Request) =>
       return jsonResponse({ error: "Invalid JSON body" }, 400);
     }
 
-    const paramErr = requireParams(body, [
-      "scientific_name",
-      "confidence_score",
-    ]);
+    const paramErr = requireParams(body, ["scientific_name", "confidence_score"]);
     if (paramErr) return paramErr;
 
     const { scientific_name, confidence_score } = body;
 
-    // Check what we already have for this species in PG
-    const { data: cachedSpecies, error } = await supabaseAdmin
-      .from("species_dictionary")
-      .select(
-        "gbif_taxon_key, habitat_description, kingdom, phylum, class, order, family, genus, similar_species",
-      )
-      .eq("scientific_name", scientific_name)
-      .maybeSingle();
-
-    if (error && error.code !== "PGRST116") throw error;
+    const cachedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
 
     const hasEnrichment =
       cachedSpecies?.habitat_description !== null &&
       cachedSpecies?.habitat_description !== undefined;
 
-    // We only perform the expensive Gemini lookalikes lookup on 'possible' or 'speculative' matches
     const needsSimilarSpecies = confidence_score < 0.88;
     const hasSimilarSpecies =
       cachedSpecies?.similar_species !== null &&
       cachedSpecies?.similar_species !== undefined;
 
-    // Fast-path: we already have everything required
     if (hasEnrichment && (!needsSimilarSpecies || hasSimilarSpecies)) {
       console.log(`[enrich-scan] CACHE HIT for ${scientific_name}`);
-
       return jsonResponse(
         {
           success: true,
-          data: {
-            habitat_description: cachedSpecies!.habitat_description,
-            gbif_taxon_key: cachedSpecies!.gbif_taxon_key,
-            similar_species:
-              needsSimilarSpecies && hasSimilarSpecies
-                ? {
-                    lookalike_species: cachedSpecies!.similar_species ?? [],
-                  }
-                : null,
-            taxonomy: {
-              kingdom: cachedSpecies!.kingdom ?? "Unknown",
-              phylum: cachedSpecies!.phylum ?? "Unknown",
-              class: cachedSpecies!.class ?? "Unknown",
-              order: cachedSpecies!.order ?? "Unknown",
-              family: cachedSpecies!.family ?? "Unknown",
-              genus: cachedSpecies!.genus ?? "Unknown",
-            },
-          },
+          data: formatEnrichmentPayload(
+            cachedSpecies,
+            null,
+            null,
+            needsSimilarSpecies,
+            hasSimilarSpecies,
+          ),
         },
         200,
       );
     }
 
-    // Fire enrichment and similar species Flash calls in parallel for whatever is missing.
     const enrichmentPromise = hasEnrichment
-      ? Promise.resolve(cachedSpecies)
-      : (async () => {
-          const result = await fetchStaticEncyclopedicData(
-            _user,
-            scientific_name,
-          );
-
-          return {
-            usage: result.usage,
-            habitat_description: result.habitat_description,
-            kingdom: result.taxonomy.kingdom,
-            phylum: result.taxonomy.phylum,
-            class: result.taxonomy.class,
-            order: result.taxonomy.order,
-            family: result.taxonomy.family,
-            genus: result.taxonomy.genus,
-          };
-        })();
+      ? Promise.resolve(null)
+      : fetchStaticEncyclopedicData(_user, scientific_name);
 
     const similarSpeciesPromise =
       !needsSimilarSpecies || hasSimilarSpecies
@@ -105,104 +96,46 @@ serve((req: Request) =>
         similarSpeciesPromise,
       ]);
 
-      const totalTokens = 
-          ((enrichmentResult as any)?.usage?.totalTokenCount ?? 0) + 
-          (similarResult?.usage?.totalTokenCount ?? 0);
+      const totalTokens =
+        (enrichmentResult?.usage?.totalTokenCount ?? 0) +
+        (similarResult?.usage?.totalTokenCount ?? 0);
 
       if (totalTokens > 0) {
         await trackPostHogEvent(_user, "EnrichmentCostAnalyzed", {
           scientific_name,
-          encyclopedic_tokens: (enrichmentResult as any)?.usage?.totalTokenCount ?? 0,
+          encyclopedic_tokens: enrichmentResult?.usage?.totalTokenCount ?? 0,
           similar_species_tokens: similarResult?.usage?.totalTokenCount ?? 0,
           cumulative_scan_tokens: totalTokens,
         });
       }
 
-      // Persist whatever was freshly generated.
-      const persistOps: PromiseLike<unknown>[] = [];
-      if (!hasEnrichment && enrichmentResult) {
-        persistOps.push(
-          supabaseAdmin
-            .from("species_dictionary")
-            .update({
-              habitat_description: (
-                enrichmentResult as { habitat_description: string }
-              ).habitat_description,
-            })
-            .eq("scientific_name", scientific_name),
-        );
-      }
-      if (!hasSimilarSpecies && similarResult) {
-        persistOps.push(
-          supabaseAdmin
-            .from("species_dictionary")
-            .update({
-              similar_species: similarResult.similar_species,
-            })
-            .eq("scientific_name", scientific_name),
-        );
-      }
-      await Promise.allSettled(persistOps);
-
-      console.log(
-        `[enrich-scan] CACHE MISS: Generated enrichment for ${scientific_name}`,
+      await updateSpeciesEnrichment(
+        scientific_name,
+        enrichmentResult,
+        similarResult,
+        supabaseAdmin,
       );
+
+      console.log(`[enrich-scan] CACHE MISS: Generated enrichment for ${scientific_name}`);
 
       return jsonResponse(
         {
           success: true,
-          data: {
-            habitat_description:
-              (enrichmentResult as Record<string, string>)
-                ?.habitat_description ??
-              cachedSpecies?.habitat_description ??
-              "No habitat data available.",
-            gbif_taxon_key: cachedSpecies?.gbif_taxon_key,
-            similar_species: needsSimilarSpecies
-              ? similarResult ||
-                (hasSimilarSpecies
-                  ? {
-                      lookalike_species: cachedSpecies!.similar_species ?? [],
-                    }
-                  : null)
-              : null,
-            taxonomy: {
-              kingdom:
-                (enrichmentResult as Record<string, string>)?.kingdom ??
-                cachedSpecies?.kingdom ??
-                "Unknown",
-              phylum:
-                (enrichmentResult as Record<string, string>)?.phylum ??
-                cachedSpecies?.phylum ??
-                "Unknown",
-              class:
-                (enrichmentResult as Record<string, string>)?.class ??
-                cachedSpecies?.class ??
-                "Unknown",
-              order:
-                (enrichmentResult as Record<string, string>)?.order ??
-                cachedSpecies?.order ??
-                "Unknown",
-              family:
-                (enrichmentResult as Record<string, string>)?.family ??
-                cachedSpecies?.family ??
-                "Unknown",
-              genus:
-                (enrichmentResult as Record<string, string>)?.genus ??
-                cachedSpecies?.genus ??
-                "Unknown",
-            },
-          },
+          data: formatEnrichmentPayload(
+            cachedSpecies,
+            enrichmentResult,
+            similarResult,
+            needsSimilarSpecies,
+            hasSimilarSpecies,
+          ),
         },
         200,
       );
     } catch (e: unknown) {
       console.error("[enrich-scan] LLM error:", e);
-      const message = e instanceof Error ? e.message : "Failed to process scan data.";
-      return jsonResponse(
-        { success: false, error: message },
-        500,
-      );
+      const message =
+        e instanceof Error ? e.message : "Failed to process scan data.";
+      return jsonResponse({ success: false, error: message }, 500);
     }
   }),
 );

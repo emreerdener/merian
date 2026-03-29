@@ -11,6 +11,25 @@ The AI inference layer is split across three files under `merian/Core/AI/`:
 - **`InferenceEdgeDTOs.swift`**: Codable DTOs used for Edge communication: `APIError`, `EdgeResponseWrapper`, and `EdgeResponse`.
 - **`InferenceEdgeDTOs.swift`** also declares `EnrichScanResponse` — the `Codable` DTO for the `enrich-scan` Edge Function response, with nested `EnrichData` and `DiagnosticData` structs.
 
+## Edge Function Architecture (`/identify`)
+
+The `/identify` Supabase Edge Function is heavily modularized to guarantee minimal "Time-To-First-Meaning" (TTFM). The traditional monolith is split by strict domain responsibility, keeping the critical-path orchestrator extremely lightweight:
+
+- **`index.ts`**: The main orchestrator. Executes the critical path (base64 image resolution, Gemini model invocation, Postgres caching checks) and safely spins off all telemetry and caching UPSERTS into a non-blocking background task.
+- **`schema.ts`**: The semantic logic. Contains the highly specific `systemInstruction` prompting rules and the strongly-typed `merianResponseSchema` enforced on the Gemini payload output.
+- **`types.ts`**: The API contracts. Exports `MerianIdentification` and `ClientPayload` to perfectly map the Edge function's structure back to the iOS `InferenceEdgeDTOs.swift`.
+- **`media.ts`**: Safely handles chunked sequential `R2` Base64 buffer loading to protect Deno's V8 edge heap constraints from crashing under massive multi-image payloads.
+- **`db.ts`**: Encapsulates specific database wrappers (like Ghost User tier creation bounds) away from the clean background process loop.
+- **`../_shared/` Micro-Agents**: Auxiliary generation tools like `fetchExternalEnrichment` (Wikipedia/GBIF REST API polling), `fetchGroupTags` (Flash AI), and `fetchStaticEncyclopedicData` sit at the root level, making them globally accessible to both the `identify` and `enrich-scan` edge environments.
+
+## Edge Function Architecture (`/enrich-scan`)
+
+The `/enrich-scan` Supabase Edge Function handles on-demand encyclopedic lookup (habitat, taxonomy, and similar species lookalikes) for legacy scans lacking full metadata.
+
+- **`index.ts`**: The main orchestrator. Re-routes data fetched by the shared micro-agents, handling the concurrent `Promise.all` logic based on what Postgres data is currently missing. Unifies the output via `formatEnrichmentPayload` to strictly guarantee uniform JSON contracts back to Swift.
+- **`types.ts`**: Strict TypeScript interfaces tracking the shape of `CachedSpeciesData` returned from Postgres. Removing these inline types from the orchestrator eliminates dangerous semantic type-casting across asynchronous LLM results.
+- **`db.ts`**: Encapsulates the Postgres cached dictionary lookup and targeted UPSERT patching.
+
 ### Enrichment Pipeline (`isEnrichmentLoading` / `fetchAndApplyEnrichment`)
 
 After a successful biological scan, `InferenceEngine` automatically fires `fetchAndApplyEnrichment(modelContext:)` for all users:
