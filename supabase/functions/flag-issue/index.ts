@@ -1,41 +1,44 @@
+// deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/validation.ts";
 
+import { insertFlagRecord, markScanAsFlagged } from "./db.ts";
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const body = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
     const paramErr = requireParams(body, ["scanId", "flagReason"]);
     if (paramErr) return paramErr;
+    
     const { scanId, flagReason, userSuggestion } = body;
 
     // 1. Insert a moderation queue record
-    const { error: insertError } = await supabaseAdmin
-      .from("flagged_reviews")
-      .insert({
-        scan_id: scanId,
-        user_id: user.id,
-        flag_reason: flagReason,
-        user_suggestion: userSuggestion
-      });
+    await insertFlagRecord(
+      scanId,
+      user.id,
+      flagReason,
+      userSuggestion,
+      supabaseAdmin,
+    );
 
-    if (insertError) {
-      throw new Error(`Failed to insert flagged review record: ${insertError.message}`);
-    }
+    // 2. Mark the scan as flagged natively
+    await markScanAsFlagged(
+      scanId,
+      flagReason,
+      userSuggestion,
+      supabaseAdmin,
+    );
 
-    // 2. Mark the scan as flagged
-    const { error: updateError } = await supabaseAdmin
-      .from("scans")
-      .update({
-        is_flagged: true,
-        human_intervention_notes: `Flag Reason: ${flagReason} | Suggestion: ${userSuggestion ?? "None"}`
-      })
-      .eq("id", scanId);
-
-    if (updateError) {
-      throw new Error(`Failed to update scan record: ${updateError.message}`);
-    }
-
-    return jsonResponse({ success: true, message: "Report submitted for moderation." }, 200);
-  })
+    return jsonResponse(
+      { success: true, message: "Report submitted for moderation." },
+      200,
+    );
+  }),
 );
