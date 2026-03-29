@@ -36,7 +36,7 @@ struct PaywallView: View {
                         .padding(.bottom, 8)
 
                     Text("Merian Pro")
-                        .font(.system(.largeTitle))
+                        .font(.system(.largeTitle, design: .serif))
                         .fontWeight(.heavy)
 
                     Text("Unlock the full power of our AI and explore the wilderness without limits.")
