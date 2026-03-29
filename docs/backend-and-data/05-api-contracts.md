@@ -448,8 +448,8 @@ No JSON body is required. The cron trigger issues an empty POST request.
 ### Deletion Safety
 1. Queries scans isolated strictly to `is_biological_subject == false` where `timestamp < 30 days ago`.
 2. Employs `.limit(500)` memory pagination barriers to prevent container timeout triggers.
-3. Clears Cloudflare R2 binary references using parallel promises.
-4. Executes the `.delete().in(...)` cascade against PostgreSQL only if R2 deletion doesn't crash the Node isolate.
+3. Aggregates all R2 `image_storage_urls` across the 500 scans and executes a single, massive batch `.deleteR2Objects([])` command natively against the Cloudflare API to minimize HTTP overhead.
+4. Executes the discrete `.delete().in("id", [...])` cascade against PostgreSQL only after successfully purging the R2 remote hashes, preventing orphan binaries.
 
 ---
 

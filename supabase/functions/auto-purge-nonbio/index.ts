@@ -1,22 +1,35 @@
+// deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { getR2Config, deleteR2Objects } from "../_shared/aws.ts";
+import { deleteR2Objects, getR2Config } from "../_shared/aws.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 import { timingSafeCompare } from "../_shared/security.ts";
 
+import { deleteScansBulk, fetchStaleNonBioScans } from "./db.ts";
+
+function jsonResponse(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req: Request) => {
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
-      status: 405, headers: { "Content-Type": "application/json" }
-    });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method Not Allowed" }, 405);
+  }
+
+  // 1. Authenticate the Webhook via Service Role Key natively
   const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
   const providedAuth = req.headers.get("Authorization") ?? "";
 
+  // Defend against timing attacks determining API key length
   if (!timingSafeCompare(providedAuth, expectedAuth)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { "Content-Type": "application/json" }
-    });
+    return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
   try {
@@ -24,60 +37,49 @@ serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Query non-biological scans older than 30 days (limit 500 to prevent memory pressure)
+    // 2. Query non-biological scans older than 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const boundaryIso = thirtyDaysAgo.toISOString();
 
-    const { data: scans, error: fetchError } = await supabaseAdmin
-      .from("scans")
-      .select("id, image_storage_urls")
-      .eq("is_biological_subject", false)
-      .lt("timestamp", thirtyDaysAgo.toISOString())
-      .limit(500);
+    const scans = await fetchStaleNonBioScans(boundaryIso, supabaseAdmin);
 
-    if (fetchError) {
-      throw fetchError;
-    }
-
-    if (!scans || scans.length === 0) {
-      return new Response(JSON.stringify({ message: "No non-biological scans to purge." }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      });
+    if (scans.length === 0) {
+      return jsonResponse(
+        { message: "No non-biological scans to purge." },
+        200,
+      );
     }
 
     const r2Config = getR2Config();
     const idsToDelete: string[] = [];
+    const mediaToWipe: string[] = [];
 
-    // 2. Delete R2 images for each scan
+    // 3. Batch extract media URLs and IDs
     for (const scan of scans) {
       idsToDelete.push(scan.id);
-      const urls: string[] = scan.image_storage_urls || [];
-      await deleteR2Objects(urls, r2Config);
-    }
-
-    // 3. Delete scans from database
-    if (idsToDelete.length > 0) {
-      const { error: deleteError } = await supabaseAdmin
-        .from("scans")
-        .delete()
-        .in("id", idsToDelete);
-
-      if (deleteError) {
-        throw deleteError;
+      if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
+        mediaToWipe.push(...scan.image_storage_urls);
       }
     }
 
-    return new Response(JSON.stringify({ success: true, count: idsToDelete.length }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" }
-    });
+    // 4. Delete all aggregated R2 images via Cloudflare AWS protocol natively
+    if (mediaToWipe.length > 0) {
+      await deleteR2Objects(mediaToWipe, r2Config);
+    }
 
+    // 5. Purge the IDs cleanly from Postgres
+    await deleteScansBulk(idsToDelete, supabaseAdmin);
+
+    console.log(`Purged ${idsToDelete.length} stale non-biological scans`);
+
+    return jsonResponse(
+      { success: true, count: idsToDelete.length },
+      200,
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
+    console.error(`Auto Purge Error: ${message}`);
+    return jsonResponse({ error: message }, 500);
   }
 });
