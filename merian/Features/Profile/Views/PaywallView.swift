@@ -119,7 +119,6 @@ struct PaywallView: View {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.secondary)
                     }
                 }
             }

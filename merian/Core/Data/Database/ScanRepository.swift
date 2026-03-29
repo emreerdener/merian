@@ -518,7 +518,8 @@ actor HistoricalDatabaseActor {
                 individualCount: scan.individual_count,
                 ecologicalInteractions: scan.ecological_interactions,
                 inferenceTier: scan.inference_tier ?? "flash",
-                customTags: scan.custom_tags ?? []
+                customTags: scan.custom_tags ?? [],
+                hasBeenViewed: true
             )
 
             modelContext.insert(record)

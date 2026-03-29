@@ -40,6 +40,17 @@ struct ScansGrid<MenuContent: View>: View {
                     ScanThumbnail(imagePath: scan.localImagePath, fallbackImageUrl: scan.referenceImageUrl, maxDimension: thumbnailSize)
                         .overlay(
                             ZStack {
+                                if !scan.hasBeenViewed {
+                                    Circle()
+                                        .fill(Color.blue)
+                                        .frame(width: 12, height: 12)
+                                        .overlay(
+                                            Circle().strokeBorder(Color.white, lineWidth: 1.5)
+                                        )
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                                        .padding(6)
+                                }
+                                
                                 if isSelectionMode {
                                     if isSelected?(scan) == true {
                                         Color.blue.opacity(0.6)

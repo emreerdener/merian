@@ -223,6 +223,12 @@ final class InsightSheetViewModel {
     
     func fetchLocalRecord(for scanId: String, modelContext: ModelContext) {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        activeLocalRecord = (try? modelContext.fetch(descriptor))?.first
+        if let record = (try? modelContext.fetch(descriptor))?.first {
+            activeLocalRecord = record
+            if !record.hasBeenViewed {
+                record.hasBeenViewed = true
+                try? modelContext.save()
+            }
+        }
     }
 }
