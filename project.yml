@@ -95,6 +95,9 @@ targets:
         INFOPLIST_KEY_CFBundleIconFiles: AppIcon
         DEVELOPMENT_TEAM: LDL96V2WT5
         CODE_SIGN_STYLE: Automatic
+    configs:
+      Release:
+        CODE_SIGN_IDENTITY: "Apple Development"
 
   merianTests:
     type: bundle.unit-test
