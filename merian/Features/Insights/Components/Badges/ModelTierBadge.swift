@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ModelTierBanner: View {
+struct ModelTierBadge: View {
     let confidenceScore: Double?
     let inferenceTier: String?
     
@@ -12,22 +12,21 @@ struct ModelTierBanner: View {
                 AppEventPublisher.shared.send(.triggerPaywall)
             }) {
                 HStack(alignment: .center, spacing: 6) {
+                    Image(systemName: "sparkle")
+                        .font(.footnote.weight(.bold))
+                        
                     Text("Get higher confidence with Pro")
                         .font(.footnote.weight(.medium))
                         
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.bold))
-                        .foregroundStyle(.secondary)
                 }
+                .foregroundStyle(Color(uiColor: .systemBackground))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(
                     Capsule()
-                        .fill(Color(uiColor: .secondarySystemBackground))
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                        .fill(Color.primary)
                 )
             }
             .buttonStyle(.plain)

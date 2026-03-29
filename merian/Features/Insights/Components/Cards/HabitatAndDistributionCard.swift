@@ -16,15 +16,26 @@ struct HabitatAndDistributionCard: View {
             // MARK: - Map View
             ZStack(alignment: .bottom) {
                 if inferenceEngine.isEnrichmentLoading {
-                    TopRoundedRectangle(radius: 24)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(Color(uiColor: .systemFill))
                         .frame(height: 280)
                         .redacted(reason: .placeholder)
                         .shimmering()
                 } else {
                     GBIFHeatmapMapView(taxonKey: inferenceEngine.speciesData?.gbifTaxonKey)
-                        .frame(height: 280)
-                        .clipShape(TopRoundedRectangle(radius: 24))
+                        .frame(height: 260)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(Color.black.opacity(0.3), lineWidth: 4)
+                                .blur(radius: 6)
+                                .offset(y: 2)
+                                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Crisp inner border line
+                        )
                     
                     if inferenceEngine.speciesData?.gbifTaxonKey == nil {
                         Text("No distribution data available")
@@ -39,6 +50,7 @@ struct HabitatAndDistributionCard: View {
                     }
                 }
             }
+            .padding(.horizontal, 16)
 
             // MARK: - Content Below Map
             VStack(alignment: .leading, spacing: 16) {
@@ -175,17 +187,4 @@ private extension View {
     }
 }
 
-// MARK: - Top Rounded Rectangle
 
-private struct TopRoundedRectangle: Shape {
-    var radius: CGFloat
-    
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: [.topLeft, .topRight],
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
-    }
-}

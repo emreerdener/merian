@@ -36,7 +36,7 @@ struct PaywallView: View {
                         .padding(.bottom, 8)
 
                     Text("Merian Pro")
-                        .font(.system(.largeTitle, design: .rounded))
+                        .font(.system(.largeTitle))
                         .fontWeight(.heavy)
 
                     Text("Unlock the full power of our AI and explore the wilderness without limits.")
@@ -135,6 +135,8 @@ struct PackageCardButton: View {
     @Environment(\.dismiss) var dismiss
 
     let package: Package
+    
+    @State private var shimmerPhase: CGFloat = -0.5
 
     private var titleText: String {
         switch package.packageType {
@@ -192,9 +194,28 @@ struct PackageCardButton: View {
                     .padding(.vertical, 8)
                     .padding(.horizontal, 16)
                     .background(
-                        LinearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        LinearGradient(
+                            colors: [Color(red: 0.04, green: 0.40, blue: 0.25), Color(red: 0.12, green: 0.65, blue: 0.45)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
                     .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    stops: [
+                                        .init(color: .clear, location: shimmerPhase - 0.2),
+                                        .init(color: .white.opacity(0.9), location: shimmerPhase),
+                                        .init(color: .clear, location: shimmerPhase + 0.2)
+                                    ],
+                                    startPoint: .bottomTrailing,
+                                    endPoint: .topLeading
+                                ),
+                                lineWidth: 1.5
+                            )
+                    )
             }
             .padding()
             .background(Color(uiColor: .secondarySystemGroupedBackground))
@@ -203,9 +224,29 @@ struct PackageCardButton: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(Color.green.opacity(package.packageType == .annual ? 0.3 : 0), lineWidth: 2)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: shimmerPhase - 0.2),
+                                .init(color: .green.opacity(0.6), location: shimmerPhase),
+                                .init(color: .clear, location: shimmerPhase + 0.2)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+            )
             .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
+        .onAppear {
+            withAnimation(.linear(duration: 2.0).delay(3.5).repeatForever(autoreverses: false)) {
+                shimmerPhase = 1.5
+            }
+        }
     }
 
     // MARK: - Actions

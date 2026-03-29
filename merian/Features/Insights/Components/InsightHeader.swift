@@ -12,7 +12,7 @@ struct InsightHeader: View {
         VStack(alignment: .center, spacing: 24) {
              VStack(spacing: 16) {
                  ConfidenceBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
-                 ModelTierBanner(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
+                 ModelTierBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
              }
              
              VStack(alignment: .center, spacing: 8) {
