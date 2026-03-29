@@ -1,44 +1,45 @@
+// deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { hasRecentExportJob, queueExportJob } from "./db.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const { includePreciseCoordinates = false, exportScope = "user" } = await req.json();
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    const { includePreciseCoordinates = false, exportScope = "user" } =
+      requestBody;
     const userId = user.id;
 
     // 1. Rate Limit: Ensure only 1 export per 24 hours
-    const { data: recentJobs, error: selectError } = await supabaseAdmin
-      .from("export_jobs")
-      .select("created_at")
-      .eq("user_id", userId)
-      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .limit(1);
+    const hasLimiterHit = await hasRecentExportJob(userId, supabaseAdmin);
 
-    if (selectError) {
-      throw new Error(`Failed to verify rate limit: ${selectError.message}`);
-    }
-
-    if (recentJobs && recentJobs.length > 0) {
+    if (hasLimiterHit) {
       return jsonResponse(
-        { error: "Rate Limit Exceeded", message: "You can only request one DwC-A export every 24 hours." },
-        429
+        {
+          error: "Rate Limit Exceeded",
+          message: "You can only request one DwC-A export every 24 hours.",
+        },
+        429,
       );
     }
 
-    // 2. Queue the Export
-    const { error } = await supabaseAdmin
-      .from("export_jobs")
-      .insert({
-        user_id: userId,
-        export_scope: exportScope,
-        include_precise_coordinates: includePreciseCoordinates,
-        status: "pending",
-      });
+    // 2. Queue the Export for the Heavy Worker Webhook
+    await queueExportJob(
+      userId,
+      exportScope,
+      includePreciseCoordinates,
+      supabaseAdmin,
+    );
 
-    if (error) {
-      throw new Error(`Failed to queue export job: ${error.message}`);
-    }
-
-    return jsonResponse({ success: true, message: "Export job queued successfully." }, 200);
-  })
+    return jsonResponse(
+      { success: true, message: "Export job queued successfully." },
+      200,
+    );
+  }),
 );
