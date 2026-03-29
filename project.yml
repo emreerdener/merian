@@ -1,4 +1,9 @@
 name: Merian
+settings:
+  base:
+    DEVELOPMENT_TEAM: LDL96V2WT5
+    CODE_SIGN_STYLE: Automatic
+
 options:
   bundleIdPrefix: app.merian
   developmentTeam: "LDL96V2WT5"
@@ -94,6 +99,8 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: LDL96V2WT5
+        CODE_SIGN_STYLE: Automatic
     dependencies:
       - target: Merian
 
@@ -105,6 +112,8 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: LDL96V2WT5
+        CODE_SIGN_STYLE: Automatic
     dependencies:
       - target: Merian
 
