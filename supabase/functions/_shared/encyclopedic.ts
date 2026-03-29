@@ -1,4 +1,4 @@
-import { SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { SchemaType, ResponseSchema, UsageMetadata } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
 import { trackPostHogEvent } from "./posthog.ts";
@@ -14,6 +14,7 @@ export interface EncyclopedicData {
   };
   iucn_red_list_status: string;
   habitat_description: string;
+  usage?: UsageMetadata;
 }
 
 export async function fetchStaticEncyclopedicData(
@@ -90,7 +91,11 @@ export async function fetchStaticEncyclopedicData(
       });
     }
 
-    return extractJson<EncyclopedicData>(result.response.text());
+    const extracted = extractJson<EncyclopedicData>(result.response.text());
+    if (usage) {
+      extracted.usage = usage;
+    }
+    return extracted;
   } catch (e) {
     console.error("Encyclopedic inference fallback failed:", e);
     return {

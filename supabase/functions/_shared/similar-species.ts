@@ -1,4 +1,4 @@
-import { SchemaType, ResponseSchema } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { SchemaType, ResponseSchema, UsageMetadata } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
 import { trackPostHogEvent } from "./posthog.ts";
@@ -50,9 +50,14 @@ export async function fetchSimilarSpecies(
         llm_total_tokens: usage.totalTokenCount,
       });
     }
-    return extractJson<{
+    const extracted = extractJson<{
       similar_species: string[];
+      usage?: UsageMetadata;
     }>(result.response.text());
+    if (usage) {
+      extracted.usage = usage;
+    }
+    return extracted;
   } catch (e) {
     console.error("fetchSimilarSpecies failed:", e);
     return null;

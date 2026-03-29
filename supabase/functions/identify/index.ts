@@ -7,6 +7,7 @@ import {
   SafetyRating,
   Part,
   ResponseSchema,
+  UsageMetadata,
 } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config } from "../_shared/aws.ts";
@@ -159,7 +160,7 @@ async function fetchExternalEnrichment(scientificName: string) {
 async function fetchGroupTags(
   user: User,
   scientificName: string,
-): Promise<string[] | null> {
+): Promise<{ group_tags: string[] | null; usage?: UsageMetadata } | null> {
   const model = createFlashModel(
     'You are a world-class biologist. Given a species scientific name, return 1–5 categorical group labels ordered from most broad to most specific (e.g. ["animal", "bird", "songbird", "warbler"]). Use plain lowercase English nouns only. Omit proper names and scientific names.',
     100,
@@ -208,7 +209,7 @@ async function fetchGroupTags(
     const parsed = extractJson<{ group_tags: string[] }>(
       result.response.text(),
     );
-    return parsed.group_tags ?? null;
+    return { group_tags: parsed.group_tags ?? null, usage };
   } catch (e) {
     console.error("fetchGroupTags failed:", e);
     return null;
@@ -697,6 +698,7 @@ serve((req: Request) =>
           ? fetchGroupTags(user, parsedData.scientific_name!)
           : Promise.resolve(null);
 
+        let encyclopedicUsage: UsageMetadata | undefined;
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
         // Runs after moderation so we don't persist data for flagged content.
         if (!speciesId && isIdentifiedBio) {
@@ -709,6 +711,7 @@ serve((req: Request) =>
             ),
             fetchExternalEnrichment(parsedData.scientific_name!),
           ]);
+          encyclopedicUsage = textResult.usage;
 
           const newCommonNames = cachedSpecies
             ? { ...cachedSpecies.common_names, en: parsedData.common_name }
@@ -772,6 +775,7 @@ serve((req: Request) =>
             parsedData.scientific_name!,
             deviceLocale || "en",
           );
+          encyclopedicUsage = textResult.usage;
           await supabaseAdmin
             .from("species_dictionary")
             .update({
@@ -839,6 +843,18 @@ serve((req: Request) =>
           return;
         }
 
+        // Await species-level Flash calls so their metadata is aggregated.
+        const [similarResult, groupTagsResult] = await Promise.all([
+          similarSpeciesPromise,
+          groupTagsPromise,
+        ]);
+
+        const totalTokens = 
+          (llmTotalTokens ?? 0) + 
+          (encyclopedicUsage?.totalTokenCount ?? 0) + 
+          (similarResult?.usage?.totalTokenCount ?? 0) + 
+          (groupTagsResult?.usage?.totalTokenCount ?? 0);
+
         // Track successful scan in PostHog
         await trackPostHogEvent(user, "ScanCompleted", {
           is_biological_subject: parsedData.is_biological_subject,
@@ -847,14 +863,12 @@ serve((req: Request) =>
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_total_tokens: llmTotalTokens,
+          encyclopedic_tokens: encyclopedicUsage?.totalTokenCount ?? 0,
+          similar_species_tokens: similarResult?.usage?.totalTokenCount ?? 0,
+          group_tags_tokens: groupTagsResult?.usage?.totalTokenCount ?? 0,
+          cumulative_scan_tokens: totalTokens,
           scientific_name: parsedData.scientific_name,
         });
-
-        // Await species-level Flash calls and upsert results to species_dictionary.
-        const [similarResult, groupTagsResult] = await Promise.all([
-          similarSpeciesPromise,
-          groupTagsPromise,
-        ]);
 
         if (needsSimilarSpecies && similarResult) {
           const diagStart = Date.now();
@@ -867,11 +881,11 @@ serve((req: Request) =>
           console.log(`[⏱ BENCH] bg_similar_species: ${Date.now() - diagStart}ms`);
         }
 
-        if (needsGroupTags && groupTagsResult && groupTagsResult.length > 0) {
+        if (needsGroupTags && groupTagsResult?.group_tags && groupTagsResult.group_tags.length > 0) {
           const tagsStart = Date.now();
           await supabaseAdmin
             .from("species_dictionary")
-            .update({ group_tags: groupTagsResult })
+            .update({ group_tags: groupTagsResult.group_tags })
             .eq("scientific_name", parsedData.scientific_name);
           console.log(`[⏱ BENCH] bg_group_tags: ${Date.now() - tagsStart}ms`);
         }

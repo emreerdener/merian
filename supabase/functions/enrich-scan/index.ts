@@ -82,11 +82,8 @@ serve((req: Request) =>
             scientific_name,
           );
 
-          await trackPostHogEvent(_user, "EnrichmentCompleted", {
-            scientific_name,
-          });
-
           return {
+            usage: result.usage,
             habitat_description: result.habitat_description,
             kingdom: result.taxonomy.kingdom,
             phylum: result.taxonomy.phylum,
@@ -107,6 +104,19 @@ serve((req: Request) =>
         enrichmentPromise,
         similarSpeciesPromise,
       ]);
+
+      const totalTokens = 
+          ((enrichmentResult as any)?.usage?.totalTokenCount ?? 0) + 
+          (similarResult?.usage?.totalTokenCount ?? 0);
+
+      if (totalTokens > 0) {
+        await trackPostHogEvent(_user, "EnrichmentCostAnalyzed", {
+          scientific_name,
+          encyclopedic_tokens: (enrichmentResult as any)?.usage?.totalTokenCount ?? 0,
+          similar_species_tokens: similarResult?.usage?.totalTokenCount ?? 0,
+          cumulative_scan_tokens: totalTokens,
+        });
+      }
 
       // Persist whatever was freshly generated.
       const persistOps: PromiseLike<unknown>[] = [];
