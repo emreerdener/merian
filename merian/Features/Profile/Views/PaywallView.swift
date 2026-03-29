@@ -10,6 +10,8 @@ struct PaywallFeature {
 let proFeatures = [
     PaywallFeature(icon: "infinity", title: "Unlimited Scans", description: "Identify species continuously without daily scan limits."),
     PaywallFeature(icon: "sparkles", title: "Pro AI Vision", description: "Access our most advanced, diagnostic-grade AI model."),
+    PaywallFeature(icon: "waveform", title: "Audio Recording", description: "Identify birds and insects by their distinct calls."),
+    PaywallFeature(icon: "square.stack.3d.up", title: "Multi-Capture Mode", description: "Upload multiple images or audio to help identify."),
     PaywallFeature(icon: "leaf.arrow.triangle.circlepath", title: "Ecological Telemetry", description: "Unlock deep dive insights like size and interactions.")
 ]
 
@@ -18,7 +20,8 @@ struct PaywallView: View {
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        ScrollView {
+        NavigationStack {
+            ScrollView {
             VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 12) {
@@ -32,12 +35,11 @@ struct PaywallView: View {
                             Circle()
                                 .fill(Color.green.opacity(0.1))
                         )
-                        .padding(.top, 32)
                         .padding(.bottom, 8)
 
                     Text("Merian Pro")
                         .font(.system(.largeTitle, design: .serif))
-                        .fontWeight(.heavy)
+                        .fontWeight(.bold)
 
                     Text("Unlock the full power of our AI and explore the wilderness without limits.")
                         .font(.subheadline)
@@ -112,8 +114,18 @@ struct PaywallView: View {
                 }
                 .padding(.bottom, 30)
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
         }
         .presentationBackground(Color(uiColor: .systemBackground))
+    }
     }
 
     // MARK: - Actions

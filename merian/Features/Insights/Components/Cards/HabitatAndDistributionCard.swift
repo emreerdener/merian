@@ -16,7 +16,7 @@ struct HabitatAndDistributionCard: View {
             // MARK: - Map View
             ZStack(alignment: .bottom) {
                 if inferenceEngine.isEnrichmentLoading {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
                         .fill(Color(uiColor: .systemFill))
                         .frame(height: 280)
                         .redacted(reason: .placeholder)
