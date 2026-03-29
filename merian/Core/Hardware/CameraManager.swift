@@ -159,7 +159,10 @@ import Accelerate
                 photoOutput.isHighResolutionCaptureEnabled = true
             }
 
-            if photoOutput.isDepthDataDeliverySupported {
+            // Only enable depth data delivery for photos if the device has LiDAR.
+            // Enabling stereoscopic depth on non-LiDAR dual-camera devices actively
+            // locks the video zoom factor to 1.0, rendering optical/digital zoom unusable.
+            if hasLiDAR, photoOutput.isDepthDataDeliverySupported {
                 photoOutput.isDepthDataDeliveryEnabled = true
             }
         }
