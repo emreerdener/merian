@@ -247,11 +247,12 @@ extension OfflineQueueManager {
         isCollectionSyncing = true
         
         collectionSyncTask = BackgroundTaskWrapper.execute(name: "CollectionSync") { [weak self] _ in
+            guard let self else { return }
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let success = await dbActor.pushCollectionsToEdge()
-            
+
             await MainActor.run {
-                self?.isCollectionSyncing = false
+                self.isCollectionSyncing = false
                 if success {
                     UserDefaults.standard.set(false, forKey: "needsCollectionSync")
                 }
