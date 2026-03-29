@@ -453,6 +453,25 @@ No JSON body is required. The cron trigger issues an empty POST request.
 
 ---
 
+## Deno `/auto-purge-domesticated` Edge Node
+
+A daily cron-job endpoint responsible for removing massive image footprints belonging to free-tier users who have scanned domesticated taxonomy (e.g., pets, houseplants) older than 90 days. It intentionally preserves the database row ID for offline user lifelist functionality, while zeroing out the network footprint. 
+
+### Request Payload
+No JSON body is required. The cron trigger issues an empty POST request.
+
+### Authentication Enforcement
+- Enforces strict cron authorization via `timingSafeCompare` against a `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` Authorization header. Returns `401` if invalid.
+- Blocks accidental `GET` evaluations by validating `req.method === "POST"`.
+
+### Deletion Safety
+1. Performs a PostgREST Inner Join `users!inner(...)` to evaluate `users.subscription_tier == "free"`.
+2. Queries scans where `ecology_type == 'domesticated'` and `timestamp < 90 days ago` with `.limit(500)`.
+3. Aggregates R2 `image_storage_urls` and batches the AWS `DeleteObjects` evaluation in chunks of 500 directly via `deleteR2Objects`, honoring the strict Cloudflare 1,000 Key limit natively.
+4. Safely executes `.update({ image_storage_urls: [] })` across the 500 scans to synchronize PostgreSQL natively without destroying the row telemetry context!
+
+---
+
 ## Deno `/revenuecat-webhook` Edge Node
 
 Receives POST push events triggered natively from the RevenueCat subscription platform to update Supabase row bounds directly, bypassing the iOS SDK entirely.

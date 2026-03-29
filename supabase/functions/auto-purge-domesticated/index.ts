@@ -1,22 +1,34 @@
+// deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { getR2Config, deleteR2Objects } from "../_shared/aws.ts";
+import { deleteR2Objects, getR2Config } from "../_shared/aws.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 import { timingSafeCompare } from "../_shared/security.ts";
 
+import { fetchStaleDomesticatedScans, zeroOutDomesticatedUrls } from "./db.ts";
+
+function jsonResponse(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req: Request) => {
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
-      status: 405, headers: { "Content-Type": "application/json" }
-    });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method Not Allowed" }, 405);
+  }
+
+  // 1. Authenticate the Webhook via Service Role Key natively
   const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
   const providedAuth = req.headers.get("Authorization") ?? "";
 
   if (!timingSafeCompare(providedAuth, expectedAuth)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { "Content-Type": "application/json" }
-    });
+    return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
   try {
@@ -24,72 +36,55 @@ serve(async (req: Request) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Query free tier domesticated scans older than 90 days (limit 500 to prevent memory pressure)
+    // 2. Query free tier domesticated scans older than 90 days
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const boundaryIso = ninetyDaysAgo.toISOString();
 
-    const { data: scans, error: fetchError } = await supabaseAdmin
-      .from("scans")
-      .select("id, image_storage_urls, users!inner(subscription_tier)")
-      .eq("ecology_type", "domesticated")
-      .eq("users.subscription_tier", "free")
-      .lt("timestamp", ninetyDaysAgo.toISOString())
-      .not("image_storage_urls", "eq", "{}")
-      .limit(500);
+    const scans = await fetchStaleDomesticatedScans(boundaryIso, supabaseAdmin);
 
-    if (fetchError) {
-      throw fetchError;
-    }
-
-    if (!scans || scans.length === 0) {
-      return new Response(JSON.stringify({ message: "No expired domesticated scans to purge." }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      });
+    if (scans.length === 0) {
+      return jsonResponse(
+        { message: "No expired domesticated scans to purge." },
+        200,
+      );
     }
 
     const r2Config = getR2Config();
     const idsToUpdate: string[] = [];
-    const deleteTasks: (() => Promise<void>)[] = [];
+    const mediaToWipe: string[] = [];
 
-    // 2. Prepare R2 deletion tasks
+    // 3. Batch extract media URLs and IDs
     for (const scan of scans) {
       idsToUpdate.push(scan.id);
-      const urls: string[] = scan.image_storage_urls || [];
-      if (urls.length > 0) {
-        deleteTasks.push(() => deleteR2Objects(urls, r2Config));
+      if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
+        mediaToWipe.push(...scan.image_storage_urls);
       }
     }
 
-    // 3. Execute deletions concurrently in chunks of 50 to avoid R2 rate limits and Edge timeouts
-    const chunkSize = 50;
-    for (let i = 0; i < deleteTasks.length; i += chunkSize) {
-      const chunk = deleteTasks.slice(i, i + chunkSize);
-      await Promise.all(chunk.map(task => task()));
-    }
-
-    // 4. Zero-out the image URLs in the database (preserve row offline data)
-    if (idsToUpdate.length > 0) {
-      const { error: updateError } = await supabaseAdmin
-        .from("scans")
-        .update({ image_storage_urls: [] })
-        .in("id", idsToUpdate);
-
-      if (updateError) {
-        throw updateError;
+    // 4. Delete all aggregated R2 images via Cloudflare AWS protocol natively
+    if (mediaToWipe.length > 0) {
+      // Chunking by 500 URLs natively to protect AWS 'DeleteObjects' bounds 
+      // which strictly limits to 1000 keys per HTTP execution frame.
+      const urlChunkSize = 500;
+      for (let i = 0; i < mediaToWipe.length; i += urlChunkSize) {
+        const chunk = mediaToWipe.slice(i, i + urlChunkSize);
+        await deleteR2Objects(chunk, r2Config);
       }
     }
 
-    return new Response(JSON.stringify({ success: true, count: idsToUpdate.length }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" }
-    });
+    // 5. Zero-out the image URLs in the database (preserve row offline data)
+    await zeroOutDomesticatedUrls(idsToUpdate, supabaseAdmin);
 
+    console.log(`Purged images for ${idsToUpdate.length} domesticated scans`);
+
+    return jsonResponse(
+      { success: true, count: idsToUpdate.length },
+      200,
+    );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
+    console.error(`Auto Purge Domesticated Error: ${message}`);
+    return jsonResponse({ error: message }, 500);
   }
 });
