@@ -30,6 +30,7 @@ struct BiologicalView: View {
             ConservationBanner()
 
             // MARK: - Similar Species Gallery
+            /*
             if let similarData = inferenceEngine.speciesData?.similarSpecies {
                 // Determine if this qualifies as a low-confidence scan
                 let score = inferenceEngine.speciesData?.confidenceScore ?? 1.0
@@ -42,6 +43,7 @@ struct BiologicalView: View {
             } else if inferenceEngine.isEnrichmentLoading {
                 SimilarSpeciesGallery.Skeleton()
             }
+            */
 
             // MARK: - Educational Reference
             OverviewCard(

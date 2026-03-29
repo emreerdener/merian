@@ -11,22 +11,17 @@ function formatEnrichmentPayload(
   cachedSpecies: CachedSpeciesData | null,
   enrichmentResult: EncyclopedicData | null,
   similarResult: { similar_species: string[] } | null,
-  needsSimilarSpecies: boolean,
-  hasSimilarSpecies: boolean,
 ) {
+  const lookalikes = similarResult?.similar_species || cachedSpecies?.similar_species;
+
   return {
     habitat_description:
       enrichmentResult?.habitat_description ??
       cachedSpecies?.habitat_description ??
       "No habitat data available.",
     gbif_taxon_key: cachedSpecies?.gbif_taxon_key,
-    similar_species: needsSimilarSpecies
-      ? similarResult ||
-        (hasSimilarSpecies
-          ? {
-              lookalike_species: cachedSpecies!.similar_species ?? [],
-            }
-          : null)
+    similar_species: lookalikes && lookalikes.length > 0
+      ? { lookalike_species: lookalikes }
       : null,
     taxonomy: {
       kingdom: enrichmentResult?.taxonomy?.kingdom ?? cachedSpecies?.kingdom ?? "Unknown",
@@ -48,10 +43,10 @@ serve((req: Request) =>
       return jsonResponse({ error: "Invalid JSON body" }, 400);
     }
 
-    const paramErr = requireParams(body, ["scientific_name", "confidence_score"]);
+    const paramErr = requireParams(body, ["scientific_name"]);
     if (paramErr) return paramErr;
 
-    const { scientific_name, confidence_score } = body;
+    const { scientific_name } = body;
 
     const cachedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
 
@@ -59,12 +54,12 @@ serve((req: Request) =>
       cachedSpecies?.habitat_description !== null &&
       cachedSpecies?.habitat_description !== undefined;
 
-    const needsSimilarSpecies = confidence_score < 0.88;
     const hasSimilarSpecies =
       cachedSpecies?.similar_species !== null &&
       cachedSpecies?.similar_species !== undefined;
 
-    if (hasEnrichment && (!needsSimilarSpecies || hasSimilarSpecies)) {
+
+    if (hasEnrichment && hasSimilarSpecies) {
       console.log(`[enrich-scan] CACHE HIT for ${scientific_name}`);
       return jsonResponse(
         {
@@ -73,8 +68,6 @@ serve((req: Request) =>
             cachedSpecies,
             null,
             null,
-            needsSimilarSpecies,
-            hasSimilarSpecies,
           ),
         },
         200,
@@ -85,10 +78,9 @@ serve((req: Request) =>
       ? Promise.resolve(null)
       : fetchStaticEncyclopedicData(_user, scientific_name);
 
-    const similarSpeciesPromise =
-      !needsSimilarSpecies || hasSimilarSpecies
-        ? Promise.resolve(null)
-        : fetchSimilarSpecies(_user, scientific_name);
+    const similarSpeciesPromise = hasSimilarSpecies
+      ? Promise.resolve(null)
+      : fetchSimilarSpecies(_user, scientific_name);
 
     try {
       const [enrichmentResult, similarResult] = await Promise.all([
@@ -125,8 +117,6 @@ serve((req: Request) =>
             cachedSpecies,
             enrichmentResult,
             similarResult,
-            needsSimilarSpecies,
-            hasSimilarSpecies,
           ),
         },
         200,

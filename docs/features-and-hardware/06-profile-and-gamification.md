@@ -17,7 +17,7 @@ This document covers the Profile tab architecture, how scan statistics are compu
 | `GamificationModels` | `AwardPayload`, `AwardState` value types |
 | `Achievements` component | SwiftUI view rendering the award grid with sort options |
 | `UserStats` component | Renders species count and current streak from `LocalScanRecord` |
-| `ScansHeatmap` | Calendar heatmap of scan activity (52-week rolling window) |
+| `ScansHeatmap` | Calendar heatmap of scan activity (52-week rolling window) anchored to analysis upload date, bypassing EXIF `captureDate` |
 
 ---
 
@@ -74,7 +74,7 @@ All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimi
 
 All species-based criteria use `Set<String>` keyed on `scientificName` to de-duplicate — scanning the same species 10 times counts as 1 toward a species-based award.
 
-The `firstScanDate` is taken from `allRecords.first?.timestamp` (the oldest record, since the fetch is sorted `timestamp` descending). Each accumulator also tracks a `lastInteractionDate` as the timestamp of the first qualifying record seen during the iteration.
+The `firstScanDate` is taken from `allRecords.first?.timestamp` (the oldest record, since the fetch is sorted `timestamp` descending). Each accumulator also tracks a `lastInteractionDate` as the timestamp of the first qualifying record seen during the iteration. Note that `timestamp` strictly represents the system upload and processing time, completely decoupled from the original image's EXIF `captureDate`. This ensures that historical backfills from users' photo libraries do not retroactively trigger streaks or skew gamification timing mechanics.
 
 ---
 

@@ -196,7 +196,7 @@ An enrichment endpoint that asynchronously surfaces habitat data and (when confi
 
 **No Ownership Check on `scan_id`**: The function looks up `ai_confidence_score` from `scans` using `scan_id` alone (no `user_id` filter). If the scan is not found in Supabase (local-only record, cross-session ghost, or re-install scenario), confidence defaults to `1` and the diagnostic path is skipped. Ownership is intentionally not verified because the response contains only public species biology data (`habitat_description`, `gbif_taxon_key`, `diagnostic_comparison`) — nothing user-private. Enforcing `user_id` would permanently block enrichment for historical scans opened from the library when the current JWT user differs from the scan's stored `user_id` (e.g. after a zombie session recovery or ghost session re-creation).
 
-**Dynamic Diagnostic Thresholds**: A scan's `ai_confidence_score` is compared against a dynamic threshold (0.88 for Flash, 0.80 for Pro) on the Edge. If below threshold, diagnostic comparison data is also fetched/generated. The diagnostic is a species-level cache — if the data already exists in `species_dictionary` from a prior low-confidence scan of the same species, it is returned immediately without a Gemini call. Note: The iOS UI handles its display logic using these exact same dynamic tier thresholds.
+**Frontend-Driven Diagnostic Thresholds**: For diagnostic comparison data (e.g., lookalike species), the Edge function unconditionally queries or fetches the data if it is not already cached in `species_dictionary`. It no longer evaluates `ai_confidence_score`. Instead, the iOS client (`InferenceEngine.fetchAndApplyEnrichment` and `BiologicalView`) dynamically compares the score against the user's tier-specific threshold (`0.88` for Flash, `0.80` for Pro) to decide whether to highlight the data as a "POTENTIAL LOOKALIKES" diagnostic warning or merely informational "SIMILAR SPECIES".
 
 **Full Cache Hit**: If `species_dictionary` already has `habitat_description` and (when needed) `diagnostic_primary_rationale`, the function returns all data immediately with no Gemini calls — typically sub-50ms.
 
@@ -223,7 +223,7 @@ An enrichment endpoint that asynchronously surfaces habitat data and (when confi
 }
 ```
 
-`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF (Cache Miss species where `identify`'s background task has not yet completed). `diagnostic_comparison` is `null` when the scan's `ai_confidence_score` is above its respective tier's diagnostic threshold (e.g. 0.88 for flash, 0.80 for pro). The iOS client (`InferenceEngine.fetchAndApplyEnrichment`) applies this same dynamic threshold to write `speciesData.diagnosticComparison` and the display of the UI itself is identically gated dynamically per tier in `BiologicalView`.
+`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF (Cache Miss species where `identify`'s background task has not yet completed). `diagnostic_comparison` and `similar_species` are returned unconditionally if they exist in the database or are successfully generated during the request. The iOS client (`InferenceEngine.fetchAndApplyEnrichment`) applies the dynamic threshold (0.88 for flash, 0.80 for pro) to write `speciesData.diagnosticComparison` and gates the display of the UI itself dynamically per tier in `BiologicalView`.
 
 ### Error Responses
 

@@ -137,14 +137,19 @@ extension SimilarSpeciesGallery {
                         .tracking(1)
                         .foregroundColor(.secondary)
                     
-                    HStack(spacing: 12) {
-                        ForEach(0..<3, id: \.self) { _ in
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color(uiColor: .systemFill))
-                                .frame(width: 140, height: 180)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color(uiColor: .systemFill))
+                                    .frame(width: 140, height: 180)
+                            }
                         }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 2)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, -20)
+                    .disabled(true)
                 }
                 .padding(.top, 4)
             }
