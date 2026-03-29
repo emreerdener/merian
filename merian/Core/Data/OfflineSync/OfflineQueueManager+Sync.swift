@@ -241,13 +241,20 @@ extension OfflineQueueManager {
     func syncCollectionsIfPending() {
         guard UserDefaults.standard.bool(forKey: "needsCollectionSync") else { return }
         guard isOnline, SupabaseManager.shared.isAuthenticated else { return }
+        guard !isCollectionSyncing else { return }
         guard let container = modelContext?.container else { return }
         
-        BackgroundTaskWrapper.execute(name: "CollectionSync") { _ in
+        isCollectionSyncing = true
+        
+        collectionSyncTask = BackgroundTaskWrapper.execute(name: "CollectionSync") { [weak self] _ in
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let success = await dbActor.pushCollectionsToEdge()
-            if success {
-                UserDefaults.standard.set(false, forKey: "needsCollectionSync")
+            
+            await MainActor.run {
+                self?.isCollectionSyncing = false
+                if success {
+                    UserDefaults.standard.set(false, forKey: "needsCollectionSync")
+                }
             }
         }
     }

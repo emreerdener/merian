@@ -47,3 +47,32 @@ export interface ClientPayload extends MerianIdentification {
   };
   inference_tier: string;
 }
+
+/** Row shape returned by fetchCachedSpecies — mirrors the species_dictionary SELECT columns. */
+export interface CachedSpeciesRow {
+  id: string;
+  common_names: Record<string, string> | null;
+  kingdom: string | null;
+  phylum: string | null;
+  class: string | null;
+  order: string | null;
+  family: string | null;
+  genus: string | null;
+  wikipedia_overview: string | null;
+  hazard_type: string | null;
+  reference_image_url: string | null;
+  wikipedia_url: string | null;
+  iucn_red_list_status: string | null;
+  habitat_description: string | null;
+  gbif_taxon_key: number | null;
+  similar_species: string[] | null;
+  group_tags: string[] | null;
+}
+
+/** Assembled on the critical path from the cache hit/miss branches for payload construction. */
+export interface StaticSpeciesData {
+  taxonomy?: Record<string, string>;
+  iucn_red_list_status?: string;
+  hazard_type: string;
+  speciesHabitat?: string;
+}

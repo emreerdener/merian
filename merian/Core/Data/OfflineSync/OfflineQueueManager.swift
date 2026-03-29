@@ -48,11 +48,15 @@ import SwiftData
     var backgroundCompletionHandler: (() -> Void)?
     /// True while an upload batch is actively in-flight.
     var isSyncing: Bool = false
+    /// True while a collection sync batch is actively in-flight.
+    var isCollectionSyncing: Bool = false
     /// SwiftData context injected at app startup via `ScanRepository.configure(with:)`.
     var modelContext: ModelContext?
 
     /// Active upload batch task. Cancelled immediately on connectivity loss.
     var syncTask: Task<Void, Never>?
+    /// Active collection sync task. Cancelled immediately on connectivity loss.
+    var collectionSyncTask: Task<Void, Never>?
 
     /// In-memory counter tracking consecutive transient upload failures per scan ID.
     /// Resets on app restart — a fresh process always gets a clean slate of retries.
@@ -89,7 +93,9 @@ import SwiftData
                 } else {
                     // Circuit-break active uploads immediately on connectivity loss.
                     self?.syncTask?.cancel()
+                    self?.collectionSyncTask?.cancel()
                     self?.isSyncing = false
+                    self?.isCollectionSyncing = false
                     SyncStateManager.shared.completeSync()
                 }
             }

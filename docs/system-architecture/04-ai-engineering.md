@@ -17,9 +17,9 @@ The `/identify` Supabase Edge Function is heavily modularized to guarantee minim
 
 - **`index.ts`**: The main orchestrator. Executes the critical path (base64 image resolution, Gemini model invocation, Postgres caching checks) and safely spins off all telemetry and caching UPSERTS into a non-blocking background task.
 - **`schema.ts`**: The semantic logic. Contains the highly specific `systemInstruction` prompting rules and the strongly-typed `merianResponseSchema` enforced on the Gemini payload output.
-- **`types.ts`**: The API contracts. Exports `MerianIdentification` and `ClientPayload` to perfectly map the Edge function's structure back to the iOS `InferenceEdgeDTOs.swift`.
+- **`types.ts`**: The API contracts. Exports `MerianIdentification` and `ClientPayload` (iOS DTO mapping), plus `CachedSpeciesRow` (the `species_dictionary` row shape shared with `db.ts`) and `StaticSpeciesData` (the assembled critical-path payload built from cache hit/miss branches, replacing a former inline anonymous type in the orchestrator).
 - **`media.ts`**: Safely handles chunked sequential `R2` Base64 buffer loading to protect Deno's V8 edge heap constraints from crashing under massive multi-image payloads.
-- **`db.ts`**: Encapsulates specific database wrappers (like Ghost User tier creation bounds) away from the clean background process loop.
+- **`db.ts`**: Encapsulates all PostgreSQL operations for the function as typed, error-throwing functions: `fetchCachedSpecies`, `upsertSpeciesDictionary`, `backfillSpeciesHabitat`, `insertScan`, `updateSimilarSpecies`, `updateGroupTags`, and `upsertGhostUserIfMissing`. `index.ts` contains zero direct Supabase client calls — all reads and writes route through this layer.
 - **`../_shared/` Micro-Agents**: Auxiliary generation tools like `fetchExternalEnrichment` (Wikipedia/GBIF REST API polling in `external.ts`), `fetchGroupTags` (Flash AI), and `fetchStaticEncyclopedicData` are aggregated directly inside the generic `biology.ts` taxonomic node, making them globally accessible to both the `identify` and `enrich-scan` edge environments.
 
 ## Edge Function Architecture (`/enrich-scan`)
