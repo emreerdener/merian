@@ -91,7 +91,7 @@ private extension InsightContentView {
                 NonBiologicalView(
                     species: speciesData,
                     commonName: speciesData.commonName.capitalized,
-                    timestamp: viewModel.activeLocalRecord?.timestamp
+                    timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
                 )
             } else {
                 
@@ -99,7 +99,7 @@ private extension InsightContentView {
                     viewModel: viewModel,
                     isSafariPresented: $viewModel.isSafariPresented, 
                     selectedWikiURL: $viewModel.selectedWikiURL,
-                    timestamp: viewModel.activeLocalRecord?.timestamp
+                    timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
                 )
             }
             Spacer(minLength: 40)

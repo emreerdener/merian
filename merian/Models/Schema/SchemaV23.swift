@@ -11,11 +11,7 @@ enum MerianSchemaV23: VersionedSchema {
 
     typealias PendingCloudDeletionTask = MerianSchemaV22.PendingCloudDeletionTask
     typealias OfflineQueuedScan        = MerianSchemaV22.OfflineQueuedScan
-}
 
-// ScanCollection extracted natively so its inverse relationship points to the global LocalScanRecord class.
-
-    // ScanCollection redeclared so its inverse relationship points to V23.LocalScanRecord.
     @Model
     final class ScanCollection {
         @Attribute(.unique) var id: String = UUID().uuidString
@@ -203,3 +199,4 @@ enum MerianSchemaV23: VersionedSchema {
             self.hasBeenViewed = hasBeenViewed
         }
     }
+}

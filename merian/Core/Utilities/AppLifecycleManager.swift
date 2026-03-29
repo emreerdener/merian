@@ -23,6 +23,12 @@ final class AppLifecycleManager {
         container.usageManager.evaluateDailyRefresh()
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()
+        
+        // Force cross-process AppStorage reconciliation. 
+        // UserDefaults updates made by the BackgroundDatabaseActor while suspended
+        // are not always natively observed by SwiftUI @AppStorage properties upon resume.
+        let unseen = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasUnseenScan)
+        UserDefaults.standard.set(unseen, forKey: UserDefaultsKeys.hasUnseenScan)
 
         Task {
             await container.supabaseManager.initializeGhostSession()

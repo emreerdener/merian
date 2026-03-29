@@ -1,0 +1,2 @@
+class LocalScanRecord {}
+class LocalScanRecord {}

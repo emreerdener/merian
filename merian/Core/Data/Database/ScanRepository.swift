@@ -113,9 +113,9 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, inference_tier, custom_tags, species_dictionary(*)")
+                    .select("id, created_at, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, inference_tier, custom_tags, species_dictionary(*)")
                     .eq("user_id", value: userId)
-                    .order("timestamp", ascending: false)
+                    .order("created_at", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
                     .execute()
                     .value
@@ -259,6 +259,7 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
 
 struct HistoricalScanResponse: Decodable, Sendable {
     let id: String
+    let created_at: String?
     let image_storage_urls: [String]?
     let timestamp: String?
     let weather_condition: String?
@@ -466,9 +467,13 @@ actor HistoricalDatabaseActor {
         let checkpointInterval = MerianConfig.ingestCheckpointInterval
         for (index, scan) in missingScans.enumerated() {
             if Task.isCancelled { break }
-            let parsedDate = scan.timestamp.flatMap {
+            let parsedDate = scan.created_at.flatMap {
                 DateUtilities.iso8601FractionalFormatter.date(from: $0) ?? DateUtilities.iso8601Formatter.date(from: $0)
             } ?? Date()
+
+            let exifDate = scan.timestamp.flatMap {
+                DateUtilities.iso8601FractionalFormatter.date(from: $0) ?? DateUtilities.iso8601Formatter.date(from: $0)
+            }
 
             let dict = scan.species_dictionary
             let sciName = dict?.scientific_name ?? "Unknown Subject"
@@ -484,6 +489,7 @@ actor HistoricalDatabaseActor {
                 scientificName: sciName,
                 commonName: cName,
                 timestamp: parsedDate,
+                captureDate: exifDate,
                 localImagePath: rawR2Image,
                 semanticTags: [cName, sciName] + (scan.colors ?? []) + (dict?.group_tags ?? []),
                 hazardType: dict?.hazard_type ?? "none",

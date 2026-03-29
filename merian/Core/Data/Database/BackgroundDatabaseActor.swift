@@ -127,11 +127,12 @@ actor BackgroundDatabaseActor {
                 }()
 
                 let record = LocalScanRecord(
-                    id: mappedData.scanId ?? UUID().uuidString,
+                    id: mappedData.scanId ?? scanId,
                     speciesId: activeSpeciesId,
                     scientificName: mappedData.scientificName,
                     commonName: mappedData.commonName,
-                    timestamp: originalTimestamp,
+                    timestamp: Date(),
+                    captureDate: originalTimestamp,
                     localImagePath: originalImagePaths.first,
                     semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
                     hazardType: mappedData.insightData.hazardType,
@@ -240,6 +241,7 @@ actor BackgroundDatabaseActor {
             scientificName: mappedData.scientificName,
             commonName: mappedData.commonName,
             timestamp: Date(),
+            captureDate: Date(), // Live captures always match current time
             localImagePath: firstPath,
             semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
             hazardType: mappedData.insightData.hazardType,
