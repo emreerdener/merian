@@ -1,5 +1,5 @@
-import SwiftUI
 import RevenueCat
+import SwiftUI
 
 struct PaywallFeature {
     let icon: String

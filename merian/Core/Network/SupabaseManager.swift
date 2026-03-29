@@ -1,11 +1,11 @@
-import Foundation
 import AuthenticationServices
 import CryptoKit
-import Supabase
+import Foundation
 import GoogleSignIn
-import RevenueCat
 import Observation
 import os
+import RevenueCat
+import Supabase
 
 // MARK: - Supabase Manager
 
@@ -281,11 +281,9 @@ import os
             if errorCode != errSecSuccess {
                 fatalError("SecRandomCopyBytes failed with OSStatus \(errorCode)")
             }
-            for byte in buffer {
-                if byte < maxValidValue {
-                    nonce.append(charset[Int(byte) % charset.count])
-                    if nonce.count == length { break }
-                }
+            for byte in buffer where byte < maxValidValue {
+                nonce.append(charset[Int(byte) % charset.count])
+                if nonce.count == length { break }
             }
         }
 

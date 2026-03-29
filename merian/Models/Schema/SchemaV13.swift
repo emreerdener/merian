@@ -67,11 +67,11 @@ enum MerianSchemaV13: VersionedSchema {
         var diagnosticLookalikeName: String?
         var diagnosticDifferentiatorsJson: String?
 
-        @Attribute var iucnRedListStatus: String? = nil
-        @Attribute var gpsLatitude: Double? = nil
-        @Attribute var gpsLongitude: Double? = nil
-        @Attribute var gpsElevation: Double? = nil
-        @Attribute var zoomFactor: Double? = nil
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsLatitude: Double?
+        @Attribute var gpsLongitude: Double?
+        @Attribute var gpsElevation: Double?
+        @Attribute var zoomFactor: Double?
 
         init(id: String = UUID().uuidString,
              speciesId: String,
@@ -174,7 +174,7 @@ enum MerianSchemaV13: VersionedSchema {
         var compassHeading: Double?
         var relativeHumidity: Double?
         var uvIndex: Int?
-        @Attribute var zoomFactor: Double? = nil
+        @Attribute var zoomFactor: Double?
 
         var isDeleted: Bool
 

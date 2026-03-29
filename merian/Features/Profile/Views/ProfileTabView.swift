@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 /// The standalone layout hierarchy for the primary "Profile" tab.
 /// This acts purely as a declarative composition module that groups all massive
@@ -13,7 +13,7 @@ struct ProfileTabView: View {
     // Natively isolated State variables dynamically mapped back from the background Actor mathematically.
     @State private var uniqueSpeciesCount: Int = 0
     @State private var currentStreak: Int = 0
-    @State private var heatmapData: ProfileHeatmapData? = nil
+    @State private var heatmapData: ProfileHeatmapData?
     @State private var awards: [AwardPayload] = []
     
     var body: some View {
@@ -56,12 +56,12 @@ struct ProfileTabView: View {
                 // prevent dropping frames on the physical UI Thread during millions of array computations.
                 let container = modelContext.container
                 let actor = ProfileDatabaseActor(modelContainer: container)
-                let (species, streak, heatmap, fetchedAwards) = await actor.calculateAll()
+                let stats = await actor.calculateAll()
                 await MainActor.run {
-                    self.uniqueSpeciesCount = species
-                    self.currentStreak = streak
-                    self.heatmapData = heatmap
-                    self.awards = fetchedAwards
+                    self.uniqueSpeciesCount = stats.speciesCount
+                    self.currentStreak = stats.streak
+                    self.heatmapData = stats.heatmap
+                    self.awards = stats.awards
                 }
             }
         }

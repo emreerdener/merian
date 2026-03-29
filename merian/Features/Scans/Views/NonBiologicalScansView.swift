@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct NonBiologicalScansView: View {
     // MARK: - State Dependencies
@@ -10,8 +10,8 @@ struct NonBiologicalScansView: View {
     @Binding var isInsightSheetOpen: Bool
     
     // MARK: - Interface State
-    @State private var scanToRescue: LocalScanRecord? = nil
-    @State private var scanToDelete: LocalScanRecord? = nil
+    @State private var scanToRescue: LocalScanRecord?
+    @State private var scanToDelete: LocalScanRecord?
     @State private var showDeleteConfirmation = false
     @State private var showClearAllConfirmation = false
     @State private var isClearingAll = false

@@ -1,8 +1,8 @@
 import Foundation
 import Network
-import SwiftData
 import Observation
 import os
+import SwiftData
 
 // MARK: - Offline Queue Manager
 

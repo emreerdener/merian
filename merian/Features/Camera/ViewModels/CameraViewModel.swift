@@ -1,10 +1,10 @@
-import SwiftUI
-import UniformTypeIdentifiers
-import PhotosUI
-import SwiftData
-import Photos
 import Combine
 import Observation
+import Photos
+import PhotosUI
+import SwiftData
+import SwiftUI
+import UniformTypeIdentifiers
 
 @Observable
 @MainActor
@@ -21,9 +21,9 @@ final class CameraViewModel {
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     
     // MARK: - UI & Navigation State
-    var activeSheet: ActiveSheet? = nil
-    var imageToCrop: IdentifiableImage? = nil
-    var editingCropIndex: Int? = nil
+    var activeSheet: ActiveSheet?
+    var imageToCrop: IdentifiableImage?
+    var editingCropIndex: Int?
     var activeScannedDatas: [Data] = []
     var activeScanImages: [UIImage] = []
     var activeOriginals: [IdentifiableImage] = []
@@ -50,9 +50,9 @@ final class CameraViewModel {
     var analysisImages: [UIImage] = []
     
     // MARK: - Asynchronous Jobs
-    @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>? = nil
-    @ObservationIgnored private var focusTask: Task<Void, Never>? = nil
-    @ObservationIgnored var phaseRotationTask: Task<Void, Never>? = nil
+    @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>?
+    @ObservationIgnored private var focusTask: Task<Void, Never>?
+    @ObservationIgnored var phaseRotationTask: Task<Void, Never>?
     
     // MARK: - Lifecycle
     init() {
@@ -163,7 +163,7 @@ final class CameraViewModel {
                     defer { try? FileManager.default.removeItem(at: validUrl) }
                     
                     // Attempt to retrieve native PHAsset context to map historical GPS / Weather
-                    var historicalContext: EnvironmentContext? = nil
+                    var historicalContext: EnvironmentContext?
                     if let localId = newItem.itemIdentifier {
                         let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
                         if let asset = fetchResult.firstObject {
@@ -244,7 +244,7 @@ final class CameraViewModel {
     }
     
     // MARK: - Tooltip Orchestration
-    private var tooltipTask: Task<Void, Never>? = nil
+    private var tooltipTask: Task<Void, Never>?
     
     func scheduleTooltipDismissal() async {
         tooltipTask?.cancel()

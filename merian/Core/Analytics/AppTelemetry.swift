@@ -1,6 +1,6 @@
 import Foundation
-import TelemetryClient
 import os
+import TelemetryClient
 
 /// Thin wrapper around TelemetryDeck for anonymous, PII-free analytics.
 enum AppTelemetry {

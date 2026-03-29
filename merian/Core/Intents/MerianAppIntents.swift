@@ -1,5 +1,5 @@
-import Foundation
 import AppIntents
+import Foundation
 import os
 
 // MARK: - Core OS Integration

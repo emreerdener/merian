@@ -1,6 +1,6 @@
-import SwiftUI
-import SwiftData
 import SafariServices
+import SwiftData
+import SwiftUI
 
 /// Defines the unified local state graph and primary business logic orchestrating the `InsightSheetView` presentation and data actions.
 @MainActor
@@ -17,21 +17,21 @@ final class InsightSheetViewModel {
     var showDeleteConfirmation = false
     var showSaveSuccessAlert = false
     var showNewCollectionAlert = false
-    var toastMessage: String? = nil
+    var toastMessage: String?
     var newCollectionName = ""
     
     // MARK: - Navigation State
     var isSafariPresented = false
-    var selectedWikiURL: URL? = nil
+    var selectedWikiURL: URL?
     
     // MARK: - Hardware Tasks
     var isSavingPhotos = false
     
     // MARK: - SwiftData Status
-    var activeLocalRecord: LocalScanRecord? = nil
+    var activeLocalRecord: LocalScanRecord?
     
     // MARK: - Image Engine Dependencies
-    var inferenceEngine: InferenceEngine? = nil
+    var inferenceEngine: InferenceEngine?
     
     // MARK: - Carousel Computed Properties
     var refUrls: [String] {

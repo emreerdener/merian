@@ -1,5 +1,5 @@
-import Foundation
 import Combine
+import Foundation
 
 /// Strongly-typed system events replacing legacy `NotificationCenter` broadcasts.
 enum AppEvent {

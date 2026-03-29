@@ -1,5 +1,5 @@
-import SwiftUI
 import SafariServices
+import SwiftUI
 
 // MARK: - Safari View Wrapper
 struct SafariView: UIViewControllerRepresentable {

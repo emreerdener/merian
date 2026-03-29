@@ -1,6 +1,7 @@
-import SwiftUI
-import AVFoundation
 import AVKit
+import SwiftUI
+
+private enum CameraPanDirection { case undetermined, vertical, horizontal }
 
 // MARK: - Hardware Video Bridge
 // SwiftUI bridging of AVCaptureVideoPreviewLayer
@@ -10,10 +11,10 @@ struct CameraPreviewView: UIViewRepresentable {
     var onTap: (CGPoint, CGPoint) -> Void
     /// Called when the user swipes right-to-left across the viewfinder.
     /// Reserved for the future audio recording mode transition — pass `nil` until that view exists.
-    var onSwipeLeft: (() -> Void)? = nil
+    var onSwipeLeft: (() -> Void)?
     /// Called with `true` when a vertical (zoom) drag locks in, `false` when it ends.
     /// Use this to disable the outer paging ScrollView during active zoom drags.
-    var onVerticalDragActiveChanged: ((Bool) -> Void)? = nil
+    var onVerticalDragActiveChanged: ((Bool) -> Void)?
     
     // MARK: - UIKit Substrate Layer
     // The literal backing geometry that receives AVFoundation visual frames.
@@ -74,10 +75,8 @@ struct CameraPreviewView: UIViewRepresentable {
 
         // MARK: - Gesture state
         private var panStartZoom: CGFloat = 1.0
-        private var panDirection: PanDirection = .undetermined
+        private var panDirection: CameraPanDirection = .undetermined
         private var pinchStartZoom: CGFloat = 1.0
-
-        private enum PanDirection { case undetermined, vertical, horizontal }
 
         // MARK: - Lens-switch crossfade state
         private var lastZoomFactor: CGFloat = 1.0

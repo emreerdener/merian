@@ -1,5 +1,5 @@
-import SwiftUI
 import StoreKit
+import SwiftUI
 
 struct Community: View {
     @Binding var safariUrl: URL?

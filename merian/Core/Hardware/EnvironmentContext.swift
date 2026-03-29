@@ -5,8 +5,8 @@ import CoreLocation
 /// Unified environmental snapshot captured at the moment of a scan.
 struct EnvironmentContext {
     let location: CLLocation?
-    var locationName: String? = nil
-    var weatherCondition: String? = nil
-    var weatherTemperature: Double? = nil
-    var captureDate: Date? = nil
+    var locationName: String?
+    var weatherCondition: String?
+    var weatherTemperature: Double?
+    var captureDate: Date?
 }

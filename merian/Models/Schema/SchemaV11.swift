@@ -68,8 +68,8 @@ enum MerianSchemaV11: VersionedSchema {
         var diagnosticLookalikeName: String?
         var diagnosticDifferentiatorsJson: String?
 
-        @Attribute var iucnRedListStatus: String? = nil
-        @Attribute var gpsElevation: Double? = nil
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsElevation: Double?
 
         init(id: String = UUID().uuidString,
              speciesId: String,

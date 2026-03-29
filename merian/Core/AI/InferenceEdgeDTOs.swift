@@ -78,9 +78,9 @@ struct EnrichScanResponse: Codable {
         let gbif_taxon_key: Int?
         let taxonomy: EdgeResponse.Taxonomy?
         let similar_species: SimilarSpeciesData?
+    }
 
-        struct SimilarSpeciesData: Codable {
-            let lookalike_species: [String]?
-        }
+    struct SimilarSpeciesData: Codable {
+        let lookalike_species: [String]?
     }
 }

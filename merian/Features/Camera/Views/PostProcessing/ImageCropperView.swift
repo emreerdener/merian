@@ -4,9 +4,9 @@ import UniformTypeIdentifiers
 struct IdentifiableImage: Identifiable {
     let id = UUID()
     let image: UIImage
-    var environmentContext: EnvironmentContext? = nil
+    var environmentContext: EnvironmentContext?
     var isFromGallery: Bool = false
-    var subjectDistanceInMeters: Float? = nil
+    var subjectDistanceInMeters: Float?
     var lastCropScale: CGFloat = 1.0
     var lastCropOffset: CGSize = .zero
 }
@@ -19,7 +19,7 @@ struct ImageCropperView: View {
     // MARK: - Callbacks
     var onCrop: (Data, CGFloat, CGSize, CGFloat) -> Void
     var onCancel: () -> Void
-    var onDelete: (() -> Void)? = nil
+    var onDelete: (() -> Void)?
     
     // MARK: - Interaction State
     @State private var scale: CGFloat
@@ -112,7 +112,7 @@ struct ImageCropperView: View {
                                     height: clamped.height - offset.height
                                 )
                             }
-                            .onEnded { value in
+                            .onEnded { _ in
                                 offset.width += currentOffset.width
                                 offset.height += currentOffset.height
                                 currentOffset = .zero
@@ -128,7 +128,7 @@ struct ImageCropperView: View {
                                     currentScale = value
                                 }
                             }
-                            .onEnded { value in
+                            .onEnded { _ in
                                 scale = max(1.0, scale * currentScale)
                                 currentScale = 1.0
 
@@ -202,4 +202,3 @@ struct ImageCropperView: View {
         return CGSize(width: clampedX, height: clampedY)
     }
 }
-

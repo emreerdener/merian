@@ -16,8 +16,8 @@ struct CaptureTelemetry: Sendable {
     let timestamp: String?
     /// Active zoom factor at shutter press. Nil when 1× (adds no signal).
     /// Omitted from offline-queue retries since zoom is not persisted in the schema.
-    var zoomFactor: CGFloat? = nil
-    var estimatedSizeCm: Double? = nil
+    var zoomFactor: CGFloat?
+    var estimatedSizeCm: Double?
 }
 
 // MARK: - Convenience Initializers

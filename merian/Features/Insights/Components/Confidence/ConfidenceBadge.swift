@@ -8,16 +8,22 @@ struct ConfidenceBadge: View {
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
     @State private var allowedDetents: Set<PresentationDetent> = [.fraction(0.65), .large]
     
-    private var badgeData: (label: String, color: Color, icon: String) {
-        guard let score = confidenceScore else { return ("Unknown", .gray, "questionmark") }
+    private struct BadgePayload {
+        let label: String
+        let color: Color
+        let icon: String
+    }
+    
+    private var badgeData: BadgePayload {
+        guard let score = confidenceScore else { return BadgePayload(label: "Unknown", color: .gray, icon: "questionmark") }
         let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
         switch score {
         case bands.strong...:
-            return ("Strong match", .green, "sparkles.2")
+            return BadgePayload(label: "Strong match", color: .green, icon: "sparkles.2")
         case bands.possible..<bands.strong:
-            return ("Possible match", .orange, "sparkles.2")
+            return BadgePayload(label: "Possible match", color: .orange, icon: "sparkles.2")
         default:
-            return ("Weak match", .gray, "sparkles.2")
+            return BadgePayload(label: "Weak match", color: .gray, icon: "sparkles.2")
         }
     }
     
@@ -140,5 +146,3 @@ struct ConfidenceBadge: View {
         }
     }
 }
-
-

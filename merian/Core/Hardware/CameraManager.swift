@@ -1,11 +1,11 @@
+import Accelerate
+@preconcurrency import AVFoundation
+import Combine
+import CoreImage
+import CoreLocation
 import Foundation
 import os
 import UIKit
-@preconcurrency import AVFoundation
-import CoreImage
-import Combine
-import CoreLocation
-import Accelerate
 
 // MARK: - Camera Manager
 
@@ -36,7 +36,7 @@ import Accelerate
     private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
 
     var isSessionRunning = false
-    var subjectDistanceInMeters: Float? = nil
+    var subjectDistanceInMeters: Float?
     var isFlashEnabled = false
 
     // MARK: - Zoom
@@ -153,9 +153,7 @@ import Accelerate
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
 
-            if #available(iOS 16.0, *) {
-                // maxPhotoDimensions defaults to the maximum supported by the active format on iOS 16+.
-            } else {
+            if #unavailable(iOS 16.0) {
                 photoOutput.isHighResolutionCaptureEnabled = true
             }
 

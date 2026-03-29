@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct ScansSheetModifiers: ViewModifier {
     @Bindable var searchManager: ScansManager
@@ -21,7 +21,7 @@ struct ScansSheetModifiers: ViewModifier {
     let dismiss: DismissAction
     let modelContext: ModelContext
     let onBatchDelete: () -> Void
-    var onCollectionCreated: ((ScanCollection) -> Void)? = nil
+    var onCollectionCreated: ((ScanCollection) -> Void)?
     
     func body(content: Content) -> some View {
         content
@@ -35,7 +35,7 @@ struct ScansSheetModifiers: ViewModifier {
                     }
                 }
             }
-            .sheet(item: $selectedScanForInsight) { scan in
+            .sheet(item: $selectedScanForInsight) { _ in
                 InsightSheetView(isPresented: Binding(
                     get: { selectedScanForInsight != nil },
                     set: { if !$0 { selectedScanForInsight = nil } }

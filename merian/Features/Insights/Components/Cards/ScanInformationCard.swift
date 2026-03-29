@@ -1,9 +1,9 @@
-import SwiftUI
 import MapKit
+import SwiftUI
 
 struct ScanInformationCard: View {
     let speciesData: SpeciesData?
-    var timestamp: Date? = nil
+    var timestamp: Date?
     
     var hasValidData: Bool {
         guard let sd = speciesData else { return false }
@@ -80,7 +80,7 @@ struct ScanInformationCard: View {
                     }
                     
                     // Map
-                    if let lat = lat, let lon = lon, (lat >= -90 && lat <= 90), (lon >= -180 && lon <= 180), !(lat == 0 && lon == 0) {
+                    if let lat = lat, let lon = lon, lat >= -90 && lat <= 90, lon >= -180 && lon <= 180, !(lat == 0 && lon == 0) {
                         let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
                         Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)))) {
                             Marker("Location", coordinate: coord)

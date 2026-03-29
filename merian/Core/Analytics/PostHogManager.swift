@@ -1,6 +1,6 @@
 import Foundation
-import PostHog
 import os
+import PostHog
 
 /// Handles PostHog anonymous telemetry for UX funnels, retention, and feature tracking.
 /// Not isolated to @MainActor — PostHogSDK is thread-safe and configure() runs on a
@@ -36,7 +36,7 @@ final class PostHogManager {
 
         PostHogSDK.shared.setup(configuration)
         
-        var pendingId: String? = nil
+        var pendingId: String?
         lock.withLock {
             _isConfigured = true
             pendingId = pendingUserId

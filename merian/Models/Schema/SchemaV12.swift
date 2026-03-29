@@ -68,10 +68,10 @@ enum MerianSchemaV12: VersionedSchema {
         var diagnosticLookalikeName: String?
         var diagnosticDifferentiatorsJson: String?
 
-        @Attribute var iucnRedListStatus: String? = nil
-        @Attribute var gpsLatitude: Double? = nil
-        @Attribute var gpsLongitude: Double? = nil
-        @Attribute var gpsElevation: Double? = nil
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsLatitude: Double?
+        @Attribute var gpsLongitude: Double?
+        @Attribute var gpsElevation: Double?
 
         init(id: String = UUID().uuidString,
              speciesId: String,

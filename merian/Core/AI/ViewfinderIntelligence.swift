@@ -1,6 +1,6 @@
-import Foundation
-import CoreImage
 import AVFoundation
+import CoreImage
+import Foundation
 import Observation
 
 // MARK: - Viewfinder Constants

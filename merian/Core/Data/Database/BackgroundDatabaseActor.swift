@@ -1,8 +1,8 @@
-import Foundation
-import SwiftData
 import CoreLocation
-import Supabase
+import Foundation
 import os
+import Supabase
+import SwiftData
 
 // MARK: - Extracted Scan Data
 
@@ -67,7 +67,7 @@ actor BackgroundDatabaseActor {
         telemetry: CaptureTelemetry? = nil
     ) -> (resolvedSpeciesName: String?, isNewDiscovery: Bool) {
         var inferenceFailed = true
-        var resolvedSpeciesName: String? = nil
+        var resolvedSpeciesName: String?
         var finalIsNewDiscovery = false
 
         let parsedWrapper: EdgeResponseWrapper?

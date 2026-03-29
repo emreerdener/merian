@@ -230,7 +230,7 @@ private struct NativePageCarousel: UIViewControllerRepresentable {
 /// during render, preventing frame drops when the carousel first opens.
 private struct LiveCapturePageView: View {
     let data: Data
-    @State private var decoded: UIImage? = nil
+    @State private var decoded: UIImage?
 
     var body: some View {
         Group {
@@ -283,5 +283,3 @@ private extension ImagesCarousel {
         }
     }
 }
-
-

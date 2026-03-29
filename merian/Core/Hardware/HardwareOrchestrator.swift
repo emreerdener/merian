@@ -1,6 +1,6 @@
+import Combine
 import Foundation
 import UIKit
-import Combine
 
 // MARK: - UIDevice Extension
 

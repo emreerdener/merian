@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct SelectMultipleScansView: View {
     // MARK: - State Dependencies

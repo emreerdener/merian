@@ -1,5 +1,5 @@
-import SwiftUI
 import Observation
+import SwiftUI
 
 /// An isolated ViewModel dedicated exclusively to managing asynchronous Cloud/Network boundaries (Supabase REST API).
 /// Note: Massive Offline hardware calculations (SwiftData/SQLite arrays) are deliberately FIREWALLED completely out of this class

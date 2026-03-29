@@ -1,6 +1,6 @@
-import SwiftUI
 import AVFoundation
 import AVKit
+import SwiftUI
 import UIKit
 
 @available(iOS 17.2, *)

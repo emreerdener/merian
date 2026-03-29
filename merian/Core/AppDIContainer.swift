@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 /// Centralized Dependency Injection Container for Merian
 /// Holds all core services and managers to prevent massive `@StateObject` pollution in App entry.
@@ -56,7 +56,6 @@ import SwiftData
     }
 #endif
     
-
 }
 
 // MARK: - DI Injection Modifiers

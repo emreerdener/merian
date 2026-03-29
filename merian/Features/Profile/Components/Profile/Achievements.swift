@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 // MARK: - Gamification Database Engine
 extension ProfileDatabaseActor {

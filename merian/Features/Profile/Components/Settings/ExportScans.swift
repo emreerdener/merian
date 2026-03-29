@@ -7,7 +7,7 @@ struct ExportScans: View {
     @Binding var isExporting: Bool
     @Binding var exportUrl: URL?
     @State private var hasRequestedExport = false
-    @State private var errorMessage: String? = nil
+    @State private var errorMessage: String?
     
     var body: some View {
         Section {

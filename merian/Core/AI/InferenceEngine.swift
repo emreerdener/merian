@@ -1,10 +1,10 @@
-import Foundation
-import CoreImage
 import Combine
-import SwiftUI
-import SwiftData
+import CoreImage
+import Foundation
 import ImageIO
 import os
+import SwiftData
+import SwiftUI
 
 // MARK: - Wikipedia Response (private)
 
@@ -27,24 +27,24 @@ private struct WikiSummaryResponse: Decodable {
     // MARK: - Pipeline State
     @ObservationIgnored var inferenceTask: Task<Void, Error>?
     var isProcessing: Bool = false
-    var activeImageData: Data? = nil
+    var activeImageData: Data?
     var activeLiveCaptureDatas: [Data] = []
     var activeDisplayDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
-    var speciesData: SpeciesData? = nil
+    var speciesData: SpeciesData?
 
     // MARK: - Environmental Telemetry State
-    private(set) var activeLatitude: Double? = nil
-    private(set) var activeLongitude: Double? = nil
-    private(set) var activeElevation: Double? = nil
+    private(set) var activeLatitude: Double?
+    private(set) var activeLongitude: Double?
+    private(set) var activeElevation: Double?
     private var activeDeviceLocale: String?
     private var activeCurrentMonth: Int?
-    private var activeTimeOfDay: String? = nil
-    private(set) var activeLocationName: String? = nil
-    private(set) var activeWeatherCondition: String? = nil
-    private(set) var activeTemperatureF: Double? = nil
-    private(set) var activeFlashFired: Bool? = nil
-    private(set) var activeDistanceInMeters: Float? = nil
+    private var activeTimeOfDay: String?
+    private(set) var activeLocationName: String?
+    private(set) var activeWeatherCondition: String?
+    private(set) var activeTemperatureF: Double?
+    private(set) var activeFlashFired: Bool?
+    private(set) var activeDistanceInMeters: Float?
 
     var isEnrichmentLoading: Bool = false
 
@@ -133,13 +133,16 @@ private struct WikiSummaryResponse: Decodable {
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
                 let postFlightStart = CFAbsoluteTimeGetCurrent()
-                let (finalMappedData, isNewDisc, savedImagePaths) = try await InferenceProcessingActor.shared.parseAndSave(
+                let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
                     telemetry: telemetry,
                     modelContext: modelContext,
                     compressedDatas: compressedDatas,
                     displayDatas: capturedDisplayDatas
                 )
+                let finalMappedData = parseResult.mappedData
+                let isNewDisc = parseResult.isNewDiscovery
+                let savedImagePaths = parseResult.savedPaths
 
                 if var mappedData = finalMappedData {
                     if isNewDisc {
@@ -350,13 +353,15 @@ private struct WikiSummaryResponse: Decodable {
 
     private struct GBIFMediaResponse: Decodable {
         let results: [GBIFResult]?
-        struct GBIFResult: Decodable {
-            let media: [GBIFMedia]?
-        }
-        struct GBIFMedia: Decodable {
-            let type: String?
-            let identifier: String?
-        }
+    }
+    
+    private struct GBIFResult: Decodable {
+        let media: [GBIFMedia]?
+    }
+    
+    private struct GBIFMedia: Decodable {
+        let type: String?
+        let identifier: String?
     }
 
     /// Fetches high-quality field observations from GBIF (e.g. iNaturalist) once the Taxon Key is known.
@@ -394,10 +399,8 @@ private struct WikiSummaryResponse: Decodable {
                     var currentUrls = self.speciesData?.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
                     
                     // Prevent duplicates if already hydrated
-                    for urlStr in newUrls {
-                        if !currentUrls.contains(urlStr) {
-                            currentUrls.append(urlStr)
-                        }
+                    for urlStr in newUrls where !currentUrls.contains(urlStr) {
+                        currentUrls.append(urlStr)
                     }
                     
                     self.speciesData?.referenceImageUrl = currentUrls.joined(separator: ",")
@@ -557,7 +560,7 @@ private struct WikiSummaryResponse: Decodable {
             await MainActor.run { self?.validHistoricImagePaths = validPaths }
         }
 
-        var parsedSimilar: SimilarSpecies? = nil
+        var parsedSimilar: SimilarSpecies?
         if let lookalikesArray = record.similarSpecies, !lookalikesArray.isEmpty {
             parsedSimilar = SimilarSpecies(lookalikes: lookalikesArray)
         }

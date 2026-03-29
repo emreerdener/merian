@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct CollectionCard: View {
     let collection: ScanCollection

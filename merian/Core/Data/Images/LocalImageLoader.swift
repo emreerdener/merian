@@ -1,6 +1,6 @@
+import CoreImage
 import Foundation
 import SwiftUI
-import CoreImage
 
 // MARK: - Core Image Processing Engine
 /// Unifies APFS file rendering, sandbox extractions, and Cloudflare R2 loading autonomously handling physical cache networks natively.

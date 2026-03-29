@@ -1,6 +1,6 @@
 import Foundation
-import SwiftData
 import os
+import SwiftData
 
 // MARK: - Scan Repository
 
@@ -457,8 +457,7 @@ actor HistoricalDatabaseActor {
         }
 
         if didUpdate {
-            do { try modelContext.save() }
-            catch { MerianLog.data.error("🚨 updateExistingScans: save failed: \(error, privacy: .private)") }
+            do { try modelContext.save() } catch { MerianLog.data.error("🚨 updateExistingScans: save failed: \(error, privacy: .private)") }
         }
     }
 
@@ -530,13 +529,11 @@ actor HistoricalDatabaseActor {
             modelContext.insert(record)
 
             if (index + 1).isMultiple(of: checkpointInterval) {
-                do { try modelContext.save() }
-                catch { MerianLog.data.error("🚨 ingestScans: checkpoint save failed at index \(index): \(error, privacy: .private)") }
+                do { try modelContext.save() } catch { MerianLog.data.error("🚨 ingestScans: checkpoint save failed at index \(index): \(error, privacy: .private)") }
             }
         }
 
-        do { try modelContext.save() }
-        catch { MerianLog.data.error("🚨 ingestScans: final save failed: \(error, privacy: .private)") }
+        do { try modelContext.save() } catch { MerianLog.data.error("🚨 ingestScans: final save failed: \(error, privacy: .private)") }
     }
 
     private func syncCollections(remoteCollections: [CloudCollectionResponse]) {
@@ -586,13 +583,11 @@ actor HistoricalDatabaseActor {
             // EXCEPT for those that are still pending upload (offline captures).
             // A reliable heuristic: if the image path is local (doesn't start with http/https), it hasn't synced yet.
             if let currentScans = col.scans {
-                for scan in currentScans {
-                    if !remoteScanIds.contains(scan.id) {
-                        let isSynced = scan.localImagePath?.starts(with: "http") == true || scan.localImagePath?.starts(with: "https") == true || scan.localImagePath == nil
-                        if isSynced {
-                            // Drive the removal from the inverse side
-                            scan.collections?.removeAll(where: { $0.id == col.id })
-                        }
+                for scan in currentScans where !remoteScanIds.contains(scan.id) {
+                    let isSynced = scan.localImagePath?.starts(with: "http") == true || scan.localImagePath?.starts(with: "https") == true || scan.localImagePath == nil
+                    if isSynced {
+                        // Drive the removal from the inverse side
+                        scan.collections?.removeAll(where: { $0.id == col.id })
                     }
                 }
             }
@@ -618,7 +613,6 @@ actor HistoricalDatabaseActor {
             modelContext.delete(obsolete)
         }
 
-        do { try modelContext.save() }
-        catch { MerianLog.data.error("🚨 syncCollections: save failed: \(error, privacy: .private)") }
+        do { try modelContext.save() } catch { MerianLog.data.error("🚨 syncCollections: save failed: \(error, privacy: .private)") }
     }
 }

@@ -1,5 +1,5 @@
-import SwiftUI
 import RevenueCat
+import SwiftUI
 
 struct ManagePlanView: View {
     @Environment(RevenueCatManager.self) private var revenueCatManager
@@ -11,7 +11,6 @@ struct ManagePlanView: View {
             PlanCard(showPaywall: $showPaywall)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
-
 
             Section {
                 Button {
@@ -68,5 +67,4 @@ struct ManagePlanView: View {
         }
     }
     
-
 }

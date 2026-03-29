@@ -19,7 +19,7 @@ import Observation
 
     private let defaults = UserDefaults.standard
     private var lastScanDateKey: String { "Merian_LastScanDate_\(DeviceIdentityManager.shared.deviceId)" }
-    private var scansUsedKey: String    { "Merian_ScansUsedToday_\(DeviceIdentityManager.shared.deviceId)" }
+    private var scansUsedKey: String { "Merian_ScansUsedToday_\(DeviceIdentityManager.shared.deviceId)" }
 
     private init() {
         freeScansRemaining = maxFreeScansPerDay

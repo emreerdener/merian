@@ -50,4 +50,3 @@ struct ConservationBanner: View {
         }
     }
 }
-

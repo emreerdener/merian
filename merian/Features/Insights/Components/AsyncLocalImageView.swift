@@ -2,10 +2,10 @@ import SwiftUI
 
 struct AsyncLocalImageView: View {
     let path: String?
-    var fallbackImageUrl: String? = nil
-    var onImageLoadFailed: (() -> Void)? = nil
+    var fallbackImageUrl: String?
+    var onImageLoadFailed: (() -> Void)?
 
-    @State private var loadedImage: UIImage? = nil
+    @State private var loadedImage: UIImage?
     @State private var hasFailedToLoad: Bool = false
 
     var body: some View {

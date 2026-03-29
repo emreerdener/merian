@@ -1,8 +1,8 @@
-import Foundation
 import CoreLocation
-import WeatherKit
+import Foundation
 import MapKit
 import Observation
+import WeatherKit
 
 // MARK: - Environment Context Manager
 

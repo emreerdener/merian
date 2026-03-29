@@ -1,10 +1,10 @@
+import CoreLocation
 import Foundation
+import ImageIO
+import Observation
+import os
 import Photos
 import UIKit
-import Observation
-import ImageIO
-import CoreLocation
-import os
 
 // MARK: - Core Camera Roll Bridge
 /// Manages fetching the most recent photo thumbnail from the user's camera roll securely without extracting PII.
@@ -14,7 +14,7 @@ import os
     static let shared = PhotoLibraryManager()
     
     // MARK: - State Management
-    var latestThumbnail: UIImage? = nil
+    var latestThumbnail: UIImage?
     
     // MARK: - Hardware Lifecycle
     private var isObserving = false

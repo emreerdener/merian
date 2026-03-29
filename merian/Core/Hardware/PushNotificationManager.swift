@@ -1,8 +1,8 @@
 import Foundation
 import UserNotifications
 #if canImport(UIKit)
-import UIKit
 import os
+import UIKit
 #endif
 
 /// Manages UNUserNotificationCenter delegation for local inference completion alerts.

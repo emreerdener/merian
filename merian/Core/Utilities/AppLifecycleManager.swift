@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 /// Handles app lifecycle transitions (active, inactive, background),
 /// dispatching to the relevant core services.

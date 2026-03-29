@@ -105,7 +105,7 @@ struct MainTabBar: View {
 
 // MARK: - Internal Component Layout Wrappers
 
-fileprivate struct TabBarButton: View {
+private struct TabBarButton: View {
     // MARK: - Properties
     let iconName: String
     let title: String

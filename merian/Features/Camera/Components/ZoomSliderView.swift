@@ -27,8 +27,8 @@ struct ZoomSliderView: View {
     // MARK: - State
     @State private var isActivelyZooming: Bool = false
     @State private var showInitialLabel: Bool = true
-    @State private var zoomIdleTask: Task<Void, Never>? = nil
-    @State private var lastHapticTick: Int? = nil
+    @State private var zoomIdleTask: Task<Void, Never>?
+    @State private var lastHapticTick: Int?
     @State private var dragStartFactor: CGFloat = 1.0
     @State private var isDragging: Bool = false
     /// Drives the tick-elongation effect in `rulerView`. Animated 0→1 when zooming
@@ -170,8 +170,6 @@ struct ZoomSliderView: View {
         .animation(.easeOut(duration: 0.3), value: showText)
     }
 
-
-
     // MARK: - Math
 
     private func fillFraction(for factor: CGFloat) -> CGFloat {
@@ -303,4 +301,3 @@ private struct TickRulerCanvas: View, Animatable {
         .frame(width: componentWidth, height: trackHeight + 8)
     }
 }
-

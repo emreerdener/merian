@@ -71,24 +71,24 @@ enum MerianSchemaV23: VersionedSchema {
         var diagnosticLookalikeName: String?
         var diagnosticDifferentiatorsJson: String?
 
-        @Attribute var iucnRedListStatus: String? = nil
-        @Attribute var gpsLatitude: Double? = nil
-        @Attribute var gpsLongitude: Double? = nil
-        @Attribute var gpsElevation: Double? = nil
-        @Attribute var zoomFactor: Double? = nil
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsLatitude: Double?
+        @Attribute var gpsLongitude: Double?
+        @Attribute var gpsElevation: Double?
+        @Attribute var zoomFactor: Double?
 
         /// Per-scan AI vision reasoning — unique to the specific photo submitted.
-        @Attribute var aiReasoning: String? = nil
-        @Attribute var habitatDescription: String? = nil
+        @Attribute var aiReasoning: String?
+        @Attribute var habitatDescription: String?
         /// GBIF species usage key for occurrence density heatmap tiles.
-        @Attribute var gbifTaxonKey: Int? = nil
+        @Attribute var gbifTaxonKey: Int?
 
-        @Attribute var estimatedSizeCm: Double? = nil
-        @Attribute var lifeStage: String? = nil
-        @Attribute var reproductiveCondition: String? = nil
-        @Attribute var individualCount: Int? = nil
-        @Attribute var ecologicalInteractions: [String]? = nil
-        @Attribute var inferenceTier: String? = nil
+        @Attribute var estimatedSizeCm: Double?
+        @Attribute var lifeStage: String?
+        @Attribute var reproductiveCondition: String?
+        @Attribute var individualCount: Int?
+        @Attribute var ecologicalInteractions: [String]?
+        @Attribute var inferenceTier: String?
         
         /// User-defined custom tags for personal categorization and search indexing.
         @Attribute var customTags: [String] = []

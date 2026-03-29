@@ -4,7 +4,7 @@ import SwiftUI
 struct Badge: View {
     let text: String
     var color: Color = .primary
-    var icon: String? = nil
+    var icon: String?
     var isFilled: Bool = false
     
     private var isNeutralColor: Bool {

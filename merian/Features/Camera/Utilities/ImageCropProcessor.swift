@@ -99,7 +99,7 @@ struct ImageCropProcessor {
                 case .upMirrored:   cropRect = CGRect(x: (1 - ux - uw) * cW, y: uy * cH, width: uw * cW, height: uh * cH)
                 case .downMirrored: cropRect = CGRect(x: ux * cW, y: (1 - uy - uh) * cH, width: uw * cW, height: uh * cH)
                 case .leftMirrored: cropRect = CGRect(x: (1 - uy - uh) * cW, y: (1 - ux - uw) * cH, width: uh * cW, height: uw * cH)
-                case .rightMirrored:cropRect = CGRect(x: uy * cW, y: ux * cH, width: uh * cW, height: uw * cH)
+                case .rightMirrored: cropRect = CGRect(x: uy * cW, y: ux * cH, width: uh * cW, height: uw * cH)
                 @unknown default:   cropRect = CGRect(x: ux * cW, y: uy * cH, width: uw * cW, height: uh * cH)
                 }
                 
@@ -120,7 +120,7 @@ struct ImageCropProcessor {
 
                 var options: [CFString: Any] = [
                     kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality,
-                    kCGImagePropertyOrientation: cgOrientation.rawValue,
+                    kCGImagePropertyOrientation: cgOrientation.rawValue
                 ]
                 if let maxPixelSize { options[kCGImageDestinationImageMaxPixelSize] = maxPixelSize }
                 

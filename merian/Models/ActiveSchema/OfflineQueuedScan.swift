@@ -20,28 +20,29 @@ public final class OfflineQueuedScan {
     public var compassHeading: Double?
     public var relativeHumidity: Double?
     public var uvIndex: Int?
-    @Attribute public var zoomFactor: Double? = nil
+    @Attribute public var zoomFactor: Double?
 
     public var isDeleted: Bool
 
-    public init(id: String = UUID().uuidString,
-         timestamp: Date = Date(),
-         localImagePaths: [String] = [],
-         gpsLatitude: Double? = nil,
-         gpsLongitude: Double? = nil,
-         gpsElevation: Double? = nil,
-         weatherCondition: String? = nil,
-         weatherTemperatureF: Double? = nil,
-         blurScore: Double? = nil,
-         subjectDistanceInMeters: Float? = nil,
-         locationName: String? = nil,
-         isFlashFired: Bool? = nil,
-         cameraPitchDegrees: Double? = nil,
-         compassHeading: Double? = nil,
-         relativeHumidity: Double? = nil,
-         uvIndex: Int? = nil,
-         zoomFactor: Double? = nil,
-         isDeleted: Bool = false) {
+    public init(
+        id: String = UUID().uuidString,
+        timestamp: Date = Date(),
+        localImagePaths: [String] = [],
+        gpsLatitude: Double? = nil,
+        gpsLongitude: Double? = nil,
+        gpsElevation: Double? = nil,
+        weatherCondition: String? = nil,
+        weatherTemperatureF: Double? = nil,
+        blurScore: Double? = nil,
+        subjectDistanceInMeters: Float? = nil,
+        locationName: String? = nil,
+        isFlashFired: Bool? = nil,
+        cameraPitchDegrees: Double? = nil,
+        compassHeading: Double? = nil,
+        relativeHumidity: Double? = nil,
+        uvIndex: Int? = nil,
+        zoomFactor: Double? = nil,
+        isDeleted: Bool = false) {
 
         self.id = id
         self.timestamp = timestamp

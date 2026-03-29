@@ -1,5 +1,5 @@
-import SwiftUI
 import AVFoundation
+import SwiftUI
 
 struct CameraPermissionStepView: View {
     // MARK: - Callbacks

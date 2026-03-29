@@ -1,5 +1,5 @@
-import Foundation
 import CoreGraphics
+import Foundation
 import ImageIO
 
 /// Downsamples large photos using ImageIO thumbnailing to avoid OOM pressure.

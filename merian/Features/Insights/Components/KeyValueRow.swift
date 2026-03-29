@@ -3,7 +3,7 @@ import SwiftUI
 public struct KeyValueRow: View {
     public let title: String
     public let value: String
-    public var valueIcon: String? = nil
+    public var valueIcon: String?
     public var valueFontWeight: Font.Weight = .medium
     public var isValueItalic: Bool = false
     

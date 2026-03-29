@@ -1,5 +1,5 @@
-import SwiftUI
 import RiveRuntime
+import SwiftUI
 
 // 1. Digital Terrarium Integration mapping directly to users' physical taxonomical growth
 struct Terrarium: View {

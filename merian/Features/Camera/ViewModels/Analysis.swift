@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 import Vision
 
 extension CameraViewModel {
@@ -53,7 +53,7 @@ extension CameraViewModel {
             let telemetry: CaptureTelemetry
             if let context = resolvedContext {
                 let distance = diContainer.cameraManager.subjectDistanceInMeters
-                var estimatedSizeCm: Double? = nil
+                var estimatedSizeCm: Double?
                 
                 if let dist = distance, let firstData = datasToAnalyze.first {
                     estimatedSizeCm = await SizeEstimator.estimateSize(imageData: firstData, distanceMeters: dist)
@@ -89,7 +89,7 @@ extension CameraViewModel {
                 )
             } else {
                 let distance = diContainer.cameraManager.subjectDistanceInMeters
-                var estimatedSizeCm: Double? = nil
+                var estimatedSizeCm: Double?
                 
                 if let dist = distance, let firstData = datasToAnalyze.first {
                     estimatedSizeCm = await SizeEstimator.estimateSize(imageData: firstData, distanceMeters: dist)
@@ -250,7 +250,7 @@ extension CameraViewModel {
         "Cross-referencing taxonomic data...",
         "Querying species databases...",
         "Incorporating location and habitat context...",
-        "Awaiting identification...",
+        "Awaiting identification..."
     ]
 
     /// Returns subject-specific phrases when Vision identifies a category with:
@@ -282,7 +282,7 @@ extension CameraViewModel {
                     "Cross-referencing eBird observations...",
                     "Verifying geographic range...",
                     "Checking subspecies distribution...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("insect") || id.contains("arthropod") || id.contains("butterfly") ||
@@ -297,7 +297,7 @@ extension CameraViewModel {
                     "Evaluating taxonomic indicators...",
                     "Consulting entomology records...",
                     "Checking regional distribution data...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("spider") || id.contains("arachnid") || id.contains("scorpion") ||
@@ -310,7 +310,7 @@ extension CameraViewModel {
                     "Checking taxonomic classification...",
                     "Consulting arachnology records...",
                     "Checking regional occurrence records...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("mushroom") || id.contains("fungi") || id.contains("fungus") ||
@@ -323,7 +323,7 @@ extension CameraViewModel {
                     "Reviewing substrate and habitat context...",
                     "Consulting mycology database...",
                     "Checking seasonal fruiting patterns...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("flower") || id.contains("blossom") || id.contains("bloom") {
@@ -335,7 +335,7 @@ extension CameraViewModel {
                     "Reviewing pollinator associations...",
                     "Cross-referencing botanical records...",
                     "Checking regional flora records...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("tree") || id.contains("conifer") || id.contains("palm") {
@@ -347,7 +347,7 @@ extension CameraViewModel {
                     "Reviewing fruit and seed characteristics...",
                     "Cross-referencing botanical records...",
                     "Checking habitat and elevation range...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("cactus") || id.contains("cactaceae") || id.contains("succulent") {
@@ -359,7 +359,7 @@ extension CameraViewModel {
                     "Reviewing surface texture and coloration...",
                     "Consulting flora database...",
                     "Checking native range distribution...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("plant") || id.contains("leaf") || id.contains("vegetation") ||
@@ -373,7 +373,7 @@ extension CameraViewModel {
                     "Reviewing diagnostic field markers...",
                     "Consulting flora database...",
                     "Checking native range distribution...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("reptile") || id.contains("snake") || id.contains("lizard") ||
@@ -386,7 +386,7 @@ extension CameraViewModel {
                     "Checking taxonomic classification...",
                     "Cross-referencing herpetology records...",
                     "Checking regional population data...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("amphibian") || id.contains("frog") || id.contains("toad") ||
@@ -399,7 +399,7 @@ extension CameraViewModel {
                     "Reviewing call and behavioral traits...",
                     "Consulting herpetology database...",
                     "Checking wetland habitat associations...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("fish") || id.contains("shark") || id.contains("ray") ||
@@ -412,7 +412,7 @@ extension CameraViewModel {
                     "Evaluating body shape and proportions...",
                     "Consulting ichthyology records...",
                     "Checking watershed distribution...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
             }
             if id.contains("mammal") || id.contains("dog") || id.contains("cat") ||
@@ -427,7 +427,7 @@ extension CameraViewModel {
                     "Cross-referencing range data...",
                     "Verifying habitat indicators...",
                     "Checking population range boundaries...",
-                    "Awaiting species confirmation...",
+                    "Awaiting species confirmation..."
                 ]
         }
 

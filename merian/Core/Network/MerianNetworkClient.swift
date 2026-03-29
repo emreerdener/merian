@@ -1,5 +1,5 @@
-import Foundation
 import CryptoKit
+import Foundation
 import os
 
 // Using MerianError from Core/Utilities.

@@ -98,9 +98,9 @@ private struct ScanCornerBrackets: View {
 
     var body: some View {
         ZStack {
-            bracket(.topLeft,     alignment: .topLeading)
-            bracket(.topRight,    alignment: .topTrailing)
-            bracket(.bottomLeft,  alignment: .bottomLeading)
+            bracket(.topLeft, alignment: .topLeading)
+            bracket(.topRight, alignment: .topTrailing)
+            bracket(.bottomLeft, alignment: .bottomLeading)
             bracket(.bottomRight, alignment: .bottomTrailing)
         }
         .opacity(visible ? 1 : 0)

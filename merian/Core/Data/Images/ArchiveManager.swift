@@ -1,9 +1,9 @@
 import Foundation
-import Photos
-import SwiftUI
-import SwiftData
 import Observation
 import os
+import Photos
+import SwiftData
+import SwiftUI
 
 // MARK: - Core Archival Orchestrator
 @MainActor
@@ -98,7 +98,7 @@ import os
     }
     
     private func downloadToLocalLibrary(url: URL) async throws {
-        var tempFileURL: URL? = nil
+        var tempFileURL: URL?
         
         if !url.isFileURL {
             let (downloadedURL, response) = try await URLSession.shared.download(from: url)

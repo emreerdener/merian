@@ -1,32 +1,35 @@
 import Foundation
 import UIKit
 
+private struct WikiThumbnail: Decodable {
+    let source: String?
+}
+
+private struct WikiSummaryResponse: Decodable {
+    let thumbnail: WikiThumbnail?
+    let originalimage: WikiThumbnail?
+}
+
+private struct FetcherGBIFMedia: Decodable {
+    let type: String?
+    let identifier: String?
+}
+
+private struct FetcherGBIFResult: Decodable {
+    let media: [FetcherGBIFMedia]?
+}
+
+private struct FetcherGBIFMediaResponse: Decodable {
+    let results: [FetcherGBIFResult]?
+}
+
 @MainActor
 final class SimilarSpeciesImageFetcher: ObservableObject {
-    @Published var image: UIImage? = nil
+    @Published var image: UIImage?
     @Published var isLoading: Bool = false
     
     // In-memory cache to prevent re-fetching the same lookalike image repeatedly
     private static let memoryCache = NSCache<NSString, UIImage>()
-    
-    private struct WikiSummaryResponse: Decodable {
-        let thumbnail: Thumbnail?
-        let originalimage: Thumbnail?
-        struct Thumbnail: Decodable {
-            let source: String?
-        }
-    }
-    
-    private struct GBIFMediaResponse: Decodable {
-        let results: [GBIFResult]?
-        struct GBIFResult: Decodable {
-            let media: [GBIFMedia]?
-        }
-        struct GBIFMedia: Decodable {
-            let type: String?
-            let identifier: String?
-        }
-    }
     
     func fetchImage(for scientificName: String) async {
         guard !scientificName.isEmpty else { return }
@@ -85,7 +88,7 @@ final class SimilarSpeciesImageFetcher: ObservableObject {
                     let (data, response) = try await URLSession.shared.data(for: gbifRequest)
                     guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return nil }
                     
-                    let decoded = try JSONDecoder().decode(GBIFMediaResponse.self, from: data)
+                    let decoded = try JSONDecoder().decode(FetcherGBIFMediaResponse.self, from: data)
                     guard let firstResult = decoded.results?.first,
                           let firstMedia = firstResult.media?.first(where: { $0.type == "StillImage" }),
                           let imageUrlString = firstMedia.identifier,

@@ -10,7 +10,7 @@ struct LibraryView: View {
     
     // MARK: - Component Callbacks
     var isSelectionMode: Bool = false
-    var isSelected: ((LocalScanRecord) -> Bool)? = nil
+    var isSelected: ((LocalScanRecord) -> Bool)?
     let onSelect: (LocalScanRecord) -> Void
     let onDelete: (LocalScanRecord) -> Void
     

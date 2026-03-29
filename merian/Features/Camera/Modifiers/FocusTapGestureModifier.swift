@@ -3,9 +3,9 @@ import SwiftUI
 struct FocusTapGestureModifier: ViewModifier {
     let onTap: (CGPoint) -> Void
     
-    @State private var focusLocation: CGPoint? = nil
+    @State private var focusLocation: CGPoint?
     @State private var showFocusIndicator: Bool = false
-    @State private var focusTask: Task<Void, Never>? = nil
+    @State private var focusTask: Task<Void, Never>?
 
     func body(content: Content) -> some View {
         content

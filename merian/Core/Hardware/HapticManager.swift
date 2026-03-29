@@ -1,6 +1,6 @@
 import Foundation
-import UIKit
 import SwiftUI
+import UIKit
 
 // MARK: - Core Sensory Feedback Engine
 @MainActor
@@ -71,14 +71,12 @@ final class HapticManager {
 
     func triggerLightImpact(intensity: CGFloat? = nil) {
         guard shouldFire else { return }
-        if let intensity { light.impactOccurred(intensity: intensity) }
-        else { light.impactOccurred() }
+        if let intensity { light.impactOccurred(intensity: intensity) } else { light.impactOccurred() }
     }
 
     func triggerHeavyImpact(intensity: CGFloat? = nil) {
         guard shouldFire else { return }
-        if let intensity { heavy.impactOccurred(intensity: intensity) }
-        else { heavy.impactOccurred() }
+        if let intensity { heavy.impactOccurred(intensity: intensity) } else { heavy.impactOccurred() }
     }
 
     // MARK: - Private

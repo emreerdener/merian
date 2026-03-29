@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 // 3. Scans Semantic View Interface
 enum ScansTab {
@@ -23,7 +23,7 @@ struct ScansSheetView: View {
     @Binding var isInsightSheetOpen: Bool
     
     // MARK: - Navigation Control
-    @State private var selectedScanForInsight: LocalScanRecord? = nil
+    @State private var selectedScanForInsight: LocalScanRecord?
     @State private var activeTab: ScansTab = .library
     
     // MARK: - Component State
@@ -31,7 +31,7 @@ struct ScansSheetView: View {
     @State private var newCollectionName = ""
     @State private var newlyCreatedCollection: ScanCollection?
     
-    @State private var scanToDelete: LocalScanRecord? = nil
+    @State private var scanToDelete: LocalScanRecord?
     @State private var showDeleteConfirmation = false
     @State private var showBatchDeleteConfirmation = false
     @State private var showSelectionLimitAlert = false

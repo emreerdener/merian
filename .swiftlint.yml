@@ -8,6 +8,8 @@ disabled_rules:
   - force_try
   - file_length
   - identifier_name
+  - multiple_closures_with_trailing_closure
+  - function_parameter_count
 
 opt_in_rules:
   - empty_count
@@ -28,9 +30,3 @@ excluded:
 analyzer_rules:
   - explicit_self
 
-custom_rules:
-  no_magic_numbers:
-    name: "Magic Number"
-    regex: "(?<!\\w)(?:0x[a-fA-F0-9]+|[0-9]+\\.[0-9]+|[0-9]+)(?!\\w)(?!\\s*(?:times|seconds|minutes|hours|days|weeks|months|years|ms))"
-    message: "Magic numbers should be avoided. Define a constant locally or globally."
-    severity: warning

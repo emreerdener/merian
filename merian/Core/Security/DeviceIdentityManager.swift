@@ -4,9 +4,9 @@ import UIKit
 #elseif canImport(WatchKit)
 import WatchKit
 #endif
-import Security
 import Observation
 import os
+import Security
 
 @MainActor
 @Observable final class DeviceIdentityManager {

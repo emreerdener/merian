@@ -3,11 +3,11 @@ import SwiftUI
 struct ScanThumbnail: View {
     // MARK: - Asset Dependencies
     let imagePath: String?
-    var fallbackImageUrl: String? = nil
+    var fallbackImageUrl: String?
     var maxDimension: Int = 600
 
     // MARK: - Rendering State
-    @State private var thumbnail: UIImage? = nil
+    @State private var thumbnail: UIImage?
     @State private var hasFailedToLoad: Bool = false
 
     // MARK: - Visual Hierarchy

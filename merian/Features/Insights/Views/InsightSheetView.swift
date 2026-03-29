@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 /// The master state orchestrator routing biological inference metadata and hardware logic 
 /// safely down into the decoupled visual tree via the `InsightSheetViewModel`.

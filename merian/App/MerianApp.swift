@@ -1,6 +1,6 @@
-import SwiftUI
-import SwiftData
 import GoogleSignIn
+import SwiftData
+import SwiftUI
 
 // MARK: - Core Application Delegation
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -115,5 +115,4 @@ struct MerianApp: App {
         }
     }
     
-
 }

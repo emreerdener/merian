@@ -1,5 +1,5 @@
-import Foundation
 import CoreLocation
+import Foundation
 import SwiftUI
 
 @Observable final class LocationPermissionDelegate: NSObject, CLLocationManagerDelegate {

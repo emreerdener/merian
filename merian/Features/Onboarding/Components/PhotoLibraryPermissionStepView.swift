@@ -1,5 +1,5 @@
-import SwiftUI
 import Photos
+import SwiftUI
 
 struct PhotoLibraryPermissionStepView: View {
     // MARK: - Callbacks

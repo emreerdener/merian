@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct CollectionDetailView: View {
     // MARK: - State Dependencies
@@ -15,8 +15,8 @@ struct CollectionDetailView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     
     // MARK: - Interface State
-    @State private var scanToDelete: LocalScanRecord? = nil
-    @State private var selectedScanForInsight: LocalScanRecord? = nil
+    @State private var scanToDelete: LocalScanRecord?
+    @State private var selectedScanForInsight: LocalScanRecord?
     @State private var showScanSelection = false
     @State private var showDeleteConfirmation = false
     @State private var newCollectionName: String = ""
@@ -70,7 +70,7 @@ struct CollectionDetailView: View {
         // MARK: - View Modifiers
         .navigationTitle(collection.name)
         .toolbar { trailingToolbar }
-        .sheet(item: $selectedScanForInsight) { scan in
+        .sheet(item: $selectedScanForInsight) { _ in
             InsightSheetView(isPresented: Binding(
                 get: { selectedScanForInsight != nil },
                 set: { if !$0 { selectedScanForInsight = nil } }

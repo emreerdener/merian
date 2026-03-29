@@ -1,5 +1,5 @@
-import SwiftUI
 import PhotosUI
+import SwiftUI
 
 struct ActiveScanToolbar: View {
     // MARK: - Properties
@@ -145,7 +145,6 @@ extension ActiveScanToolbar {
         }
     }
    
-    
     // MARK: - Image Grid
     // Moved to private struct ActiveScanThumbnailGrid below to simplify evaluation bounds
 
@@ -182,14 +181,14 @@ private struct ActiveScanThumbnailGrid: View {
     var body: some View {
         HStack(spacing: 16) {
             ForEach(0..<images.count, id: \.self) { index in
-                Button(action: { onThumbnailTap(index) }) {
+                Button(action: { onThumbnailTap(index) }, label: {
                     Image(uiImage: images[index])
                         .resizable()
                         .scaledToFill()
                         .frame(width: 48, height: 48)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
-                }
+                })
                 .buttonStyle(PlainButtonStyle())
             }
             

@@ -1,7 +1,7 @@
 import Foundation
+import ImageIO
 import SwiftData
 import SwiftUI
-import ImageIO
 
 enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     case newest = "Newest"
@@ -85,7 +85,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         // A full rebuild is O(n) on @MainActor on every scan mutation; incremental updates
         // are O(delta) — typically O(1) for a single add or delete.
         for scan in addedScans { self.scanMap[scan.id] = scan }
-        for id in removedIds   { self.scanMap.removeValue(forKey: id) }
+        for id in removedIds { self.scanMap.removeValue(forKey: id) }
         
         // 1. Instantly prune deleted UUIDs out of the string cache natively without touching the background thread!
         if !removedIds.isEmpty {
@@ -216,10 +216,10 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     
     private nonisolated static func executeDetachedSort(on subset: [ScanSortPrimitive], sortOption: ScanSortOption) -> [ScanSortPrimitive] {
         switch sortOption {
-            case .newest: return subset.sorted { $0.timestamp > $1.timestamp }
-            case .oldest: return subset.sorted { $0.timestamp < $1.timestamp }
-            case .aToZ: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedAscending }
-            case .zToA: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedDescending }
+        case .newest: return subset.sorted { $0.timestamp > $1.timestamp }
+        case .oldest: return subset.sorted { $0.timestamp < $1.timestamp }
+        case .aToZ: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedAscending }
+        case .zToA: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedDescending }
         }
     }
     
@@ -263,7 +263,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     
     // MARK: - Batch Operations (Async)
     var isDownloading = false
-    var toastMessage: String? = nil
+    var toastMessage: String?
     
     func batchShare(scans: [LocalScanRecord]) async {
         await withCheckedContinuation { continuation in
@@ -372,30 +372,30 @@ actor SearchFilterActor {
             if Task.isCancelled { return false }
             let matchesCategory: Bool
             switch catMatch {
-                case "all": 
-                    matchesCategory = true
-                case "plants": 
-                    matchesCategory = scan.kingdom == "plantae"
-                case "fungi": 
-                    matchesCategory = scan.kingdom == "fungi"
-                case "insects": 
-                    matchesCategory = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
-                case "birds": 
-                    matchesCategory = scan.className == "aves"
-                case "mammals": 
-                    matchesCategory = scan.className == "mammalia"
-                case "reptiles": 
-                    matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
-                case "other":
-                    let isP = scan.kingdom == "plantae"
-                    let isF = scan.kingdom == "fungi"
-                    let isI = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
-                    let isB = scan.className == "aves"
-                    let isM = scan.className == "mammalia"
-                    let isR = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
-                    matchesCategory = !(isP || isF || isI || isB || isM || isR)
-                default: 
-                    matchesCategory = false
+            case "all": 
+                matchesCategory = true
+            case "plants": 
+                matchesCategory = scan.kingdom == "plantae"
+            case "fungi": 
+                matchesCategory = scan.kingdom == "fungi"
+            case "insects": 
+                matchesCategory = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
+            case "birds": 
+                matchesCategory = scan.className == "aves"
+            case "mammals": 
+                matchesCategory = scan.className == "mammalia"
+            case "reptiles": 
+                matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
+            case "other":
+                let isP = scan.kingdom == "plantae"
+                let isF = scan.kingdom == "fungi"
+                let isI = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
+                let isB = scan.className == "aves"
+                let isM = scan.className == "mammalia"
+                let isR = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
+                matchesCategory = !(isP || isF || isI || isB || isM || isR)
+            default: 
+                matchesCategory = false
             }
             
             if !matchesCategory { return false }

@@ -72,18 +72,18 @@ enum MerianSchemaV18: VersionedSchema {
         var diagnosticLookalikeName: String?
         var diagnosticDifferentiatorsJson: String?
 
-        @Attribute var iucnRedListStatus: String? = nil
-        @Attribute var gpsLatitude: Double? = nil
-        @Attribute var gpsLongitude: Double? = nil
-        @Attribute var gpsElevation: Double? = nil
-        @Attribute var zoomFactor: Double? = nil
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsLatitude: Double?
+        @Attribute var gpsLongitude: Double?
+        @Attribute var gpsElevation: Double?
+        @Attribute var zoomFactor: Double?
 
         /// Per-scan AI vision reasoning — unique to the specific photo submitted.
-        @Attribute var aiReasoning: String? = nil
-        @Attribute var habitatDescription: String? = nil
-        @Attribute var globalDistributionRegionsJson: String? = nil
+        @Attribute var aiReasoning: String?
+        @Attribute var habitatDescription: String?
+        @Attribute var globalDistributionRegionsJson: String?
         /// GBIF species usage key for occurrence density heatmap tiles.
-        @Attribute var gbifTaxonKey: Int? = nil
+        @Attribute var gbifTaxonKey: Int?
 
         init(id: String = UUID().uuidString,
              speciesId: String,

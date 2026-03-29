@@ -8,7 +8,7 @@ struct BiologicalView: View {
     @Binding var selectedWikiURL: URL?
 
     // MARK: - Context State
-    var timestamp: Date? = nil
+    var timestamp: Date?
 
     // MARK: - Visual Layout
     var body: some View {

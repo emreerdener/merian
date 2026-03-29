@@ -6,8 +6,8 @@ struct ScansHeatmap: View {
     let heatmapData: ProfileHeatmapData?
     
     enum HeatmapScale: String, CaseIterable, Identifiable {
-        case year = "year"
-        case month = "month"
+        case year
+        case month
         var id: String { self.rawValue }
     }
     
@@ -182,7 +182,7 @@ private struct HeatmapMonthGrid: View, Equatable {
         VStack(alignment: .leading, spacing: squareSpacing) {
             // X-Axis Labels (Months)
             HStack(spacing: squareSpacing) {
-                ForEach(Array(weeks.enumerated()), id: \.element.id) { index, week in
+                ForEach(Array(weeks.enumerated()), id: \.element.id) { _, week in
                     VStack(alignment: .leading) {
                         if let monthLabel = week.monthLabel {
                             Text(monthLabel)

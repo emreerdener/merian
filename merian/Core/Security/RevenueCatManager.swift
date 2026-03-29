@@ -1,7 +1,7 @@
 import Foundation
-@_spi(Internal) import RevenueCat
 import Observation
 import os
+@_spi(Internal) import RevenueCat
 
 @MainActor
 @Observable final class RevenueCatManager {

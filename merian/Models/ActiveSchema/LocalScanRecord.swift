@@ -41,24 +41,24 @@ public final class LocalScanRecord {
 
     public var similarSpecies: [String]?
 
-    @Attribute public var iucnRedListStatus: String? = nil
-    @Attribute public var gpsLatitude: Double? = nil
-    @Attribute public var gpsLongitude: Double? = nil
-    @Attribute public var gpsElevation: Double? = nil
-    @Attribute public var zoomFactor: Double? = nil
+    @Attribute public var iucnRedListStatus: String?
+    @Attribute public var gpsLatitude: Double?
+    @Attribute public var gpsLongitude: Double?
+    @Attribute public var gpsElevation: Double?
+    @Attribute public var zoomFactor: Double?
 
     /// Per-scan AI vision reasoning — unique to the specific photo submitted.
-    @Attribute public var aiReasoning: String? = nil
-    @Attribute public var habitatDescription: String? = nil
+    @Attribute public var aiReasoning: String?
+    @Attribute public var habitatDescription: String?
     /// GBIF species usage key for occurrence density heatmap tiles.
-    @Attribute public var gbifTaxonKey: Int? = nil
+    @Attribute public var gbifTaxonKey: Int?
 
-    @Attribute public var estimatedSizeCm: Double? = nil
-    @Attribute public var lifeStage: String? = nil
-    @Attribute public var reproductiveCondition: String? = nil
-    @Attribute public var individualCount: Int? = nil
-    @Attribute public var ecologicalInteractions: [String]? = nil
-    @Attribute public var inferenceTier: String? = nil
+    @Attribute public var estimatedSizeCm: Double?
+    @Attribute public var lifeStage: String?
+    @Attribute public var reproductiveCondition: String?
+    @Attribute public var individualCount: Int?
+    @Attribute public var ecologicalInteractions: [String]?
+    @Attribute public var inferenceTier: String?
     
     /// User-defined custom tags for personal categorization and search indexing.
     @Attribute public var customTags: [String] = []
@@ -66,52 +66,53 @@ public final class LocalScanRecord {
     /// Tracks if a user has opened the scan's insight sheet. Defaults to true so historic scans don't receive "New" badges.
     public var hasBeenViewed: Bool = true
 
-    public init(id: String = UUID().uuidString,
-         speciesId: String,
-         scientificName: String,
-         commonName: String,
-         timestamp: Date = Date(),
-         captureDate: Date? = nil,
-         localImagePath: String? = nil,
-         semanticTags: [String] = [],
-         hazardType: String = "none",
-         isBiological: Bool = true,
-         isLiveCapture: Bool = true,
-         isInvasive: Bool = false,
-         ecologyType: String = "unknown",
-         wikipediaUrl: String? = nil,
-         wikipediaOverview: String? = nil,
-         referenceImageUrl: String? = nil,
-         additionalImagePaths: [String]? = nil,
-         confidenceScore: Double? = nil,
-         isLocallyArchived: Bool = false,
-         taxonomyKingdom: String? = nil,
-         taxonomyPhylum: String? = nil,
-         taxonomyClass: String? = nil,
-         taxonomyOrder: String? = nil,
-         taxonomyFamily: String? = nil,
-         taxonomyGenus: String? = nil,
-         locationName: String? = nil,
-         weatherCondition: String? = nil,
-         weatherTemperatureF: Double? = nil,
-         collections: [ScanCollection]? = [],
-         similarSpecies: [String]? = nil,
-         iucnRedListStatus: String? = nil,
-         gpsLatitude: Double? = nil,
-         gpsLongitude: Double? = nil,
-         gpsElevation: Double? = nil,
-         zoomFactor: Double? = nil,
-         aiReasoning: String? = nil,
-         habitatDescription: String? = nil,
-         gbifTaxonKey: Int? = nil,
-         estimatedSizeCm: Double? = nil,
-         lifeStage: String? = nil,
-         reproductiveCondition: String? = nil,
-         individualCount: Int? = nil,
-         ecologicalInteractions: [String]? = nil,
-         inferenceTier: String? = nil,
-         customTags: [String] = [],
-         hasBeenViewed: Bool = false) {
+    public init(
+        id: String = UUID().uuidString,
+        speciesId: String,
+        scientificName: String,
+        commonName: String,
+        timestamp: Date = Date(),
+        captureDate: Date? = nil,
+        localImagePath: String? = nil,
+        semanticTags: [String] = [],
+        hazardType: String = "none",
+        isBiological: Bool = true,
+        isLiveCapture: Bool = true,
+        isInvasive: Bool = false,
+        ecologyType: String = "unknown",
+        wikipediaUrl: String? = nil,
+        wikipediaOverview: String? = nil,
+        referenceImageUrl: String? = nil,
+        additionalImagePaths: [String]? = nil,
+        confidenceScore: Double? = nil,
+        isLocallyArchived: Bool = false,
+        taxonomyKingdom: String? = nil,
+        taxonomyPhylum: String? = nil,
+        taxonomyClass: String? = nil,
+        taxonomyOrder: String? = nil,
+        taxonomyFamily: String? = nil,
+        taxonomyGenus: String? = nil,
+        locationName: String? = nil,
+        weatherCondition: String? = nil,
+        weatherTemperatureF: Double? = nil,
+        collections: [ScanCollection]? = [],
+        similarSpecies: [String]? = nil,
+        iucnRedListStatus: String? = nil,
+        gpsLatitude: Double? = nil,
+        gpsLongitude: Double? = nil,
+        gpsElevation: Double? = nil,
+        zoomFactor: Double? = nil,
+        aiReasoning: String? = nil,
+        habitatDescription: String? = nil,
+        gbifTaxonKey: Int? = nil,
+        estimatedSizeCm: Double? = nil,
+        lifeStage: String? = nil,
+        reproductiveCondition: String? = nil,
+        individualCount: Int? = nil,
+        ecologicalInteractions: [String]? = nil,
+        inferenceTier: String? = nil,
+        customTags: [String] = [],
+        hasBeenViewed: Bool = false) {
 
         self.id = id
         self.speciesId = speciesId

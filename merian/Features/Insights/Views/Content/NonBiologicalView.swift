@@ -3,7 +3,7 @@ import SwiftUI
 struct NonBiologicalView: View {
     let species: SpeciesData
     let commonName: String
-    var timestamp: Date? = nil
+    var timestamp: Date?
 
     var body: some View {
         VStack(spacing: 24) {

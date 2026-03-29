@@ -1,5 +1,5 @@
-import SwiftUI
 import PhotosUI
+import SwiftUI
 
 struct MainOverlayView: View {
     // MARK: - Dependencies

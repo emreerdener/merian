@@ -7,9 +7,9 @@ struct ScansGrid<MenuContent: View>: View {
     
     // MARK: - Component Callbacks
     let onSelect: (LocalScanRecord) -> Void
-    var onDelete: ((LocalScanRecord) -> Void)? = nil
-    var isSelected: ((LocalScanRecord) -> Bool)? = nil
-    var onAddScans: (() -> Void)? = nil
+    var onDelete: ((LocalScanRecord) -> Void)?
+    var isSelected: ((LocalScanRecord) -> Bool)?
+    var onAddScans: (() -> Void)?
     
     // MARK: - Generic View Builders
     @ViewBuilder var customMenuItems: ((LocalScanRecord) -> MenuContent)

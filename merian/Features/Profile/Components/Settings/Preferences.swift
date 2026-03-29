@@ -31,7 +31,6 @@ struct Preferences: View {
             }
             .padding(.vertical, 4)
 
-           
             // MARK: - Upgrades
             Button { managePlanActive = true } label: {
                 SettingsNavigationRow(
@@ -61,7 +60,6 @@ struct Preferences: View {
                     iconColor: .gray
                 )
             }
-
 
             // MARK: - Multi-Capture Scans
             SettingsToggleRow(
@@ -126,7 +124,6 @@ struct Preferences: View {
 
 }
 
-
 // MARK: - Reusable Row Primitives
 
 /// A reusable row for settings items that navigate or trigger an action.
@@ -135,8 +132,8 @@ struct Preferences: View {
 /// `NavigationLink`, which would add a second system disclosure indicator.
 struct SettingsNavigationRow: View {
     let title: String
-    var description: String? = nil
-    var icon: String? = nil
+    var description: String?
+    var icon: String?
     var iconColor: Color = .gray
 
     var body: some View {
@@ -169,9 +166,9 @@ struct SettingsNavigationRow: View {
 /// A reusable row wrapping a Toggle with an optional icon badge and caption.
 struct SettingsToggleRow: View {
     let title: String
-    var description: String? = nil
+    var description: String?
     @Binding var isOn: Bool
-    var icon: String? = nil
+    var icon: String?
     var iconColor: Color = .gray
 
     var body: some View {
@@ -280,21 +277,27 @@ struct GeoprivacyPickerView: View {
     @Environment(SupabaseManager.self) private var supabase
     @Binding var defaultGeoprivacy: String
 
-    private let options: [(id: String, title: String, descriptor: String)] = [
-        (
-            "open",
-            "Open",
-            "Your exact GPS coordinates are recorded and attached to each scan."
+    private struct GeoprivacyOption {
+        let id: String
+        let title: String
+        let descriptor: String
+    }
+
+    private let options: [GeoprivacyOption] = [
+        GeoprivacyOption(
+            id: "open",
+            title: "Open",
+            descriptor: "Your exact GPS coordinates are recorded and attached to each scan."
         ),
-        (
-            "obscured",
-            "Obscured",
-            "Coordinates are rounded to approximately a 10 km area, preserving regional context without exposing your precise location."
+        GeoprivacyOption(
+            id: "obscured",
+            title: "Obscured",
+            descriptor: "Coordinates are rounded to approximately a 10 km area, preserving regional context without exposing your precise location."
         ),
-        (
-            "private",
-            "Private",
-            "No location data is attached to your scans — your whereabouts remain entirely hidden."
+        GeoprivacyOption(
+            id: "private",
+            title: "Private",
+            descriptor: "No location data is attached to your scans — your whereabouts remain entirely hidden."
         )
     ]
 

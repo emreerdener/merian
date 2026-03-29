@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct HabitatAndDistributionCard: View {
     let habitatDescription: String?
@@ -149,5 +149,3 @@ struct HabitatAndDistributionCard: View {
         return result
     }
 }
-
-

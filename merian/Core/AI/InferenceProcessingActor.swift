@@ -1,7 +1,6 @@
 import Foundation
 import SwiftData
 
-
 // MARK: - Inference Processing Actor
 
 /// Off-main-actor worker for CPU-bound inference tasks: base64 encoding and response parsing/persistence.
@@ -38,13 +37,19 @@ actor InferenceProcessingActor {
     ///     are written instead of `compressedDatas` so the insight sheet and scan library
     ///     render at full display quality. Falls back to `compressedDatas` when empty
     ///     (e.g. offline-queue reprocessing path where only inference-quality data is stored).
+    struct ParseAndSaveResult {
+        let mappedData: SpeciesData?
+        let isNewDiscovery: Bool
+        let savedPaths: [String]
+    }
+
     func parseAndSave(
         resultData: Data,
         telemetry: CaptureTelemetry,
         modelContext: ModelContext?,
         compressedDatas: [Data],
         displayDatas: [Data] = []
-    ) async throws -> (SpeciesData?, Bool, [String]) {
+    ) async throws -> ParseAndSaveResult {
         let parsedWrapper: EdgeResponseWrapper
         do {
             parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
@@ -78,6 +83,6 @@ actor InferenceProcessingActor {
             newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, localImagePaths: savedPaths)
         }
 
-        return (mappedData, newDiscovery, savedPaths)
+        return ParseAndSaveResult(mappedData: mappedData, isNewDiscovery: newDiscovery, savedPaths: savedPaths)
     }
 }

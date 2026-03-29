@@ -1,5 +1,5 @@
-import SwiftUI
 import RiveRuntime
+import SwiftUI
 
 // MARK: - Core Feature Presentation Primitive
 struct OnboardingStepWrapper: View {
@@ -19,8 +19,8 @@ struct OnboardingStepWrapper: View {
     let primaryAction: () -> Void
     
     // MARK: - Secondary Action Fallback
-    var secondaryButtonTitle: String? = nil
-    var secondaryAction: (() -> Void)? = nil
+    var secondaryButtonTitle: String?
+    var secondaryAction: (() -> Void)?
     
     // MARK: - Subviews
 

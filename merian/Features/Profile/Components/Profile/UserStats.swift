@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 /// The fundamental anchor of the Offline-First Architecture. 
 /// This completely isolates millions of SQLite computations physically off the UI thread 
@@ -43,7 +43,7 @@ actor ProfileDatabaseActor {
         return (speciesCount, streak)
     }
     
-    func calculateAll() -> (speciesCount: Int, streak: Int, heatmap: ProfileHeatmapData, awards: [AwardPayload]) {
+    func calculateAll() -> ProfileAllStatsPayload {
         var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         descriptor.propertiesToFetch = [
             \.scientificName, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType,
@@ -51,7 +51,12 @@ actor ProfileDatabaseActor {
             \.iucnRedListStatus, \.hazardType, \.confidenceScore
         ]
         guard let allRecords = try? modelContext.fetch(descriptor) else {
-            return (0, 0, ProfileHeatmapData(totalCaptures: 0, currentMonthCaptures: 0, yearString: "", weeks: []), [])
+            return ProfileAllStatsPayload(
+                speciesCount: 0,
+                streak: 0,
+                heatmap: ProfileHeatmapData(totalCaptures: 0, currentMonthCaptures: 0, yearString: "", weeks: []),
+                awards: []
+            )
         }
 
         let calendar = Calendar.current
@@ -79,16 +84,21 @@ actor ProfileDatabaseActor {
             }
         }
 
+        let daysInWeek = 7
+        let weeksInYear = 52
+        
         // Heatmap
         var counts: [Date: Int] = [:]
         for record in allRecords {
             counts[calendar.startOfDay(for: record.timestamp), default: 0] += 1
         }
         let currentYear = calendar.component(.year, from: today)
-        let daysToSaturday = 7 - calendar.component(.weekday, from: today)
+        let daysToSaturday = daysInWeek - calendar.component(.weekday, from: today)
         let heatmap: ProfileHeatmapData
+        let totalHeatmapDays = (weeksInYear * daysInWeek) - 1
+        
         if let endOfWeek = calendar.date(byAdding: .day, value: daysToSaturday, to: today),
-           let startDate = calendar.date(byAdding: .day, value: -(52 * 7 - 1), to: endOfWeek) {
+           let startDate = calendar.date(byAdding: .day, value: -totalHeatmapDays, to: endOfWeek) {
             var weeks: [HeatmapWeek] = []
             let df = DateFormatter()
             df.dateFormat = "MMM"
@@ -96,10 +106,10 @@ actor ProfileDatabaseActor {
             var totalInHeatmap = 0
             var currentMonthCaptures = 0
             var currentDate = startDate
-            for _ in 0..<52 {
+            for _ in 0..<weeksInYear {
                 var days: [HeatmapDay] = []
-                var monthLabel: String? = nil
-                for dayIndex in 0..<7 {
+                var monthLabel: String?
+                for dayIndex in 0..<daysInWeek {
                     if dayIndex == 0 {
                         let month = calendar.component(.month, from: currentDate)
                         if month != currentMonth {
@@ -131,7 +141,12 @@ actor ProfileDatabaseActor {
         // Awards
         let awards = AchievementsCalculator.calculate(from: allRecords)
 
-        return (speciesCount, streak, heatmap, awards)
+        return ProfileAllStatsPayload(
+            speciesCount: speciesCount,
+            streak: streak,
+            heatmap: heatmap,
+            awards: awards
+        )
     }
 
     func calculateHeatmapData() -> ProfileHeatmapData {
@@ -161,8 +176,9 @@ actor ProfileDatabaseActor {
             return ProfileHeatmapData(totalCaptures: total, currentMonthCaptures: 0, yearString: "\(currentYear)", weeks: [])
         }
         
+        let daysInWeek = 7
         let columns = 52
-        let totalDays = columns * 7
+        let totalDays = columns * daysInWeek
         guard let startDate = calendar.date(byAdding: .day, value: -(totalDays - 1), to: endOfWeek) else {
             let total = counts.values.reduce(0, +)
             return ProfileHeatmapData(totalCaptures: total, currentMonthCaptures: 0, yearString: "\(currentYear)", weeks: [])
@@ -180,9 +196,9 @@ actor ProfileDatabaseActor {
         
         for _ in 0..<columns {
             var days: [HeatmapDay] = []
-            var monthLabel: String? = nil
+            var monthLabel: String?
             
-            for dayIndex in 0..<7 {
+            for dayIndex in 0..<daysInWeek {
                 if dayIndex == 0 {
                     let month = calendar.component(.month, from: currentDate)
                     if month != currentMonth {
@@ -211,7 +227,6 @@ actor ProfileDatabaseActor {
         return ProfileHeatmapData(totalCaptures: totalInHeatmap, currentMonthCaptures: currentMonthCaptures, yearString: "\(currentYear)", weeks: weeks)
     }
     
-
 }
 
 // MARK: - Native Thread-Safe Architectures
@@ -236,7 +251,12 @@ public struct ProfileHeatmapData: Sendable {
     public let weeks: [HeatmapWeek]
 }
 
-
+public struct ProfileAllStatsPayload: Sendable {
+    public let speciesCount: Int
+    public let streak: Int
+    public let heatmap: ProfileHeatmapData
+    public let awards: [AwardPayload]
+}
 
 struct UserStats: View {
     let speciesCount: Int

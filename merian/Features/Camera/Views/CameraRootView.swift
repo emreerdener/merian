@@ -1,8 +1,8 @@
-import SwiftUI
 import AVFoundation
 import AVKit
 import PhotosUI
 import SwiftData
+import SwiftUI
 
 struct CameraRootView: View {
     // MARK: - Environment & Dependencies
@@ -20,9 +20,9 @@ struct CameraRootView: View {
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
 
     // MARK: - Focus Indicator State
-    @State private var focusLocation: CGPoint? = nil
+    @State private var focusLocation: CGPoint?
     @State private var showFocusIndicator: Bool = false
-    @State private var focusHideTask: Task<Void, Never>? = nil
+    @State private var focusHideTask: Task<Void, Never>?
 
     // MARK: - Zoom Drag Lock
     @State private var isVerticalZooming: Bool = false

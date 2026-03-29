@@ -1,6 +1,6 @@
 import Foundation
-import Vision
 import UIKit
+import Vision
 
 /// Uses Apple Vision's objectness observation combined with LiDAR depth maps to generate 
 /// physical boundary measurements without artificial reference points (like rulers).
