@@ -46,6 +46,27 @@ flowchart TD
 - The `identify` Deno Edge node accepts pre-signed multi-capture iOS uploads. It handles concurrent R2 array streams via `Promise.allSettled`, enforcing a strict 5 MB cumulative buffer size constraint to shield the Deno V8 engine from OOM heap crashes before evaluating the combined visual context across all images.
 - `Task.checkCancellation()` boundaries are injected inside `InferenceEngine` before transferring `URLSession` data payloads to Cloudflare R2. If the iOS Watchdog or the user cancels a processing scan, execution aborts immediately to prevent cellular bandwidth leakage.
 
+**Edge Function Map:**
+The backend logic is strictly decoupled into modular, single-responsibility functions under `/supabase/functions/`:
+
+- **Identity & Analysis**
+  - `/identify`: The primary vision orchestrator ensuring sub-4s TTFM.
+  - `/enrich-scan`: On-demand background enrichment for historical "Free" tier scans upgrading to Pro insight depths.
+  - `/merge-ghost-profile`: Handles the Anonymous "Ghost" Scan to Authenticated User onboarding transition.
+- **Export & Storage Orchestration**
+  - `/request-export-dwca`: Client-facing synchronous API controlling 24-hour rate limits for data exports.
+  - `/export-dwca`: Heavy background worker (triggered via Service-Role Webhook) that compiles paginated Darwin Core Zip archives and dispatches Resend emails.
+  - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge proxy memory.
+- **Data Lifecycle & Offline Sync**
+  - `/sync-collections`: Reconciles offline iOS SwiftData modifications with the Postgres single source of truth.
+  - `/delete-scan` & `/safe-delete`: Atomic operations cascading Postgres deletions out to Cloudflare R2 blobs to prevent orphaned objects.
+  - `/auto-purge-domesticated` & `/auto-purge-nonbio`: Automated webhook/cron jobs actively trimming non-wildlife data to maintain taxonomic dataset integrity.
+- **Moderation & Social**
+  - `/get-filtered-discovery-feed`: Paginates heavy PostGIS spatial queries, abstracting global `geoprivacy = 'open'` filtering away from the mobile client.
+  - `/block-user` & `/flag-issue`: Trust and Safety endpoint managers mitigating bad actors on the global feed.
+- **Revenue Integration**
+  - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription transitions, stamping user tiers natively into Postgres bounds without client-side polling.
+
 ### 4. Continuous Gamification Ecosystem (`GamificationManager`, `RiveRuntime`)
 
 - Tracks device-native state (`UserDefaults`), tying species identifications into `.riv` visual triggers inside interactive glassmorphic view modifiers (`Terrarium`).
