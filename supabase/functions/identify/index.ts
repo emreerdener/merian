@@ -1,12 +1,6 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
-import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-
 import {
-  SchemaType,
   SafetyRating,
   Part,
-  ResponseSchema,
   UsageMetadata,
 } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { evaluateAndProcessPayload } from "./moderation.ts";
@@ -17,204 +11,21 @@ import {
   runBackground,
 } from "../_shared/edgeHandler.ts";
 import { fetchSimilarSpecies } from "../_shared/similar-species.ts";
-import { _genAI, createFlashModel, extractJson } from "../_shared/gemini.ts";
+import { fetchGroupTags } from "../_shared/group-tags.ts";
+import { fetchExternalEnrichment } from "../_shared/external.ts";
+import { _genAI, extractJson } from "../_shared/gemini.ts";
 import {
-  getTierForUser,
-  hasTierCached,
-  setTierCache,
+  getTierForUser
 } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { fetchStaticEncyclopedicData } from "../_shared/encyclopedic.ts";
 
-export interface MerianIdentification {
-  is_biological_subject: boolean;
-  is_live_capture: boolean;
-  ecology_type?: "wild" | "urban" | "domesticated" | "unknown";
-  scientific_name?: string;
-  confidence_score: number;
-  blur_score: number;
-  is_invasive?: boolean;
-  ai_reasoning: string;
-  colors?: string[];
-  common_name?: string;
-  hazard_type?: "none" | "poisonous" | "venomous" | "allergenic" | "irritant";
-  life_stage?: "egg" | "larva" | "juvenile" | "adult" | "unknown";
-  reproductive_condition?:
-    | "flowering"
-    | "fruiting"
-    | "sporing"
-    | "dormant"
-    | "not_applicable";
-  individual_count?: number;
-  ecological_interactions?: string[];
-}
+import { MerianIdentification, ClientPayload } from "./types.ts";
+import { systemInstruction, merianResponseSchema } from "./schema.ts";
+import { resolveImagePayloads } from "./media.ts";
+import { upsertGhostUserIfMissing } from "./db.ts";
 
-export interface ClientPayload extends MerianIdentification {
-  scan_id: string;
-  reference_image_url?: string | null;
-  wikipedia_url?: string | null;
-  wikipedia_overview?: string | null;
-  group_tags?: string[] | null;
-  gbif_taxon_key?: number | null;
-  taxonomy?: Record<string, string>;
-  iucn_red_list_status?: string;
-  insight_data?: {
-    ai_reasoning: string;
-    hazard_type: string;
-  };
-  species_insights?: {
-    habitat_description: string;
-  };
-  inference_tier: string;
-}
-
-async function fetchExternalEnrichment(scientificName: string) {
-  let wikiUrl: string | null = null;
-  let wikiExtract: string | null = null;
-  let gbifKey: number | null = null;
-  let combinedImageUrls: string | null = null;
-
-  try {
-    const fetchedUrls: string[] = [];
-
-    const [gbifOutcome, wikiOutcome] = await Promise.allSettled([
-      (async () => {
-        let key: number | null = null;
-        let urls: string[] = [];
-        const gbifRes = await fetch(
-          `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`,
-          { signal: AbortSignal.timeout(2500) },
-        );
-        if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
-        const gbifJson = await gbifRes.json();
-        key = gbifJson.usageKey || null;
-
-        if (key) {
-          const mediaRes = await fetch(
-            `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&mediaType=StillImage&limit=4`,
-            { signal: AbortSignal.timeout(2500) },
-          );
-          if (mediaRes.ok) {
-            const mediaJson = await mediaRes.json();
-            if (mediaJson.results && mediaJson.results.length > 0) {
-              const gbifUrls: string[] = [];
-              for (const result of mediaJson.results) {
-                if (result.media && result.media.length > 0) {
-                  for (const m of result.media) {
-                    if (m.type === "StillImage" && m.identifier) {
-                      gbifUrls.push(m.identifier);
-                      break; // take the primary image from each observation
-                    }
-                  }
-                }
-              }
-              urls = gbifUrls.slice(0, 4);
-            }
-          }
-        }
-        return { key, urls };
-      })(),
-
-      (async () => {
-        const wikiRes = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(scientificName.replace(/ /g, "_"))}`,
-          { signal: AbortSignal.timeout(2500) },
-        );
-        if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
-        const wikiJson = await wikiRes.json();
-        const url = wikiJson.content_urls?.desktop?.page || null;
-        const extract = wikiJson.extract || null;
-        const img =
-          wikiJson.originalimage?.source || wikiJson.thumbnail?.source || null;
-        return { url, extract, img };
-      })(),
-    ]);
-
-    if (gbifOutcome.status === "fulfilled") {
-      gbifKey = gbifOutcome.value.key;
-      fetchedUrls.push(...gbifOutcome.value.urls);
-    }
-    if (wikiOutcome.status === "fulfilled") {
-      wikiUrl = wikiOutcome.value.url;
-      wikiExtract = wikiOutcome.value.extract;
-      if (wikiOutcome.value.img) {
-        fetchedUrls.unshift(wikiOutcome.value.img);
-      }
-    }
-
-    if (fetchedUrls.length > 0) {
-      combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
-    }
-  } catch (e) {
-    console.log("Data enrichment failed silently: ", e);
-  }
-
-  return {
-    wikipediaUrl: wikiUrl,
-    wikiExtract,
-    gbifKey,
-    referenceImageUrl: combinedImageUrls,
-  };
-}
-
-async function fetchGroupTags(
-  user: User,
-  scientificName: string,
-): Promise<{ group_tags: string[] | null; usage?: UsageMetadata } | null> {
-  const model = createFlashModel(
-    'You are a world-class biologist. Given a species scientific name, return 1–5 categorical group labels ordered from most broad to most specific (e.g. ["animal", "bird", "songbird", "warbler"]). Use plain lowercase English nouns only. Omit proper names and scientific names.',
-    100,
-  );
-
-  const schema: Record<string, unknown> = {
-    type: SchemaType.OBJECT,
-    properties: {
-      group_tags: {
-        type: SchemaType.ARRAY,
-        items: { type: SchemaType.STRING },
-        description: "1–5 categorical group labels, broad to specific.",
-      },
-    },
-    required: ["group_tags"],
-  };
-
-  try {
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: `Group tags for: ${scientificName}` }],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: schema as unknown as ResponseSchema,
-      },
-    });
-
-    const usage = result.response.usageMetadata;
-    if (usage) {
-      console.log(
-        `Token Usage [GroupTags | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
-      );
-      await trackPostHogEvent(user, "GroupTagsLLMCompleted", {
-        scientific_name: scientificName,
-        llm_model: "gemini-2.5-flash",
-        llm_prompt_tokens: usage.promptTokenCount,
-        llm_candidate_tokens: usage.candidatesTokenCount,
-        llm_total_tokens: usage.totalTokenCount,
-      });
-    }
-
-    const parsed = extractJson<{ group_tags: string[] }>(
-      result.response.text(),
-    );
-    return { group_tags: parsed.group_tags ?? null, usage };
-  } catch (e) {
-    console.error("fetchGroupTags failed:", e);
-    return null;
-  }
-}
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -281,72 +92,18 @@ serve((req: Request) =>
       return jsonResponse({ error: "Missing user_id parameter in body" }, 400);
     }
 
-    const base64Payloads: string[] = [];
+    const { base64Payloads, errorResponse } = await resolveImagePayloads(
+      r2ObjectKeys,
+      imageBase64s,
+      fnStart,
+    );
 
-    if (imageBase64s && imageBase64s.length > 0) {
-      if (imageBase64s.length > 5) {
-        return jsonResponse({ error: "Too many images." }, 400);
-      }
-      const validBase64s: string[] = imageBase64s.filter(
-        (s: string) => s.length > 0,
-      );
-      if (validBase64s.length === 0) {
-        return jsonResponse(
-          { error: "Bad Request: imageBase64s contains no valid image data." },
-          400,
-        );
-      }
-      const totalB64Bytes = validBase64s.reduce(
-        (sum: number, s: string) => sum + s.length,
-        0,
-      );
-      // base64 inflates raw size ~4/3; 5 MB raw ≈ 6.7 MB encoded
-      if (totalB64Bytes > 7 * 1024 * 1024) {
-        return jsonResponse(
-          {
-            error: "Payload Too Large: base64 payload exceeds 5 MB raw limit.",
-          },
-          413,
-        );
-      }
-      base64Payloads.push(...validBase64s);
-    } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {
-      console.log(`[⏱ BENCH] base64_validated: ${Date.now() - fnStart}ms`);
-      const { s3Client, bucketName, endpoint } = getR2Config();
-
-      const r2Responses = await Promise.allSettled(
-        r2ObjectKeys.map((key: string) =>
-          s3Client.fetch(`${endpoint}/${bucketName}/${key}`),
-        ),
-      );
-
-      // Process images serially: consume one body at a time so each ArrayBuffer is GC-eligible
-      // before the next is loaded, preventing a peak spike of N × (raw + copy + base64) in heap.
-      // Size is checked against ACTUAL bytes after consumption — Content-Length headers are
-      // unreliable (absent on chunked transfer encoding) and must never be trusted as a
-      // heap-exhaustion guard.
-      let totalBytes = 0;
-      while (r2Responses.length > 0) {
-        const result = r2Responses.shift()!;
-        if (result.status === "rejected") {
-          throw new Error(`Failed to execute concurrent R2 fetch request.`);
-        }
-        const r2Response = result.value as Response;
-        if (!r2Response.ok) {
-          throw new Error(
-            `Failed to fetch an image from R2: ${r2Response.statusText}`,
-          );
-        }
-        const arrayBuffer = await r2Response.arrayBuffer();
-        totalBytes += arrayBuffer.byteLength;
-        if (totalBytes > 5 * 1024 * 1024) {
-          return jsonResponse(
-            { error: "Payload Too Large: Combined images exceed 5MB limit." },
-            413,
-          );
-        }
-        base64Payloads.push(encodeBase64(new Uint8Array(arrayBuffer)));
-      }
+    if (errorResponse) {
+      return errorResponse;
+    }
+    
+    if (!base64Payloads || base64Payloads.length === 0) {
+      return jsonResponse({ error: "Failed to resolve image payloads." }, 400);
     }
 
     console.log(`[⏱ BENCH] payload_resolved: ${Date.now() - fnStart}ms`);
@@ -360,12 +117,6 @@ serve((req: Request) =>
     // subspecies, cultivars). Free users use gemini-2.5-flash for 2–3× lower latency.
     const targetModel =
       userTierForModel === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
-
-    // Liveness instruction clarification: "liveness check" previously caused Flash to treat
-    // fossils/specimens as is_biological_subject=false, returning generic names like
-    // "Fossilized Shell" instead of the correct species common name (e.g. "Devil's Toenail"
-    // margins) for correct classification.
-    const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name. 7) Confidence Calibration & Holistic Verification Rule: Do not assign a high confidence_score based solely on localized features. Before finalizing your score, you MUST evaluate the plant's holistic growth habit and environmental context. 8) If the primary subject is actively interacting with another biological organism (e.g., pollinating a flower, eating a leaf, parasitizing a host), briefly describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count. If a massive swarm/cluster, provide a conservative estimated integer.`;
 
     const model = _genAI.getGenerativeModel({
       model: targetModel,
@@ -394,59 +145,6 @@ serve((req: Request) =>
     ].filter(Boolean);
 
     const combinedPrompt = `Context: ${telemetryItems.join(", ")}. Perform biological identification.`;
-
-    const schemaProperties: Record<string, ResponseSchema> = {
-      is_biological_subject: { type: SchemaType.BOOLEAN },
-      is_live_capture: { type: SchemaType.BOOLEAN },
-      ecology_type: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: ["wild", "urban", "domesticated", "unknown"],
-      },
-      scientific_name: { type: SchemaType.STRING },
-      confidence_score: { type: SchemaType.NUMBER },
-      blur_score: { type: SchemaType.NUMBER },
-      is_invasive: { type: SchemaType.BOOLEAN },
-      ai_reasoning: {
-        type: SchemaType.STRING,
-        description:
-          "A 2-3 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence extracted from the image that substantiate this classification.",
-      },
-      common_name: {
-        type: SchemaType.STRING,
-        description:
-          "Most specific, commonly recognized English name in Title Case. Ensure words are spaced correctly (e.g., 'Red-tailed Hawk').",
-      },
-      life_stage: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: ["egg", "larva", "juvenile", "adult", "unknown"],
-      },
-      reproductive_condition: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: ["flowering", "fruiting", "sporing", "dormant", "not_applicable"],
-      },
-      individual_count: {
-        type: SchemaType.INTEGER,
-      },
-      ecological_interactions: {
-        type: SchemaType.ARRAY,
-        items: { type: SchemaType.STRING },
-      },
-    };
-
-    const merianResponseSchema: ResponseSchema = {
-      type: SchemaType.OBJECT,
-      properties: schemaProperties,
-      required: [
-        "is_biological_subject",
-        "is_live_capture",
-        "ai_reasoning",
-        "confidence_score",
-        "blur_score",
-      ],
-    };
 
     const parts: Part[] = base64Payloads.map((payload) => ({
       inlineData: {
@@ -634,25 +332,7 @@ serve((req: Request) =>
         // Tier was already resolved on the critical path. The only remaining task here is
         // ghost-user creation: if the main path never found the user in the DB, the cache
         // entry was never set, so we upsert them now before the scans FK insert.
-        if (!hasTierCached(user.id)) {
-          const { data: existingUser } = await supabaseAdmin
-            .from("users")
-            .select("subscription_tier")
-            .eq("id", user.id)
-            .maybeSingle();
-          if (existingUser) {
-            setTierCache(user.id, existingUser.subscription_tier as string);
-          } else {
-            // Ghost user — create the record required for the scans FK constraint.
-            await supabaseAdmin
-              .from("users")
-              .upsert(
-                { id: user.id, subscription_tier: "free" },
-                { onConflict: "id", ignoreDuplicates: true },
-              );
-            setTierCache(user.id, "free");
-          }
-        }
+        await upsertGhostUserIfMissing(user.id, supabaseAdmin);
 
         const modResult = await evaluateAndProcessPayload(
           user.id,
