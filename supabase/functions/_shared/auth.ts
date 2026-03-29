@@ -1,5 +1,5 @@
 import { SupabaseClient, User, createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { corsHeaders } from "./cors.ts";
+import { corsHeaders } from "./http.ts";
 
 export async function requireAuth(
   req: Request,

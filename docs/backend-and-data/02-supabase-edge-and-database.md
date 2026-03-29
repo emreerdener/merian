@@ -15,11 +15,15 @@ Merian uses Supabase as its backend platform. API keys are kept in `.xcconfig` f
 
 Several utilities are shared across all Edge Functions via `supabase/functions/_shared/`:
 
-- **`edgeHandler.ts`**: Wraps endpoints in `withEdgeHandler()`, which handles CORS `OPTIONS` preflights and the `requireAuth` middleware in one place, eliminating boilerplate across all function files. It also exports `jsonResponse(payload, status)` and a `runBackground(task)` utility that calls `EdgeRuntime.waitUntil(task)` in production and falls back gracefully for local development.
-- **`gemini.ts`**: Exports the module-level `_genAI` singleton (`GoogleGenerativeAI` instance), `createFlashModel(systemInstruction, maxOutputTokens)` — a factory for all Flash-only background calls — and `extractJson<T>(text)`, which extracts the outermost JSON object from a Gemini response string using `indexOf`/`lastIndexOf`. This eliminates the repeated extraction pattern across `identify`, `enrich-scan`, and `_shared/diagnostic.ts`.
-- **`tierCache.ts`**: Exports `getTierForUser(userId, supabaseAdmin)` (5-minute TTL worker-level cache, does NOT cache ghost users), `hasTierCached(userId)` (ghost detection for the background task), and `setTierCache(userId, tier)` (explicit cache write after ghost-user upsert). All three work together to keep tier resolution off the critical path without losing ghost-user upsert correctness.
-- **`validation.ts`**: Exports `requireParams(body, fields)` — returns a `400 Response` if any required fields are missing, otherwise `null`. Used by `flag-issue`, `delete-scan`, `block-user`, `merge-ghost-profile`, and `enrich-scan`.
-- **`aws.ts`**: Exports `getR2Config()` (creates `AwsClient` + bucket/endpoint), `deleteR2Objects`, `copyR2Object`, `deleteR2Object`, and `generatePresignedPutUrl(config, key, expirySeconds)` — a shared presigned-PUT helper used by `generate-upload-urls`.
+- **`http.ts`**: The unified networking primitive module. Defines `corsHeaders`, export tools for `jsonResponse(payload, status)`, strict POST payload `requireParams(body, fields)`, and cryptographic `timingSafeCompare(a, b)` for secret validation (used heavily by `pg_net` cron workers).
+- **`edgeHandler.ts`**: Wraps endpoints natively using `withEdgeHandler()`, automatically intercepting CORS `OPTIONS` preflights and Deno SDK JWT extraction layers, eliminating boilerplate. Exposes `runBackground(task)` via standard `EdgeRuntime.waitUntil`.
+- **`biology.ts`**: The centralized Gemini-2.5-Flash LLM taxonomy engine. It aggregates the schema logic for calculating `fetchStaticEncyclopedicData`, `fetchSimilarSpecies`, and `fetchGroupTags`. Explicitly enforces standard API mappings and funnels usage out to PostHog.
+- **`external.ts`**: Aggregates verified DaaS fetch calls to GBIF (Global Biodiversity Information Facility) and the Wikipedia rest_v1 API for canonical reference imagery and taxonomy excerpts.
+- **`gemini.ts`**: Contains the physical module-level `_genAI` client wrapper initialization and the `extractJson<T>(text)` AST parser string evaluation.
+- **`posthog.ts`**: A headless telemetry ingestion pipeline executing asynchronous `node-fetch` style queries to log LLM token consumption explicitly to PostHog for cost analytics.
+- **`tierCache.ts`**: Handles a hyper-optimized Deno Isolate map cache (`_tierCache`) storing users' Revcat `subscription_tier`s using a 5-minute TTL to cleanly bypass Postgres roundtrips on heavy camera scanning usage.
+- **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing `aws4fetch`. Exposes array batch tools (`deleteR2Objects`, `copyR2Object`) used for purging storage footprints.
+- **`auth.ts`**: The baremetal JWT parser extracting anonymous and authenticated keys natively across the `Authorization` header map.
 
 ## The Edge Inference Node (`identify`)
 
@@ -64,7 +68,7 @@ Researchers export global and personal occurrence data via a two-step queueing a
 User blocking routes through a dedicated Edge Function to bypass RLS policies that operate on anonymous IDFV boundaries:
 
 1. iOS validates the active Supabase JWT via `SupabaseManager` and attaches it to the request. A missing session throws a `NetworkError` before any API call is made.
-2. The `{"blocked_id": "..."}` payload is sent via the REST API. The Edge Function validates the body with `requireParams(body, ["blocked_id"])` from `_shared/validation.ts`, returning `HTTP 400` if the field is absent.
+2. The `{"blocked_id": "..."}` payload is sent via the REST API. The Edge Function validates the body with `requireParams(body, ["blocked_id"])` from `_shared/http.ts`, returning `HTTP 400` if the field is absent.
 3. `supabaseAdmin.from('user_blocks').insert()` runs with the service role key, bypassing RLS without exposing the table structure to the client.
 
 ## Security & Environment Validation
@@ -143,4 +147,4 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 #### V8 Execution Abstractions
 
 - **Explicit Deno ES Modules**: To avoid Supabase CLI bundling failures caused by unresolved local import maps, all edge dependencies use direct HTTP module URLs (e.g., `https://esm.sh/@supabase/supabase-js@2.49.1`). The `supabase/functions/deno.json` config includes `"exclude": ["no-import-prefix"]` to suppress the corresponding `deno-lint` warning locally.
-- **`_shared` Utilities**: CORS headers, auth validation, `runBackground`, `jsonResponse`, `getR2Config`, `generatePresignedPutUrl`, `_genAI`/`createFlashModel`/`extractJson`, `getTierForUser`/`hasTierCached`/`setTierCache`, and `requireParams` live in `supabase/functions/_shared/`, shared across all function files.
+- **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`, `external.ts`, `tierCache.ts`, `posthog.ts`, `gemini.ts`, `aws.ts`, and `auth.ts` domains cleanly separate the core proxy engine natively without polluting the specific Webhook routers.

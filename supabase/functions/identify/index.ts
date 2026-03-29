@@ -10,15 +10,15 @@ import {
   withEdgeHandler,
   runBackground,
 } from "../_shared/edgeHandler.ts";
-import { fetchSimilarSpecies } from "../_shared/similar-species.ts";
-import { fetchGroupTags } from "../_shared/group-tags.ts";
+import { fetchSimilarSpecies } from "../_shared/biology.ts";
+import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import {
   getTierForUser
 } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { fetchStaticEncyclopedicData } from "../_shared/encyclopedic.ts";
+import { fetchStaticEncyclopedicData } from "../_shared/biology.ts";
 
 import { MerianIdentification, ClientPayload } from "./types.ts";
 import { systemInstruction, merianResponseSchema } from "./schema.ts";

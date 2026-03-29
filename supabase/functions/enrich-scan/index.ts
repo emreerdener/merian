@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { fetchSimilarSpecies } from "../_shared/similar-species.ts";
-import { requireParams } from "../_shared/validation.ts";
-import { fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/encyclopedic.ts";
+import { fetchSimilarSpecies } from "../_shared/biology.ts";
+import { requireParams } from "../_shared/http.ts";
+import { fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/biology.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { getCachedSpecies, updateSpeciesEnrichment } from "./db.ts";
 import { CachedSpeciesData } from "./types.ts";

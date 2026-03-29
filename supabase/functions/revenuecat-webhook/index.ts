@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { jsonResponse, runBackground } from "../_shared/edgeHandler.ts";
-import { timingSafeCompare } from "../_shared/security.ts";
+import { timingSafeCompare } from "../_shared/http.ts";
 
 import { ensureUserExists, updateUserTier } from "./db.ts";
 import { migrateUserStorage } from "./storage.ts";

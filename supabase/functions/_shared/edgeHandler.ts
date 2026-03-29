@@ -1,16 +1,12 @@
-import { createClient, SupabaseClient, User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  createClient,
+  SupabaseClient,
+  User,
+} from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { requireAuth } from "./auth.ts";
-import { corsHeaders } from "./cors.ts";
+import { corsHeaders, jsonResponse } from "./http.ts";
 
-/**
- * Standardized JSON response helper.
- */
-export function jsonResponse(payload: unknown, status: number = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-    status
-  });
-}
+export { jsonResponse };
 
 /**
  * Schedules a background task using EdgeRuntime.waitUntil when available,

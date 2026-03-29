@@ -20,7 +20,7 @@ The `/identify` Supabase Edge Function is heavily modularized to guarantee minim
 - **`types.ts`**: The API contracts. Exports `MerianIdentification` and `ClientPayload` to perfectly map the Edge function's structure back to the iOS `InferenceEdgeDTOs.swift`.
 - **`media.ts`**: Safely handles chunked sequential `R2` Base64 buffer loading to protect Deno's V8 edge heap constraints from crashing under massive multi-image payloads.
 - **`db.ts`**: Encapsulates specific database wrappers (like Ghost User tier creation bounds) away from the clean background process loop.
-- **`../_shared/` Micro-Agents**: Auxiliary generation tools like `fetchExternalEnrichment` (Wikipedia/GBIF REST API polling), `fetchGroupTags` (Flash AI), and `fetchStaticEncyclopedicData` sit at the root level, making them globally accessible to both the `identify` and `enrich-scan` edge environments.
+- **`../_shared/` Micro-Agents**: Auxiliary generation tools like `fetchExternalEnrichment` (Wikipedia/GBIF REST API polling in `external.ts`), `fetchGroupTags` (Flash AI), and `fetchStaticEncyclopedicData` are aggregated directly inside the generic `biology.ts` taxonomic node, making them globally accessible to both the `identify` and `enrich-scan` edge environments.
 
 ## Edge Function Architecture (`/enrich-scan`)
 

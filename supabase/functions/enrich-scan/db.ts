@@ -1,6 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { CachedSpeciesData } from "./types.ts";
-import { EncyclopedicData } from "../_shared/encyclopedic.ts";
+import { EncyclopedicData } from "../_shared/biology.ts";
 
 export async function getCachedSpecies(
   scientificName: string,
