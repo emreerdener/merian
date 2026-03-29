@@ -97,12 +97,16 @@ struct MerianApp: App {
             }
         }
         // MARK: - Scene Phases
-        .onChange(of: scenePhase) { _, newPhase in
+        .onChange(of: scenePhase) { oldPhase, newPhase in
             switch newPhase {
             case .background:
                 lifecycleManager.handleBackgroundPhase()
             case .inactive:
-                lifecycleManager.handleInactivePhase()
+                // Only dismiss modals and pause hardware when transitioning out of the foreground.
+                // Prevents wiping deep-link state (like open push notifications) when returning from the background.
+                if oldPhase == .active {
+                    lifecycleManager.handleInactivePhase()
+                }
             case .active:
                 lifecycleManager.handleActivePhase()
             @unknown default:

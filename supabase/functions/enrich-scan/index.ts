@@ -7,10 +7,20 @@ import { trackPostHogEvent } from "../_shared/posthog.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
-    const { scientific_name, confidence_score } = await requireParams(req, [
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    const paramErr = requireParams(body, [
       "scientific_name",
       "confidence_score",
     ]);
+    if (paramErr) return paramErr;
+
+    const { scientific_name, confidence_score } = body;
 
     // Check what we already have for this species in PG
     const { data: cachedSpecies, error } = await supabaseAdmin
@@ -176,10 +186,11 @@ serve((req: Request) =>
         },
         200,
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[enrich-scan] LLM error:", e);
+      const message = e instanceof Error ? e.message : "Failed to process scan data.";
       return jsonResponse(
-        { success: false, error: e.message || "Failed to process scan data." },
+        { success: false, error: message },
         500,
       );
     }
