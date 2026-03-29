@@ -45,6 +45,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1" # iPhone Only to bypass iPad Multitasking requirements
         DEVELOPMENT_TEAM: LDL96V2WT5
+        CODE_SIGN_STYLE: Automatic
         ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
       - target: MerianWatch # Natively bundles the companion watchApp binary directly into the parent iPhone executable
@@ -82,6 +83,7 @@ targets:
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         INFOPLIST_KEY_CFBundleIconFiles: AppIcon
         DEVELOPMENT_TEAM: LDL96V2WT5
+        CODE_SIGN_STYLE: Automatic
 
   merianTests:
     type: bundle.unit-test

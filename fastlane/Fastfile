@@ -14,7 +14,8 @@ platform :ios do
     # Build and archive the workspace
     build_app(
       scheme: "Merian",
-      export_method: "app-store"
+      export_method: "app-store",
+      xcargs: "-allowProvisioningUpdates"
     )
     
     # Upload to TestFlight
