@@ -14,6 +14,8 @@ export interface EncyclopedicData {
   };
   iucn_red_list_status: string;
   habitat_description: string;
+  hazard_type: string;
+  colors: string[];
   usage?: UsageMetadata;
 }
 
@@ -23,7 +25,7 @@ export async function fetchStaticEncyclopedicData(
   locale: string = "en",
 ): Promise<EncyclopedicData> {
   const textModel = createFlashModel(
-    `You are a world-class biologist. Provide encyclopedic identification traits, taxonomy, habitat, toxicity, conservation status, and global distribution for the provided scientific name. Keep descriptions concise. ALL text responses (habitat_description) must be returned in the following ISO language locale: ${locale}.`,
+    `You are a world-class biologist. Provide encyclopedic identification traits, taxonomy, habitat, hazard classification, generalized physical colors, conservation status, and global distribution for the provided scientific name. Keep descriptions concise. ALL text responses (habitat_description) must be returned in the following ISO language locale: ${locale}.`,
     1500,
   );
 
@@ -57,8 +59,18 @@ export async function fetchStaticEncyclopedicData(
         ],
       },
       habitat_description: { type: SchemaType.STRING },
+      hazard_type: {
+        type: SchemaType.STRING,
+        enum: ["none", "poisonous", "venomous", "allergenic", "irritant"],
+        description: "Generalized hazard type for this species.",
+      },
+      colors: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        description: "1-3 generalized physical colors that typically identify this species.",
+      },
     },
-    required: ["taxonomy", "iucn_red_list_status", "habitat_description"],
+    required: ["taxonomy", "iucn_red_list_status", "habitat_description", "hazard_type", "colors"],
   };
 
   try {
@@ -109,6 +121,8 @@ export async function fetchStaticEncyclopedicData(
       },
       iucn_red_list_status: "not_evaluated",
       habitat_description: "No habitat data available.",
+      hazard_type: "none",
+      colors: [],
     };
   }
 }

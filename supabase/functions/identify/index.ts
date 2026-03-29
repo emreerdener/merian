@@ -412,22 +412,10 @@ serve((req: Request) =>
         description:
           "A 2-3 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence extracted from the image that substantiate this classification.",
       },
-      colors: {
-        type: SchemaType.ARRAY,
-        items: { type: SchemaType.STRING },
-        description: "1–3 dominant biological colors of the subject.",
-      },
       common_name: {
         type: SchemaType.STRING,
         description:
           "Most specific, commonly recognized English name in Title Case. Ensure words are spaced correctly (e.g., 'Red-tailed Hawk').",
-      },
-      hazard_type: {
-        type: SchemaType.STRING,
-        format: "enum",
-        enum: ["none", "poisonous", "venomous", "allergenic", "irritant"],
-        description:
-          "Hazard classification: 'none' if safe, 'poisonous' if harmful by ingestion/contact, 'venomous' if injects toxin via bite/sting, 'allergenic' if triggers allergic reactions, 'irritant' if causes skin/eye irritation.",
       },
       life_stage: {
         type: SchemaType.STRING,
@@ -612,7 +600,7 @@ serve((req: Request) =>
           `Cache Miss: ${parsedData.scientific_name}. Background enrichment queued.`,
         );
         staticData = {
-          hazard_type: parsedData.hazard_type ?? "none",
+          hazard_type: "none",
         };
         // speciesId remains null here; the background task upserts species_dictionary first,
         // then sets speciesId before inserting the scan row.
@@ -699,6 +687,7 @@ serve((req: Request) =>
           : Promise.resolve(null);
 
         let encyclopedicUsage: UsageMetadata | undefined;
+        let scanColors: string[] = [];
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
         // Runs after moderation so we don't persist data for flagged content.
         if (!speciesId && isIdentifiedBio) {
@@ -712,6 +701,7 @@ serve((req: Request) =>
             fetchExternalEnrichment(parsedData.scientific_name!),
           ]);
           encyclopedicUsage = textResult.usage;
+          scanColors = textResult.colors ?? [];
 
           const newCommonNames = cachedSpecies
             ? { ...cachedSpecies.common_names, en: parsedData.common_name }
@@ -736,7 +726,7 @@ serve((req: Request) =>
                   null,
                 hazard_type:
                   cachedSpecies?.hazard_type ??
-                  parsedData.hazard_type ??
+                  textResult.hazard_type ??
                   "none",
                 native_region: "Unknown",
                 iucn_red_list_status:
@@ -776,6 +766,7 @@ serve((req: Request) =>
             deviceLocale || "en",
           );
           encyclopedicUsage = textResult.usage;
+          scanColors = textResult.colors ?? [];
           await supabaseAdmin
             .from("species_dictionary")
             .update({
@@ -809,7 +800,7 @@ serve((req: Request) =>
             time_of_day: timeOfDay,
             depth_scale_text: depthScaleText,
             ai_reasoning: parsedData.ai_reasoning ?? null,
-            colors: parsedData.colors ?? [],
+            colors: scanColors,
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_total_tokens: llmTotalTokens,
