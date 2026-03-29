@@ -50,7 +50,12 @@ struct OverviewCard: View {
                         if let val = ecology {
                             KeyValueRow(title: "ECOLOGY", value: val)
                         }
-                        KeyValueRow(title: "NATIVE STATUS", value: invasive, valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : nil)
+                        KeyValueRow(
+                            title: "NATIVE STATUS", 
+                            value: invasive, 
+                            valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : nil,
+                            valueIconColor: data.isInvasive ? .yellow : nil
+                        )
                         if let val = colors, !val.isEmpty {
                             KeyValueRow(title: "DOMINANT COLORS", value: val)
                         }

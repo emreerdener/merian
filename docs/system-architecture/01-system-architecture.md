@@ -88,8 +88,10 @@ The backend logic is strictly decoupled into modular, single-responsibility func
 
 ### 7. watchOS Extension (`MerianWatch`)
 
-Merian functions as a standalone watchOS executable, decoupled from the host iPhone:
+Merian includes a companion watchOS app for acoustic identification. It bridges audio captures to the iPhone inference pipeline and does **not** perform independent Supabase or Gemini calls.
+
 - **Build Target Nuance**: Relies on explicit `project.yml` product type declarations (`watch2-app`) and correctly mapped `Contents.json` icon configurations inside `Assets.xcassets` to avoid watchOS Simulator deployment failures.
-- **`WKInterfaceDevice.current().identifierForVendor` Execution**: Mimics iOS bindings, syncing the anonymous user UUID via `WatchConnectivity.WCSession` to iOS Core boundaries.
-- Uses `Network.framework` hooks and `URLSession` to hit Supabase Edge from the wrist, supporting independent inferences when the iPhone is unavailable.
-- Shares the core `InsightSheetView` logic and data models to provide biological readouts without the parent app in range.
+- **Acoustic Capture (`WatchAcousticManager`)**: Records a 15-second AAC audio clip via `AVAudioRecorder`. Simultaneously acquires `CLLocation` coordinates and `WeatherKit` context to bundle environmental metadata with the audio payload.
+- **WatchConnectivity Bridge**: Once recording completes, the encoded payload (base64 audio + GPS + weather) is dispatched to the companion iPhone via `WCSession.sendMessage` in the foreground, with `transferUserInfo` as the background fallback when the session is unreachable.
+- **iPhone-Dependent Inference**: The iPhone receives the WatchConnectivity payload and routes it through `OfflineQueueManager` and the Edge inference pipeline. All AI processing happens server-side — the watch has no direct Supabase or Gemini calls.
+- **Storage Safety**: The temporary `.m4a` recording buffer is purged from the watch's `FileManager.temporaryDirectory` immediately after dispatch to prevent watchOS storage bloat.

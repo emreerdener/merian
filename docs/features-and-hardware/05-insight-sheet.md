@@ -19,7 +19,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
 | `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
-| `DiagnosticComparisonCard` | Diagnostic comparison — primary rationale, lookalike name, key differentiators |
+| `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalike or similar species sourced from `LocalScanRecord.similarSpecies`; each `SimilarSpeciesCard` fetches a reference image via `SimilarSpeciesImageFetcher` |
 | `OverviewCard` | Structural card rendering dynamic biological KeyValueRow metrics (e.g., size, life stage, interactions, invasive species status) followed by an 8-line truncated Wikipedia extract and a built-in Safari "Learn more" button. |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
 | `GBIFHeatmapMapView` | SwiftUI `View` that composites two images to render a full-world GBIF occurrence heatmap natively. (1) A static `WorldMapBase` custom Mapbox topography background image, entirely eliminating MapKit CPU overhead. (2) The GBIF density zoom-0 tile (`/0/0/0@2x.png`) — a single 512 px PNG covering the entire world in Web Mercator — is fetched and drawn on top. Both images perfectly align their projection/extent. Features a custom `UIViewRepresentable` bridge (`PinchPanOverlay`) which unlocks elastic 2-finger pinch and pan exploration. This gesture controller safely locks down the encompassing parent `ScrollView` and engages `.interactiveDismissDisabled` on the bottom sheet to prevent SwiftUI swipe cancellation conflicts during map manipulation. |
@@ -110,9 +110,9 @@ When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `ha
 | **Loading** | `inferenceEngine.isEnrichmentLoading == true` | Shimmer skeleton (3 text lines) |
 | **Retry** | No data, not loading | "Retry" button → calls `inferenceEngine.fetchAndApplyEnrichment` |
 
-### Diagnostic Comparison Display Gate
+### Similar Species Display Gate
 
-`diagnostic_comparison` data is only displayed (in `DiagnosticComparisonCard` in `BiologicalView`) when the scan's `confidenceScore` is below the user's tiered `.diagnosticTrigger` threshold (0.88 for Free/Flash; 0.80 for Premium/Pro). This gate is enforced client-side regardless of whether diagnostic data is present in `LocalScanRecord`. `InferenceEngine.fetchAndApplyEnrichment` also observes this same dynamic threshold before writing `speciesData.diagnosticComparison`.
+`similar_species` data is rendered by `SimilarSpeciesGallery` inside `BiologicalView`. The gallery receives an `isLowConfidence` flag driven by the scan's `confidenceScore` against the user's tiered `.diagnosticTrigger` threshold (0.88 for Free/Flash; 0.80 for Premium/Pro). When `isLowConfidence = true`, the gallery shows a "POTENTIAL LOOKALIKES" warning label; otherwise it is presented as informational "SIMILAR SPECIES". This gate is enforced client-side — `enrich-scan` returns `similar_species` unconditionally when available.
 
 ---
 

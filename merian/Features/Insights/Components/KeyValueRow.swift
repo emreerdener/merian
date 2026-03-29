@@ -4,6 +4,7 @@ public struct KeyValueRow: View {
     public let title: String
     public let value: String
     public var valueIcon: String?
+    public var valueIconColor: Color?
     public var valueFontWeight: Font.Weight = .medium
     public var isValueItalic: Bool = false
     
@@ -11,12 +12,14 @@ public struct KeyValueRow: View {
         title: String,
         value: String,
         valueIcon: String? = nil,
+        valueIconColor: Color? = nil,
         valueFontWeight: Font.Weight = .medium,
         isValueItalic: Bool = false
     ) {
         self.title = title
         self.value = value
         self.valueIcon = valueIcon
+        self.valueIconColor = valueIconColor
         self.valueFontWeight = valueFontWeight
         self.isValueItalic = isValueItalic
     }
@@ -34,7 +37,7 @@ public struct KeyValueRow: View {
             HStack(spacing: 6) {
                 if let vIcon = valueIcon {
                     Image(systemName: vIcon)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(valueIconColor ?? .secondary)
                 }
                 Text(value)
             }

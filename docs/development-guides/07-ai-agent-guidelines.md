@@ -24,7 +24,7 @@ The workspace enforces this layout inside `merian/`:
 - `Features/`: Complete user domains (`Camera`, `Insights`, `Scans`, `Profile`, `Settings`).
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, `InferenceProcessingActor`
-  - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`, `HistoricalDatabaseActor`, `ScanRepository`
+  - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`, `HistoricalDatabaseActor`, `ScanRepository`, `SearchDatabaseActor`
   - `Data/Images/`: `LocalImageLoader`, `ImageCache`, `ArchiveManager`, `PhotoLibraryManager`
   - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`, `CircuitBreakerManager`
   - `Hardware/`: `CameraManager`, `HardwareOrchestrator`, `EnvironmentContextManager`

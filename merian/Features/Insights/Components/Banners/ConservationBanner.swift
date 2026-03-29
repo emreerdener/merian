@@ -44,7 +44,7 @@ struct ConservationBanner: View {
             .background(Color.green.opacity(0.05))
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .stroke(Color.green.opacity(0.4), lineWidth: 1)
             )
         }
