@@ -1,6 +1,7 @@
 name: Merian
 options:
   bundleIdPrefix: app.merian
+  developmentTeam: "LDL96V2WT5"
   deploymentTarget:
     iOS: 17.2
     macOS: 14.0
