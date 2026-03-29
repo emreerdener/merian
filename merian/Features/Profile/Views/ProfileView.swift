@@ -45,7 +45,6 @@ struct ProfileView: View {
     }
 
     // MARK: - Toolbar
-
     @ToolbarContentBuilder
     private var profileToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {

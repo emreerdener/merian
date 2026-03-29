@@ -429,7 +429,10 @@ private struct WikiSummaryResponse: Decodable {
 
         do {
             let response = try await MerianNetworkClient.shared.fetchEnrichment(
-                scanId: scanId, scientificName: data.scientificName
+                scanId: scanId,
+                scientificName: data.scientificName,
+                confidenceScore: data.confidenceScore,
+                inferenceTier: data.inferenceTier ?? "flash"
             )
             guard let enrichData = response.data else { return }
 
@@ -452,7 +455,8 @@ private struct WikiSummaryResponse: Decodable {
                 )
             }
 
-            if data.confidenceScore < 0.85,
+            let triggerThreshold = MerianConfig.confidenceBands(forInferenceTier: data.inferenceTier).diagnosticTrigger
+            if data.confidenceScore < triggerThreshold,
                let diag = enrichData.diagnostic_comparison,
                let rationale = diag.primary_match_rationale,
                let lookalike = diag.confusing_lookalike_name,
@@ -615,9 +619,10 @@ private struct WikiSummaryResponse: Decodable {
         // Fetch enrichment for any record missing habitat data, a GBIF key,
         // or (for low-confidence scans) a diagnostic comparison.
         if record.isBiological {
+            let triggerThreshold = MerianConfig.confidenceBands(forInferenceTier: record.inferenceTier).diagnosticTrigger
             let needsEnrichment = record.habitatDescription == nil ||
                 record.gbifTaxonKey == nil ||
-                ((record.confidenceScore ?? 1.0) < 0.85 && record.diagnosticPrimaryRationale == nil)
+                ((record.confidenceScore ?? 1.0) < triggerThreshold && record.diagnosticPrimaryRationale == nil)
             if needsEnrichment {
                 let safeContext = record.modelContext
                 Task { [weak self] in

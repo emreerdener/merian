@@ -4,12 +4,14 @@ struct ModelTierBadge: View {
     let confidenceScore: Double?
     let inferenceTier: String?
     
+    @State private var showPaywall: Bool = false
+    
     var body: some View {
         if !RevenueCatManager.shared.isProActive, let score = confidenceScore {
             let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
             if score >= bands.possible && score < bands.strong {
             Button(action: {
-                AppEventPublisher.shared.send(.triggerPaywall)
+                showPaywall = true
             }) {
                 HStack(alignment: .center, spacing: 6) {
                     Image(systemName: "sparkle")
@@ -30,6 +32,9 @@ struct ModelTierBadge: View {
                 )
             }
             .buttonStyle(.plain)
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
+            }
             }
         }
     }

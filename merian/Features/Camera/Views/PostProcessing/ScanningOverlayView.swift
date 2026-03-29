@@ -16,40 +16,11 @@ struct ScanningOverlayView: View {
 
     // MARK: - View Engine
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.85)
-                .ignoresSafeArea()
-
-            VStack(spacing: 32) {
-                // Floating Status Pill
-                // Frosted glass capsule frames the phase text as a distinct UI element.
-                Text(scanningPhaseText)
-                    .id(scanningPhaseText)
-                    .font(.system(.callout, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.1))
-                            .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
-                    )
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .offset(y: 10)),
-                        removal: .opacity.combined(with: .offset(y: -10))
-                    ))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: scanningPhaseText)
-                    .scaleEffect(pillScale)
-                    .onChange(of: scanningPhaseText) { _, _ in
-                        withAnimation(.spring(response: 0.18, dampingFraction: 0.45)) {
-                            pillScale = 1.04
-                        }
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7).delay(0.1)) {
-                            pillScale = 1.0
-                        }
-                    }
-
-                // Optical Scaler Plane
+        NavigationStack {
+            ZStack {
+                Color.black.opacity(0.85).ignoresSafeArea()
+                
+                // Optical Scaler Plane (Centered vertically in ZStack)
                 HStack(spacing: 4) {
                     ForEach(0..<images.count, id: \.self) { index in
                         Image(uiImage: images[index])
@@ -71,22 +42,51 @@ struct ScanningOverlayView: View {
                         bracketsVisible = true
                     }
                 }
-            }
+                .overlay(alignment: .top) {
+                    // Floating Status Pill
+                    // Hovering above the perfectly-centered image
+                    Text(scanningPhaseText)
+                        .id(scanningPhaseText)
+                        .font(.system(.callout, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.1))
+                                .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                        )
+                        .offset(y: -64) // Adjust this to control how high above the image it floats
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: 10)),
+                            removal: .opacity.combined(with: .offset(y: -10))
+                        ))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: scanningPhaseText)
+                        .scaleEffect(pillScale)
+                        .onChange(of: scanningPhaseText) { _, _ in
+                            withAnimation(.spring(response: 0.18, dampingFraction: 0.45)) {
+                                pillScale = 1.04
+                            }
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7).delay(0.1)) {
+                                pillScale = 1.0
+                            }
+                        }
+                }
 
-            // Top-left X Button
-            Button(action: {
-                HapticManager.shared.triggerLightImpact()
-                onDismiss()
-            }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white.opacity(0.8))
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.leading, 24)
-            .padding(.top, 16)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        HapticManager.shared.triggerLightImpact()
+                        onDismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
     }
 }

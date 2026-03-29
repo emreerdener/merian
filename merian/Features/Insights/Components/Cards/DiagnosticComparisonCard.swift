@@ -5,88 +5,97 @@ struct DiagnosticComparisonCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Header Row
-            ZStack(alignment: .topTrailing) {
-                HStack(alignment: .top) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .foregroundColor(.green)
-                            .font(.title2)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Reasoning")
-                                .font(.system(.headline))
-                                .foregroundColor(.primary)
-                            
-                            Text("NEURAL ENGINE V4.2")
-                                .font(.system(.caption2, design: .monospaced)) // sleek neon typography feel
-                                .fontWeight(.bold)
-                                .foregroundColor(.green)
-                        }
-                    }
-                    Spacer()
-                }
-                
-                // Faint Watermark
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 44))
-                    .foregroundColor(Color(UIColor.label).opacity(0.04))
-                    .offset(x: 10, y: -10)
-            }
             
-            // Body: Primary Rationale
-            Text(diagnosticData.primaryMatchRationale)
-                .font(.system(.subheadline))
-                .foregroundColor(.primary)
-                .lineSpacing(4)
-            
-            // Lookalike Block
-            HStack(alignment: .top, spacing: 12) {
-                Rectangle()
-                    .fill(Color.orange)
-                    .frame(width: 3)
-                    .cornerRadius(1.5)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Potential Lookalike")
-                        .font(.system(.caption))
-                        .fontWeight(.bold)
+            // MARK: - Header
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.orange)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Differential Diagnosis")
+                        .font(.headline)
+                        .foregroundColor(.primary)
                     
-                    Text("This specimen shares strong morphological traits with \(diagnosticData.confusingLookalikeName).")
-                        .font(.system(.footnote))
+                    Text("Rule-out logic & lookalikes")
+                        .font(.caption.weight(.medium))
                         .foregroundColor(.secondary)
-                        .lineSpacing(2)
                 }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(Color(UIColor.tertiarySystemFill))
-            .cornerRadius(12)
             
-            // Morphological Weighting (Key Differentiators)
-            VStack(alignment: .leading, spacing: 12) {
-                Text("MORPHOLOGICAL ANALYSIS")
-                    .font(.system(.caption2, design: .monospaced))
-                    .fontWeight(.bold)
-                    .foregroundColor(.secondary)
-                    .tracking(1)
+            Divider()
+            
+            // MARK: - Primary Subject Traits
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(.blue)
+                        .font(.caption)
+                    Text("Subject Morphology")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.primary)
+                }
                 
-                ForEach(Array(diagnosticData.keyDifferentiators.enumerated()), id: \.element) { index, diff in
+                Text(diagnosticData.primaryMatchRationale)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineSpacing(4)
+            }
+            
+            // MARK: - Lookalike Target
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                    Text("Common Lookalike")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.orange)
+                        .textCase(.uppercase)
+                }
+                
+                Text(diagnosticData.confusingLookalikeName)
+                    .font(.body.italic())
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color.orange.opacity(0.08))
+            .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.orange.opacity(0.15), lineWidth: 1)
+            )
+            
+            // MARK: - Key Discrepancies
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Key Discrepancies")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .padding(.top, 4)
+                
+                ForEach(diagnosticData.keyDifferentiators, id: \.self) { diff in
                     HStack(alignment: .top, spacing: 12) {
-                        Text(String(format: "%02d", index + 1))
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(.green.opacity(0.8))
+                        Image(systemName: "minus.square.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.orange.opacity(0.6))
                             .padding(.top, 2)
                         
                         Text(diff)
-                            .font(.system(.subheadline))
+                            .font(.subheadline)
                             .foregroundColor(.primary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .lineSpacing(3)
                     }
                 }
             }
-            .padding(.top, 4)
         }
         .card()
     }

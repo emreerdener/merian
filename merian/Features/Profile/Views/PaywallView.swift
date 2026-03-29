@@ -116,9 +116,9 @@ struct PaywallView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(action: { dismiss() }) {
+                   Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                     }
                 }
             }

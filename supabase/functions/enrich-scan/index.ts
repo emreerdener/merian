@@ -14,18 +14,20 @@ serve((req: Request) =>
     const paramErr = requireParams(body, ["scan_id", "scientific_name"]);
     if (paramErr) return paramErr;
 
-    // Fetch confidence score for the diagnostic threshold check.
-    // No ownership filter — enrichment returns only public species biology data (habitat,
-    // GBIF key, diagnostic comparison), so there is nothing user-private to gate.
-    // Historical scans opened from the library may have been created under a different ghost
-    // session; enforcing user_id would permanently block enrichment for those records.
-    const { data: scanData } = await supabaseAdmin
-      .from("scans")
-      .select("ai_confidence_score, inference_tier")
-      .eq("id", scan_id)
-      .maybeSingle();
-    // If scan not found in Supabase (local-only or cross-session), default confidence to 1
-    // so the diagnostic threshold is not met and no extra Gemini call is made.
+    // Use confidence and tier from the client payload if provided. This is crucial for
+    // historical/offline scans that may not yet exist in the global Supabase `scans` table.
+    let confidence = body.confidence_score;
+    let tier = body.inference_tier;
+
+    if (confidence === undefined || tier === undefined) {
+      const { data: scanData } = await supabaseAdmin
+        .from("scans")
+        .select("ai_confidence_score, inference_tier")
+        .eq("id", scan_id)
+        .maybeSingle();
+      if (confidence === undefined) confidence = scanData?.ai_confidence_score ?? 1;
+      if (tier === undefined) tier = scanData?.inference_tier ?? "flash";
+    }
 
     // Check species_dictionary for both enrichment data and cached diagnostic data.
     // identify's background task races this call on Cache Miss — poll briefly to let it land
@@ -65,13 +67,12 @@ serve((req: Request) =>
     }
 
     let diagnosticThreshold = 0.88; // Default to free/flash threshold
-    if (scanData?.inference_tier === "pro") {
+    if (tier === "pro") {
       diagnosticThreshold = 0.8; // Harder threshold for pro users
     }
 
     const hasEnrichment = !!cachedSpecies?.habitat_description;
-    const needsDiagnostic =
-      ((scanData?.ai_confidence_score ?? 1) as number) < diagnosticThreshold;
+    const needsDiagnostic = (confidence as number) < diagnosticThreshold;
     const hasDiagnostic = !!cachedSpecies?.diagnostic_primary_rationale;
 
     // If everything is already stored, return immediately.
