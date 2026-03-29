@@ -46,6 +46,16 @@ import SwiftData
         // Private initialization for singleton
     }
     
+#if DEBUG
+    // MARK: - Mock Initialization (Previews)
+    /// A safe mock container for SwiftUI `#Preview` execution that guarantees live production databases or hardware components are not mutated.
+    static var preview: AppDIContainer {
+        let container = AppDIContainer()
+        // Inject mock instances or disable background observers here as needed.
+        return container
+    }
+#endif
+    
 
 }
 

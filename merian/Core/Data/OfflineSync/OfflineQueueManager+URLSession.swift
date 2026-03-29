@@ -280,7 +280,7 @@ extension OfflineQueueManager {
                 OfflineQueueManager.shared.updateUnsyncedItemCount()
                 CircuitBreakerManager.shared.recordSuccess()
             }
-        } catch let NetworkError.httpError(code, message) where (400...499).contains(code) {
+        } catch let MerianError.httpError(code, message) where (400...499).contains(code) {
             MerianLog.data.debug("Inference failed permanently for \(scanId, privacy: .private) [\(code)]: \(message, privacy: .private) — tombstoning scan")
             await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
         } catch {

@@ -2,15 +2,7 @@ import Foundation
 import CryptoKit
 import os
 
-// MARK: - Network Errors
-
-enum NetworkError: Error {
-    case invalidURL
-    case uploadFailed
-    case invalidResponse
-    case decodingFailed
-    case httpError(statusCode: Int, message: String)
-}
+// Using MerianError from Core/Utilities.
 
 // MARK: - Pre-Signed URL DTOs
 
@@ -125,7 +117,7 @@ final class MerianNetworkClient {
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.invalidResponse
+            throw MerianError.invalidResponse
         }
 
         if httpResponse.statusCode != 200 {
@@ -137,7 +129,7 @@ final class MerianNetworkClient {
                 let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: "Merian_HasAuthenticatedOAuth")
                 if hasAuthenticatedOAuth {
                     // OAuth user whose token expired — surface the 401 so the UI can prompt re-auth.
-                    throw NetworkError.invalidResponse
+                    throw MerianError.invalidResponse
                 }
 
                 let isGuest = await SupabaseManager.shared.isGuestUser
@@ -151,7 +143,7 @@ final class MerianNetworkClient {
 
                     return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
                 } else {
-                    throw NetworkError.invalidResponse
+                    throw MerianError.invalidResponse
                 }
             }
 
@@ -164,7 +156,7 @@ final class MerianNetworkClient {
                 return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
             }
 
-            throw NetworkError.httpError(statusCode: httpResponse.statusCode, message: errString)
+            throw MerianError.httpError(statusCode: httpResponse.statusCode, message: errString)
         }
 
         return (data, httpResponse)
@@ -240,7 +232,7 @@ final class MerianNetworkClient {
     }
 
     func uploadToR2(url: String, data: Data, mimeType: String = "image/webp") async throws {
-        guard let signedUrl = URL(string: url) else { throw NetworkError.invalidURL }
+        guard let signedUrl = URL(string: url) else { throw MerianError.invalidURL }
 
         var request = URLRequest(url: signedUrl)
         request.httpMethod = "PUT"
@@ -252,13 +244,13 @@ final class MerianNetworkClient {
         MerianLog.network.debug("R2 upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.uploadFailed
+            throw MerianError.uploadFailed
         }
 
         if httpResponse.statusCode != 200 {
             let errString = String(data: responseData, encoding: .utf8) ?? "Unknown"
             MerianLog.network.debug("R2 upload failed [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
-            throw NetworkError.uploadFailed
+            throw MerianError.uploadFailed
         }
     }
 

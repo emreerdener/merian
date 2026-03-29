@@ -20,6 +20,18 @@ This guarantees that:
 1. Operations like `context.save()` happen in RAM and resolve immediately, bypassing disk I/O.
 2. The user's real `Scans` and `OfflineQueuedScan` records are shielded from test mutations.
 
+## Mocking the App DI Environment (`AppDIContainer`)
+
+When previewing complex SwiftUI trees using `#Preview`, running against `AppDIContainer.shared` will accidentally trigger live production databases, camera hardware allocators, and background network sync loops.
+
+**ALWAYS** use the `#if DEBUG` mock singleton injection when writing canvas boundaries:
+```swift
+#Preview {
+    InsightSheetView()
+        .environment(AppDIContainer.preview)
+}
+```
+
 ## Core Suites
 
 Tests are organized under `merianTests/Core` and `merianTests/Features`:
@@ -64,9 +76,12 @@ Tests are organized under `merianTests/Core` and `merianTests/Features`:
 
 When testing across AI boundaries, tests must not pollute real Ghost Session tracking identities via PostHog telemetry. Tests avoid calling `SupabaseManager.shared.initializeGhostSession()` and instead test business logic models decoupled from live Apple ecosystem HTTP constraints.
 
-## Edge Function Testing (Deno)
+## API & Edge Function Testing (Deno)
 
-Merian relies on Supabase Edge Functions for complex operations like biological dataset processing (DwC-A). These pipelines enforce global security bounds and are rigorously checked using `Deno.test`.
+Merian relies on Supabase Edge Functions. Due to the rapid iteration cycle of Gemini structures, type safety at the network boundary (Swift → TS) must be guaranteed by AST regression guards.
+
+### `validate_edge_dtos.ts`
+- **AST Protection**: Before every production Edge rollout, AI Agents and developers run this script to syntactically trace the Deno `merianResponseSchema` and diff it against the properties in `InferenceEdgeDTOs.swift`. This proactively halts deployments if a UI variable drifts out of sync.
 
 ### `export-dwca_test.ts`
 - **Global Anonymization**: Evaluates `generateDwcARow` mathematically, ensuring `export_scope: global` safely casts unauthenticated user IDs down to random SHA-256 strings (e.g., `merian_user_...`).

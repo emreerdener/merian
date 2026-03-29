@@ -1,42 +1,35 @@
 # Error Handling Patterns
 
-This document explains the `NetworkError` enum cases and the caller contract for each, how offline fallback works at the network boundary, and how errors surface to the UI.
+This document explains the unified `MerianError` taxonomy, how offline fallback works at the network boundary, and how errors surface to the UI.
 
 ---
 
-## `NetworkError` Cases
+## `MerianError` Taxonomy
+
+`MerianError` conforms to `LocalizedError` and acts as the singular error boundary for the entire application, bridging HTTP limits, missing hardware, and SwiftUI catch blocks.
 
 ```swift
-enum NetworkError: Error {
+public enum MerianError: LocalizedError, Equatable {
     case invalidURL
     case uploadFailed
     case invalidResponse
     case decodingFailed
+    case httpError(statusCode: Int, message: String)
+    case networkTimeout
+    case proRequiredForOfflineTracking
+    case hardwareUnavailable
 }
 ```
 
 | Case | Meaning | Caller contract |
 |---|---|---|
 | `invalidURL` | URL construction failed (programming error) | Log and abort. Do not retry. |
-| `uploadFailed` | R2 `PUT` returned non-200, or `URLSession` could not cast the response to `HTTPURLResponse` | Retain in queue for recoverable codes (429, 5xx). Tombstone for auth failures (401, 403) and other 4xx. Transient transport errors also retain in queue with a bounded retry counter (max 3 attempts before tombstone). |
-| `invalidResponse` | HTTP error or auth failure from Edge; also used as sentinel when `getValidAuthHeaders()` fails entirely | For sync deletions: treat as terminal (resource is already gone), remove the task. For other callers: log and surface a UI error or route to offline queue. |
-| `decodingFailed` | `JSONDecoder` failed on a network response | Log `.error`. Do not retry the same request. For inference: throw `APIError.decodingFailed` which triggers the graceful degradation UI. |
-
----
-
-## `APIError` Cases
-
-```swift
-enum APIError: Error {
-    case proRequiredForOfflineTracking
-    case decodingFailed
-}
-```
-
-| Case | Meaning | Caller contract |
-|---|---|---|
+| `uploadFailed` | R2 `PUT` returned non-200. | Retain in queue for recoverable codes (429, 5xx). Tombstone for auth failures (401, 403). |
+| `invalidResponse` | HTTP error or auth failure from Edge. | For sync deletions: treat as terminal. For other callers: log and surface a UI error or route to offline queue. |
+| `decodingFailed` | `JSONDecoder` failed on a network response. | Refund token, surface "Analysis Failed" graceful degradation result in `InsightSheet`. |
+| `networkTimeout` | The network request timed out aggressively. | Surface "Network Timeout / Offline Mode" placeholder + scan queued silently |
 | `proRequiredForOfflineTracking` | Free user failed inference with no network | Refund scan token, post `TriggerPaywall` notification. Never enqueue offline. |
-| `decodingFailed` | Gemini returned a hallucinated or unparseable JSON payload (`DecodingError` from `JSONDecoder`) | Refund scan token, surface "Analysis Failed" graceful degradation result in `InsightSheet`. |
+| `hardwareUnavailable` | LiDAR or other required physical drivers failed to boot. | Show UI alert explaining hardware constraints. |
 
 ---
 
@@ -45,7 +38,7 @@ enum APIError: Error {
 `InferenceEngine.analyze` handles errors in this priority order:
 
 1. **`CancellationError`** (or `URLError.cancelled`) — inference was cancelled (user navigated away, background rescue). Refund scan token via `UsageManager.shared.refundScan()`. Set `isProcessing = false`. Do not surface any UI. If `isBackgroundRescued` is `true`, do not refund (the token was already consumed by the background rescue path).
-2. **`APIError.decodingFailed`** — Gemini hallucination. Refund token. Set `speciesData` to an "Analysis Failed" placeholder (`commonName: "Analysis Failed"`, `scientificName: "Data Unreadable"`). Set `isProcessing = false`. Show InsightSheet with degraded result.
+2. **`MerianError.decodingFailed`** — Gemini hallucination. Refund token. Set `speciesData` to an "Analysis Failed" placeholder (`commonName: "Analysis Failed"`, `scientificName: "Data Unreadable"`). Set `isProcessing = false`. Show InsightSheet with degraded result.
 3. **Free user + any other error** — Refund token. Post `TriggerPaywall` notification via `NotificationCenter`. Set `isProcessing = false`. Do not enqueue offline.
 4. **Pro user + any other error** — Record circuit failure via `CircuitBreakerManager.shared.recordFailure()`. Enqueue to offline queue via `OfflineQueueManager.shared.enqueueCapture`. Set `speciesData` to a "Network Timeout / Offline Mode" placeholder. `isProcessing` is cleared by the unconditional block after the catch.
 
@@ -70,7 +63,7 @@ Upload (background URLSession task)
     └── HTTP 4xx (other) → tombstone (terminal)
 
 Cloud deletion (PendingCloudDeletionTask)
-    ├── NetworkError.invalidResponse → tombstone (resource already gone, no point retrying)
+    ├── MerianError.invalidResponse → tombstone (resource already gone, no point retrying)
     └── All other errors → retain in queue
 ```
 
@@ -82,13 +75,13 @@ Uploads use a background `URLSession` (`URLSessionConfiguration.background`) wit
 
 | Error scenario | UI outcome |
 |---|---|
-| Inference decoding failure (`APIError.decodingFailed`) | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result |
+| Inference decoding failure (`MerianError.decodingFailed`) | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result |
 | Network timeout (Pro user) | InsightSheet opens with "Network Timeout" / "Offline Mode" placeholder + scan queued silently |
 | Network timeout (Free user) | Paywall sheet presented via `TriggerPaywall` notification |
 | R2 upload failure (missing source file) | Scan tombstoned silently via `softDeleteQueuedScan`; user is not notified |
 | R2 upload — transient error × 3 consecutive failures | Scan tombstoned silently after `maxUploadRetries` exhausted; user is not notified |
 | SwiftData save failure during deletion | `.error` logged; file deletion aborted; DB state remains consistent (record still exists, deletion task not persisted) |
-| JWT expiry (authenticated OAuth user) | `NetworkError.invalidResponse` thrown; callers surface a re-auth prompt |
+| JWT expiry (authenticated OAuth user) | `MerianError.invalidResponse` thrown; callers surface a re-auth prompt |
 
 ---
 
@@ -97,8 +90,8 @@ Uploads use a background `URLSession` (`URLSessionConfiguration.background`) wit
 `MerianNetworkClient.performAuthenticatedRequest` intercepts 401 responses:
 
 1. Checks `KeychainManager.shared.bool(forKey: "Merian_HasAuthenticatedOAuth")`.
-   - **Authenticated OAuth user** (`hasAuthenticatedOAuth == true`): throws `NetworkError.invalidResponse` immediately — the expired JWT must be re-authenticated. No Ghost session overwrite is attempted.
+   - **Authenticated OAuth user** (`hasAuthenticatedOAuth == true`): throws `MerianError.invalidResponse` immediately — the expired JWT must be re-authenticated. No Ghost session overwrite is attempted.
    - **Ghost/anonymous session** (`hasAuthenticatedOAuth == false`): detects a zombie session, calls `SupabaseManager.shared.signOut()` followed by `initializeGhostSession()`, waits 1.5 seconds for the Kong API Gateway to sync the new ES256 signature, then retries the request once with `isRetry: true`.
-2. If the retry also fails, throws `NetworkError.invalidResponse`.
+2. If the retry also fails, throws `MerianError.invalidResponse`.
 
 This logic is centralized in `performAuthenticatedRequest` — callers never need to handle JWT refresh themselves.

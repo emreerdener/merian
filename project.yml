@@ -55,6 +55,14 @@ targets:
         package: TelemetryDeck
       - package: RiveRuntime
       - package: GoogleSignIn
+    postBuildScripts:
+      - name: SwiftLint Validation
+        script: |
+          if which swiftlint >/dev/null; then
+            swiftlint
+          else
+            echo "warning: SwiftLint not installed locally. Run 'brew install swiftlint' to enable automated static analysis."
+          fi
 
   MerianWatch:
     type: application

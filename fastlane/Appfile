@@ -1,0 +1,5 @@
+app_identifier("app.merian.Merian") # The bundle identifier of your app
+team_id("LDL96V2WT5") # Developer Portal Team ID
+
+# For App Store Connect, you can configure your ASC API Key or let Fastlane prompt you.
+# apple_id("your-apple-id@example.com") 

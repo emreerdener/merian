@@ -9,7 +9,7 @@ extension OfflineQueueManager {
 
     /// Drains the `PendingCloudDeletionTask` queue, calling the delete Edge function for each record.
     ///
-    /// On `NetworkError.invalidResponse` the task is tombstoned immediately — the remote resource
+    /// On `MerianError.invalidResponse` the task is tombstoned immediately — the remote resource
     /// is already gone, so retrying would be pointless. All other errors retain the task for the
     /// next connectivity cycle.
     func syncPendingDeletions() async {
@@ -63,7 +63,7 @@ extension OfflineQueueManager {
             guard let task = pendingTasks.first(where: { $0.scanId == scanId }) else { continue }
             if let error {
                 MerianLog.data.error("syncPendingDeletions: failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-                if case NetworkError.invalidResponse = error {
+                if case MerianError.invalidResponse = error {
                     // Remote resource already gone — tombstone locally.
                     context.delete(task)
                     didMutate = true

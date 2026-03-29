@@ -1,11 +1,6 @@
 import Foundation
 
-// MARK: - API Errors
-
-enum APIError: Error {
-    case proRequiredForOfflineTracking
-    case decodingFailed
-}
+// Using MerianError from Core/Utilities.
 
 // MARK: - Edge Function Response DTOs
 

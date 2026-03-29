@@ -14,9 +14,6 @@ struct ModelTierBadge: View {
                 showPaywall = true
             }) {
                 HStack(alignment: .center, spacing: 6) {
-                    Image(systemName: "sparkle")
-                        .font(.footnote.weight(.bold))
-                        
                     Text("Get deeper analysis with Pro")
                         .font(.footnote.weight(.medium))
                         

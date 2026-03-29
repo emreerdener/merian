@@ -211,7 +211,7 @@ private struct WikiSummaryResponse: Decodable {
                     return
                 }
 
-                if let apiError = error as? APIError, apiError == .decodingFailed {
+                if let apiError = error as? MerianError, apiError == .decodingFailed {
                     AppTelemetry.trackError("APIDecodingFailure")
                     UsageManager.shared.refundScan()
                     HapticManager.shared.triggerErrorThump()
@@ -487,7 +487,7 @@ private struct WikiSummaryResponse: Decodable {
                     )
                 }
             }
-        } catch let error as NetworkError {
+        } catch let error as MerianError {
             if case .httpError(let code, _) = error, code == 403 { return }
             MerianLog.general.debug("Enrichment fetch failed: \(error, privacy: .private)")
         } catch {

@@ -39,7 +39,7 @@ struct ExportScans: View {
                                     self.isExporting = false
                                     withAnimation { self.hasRequestedExport = true }
                                 }
-                            } catch let error as NetworkError {
+                            } catch let error as MerianError {
                                 await MainActor.run { 
                                     isExporting = false 
                                     if case .httpError(let statusCode, _) = error, statusCode == 429 {
