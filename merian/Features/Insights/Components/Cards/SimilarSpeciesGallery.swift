@@ -50,7 +50,7 @@ struct SimilarSpeciesCard: View {
     let scientificName: String
     let isLowConfidence: Bool
     
-    @StateObject private var imageFetcher = WikipediaImageFetcher()
+    @StateObject private var imageFetcher = SimilarSpeciesImageFetcher()
     
     var body: some View {
         VStack(spacing: 0) {
@@ -109,8 +109,8 @@ struct SimilarSpeciesCard: View {
                 .stroke(Color(UIColor.separator).opacity(0.5), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
-        .task {
-            // Lazy load the thumbnail
+        .task(priority: .background) {
+            // Lazy load the thumbnail completely off the main render loop constraint
             await imageFetcher.fetchImage(for: scientificName)
         }
     }

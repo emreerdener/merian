@@ -311,6 +311,7 @@ private struct WikiSummaryResponse: Decodable {
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 4.0
+        request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
