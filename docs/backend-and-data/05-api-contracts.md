@@ -94,9 +94,14 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
   "colors": ["orange", "black", "white"],
   "estimated_size_cm": 15.2,
   "life_stage": "adult",
-  "reproductive_condition": "none",
+  "reproductive_condition": "not_applicable",
   "individual_count": 1,
   "ecological_interactions": ["pollinating Asclepias syriaca"],
+  "extracted_visual_traits": [
+    "orange and black wing pattern",
+    "white-spotted margins",
+    "ventral silver spots"
+  ],
   "insight_data": {
     "ai_reasoning": "The distinctive orange and black wing pattern with white-spotted margins, combined with the milkweed habitat context, is diagnostic for Danaus plexippus. The ventral hindwing silver spots confirm this is not the mimicking Viceroy.",
     "hazard_type": "none"
@@ -125,7 +130,7 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
 }
 ```
 
-> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification and ecosystem measurement. Data-as-a-Service fields (`estimated_size_cm`, `life_stage`, `reproductive_condition`, `individual_count`, `ecological_interactions`) are fully generated on the primary pass avoiding any secondary inference loops. `insight_data.ai_reasoning` is always present for biological subjects — it is the Gemini vision model's per-scan reasoning about the specific photo submitted and is unique per scan. `taxonomy` and `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `gbif_taxon_key` is present on Cache Hit for **all tiers** — it is GBIF's deterministic species usage key (sourced from a REST call to `api.gbif.org`, not AI-generated) and powers the occurrence density heatmap in `BiologicalView` for free and Pro users alike. `species_insights` is present on Cache Hit for all tiers when `habitat_description` is already stored in `species_dictionary`. `diagnostic_comparison` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function only when confidence is below the dynamic diagnostic threshold (0.88 for Flash, 0.80 for Pro on both Edge and iOS client). `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit (authoritative) or from the vision model on Cache Miss (stored in `species_dictionary` for future hits). The `hazard_type` column exists only on `species_dictionary`, not on `scans`.
+> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification and ecosystem measurement. Data-as-a-Service fields (`estimated_size_cm`, `life_stage`, `reproductive_condition`, `individual_count`, `ecological_interactions`) are fully generated on the primary pass avoiding any secondary inference loops. `extracted_visual_traits` executes a Micro-CoT pass before taxonomic grouping to anchor the model to reality and avoid visual pareidolia. `insight_data.ai_reasoning` is always present for biological subjects — it is the Gemini vision model's per-scan reasoning about the specific photo submitted and is unique per scan. `taxonomy` and `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `gbif_taxon_key` is present on Cache Hit for **all tiers** — it is GBIF's deterministic species usage key (sourced from a REST call to `api.gbif.org`, not AI-generated) and powers the occurrence density heatmap in `BiologicalView` for free and Pro users alike. `species_insights` is present on Cache Hit for all tiers when `habitat_description` is already stored in `species_dictionary`. `diagnostic_comparison` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function only when confidence is below the dynamic diagnostic threshold (0.88 for Flash, 0.80 for Pro on both Edge and iOS client). `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit (authoritative) or from the vision model on Cache Miss (stored in `species_dictionary` for future hits). The `hazard_type` column exists only on `species_dictionary`, not on `scans`.
 
 ### Error Responses
 

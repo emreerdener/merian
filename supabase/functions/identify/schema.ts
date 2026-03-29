@@ -3,7 +3,7 @@ import {
   ResponseSchema,
 } from "https://esm.sh/@google/generative-ai@0.24.1";
 
-export const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name. 7) Confidence Calibration & Holistic Verification Rule: Do not assign a high confidence_score based solely on localized features. Before finalizing your score, you MUST evaluate the plant's holistic growth habit and environmental context. 8) If the primary subject is actively interacting with another biological organism (e.g., pollinating a flower, eating a leaf, parasitizing a host), briefly describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count. If a massive swarm/cluster, provide a conservative estimated integer.`;
+export const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food, debris, shadows, cracks) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name. 7) Micro-CoT & Pareidolia Avoidance: You MUST extract 3 structural observations in extracted_visual_traits BEFORE determining is_biological_subject or scientific_name. Actively reject optical illusions, pareidolia, and inanimate objects mimicking biology (e.g., cracks looking like snakes). Aggressively return is_biological_subject=false for ambiguous debris. 8) If the primary subject is actively interacting with another biological organism, describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count.`;
 
 const schemaProperties: Record<string, ResponseSchema> = {
   is_biological_subject: { type: SchemaType.BOOLEAN },
@@ -20,7 +20,12 @@ const schemaProperties: Record<string, ResponseSchema> = {
   ai_reasoning: {
     type: SchemaType.STRING,
     description:
-      "A 2-3 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence extracted from the image that substantiate this classification.",
+      "A 1-3 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence extracted from the image that substantiate this classification.",
+  },
+  extracted_visual_traits: {
+    type: SchemaType.ARRAY,
+    items: { type: SchemaType.STRING },
+    description: "Extract exactly 3 distinct physical or structural traits observed in the image (e.g. 'smooth texture', 'embedded in concrete', 'green leaves').",
   },
   common_name: {
     type: SchemaType.STRING,
@@ -30,12 +35,12 @@ const schemaProperties: Record<string, ResponseSchema> = {
   life_stage: {
     type: SchemaType.STRING,
     format: "enum",
-    enum: ["egg", "larva", "juvenile", "adult", "unknown"],
+    enum: ["egg", "larva", "pupa", "nymph", "juvenile", "subadult", "adult", "seedling", "sapling", "unknown"],
   },
   reproductive_condition: {
     type: SchemaType.STRING,
     format: "enum",
-    enum: ["flowering", "fruiting", "sporing", "dormant", "not_applicable"],
+    enum: ["flowering", "fruiting", "budding", "vegetative", "sporing", "pregnant", "gravid", "mating", "spawning", "nesting", "dormant", "not_applicable"],
   },
   individual_count: {
     type: SchemaType.INTEGER,
@@ -52,6 +57,7 @@ export const merianResponseSchema: ResponseSchema = {
   required: [
     "is_biological_subject",
     "is_live_capture",
+    "extracted_visual_traits",
     "ai_reasoning",
     "confidence_score",
     "blur_score",

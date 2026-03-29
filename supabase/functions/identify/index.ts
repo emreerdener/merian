@@ -480,6 +480,7 @@ serve((req: Request) =>
             time_of_day: timeOfDay,
             depth_scale_text: depthScaleText,
             ai_reasoning: parsedData.ai_reasoning ?? null,
+            extracted_visual_traits: parsedData.extracted_visual_traits ?? [],
             colors: scanColors,
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
