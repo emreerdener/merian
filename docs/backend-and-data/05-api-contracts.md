@@ -337,10 +337,10 @@ Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
 
 ### Authentication Enforcement
 
-1. Extracts `scanId` from the payload and queries `public.scans` using the Service Role.
-2. If the scan does not exist (e.g. already purged server-side while offline), returns HTTP 200 so the Swift queue system drops the pending deletion.
-3. Extracts the verified user identity from the JWT via `supabaseAdmin.auth.getUser()`.
-4. Compares `scan.owner_id === user.id`. A mismatch returns `403 Forbidden`.
+1. Extracts the verified user identity from the GoTrue JWT via the native `withEdgeHandler` middleware.
+2. Extracts `scanId` from the payload and queries `public.scans` using the Service Role.
+3. If the scan does not exist (e.g. already purged server-side while offline), returns HTTP 200 so the Swift queue system drops the pending deletion cleanly.
+4. Compares the fetched `scan.user_id === user.id`. A mismatch natively returns `403 Forbidden` as an explicit IDOR trap.
 5. Deletes all Cloudflare R2 objects referenced in `image_storage_urls` via the `AwsClient`, avoiding 404 errors from namespace duplication.
 6. Deletes the Postgres row.
 

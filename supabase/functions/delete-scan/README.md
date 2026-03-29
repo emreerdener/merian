@@ -1,7 +1,10 @@
 # Delete Scan
 
-A secure, atomic deletion endpoint.
-When a user decides to delete a scan from their library, this function coordinates:
-1. Hard-deleting the Postgres row in `scans`.
-2. Purging all corresponding high-res images from the Cloudflare R2 storage bucket.
-This ensures there are no orphaned blobs consuming S3 storage bandwidth.
+Handles the secure, single-item deletion of a `scan` from the database and coordinates the native cleanup of all associated high-resolution images residing in Cloudflare R2 (`media.merian.app`).
+
+## Architecture
+
+To enforce clean routing boundaries and prevent IDOR exploits, the logic is decoupled:
+
+- **`index.ts`**: The HTTP orchestrator. Validates the JSON payload (protected natively by a `try/catch` wrapper), checks the `scanId` constraint via `requireParams`, and pulls the scan's storage parameters. Mints an `IDOR` guard natively comparing the `scan.user_id` mapped via Service-Role against the requesting JWT token's UUID. If cleared, it fires `deleteR2Objects` (loaded from `_shared/aws.ts`) to purge Cloudflare binaries, and passes the command to the database helper.
+- **`db.ts`**: Contains the strictly typed `fetchScanRecord` PostgREST query mapping. Executes the destructive `.delete()` bounds on the Postgres `scans` table and bubbles any relational cascade violation errors directly back to the HTTP handler.
