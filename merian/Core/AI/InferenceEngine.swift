@@ -221,7 +221,8 @@ private struct WikiSummaryResponse: Decodable {
                         scientificName: "Data Unreadable",
                         insightData: InsightData(aiReasoning: "The AI failed to understand the image or produced an unreadable schema.", hazardType: "none"),
                         confidenceScore: 0,
-                        diagnosticComparison: nil,
+                        blurScore: nil,
+                        similarSpecies: nil,
                         wikipediaUrl: nil,
                         wikipediaOverview: nil,
                         referenceImageUrl: nil,
@@ -236,7 +237,10 @@ private struct WikiSummaryResponse: Decodable {
                         gpsElevation: telemetry.gpsElevation,
                         gpsLatitude: telemetry.gpsLatitude,
                         gpsLongitude: telemetry.gpsLongitude,
-                        colors: nil
+                        colors: nil,
+                        groupTags: nil,
+                        iucnRedListStatus: nil,
+                        zoomFactor: telemetry.zoomFactor.map { Double($0) }
                     )
                     return
                 }
@@ -261,7 +265,8 @@ private struct WikiSummaryResponse: Decodable {
                     scientificName: "Offline Mode",
                     insightData: InsightData(aiReasoning: "Please check your network connection and try again.", hazardType: "none"),
                     confidenceScore: 0,
-                    diagnosticComparison: nil,
+                    blurScore: nil,
+                    similarSpecies: nil,
                     wikipediaUrl: nil,
                     wikipediaOverview: nil,
                     referenceImageUrl: nil,
@@ -275,7 +280,11 @@ private struct WikiSummaryResponse: Decodable {
                     weatherTemperatureF: telemetry.weatherTemperatureF,
                     gpsElevation: telemetry.gpsElevation,
                     gpsLatitude: telemetry.gpsLatitude,
-                    gpsLongitude: telemetry.gpsLongitude
+                    gpsLongitude: telemetry.gpsLongitude,
+                    colors: nil,
+                    groupTags: nil,
+                    iucnRedListStatus: nil,
+                    zoomFactor: telemetry.zoomFactor.map { Double($0) }
                 )
             }
         }
@@ -457,14 +466,10 @@ private struct WikiSummaryResponse: Decodable {
 
             let triggerThreshold = MerianConfig.confidenceBands(forInferenceTier: data.inferenceTier).diagnosticTrigger
             if data.confidenceScore < triggerThreshold,
-               let diag = enrichData.diagnostic_comparison,
-               let rationale = diag.primary_match_rationale,
-               let lookalike = diag.confusing_lookalike_name,
-               let diffs = diag.key_differentiators, !diffs.isEmpty {
-                speciesData?.diagnosticComparison = DiagnosticComparison(
-                    primaryMatchRationale: rationale,
-                    confusingLookalikeName: lookalike,
-                    keyDifferentiators: diffs
+               let similarData = enrichData.similar_species,
+               let lookalikeNames = similarData.lookalike_species {
+                speciesData?.similarSpecies = SimilarSpecies(
+                    lookalikes: lookalikeNames
                 )
             }
 
@@ -476,9 +481,7 @@ private struct WikiSummaryResponse: Decodable {
                         scanId: scanId,
                         habitatDescription: enrichData.habitat_description,
                         gbifTaxonKey: enrichData.gbif_taxon_key,
-                        diagnosticPrimaryRationale: enrichData.diagnostic_comparison?.primary_match_rationale,
-                        diagnosticLookalikeName: enrichData.diagnostic_comparison?.confusing_lookalike_name,
-                        diagnosticKeyDifferentiators: enrichData.diagnostic_comparison?.key_differentiators,
+                        similarSpecies: enrichData.similar_species?.lookalike_species,
                         taxonomy: enrichData.taxonomy
                     )
                 }
@@ -553,18 +556,9 @@ private struct WikiSummaryResponse: Decodable {
             await MainActor.run { self?.validHistoricImagePaths = validPaths }
         }
 
-        var parsedDiagnostic: DiagnosticComparison? = nil
-        if let rationale = record.diagnosticPrimaryRationale,
-           let lookalike = record.diagnosticLookalikeName,
-           let diffJsonStr = record.diagnosticDifferentiatorsJson,
-           let diffData = diffJsonStr.data(using: .utf8),
-           let diffs = try? JSONDecoder().decode([String].self, from: diffData),
-           !diffs.isEmpty {
-            parsedDiagnostic = DiagnosticComparison(
-                primaryMatchRationale: rationale,
-                confusingLookalikeName: lookalike,
-                keyDifferentiators: diffs
-            )
+        var parsedSimilar: SimilarSpecies? = nil
+        if let lookalikesArray = record.similarSpecies, !lookalikesArray.isEmpty {
+            parsedSimilar = SimilarSpecies(lookalikes: lookalikesArray)
         }
 
         self.speciesData = SpeciesData(
@@ -573,7 +567,8 @@ private struct WikiSummaryResponse: Decodable {
             scientificName: record.scientificName,
             insightData: InsightData(aiReasoning: record.aiReasoning ?? "No ecological description available for this subject.", hazardType: record.hazardType),
             confidenceScore: record.confidenceScore ?? 1.0,
-            diagnosticComparison: parsedDiagnostic,
+            blurScore: nil,
+            similarSpecies: parsedSimilar,
             wikipediaUrl: record.wikipediaUrl,
             wikipediaOverview: record.wikipediaOverview,
             referenceImageUrl: record.referenceImageUrl,
@@ -595,6 +590,9 @@ private struct WikiSummaryResponse: Decodable {
             gpsElevation: record.gpsElevation,
             gpsLatitude: record.gpsLatitude,
             gpsLongitude: record.gpsLongitude,
+            colors: nil,
+            groupTags: nil,
+            iucnRedListStatus: record.iucnRedListStatus,
             zoomFactor: record.zoomFactor,
             estimatedSizeCm: record.estimatedSizeCm,
             lifeStage: record.lifeStage,
@@ -617,12 +615,12 @@ private struct WikiSummaryResponse: Decodable {
         }
 
         // Fetch enrichment for any record missing habitat data, a GBIF key,
-        // or (for low-confidence scans) a diagnostic comparison.
+        // or (for low-confidence scans) similar species data.
         if record.isBiological {
             let triggerThreshold = MerianConfig.confidenceBands(forInferenceTier: record.inferenceTier).diagnosticTrigger
             let needsEnrichment = record.habitatDescription == nil ||
                 record.gbifTaxonKey == nil ||
-                ((record.confidenceScore ?? 1.0) < triggerThreshold && record.diagnosticPrimaryRationale == nil)
+                ((record.confidenceScore ?? 1.0) < triggerThreshold && (record.similarSpecies == nil || record.similarSpecies!.isEmpty))
             if needsEnrichment {
                 let safeContext = record.modelContext
                 Task { [weak self] in

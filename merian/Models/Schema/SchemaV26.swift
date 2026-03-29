@@ -1,21 +1,20 @@
 import Foundation
 import SwiftData
 
-// Added: captureDate attribute to distinguish EXIF capture time from DB creation time.
-enum MerianSchemaV24: VersionedSchema {
-    static var versionIdentifier = Schema.Version(24, 0, 0)
+// Removed: diagnosticPrimaryRationale, diagnosticDifferentiatorsJson
+enum MerianSchemaV26: VersionedSchema {
+    static var versionIdentifier = Schema.Version(26, 0, 0)
 
     static var models: [any PersistentModel.Type] {
         [LocalScanRecord.self, OfflineQueuedScan.self, ScanCollection.self, PendingCloudDeletionTask.self]
     }
 
-    typealias PendingCloudDeletionTask = MerianSchemaV23.PendingCloudDeletionTask
-    typealias OfflineQueuedScan        = MerianSchemaV23.OfflineQueuedScan
+    typealias PendingCloudDeletionTask = MerianSchemaV25.PendingCloudDeletionTask
+    typealias OfflineQueuedScan        = MerianSchemaV25.OfflineQueuedScan
 }
 
 // Extracted completely into the global namespace to bypass the SwiftData `#Predicate` and `@Relationship` AST macro reflection bug for typealiases.
-extension MerianSchemaV24 {
-    @Model
+@Model
 final class ScanCollection {
     @Attribute(.unique) var id: String = UUID().uuidString
     var name: String
@@ -31,11 +30,9 @@ final class ScanCollection {
         self.isDeleted = isDeleted
         self.scans = scans
     }
-    }
 }
 
-extension MerianSchemaV24 {
-    @Model
+@Model
 final class LocalScanRecord {
     @Attribute(.unique) var id: String
     var speciesId: String
@@ -73,9 +70,7 @@ final class LocalScanRecord {
 
     var collections: [ScanCollection]? = []
 
-    var diagnosticPrimaryRationale: String?
-    var diagnosticLookalikeName: String?
-    var diagnosticDifferentiatorsJson: String?
+    var similarSpecies: [String]?
 
     @Attribute var iucnRedListStatus: String? = nil
     @Attribute var gpsLatitude: Double? = nil
@@ -131,9 +126,7 @@ final class LocalScanRecord {
          weatherCondition: String? = nil,
          weatherTemperatureF: Double? = nil,
          collections: [ScanCollection]? = [],
-         diagnosticPrimaryRationale: String? = nil,
-         diagnosticLookalikeName: String? = nil,
-         diagnosticDifferentiatorsJson: String? = nil,
+         similarSpecies: [String]? = nil,
          iucnRedListStatus: String? = nil,
          gpsLatitude: Double? = nil,
          gpsLongitude: Double? = nil,
@@ -184,9 +177,7 @@ final class LocalScanRecord {
 
         self.collections = collections
 
-        self.diagnosticPrimaryRationale = diagnosticPrimaryRationale
-        self.diagnosticLookalikeName = diagnosticLookalikeName
-        self.diagnosticDifferentiatorsJson = diagnosticDifferentiatorsJson
+        self.similarSpecies = similarSpecies
         self.iucnRedListStatus = iucnRedListStatus
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
@@ -205,6 +196,5 @@ final class LocalScanRecord {
         self.inferenceTier = inferenceTier
         self.customTags = customTags
         self.hasBeenViewed = hasBeenViewed
-    }
     }
 }

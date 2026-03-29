@@ -327,7 +327,7 @@ actor SearchDatabaseActor {
                 let weather = record.weatherCondition ?? ""
                 let lifeStage = record.lifeStage ?? ""
                 let reproductive = record.reproductiveCondition ?? ""
-                let lookalike = record.diagnosticLookalikeName ?? ""
+                let lookalike = record.similarSpecies?.joined(separator: " ") ?? ""
                 let iucn = record.iucnRedListStatus ?? ""
                 let hazard = record.hazardType == "none" ? "" : record.hazardType
                 let interactions = record.ecologicalInteractions?.joined(separator: " ") ?? ""

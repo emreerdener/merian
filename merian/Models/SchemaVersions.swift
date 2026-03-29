@@ -27,7 +27,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV21.self,
             MerianSchemaV22.self,
             MerianSchemaV23.self,
-            MerianSchemaV24.self
+            MerianSchemaV24.self,
+            MerianSchemaV25.self,
+            MerianSchemaV26.self
         ]
     }
 
@@ -55,7 +57,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV20toV21,
             migrateV21toV22,
             migrateV22toV23,
-            migrateV23toV24
+            migrateV23toV24,
+            migrateV24toV25,
+            migrateV25toV26
         ]
     }
 
@@ -82,6 +86,60 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     static let migrateV23toV24 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV23.self,
         toVersion: MerianSchemaV24.self
+    )
+
+    static let migrateV24toV25 = MigrationStage.custom(
+        fromVersion: MerianSchemaV24.self,
+        toVersion: MerianSchemaV25.self,
+        willMigrate: { context in
+            let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV24.LocalScanRecord>())
+            _diagnosticLookalikesBackfill = Dictionary(
+                uniqueKeysWithValues: allRecords
+                    .compactMap { record in
+                        guard let string = record.diagnosticLookalikeName, !string.isEmpty else { return nil }
+                        let array = string.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                        return (record.id, array)
+                    }
+            )
+        },
+        didMigrate: { context in
+            let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV25.LocalScanRecord>())
+            for record in allRecords {
+                if let array = _diagnosticLookalikesBackfill[record.id] {
+                    record.diagnosticLookalikes = array
+                }
+            }
+            try context.save()
+            _diagnosticLookalikesBackfill = [:]
+        }
+    )
+
+    // Temporary storage for preserving the lookalikes array when discarding diagnostic string columns for V26.
+    nonisolated(unsafe) static var _similarSpeciesBackfill: [String: [String]] = [:]
+
+    static let migrateV25toV26 = MigrationStage.custom(
+        fromVersion: MerianSchemaV25.self,
+        toVersion: MerianSchemaV26.self,
+        willMigrate: { context in
+            let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV25.LocalScanRecord>())
+            _similarSpeciesBackfill = Dictionary(
+                uniqueKeysWithValues: allRecords
+                    .compactMap { record in
+                        guard let lookalikes = record.diagnosticLookalikes, !lookalikes.isEmpty else { return nil }
+                        return (record.id, lookalikes)
+                    }
+            )
+        },
+        didMigrate: { context in
+            let allRecords = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            for record in allRecords {
+                if let array = _similarSpeciesBackfill[record.id] {
+                    record.similarSpecies = array
+                }
+            }
+            try context.save()
+            _similarSpeciesBackfill = [:]
+        }
     )
 
     static let migrateV1toV2 = MigrationStage.lightweight(
@@ -159,6 +217,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
 
     // Temporary storage for backfilling aiReasoning from insightDescription for pre-V16 records.
     nonisolated(unsafe) static var _insightDescriptionBackfill: [String: String] = [:]
+
+    // Temporary storage for migrating diagnosticLookalikeName (comma-separated string) to diagnosticLookalikes (array) for pre-V25 records.
+    nonisolated(unsafe) static var _diagnosticLookalikesBackfill: [String: [String]] = [:]
 
     static let migrateV15toV16 = MigrationStage.custom(
         fromVersion: MerianSchemaV15.self,

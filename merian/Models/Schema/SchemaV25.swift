@@ -2,41 +2,41 @@ import Foundation
 import SwiftData
 
 // Added: captureDate attribute to distinguish EXIF capture time from DB creation time.
-enum MerianSchemaV24: VersionedSchema {
-    static var versionIdentifier = Schema.Version(24, 0, 0)
+enum MerianSchemaV25: VersionedSchema {
+    static var versionIdentifier = Schema.Version(25, 0, 0)
 
     static var models: [any PersistentModel.Type] {
         [LocalScanRecord.self, OfflineQueuedScan.self, ScanCollection.self, PendingCloudDeletionTask.self]
     }
 
-    typealias PendingCloudDeletionTask = MerianSchemaV23.PendingCloudDeletionTask
-    typealias OfflineQueuedScan        = MerianSchemaV23.OfflineQueuedScan
+    typealias PendingCloudDeletionTask = MerianSchemaV24.PendingCloudDeletionTask
+    typealias OfflineQueuedScan        = MerianSchemaV24.OfflineQueuedScan
 }
 
 // Extracted completely into the global namespace to bypass the SwiftData `#Predicate` and `@Relationship` AST macro reflection bug for typealiases.
-extension MerianSchemaV24 {
+extension MerianSchemaV25 {
     @Model
-final class ScanCollection {
-    @Attribute(.unique) var id: String = UUID().uuidString
-    var name: String
-    var createdAt: Date = Date()
-    var isDeleted: Bool = false
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
 
-    @Relationship(inverse: \LocalScanRecord.collections) var scans: [LocalScanRecord]? = []
+        @Relationship(inverse: \LocalScanRecord.collections) var scans: [LocalScanRecord]? = []
 
-    init(id: String = UUID().uuidString, name: String, createdAt: Date = Date(), isDeleted: Bool = false, scans: [LocalScanRecord]? = []) {
-        self.id = id
-        self.name = name
-        self.createdAt = createdAt
-        self.isDeleted = isDeleted
-        self.scans = scans
-    }
+        init(id: String = UUID().uuidString, name: String, createdAt: Date = Date(), isDeleted: Bool = false, scans: [LocalScanRecord]? = []) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
     }
 }
 
-extension MerianSchemaV24 {
+extension MerianSchemaV25 {
     @Model
-final class LocalScanRecord {
+    final class LocalScanRecord {
     @Attribute(.unique) var id: String
     var speciesId: String
     var scientificName: String
@@ -74,7 +74,7 @@ final class LocalScanRecord {
     var collections: [ScanCollection]? = []
 
     var diagnosticPrimaryRationale: String?
-    var diagnosticLookalikeName: String?
+    var diagnosticLookalikes: [String]?
     var diagnosticDifferentiatorsJson: String?
 
     @Attribute var iucnRedListStatus: String? = nil
@@ -132,7 +132,7 @@ final class LocalScanRecord {
          weatherTemperatureF: Double? = nil,
          collections: [ScanCollection]? = [],
          diagnosticPrimaryRationale: String? = nil,
-         diagnosticLookalikeName: String? = nil,
+         diagnosticLookalikes: [String]? = nil,
          diagnosticDifferentiatorsJson: String? = nil,
          iucnRedListStatus: String? = nil,
          gpsLatitude: Double? = nil,
@@ -185,7 +185,7 @@ final class LocalScanRecord {
         self.collections = collections
 
         self.diagnosticPrimaryRationale = diagnosticPrimaryRationale
-        self.diagnosticLookalikeName = diagnosticLookalikeName
+        self.diagnosticLookalikes = diagnosticLookalikes
         self.diagnosticDifferentiatorsJson = diagnosticDifferentiatorsJson
         self.iucnRedListStatus = iucnRedListStatus
         self.gpsLatitude = gpsLatitude
@@ -206,5 +206,5 @@ final class LocalScanRecord {
         self.customTags = customTags
         self.hasBeenViewed = hasBeenViewed
     }
-    }
+}
 }

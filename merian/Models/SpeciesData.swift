@@ -73,7 +73,7 @@ struct SpeciesData {
     /// Gemini's self-reported image sharpness score (0 = sharp, 1 = very blurry).
     /// Populated from live inference only — nil when loading from local SwiftData records.
     let blurScore: Double?
-    var diagnosticComparison: DiagnosticComparison?
+    var similarSpecies: SimilarSpecies?
     var wikipediaUrl: String?
     /// Wikipedia summary paragraph cached from the Wikipedia REST API.
     var wikipediaOverview: String?
@@ -145,7 +145,7 @@ extension SpeciesData {
         self.insightData = insight
         self.confidenceScore = edgeRes.confidence_score ?? 0.0
         self.blurScore = edgeRes.blur_score
-        self.diagnosticComparison = nil  // populated async via enrich-scan
+        self.similarSpecies = nil  // populated async via enrich-scan
         self.wikipediaUrl = edgeRes.wikipedia_url
         self.wikipediaOverview = edgeRes.wikipedia_overview
         self.referenceImageUrl = edgeRes.reference_image_url
@@ -187,7 +187,7 @@ extension SpeciesData {
         insightData: InsightData,
         confidenceScore: Double,
         blurScore: Double? = nil,
-        diagnosticComparison: DiagnosticComparison? = nil,
+        similarSpecies: SimilarSpecies? = nil,
         wikipediaUrl: String? = nil,
         wikipediaOverview: String? = nil,
         referenceImageUrl: String? = nil,
@@ -222,7 +222,7 @@ extension SpeciesData {
         self.insightData = insightData
         self.confidenceScore = confidenceScore
         self.blurScore = blurScore
-        self.diagnosticComparison = diagnosticComparison
+        self.similarSpecies = similarSpecies
         self.wikipediaUrl = wikipediaUrl
         self.wikipediaOverview = wikipediaOverview
         self.referenceImageUrl = referenceImageUrl
@@ -272,8 +272,6 @@ struct InsightData {
     var isHazardous: Bool { hazardType != "none" }
 }
 
-struct DiagnosticComparison {
-    let primaryMatchRationale: String
-    let confusingLookalikeName: String
-    let keyDifferentiators: [String]
+struct SimilarSpecies {
+    let lookalikes: [String]
 }

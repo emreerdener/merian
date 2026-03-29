@@ -29,20 +29,15 @@ struct BiologicalView: View {
             // MARK: - Global Footprint
             ConservationBanner()
 
-            // MARK: - Diagnostic Evaluation
-            // [ARTIFICIAL DEBUG] Force-rendering the Diagnostic card for styling purposes.
-            DiagnosticComparisonCard(diagnosticData: DiagnosticComparison(
-                primaryMatchRationale: "The specimen distinctly shows alternating bright yellow and black banding along its full length with a reddish head, characteristic of the local morph of the Coral Snake.",
-                confusingLookalikeName: "Scarlet Kingsnake",
-                keyDifferentiators: [
-                    "Red touches yellow banding",
-                    "Black snout morphology",
-                    "Continuous ring patterns across the belly"
-                ]
-            ))
-            
-            if let score = inferenceEngine.speciesData?.confidenceScore, score < MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger, let diagnosticData = inferenceEngine.speciesData?.diagnosticComparison {
-                // DiagnosticComparisonCard(diagnosticData: diagnosticData) // Hidden during debug
+            // MARK: - Similar Species Threshold
+            if let score = inferenceEngine.speciesData?.confidenceScore, 
+               score < MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger {
+                
+                if let similarData = inferenceEngine.speciesData?.similarSpecies {
+                    SimilarSpeciesGallery(similarData: similarData)
+                } else if inferenceEngine.isEnrichmentLoading {
+                    SimilarSpeciesGallery.Skeleton()
+                }
             }
 
             // MARK: - Educational Reference

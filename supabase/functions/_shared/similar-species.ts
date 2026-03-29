@@ -3,31 +3,25 @@ import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
 import { trackPostHogEvent } from "./posthog.ts";
 
-export async function fetchDiagnosticComparison(
+export async function fetchSimilarSpecies(
   user: User,
   scientificName: string,
 ) {
   const model = createFlashModel(
-    "You are a world-class biologist. Given a species scientific name, return a brief diagnostic comparison explaining the primary identification rationale, the most commonly confused lookalike species, and the key morphological or behavioural features that differentiate them.",
-    400,
+    "You are a world-class biologist. Given a species scientific name, identify the top 3 most commonly confused lookalike species. Provide them exclusively as an array of exact scientific names.",
+    150,
   );
 
   const schema: Record<string, unknown> = {
     type: SchemaType.OBJECT,
     properties: {
-      primary_match_rationale: { type: SchemaType.STRING },
-      confusing_lookalike_name: { type: SchemaType.STRING },
-      key_differentiators: {
+      similar_species: {
         type: SchemaType.ARRAY,
         items: { type: SchemaType.STRING },
-        description: "2–4 concise differentiating features vs. the lookalike.",
+        description: "Exact scientific names of the top 3 closely related but distinct lookalike species.",
       },
     },
-    required: [
-      "primary_match_rationale",
-      "confusing_lookalike_name",
-      "key_differentiators",
-    ],
+    required: ["similar_species"],
   };
 
   try {
@@ -35,7 +29,7 @@ export async function fetchDiagnosticComparison(
       contents: [
         {
           role: "user",
-          parts: [{ text: `Diagnostic comparison for: ${scientificName}` }],
+          parts: [{ text: `Identify lookalikes for: ${scientificName}` }],
         },
       ],
       generationConfig: {
@@ -46,9 +40,9 @@ export async function fetchDiagnosticComparison(
     const usage = result.response.usageMetadata;
     if (usage) {
       console.log(
-        `Token Usage [Diagnostic | ${scientificName}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
+        `Token Usage [SimilarSpecies | ${scientificName}]: Sent: ${usage.promptTokenCount} | Received: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
       );
-      await trackPostHogEvent(user, "DiagnosticLLMCompleted", {
+      await trackPostHogEvent(user, "SimilarSpeciesLLMCompleted", {
         scientific_name: scientificName,
         llm_model: "gemini-2.5-flash",
         llm_prompt_tokens: usage.promptTokenCount,
@@ -57,12 +51,10 @@ export async function fetchDiagnosticComparison(
       });
     }
     return extractJson<{
-      primary_match_rationale: string;
-      confusing_lookalike_name: string;
-      key_differentiators: string[];
+      similar_species: string[];
     }>(result.response.text());
   } catch (e) {
-    console.error("fetchDiagnosticComparison failed:", e);
+    console.error("fetchSimilarSpecies failed:", e);
     return null;
   }
 }

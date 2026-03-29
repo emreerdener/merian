@@ -115,17 +115,6 @@ actor BackgroundDatabaseActor {
                     finalIsNewDiscovery = true
                 }
 
-                let diagnosticDifferentiatorsJson: String? = {
-                    guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators else { return nil }
-                    do {
-                        let data = try JSONEncoder().encode(diffs)
-                        return String(data: data, encoding: .utf8)
-                    } catch {
-                        MerianLog.data.debug("processAndCleanupOfflineScan: JSON encode failed: \(error, privacy: .private)")
-                        return nil
-                    }
-                }()
-
                 let record = LocalScanRecord(
                     id: mappedData.scanId ?? scanId,
                     speciesId: activeSpeciesId,
@@ -153,9 +142,7 @@ actor BackgroundDatabaseActor {
                     locationName: mappedData.locationName,
                     weatherCondition: mappedData.weatherCondition,
                     weatherTemperatureF: mappedData.weatherTemperatureF,
-                    diagnosticPrimaryRationale: mappedData.diagnosticComparison?.primaryMatchRationale,
-                    diagnosticLookalikeName: mappedData.diagnosticComparison?.confusingLookalikeName,
-                    diagnosticDifferentiatorsJson: diagnosticDifferentiatorsJson,
+                    similarSpecies: mappedData.similarSpecies?.lookalikes,
                     iucnRedListStatus: mappedData.iucnRedListStatus,
                     gpsLatitude: mappedData.gpsLatitude,
                     gpsLongitude: mappedData.gpsLongitude,
@@ -224,17 +211,6 @@ actor BackgroundDatabaseActor {
         let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
         let isNewDiscovery = existingRecords.isEmpty
 
-        let diagnosticDifferentiatorsJson: String? = {
-            guard let diffs = mappedData.diagnosticComparison?.keyDifferentiators else { return nil }
-            do {
-                let data = try JSONEncoder().encode(diffs)
-                return String(data: data, encoding: .utf8)
-            } catch {
-                MerianLog.data.debug("saveLiveScanRecord: JSON encode failed: \(error, privacy: .private)")
-                return nil
-            }
-        }()
-
         let record = LocalScanRecord(
             id: mappedData.scanId ?? UUID().uuidString,
             speciesId: activeSpeciesId,
@@ -262,9 +238,7 @@ actor BackgroundDatabaseActor {
             locationName: mappedData.locationName,
             weatherCondition: mappedData.weatherCondition,
             weatherTemperatureF: mappedData.weatherTemperatureF,
-            diagnosticPrimaryRationale: mappedData.diagnosticComparison?.primaryMatchRationale,
-            diagnosticLookalikeName: mappedData.diagnosticComparison?.confusingLookalikeName,
-            diagnosticDifferentiatorsJson: diagnosticDifferentiatorsJson,
+            similarSpecies: mappedData.similarSpecies?.lookalikes,
             iucnRedListStatus: mappedData.iucnRedListStatus,
             gpsLatitude: mappedData.gpsLatitude,
             gpsLongitude: mappedData.gpsLongitude,
@@ -322,9 +296,7 @@ actor BackgroundDatabaseActor {
         scanId: String,
         habitatDescription: String?,
         gbifTaxonKey: Int?,
-        diagnosticPrimaryRationale: String?,
-        diagnosticLookalikeName: String?,
-        diagnosticKeyDifferentiators: [String]?,
+        similarSpecies: [String]?,
         taxonomy: EdgeResponse.Taxonomy?
     ) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
@@ -333,13 +305,7 @@ actor BackgroundDatabaseActor {
 
         if let habitat = habitatDescription { record.habitatDescription = habitat }
         if let key = gbifTaxonKey { record.gbifTaxonKey = key }
-        if let rationale = diagnosticPrimaryRationale { record.diagnosticPrimaryRationale = rationale }
-        if let lookalike = diagnosticLookalikeName { record.diagnosticLookalikeName = lookalike }
-        if let diffs = diagnosticKeyDifferentiators,
-           let encoded = try? JSONEncoder().encode(diffs),
-           let json = String(data: encoded, encoding: .utf8) {
-            record.diagnosticDifferentiatorsJson = json
-        }
+        if let lookalikes = similarSpecies { record.similarSpecies = lookalikes }
         if let tax = taxonomy {
             record.taxonomyKingdom = tax.kingdom
             record.taxonomyPhylum = tax.phylum

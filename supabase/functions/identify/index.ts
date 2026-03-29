@@ -868,7 +868,7 @@ serve((req: Request) =>
             .from("species_dictionary")
             .update({
               diagnostic_primary_rationale: diagResult.primary_match_rationale,
-              diagnostic_lookalike_name: diagResult.confusing_lookalike_name,
+              diagnostic_lookalikes: diagResult.lookalike_species,
               diagnostic_differentiators_json: JSON.stringify(
                 diagResult.key_differentiators,
               ),

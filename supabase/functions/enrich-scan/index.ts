@@ -1,102 +1,54 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { fetchDiagnosticComparison } from "../_shared/diagnostic.ts";
+import { fetchSimilarSpecies } from "../_shared/similar-species.ts";
 import { requireParams } from "../_shared/validation.ts";
 import { fetchStaticEncyclopedicData } from "../_shared/encyclopedic.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
-    const fnStart = Date.now();
-    const body = await req.json();
-    const { scan_id, scientific_name } = body;
+    const { scientific_name, confidence_score } = await requireParams(req, [
+      "scientific_name",
+      "confidence_score",
+    ]);
 
-    const paramErr = requireParams(body, ["scan_id", "scientific_name"]);
-    if (paramErr) return paramErr;
+    // Check what we already have for this species in PG
+    const { data: cachedSpecies, error } = await supabaseAdmin
+      .from("species_dictionary")
+      .select(
+        "gbif_taxon_key, habitat_description, kingdom, phylum, class, order, family, genus, similar_species",
+      )
+      .eq("scientific_name", scientific_name)
+      .maybeSingle();
 
-    // Use confidence and tier from the client payload if provided. This is crucial for
-    // historical/offline scans that may not yet exist in the global Supabase `scans` table.
-    let confidence = body.confidence_score;
-    let tier = body.inference_tier;
+    if (error && error.code !== "PGRST116") throw error;
 
-    if (confidence === undefined || tier === undefined) {
-      const { data: scanData } = await supabaseAdmin
-        .from("scans")
-        .select("ai_confidence_score, inference_tier")
-        .eq("id", scan_id)
-        .maybeSingle();
-      if (confidence === undefined) confidence = scanData?.ai_confidence_score ?? 1;
-      if (tier === undefined) tier = scanData?.inference_tier ?? "flash";
-    }
+    const hasEnrichment =
+      cachedSpecies?.habitat_description !== null &&
+      cachedSpecies?.habitat_description !== undefined;
 
-    // Check species_dictionary for both enrichment data and cached diagnostic data.
-    // identify's background task races this call on Cache Miss — poll briefly to let it land
-    // before deciding a Flash call is needed, avoiding a duplicate token spend.
-    let cachedSpecies: {
-      habitat_description: string | null;
-      diagnostic_primary_rationale: string | null;
-      diagnostic_lookalike_name: string | null;
-      diagnostic_differentiators_json: string | null;
-      gbif_taxon_key: number | null;
-      kingdom: string | null;
-      phylum: string | null;
-      class: string | null;
-      order: string | null;
-      family: string | null;
-      genus: string | null;
-    } | null = null;
+    // We only perform the expensive Gemini lookalikes lookup on 'possible' or 'speculative' matches
+    const needsSimilarSpecies = confidence_score < 0.88;
+    const hasSimilarSpecies =
+      cachedSpecies?.similar_species !== null &&
+      cachedSpecies?.similar_species !== undefined;
 
-    const POLL_ATTEMPTS = 3;
-    const POLL_DELAY_MS = 2000;
-    for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
-      const { data } = await supabaseAdmin
-        .from("species_dictionary")
-        .select(
-          "habitat_description, diagnostic_primary_rationale, diagnostic_lookalike_name, diagnostic_differentiators_json, gbif_taxon_key, kingdom, phylum, class, order, family, genus",
-        )
-        .eq("scientific_name", scientific_name)
-        .maybeSingle();
-      cachedSpecies = data;
+    // Fast-path: we already have everything required
+    if (hasEnrichment && (!needsSimilarSpecies || hasSimilarSpecies)) {
+      console.log(`[enrich-scan] CACHE HIT for ${scientific_name}`);
 
-      const settled = !!cachedSpecies?.habitat_description;
-      if (settled) break; // background task landed — no Flash call needed
-
-      if (attempt < POLL_ATTEMPTS - 1) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_DELAY_MS));
-      }
-    }
-
-    let diagnosticThreshold = 0.88; // Default to free/flash threshold
-    if (tier === "pro") {
-      diagnosticThreshold = 0.8; // Harder threshold for pro users
-    }
-
-    const hasEnrichment = !!cachedSpecies?.habitat_description;
-    const needsDiagnostic = (confidence as number) < diagnosticThreshold;
-    const hasDiagnostic = !!cachedSpecies?.diagnostic_primary_rationale;
-
-    // If everything is already stored, return immediately.
-    if (hasEnrichment && (!needsDiagnostic || hasDiagnostic)) {
-      console.log(
-        `[⏱ BENCH] enrich_scan full cache hit in ${Date.now() - fnStart}ms`,
-      );
       return jsonResponse(
         {
           success: true,
           data: {
             habitat_description: cachedSpecies!.habitat_description,
-            gbif_taxon_key: cachedSpecies!.gbif_taxon_key ?? null,
-            diagnostic_comparison: hasDiagnostic
-              ? {
-                  primary_match_rationale:
-                    cachedSpecies!.diagnostic_primary_rationale,
-                  confusing_lookalike_name:
-                    cachedSpecies!.diagnostic_lookalike_name,
-                  key_differentiators: JSON.parse(
-                    cachedSpecies!.diagnostic_differentiators_json ?? "[]",
-                  ),
-                }
-              : null,
+            gbif_taxon_key: cachedSpecies!.gbif_taxon_key,
+            similar_species:
+              needsSimilarSpecies && hasSimilarSpecies
+                ? {
+                    lookalike_species: cachedSpecies!.similar_species ?? [],
+                  }
+                : null,
             taxonomy: {
               kingdom: cachedSpecies!.kingdom ?? "Unknown",
               phylum: cachedSpecies!.phylum ?? "Unknown",
@@ -111,7 +63,7 @@ serve((req: Request) =>
       );
     }
 
-    // Fire enrichment and diagnostic Flash calls in parallel for whatever is missing.
+    // Fire enrichment and similar species Flash calls in parallel for whatever is missing.
     const enrichmentPromise = hasEnrichment
       ? Promise.resolve(cachedSpecies)
       : (async () => {
@@ -135,15 +87,15 @@ serve((req: Request) =>
           };
         })();
 
-    const diagnosticPromise =
-      !needsDiagnostic || hasDiagnostic
+    const similarSpeciesPromise =
+      !needsSimilarSpecies || hasSimilarSpecies
         ? Promise.resolve(null)
-        : fetchDiagnosticComparison(_user, scientific_name);
+        : fetchSimilarSpecies(_user, scientific_name);
 
     try {
-      const [enrichmentResult, diagnosticResult] = await Promise.all([
+      const [enrichmentResult, similarResult] = await Promise.all([
         enrichmentPromise,
-        diagnosticPromise,
+        similarSpeciesPromise,
       ]);
 
       // Persist whatever was freshly generated.
@@ -160,18 +112,12 @@ serve((req: Request) =>
             .eq("scientific_name", scientific_name),
         );
       }
-      if (!hasDiagnostic && diagnosticResult) {
+      if (!hasSimilarSpecies && similarResult) {
         persistOps.push(
           supabaseAdmin
             .from("species_dictionary")
             .update({
-              diagnostic_primary_rationale:
-                diagnosticResult.primary_match_rationale,
-              diagnostic_lookalike_name:
-                diagnosticResult.confusing_lookalike_name,
-              diagnostic_differentiators_json: JSON.stringify(
-                diagnosticResult.key_differentiators,
-              ),
+              similar_species: similarResult.similar_species,
             })
             .eq("scientific_name", scientific_name),
         );
@@ -179,29 +125,27 @@ serve((req: Request) =>
       await Promise.allSettled(persistOps);
 
       console.log(
-        `[⏱ BENCH] enrich_scan completed in ${Date.now() - fnStart}ms`,
+        `[enrich-scan] CACHE MISS: Generated enrichment for ${scientific_name}`,
       );
+
       return jsonResponse(
         {
           success: true,
           data: {
             habitat_description:
-              (enrichmentResult as { habitat_description: string } | null)
-                ?.habitat_description ?? null,
-            gbif_taxon_key: cachedSpecies?.gbif_taxon_key ?? null,
-            diagnostic_comparison:
-              diagnosticResult ??
-              (hasDiagnostic
-                ? {
-                    primary_match_rationale:
-                      cachedSpecies!.diagnostic_primary_rationale,
-                    confusing_lookalike_name:
-                      cachedSpecies!.diagnostic_lookalike_name,
-                    key_differentiators: JSON.parse(
-                      cachedSpecies!.diagnostic_differentiators_json ?? "[]",
-                    ),
-                  }
-                : null),
+              (enrichmentResult as Record<string, string>)
+                ?.habitat_description ??
+              cachedSpecies?.habitat_description ??
+              "No habitat data available.",
+            gbif_taxon_key: cachedSpecies?.gbif_taxon_key,
+            similar_species: needsSimilarSpecies
+              ? similarResult ||
+                (hasSimilarSpecies
+                  ? {
+                      lookalike_species: cachedSpecies!.similar_species ?? [],
+                    }
+                  : null)
+              : null,
             taxonomy: {
               kingdom:
                 (enrichmentResult as Record<string, string>)?.kingdom ??
@@ -232,11 +176,11 @@ serve((req: Request) =>
         },
         200,
       );
-    } catch (genError) {
-      console.error("AI generation failed for enrichment:", genError);
+    } catch (e: any) {
+      console.error("[enrich-scan] LLM error:", e);
       return jsonResponse(
-        { error: "AI processing error during enrichment. Please try again." },
-        400,
+        { success: false, error: e.message || "Failed to process scan data." },
+        500,
       );
     }
   }),
