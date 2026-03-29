@@ -1,107 +1,66 @@
+// deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 
+import { FeedScan } from "./types.ts";
+import { fetchBlockedUserIds, fetchDiscoveryFeed } from "./db.ts";
+
+function sanitizeFeedData(feedData: FeedScan[]): FeedScan[] {
+  return feedData.map((scan) => {
+    // Always strip exact coordinates before transmitting over HTTP
+    delete scan.gps_lat_exact;
+    delete scan.gps_long_exact;
+
+    const species = scan.species_dictionary || {};
+    const isProtected = [
+      "vulnerable",
+      "endangered",
+      "critically_endangered",
+      "near_threatened",
+    ].includes(species.iucn_red_list_status || "");
+
+    if (isProtected) {
+      // Round to ~11km resolution for protected species
+      if (typeof scan.gps_lat_public === "number") {
+        scan.gps_lat_public = Math.round(scan.gps_lat_public * 10) / 10;
+      }
+      if (typeof scan.gps_long_public === "number") {
+        scan.gps_long_public = Math.round(scan.gps_long_public * 10) / 10;
+      }
+    }
+
+    return scan;
+  });
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    const { limit = 20 } = await req.json();
+    let limit = 20;
+    try {
+      const body = await req.json();
+      if (body.limit && typeof body.limit === "number") {
+        limit = body.limit;
+      }
+    } catch {
+      // Body is optional, defaults to 20
+    }
 
     // 1. Fetch block list for the requesting user
-    const { data: blocksData, error: blocksError } = await supabaseAdmin
-      .from("user_blocks")
-      .select("blocked_id")
-      .eq("blocker_id", user.id);
-
-    if (blocksError) {
-      throw new Error(`Failed to fetch block list: ${blocksError.message}`);
-    }
+    const blockedIds = await fetchBlockedUserIds(user.id, supabaseAdmin);
 
     // 2. Build exclusion list: self + blocked users
-    const blockedIds = blocksData.map((b: { blocked_id: string }) => b.blocked_id);
     const excludedIds = [user.id, ...blockedIds];
 
-    // 3. Query public scans, excluding self and blocked users.
-    // Explicit column selection avoids loading telemetry/analytics columns (device_locale,
-    // current_month, time_of_day, depth_scale_text, llm_* tokens, regional_status_rationale, etc.)
-    // that the client never renders. At scale this reduces per-row payload size by ~60%.
-    const { data: feedData, error: feedError } = await supabaseAdmin
-      .from("scans")
-      .select(`
-        id,
-        user_id,
-        timestamp,
-        image_storage_urls,
-        gps_lat_public,
-        gps_long_public,
-        ecology_type,
-        is_invasive,
-        is_live_capture,
-        colors,
-        semantic_location,
-        weather_condition,
-        weather_temperature_f,
-        ai_confidence_score,
-        species_dictionary (
-          id,
-          scientific_name,
-          common_names,
-          wikipedia_url,
-          reference_image_url,
-          iucn_red_list_status,
-          hazard_type,
-          kingdom
-        ),
-        users!inner(is_shadowbanned)
-      `)
-      .eq("geoprivacy", "open")
-      .eq("is_live_capture", true)
-      .eq("users.is_shadowbanned", false)
-      .not("user_id", "in", `(${excludedIds.map(id => `"${id}"`).join(",")})`)
-      .not("image_storage_urls", "eq", "{}")
-      .order("timestamp", { ascending: false })
-      .limit(limit);
+    // 3. Query public scans
+    const feedData = await fetchDiscoveryFeed(
+      excludedIds,
+      limit,
+      supabaseAdmin,
+    );
 
-    if (feedError) {
-      throw new Error(`Failed to fetch discovery feed: ${feedError.message}`);
-    }
-
-    // 4. Sanitize coordinates for geoprivacy
-    interface SpeciesDictionary {
-      iucn_red_list_status?: string;
-    }
-
-    interface FeedScan {
-      gps_lat_exact?: number;
-      gps_long_exact?: number;
-      gps_lat_public?: number;
-      gps_long_public?: number;
-      species_dictionary?: SpeciesDictionary;
-      [key: string]: unknown;
-    }
-
-    const sanitizedFeedData = feedData.map((row) => {
-      const scan = row as FeedScan;
-
-      // Always strip exact coordinates
-      delete scan.gps_lat_exact;
-      delete scan.gps_long_exact;
-
-      const species = scan.species_dictionary || {};
-      const isProtected = ["vulnerable", "endangered", "critically_endangered", "near_threatened"]
-        .includes(species.iucn_red_list_status || "");
-
-      if (isProtected) {
-        // Round to ~11km resolution for protected species
-        if (typeof scan.gps_lat_public === "number") {
-          scan.gps_lat_public = Math.round(scan.gps_lat_public * 10) / 10;
-        }
-        if (typeof scan.gps_long_public === "number") {
-          scan.gps_long_public = Math.round(scan.gps_long_public * 10) / 10;
-        }
-      }
-
-      return scan;
-    });
+    // 4. Sanitize coordinates for Geoprivacy compliance
+    const sanitizedFeedData = sanitizeFeedData(feedData);
 
     return jsonResponse({ data: sanitizedFeedData }, 200);
-  })
+  }),
 );

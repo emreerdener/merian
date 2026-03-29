@@ -62,7 +62,7 @@ The backend logic is strictly decoupled into modular, single-responsibility func
   - `/delete-scan` & `/safe-delete`: Atomic operations cascading Postgres deletions out to Cloudflare R2 blobs to prevent orphaned objects.
   - `/auto-purge-domesticated` & `/auto-purge-nonbio`: Automated webhook/cron jobs actively trimming non-wildlife data to maintain taxonomic dataset integrity.
 - **Moderation & Social**
-  - `/get-filtered-discovery-feed`: Paginates heavy PostGIS spatial queries, abstracting global `geoprivacy = 'open'` filtering away from the mobile client.
+  - `/get-filtered-discovery-feed`: Paginates heavy spatial queries (abstracting global `geoprivacy = 'open'` filtering away from the mobile client), handles blocking mechanisms, and destructively rounds coordinates natively via the IUCN Red List index to protect vulnerable species from poachers.
   - `/block-user` & `/flag-issue`: Trust and Safety endpoint managers mitigating bad actors on the global feed.
 - **Revenue Integration**
   - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription transitions, stamping user tiers natively into Postgres bounds without client-side polling.
