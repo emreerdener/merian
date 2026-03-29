@@ -360,9 +360,9 @@ Inserts a moderation block, removing the specified user from the authenticated u
 
 ### Authentication Enforcement
 
-- Extracts user identity from the GoTrue header via `supabaseAdmin.auth.getUser(jwt)`.
+- Extracts the verified user identity from the GoTrue JWT via the native `withEdgeHandler` middleware.
 - Writes the block into `public.user_blocks` (schema in `00001_initial_schema.sql`).
-- Returns `400 Bad Request` if `blocked_id` matches the calling user's UUID.
+- Returns `400 Bad Request` if `blocked_id` matches the calling user's UUID to explicitly enforce the anti-self-blocking mitigation.
 
 ---
 
