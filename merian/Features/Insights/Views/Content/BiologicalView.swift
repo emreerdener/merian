@@ -29,15 +29,18 @@ struct BiologicalView: View {
             // MARK: - Global Footprint
             ConservationBanner()
 
-            // MARK: - Similar Species Threshold
-            if let score = inferenceEngine.speciesData?.confidenceScore, 
-               score < MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger {
+            // MARK: - Similar Species Gallery
+            if let similarData = inferenceEngine.speciesData?.similarSpecies {
+                // Determine if this qualifies as a low-confidence scan
+                let score = inferenceEngine.speciesData?.confidenceScore ?? 1.0
+                let threshold = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger
                 
-                if let similarData = inferenceEngine.speciesData?.similarSpecies {
-                    SimilarSpeciesGallery(similarData: similarData)
-                } else if inferenceEngine.isEnrichmentLoading {
-                    SimilarSpeciesGallery.Skeleton()
-                }
+                SimilarSpeciesGallery(
+                    similarData: similarData,
+                    isLowConfidence: score < threshold
+                )
+            } else if inferenceEngine.isEnrichmentLoading {
+                SimilarSpeciesGallery.Skeleton()
             }
 
             // MARK: - Educational Reference

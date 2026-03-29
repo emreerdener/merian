@@ -615,12 +615,11 @@ private struct WikiSummaryResponse: Decodable {
         }
 
         // Fetch enrichment for any record missing habitat data, a GBIF key,
-        // or (for low-confidence scans) similar species data.
+        // or similar species data.
         if record.isBiological {
-            let triggerThreshold = MerianConfig.confidenceBands(forInferenceTier: record.inferenceTier).diagnosticTrigger
             let needsEnrichment = record.habitatDescription == nil ||
                 record.gbifTaxonKey == nil ||
-                ((record.confidenceScore ?? 1.0) < triggerThreshold && (record.similarSpecies == nil || record.similarSpecies!.isEmpty))
+                (record.similarSpecies == nil || record.similarSpecies!.isEmpty)
             if needsEnrichment {
                 let safeContext = record.modelContext
                 Task { [weak self] in

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
+    let isLowConfidence: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -10,7 +11,7 @@ struct SimilarSpeciesGallery: View {
             HStack(spacing: 8) {
                 Image(systemName: "square.grid.2x2")
                     .foregroundColor(.secondary)
-                Text("Similar Species")
+                Text("Similar species")
                     .font(.system(.headline))
                     .foregroundColor(.primary)
             }
@@ -18,7 +19,7 @@ struct SimilarSpeciesGallery: View {
             // MARK: - Lookalike Target Carousel
             if !similarData.lookalikes.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("POTENTIAL LOOKALIKES")
+                    Text(isLowConfidence ? "POTENTIAL LOOKALIKES" : "SIMILAR SPECIES")
                         .font(.system(.caption, design: .monospaced))
                         .fontWeight(.bold)
                         .tracking(1)
@@ -27,7 +28,7 @@ struct SimilarSpeciesGallery: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 12) {
                             ForEach(similarData.lookalikes, id: \.self) { lookalike in
-                                SimilarSpeciesCard(scientificName: lookalike)
+                                SimilarSpeciesCard(scientificName: lookalike, isLowConfidence: isLowConfidence)
                             }
                         }
                         .padding(.vertical, 4)
@@ -47,6 +48,7 @@ struct SimilarSpeciesGallery: View {
 
 struct SimilarSpeciesCard: View {
     let scientificName: String
+    let isLowConfidence: Bool
     
     @StateObject private var imageFetcher = WikipediaImageFetcher()
     
@@ -82,17 +84,19 @@ struct SimilarSpeciesCard: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 
-                Button(action: {
-                    // Future hook: prompt user to override AI identity
-                    HapticManager.shared.triggerLightImpact()
-                }) {
-                    Text("Confirm Species")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.accentColor)
-                        .cornerRadius(6)
+                if isLowConfidence {
+                    Button(action: {
+                        // Future hook: prompt user to override AI identity
+                        HapticManager.shared.triggerLightImpact()
+                    }) {
+                        Text("Confirm Species")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.vertical, 6)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.accentColor)
+                            .cornerRadius(6)
+                    }
                 }
             }
             .padding(10)

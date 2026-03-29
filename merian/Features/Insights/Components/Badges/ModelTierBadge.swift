@@ -17,7 +17,7 @@ struct ModelTierBadge: View {
                     Image(systemName: "sparkle")
                         .font(.footnote.weight(.bold))
                         
-                    Text("Get higher confidence with Pro")
+                    Text("Get deeper analysis with Pro")
                         .font(.footnote.weight(.medium))
                         
                     Image(systemName: "chevron.right")

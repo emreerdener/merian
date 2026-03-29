@@ -684,15 +684,9 @@ serve((req: Request) =>
         }
         // Start diagnostic and group-tag Flash calls in parallel with enrichment.
         // Both are cheap, species-level, and skipped when already cached.
-        let diagnosticThreshold = 0.88; // Default to free/flash threshold
-        if (userTierForModel === "pro") {
-          diagnosticThreshold = 0.8; // Harder threshold for pro users
-        }
-
         const needsSimilarSpecies =
           isIdentifiedBio &&
-          (parsedData.confidence_score ?? 1) < diagnosticThreshold &&
-          !cachedSpecies?.similar_species;
+          (!cachedSpecies?.similar_species || cachedSpecies.similar_species.length === 0);
         const similarSpeciesPromise = needsSimilarSpecies
           ? fetchSimilarSpecies(user, parsedData.scientific_name!)
           : Promise.resolve(null);
