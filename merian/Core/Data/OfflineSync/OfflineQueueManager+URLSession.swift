@@ -260,6 +260,7 @@ extension OfflineQueueManager {
                 let profileActor = ProfileDatabaseActor(modelContainer: extracted.container)
                 let updatedAwards = await profileActor.calculateAwards()
                 await MainActor.run {
+                    UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
                     if resultTuple.isNewDiscovery {
                         GamificationManager.shared.recordNewSpeciesDiscovered()
                     }

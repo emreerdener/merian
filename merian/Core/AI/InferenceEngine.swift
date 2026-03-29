@@ -489,9 +489,11 @@ private struct WikiSummaryResponse: Decodable {
 
     // MARK: - Pipeline Modifiers
 
-    func cancelActiveRequest() {
+    func cancelActiveRequest(isUserInitiated: Bool = false) {
         MerianLog.general.debug("Cancelled active inference request.")
-        isBackgroundRescued = true
+        if !isUserInitiated {
+            isBackgroundRescued = true
+        }
         self.inferenceTask?.cancel()
         // isBackgroundRescued is reset by the task's cancellation catch block.
         // If the task was already finished, analyze() resets it at the start of the next scan.

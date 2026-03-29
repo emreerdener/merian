@@ -8,6 +8,7 @@ struct ScanningOverlayView: View {
     // MARK: - Dependencies
     let images: [UIImage]
     let scanningPhaseText: String
+    let onDismiss: () -> Void
 
     // MARK: - Animation State
     @State private var pillScale: CGFloat = 1.0
@@ -71,6 +72,21 @@ struct ScanningOverlayView: View {
                     }
                 }
             }
+
+            // Top-left X Button
+            Button(action: {
+                HapticManager.shared.triggerLightImpact()
+                onDismiss()
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white.opacity(0.8))
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Color.white.opacity(0.12)))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.leading, 24)
+            .padding(.top, 16)
         }
     }
 }

@@ -161,6 +161,23 @@ extension CameraViewModel {
         scanningPhaseText = "Analyzing subject..."
     }
 
+    // MARK: - Dismiss Analysis
+
+    /// Re-queues the active inference request into the background offline queue,
+    /// skips refunding the credit, and drops the overlay to let the user keep scanning.
+    func dismissAnalysisToBackground() {
+        if diContainer.inferenceEngine.isProcessing, !diContainer.inferenceEngine.activeLiveCaptureDatas.isEmpty {
+            diContainer.offlineQueueManager.enqueueCapture(
+                imageDatas: diContainer.inferenceEngine.activeLiveCaptureDatas,
+                telemetry: CaptureTelemetry(from: diContainer.inferenceEngine),
+                blurScore: nil
+            )
+        }
+        
+        diContainer.inferenceEngine.cancelActiveRequest(isUserInitiated: false)
+        isAnalyzingFullscreen = false
+    }
+
     // MARK: - On-Device Subject Classification
 
     /// Runs `VNClassifyImageRequest` on a background thread and drives the scanning phrase rotation.

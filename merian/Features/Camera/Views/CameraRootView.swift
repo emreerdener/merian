@@ -205,7 +205,11 @@ struct CameraRootView: View {
 
                 // Scanning overlay — above the pager and fixed controls.
                 if viewModel.isAnalyzingFullscreen, !viewModel.analysisImages.isEmpty {
-                    ScanningOverlayView(images: viewModel.analysisImages, scanningPhaseText: viewModel.scanningPhaseText)
+                    ScanningOverlayView(
+                        images: viewModel.analysisImages,
+                        scanningPhaseText: viewModel.scanningPhaseText,
+                        onDismiss: { viewModel.dismissAnalysisToBackground() }
+                    )
                         .transition(.opacity)
                         .zIndex(10)
                 }
