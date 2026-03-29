@@ -15,7 +15,7 @@ import {
   withEdgeHandler,
   runBackground,
 } from "../_shared/edgeHandler.ts";
-import { fetchDiagnosticComparison } from "../_shared/diagnostic.ts";
+import { fetchSimilarSpecies } from "../_shared/similar-species.ts";
 import { _genAI, createFlashModel, extractJson } from "../_shared/gemini.ts";
 import {
   getTierForUser,
@@ -548,7 +548,7 @@ serve((req: Request) =>
       iucn_red_list_status: string | null;
       habitat_description: string | null;
       gbif_taxon_key: number | null;
-      diagnostic_primary_rationale: string | null;
+      similar_species: string[] | null;
       group_tags: string[] | null;
     } | null = null;
 
@@ -556,7 +556,7 @@ serve((req: Request) =>
       const { data: _cachedSpecies } = await supabaseAdmin
         .from("species_dictionary")
         .select(
-          "id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key, diagnostic_primary_rationale, group_tags",
+          "id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key, similar_species, group_tags",
         )
         .eq("scientific_name", parsedData.scientific_name)
         .maybeSingle();
@@ -689,12 +689,12 @@ serve((req: Request) =>
           diagnosticThreshold = 0.8; // Harder threshold for pro users
         }
 
-        const needsDiagnostic =
+        const needsSimilarSpecies =
           isIdentifiedBio &&
           (parsedData.confidence_score ?? 1) < diagnosticThreshold &&
-          !cachedSpecies?.diagnostic_primary_rationale;
-        const diagnosticPromise = needsDiagnostic
-          ? fetchDiagnosticComparison(user, parsedData.scientific_name!)
+          !cachedSpecies?.similar_species;
+        const similarSpeciesPromise = needsSimilarSpecies
+          ? fetchSimilarSpecies(user, parsedData.scientific_name!)
           : Promise.resolve(null);
 
         const needsGroupTags =
@@ -857,24 +857,20 @@ serve((req: Request) =>
         });
 
         // Await species-level Flash calls and upsert results to species_dictionary.
-        const [diagResult, groupTagsResult] = await Promise.all([
-          diagnosticPromise,
+        const [similarResult, groupTagsResult] = await Promise.all([
+          similarSpeciesPromise,
           groupTagsPromise,
         ]);
 
-        if (needsDiagnostic && diagResult) {
+        if (needsSimilarSpecies && similarResult) {
           const diagStart = Date.now();
           await supabaseAdmin
             .from("species_dictionary")
             .update({
-              diagnostic_primary_rationale: diagResult.primary_match_rationale,
-              diagnostic_lookalikes: diagResult.lookalike_species,
-              diagnostic_differentiators_json: JSON.stringify(
-                diagResult.key_differentiators,
-              ),
+              similar_species: similarResult.similar_species,
             })
             .eq("scientific_name", parsedData.scientific_name);
-          console.log(`[⏱ BENCH] bg_diagnostic: ${Date.now() - diagStart}ms`);
+          console.log(`[⏱ BENCH] bg_similar_species: ${Date.now() - diagStart}ms`);
         }
 
         if (needsGroupTags && groupTagsResult && groupTagsResult.length > 0) {
