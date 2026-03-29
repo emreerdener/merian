@@ -4,7 +4,7 @@ platform :ios do
   desc "Push a new beta build to TestFlight"
   lane :beta do
     # Ensure dependencies and Xcode project format are completely synced
-    sh("xcodegen generate")
+    sh("cd .. && xcodegen generate")
     
     # Increment the build number automatically based on App Store Connect
     increment_build_number(

@@ -99,6 +99,7 @@ Merian is a field-ready biological identification app built around zero-friction
 | AI model | Google Gemini 2.5 Flash / Pro |
 | Payments | RevenueCat |
 | CI/CD | GitHub Actions |
+| Email Services | Resend |
 
 **Minimum deployment target**: iOS 17
 **Current schema**: MerianSchemaV13

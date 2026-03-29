@@ -38,7 +38,7 @@ The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
 For exceptionally heavy or bespoke routing streams that violate the 10-second Deno isolate timeout window, operations must be cordoned off into domain-specific streams explicitly executed via `runBackground`.
 
 - **`storage.ts`**: Handles heavy `AWS` bindings via native `aws4fetch`. When streaming multimegabyte binaries directly into Cloudflare R2, implementations like `JSZip` must pipe their outputs efficiently into a `ReadableStream` natively chunked into S3 without overloading memory buffers.
-- **`mail.ts`**: Aggregates REST API requests directly querying 3rd-party SaaS integrations like the `Resend` email engine natively. 
+- **`mail.ts`**: Aggregates 3rd-party SaaS integrations like the `Resend` Node SDK for transactional email delivery.
 
 ## Architectural Unification
 

@@ -10,7 +10,8 @@
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
     "aws4fetch": "https://esm.sh/aws4fetch@1.0.20",
     "@google/generative-ai": "https://esm.sh/@google/generative-ai@0.24.1",
-    "jszip": "https://esm.sh/jszip@3.10.1"
+    "jszip": "https://esm.sh/jszip@3.10.1",
+    "resend": "npm:resend@4.1.2"
   },
   "lint": {
     "rules": {

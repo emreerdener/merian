@@ -58,7 +58,7 @@ The backend logic is strictly decoupled into modular, single-responsibility func
   - `/merge-ghost-profile`: Handles the Anonymous "Ghost" Scan to Authenticated User onboarding transition.
 - **Export & Storage Orchestration**
   - `/request-export-dwca`: Client-facing synchronous API controlling 24-hour rate limits for data exports.
-  - `/export-dwca`: Heavy background worker (triggered via Service-Role Webhook) that compiles paginated Darwin Core Zip archives and dispatches Resend emails.
+  - `/export-dwca`: Heavy background worker (triggered via Service-Role Webhook) that compiles paginated Darwin Core Zip archives and dispatches emails via the Resend Node SDK.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge proxy memory.
 - **Data Lifecycle & Offline Sync**
   - `/sync-collections`: Reconciles offline iOS SwiftData modifications with the Postgres single source of truth.
