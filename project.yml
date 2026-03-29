@@ -57,6 +57,7 @@ targets:
       - package: GoogleSignIn
     postBuildScripts:
       - name: SwiftLint Validation
+        basedOnDependencyAnalysis: false
         script: |
           if which swiftlint >/dev/null; then
             swiftlint
