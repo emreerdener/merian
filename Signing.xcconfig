@@ -1,0 +1,6 @@
+// Signing.xcconfig
+// Tracked in git — contains no secrets.
+// New developers: replace LDL96V2WT5 with your own Apple Development Team ID
+// (found at developer.apple.com/account → Membership → Team ID).
+
+DEVELOPMENT_TEAM = LDL96V2WT5
