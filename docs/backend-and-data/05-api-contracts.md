@@ -382,9 +382,9 @@ Submits a report against an AI inference from the `ReportInsightView`, inserting
 
 ### Authentication Enforcement
 
-- Extracts `user.id` from the `requireAuth(jwt)` middleware.
-- Validates the JWT signature against the `scan_id`.
-- Inserts a row into `public.flagged_reviews`.
+- Extracts `user.id` from the `withEdgeHandler` middleware.
+- Inserts a row tracking the reporter's context into `public.flagged_reviews`.
+- Automatically overrides the underlying `public.scans` row, configuring `is_flagged = true` and dynamically stamping the `flagReason` and `userSuggestion` into the `human_intervention_notes` column to prompt Admin Dashboard review.
 - Returns `HTTP 200` on success.
 
 ---
@@ -429,7 +429,7 @@ Generates the DwC-A ZIP, uploads it to Cloudflare R2, and emails the user the do
 
 - Authenticates the Postgres origin by verifying that `Authorization: Bearer <token>` exactly matches `SUPABASE_SERVICE_ROLE_KEY`.
 - Uses `supabaseAdmin.auth.admin.getUserById(user_id)` to resolve the user's email address for the Resend API delivery.
-- **DwC-A Global Geoprivacy Leak Prevention**: Enforces ownership gating for exact coordinates during ZIP generation. Evaluates `canAccessPrecise = include_precise_coordinates && (scan.user_id === user_id)`. For global exports, users receive perturbed coordinates (50km obfuscation) for scans they do not own. Exact `gps_lat_exact` / `gps_long_exact` values are only included when the origin `user.id` matches the scan's `user_id`.
+- **DwC-A Global Geoprivacy Leak Prevention**: Enforces strict IUCN Red List and ownership gating during ZIP compilation. Evaluates `canAccessPrecise = include_precise_coordinates && (scan.user_id === user_id)`. For global exports, users receive bounding-box obfuscated coordinates (hardcoded 50km `coordinateUncertaintyInMeters`) for scans they do not own. Crucially, if a species is flagged as protected (`endangered`, `vulnerable`, etc.), the exporter is **always** denied exact coordinates (even for their own captures), and public coordinates are aggressively decimate-rounded down to ~11km tiles to prevent poachers from extracting precise habitats via standard scientific downloads.
 - **Async Delivery**: Instead of holding the HTTP response open while zipping gigabytes of images, it uploads the final output to Cloudflare R2 and dispatches the signed expiring download URL to the user's inbox via the **Resend API**. Updates `export_jobs.status` to `completed`.
 
 ---

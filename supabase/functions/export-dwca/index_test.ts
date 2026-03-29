@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { generateDwcARow } from "./index.ts";
+import { generateDwcARow } from "./dwca.ts";
 
 const mockSalt = "testSalt123";
 
