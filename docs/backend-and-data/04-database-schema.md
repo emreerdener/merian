@@ -104,15 +104,16 @@ Configures the automated garbage collection pipeline using `pg_cron` and `pg_net
 
 _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application executes a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage` closures that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`) without corrupting local scan data._
 
-**File layout:** Each schema version lives in its own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV20.swift`). The sole remaining purpose of `merian/Models/SchemaVersions.swift` is to declare `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to V{N+1}:
+**File layout:** The universally active models natively live in the global namespace within `merian/Models/ActiveSchema/`. Historical schema snapshots live in their own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV26.swift`). The file `merian/Models/SchemaVersions.swift` declares `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to V{N+1}, simply follow the runbook at `.agents/workflows/schema_update.md` (or run it via `/schema_update` command):
 
-1. Add `SchemaV{N+1}.swift`
-2. Append `MerianSchemaV{N+1}.self` to `MerianMigrationPlan.schemas`
-3. Add the `migrateV{N}toV{N+1}` stage (lightweight or custom) to `MerianMigrationPlan.stages`
-4. Update all four type aliases in `Aliases.swift` to point to `MerianSchemaV{N+1}`
-5. **Update `MerianApp.swift`**: change `Schema(versionedSchema: MerianSchemaV{N}.self)` to `Schema(versionedSchema: MerianSchemaV{N+1}.self)` — **this step is mandatory**. Omitting it causes a fatal "Failed to cast model" crash at runtime: the migration plan upgrades the on-disk store to V{N+1}, but the `ModelContainer`'s in-memory entity descriptions remain V{N}, making every fetch from `BackgroundDatabaseActor` fail with a type-cast error.
+1. Create `SchemaV{N+1}.swift` tying its `models` array to the active global classes.
+2. Snapshot the outgoing structures from `ActiveSchema/` into `extension MerianSchemaV{N}` blocks inside the previous file.
+3. Update `typealias CurrentSchema = MerianSchemaV{N+1}` in `Aliases.swift`.
+4. Add the `migrateV{N}toV{N+1}` stage to `MerianMigrationPlan.stages`.
 
-The current active schema is `MerianSchemaV25`.
+There is **no need** to update model references in `MerianApp.swift`, nor anywhere else in the application, because the entire app dynamically inherits `CurrentSchema` and the active global models natively.
+
+The current active schema is `MerianSchemaV26`.
 
 **Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse` contains nested `EnrichData` → `DiagnosticData` structs mapping `habitat_description`, `gbif_taxon_key`, and `diagnostic_comparison` fields. When adding new fields to either Edge Function response, update both the TypeScript schema and the corresponding Swift `Codable` struct simultaneously.
 
