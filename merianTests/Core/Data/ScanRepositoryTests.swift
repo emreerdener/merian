@@ -9,7 +9,7 @@ struct ScanRepositoryTests {
     // Helper to create an isolated SwiftData container caching out to disk due to iOS 18 simulator array appending bugs.
     @MainActor
     private func createIsolatedContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV17.models)
+        let schema = Schema(CurrentSchema.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -20,7 +20,7 @@ struct ScanRepositoryTests {
 
     @MainActor
     private func createPremiumFieldsContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV17.models)
+        let schema = Schema(CurrentSchema.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -148,6 +148,40 @@ struct ScanRepositoryTests {
         #expect(names == ["Procyon cancrivorus", "Bassariscus astutus"])
     }
 
+    @Test func testV27LookalikesDataRoundTrip() async throws {
+        let ctx = try createPremiumFieldsContext()
+
+        let entries: [SimilarSpeciesEntry] = [
+            SimilarSpeciesEntry(scientificName: "Procyon cancrivorus", commonName: "Crab-eating Raccoon",
+                                referenceImageUrl: "https://example.com/img.webp", iucnRedListStatus: "LC"),
+            SimilarSpeciesEntry(scientificName: "Bassariscus astutus", commonName: nil,
+                                referenceImageUrl: nil, iucnRedListStatus: nil)
+        ]
+        let blob = try JSONEncoder().encode(entries)
+
+        let record = LocalScanRecord(
+            speciesId: "v27-lookalikes-rich",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            lookalikesData: blob
+        )
+        ctx.insert(record)
+        try ctx.save()
+
+        let id = record.id
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+        let fetched = try #require(try ctx.fetch(descriptor).first)
+        let fetchedBlob = try #require(fetched.lookalikesData)
+        let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: fetchedBlob)
+
+        #expect(decoded.count == 2)
+        #expect(decoded[0].scientificName == "Procyon cancrivorus")
+        #expect(decoded[0].commonName == "Crab-eating Raccoon")
+        #expect(decoded[0].iucnRedListStatus == "LC")
+        #expect(decoded[1].scientificName == "Bassariscus astutus")
+        #expect(decoded[1].commonName == nil)
+    }
+
     @Test func testV15PremiumFieldsDefaultToNilOnLegacyRecord() async throws {
         let ctx = try createPremiumFieldsContext()
         let record = LocalScanRecord(
@@ -165,5 +199,6 @@ struct ScanRepositoryTests {
         #expect(fetched?.aiReasoning == nil, "aiReasoning must default to nil for records without premium data")
         #expect(fetched?.habitatDescription == nil, "habitatDescription must default to nil")
         #expect(fetched?.similarSpecies == nil, "similarSpecies must default to nil for records without lookalike data")
+        #expect(fetched?.lookalikesData == nil, "lookalikesData must default to nil for records without rich lookalike data")
     }
 }

@@ -296,7 +296,7 @@ actor BackgroundDatabaseActor {
         scanId: String,
         habitatDescription: String?,
         gbifTaxonKey: Int?,
-        similarSpecies: [String]?,
+        similarSpeciesJsonData: Data?,
         taxonomy: EdgeResponse.Taxonomy?
     ) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
@@ -305,7 +305,7 @@ actor BackgroundDatabaseActor {
 
         if let habitat = habitatDescription { record.habitatDescription = habitat }
         if let key = gbifTaxonKey { record.gbifTaxonKey = key }
-        if let lookalikes = similarSpecies { record.similarSpecies = lookalikes }
+        if let jsonData = similarSpeciesJsonData { record.lookalikesData = jsonData }
         if let tax = taxonomy {
             record.taxonomyKingdom = tax.kingdom
             record.taxonomyPhylum = tax.phylum

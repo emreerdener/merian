@@ -12,7 +12,6 @@ struct InsightHeader: View {
         VStack(alignment: .center, spacing: 24) {
              VStack(spacing: 16) {
                  ConfidenceBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
-                 ModelTierBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
              }
              
              VStack(alignment: .center, spacing: 8) {
@@ -36,6 +35,7 @@ struct InsightHeader: View {
                         }
                     )
 
+                // MARK: - Description
                 if !paragraphs.isEmpty {
                     VStack(spacing: 12) {
                         ForEach(paragraphs, id: \.self) { paragraph in
@@ -48,6 +48,9 @@ struct InsightHeader: View {
                     }
                     .padding(.top, 8) // Separates the text distinctively from the bold title
                 }
+
+                 // MARK: - Model Tier Badge
+                ModelTierBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
              }
         }
         .frame(maxWidth: .infinity)

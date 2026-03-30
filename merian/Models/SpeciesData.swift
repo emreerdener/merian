@@ -272,7 +272,7 @@ struct InsightData {
     var isHazardous: Bool { hazardType != "none" }
 }
 
-struct SimilarSpeciesEntry {
+struct SimilarSpeciesEntry: Codable {
     let scientificName: String
     let commonName: String?
     let referenceImageUrl: String?

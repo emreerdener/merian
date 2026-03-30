@@ -39,6 +39,8 @@ import UIKit
     var subjectDistanceInMeters: Float?
     var isFlashEnabled = false
 
+    @ObservationIgnored nonisolated(unsafe) private var lastValidDeviceOrientation: UIDeviceOrientation = .portrait
+
     // MARK: - Zoom
     private(set) var zoomFactor: CGFloat = 1.0
     private(set) var maxZoomFactor: CGFloat = 1.0
@@ -85,6 +87,22 @@ import UIKit
         NotificationCenter.default.publisher(for: AVCaptureDevice.subjectAreaDidChangeNotification)
             .sink { [weak self] _ in self?.resetFocusAndExposure() }
             .store(in: &cancellables)
+
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+        NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
+            .sink { [weak self] _ in
+                let current = UIDevice.current.orientation
+                if current.isPortrait || current.isLandscape {
+                    self?.stateLock.withLock {
+                        self?.lastValidDeviceOrientation = current
+                    }
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    deinit {
+        UIDevice.current.endGeneratingDeviceOrientationNotifications()
     }
 
     private func trackFPS() {
@@ -638,6 +656,22 @@ import UIKit
                     let targetFlashMode: AVCaptureDevice.FlashMode = flashStatus ? .on : .off
                     if self.photoOutput.supportedFlashModes.contains(targetFlashMode) {
                         settings.flashMode = targetFlashMode
+                    }
+
+                    // Dynamically align the capture connection with the physical device orientation
+                    let orientation = self.stateLock.withLock { self.lastValidDeviceOrientation }
+                    var videoOrientation: AVCaptureVideoOrientation = .portrait
+                    switch orientation {
+                    case .landscapeLeft: videoOrientation = .landscapeRight
+                    case .landscapeRight: videoOrientation = .landscapeLeft
+                    case .portraitUpsideDown: videoOrientation = .portraitUpsideDown
+                    default: videoOrientation = .portrait
+                    }
+                    
+                    if let photoConnection = self.photoOutput.connection(with: .video) {
+                        if photoConnection.isVideoOrientationSupported {
+                            photoConnection.videoOrientation = videoOrientation
+                        }
                     }
 
                     // Relying on AVCapturePhotoOutput's native EXIF metadata integration.

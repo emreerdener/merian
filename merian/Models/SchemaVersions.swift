@@ -29,7 +29,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV23.self,
             MerianSchemaV24.self,
             MerianSchemaV25.self,
-            MerianSchemaV26.self
+            MerianSchemaV26.self,
+            MerianSchemaV27.self
         ]
     }
 
@@ -59,9 +60,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV22toV23,
             migrateV23toV24,
             migrateV24toV25,
-            migrateV25toV26
+            migrateV25toV26,
+            migrateV26toV27
         ]
     }
+
+    static let migrateV26toV27 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV26.self,
+        toVersion: MerianSchemaV27.self
+    )
 
     static let migrateV19toV20 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV19.self,
@@ -131,7 +138,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             )
         },
         didMigrate: { context in
-            let allRecords = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV26.LocalScanRecord>())
             for record in allRecords {
                 if let array = _similarSpeciesBackfill[record.id] {
                     record.similarSpecies = array

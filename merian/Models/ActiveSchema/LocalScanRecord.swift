@@ -40,6 +40,7 @@ public final class LocalScanRecord {
     public var collections: [ScanCollection]? = []
 
     public var similarSpecies: [String]?
+    public var lookalikesData: Data?
 
     @Attribute public var iucnRedListStatus: String?
     @Attribute public var gpsLatitude: Double?
@@ -97,6 +98,7 @@ public final class LocalScanRecord {
         weatherTemperatureF: Double? = nil,
         collections: [ScanCollection]? = [],
         similarSpecies: [String]? = nil,
+        lookalikesData: Data? = nil,
         iucnRedListStatus: String? = nil,
         gpsLatitude: Double? = nil,
         gpsLongitude: Double? = nil,
@@ -148,6 +150,7 @@ public final class LocalScanRecord {
         self.collections = collections
 
         self.similarSpecies = similarSpecies
+        self.lookalikesData = lookalikesData
         self.iucnRedListStatus = iucnRedListStatus
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude

@@ -483,13 +483,24 @@ private struct WikiSummaryResponse: Decodable {
 
             if let context = modelContext {
                 let container = context.container
+                let encodedLookalikes: Data?
+                if let entries = speciesData?.similarSpecies?.entries {
+                    do {
+                        encodedLookalikes = try JSONEncoder().encode(entries)
+                    } catch {
+                        MerianLog.general.debug("Failed to encode similar species entries for persistence: \(error, privacy: .private)")
+                        encodedLookalikes = nil
+                    }
+                } else {
+                    encodedLookalikes = nil
+                }
                 Task {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
                     await dbActor.updateScanWithEnrichment(
                         scanId: scanId,
                         habitatDescription: enrichData.habitat_description,
                         gbifTaxonKey: enrichData.gbif_taxon_key,
-                        similarSpecies: enrichData.similar_species?.map(\.scientific_name),
+                        similarSpeciesJsonData: encodedLookalikes,
                         taxonomy: enrichData.taxonomy
                     )
                 }
@@ -565,7 +576,9 @@ private struct WikiSummaryResponse: Decodable {
         }
 
         var parsedSimilar: SimilarSpecies?
-        if let lookalikesArray = record.similarSpecies, !lookalikesArray.isEmpty {
+        if let json = record.lookalikesData, let decoded = try? JSONDecoder().decode([SimilarSpeciesEntry].self, from: json) {
+            parsedSimilar = SimilarSpecies(entries: decoded)
+        } else if let lookalikesArray = record.similarSpecies, !lookalikesArray.isEmpty {
             parsedSimilar = SimilarSpecies(
                 entries: lookalikesArray.map {
                     SimilarSpeciesEntry(scientificName: $0, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
@@ -631,7 +644,7 @@ private struct WikiSummaryResponse: Decodable {
         if record.isBiological {
             let needsEnrichment = record.habitatDescription == nil ||
                 record.gbifTaxonKey == nil ||
-                (record.similarSpecies == nil || record.similarSpecies!.isEmpty)
+                (record.lookalikesData == nil && (record.similarSpecies == nil || record.similarSpecies!.isEmpty))
             if needsEnrichment {
                 let safeContext = record.modelContext
                 Task { [weak self] in

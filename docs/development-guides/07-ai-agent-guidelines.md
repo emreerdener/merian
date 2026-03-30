@@ -91,3 +91,40 @@ Merian maintains reproducible, automated workflows inside the `.agents/workflows
 - `deploy_edge_functions.md`: Deploying TypeScript Supabase modifications and executing type checks.
 - `revenuecat_entitlements.md`: Adding/Modifying in-app purchases and localized StoreKit files.
 - `mock_camera_inference.md`: Faking `AVCapturePhoto` hardware feeds via `InferenceEngine` to test caching lines on the simulator.
+
+## 11. SwiftData Schema Migration Safety
+
+**CRITICAL — read `.agents/workflows/schema_update.md` before touching any schema.**
+
+Two invariants govern every schema file:
+
+| Schema state | `models` array must reference | Reason |
+|---|---|---|
+| Retired (V1 … V(N-1)) | Frozen snapshot types: `MerianSchemaV{K}.LocalScanRecord.self` | Stable checksum forever — never drifts with global model changes |
+| Current (V(N)) | Global types: `LocalScanRecord.self` | App code (`@Query`, `context.insert`, etc.) must operate on the same entity as the container |
+
+**The single rule that prevents `NSStagedMigrationManager` crashes:**
+> Freeze the outgoing schema (V(N)) by adding frozen model snapshots to `SchemaV{N}.swift` **BEFORE** modifying any global model in `ActiveSchema/`. Never add fields to a global model first.
+
+**Compile-time enforcement**: Retired schemas MUST use fully-qualified type names in their `models` array (e.g., `MerianSchemaV26.LocalScanRecord.self`). A missing snapshot causes a build error rather than a runtime crash at a user's device.
+
+**Recognition pattern for frozen snapshots:**
+```swift
+// SchemaV{N}.swift — CORRECT (retired schema, frozen)
+enum MerianSchemaV26: VersionedSchema {
+    static var models: [any PersistentModel.Type] {
+        [MerianSchemaV26.LocalScanRecord.self, ...]  // compile-error if snapshot missing
+    }
+    typealias ScanCollection = MerianSchemaV25.ScanCollection  // unchanged model → typealias
+}
+extension MerianSchemaV26 {
+    @Model final class LocalScanRecord { /* frozen copy without lookalikesData */ }
+}
+
+// SchemaV27.swift — CORRECT (current schema, global types)
+enum MerianSchemaV27: VersionedSchema {
+    static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self, ...]  // global — intentional for current schema
+    }
+}
+```

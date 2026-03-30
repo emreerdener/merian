@@ -19,7 +19,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
 | `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
-| `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalike or similar species sourced from `LocalScanRecord.similarSpecies`; each `SimilarSpeciesCard` fetches a reference image via `SimilarSpeciesImageFetcher` |
+| `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalike or similar species sourced from `speciesData.similarSpecies` (`SimilarSpecies` wrapper decoded from `LocalScanRecord.lookalikesData` for V27+ records, or from `LocalScanRecord.similarSpecies: [String]?` for pre-V27 records); each `SimilarSpeciesCard` renders `referenceImageUrl` directly when available, otherwise falls back to `SimilarSpeciesImageFetcher` |
 | `OverviewCard` | Structural card rendering dynamic biological KeyValueRow metrics (e.g., size, life stage, interactions, invasive species status) followed by an 8-line truncated Wikipedia extract and a built-in Safari "Learn more" button. |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
 | `GBIFHeatmapMapView` | SwiftUI `View` that composites two images to render a full-world GBIF occurrence heatmap natively. (1) A static `WorldMapBase` custom Mapbox topography background image, entirely eliminating MapKit CPU overhead. (2) The GBIF density zoom-0 tile (`/0/0/0@2x.png`) — a single 512 px PNG covering the entire world in Web Mercator — is fetched and drawn on top. Both images perfectly align their projection/extent. Features a custom `UIViewRepresentable` bridge (`PinchPanOverlay`) which unlocks elastic 2-finger pinch and pan exploration. This gesture controller safely locks down the encompassing parent `ScrollView` and engages `.interactiveDismissDisabled` on the bottom sheet to prevent SwiftUI swipe cancellation conflicts during map manipulation. |
@@ -100,7 +100,7 @@ After a successful biological scan, `InferenceEngine.analyze()` fires `fetchAndA
 
 ### Loading Flow (historical scans)
 
-When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `habitatDescription`, `gbifTaxonKey`, or has a low confidence score without a cached diagnostic, it automatically fires `fetchAndApplyEnrichment`. This gap-fills enrichment for scans captured before the enrichment pipeline shipped.
+When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `habitatDescription`, `gbifTaxonKey`, or both `lookalikesData` and `similarSpecies` (i.e., no lookalike data in either form), it automatically fires `fetchAndApplyEnrichment`. This gap-fills enrichment for scans captured before the enrichment pipeline shipped.
 
 ### States
 

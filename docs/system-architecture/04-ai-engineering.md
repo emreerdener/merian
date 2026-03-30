@@ -37,11 +37,15 @@ After a successful biological scan, `InferenceEngine` automatically fires `fetch
 1. Sets `isEnrichmentLoading = true` — `HabitatAndDistributionCard` observes this via `@Environment(InferenceEngine.self)` and shows an animated loading skeleton.
 2. Calls `MerianNetworkClient.shared.fetchEnrichment(scanId:scientificName:)` → POST `/enrich-scan`.
 3. On success, patches `speciesData.habitatDescription` and (when non-nil) `speciesData.gbifTaxonKey` in-place on `@MainActor`, triggering a live UI update without reopening the sheet.
-4. Maps `data.similar_species` (a `[SimilarSpeciesEntry]` array) to `speciesData.similarSpecies` in-place on `@MainActor`, triggering a live `SimilarSpeciesGallery` UI update. No confidence threshold gate — enrichment always sets the data; the gallery UI decides labelling.
-5. Persists all fields to `LocalScanRecord` via `BackgroundDatabaseActor.updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpecies:taxonomy:)` on a background Task.
+4. Maps `data.similar_species` (a `[SimilarSpeciesEntry]` array) to `speciesData.similarSpecies` as a `SimilarSpecies` wrapper struct (with `.entries: [SimilarSpeciesEntry]` and a backwards-compatible `.lookalikes: [String]` computed accessor) in-place on `@MainActor`, triggering a live `SimilarSpeciesGallery` UI update. No confidence threshold gate — enrichment always sets the data; the gallery UI decides labelling.
+5. JSON-encodes `speciesData.similarSpecies?.entries` via `JSONEncoder` into a `Data` blob. Encode failures are logged via `MerianLog.general.debug` and result in `nil` — the field is never written with corrupt data. Persists all fields to `LocalScanRecord` via `BackgroundDatabaseActor.updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:)` on a background `Task`, writing the blob to `LocalScanRecord.lookalikesData` (`MerianSchemaV27`).
 6. Sets `isEnrichmentLoading = false` (via `defer`).
 
-`InferenceEngine.load(from:)` triggers enrichment for historical records that are missing `habitatDescription`, `gbifTaxonKey`, or `similarSpecies`.
+`InferenceEngine.load(from:)` triggers enrichment for historical records that are missing `habitatDescription`, `gbifTaxonKey`, or both `lookalikesData` and `similarSpecies` (i.e., no lookalike data in either form).
+
+**Historical record load path** (`load(from:)`): When opening a scan from the library, `InferenceEngine.load(from:)` reconstructs `speciesData.similarSpecies` via a two-layer decode:
+1. **Rich path** (preferred): If `LocalScanRecord.lookalikesData` is non-nil, `JSONDecoder` decodes it as `[SimilarSpeciesEntry]` and wraps the array in `SimilarSpecies(entries:)`. All four fields (`scientificName`, `commonName`, `referenceImageUrl`, `iucnRedListStatus`) are available — `SimilarSpeciesGallery` renders thumbnail images directly from `referenceImageUrl`.
+2. **Legacy flat path** (fallback for pre-V27 records): If `lookalikesData` is nil, each string in `LocalScanRecord.similarSpecies: [String]?` is wrapped into a `SimilarSpeciesEntry(scientificName:, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)`. `SimilarSpeciesGallery` falls back to `SimilarSpeciesImageFetcher` (Wikipedia / iNaturalist REST) for thumbnail images when `referenceImageUrl == nil`.
 
 ## Generation Configuration Guardrails
 

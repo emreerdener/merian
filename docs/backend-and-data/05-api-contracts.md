@@ -249,7 +249,9 @@ Only `scientific_name` is strictly required by the Edge function. `scan_id`, `co
 }
 ```
 
-`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF. `similar_species` is `null` when no lookalike data is available. Each entry in the `similar_species` array is sourced from the `species_lookalikes` join table joined to `species_dictionary` — providing `common_name` (English), `reference_image_url`, and `iucn_red_list_status` in a single query. The iOS client (`InferenceEngine.fetchAndApplyEnrichment`) maps the array to `speciesData.similarSpecies` unconditionally; the `SimilarSpeciesGallery` UI applies the tier-specific threshold only to decide whether to label the section "POTENTIAL LOOKALIKES" vs "SIMILAR SPECIES".
+`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF. `similar_species` is `null` when no lookalike data is available. Each entry in the `similar_species` array is sourced from the `species_lookalikes` join table joined to `species_dictionary` — providing `common_name` (English), `reference_image_url`, and `iucn_red_list_status` in a single query.
+
+**iOS mapping**: The array is decoded as `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in `InferenceEdgeDTOs.swift`) and mapped to the domain `SimilarSpecies` struct (camelCase, in `SpeciesData.swift`). `InferenceEngine.fetchAndApplyEnrichment` then JSON-encodes `[SimilarSpeciesEntry]` via `JSONEncoder` into a `Data` blob and persists it as `LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`) — the primary SwiftData storage for rich lookalike data. The legacy `LocalScanRecord.similarSpecies: [String]?` field is retained as a backwards-compatible fallback for pre-V27 records where `lookalikesData` is nil. `SimilarSpeciesGallery` applies the tier-specific confidence threshold only to decide whether to label the section "POTENTIAL LOOKALIKES" vs "SIMILAR SPECIES" — enrichment data is always persisted regardless of confidence.
 
 ### Error Responses
 

@@ -26,7 +26,7 @@ struct SimilarSpeciesGallery: View {
                         .foregroundColor(.secondary)
 
                     ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 12) {
+                        LazyHStack(spacing: 16) {
                             ForEach(similarData.entries, id: \.scientificName) { entry in
                                 SimilarSpeciesCard(entry: entry, isLowConfidence: isLowConfidence)
                             }
@@ -95,20 +95,21 @@ struct SimilarSpeciesCard: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if isLowConfidence {
-                    Button(action: {
-                        // Future hook: prompt user to override AI identity
-                        HapticManager.shared.triggerLightImpact()
-                    }) {
-                        Text("Confirm Species")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.vertical, 6)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.accentColor)
-                            .cornerRadius(6)
-                    }
-                }
+                // TODO: Add confirmation hook
+                // if isLowConfidence {
+                //     Button(action: {
+                //         // Future hook: prompt user to override AI identity
+                //         HapticManager.shared.triggerLightImpact()
+                //     }) {
+                //         Text("Confirm Species")
+                //             .font(.system(size: 11, weight: .bold))
+                //             .foregroundColor(.white)
+                //             .padding(.vertical, 6)
+                //             .frame(maxWidth: .infinity)
+                //             .background(Color.accentColor)
+                //             .cornerRadius(6)
+                //     }
+                // }
             }
             .padding(10)
             .background(Color(UIColor.secondarySystemGroupedBackground))
