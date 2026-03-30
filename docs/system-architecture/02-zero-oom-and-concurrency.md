@@ -518,3 +518,31 @@ await withTaskGroup(of: Void.self) { group in
 ```
 
 `PHPhotoLibrary.performChanges` serialises internally on the Photos daemon side, so a higher cap would not improve throughput; 3 was chosen to saturate NVMe bandwidth without queuing more requests than the Photos subsystem can absorb simultaneously.
+
+### Historical Sync PostgREST Response Bloat — `species_dictionary(*)` Wildcard (`ScanRepository`)
+
+`syncHistoricalScansDown` used `species_dictionary(*)` in its PostgREST embedded join, fetching every column in `species_dictionary` for every scan on every sync page. This included large text blobs — `wikipedia_overview`, `habitat_description`, and the `similar_species TEXT[]` array — that are not decoded by `CloudSpeciesDictionary`. For a power user with 1,000 scans across 20 pages, each response page carried several MB of unused nested JSON that had to be fully deserialized before any row could be handed to `HistoricalDatabaseActor`. The page-streaming design keeps in-memory scan accumulation at O(page_size), but oversized page payloads negated that benefit by expanding the Codable decode heap per page.
+
+The wildcard was replaced with an explicit projection covering only the 15 columns that `CloudSpeciesDictionary` actually decodes:
+```
+species_dictionary(scientific_name, kingdom, phylum, class, order, family, genus,
+  wikipedia_url, reference_image_url, hazard_type, common_names,
+  wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)
+```
+`wikipedia_overview` is intentionally included because `CloudSpeciesDictionary` decodes it for the historical insight sheet display. All other `species_dictionary` columns (e.g., `gbif_taxon_key`, `colors`, `similar_species`, internal audit fields) are excluded, immediately reducing per-page response size.
+
+### Live Inference Hydration Task Proliferation (`InferenceEngine.analyze()`)
+
+After a successful live inference result, three bare fire-and-forget `Task { [weak self] in ... }` blocks were dispatched for Wikipedia hydration, `fetchAndApplyEnrichment`, and GBIF image hydration. None were stored in a task handle. If the user triggered a second scan immediately, `analyze()` cancelled `inferenceTask` — but the three previous hydration tasks continued running alongside three new ones. On a fast device scanning rapidly: up to 6 concurrent background network requests accumulated per scan burst, with stale Wikipedia/enrichment/GBIF results from the previous scan able to overwrite `speciesData` state set by the new result.
+
+`InferenceEngine` now owns `@ObservationIgnored private var liveHydrationTask: Task<Void, Never>?`. At the top of every `analyze()` call, `liveHydrationTask?.cancel()` fires alongside `inferenceTask?.cancel()`. The three bare task blocks are replaced by a single sequential tracked task:
+- Wikipedia completes first (its result sets `referenceImageUrl` and `wikipediaOverview`)
+- Enrichment and GBIF then run concurrently via `async let` after a `guard !Task.isCancelled` check
+
+Ordering matters: `fetchAndApplyEnrichment` writes `habitatDescription`; GBIF writes `referenceImageUrl`. Running them after Wikipedia ensures GBIF doesn't overwrite a Wikipedia reference image that was just written. The cancellation check between Wikipedia and enrichment/GBIF allows a new scan to preempt the hydration pipeline mid-way without unnecessary network calls completing for a discarded result.
+
+### Singleton Lifecycle Consistency in Child Tasks (`OfflineQueueManager+Sync`)
+
+Inside `syncPendingScans`, when a source image file is found missing before upload, a fire-and-forget inner task tombstoned the scan by calling `OfflineQueueManager.shared.softDeleteQueuedScan(scanId:)` directly — bypassing the `[weak self]` capture established at the outer `BackgroundTaskWrapper.execute` boundary. If `self` had been deallocated, the outer `guard let self` exits cleanly, but any `withTaskGroup` child task already dispatched continues executing; those tasks created inner `Task { @MainActor in OfflineQueueManager.shared... }` closures that bound strongly to the singleton's method against a potentially torn-down `modelContext`. The fix captures `self` (already non-nil, verified by the outer `guard let self`) before the group loop and passes it into the inner task, keeping the lifecycle contract consistent with the rest of the function.
+
+**Rule:** When an inner fire-and-forget `Task` is created inside a `withTaskGroup` child that already lives within an outer `[weak self]` closure, always use the already-verified `self` reference — never re-access the singleton via `ClassName.shared`.

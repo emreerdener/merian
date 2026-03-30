@@ -61,6 +61,9 @@ private struct WikiSummaryResponse: Decodable {
     /// Tracks the single async hydration task spawned by `load(from:)` so it can be
     /// cancelled immediately when the user navigates to a different scan.
     @ObservationIgnored private var historicHydrationTask: Task<Void, Never>?
+    /// Tracks the single async hydration task spawned after a live inference result so it can be
+    /// cancelled if the user fires a new scan before Wikipedia/enrichment/GBIF finish.
+    @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
 
     // MARK: - Live Inference Pipeline
 
@@ -73,6 +76,7 @@ private struct WikiSummaryResponse: Decodable {
     func analyze(imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
+        self.liveHydrationTask?.cancel()
 
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
@@ -192,19 +196,24 @@ private struct WikiSummaryResponse: Decodable {
                     MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
                     if mappedData.isBiological {
-                        Task { [weak self] in
+                        // Capture value types before crossing into the task boundary.
+                        let capturedScientificName = mappedData.scientificName
+                        let capturedScanId = mappedData.scanId
+                        let capturedGbifKey = mappedData.gbifTaxonKey
+                        // Single tracked task — cancelled by the next `analyze()` call so stale
+                        // hydration results from a previous scan cannot overwrite the new one.
+                        // Wikipedia completes first; enrichment and GBIF run concurrently after.
+                        liveHydrationTask = Task { [weak self] in
                             guard let self else { return }
-                            await self.fetchWikipediaAndHydrate(for: mappedData.scientificName, scanId: mappedData.scanId, modelContext: modelContext)
-                        }
-                        Task { [weak self] in
-                            guard let self else { return }
-                            await self.fetchAndApplyEnrichment(modelContext: modelContext)
-                        }
-                        if let key = mappedData.gbifTaxonKey {
-                            Task { [weak self] in
-                                guard let self else { return }
-                                await self.fetchGBIFImagesAndHydrate(for: key, scanId: mappedData.scanId, modelContext: modelContext)
-                            }
+                            await self.fetchWikipediaAndHydrate(for: capturedScientificName, scanId: capturedScanId, modelContext: modelContext)
+                            guard !Task.isCancelled else { return }
+                            async let enrichment: Void = self.fetchAndApplyEnrichment(modelContext: modelContext)
+                            async let gbif: Void = {
+                                if let key = capturedGbifKey {
+                                    await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
+                                }
+                            }()
+                            _ = await (enrichment, gbif)
                         }
                     }
                 }

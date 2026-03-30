@@ -47,9 +47,23 @@ By explicitly decoupling Data mapping from HTTP orchestration natively, the Deno
 
 All shared primitives natively driving API functions (`aws.ts`, `biology.ts`, `http.ts`, `posthog.ts`, `tierCache.ts`) are stored in `supabase/functions/_shared/`. For guidelines regarding the global dependencies, refer directly to `_shared/README.md`.
 
-**PostHog Rule — Fire-and-Forget:** All `trackPostHogEvent(...)` calls in both `index.ts` and `_shared/biology.ts` **must not be `await`-ed**. Analytics are best-effort and must never add latency to the critical path or the background ingestion flow. The correct pattern is:
+**PostHog Rule — Fire-and-Forget:** All `trackPostHogEvent(...)` calls in **all** Edge Functions and `_shared/biology.ts` **must not be `await`-ed**. Analytics are best-effort and must never add latency to the critical path or the background ingestion flow. The correct pattern is:
 ```typescript
 trackPostHogEvent(user, "EventName", { ...props }).catch((e) =>
   console.error("PostHog EventName failed:", e)
 );
 ```
+
+**PostgREST Join Rule — Never Use Wildcard Embeds:** `select("related_table(*)")` fetches every column in the joined table, including large text blobs, on every row and every page. Always enumerate only the columns the downstream type actually decodes. Example — `enrich-scan` fetching lookalikes:
+```typescript
+// ✗ BAD — fetches all species_dictionary columns
+.select("lookalike_id, species_dictionary(*)")
+
+// ✓ GOOD — single embedded join, only decoded fields
+.from("species_lookalikes")
+.select("lookalike:lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)")
+.eq("species_id", speciesId)
+```
+The embedded join syntax resolves two sequential PostgREST round-trips (the old N+1 `SELECT id → SELECT IN (ids)` pattern) into a single SQL JOIN, cutting connection-pool acquisitions and Deno isolate latency in half.
+
+**Resolve-and-Return Pattern:** Functions that write to a join table and then need the hydrated rows must return the result directly from the write query — never call a separate fetch function after the write. This eliminates a redundant third round-trip on migration or LLM-completion paths. See `resolveLookalikesToJoinTable` in `enrich-scan/db.ts` for the reference implementation: the `species_dictionary` query that resolves names to IDs is expanded to also fetch the hydration columns, and the mapped `LookalikeSummary[]` is returned directly to the caller.

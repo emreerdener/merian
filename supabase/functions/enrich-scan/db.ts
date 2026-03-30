@@ -19,66 +19,72 @@ export async function getCachedSpecies(
   return cachedSpecies as CachedSpeciesData | null;
 }
 
-/// Fetches rich lookalike entries from the species_lookalikes join table.
+/// Fetches rich lookalike entries from the species_lookalikes join table using a single
+/// embedded join — resolves both the join row and the species details in one PostgREST round-trip.
 /// Returns an empty array if no entries exist.
 export async function fetchLookalikesFromJoinTable(
   speciesId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<LookalikeSummary[]> {
-  // Step 1: resolve lookalike IDs from the join table
-  const { data: links, error: linksError } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
-    .select("lookalike_id")
+    .select(
+      "lookalike:lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)",
+    )
     .eq("species_id", speciesId)
     .limit(10);
 
-  if (linksError) throw linksError;
-  if (!links || links.length === 0) return [];
+  if (error) throw error;
+  if (!data || data.length === 0) return [];
 
-  const ids = (links as { lookalike_id: string }[]).map((l) => l.lookalike_id);
-
-  // Step 2: hydrate species details for each lookalike ID
-  const { data: species, error: speciesError } = await supabaseAdmin
-    .from("species_dictionary")
-    .select("scientific_name, common_names, reference_image_url, iucn_red_list_status")
-    .in("id", ids)
-    .limit(10);
-
-  if (speciesError) throw speciesError;
-  if (!species) return [];
-
-  return (species as {
-    scientific_name: string;
-    common_names: Record<string, string> | null;
-    reference_image_url: string | null;
-    iucn_red_list_status: string | null;
-  }[]).map((s) => ({
-    scientific_name: s.scientific_name,
-    common_name: s.common_names?.en ?? null,
-    reference_image_url: s.reference_image_url,
-    iucn_red_list_status: s.iucn_red_list_status,
-  }));
+  return (
+    data as {
+      lookalike: {
+        scientific_name: string;
+        common_names: Record<string, string> | null;
+        reference_image_url: string | null;
+        iucn_red_list_status: string | null;
+      } | null;
+    }[]
+  )
+    .filter((row) => row.lookalike != null)
+    .map((row) => ({
+      scientific_name: row.lookalike!.scientific_name,
+      common_name: row.lookalike!.common_names?.en ?? null,
+      reference_image_url: row.lookalike!.reference_image_url,
+      iucn_red_list_status: row.lookalike!.iucn_red_list_status,
+    }));
 }
 
-/// Resolves a list of scientific name strings to species_dictionary IDs and inserts
-/// bidirectional rows into species_lookalikes. Silently skips names not yet in the dictionary.
+/// Resolves a list of scientific name strings to species_dictionary rows, inserts bidirectional
+/// rows into species_lookalikes, and returns the resolved entries as LookalikeSummary[].
+/// Silently skips names not yet in the dictionary. Returning the summaries directly allows the
+/// caller to skip a redundant fetchLookalikesFromJoinTable call after resolution.
 export async function resolveLookalikesToJoinTable(
   speciesId: string,
   names: string[],
   supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  if (names.length === 0) return;
+): Promise<LookalikeSummary[]> {
+  if (names.length === 0) return [];
 
   const { data: matches, error } = await supabaseAdmin
     .from("species_dictionary")
-    .select("id")
+    .select("id, scientific_name, common_names, reference_image_url, iucn_red_list_status")
     .in("scientific_name", names)
     .limit(10);
 
   if (error) throw error;
-  if (!matches || matches.length === 0) return;
+  if (!matches || matches.length === 0) return [];
 
-  const inserts = (matches as { id: string }[]).flatMap((m) => [
+  const typed = matches as {
+    id: string;
+    scientific_name: string;
+    common_names: Record<string, string> | null;
+    reference_image_url: string | null;
+    iucn_red_list_status: string | null;
+  }[];
+
+  const inserts = typed.flatMap((m) => [
     { species_id: speciesId, lookalike_id: m.id },
     { species_id: m.id, lookalike_id: speciesId },
   ]);
@@ -88,6 +94,13 @@ export async function resolveLookalikesToJoinTable(
     .upsert(inserts, { onConflict: "species_id,lookalike_id" });
 
   if (upsertError) throw upsertError;
+
+  return typed.map((m) => ({
+    scientific_name: m.scientific_name,
+    common_name: m.common_names?.en ?? null,
+    reference_image_url: m.reference_image_url,
+    iucn_red_list_status: m.iucn_red_list_status,
+  }));
 }
 
 export async function updateSpeciesEnrichment(

@@ -197,7 +197,10 @@ extension OfflineQueueManager {
 
                         guard FileManager.default.fileExists(atPath: originalFileURL.path) else {
                             MerianLog.data.debug("syncPendingScans: source file missing for \(originalFileURL.lastPathComponent, privacy: .private) — tombstoning")
-                            Task { @MainActor in OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
+                            // Use the already-resolved `self` from the outer [weak self] guard
+                            // rather than the singleton, so the lifecycle contract is consistent.
+                            let capturedSelf = self
+                            Task { @MainActor in capturedSelf.softDeleteQueuedScan(scanId: scanId) }
                             continue
                         }
 

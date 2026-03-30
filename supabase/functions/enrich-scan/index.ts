@@ -69,12 +69,13 @@ serve((req: Request) =>
         cachedSpecies?.similar_species &&
         cachedSpecies.similar_species.length > 0
       ) {
-        await resolveLookalikesToJoinTable(
+        // resolveLookalikesToJoinTable returns the hydrated summaries directly —
+        // no redundant fetchLookalikesFromJoinTable call needed.
+        lookalikes = await resolveLookalikesToJoinTable(
           speciesId,
           cachedSpecies.similar_species,
           supabaseAdmin,
         );
-        lookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
       }
     }
 
@@ -106,14 +107,15 @@ serve((req: Request) =>
         similarSpeciesPromise,
       ]);
 
-      // Resolve newly-generated lookalike names into the join table
+      // Resolve newly-generated lookalike names into the join table.
+      // resolveLookalikesToJoinTable returns the hydrated summaries directly —
+      // no redundant fetchLookalikesFromJoinTable call needed.
       if (similarResult?.similar_species && speciesId) {
-        await resolveLookalikesToJoinTable(
+        lookalikes = await resolveLookalikesToJoinTable(
           speciesId,
           similarResult.similar_species,
           supabaseAdmin,
         );
-        lookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
       }
 
       const totalTokens =
@@ -121,12 +123,12 @@ serve((req: Request) =>
         (similarResult?.usage?.totalTokenCount ?? 0);
 
       if (totalTokens > 0) {
-        await trackPostHogEvent(_user, "EnrichmentCostAnalyzed", {
+        trackPostHogEvent(_user, "EnrichmentCostAnalyzed", {
           scientific_name,
           encyclopedic_tokens: enrichmentResult?.usage?.totalTokenCount ?? 0,
           similar_species_tokens: similarResult?.usage?.totalTokenCount ?? 0,
           cumulative_scan_tokens: totalTokens,
-        });
+        }).catch((e) => console.error("PostHog EnrichmentCostAnalyzed failed:", e));
       }
 
       // Persist enrichment + write similar_species TEXT[] for backwards compatibility
