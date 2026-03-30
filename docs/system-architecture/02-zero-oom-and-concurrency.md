@@ -596,7 +596,7 @@ A `habitatDescription != nil, similarSpecies != nil` gate was briefly added at t
 **Why the gate was redundant:**
 - **Live scans**: `SpeciesData.init(fromEdgeResponse:)` always initializes `similarSpecies = nil`, so the gate would never fire for a newly-captured scan anyway.
 - **Historical scans**: `enrichmentAttemptedScanIds` (scan-ID-scoped) and `enrichedSpeciesNames` (species-name-scoped) already guard re-fires within a session.
-- **Cross-session deduplication**: The `needsEnrichment` flag on `LocalScanRecord` (set to `false` after the first successful enrichment and persisted to SQLite) is the correct persistent backstop.
+- **Cross-session deduplication**: The persistent backstop is the enrichment data itself. `load(from:)` computes a local `needsEnrichment` variable — `record.habitatDescription == nil || record.gbifTaxonKey == nil || (record.lookalikesData == nil && (record.similarSpecies?.isEmpty ?? true))` — and skips `fetchAndApplyEnrichment` when all fields are already present. No separate `needsEnrichment: Bool` column exists on `LocalScanRecord`; the stored enrichment fields are the gate.
 
 **Rule:** Do not gate `fetchAndApplyEnrichment` on `similarSpecies != nil`. `similarSpecies` can be populated from the legacy TEXT[] path with incomplete data (no common names, no images), which is visually indistinguishable from a populated join-table result at the gate check site but represents un-upgraded data that must still flow through `enrich-scan`.
 
@@ -633,7 +633,7 @@ if !capturedIsEnriched && !Task.isCancelled {
 
 GBIF image hydration runs unconditionally because it writes `referenceImageUrl` to the specific scan record. Only the `enrich-scan` Edge call (which writes species-level fields shared across all scans) is skipped. For users scanning the same species repeatedly in a field session, this eliminates all but the first enrichment call per species.
 
-**Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on historic scan opens); `enrichedSpeciesNames` is species-name-scoped (guards redundant Edge calls during live-inference bursts). Both gates are in-memory and reset on launch. The persistent cross-session backstop is the `needsEnrichment: Bool` field on `LocalScanRecord` — set to `false` after the first successful enrichment and persisted to SQLite. Do not gate on `habitatDescription`/`similarSpecies` field presence; see the "Persistent Field Gate — REMOVED" section for the regression that approach introduced.
+**Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on historic scan opens); `enrichedSpeciesNames` is species-name-scoped (guards redundant Edge calls during live-inference bursts). Both gates are in-memory and reset on launch. The persistent cross-session backstop is the enrichment data itself: `load(from:)` computes a local `needsEnrichment` variable from `habitatDescription`, `gbifTaxonKey`, and lookalike join-table presence — enrichment is skipped when all three are already stored. There is no separate `needsEnrichment: Bool` column on `LocalScanRecord`. Do not add an explicit boolean flag; the stored field presence is the correct signal. Do not gate on `similarSpecies` field presence alone; see the "Persistent Field Gate — REMOVED" section for the regression that approach introduced.
 
 ### WAL Flush Frequency (`MerianConfig.ingestCheckpointInterval`)
 
