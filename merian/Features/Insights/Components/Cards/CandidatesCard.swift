@@ -19,7 +19,7 @@ struct CandidatesCard: View {
     let inferenceTier: String?
     /// Called when the user taps "No, incorrect" and there are no candidates to choose from.
     /// The caller should route to the flag/report flow.
-    var onFlagIssue: (() -> Void)? = nil
+    var onFlagIssue: (() -> Void)?
 
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
