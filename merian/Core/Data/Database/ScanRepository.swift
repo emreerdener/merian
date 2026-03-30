@@ -505,7 +505,7 @@ actor HistoricalDatabaseActor {
 
             let dict = scan.species_dictionary
             let sciName = dict?.scientific_name ?? "Unknown Subject"
-            let cName = dict?.common_names?["en"] ?? dict?.common_names?.compactMap { $0.value }.first ?? sciName
+            let cName = dict?.common_names?.flatMap { $0["en"] } ?? dict?.common_names?.compactMap { $0.value }.first ?? sciName
             let wikiExtract = dict?.wikipedia_overview
 
             let rawR2Image = scan.image_storage_urls?.first
