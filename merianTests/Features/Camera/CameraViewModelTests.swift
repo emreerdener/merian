@@ -7,7 +7,7 @@ import Foundation
 struct CameraViewModelTests {
 
     private func createIsolatedContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV9.models)
+        let schema = Schema(CurrentSchema.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -20,8 +20,8 @@ struct CameraViewModelTests {
         viewModel.activeSheet = .insight
         viewModel.isAnalyzingFullscreen = true
 
-        // Act: fire the inactive-phase notification
-        NotificationCenter.default.post(name: .appDidEnterInactivePhase, object: nil)
+        // Act: fire the inactive-phase event via AppEventPublisher (replaces legacy NotificationCenter)
+        AppEventPublisher.shared.send(.appDidEnterInactivePhase)
 
         // Let RunLoop.main process the event
         try await Task.sleep(nanoseconds: 100_000_000)

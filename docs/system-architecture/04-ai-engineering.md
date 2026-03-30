@@ -9,7 +9,7 @@ The AI inference layer is split across three files under `merian/Core/AI/`:
 - **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation, triggers the Edge function, and delivers results to `CameraViewModel`.
 - **`InferenceProcessingActor.swift`**: An off-main-thread actor responsible for base64 encoding image data and parsing Edge responses.
 - **`InferenceEdgeDTOs.swift`**: Codable DTOs used for Edge communication: `APIError`, `EdgeResponseWrapper`, and `EdgeResponse`.
-- **`InferenceEdgeDTOs.swift`** also declares `EnrichScanResponse` — the `Codable` DTO for the `enrich-scan` Edge Function response, with nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species`) and `SimilarSpeciesData` (maps `lookalike_species: [String]`) structs.
+- **`InferenceEdgeDTOs.swift`** also declares `EnrichScanResponse` — the `Codable` DTO for the `enrich-scan` Edge Function response, with nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps `scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`) structs.
 
 ## Edge Function Architecture (`/identify`)
 
@@ -28,7 +28,7 @@ The `/enrich-scan` Supabase Edge Function handles on-demand encyclopedic lookup 
 
 - **`index.ts`**: The main orchestrator. Re-routes data fetched by the shared micro-agents, handling the concurrent `Promise.all` logic based on what Postgres data is currently missing. Unifies the output via `formatEnrichmentPayload` to strictly guarantee uniform JSON contracts back to Swift.
 - **`types.ts`**: Strict TypeScript interfaces tracking the shape of `CachedSpeciesData` returned from Postgres. Removing these inline types from the orchestrator eliminates dangerous semantic type-casting across asynchronous LLM results.
-- **`db.ts`**: Encapsulates the Postgres cached dictionary lookup and targeted UPSERT patching.
+- **`db.ts`**: Encapsulates all Postgres operations: `getCachedSpecies` (dictionary lookup with `id` field), `fetchLookalikesFromJoinTable` (two-query rich hydration from `species_lookalikes`), `resolveLookalikesToJoinTable` (maps Gemini-generated scientific names to join table rows), and `updateSpeciesEnrichment` (UPSERT patching).
 
 ### Enrichment Pipeline (`isEnrichmentLoading` / `fetchAndApplyEnrichment`)
 
@@ -37,7 +37,7 @@ After a successful biological scan, `InferenceEngine` automatically fires `fetch
 1. Sets `isEnrichmentLoading = true` — `HabitatAndDistributionCard` observes this via `@Environment(InferenceEngine.self)` and shows an animated loading skeleton.
 2. Calls `MerianNetworkClient.shared.fetchEnrichment(scanId:scientificName:)` → POST `/enrich-scan`.
 3. On success, patches `speciesData.habitatDescription` and (when non-nil) `speciesData.gbifTaxonKey` in-place on `@MainActor`, triggering a live UI update without reopening the sheet.
-4. Maps `data.similar_species.lookalike_species` to `speciesData.similarSpecies` in-place on `@MainActor`, triggering a live `SimilarSpeciesGallery` UI update.
+4. Maps `data.similar_species` (a `[SimilarSpeciesEntry]` array) to `speciesData.similarSpecies` in-place on `@MainActor`, triggering a live `SimilarSpeciesGallery` UI update. No confidence threshold gate — enrichment always sets the data; the gallery UI decides labelling.
 5. Persists all fields to `LocalScanRecord` via `BackgroundDatabaseActor.updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpecies:taxonomy:)` on a background Task.
 6. Sets `isEnrichmentLoading = false` (via `defer`).
 

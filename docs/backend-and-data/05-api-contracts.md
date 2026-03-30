@@ -184,7 +184,7 @@ struct IdentifyResponse: Codable {
 
 ## Deno `/enrich-scan` Edge Node
 
-An enrichment endpoint that asynchronously surfaces habitat data and (when confidence is low) diagnostic comparison data for a scan. Called automatically by the iOS client after every successful biological scan completes — the user sees a loading skeleton in `HabitatAndDistributionCard` while this request is in flight.
+An enrichment endpoint that asynchronously surfaces habitat, taxonomy, and similar species data for a scan. Called automatically by the iOS client after every successful biological scan completes — the user sees a loading skeleton in `HabitatAndDistributionCard` while this request is in flight.
 
 ### Request Payload
 
@@ -205,9 +205,15 @@ Only `scientific_name` is strictly required by the Edge function. `scan_id`, `co
 
 **Frontend-Driven Thresholds**: The Edge function unconditionally queries or fetches `similar_species` if it is not already cached in `species_dictionary`. It does not evaluate `confidence_score`. Instead, the iOS client (`InferenceEngine.fetchAndApplyEnrichment` and `BiologicalView`) dynamically compares the score against the user's tier-specific threshold (`0.88` for Flash, `0.80` for Pro) to decide whether to highlight the data as a "POTENTIAL LOOKALIKES" diagnostic warning or merely informational "SIMILAR SPECIES".
 
-**Full Cache Hit**: If `species_dictionary` already has both `habitat_description` and `similar_species`, the function returns all data immediately with no Gemini calls — typically sub-50ms.
+**Full Cache Hit**: If `species_dictionary` already has `habitat_description` and the `species_lookalikes` join table has entries for this species, the function returns all data immediately with no Gemini calls — typically sub-50ms.
 
-**Parallel Flash Generation**: If any data is missing, encyclopedic enrichment (`fetchStaticEncyclopedicData`) and similar species generation (`fetchSimilarSpecies`) run concurrently via `Promise.all`. Both use `gemini-2.5-flash` with `temperature: 0.1`. Results are persisted to `species_dictionary` (species-level, not per-scan) before the response is returned.
+**Two-Layer Lookalike Strategy**:
+- **Layer 1 — Taxonomy trigger (zero token cost)**: A Postgres `AFTER INSERT` trigger (`trg_link_taxonomy_lookalikes`) auto-populates `species_lookalikes` with bidirectional same-genus links whenever a new species row is inserted. Same-genus species are almost always visually similar; this alone covers the majority of cases without any Gemini call.
+- **Layer 2 — Gemini Flash for cross-family visual mimics**: `fetchSimilarSpecies` is only invoked when the `species_lookalikes` join table is empty AND `similar_species TEXT[]` has no legacy names. After Gemini returns scientific name strings, `resolveLookalikesToJoinTable` looks them up in `species_dictionary` and inserts bidirectional join table rows.
+
+**Migration Path**: If the join table is empty but `similar_species TEXT[]` has legacy name strings (populated by older pipeline versions), they are resolved to the join table at zero token cost before returning.
+
+**Parallel Flash Generation**: If enrichment data is missing, encyclopedic enrichment (`fetchStaticEncyclopedicData`) and similar species generation (`fetchSimilarSpecies`) run concurrently via `Promise.all`. Both use `gemini-2.5-flash` with `temperature: 0.1`. Results are persisted before the response is returned.
 
 ### Response Schema
 
@@ -217,9 +223,20 @@ Only `scientific_name` is strictly required by the Edge function. `scan_id`, `co
   "data": {
     "habitat_description": "Frequently spotted in milkweed patches, meadows, and open plains.",
     "gbif_taxon_key": 5130978,
-    "similar_species": {
-      "lookalike_species": ["Viceroy Butterfly", "Queen Butterfly"]
-    },
+    "similar_species": [
+      {
+        "scientific_name": "Limenitis archippus",
+        "common_name": "Viceroy",
+        "reference_image_url": "https://inaturalist-open-data.s3.amazonaws.com/...",
+        "iucn_red_list_status": "LC"
+      },
+      {
+        "scientific_name": "Danaus gilippus",
+        "common_name": "Queen",
+        "reference_image_url": "https://inaturalist-open-data.s3.amazonaws.com/...",
+        "iucn_red_list_status": null
+      }
+    ],
     "taxonomy": {
       "kingdom": "Animalia",
       "phylum": "Arthropoda",
@@ -232,7 +249,7 @@ Only `scientific_name` is strictly required by the Edge function. `scan_id`, `co
 }
 ```
 
-`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF (Cache Miss species where `identify`'s background task has not yet completed). `similar_species` is `null` when no lookalike species exist or have been generated. The iOS client (`InferenceEngine.fetchAndApplyEnrichment`) maps `data.similar_species.lookalike_species` to `speciesData.similarSpecies` and gates the UI display in `BiologicalView` using the tier-specific confidence threshold.
+`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF. `similar_species` is `null` when no lookalike data is available. Each entry in the `similar_species` array is sourced from the `species_lookalikes` join table joined to `species_dictionary` — providing `common_name` (English), `reference_image_url`, and `iucn_red_list_status` in a single query. The iOS client (`InferenceEngine.fetchAndApplyEnrichment`) maps the array to `speciesData.similarSpecies` unconditionally; the `SimilarSpeciesGallery` UI applies the tier-specific threshold only to decide whether to label the section "POTENTIAL LOOKALIKES" vs "SIMILAR SPECIES".
 
 ### Error Responses
 

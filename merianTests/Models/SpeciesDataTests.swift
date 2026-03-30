@@ -26,10 +26,7 @@ struct SpeciesDataTests {
             scientificName: "Lampyridae",
             insightData: insightData,
             confidenceScore: 0.98,
-            diagnosticComparison: nil,
             wikipediaUrl: "https://en.wikipedia.org/wiki/Firefly",
-            wikipediaOverview: nil,
-            referenceImageUrl: nil,
             isBiological: true,
             isLiveCapture: true,
             isInvasive: false,
@@ -62,15 +59,10 @@ struct SpeciesDataTests {
             scientificName: "Unknownidae",
             insightData: insightData,
             confidenceScore: 0.5,
-            diagnosticComparison: nil,
-            wikipediaUrl: nil,
-            wikipediaOverview: nil,
-            referenceImageUrl: nil,
             isBiological: true,
             isLiveCapture: true,
             isInvasive: true,
-            ecologyType: "Unknown",
-            taxonomy: nil
+            ecologyType: "Unknown"
         )
 
         // Act
@@ -97,7 +89,6 @@ struct SpeciesDataTests {
 
         #expect(species.aiReasoning == nil, "aiReasoning must default to nil for non-Pro / legacy scans")
         #expect(species.habitatDescription == nil, "habitatDescription must default to nil")
-        #expect(species.globalDistributionRegions == nil, "globalDistributionRegions must default to nil")
     }
 
     @Test func testPremiumFieldsMutability() {
@@ -111,11 +102,9 @@ struct SpeciesDataTests {
 
         species.aiReasoning = "The bioluminescent abdomen confirms Photinus pyralis."
         species.habitatDescription = "Warm temperate meadows near water."
-        species.globalDistributionRegions = ["US-TX", "US-FL"]
 
         #expect(species.aiReasoning?.contains("Photinus pyralis") == true)
         #expect(species.habitatDescription?.contains("meadows") == true)
-        #expect(species.globalDistributionRegions == ["US-TX", "US-FL"])
     }
 
     @Test func testPremiumFieldsRoundTripThroughInit() {
@@ -126,12 +115,70 @@ struct SpeciesDataTests {
             insightData: insightData,
             confidenceScore: 0.98,
             aiReasoning: "The orange-black wing pattern is diagnostic.",
-            habitatDescription: "Open fields with milkweed.",
-            globalDistributionRegions: ["US", "MX", "CA"]
+            habitatDescription: "Open fields with milkweed."
         )
 
         #expect(species.aiReasoning == "The orange-black wing pattern is diagnostic.")
         #expect(species.habitatDescription == "Open fields with milkweed.")
-        #expect(species.globalDistributionRegions == ["US", "MX", "CA"])
+    }
+
+    // MARK: - Similar Species: SimilarSpecies + SimilarSpeciesEntry
+
+    @Test func testSimilarSpeciesBackwardsCompatAccessor() {
+        // Arrange: three rich entries covering the common case from the join table
+        let entries = [
+            SimilarSpeciesEntry(scientificName: "Procyon cancrivorus", commonName: "Crab-eating Raccoon", referenceImageUrl: "https://example.com/cancrivorus.jpg", iucnRedListStatus: "LC"),
+            SimilarSpeciesEntry(scientificName: "Bassariscus astutus", commonName: "Ringtail", referenceImageUrl: nil, iucnRedListStatus: "LC"),
+            SimilarSpeciesEntry(scientificName: "Nasua nasua", commonName: "South American Coati", referenceImageUrl: nil, iucnRedListStatus: nil)
+        ]
+        let similar = SimilarSpecies(entries: entries)
+
+        // Act
+        let names = similar.lookalikes
+
+        // Assert: backwards-compat accessor returns flat scientific name strings in order
+        #expect(names.count == 3)
+        #expect(names[0] == "Procyon cancrivorus")
+        #expect(names[1] == "Bassariscus astutus")
+        #expect(names[2] == "Nasua nasua")
+    }
+
+    @Test func testSimilarSpeciesEntriesWithPartialEnrichment() {
+        // Arrange: historical records wrapped with nil enrichment (load(from:) path)
+        let entries = [
+            SimilarSpeciesEntry(scientificName: "Procyon cancrivorus", commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: "Bassariscus astutus", commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
+        ]
+        let similar = SimilarSpecies(entries: entries)
+
+        // Assert: partial entries are valid and accessible; nil fields don't crash
+        #expect(similar.entries.count == 2)
+        #expect(similar.entries[0].commonName == nil)
+        #expect(similar.entries[0].referenceImageUrl == nil)
+        #expect(similar.entries[0].iucnRedListStatus == nil)
+        #expect(similar.lookalikes == ["Procyon cancrivorus", "Bassariscus astutus"])
+    }
+
+    @Test func testSimilarSpeciesMutability() {
+        let insightData = InsightData(aiReasoning: "A procyonid.", hazardType: "none")
+        var species = SpeciesData(
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: insightData,
+            confidenceScore: 0.94
+        )
+
+        // Initial state: no lookalikes
+        #expect(species.similarSpecies == nil)
+
+        // Act: patch in similar species (mirrors fetchAndApplyEnrichment async path)
+        species.similarSpecies = SimilarSpecies(entries: [
+            SimilarSpeciesEntry(scientificName: "Procyon cancrivorus", commonName: "Crab-eating Raccoon", referenceImageUrl: nil, iucnRedListStatus: "LC")
+        ])
+
+        // Assert
+        #expect(species.similarSpecies?.entries.count == 1)
+        #expect(species.similarSpecies?.entries[0].scientificName == "Procyon cancrivorus")
+        #expect(species.similarSpecies?.lookalikes == ["Procyon cancrivorus"])
     }
 }

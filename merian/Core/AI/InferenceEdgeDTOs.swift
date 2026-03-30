@@ -68,7 +68,7 @@ struct EdgeResponse: Codable {
 
 // MARK: - Enrich-Scan Response
 
-/// Returned by the enrich-scan Edge Function for async enrichment + diagnostic loading.
+/// Returned by the enrich-scan Edge Function for async enrichment + similar species loading.
 struct EnrichScanResponse: Codable {
     let success: Bool?
     let data: EnrichData?
@@ -77,10 +77,16 @@ struct EnrichScanResponse: Codable {
         let habitat_description: String?
         let gbif_taxon_key: Int?
         let taxonomy: EdgeResponse.Taxonomy?
-        let similar_species: SimilarSpeciesData?
+        /// Rich lookalike entries sourced from the species_lookalikes join table.
+        /// Nil when no lookalike data is available for this species.
+        let similar_species: [SimilarSpeciesEntry]?
     }
 
-    struct SimilarSpeciesData: Codable {
-        let lookalike_species: [String]?
+    /// A single lookalike species record resolved from the species_lookalikes join table.
+    struct SimilarSpeciesEntry: Codable {
+        let scientific_name: String
+        let common_name: String?
+        let reference_image_url: String?
+        let iucn_red_list_status: String?
     }
 }

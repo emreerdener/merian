@@ -1,6 +1,6 @@
 import XCTest
 import CoreLocation
-@testable import merian
+@testable import Merian
 
 final class CaptureTelemetryTests: XCTestCase {
     

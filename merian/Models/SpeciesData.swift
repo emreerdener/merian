@@ -272,6 +272,16 @@ struct InsightData {
     var isHazardous: Bool { hazardType != "none" }
 }
 
+struct SimilarSpeciesEntry {
+    let scientificName: String
+    let commonName: String?
+    let referenceImageUrl: String?
+    let iucnRedListStatus: String?
+}
+
 struct SimilarSpecies {
-    let lookalikes: [String]
+    let entries: [SimilarSpeciesEntry]
+
+    /// Backwards-compatible accessor returning the flat array of scientific names.
+    var lookalikes: [String] { entries.map(\.scientificName) }
 }

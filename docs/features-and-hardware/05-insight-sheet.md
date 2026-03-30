@@ -11,7 +11,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `InsightSheetViewModel` | `@Observable @MainActor final class` — UI state, SwiftData ops, share/export |
 | `InsightSheetView` | Root sheet view; owns `@State private var viewModel = InsightSheetViewModel()` |
 | `InsightContentView` | Routes to `BiologicalView` or `NonBiologicalView` based on `speciesData.isBiological` |
-| `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier` (indices 0–7). |
+| `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier` (indices 0–8). |
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
 | `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match" |
 | `ImagesCarousel` | Horizontally scrolling image strip combining live captures + historic paths + reference images |
@@ -112,7 +112,9 @@ When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `ha
 
 ### Similar Species Display Gate
 
-`similar_species` data is rendered by `SimilarSpeciesGallery` inside `BiologicalView`. The gallery receives an `isLowConfidence` flag driven by the scan's `confidenceScore` against the user's tiered `.diagnosticTrigger` threshold (0.88 for Free/Flash; 0.80 for Premium/Pro). When `isLowConfidence = true`, the gallery shows a "POTENTIAL LOOKALIKES" warning label; otherwise it is presented as informational "SIMILAR SPECIES". This gate is enforced client-side — `enrich-scan` returns `similar_species` unconditionally when available.
+`similar_species` data is rendered by `SimilarSpeciesGallery` inside `BiologicalView` at `cardEntrance(index: 3)`. The gallery receives an `isLowConfidence` flag driven by the scan's `confidenceScore` against the user's tiered `.diagnosticTrigger` threshold (0.88 for Free/Flash; 0.80 for Premium/Pro). When `isLowConfidence = true`, the gallery shows a "POTENTIAL LOOKALIKES" warning label; otherwise it is presented as informational "SIMILAR SPECIES". `enrich-scan` always returns `similar_species` when data is available — no confidence gate is applied on the backend or in `fetchAndApplyEnrichment`.
+
+Each `SimilarSpeciesCard` receives a `SimilarSpeciesEntry` with `scientificName`, `commonName`, `referenceImageUrl`, and `iucnRedListStatus`. When `referenceImageUrl` is non-nil (join table resolved a field photo), the card renders it directly via `AsyncLocalImageView`. When nil (historical records without a join table entry), the card falls back to `SimilarSpeciesImageFetcher` for an on-demand Wikipedia/GBIF lookup.
 
 ---
 

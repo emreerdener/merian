@@ -10,6 +10,7 @@ struct HabitatAndDistributionCard: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     @State private var isRetrying = false
+    @State private var isPulsing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -20,7 +21,12 @@ struct HabitatAndDistributionCard: View {
                         .fill(Color(uiColor: .systemFill))
                         .frame(height: 280)
                         .redacted(reason: .placeholder)
-                        .shimmering()
+                        .opacity(isPulsing ? 0.4 : 1.0)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                                isPulsing = true
+                            }
+                        }
                 } else {
                     GBIFHeatmapMapView(taxonKey: inferenceEngine.speciesData?.gbifTaxonKey)
                         .frame(height: 260)
@@ -85,7 +91,12 @@ struct HabitatAndDistributionCard: View {
                                 .frame(width: 160, height: 14)
                         }
                         .redacted(reason: .placeholder)
-                        .shimmering()
+                        .opacity(isPulsing ? 0.4 : 1.0)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                                isPulsing = true
+                            }
+                        }
                     }
 
                 } else {

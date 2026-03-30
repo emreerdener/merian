@@ -9,7 +9,7 @@ struct BackgroundDatabaseActorTests {
     // Helper to create an isolated SwiftData container caching out to disk due to iOS 18 simulator array appending bugs.
     @MainActor
     private func createIsolatedContainer() throws -> ModelContainer {
-        let schema = Schema(MerianSchemaV9.models)
+        let schema = Schema(CurrentSchema.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         return try ModelContainer(for: schema, configurations: [modelConfiguration])

@@ -22,7 +22,6 @@ struct ModelTierBadge: View {
                         
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.bold))
-                        .foregroundStyle(Color.secondary)
                 }
                 .foregroundStyle(Color(uiColor: .systemBackground))
                 .padding(.horizontal, 14)

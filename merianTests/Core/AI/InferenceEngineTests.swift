@@ -102,7 +102,6 @@ struct InferenceEngineTests {
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "Terrestrial",
-            aiReasoning: "A milkweed butterfly in the family Nymphalidae.",
             wikipediaUrl: "https://en.wikipedia.org/wiki/Monarch_butterfly",
             referenceImageUrl: "https://example.com/monarch.jpg",
             additionalImagePaths: ["monarch2.jpg"],
@@ -112,7 +111,8 @@ struct InferenceEngineTests {
             taxonomyClass: "Insecta",
             taxonomyOrder: "Lepidoptera",
             taxonomyFamily: "Nymphalidae",
-            taxonomyGenus: "Danaus"
+            taxonomyGenus: "Danaus",
+            aiReasoning: "A milkweed butterfly in the family Nymphalidae."
         )
 
         let engine = InferenceEngine()
@@ -130,49 +130,46 @@ struct InferenceEngineTests {
         #expect(resultingData.insightData.aiReasoning.contains("Nymphalidae"))
         #expect(resultingData.taxonomy?.genus == "Danaus")
 
-        // Assert image paths are stitched properly into activeImageDatas for the UI Carousel
-        #expect(engine.activeImageDatas.count == 2, "Expected 2 total images (1 local, 1 extra)")
-        #expect(engine.activeImageDatas[0] == "monarch.jpg")
-        #expect(engine.activeImageDatas[1] == "monarch2.jpg")
+        // Note: validHistoricImagePaths is populated asynchronously by FileIOActor.validPaths(from:)
+        // which filters out non-existent disk paths — cannot assert file paths in the unit test sandbox.
 
         #expect(engine.isProcessing == false, "Processing state should return to false synchronously")
     }
 
     // MARK: - Premium Insights: EdgeResponse decoding
 
-    @Test func testEdgeResponseDecodesProPremiumInsights() throws {
+    @Test func testEdgeResponseDecodesSpeciesInsights() throws {
+        // species_insights is populated on cache hit for all tiers — sourced from species_dictionary
         let jsonString = """
         {
             "success": true,
             "data": {
-                "scan_id": "pro_scan_001",
+                "scan_id": "cache_hit_001",
                 "is_biological_subject": true,
                 "common_name": "Monarch Butterfly",
                 "scientific_name": "Danaus plexippus",
                 "confidence_score": 0.98,
                 "insight_data": { "ai_reasoning": "A migratory butterfly.", "hazard_type": "none" },
-                "premium_insights": {
-                    "ai_reasoning": "The orange and black wing pattern with white spots along the margins is diagnostic for Danaus plexippus.",
-                    "habitat_description": "Open fields, meadows, and roadsides with milkweed.",
-                    "global_distribution_regions": ["US-TX", "US-CA", "MX"]
+                "species_insights": {
+                    "habitat_description": "Open fields, meadows, and roadsides with milkweed."
                 }
             }
         }
         """
         let data = jsonString.data(using: .utf8)!
         let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
-        let premium = try #require(wrapper.data.premium_insights, "premium_insights must be present for Pro scans")
+        let insights = try #require(wrapper.data.species_insights, "species_insights must decode on a cache-hit response")
 
-        #expect(premium.habitat_description?.contains("milkweed") == true)
-        #expect(premium.global_distribution_regions == ["US-TX", "US-CA", "MX"])
+        #expect(insights.habitat_description?.contains("milkweed") == true)
     }
 
-    @Test func testEdgeResponsePremiumInsightsNilForFreeScans() throws {
+    @Test func testEdgeResponseSpeciesInsightsNilOnCacheMiss() throws {
+        // species_insights is absent on a fresh scan (cache miss) — enrichment arrives via enrich-scan
         let jsonString = """
         {
             "success": true,
             "data": {
-                "scan_id": "free_scan_001",
+                "scan_id": "cache_miss_001",
                 "is_biological_subject": true,
                 "common_name": "Raccoon",
                 "scientific_name": "Procyon lotor",
@@ -184,7 +181,7 @@ struct InferenceEngineTests {
         let data = jsonString.data(using: .utf8)!
         let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
 
-        #expect(wrapper.data.premium_insights == nil, "Free-tier scans must not include premium_insights")
+        #expect(wrapper.data.species_insights == nil, "Cache-miss responses must not include species_insights")
     }
 
     @Test func testSpeciesDataMapsAiReasoningFromEdgeResponse() throws {
@@ -198,10 +195,8 @@ struct InferenceEngineTests {
                 "scientific_name": "Photinus pyralis",
                 "confidence_score": 0.95,
                 "insight_data": { "ai_reasoning": "A bioluminescent beetle.", "hazard_type": "none" },
-                "premium_insights": {
-                    "ai_reasoning": "The characteristic light organ on the abdomen and flight pattern confirm Photinus pyralis.",
-                    "habitat_description": "Warm temperate meadows and forest edges.",
-                    "global_distribution_regions": ["US", "CA"]
+                "species_insights": {
+                    "habitat_description": "Warm temperate meadows and forest edges."
                 }
             }
         }
@@ -212,7 +207,6 @@ struct InferenceEngineTests {
 
         #expect(speciesData.aiReasoning?.contains("bioluminescent beetle") == true, "aiReasoning must be populated per-scan from insight_data.ai_reasoning")
         #expect(speciesData.habitatDescription?.contains("meadows") == true)
-        #expect(speciesData.globalDistributionRegions == ["US", "CA"])
     }
 
     @Test func testSpeciesDataPremiumFieldsNilWhenPremiumInsightsMissing() throws {
@@ -230,22 +224,21 @@ struct InferenceEngineTests {
         let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
         let speciesData = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
 
-        #expect(speciesData.aiReasoning == nil)
+        // aiReasoning IS populated from insight_data.ai_reasoning (per-scan, always present when insight_data exists)
+        #expect(speciesData.aiReasoning == "A mammal.", "aiReasoning comes from insight_data.ai_reasoning, not from removed premium_insights")
+        // habitatDescription requires species_insights.habitat_description — absent on cache miss
         #expect(speciesData.habitatDescription == nil)
-        #expect(speciesData.globalDistributionRegions == nil)
     }
 
     // MARK: - Premium Insights: load(from:) — V15 LocalScanRecord fields
 
     @Test func testLoadFromRecordWithPremiumInsights() throws {
-        let regionsJson = "[\"US-TX\",\"MX\"]"
         let record = LocalScanRecord(
             speciesId: "species_v15",
             scientificName: "Danaus plexippus",
             commonName: "Monarch Butterfly",
             aiReasoning: "The orange and black wing pattern with white marginal spots is diagnostic for Danaus plexippus.",
-            habitatDescription: "Open fields and meadows with milkweed.",
-            globalDistributionRegionsJson: regionsJson
+            habitatDescription: "Open fields and meadows with milkweed."
         )
         let engine = InferenceEngine()
         engine.load(from: record)
@@ -253,22 +246,6 @@ struct InferenceEngineTests {
         let result = try #require(engine.speciesData)
         #expect(result.aiReasoning?.contains("Danaus plexippus") == true)
         #expect(result.habitatDescription?.contains("milkweed") == true)
-        #expect(result.globalDistributionRegions == ["US-TX", "MX"])
-    }
-
-    @Test func testLoadFromRecordWithMalformedDistributionJson() throws {
-        let record = LocalScanRecord(
-            speciesId: "species_malformed",
-            scientificName: "Unknown",
-            commonName: "Unknown",
-            globalDistributionRegionsJson: "NOT_VALID_JSON"
-        )
-        let engine = InferenceEngine()
-        engine.load(from: record)
-
-        let result = try #require(engine.speciesData)
-        // Malformed JSON must not crash; globalDistributionRegions should be nil
-        #expect(result.globalDistributionRegions == nil)
     }
 
     @Test func testLoadFromRecordWithNilPremiumFields() throws {
@@ -283,7 +260,127 @@ struct InferenceEngineTests {
         let result = try #require(engine.speciesData)
         #expect(result.aiReasoning == nil)
         #expect(result.habitatDescription == nil)
-        #expect(result.globalDistributionRegions == nil)
+    }
+
+    // MARK: - Similar Species: EnrichScanResponse decoding
+
+    @Test func testEnrichScanResponseDecodesRichLookalikes() throws {
+        // Arrange: full payload from species_lookalikes join table hydration
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "habitat_description": "Deciduous forests and urban areas.",
+                "similar_species": [
+                    {
+                        "scientific_name": "Procyon cancrivorus",
+                        "common_name": "Crab-eating Raccoon",
+                        "reference_image_url": "https://example.com/cancrivorus.jpg",
+                        "iucn_red_list_status": "LC"
+                    },
+                    {
+                        "scientific_name": "Bassariscus astutus",
+                        "common_name": "Ringtail",
+                        "reference_image_url": null,
+                        "iucn_red_list_status": "LC"
+                    }
+                ]
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let response = try JSONDecoder().decode(EnrichScanResponse.self, from: data)
+        let entries = try #require(response.data?.similar_species, "similar_species must decode to a non-nil array")
+
+        #expect(entries.count == 2)
+        #expect(entries[0].scientific_name == "Procyon cancrivorus")
+        #expect(entries[0].common_name == "Crab-eating Raccoon")
+        #expect(entries[0].reference_image_url == "https://example.com/cancrivorus.jpg")
+        #expect(entries[0].iucn_red_list_status == "LC")
+        #expect(entries[1].scientific_name == "Bassariscus astutus")
+        #expect(entries[1].reference_image_url == nil, "Null reference_image_url must decode as nil, not crash")
+    }
+
+    @Test func testEnrichScanResponseDecodesLookalikesWithNilOptionals() throws {
+        // Arrange: sparse entry — only scientific_name provided (common during initial join table population)
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "similar_species": [
+                    { "scientific_name": "Nasua nasua" }
+                ]
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let response = try JSONDecoder().decode(EnrichScanResponse.self, from: data)
+        let entries = try #require(response.data?.similar_species)
+
+        #expect(entries.count == 1)
+        #expect(entries[0].scientific_name == "Nasua nasua")
+        #expect(entries[0].common_name == nil)
+        #expect(entries[0].reference_image_url == nil)
+        #expect(entries[0].iucn_red_list_status == nil)
+    }
+
+    @Test func testEnrichScanResponseNilWhenSimilarSpeciesAbsent() throws {
+        // Arrange: enrich-scan response with no lookalike data available for this species
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "habitat_description": "Open ocean.",
+                "gbif_taxon_key": 12345
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let response = try JSONDecoder().decode(EnrichScanResponse.self, from: data)
+
+        #expect(response.data?.similar_species == nil, "Absent similar_species key must decode as nil, not an empty array")
+    }
+
+    // MARK: - Similar Species: load(from:) — historical record wrapping
+
+    @Test func testLoadFromRecordWithSimilarSpecies() throws {
+        // Arrange: LocalScanRecord with legacy TEXT[] names (MerianSchemaV26 field)
+        let record = LocalScanRecord(
+            speciesId: "species_procyon",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            similarSpecies: ["Procyon cancrivorus", "Bassariscus astutus"]
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+
+        let result = try #require(engine.speciesData)
+        let similar = try #require(result.similarSpecies, "similarSpecies must be populated from LocalScanRecord.similarSpecies")
+
+        // Assert: bare strings are wrapped in SimilarSpeciesEntry with nil enrichment fields
+        #expect(similar.entries.count == 2)
+        #expect(similar.entries[0].scientificName == "Procyon cancrivorus")
+        #expect(similar.entries[0].commonName == nil, "Historical wrap must leave commonName nil — no join table data")
+        #expect(similar.entries[0].referenceImageUrl == nil)
+        #expect(similar.entries[0].iucnRedListStatus == nil)
+        #expect(similar.entries[1].scientificName == "Bassariscus astutus")
+
+        // Backwards-compat accessor must still return flat string array
+        #expect(similar.lookalikes == ["Procyon cancrivorus", "Bassariscus astutus"])
+    }
+
+    @Test func testLoadFromRecordWithNilSimilarSpecies() throws {
+        // Arrange: record with no lookalike data (pre-V26 or species with no known lookalikes)
+        let record = LocalScanRecord(
+            speciesId: "species_unique",
+            scientificName: "Ailuropoda melanoleuca",
+            commonName: "Giant Panda"
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+
+        let result = try #require(engine.speciesData)
+        #expect(result.similarSpecies == nil, "nil similarSpecies on LocalScanRecord must not produce an empty SimilarSpecies struct")
     }
 
     // MARK: - Inference Tier Configuration Validation

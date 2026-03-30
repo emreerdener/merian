@@ -11,6 +11,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/system-architecture/02-zero-oom-and-concurrency.md`](./system-architecture/02-zero-oom-and-concurrency.md)** — iOS memory ceiling rules, Swift 6 concurrency constraints, and Supabase Edge optimizations.
 - **[`/system-architecture/03-image-pipeline.md`](./system-architecture/03-image-pipeline.md)** — Capture → disk → cache → display image flow.
 - **[`/system-architecture/04-ai-engineering.md`](./system-architecture/04-ai-engineering.md)** — LLMOps edge deployment constraints, `maxOutputTokens` limits, and API throttling behaviors.
+- **[`/system-architecture/06-edge-modularization.md`](./system-architecture/06-edge-modularization.md)** — Domain-driven modular architecture for Supabase Edge Functions: `index.ts` / `db.ts` / `types.ts` separation rules and shared utility conventions.
 
 ### Backend & Data
 

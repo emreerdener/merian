@@ -33,27 +33,25 @@ struct BiologicalView: View {
                 .cardEntrance(index: 2)
 
             // MARK: - Similar Species Gallery
-            /*
             if let similarData = inferenceEngine.speciesData?.similarSpecies {
-                // Determine if this qualifies as a low-confidence scan
                 let score = inferenceEngine.speciesData?.confidenceScore ?? 1.0
                 let threshold = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger
-
                 SimilarSpeciesGallery(
                     similarData: similarData,
                     isLowConfidence: score < threshold
                 )
+                .cardEntrance(index: 3)
             } else if inferenceEngine.isEnrichmentLoading {
                 SimilarSpeciesGallery.Skeleton()
+                    .cardEntrance(index: 3)
             }
-            */
 
             // MARK: - Educational Reference
             OverviewCard(
                 isSafariPresented: $isSafariPresented,
                 selectedWikiURL: $selectedWikiURL
             )
-            .cardEntrance(index: 3)
+            .cardEntrance(index: 4)
 
             // MARK: - Habitat & Distribution
             if let data = inferenceEngine.speciesData {
@@ -63,7 +61,7 @@ struct BiologicalView: View {
                     scanId: data.scanId
                 )
                 .padding(.top, 8)
-                .cardEntrance(index: 4)
+                .cardEntrance(index: 5)
             }
 
             // MARK: - Biological Classification
@@ -71,19 +69,19 @@ struct BiologicalView: View {
                 taxonomyData: inferenceEngine.speciesData?.taxonomy,
                 scientificName: inferenceEngine.speciesData?.scientificName
             )
-            .cardEntrance(index: 5)
+            .cardEntrance(index: 6)
 
             // MARK: - Spatiotemporal Context
             ScanInformationCard(
                 speciesData: inferenceEngine.speciesData,
                 timestamp: timestamp
             )
-            .cardEntrance(index: 6)
+            .cardEntrance(index: 7)
 
             // MARK: - Custom Tags
             if let scanId = inferenceEngine.speciesData?.scanId {
                 UserTagsCard(scanId: scanId)
-                    .cardEntrance(index: 7)
+                    .cardEntrance(index: 8)
             }
         }
         .padding(.horizontal)

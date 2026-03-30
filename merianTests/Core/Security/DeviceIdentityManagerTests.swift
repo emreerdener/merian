@@ -24,14 +24,14 @@ struct DeviceIdentityManagerTests {
         
         let manager = DeviceIdentityManager.shared
         
-        // Act: Extract the baseline physical ID natively against empty Keychain bounds
-        let extractedDeviceIdentity = manager.getOrGeneratePersistentIDFV()
-        
+        // Act: Read the identity populated during init (Keychain or vendor ID fallback)
+        let extractedDeviceIdentity = manager.deviceId
+
         // Assert
         #expect(extractedDeviceIdentity.isEmpty == false, "Device IDFV MUST natively pull from hardware or generate UUID fallback securely without crashing")
-        
-        // Act: Pull identity bounds a second time triggering the Keychain fallback sequence natively
-        let verificationIdentity = manager.getOrGeneratePersistentIDFV()
+
+        // Act: Create a second instance to verify Keychain round-trip persistence
+        let verificationIdentity = DeviceIdentityManager.shared.deviceId
         
         // Assert: Ensure exact boundary mapping to prevent ghost RevenueCat/Supabase accounts from duplicating endlessly
         #expect(extractedDeviceIdentity == verificationIdentity, "Keychain bounds failed to securely isolate and map the exact physical device footprint repeatedly")

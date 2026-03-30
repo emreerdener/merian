@@ -12,7 +12,7 @@ struct LocalImageLoaderTests {
         let testUrlString = "https://example.com/dummy.jpg"
         
         // Clear caches to ensure cold start
-        ImageCache.shared.clear()
+        ImageCache.shared.clearCache()
         
         actor TaskCollector {
             var images: [UIImage?] = []

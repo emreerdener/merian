@@ -4,25 +4,26 @@ import { fetchSimilarSpecies } from "../_shared/biology.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/biology.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { getCachedSpecies, updateSpeciesEnrichment } from "./db.ts";
-import { CachedSpeciesData } from "./types.ts";
+import {
+  getCachedSpecies,
+  updateSpeciesEnrichment,
+  fetchLookalikesFromJoinTable,
+  resolveLookalikesToJoinTable,
+} from "./db.ts";
+import { CachedSpeciesData, LookalikeSummary } from "./types.ts";
 
 function formatEnrichmentPayload(
   cachedSpecies: CachedSpeciesData | null,
   enrichmentResult: EncyclopedicData | null,
-  similarResult: { similar_species: string[] } | null,
+  lookalikes: LookalikeSummary[],
 ) {
-  const lookalikes = similarResult?.similar_species || cachedSpecies?.similar_species;
-
   return {
     habitat_description:
       enrichmentResult?.habitat_description ??
       cachedSpecies?.habitat_description ??
       "No habitat data available.",
     gbif_taxon_key: cachedSpecies?.gbif_taxon_key,
-    similar_species: lookalikes && lookalikes.length > 0
-      ? { lookalike_species: lookalikes }
-      : null,
+    similar_species: lookalikes.length > 0 ? lookalikes : null,
     taxonomy: {
       kingdom: enrichmentResult?.taxonomy?.kingdom ?? cachedSpecies?.kingdom ?? "Unknown",
       phylum: enrichmentResult?.taxonomy?.phylum ?? cachedSpecies?.phylum ?? "Unknown",
@@ -54,21 +55,37 @@ serve((req: Request) =>
       cachedSpecies?.habitat_description !== null &&
       cachedSpecies?.habitat_description !== undefined;
 
-    const hasSimilarSpecies =
-      cachedSpecies?.similar_species !== null &&
-      cachedSpecies?.similar_species !== undefined;
+    // Fetch existing rich lookalike entries from the join table
+    const speciesId = cachedSpecies?.id ?? null;
+    let lookalikes: LookalikeSummary[] = [];
 
+    if (speciesId) {
+      lookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
 
-    if (hasEnrichment && hasSimilarSpecies) {
+      // Migration path: join table is empty but TEXT[] has names from the old pipeline —
+      // resolve them into the join table once at zero Gemini token cost.
+      if (
+        lookalikes.length === 0 &&
+        cachedSpecies?.similar_species &&
+        cachedSpecies.similar_species.length > 0
+      ) {
+        await resolveLookalikesToJoinTable(
+          speciesId,
+          cachedSpecies.similar_species,
+          supabaseAdmin,
+        );
+        lookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
+      }
+    }
+
+    const hasLookalikes = lookalikes.length > 0;
+
+    if (hasEnrichment && hasLookalikes) {
       console.log(`[enrich-scan] CACHE HIT for ${scientific_name}`);
       return jsonResponse(
         {
           success: true,
-          data: formatEnrichmentPayload(
-            cachedSpecies,
-            null,
-            null,
-          ),
+          data: formatEnrichmentPayload(cachedSpecies, null, lookalikes),
         },
         200,
       );
@@ -78,7 +95,8 @@ serve((req: Request) =>
       ? Promise.resolve(null)
       : fetchStaticEncyclopedicData(_user, scientific_name);
 
-    const similarSpeciesPromise = hasSimilarSpecies
+    // Skip Gemini if the join table (or migrated TEXT[]) already has entries
+    const similarSpeciesPromise = hasLookalikes
       ? Promise.resolve(null)
       : fetchSimilarSpecies(_user, scientific_name);
 
@@ -87,6 +105,16 @@ serve((req: Request) =>
         enrichmentPromise,
         similarSpeciesPromise,
       ]);
+
+      // Resolve newly-generated lookalike names into the join table
+      if (similarResult?.similar_species && speciesId) {
+        await resolveLookalikesToJoinTable(
+          speciesId,
+          similarResult.similar_species,
+          supabaseAdmin,
+        );
+        lookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
+      }
 
       const totalTokens =
         (enrichmentResult?.usage?.totalTokenCount ?? 0) +
@@ -101,6 +129,7 @@ serve((req: Request) =>
         });
       }
 
+      // Persist enrichment + write similar_species TEXT[] for backwards compatibility
       await updateSpeciesEnrichment(
         scientific_name,
         enrichmentResult,
@@ -113,11 +142,7 @@ serve((req: Request) =>
       return jsonResponse(
         {
           success: true,
-          data: formatEnrichmentPayload(
-            cachedSpecies,
-            enrichmentResult,
-            similarResult,
-          ),
+          data: formatEnrichmentPayload(cachedSpecies, enrichmentResult, lookalikes),
         },
         200,
       );

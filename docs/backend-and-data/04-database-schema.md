@@ -29,10 +29,23 @@ The global source-of-truth for biological models.
 - `native_region` (Text): Origin markers.
 - `habitat_description` (Text): Summarizes the expected ecosystem parameters for the species.
 - ~~`global_distribution_regions`~~ (JSONB): Dropped in migration `20260327140000_drop_global_distribution_regions.sql`. Previously populated with Gemini Flash-generated ISO 3166-1/3166-2 region codes that proved inaccurate. Species geographic range is now communicated exclusively through the GBIF occurrence density tile overlay (driven by `gbif_taxon_key`).
-- `similar_species` (Text Array): Array of similar or commonly confused species names. Populated by `fetchSimilarSpecies` (Gemini Flash) via the `enrich-scan` Edge Function. Added as `diagnostic_lookalike_name TEXT` in `20260326200000_add_diagnostic_comparison.sql`, converted to `diagnostic_lookalikes TEXT[]` in `20260329062600_add_lookalike_species_array.sql`, and renamed to `similar_species` in `20260329070941_rename_similar_species.sql`.
+- `similar_species` (Text Array): Legacy flat array of similar species scientific names. Populated by `fetchSimilarSpecies` (Gemini Flash) via the `enrich-scan` Edge Function on Cache Miss. Kept for backwards compatibility — the authoritative rich lookalike store is now the `species_lookalikes` join table. Added as `diagnostic_lookalike_name TEXT` in `20260326200000_add_diagnostic_comparison.sql`, converted to `diagnostic_lookalikes TEXT[]` in `20260329062600_add_lookalike_species_array.sql`, and renamed to `similar_species` in `20260329070941_rename_similar_species.sql`.
 - ~~`diagnostic_primary_rationale`~~: Dropped in `20260329070941_rename_similar_species.sql`. Previously stored the primary identification rationale for low-confidence scans.
 - ~~`diagnostic_differentiators_json`~~: Dropped in `20260329070941_rename_similar_species.sql`. Previously stored a JSON-encoded array of key field marks distinguishing the species from its lookalike.
 - `group_tags` (Text Array): Broad-to-specific categorical labels for the species (e.g. `["animal", "bird", "songbird", "warbler"]`). Generated once by a `gemini-2.5-flash` background call on the first scan of a species; subsequent scans read from this cache. Returned to the client in the `/identify` response as `group_tags` and merged into `LocalScanRecord.semanticTags` for library keyword search. Added in migration `20260327100000_add_group_tags_to_species_dictionary.sql`.
+
+### `species_lookalikes`
+
+Self-referential join table linking species that are visually similar or commonly confused. Added in migration `20260329200000_add_species_lookalikes.sql`. This is the authoritative source for rich lookalike data returned by the `/enrich-scan` Edge Function.
+
+- `species_id` (UUID FK → `species_dictionary.id`, CASCADE DELETE): The subject species.
+- `lookalike_id` (UUID FK → `species_dictionary.id`, CASCADE DELETE): A species that could be confused with the subject.
+- Primary key: `(species_id, lookalike_id)`. Composite ensures uniqueness; a `CHECK (species_id != lookalike_id)` prevents self-links.
+- All links are **bidirectional** — inserting `(A, B)` also inserts `(B, A)`.
+
+**Postgres trigger** (`trg_link_taxonomy_lookalikes`): Fires `AFTER INSERT` on `species_dictionary`. Auto-links same-genus species at zero token cost. The trigger was backfilled on all existing rows at migration time.
+
+**Rich hydration**: The `/enrich-scan` `db.ts` resolves entries with two queries — `species_lookalikes` for IDs, then `species_dictionary` for `scientific_name`, `common_names->>'en'`, `reference_image_url`, and `iucn_red_list_status`.
 
 ### `scans`
 
@@ -116,7 +129,7 @@ There is **no need** to update model references in `MerianApp.swift`, nor anywhe
 
 The current active schema is `MerianSchemaV26`.
 
-**Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse` contains nested `EnrichData` → `SimilarSpeciesData` structs mapping `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species.lookalike_species` fields. When adding new fields to either Edge Function response, update both the TypeScript schema and the corresponding Swift `Codable` struct simultaneously.
+**Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse` contains nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps `scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`) structs. When adding new fields to either Edge Function response, update both the TypeScript schema and the corresponding Swift `Codable` struct simultaneously.
 
 ### `OfflineQueuedScan`
 
@@ -158,7 +171,7 @@ Tracks locally synchronized species scans for the Scans library.
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`, `taxonomyFamily`, `taxonomyGenus`: String? (Linnaean taxonomy fields added in `MerianSchemaV3`, enabling background semantic discovery without relying on `ecology_type`.)
 - `locationName`, `weatherCondition`, `weatherTemperatureF`: String/Double? (Added in `MerianSchemaV5`. Stores environmental context via MapKit reverse geocoding, powering the `InsightSheetView`.)
 - `collections`: [ScanCollection]? (Added in `MerianSchemaV6`. Establishes relationships to top-level custom user galleries without duplicating raw data.)
-- `similarSpecies`: [String]? — Similar or commonly confused species for the identified subject. Renamed from `diagnosticLookalikes` in `MerianSchemaV26` (backfilled via `migrateV25toV26`). Populated by `BackgroundDatabaseActor.updateScanWithEnrichment` from `EnrichScanResponse.data.similar_species.lookalike_species` after `enrich-scan` returns. Sourced from `species_dictionary` (species-level cache) rather than per-scan AI generation.
+- `similarSpecies`: [String]? — Similar or commonly confused species for the identified subject. Renamed from `diagnosticLookalikes` in `MerianSchemaV26` (backfilled via `migrateV25toV26`). Populated by `BackgroundDatabaseActor.updateScanWithEnrichment` from `EnrichScanResponse.data.similar_species` (a `[SimilarSpeciesEntry]` array) after `enrich-scan` returns. The join table (`species_lookalikes`) is now the authoritative rich lookalike store; this `[String]?` field stores scientific names for backwards-compatible SwiftData persistence. Sourced from `species_dictionary` (species-level cache) rather than per-scan AI generation.
 - ~~`diagnosticPrimaryRationale`~~: Removed in `MerianSchemaV26`. Previously stored the primary identification rationale for low-confidence scans (added in `MerianSchemaV9`).
 - ~~`diagnosticDifferentiatorsJson`~~: Removed in `MerianSchemaV26`. Previously stored a JSON-encoded `[String]` array of key field marks distinguishing the species from its lookalike (added in `MerianSchemaV9`).
 - `iucnRedListStatus`: String? (Added in `MerianSchemaV10`. Tracks international species risk status, powering the offline `ConservationBanner`.)

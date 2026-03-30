@@ -68,10 +68,24 @@ The workspace enforces this layout inside `merian/`:
 - **SwiftData Predicate `UUID()` Evaluation Fault**: Due to Swift 5.9 macro constraints, passing a raw `UUID` parameter against a persistent `String` column inside a `#Predicate` causes compiler timeouts that hang builds without error logs. **MUST** extract `.uuidString` outside the closure before comparing (e.g., `let stringVal = id.uuidString`, then `#Predicate { $0.id == stringVal }`).
 - **SwiftData Optional Array Mutation Bug**: When appending to an optional SwiftData relationship array (e.g. `record.collections?.append(newCollection)`), SwiftData often fails to trigger its internal `didSet` observers. This leaves the `ModelContext` unaware of the mutation, preventing inverse relationships from updating correctly. **ALWAYS** explicitly reassign the array instead: `var updated = record.collections ?? []; updated.append(newCollection); record.collections = updated`.
 
-## 8. Documentation Maintenance
+## 8. Test Infrastructure Rules
+
+- **Always use `CurrentSchema` in tests.** Never pin test containers to a historical `MerianSchemaV{N}`. A pinned schema silently drops all fields added in later versions (e.g., `MerianSchemaV26` adds `similarSpecies`), so tests pass against the wrong model shape and produce false confidence:
+  ```swift
+  // CORRECT
+  let schema = Schema(CurrentSchema.models)
+  // WRONG — silently drops similarSpecies, zoomFactor, etc.
+  let schema = Schema(MerianSchemaV9.models)
+  ```
+- **Use `AppEventPublisher`, not `NotificationCenter`, for internal events.** `CameraViewModel` and other components subscribe to `AppEventPublisher.shared.publisher` (a Combine `PassthroughSubject<AppEvent, Never>`). Tests that trigger lifecycle events must use `AppEventPublisher.shared.send(.appDidEnterInactivePhase)` — posting to `NotificationCenter` with a fabricated name has no effect.
+- **Do not call private methods via `@testable import`.** Swift allows calling internal-level methods from test targets, but `private` members are inaccessible. Always test behavior through public/internal interfaces (e.g., `DeviceIdentityManager.shared.deviceId` instead of the private `getOrGeneratePersistentIDFV()`).
+- **Do not assert `validHistoricImagePaths` synchronously in unit tests.** `InferenceEngine.load(from:)` populates this property inside a `Task { ... }` that calls `FileIOActor.shared.validPaths(from:)`, which filters out non-existent disk paths. Paths that don't exist in the simulator sandbox return empty — assert `speciesData` properties instead.
+- **Always use `await` for `actor` methods in tests.** `ImageDownsampler` is declared as `public actor`. Calling its instance methods requires `await` even inside `@MainActor` test structs: `await ImageDownsampler.shared.downsample(data:maxSize:)`.
+
+## 9. Documentation Maintenance
 - **ALWAYS create and update documentation accordingly.** Whenever you implement a new feature, modify a system's architecture, or alter an API contract, update the corresponding markdown file in the `docs/` folder to reflect reality. Do not wait to be asked. Maintain an accurate, synchronized documentation set that matches the codebase.
 
-## 9. Agent Workflows
+## 10. Agent Workflows
 Merian maintains reproducible, automated workflows inside the `.agents/workflows/` directory. AI Agents **MUST** execute these runbooks (e.g. via slash commands or manually reading and running) for critical operations instead of guessing:
 - `schema_update.md`: Bumping SwiftData schema versions and snapshotting global active models.
 - `deploy_edge_functions.md`: Deploying TypeScript Supabase modifications and executing type checks.

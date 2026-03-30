@@ -468,12 +468,16 @@ private struct WikiSummaryResponse: Decodable {
                 )
             }
 
-            let triggerThreshold = MerianConfig.confidenceBands(forInferenceTier: data.inferenceTier).diagnosticTrigger
-            if data.confidenceScore < triggerThreshold,
-               let similarData = enrichData.similar_species,
-               let lookalikeNames = similarData.lookalike_species {
+            if let entries = enrichData.similar_species, !entries.isEmpty {
                 speciesData?.similarSpecies = SimilarSpecies(
-                    lookalikes: lookalikeNames
+                    entries: entries.map {
+                        SimilarSpeciesEntry(
+                            scientificName: $0.scientific_name,
+                            commonName: $0.common_name,
+                            referenceImageUrl: $0.reference_image_url,
+                            iucnRedListStatus: $0.iucn_red_list_status
+                        )
+                    }
                 )
             }
 
@@ -485,7 +489,7 @@ private struct WikiSummaryResponse: Decodable {
                         scanId: scanId,
                         habitatDescription: enrichData.habitat_description,
                         gbifTaxonKey: enrichData.gbif_taxon_key,
-                        similarSpecies: enrichData.similar_species?.lookalike_species,
+                        similarSpecies: enrichData.similar_species?.map(\.scientific_name),
                         taxonomy: enrichData.taxonomy
                     )
                 }
@@ -562,7 +566,11 @@ private struct WikiSummaryResponse: Decodable {
 
         var parsedSimilar: SimilarSpecies?
         if let lookalikesArray = record.similarSpecies, !lookalikesArray.isEmpty {
-            parsedSimilar = SimilarSpecies(lookalikes: lookalikesArray)
+            parsedSimilar = SimilarSpecies(
+                entries: lookalikesArray.map {
+                    SimilarSpeciesEntry(scientificName: $0, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
+                }
+            )
         }
 
         self.speciesData = SpeciesData(

@@ -1,5 +1,5 @@
 import XCTest
-@testable import merian
+@testable import Merian
 
 final class CollectionPayloadTests: XCTestCase {
     

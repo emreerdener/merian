@@ -129,15 +129,13 @@ struct ScanRepositoryTests {
         #expect(fetched?.habitatDescription?.contains("meadows") == true)
     }
 
-    @Test func testV15GlobalDistributionRegionsJsonRoundTrip() async throws {
+    @Test func testV26SimilarSpeciesRoundTrip() async throws {
         let ctx = try createPremiumFieldsContext()
-        let regions = ["US-TX", "US-CA", "MX"]
-        let regionsJson = try String(data: JSONEncoder().encode(regions), encoding: .utf8)!
         let record = LocalScanRecord(
-            speciesId: "v15-regions",
-            scientificName: "Danaus plexippus",
-            commonName: "Monarch Butterfly",
-            globalDistributionRegionsJson: regionsJson
+            speciesId: "v26-lookalikes",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            similarSpecies: ["Procyon cancrivorus", "Bassariscus astutus"]
         )
         ctx.insert(record)
         try ctx.save()
@@ -145,10 +143,9 @@ struct ScanRepositoryTests {
         let id = record.id
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
         let fetched = try ctx.fetch(descriptor).first
-        let fetchedJson = try #require(fetched?.globalDistributionRegionsJson)
-        let decoded = try JSONDecoder().decode([String].self, from: Data(fetchedJson.utf8))
+        let names = try #require(fetched?.similarSpecies)
 
-        #expect(decoded == regions)
+        #expect(names == ["Procyon cancrivorus", "Bassariscus astutus"])
     }
 
     @Test func testV15PremiumFieldsDefaultToNilOnLegacyRecord() async throws {
@@ -167,6 +164,6 @@ struct ScanRepositoryTests {
 
         #expect(fetched?.aiReasoning == nil, "aiReasoning must default to nil for records without premium data")
         #expect(fetched?.habitatDescription == nil, "habitatDescription must default to nil")
-        #expect(fetched?.globalDistributionRegionsJson == nil, "globalDistributionRegionsJson must default to nil")
+        #expect(fetched?.similarSpecies == nil, "similarSpecies must default to nil for records without lookalike data")
     }
 }
