@@ -250,6 +250,71 @@ struct SpeciesDataTests {
         #expect(species.userConfirmedIdentification == false)
     }
 
+    // MARK: - SimilarSpeciesEntry: common name JSON round-trip
+
+    @Test func testSimilarSpeciesEntryRoundTripWithCommonName() throws {
+        // Verifies the Codable contract that lookalikesData persistence and
+        // the needsEnrichment gate both depend on.
+        let entry = SimilarSpeciesEntry(
+            scientificName: "Procyon cancrivorus",
+            commonName: "Crab-eating Raccoon",
+            referenceImageUrl: "https://example.com/img.jpg",
+            iucnRedListStatus: "LC"
+        )
+        let data = try JSONEncoder().encode([entry])
+        let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: data)
+
+        #expect(decoded.count == 1)
+        #expect(decoded[0].scientificName == "Procyon cancrivorus")
+        #expect(decoded[0].commonName == "Crab-eating Raccoon")
+        #expect(decoded[0].referenceImageUrl == "https://example.com/img.jpg")
+        #expect(decoded[0].iucnRedListStatus == "LC")
+    }
+
+    @Test func testSimilarSpeciesEntryRoundTripWithNilCommonName() throws {
+        // Nil commonName must survive a round-trip as nil (not empty string or missing key).
+        // The needsEnrichment gate uses allSatisfy { $0.commonName == nil } — a silent
+        // coercion to "" would break the gate and prevent common-name back-fill from firing.
+        let entry = SimilarSpeciesEntry(
+            scientificName: "Bassariscus astutus",
+            commonName: nil,
+            referenceImageUrl: nil,
+            iucnRedListStatus: nil
+        )
+        let data = try JSONEncoder().encode([entry])
+        let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: data)
+
+        #expect(decoded[0].commonName == nil, "nil commonName must decode as nil — not empty string")
+        #expect(decoded[0].referenceImageUrl == nil)
+        #expect(decoded[0].iucnRedListStatus == nil)
+    }
+
+    @Test func testAllNullCommonNamesDetection() throws {
+        // Directly validates the allSatisfy check used in load(from:)'s needsEnrichment gate.
+        let staleEntries = [
+            SimilarSpeciesEntry(scientificName: "Procyon cancrivorus", commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: "Bassariscus astutus", commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
+        ]
+        let data = try JSONEncoder().encode(staleEntries)
+        let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: data)
+
+        let lookalikesHaveNoCommonNames = !decoded.isEmpty && decoded.allSatisfy { $0.commonName == nil }
+        #expect(lookalikesHaveNoCommonNames == true, "All-null entries must trigger the enrichment gate")
+    }
+
+    @Test func testPartialCommonNamesDoNotTriggerEnrichmentGate() throws {
+        // Mixed entries (some nil, some non-nil) must NOT trigger needsEnrichment.
+        let mixedEntries = [
+            SimilarSpeciesEntry(scientificName: "Procyon cancrivorus", commonName: "Crab-eating Raccoon", referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: "Bassariscus astutus", commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
+        ]
+        let data = try JSONEncoder().encode(mixedEntries)
+        let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: data)
+
+        let lookalikesHaveNoCommonNames = !decoded.isEmpty && decoded.allSatisfy { $0.commonName == nil }
+        #expect(lookalikesHaveNoCommonNames == false, "At least one non-nil commonName must suppress enrichment re-trigger")
+    }
+
     // MARK: - Identification Candidates: IdentificationCandidate
 
     @Test func testIdentificationCandidateRoundTrip() throws {

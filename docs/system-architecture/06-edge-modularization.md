@@ -100,7 +100,25 @@ This guarantees that clients always receive at least the scientific names rather
 
 The migration path in `index.ts` converts legacy `TEXT[]` entries to `SimilarSpeciesEntry[]` with `common_name: null` before calling `resolveLookalikesToJoinTable` — the back-fill step will still fire for any matched dictionary rows whose column is null, even without a Flash-generated name in the entry.
 
-**`hasLookalikes` Gate — Require at Least One Non-Null Common Name:** The `hasLookalikes` guard in `enrich-scan/index.ts` is defined as `lookalikes.some((l) => l.common_name !== null)`, not `lookalikes.length > 0`. Join table rows from the migration path can have `common_name: null` for every entry when `species_dictionary.common_names` was null at migration time. Using `.length > 0` would treat these as fully enriched and skip the Flash call, leaving all common names permanently null. The `.some(...)` gate ensures Flash re-runs and `resolveLookalikesToJoinTable` back-fills the dictionary whenever all existing entries lack a common name.
+**`hasLookalikes` Gate — Common Name Presence + Flash Attempt Flag:** The `hasLookalikes` guard in `enrich-scan/index.ts` is:
+```typescript
+const hasLookalikes =
+  lookalikes.some((l) => l.common_name !== null) ||
+  cachedSpecies?.lookalikes_flash_attempted === true;
+```
+Two conditions, either of which skips Flash:
+1. **`lookalikes.some(...)`**: at least one entry has a known common name — the species is enriched.
+2. **`lookalikes_flash_attempted`**: Flash was previously attempted for this species and returned all-null common names. This covers legitimately obscure lookalike species (e.g. rare subspecies, newly described taxa) that have no widely-recognised English common name. Without this flag, `.some()` would never become true and Flash would re-run on every `enrich-scan` call indefinitely, wasting tokens without ever resolving a name.
+
+`lookalikes_flash_attempted` (`BOOLEAN NOT NULL DEFAULT false` on `species_dictionary`) is set to `true` in `index.ts` immediately after a Flash-sourced `resolveLookalikesToJoinTable` call completes — regardless of how many names were resolved. It is **not** set by the legacy TEXT[] migration path (which passes `common_name: null` for all entries) so that species with legacy-only data still trigger Flash at least once.
+
+**`merge_common_name_en` RPC — Locale-Safe Common Name Back-fill:** The back-fill in `resolveLookalikesToJoinTable` calls `supabaseAdmin.rpc("merge_common_name_en", { p_id, p_en_name })` instead of a direct PostgREST `.update()`. This is necessary because `species_dictionary.common_names` is a JSONB locale map (`{"en": "...", "fr": "..."}`) and PostgREST's `.update()` replaces the entire column — a direct write would overwrite existing locale keys. The RPC uses `COALESCE(common_names, '{}') || jsonb_build_object('en', p_en_name)` to merge only the `"en"` key, preserving all other locale entries. The function's `NOT (common_names ? 'en')` WHERE guard makes the call a safe no-op if `"en"` is already populated. The RPC is `SECURITY DEFINER` so it can write to `species_dictionary` without requiring the anon role to have a direct UPDATE policy.
+
+The back-fill fires for any matched dictionary row where:
+- Flash returned a non-null common name for that species, AND
+- The row has no `"en"` key (covers `NULL`, `{}`, and partial-locale objects like `{"fr": "..."}`)
+
+This enables the `common_names` column to serve as an ever-growing locale dictionary per species. When a French user base is added, a `merge_common_name_locale(p_id, p_locale, p_name)` generalisation of the same pattern can back-fill `"fr"` entries — or GBIF's `species/{id}/vernacularNames` endpoint (already fetched for `gbif_taxon_key`) can populate multiple locales in a single enrichment pass.
 
 **Gemini Flash `thinkingBudget: 0` Rule — Disable Thinking Tokens on Structured-Output Tasks:** All calls to `createFlashModel` (in `_shared/gemini.ts`) pass `thinkingConfig: { thinkingBudget: 0 }`. Gemini 2.5 Flash thinking tokens add ~2–4 s of latency with no accuracy benefit for deterministic, schema-constrained JSON generation tasks (enrichment extraction, lookalike resolution, etc.). Because `thinkingConfig` is not yet a typed field in the SDK version pinned in `_shared/gemini.ts`, it is cast via `as unknown as GenerationConfig`. Do not remove this cast — it is intentional.
 

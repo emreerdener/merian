@@ -95,11 +95,14 @@ serve((req: Request) =>
       }
     }
 
-    // Require at least one resolved common_name, not just any entry.
-    // Join table rows can exist from the migration path with common_name: null for every
-    // entry when species_dictionary.common_names was null at migration time. In that case
-    // we still need a Flash call to back-fill the common names via resolveLookalikesToJoinTable.
-    const hasLookalikes = lookalikes.some((l) => l.common_name !== null);
+    // Require at least one resolved common_name OR a prior Flash attempt flag.
+    // - lookalikes.some(...): enriched species with at least one known common name.
+    // - lookalikes_flash_attempted: Flash has already run for this species and returned
+    //   all-null common names (legitimately obscure lookalikes). Without this flag,
+    //   the .some() check would never become true and Flash would re-run on every call.
+    const hasLookalikes =
+      lookalikes.some((l) => l.common_name !== null) ||
+      cachedSpecies?.lookalikes_flash_attempted === true;
 
     if (hasEnrichment && hasLookalikes) {
       console.log(`[enrich-scan] CACHE HIT for ${scientific_name}`);
@@ -130,12 +133,19 @@ serve((req: Request) =>
       // Resolve newly-generated lookalike names into the join table.
       // resolveLookalikesToJoinTable returns the hydrated summaries directly —
       // no redundant fetchLookalikesFromJoinTable call needed.
+      // Mark lookalikes_flash_attempted after the call so future enrich-scan
+      // invocations skip Flash even when all common names are legitimately null
+      // (genuinely obscure lookalike species with no widely-recognised English name).
       if (similarResult?.similar_species && speciesId) {
         lookalikes = await resolveLookalikesToJoinTable(
           speciesId,
           similarResult.similar_species,
           supabaseAdmin,
         );
+        await supabaseAdmin
+          .from("species_dictionary")
+          .update({ lookalikes_flash_attempted: true })
+          .eq("id", speciesId);
       }
 
       const totalTokens =

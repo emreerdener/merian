@@ -9,7 +9,7 @@ export async function getCachedSpecies(
   const { data: cachedSpecies, error } = await supabaseAdmin
     .from("species_dictionary")
     .select(
-      "id, gbif_taxon_key, habitat_description, kingdom, phylum, class, order, family, genus, similar_species",
+      "id, gbif_taxon_key, habitat_description, kingdom, phylum, class, order, family, genus, similar_species, lookalikes_flash_attempted",
     )
     .eq("scientific_name", scientificName)
     .maybeSingle();
@@ -40,8 +40,10 @@ export async function fetchLookalikesFromJoinTable(
   if (error) throw error;
   if (!data || data.length === 0) return [];
 
+  // Cast through unknown: the Supabase client infers the embedded join field as an array
+  // internally, but PostgREST's !lookalike_id hint guarantees a single object (or null).
   return (
-    data as {
+    data as unknown as {
       lookalike: {
         scientific_name: string;
         common_names: Record<string, string> | null;
@@ -116,20 +118,28 @@ export async function resolveLookalikesToJoinTable(
 
   if (upsertError) throw upsertError;
 
-  // Back-fill common_names for species whose entire common_names column is NULL.
-  // Only fires when the Flash model returned a non-empty name and the DB column is
-  // fully absent (not merely missing the "en" key) — avoids overwriting partial locale data.
-  const backfills = typed.filter(
-    (m) => m.common_names === null && (entryByName.get(m.scientific_name)?.common_name ?? null) !== null,
-  );
+  // Back-fill the English common name for any matched species that:
+  //   a) Flash returned a non-null name for, AND
+  //   b) the species_dictionary row has no "en" key yet
+  //      (covers: common_names IS NULL, common_names = '{}', common_names = '{"fr":"..."}')
+  //
+  // Uses the merge_common_name_en RPC (JSONB || merge) instead of a direct .update()
+  // so that existing locale keys (e.g. "fr", "de") are preserved rather than overwritten.
+  // The RPC's own WHERE guard (NOT (common_names ? 'en')) makes each call a safe no-op
+  // if "en" was already populated by a concurrent request.
+  const backfills = typed.filter((m) => {
+    const flashName = entryByName.get(m.scientific_name)?.common_name ?? null;
+    if (!flashName) return false;
+    const hasEn = m.common_names != null && (m.common_names as Record<string, string>)["en"] != null;
+    return !hasEn;
+  });
   if (backfills.length > 0) {
     await Promise.allSettled(
       backfills.map((m) =>
-        supabaseAdmin
-          .from("species_dictionary")
-          .update({ common_names: { en: entryByName.get(m.scientific_name)!.common_name } })
-          .eq("id", m.id)
-          .is("common_names", null),
+        supabaseAdmin.rpc("merge_common_name_en", {
+          p_id: m.id,
+          p_en_name: entryByName.get(m.scientific_name)!.common_name,
+        }),
       ),
     );
   }
