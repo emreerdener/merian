@@ -74,9 +74,14 @@ public final class LocalScanRecord {
     
     /// User-defined custom tags for personal categorization and search indexing.
     @Attribute public var customTags: [String] = []
-    
+
     /// Tracks if a user has opened the scan's insight sheet. Defaults to true so historic scans don't receive "New" badges.
     public var hasBeenViewed: Bool = true
+
+    /// Gemini's photographic quality score (0–100) for the submitted image.
+    /// Derived from `image_quality.overall_score` in the edge response.
+    /// Nil for scans captured before V30.
+    @Attribute public var imageQualityScore: Int?
 
     public init(
         id: String = UUID().uuidString,
@@ -128,7 +133,8 @@ public final class LocalScanRecord {
         customTags: [String] = [],
         hasBeenViewed: Bool = false,
         userIdentificationOverride: String? = nil,
-        userConfirmedIdentification: Bool = false) {
+        userConfirmedIdentification: Bool = false,
+        imageQualityScore: Int? = nil) {
 
         self.id = id
         self.speciesId = speciesId
@@ -186,5 +192,6 @@ public final class LocalScanRecord {
         self.hasBeenViewed = hasBeenViewed
         self.userIdentificationOverride = userIdentificationOverride
         self.userConfirmedIdentification = userConfirmedIdentification
+        self.imageQualityScore = imageQualityScore
     }
 }

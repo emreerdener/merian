@@ -391,6 +391,7 @@ serve((req: Request) =>
             estimated_size_cm: estimated_size_cm ?? null,
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: payloadReadyForClient.candidates ?? null,
+            image_quality_score: parsedData.image_quality?.overall_score ?? null,
           },
           supabaseAdmin,
         );

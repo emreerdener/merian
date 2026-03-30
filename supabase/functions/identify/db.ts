@@ -144,6 +144,7 @@ export interface ScanInsertRow {
   estimated_size_cm?: number | null;
   inference_tier: string;
   candidates?: IdentificationCandidate[] | null;
+  image_quality_score?: number | null;
 }
 
 export async function insertScan(

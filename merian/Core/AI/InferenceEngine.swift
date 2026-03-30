@@ -804,6 +804,7 @@ private struct WikiSummaryResponse: Decodable {
             gbifTaxonKey: record.gbifTaxonKey,
             inferenceTier: record.inferenceTier,
             candidates: parsedCandidates,
+            imageQualityScore: record.imageQualityScore,
             aiScientificName: record.scientificName,
             userIdentificationOverride: record.userIdentificationOverride,
             userConfirmedIdentification: record.userConfirmedIdentification

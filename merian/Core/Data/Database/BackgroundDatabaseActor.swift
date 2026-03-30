@@ -143,6 +143,7 @@ actor BackgroundDatabaseActor {
                     weatherCondition: mappedData.weatherCondition,
                     weatherTemperatureF: mappedData.weatherTemperatureF,
                     similarSpecies: mappedData.similarSpecies?.lookalikes,
+                    candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
                     iucnRedListStatus: mappedData.iucnRedListStatus,
                     gpsLatitude: mappedData.gpsLatitude,
                     gpsLongitude: mappedData.gpsLongitude,
@@ -155,7 +156,9 @@ actor BackgroundDatabaseActor {
                     lifeStage: mappedData.lifeStage,
                     reproductiveCondition: mappedData.reproductiveCondition,
                     individualCount: mappedData.individualCount,
-                    ecologicalInteractions: mappedData.ecologicalInteractions
+                    ecologicalInteractions: mappedData.ecologicalInteractions,
+                    inferenceTier: mappedData.inferenceTier,
+                    imageQualityScore: mappedData.imageQualityScore
                 )
                 modelContext.insert(record)
                 do {
@@ -252,7 +255,8 @@ actor BackgroundDatabaseActor {
             lifeStage: mappedData.lifeStage,
             reproductiveCondition: mappedData.reproductiveCondition,
             individualCount: mappedData.individualCount,
-            ecologicalInteractions: mappedData.ecologicalInteractions
+            ecologicalInteractions: mappedData.ecologicalInteractions,
+            imageQualityScore: mappedData.imageQualityScore
         )
         modelContext.insert(record)
         do {

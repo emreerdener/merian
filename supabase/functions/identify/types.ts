@@ -28,12 +28,21 @@ export interface MerianIdentification {
   individual_count?: number;
   ecological_interactions?: string[];
   candidates?: IdentificationCandidate[] | null;
+  image_quality: ImageQuality;
 }
 
 /** A single alternative species the model considered when confidence was below threshold. */
 export interface IdentificationCandidate {
   scientific_name: string;
   confidence_score: number;
+}
+
+/** Photographic quality scores emitted by Gemini for every scan. */
+export interface ImageQuality {
+  sharpness: number;          // 1–10: focus and absence of motion blur
+  framing: number;            // 1–10: subject fully in frame and well-isolated
+  diagnostic_utility: number; // 1–10: taxonomic features clearly displayed
+  overall_score: number;      // 0–100: holistic encyclopedic reference quality
 }
 
 export interface ClientPayload extends MerianIdentification {

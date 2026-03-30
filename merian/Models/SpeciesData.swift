@@ -115,6 +115,12 @@ struct SpeciesData {
     /// tier-specific `MerianConfig.diagnosticTrigger` threshold. Nil for confident scans.
     var candidates: [IdentificationCandidate]?
 
+    /// Gemini's photographic quality score (0–100) for the submitted image.
+    /// Derived from `image_quality.overall_score` in the edge response.
+    /// Persisted to `LocalScanRecord.imageQualityScore` and `public.scans.image_quality_score`
+    /// for future community reference-photo curation. Nil for scans captured before V30.
+    let imageQualityScore: Int?
+
     /// The AI's original scientific name — never mutated after init.
     /// Preserved so CandidatesCard can show "AI originally suggested X" when override is active.
     let aiScientificName: String
@@ -190,6 +196,7 @@ extension SpeciesData {
         self.candidates = edgeRes.candidates.map { entries in
             entries.map { IdentificationCandidate(scientificName: $0.scientific_name, confidenceScore: $0.confidence_score) }
         }
+        self.imageQualityScore = edgeRes.image_quality?.overall_score
         self.aiScientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
         self.userIdentificationOverride = nil
         self.userConfirmedIdentification = false
@@ -236,6 +243,7 @@ extension SpeciesData {
         gbifTaxonKey: Int? = nil,
         inferenceTier: String? = nil,
         candidates: [IdentificationCandidate]? = nil,
+        imageQualityScore: Int? = nil,
         aiScientificName: String = "",
         userIdentificationOverride: String? = nil,
         userConfirmedIdentification: Bool = false
@@ -275,6 +283,7 @@ extension SpeciesData {
         self.gbifTaxonKey = gbifTaxonKey
         self.inferenceTier = inferenceTier
         self.candidates = candidates
+        self.imageQualityScore = imageQualityScore
         self.aiScientificName = aiScientificName.isEmpty ? scientificName : aiScientificName
         self.userIdentificationOverride = userIdentificationOverride
         self.userConfirmedIdentification = userConfirmedIdentification

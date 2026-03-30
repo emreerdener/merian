@@ -113,7 +113,7 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, species_dictionary(*)")
+                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, species_dictionary(*)")
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
@@ -283,6 +283,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let candidates: [CloudIdentificationCandidate]?
     let user_identification_override: String?
     let user_confirmed_identification: Bool?
+    let image_quality_score: Int?
     let species_dictionary: CloudSpeciesDictionary?
 }
 
@@ -477,6 +478,10 @@ actor HistoricalDatabaseActor {
                 existing.userConfirmedIdentification = true
                 didUpdate = true
             }
+            if existing.imageQualityScore == nil, let newScore = res.image_quality_score {
+                existing.imageQualityScore = newScore
+                didUpdate = true
+            }
         }
 
         if didUpdate {
@@ -555,7 +560,8 @@ actor HistoricalDatabaseActor {
                 customTags: scan.custom_tags ?? [],
                 hasBeenViewed: true,
                 userIdentificationOverride: scan.user_identification_override,
-                userConfirmedIdentification: scan.user_confirmed_identification ?? false
+                userConfirmedIdentification: scan.user_confirmed_identification ?? false,
+                imageQualityScore: scan.image_quality_score
             )
 
             modelContext.insert(record)

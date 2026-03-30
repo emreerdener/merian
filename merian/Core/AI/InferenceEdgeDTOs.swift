@@ -72,6 +72,17 @@ struct EdgeResponse: Codable {
         let confidence_score: Double
     }
     let candidates: [IdentificationCandidate]?
+
+    /// Photographic quality scores emitted by Gemini for every scan.
+    /// Used for future community reference-photo curation; `overall_score` (0–100) is
+    /// persisted to `LocalScanRecord.imageQualityScore` and `public.scans.image_quality_score`.
+    struct ImageQuality: Codable {
+        let sharpness: Int?
+        let framing: Int?
+        let diagnostic_utility: Int?
+        let overall_score: Int?
+    }
+    let image_quality: ImageQuality?
 }
 
 // MARK: - Enrich-Scan Response
