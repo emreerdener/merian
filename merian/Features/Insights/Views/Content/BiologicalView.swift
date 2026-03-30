@@ -21,6 +21,8 @@ struct BiologicalView: View {
                 paragraphs: viewModel.headerParagraphs,
                 confidenceScore: inferenceEngine.speciesData?.confidenceScore,
                 inferenceTier: inferenceEngine.speciesData?.inferenceTier,
+                userIdentificationOverride: inferenceEngine.speciesData?.userIdentificationOverride,
+                userConfirmedIdentification: inferenceEngine.speciesData?.userConfirmedIdentification ?? false,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
                 }
@@ -35,30 +37,27 @@ struct BiologicalView: View {
             ConservationBanner()
                 .cardEntrance(index: 2)
 
-            // MARK: - Similar Species Gallery
-            Group {
-                if let similarData = inferenceEngine.speciesData?.similarSpecies {
-                    let score = inferenceEngine.speciesData?.confidenceScore ?? 1.0
-                    let threshold = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger
-                    SimilarSpeciesGallery(
-                        similarData: similarData,
-                        isLowConfidence: score < threshold
-                    )
-                    .transition(.opacity)
-                } else if inferenceEngine.isEnrichmentLoading {
-                    SimilarSpeciesGallery.Skeleton()
-                        .transition(.opacity)
-                }
+            // MARK: - Identification Candidates
+            let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil ||
+                                 inferenceEngine.speciesData?.userConfirmedIdentification == true
+
+            if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
+               let candidates = inferenceEngine.speciesData?.candidates,
+               candidates.count >= 2 || hasReviewState {
+                CandidatesCard(
+                    candidates: candidates,
+                    aiScientificName: primaryAIName,
+                    inferenceTier: inferenceEngine.speciesData?.inferenceTier
+                )
+                .cardEntrance(index: 3)
             }
-            .animation(.easeInOut, value: inferenceEngine.isEnrichmentLoading)
-            .cardEntrance(index: 3)
 
             // MARK: - Educational Reference
             OverviewCard(
                 isSafariPresented: $isSafariPresented,
                 selectedWikiURL: $selectedWikiURL
             )
-            .cardEntrance(index: 4)
+            .cardEntrance(index: 5)
 
             // MARK: - Habitat & Distribution
             if let data = inferenceEngine.speciesData {
@@ -68,7 +67,7 @@ struct BiologicalView: View {
                     scanId: data.scanId
                 )
                 .padding(.top, 8)
-                .cardEntrance(index: 5)
+                .cardEntrance(index: 6)
             }
 
             // MARK: - Biological Classification
@@ -76,19 +75,34 @@ struct BiologicalView: View {
                 taxonomyData: inferenceEngine.speciesData?.taxonomy,
                 scientificName: inferenceEngine.speciesData?.scientificName
             )
-            .cardEntrance(index: 6)
+            .cardEntrance(index: 7)
+
+             // MARK: - Similar Species Gallery
+            Group {
+                if let similarData = inferenceEngine.speciesData?.similarSpecies {
+                    SimilarSpeciesGallery(
+                        similarData: similarData
+                    )
+                    .transition(.opacity)
+                } else if inferenceEngine.isEnrichmentLoading {
+                    SimilarSpeciesGallery.Skeleton()
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut, value: inferenceEngine.isEnrichmentLoading)
+            .cardEntrance(index: 4)
 
             // MARK: - Spatiotemporal Context
             ScanInformationCard(
                 speciesData: inferenceEngine.speciesData,
                 timestamp: timestamp
             )
-            .cardEntrance(index: 7)
+            .cardEntrance(index: 8)
 
             // MARK: - Custom Tags
             if let scanId = inferenceEngine.speciesData?.scanId {
                 UserTagsCard(scanId: scanId)
-                    .cardEntrance(index: 8)
+                    .cardEntrance(index: 9)
             }
         }
         .padding(.horizontal)

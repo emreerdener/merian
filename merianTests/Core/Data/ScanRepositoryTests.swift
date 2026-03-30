@@ -201,4 +201,93 @@ struct ScanRepositoryTests {
         #expect(fetched?.similarSpecies == nil, "similarSpecies must default to nil for records without lookalike data")
         #expect(fetched?.lookalikesData == nil, "lookalikesData must default to nil for records without rich lookalike data")
     }
+
+    // MARK: - V28 Candidates persistence
+
+    @Test func testV28CandidatesDataRoundTrip() async throws {
+        let ctx = try createPremiumFieldsContext()
+
+        let candidates: [IdentificationCandidate] = [
+            IdentificationCandidate(scientificName: "Procyon cancrivorus", confidenceScore: 0.71),
+            IdentificationCandidate(scientificName: "Bassariscus astutus", confidenceScore: 0.65)
+        ]
+        let blob = try JSONEncoder().encode(candidates)
+
+        let record = LocalScanRecord(
+            speciesId: "v28-candidates-repo",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            candidatesData: blob
+        )
+        ctx.insert(record)
+        try ctx.save()
+
+        let id = record.id
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+        let fetched = try #require(try ctx.fetch(descriptor).first)
+        let fetchedBlob = try #require(fetched.candidatesData)
+        let decoded = try JSONDecoder().decode([IdentificationCandidate].self, from: fetchedBlob)
+
+        #expect(decoded.count == 2)
+        #expect(decoded[0].scientificName == "Procyon cancrivorus")
+        #expect(decoded[0].confidenceScore == 0.71)
+        #expect(decoded[1].scientificName == "Bassariscus astutus")
+    }
+
+    // MARK: - V29 identification review persistence
+
+    @Test func testV29UserIdentificationOverrideRoundTrip() async throws {
+        let ctx = try createPremiumFieldsContext()
+        let record = LocalScanRecord(
+            speciesId: "v29-override-repo",
+            scientificName: "Procyon cancrivorus",
+            commonName: "Crab-eating Raccoon",
+            userIdentificationOverride: "Procyon cancrivorus"
+        )
+        ctx.insert(record)
+        try ctx.save()
+
+        let id = record.id
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+        let fetched = try ctx.fetch(descriptor).first
+
+        #expect(fetched?.userIdentificationOverride == "Procyon cancrivorus", "userIdentificationOverride must persist round-trip")
+    }
+
+    @Test func testV29UserConfirmedIdentificationRoundTrip() async throws {
+        let ctx = try createPremiumFieldsContext()
+        let record = LocalScanRecord(
+            speciesId: "v29-confirmed-repo",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            userConfirmedIdentification: true
+        )
+        ctx.insert(record)
+        try ctx.save()
+
+        let id = record.id
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+        let fetched = try ctx.fetch(descriptor).first
+
+        #expect(fetched?.userConfirmedIdentification == true, "userConfirmedIdentification must persist round-trip")
+    }
+
+    @Test func testV29NewFieldsDefaultCorrectly() async throws {
+        let ctx = try createPremiumFieldsContext()
+        let record = LocalScanRecord(
+            speciesId: "v29-defaults",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon"
+        )
+        ctx.insert(record)
+        try ctx.save()
+
+        let id = record.id
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+        let fetched = try ctx.fetch(descriptor).first
+
+        #expect(fetched?.candidatesData == nil, "candidatesData must default to nil for records captured before V28")
+        #expect(fetched?.userIdentificationOverride == nil, "userIdentificationOverride must default to nil — no user action yet")
+        #expect(fetched?.userConfirmedIdentification == false, "userConfirmedIdentification must default to false")
+    }
 }

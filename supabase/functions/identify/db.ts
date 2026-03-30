@@ -1,6 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { hasTierCached, setTierCache } from "../_shared/tierCache.ts";
-import { CachedSpeciesRow } from "./types.ts";
+import { CachedSpeciesRow, IdentificationCandidate } from "./types.ts";
 
 export async function upsertGhostUserIfMissing(
   userId: string,
@@ -143,6 +143,7 @@ export interface ScanInsertRow {
   ecological_interactions: string[];
   estimated_size_cm?: number | null;
   inference_tier: string;
+  candidates?: IdentificationCandidate[] | null;
 }
 
 export async function insertScan(

@@ -383,6 +383,251 @@ struct InferenceEngineTests {
         #expect(result.similarSpecies == nil, "nil similarSpecies on LocalScanRecord must not produce an empty SimilarSpecies struct")
     }
 
+    // MARK: - Identification Candidates: EdgeResponse decoding
+
+    @Test func testEdgeResponseDecodesCandidatesArray() throws {
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "scan_id": "cand_001",
+                "is_biological_subject": true,
+                "scientific_name": "Procyon lotor",
+                "common_name": "Raccoon",
+                "confidence_score": 0.82,
+                "insight_data": { "ai_reasoning": "A procyonid.", "hazard_type": "none" },
+                "candidates": [
+                    { "scientific_name": "Procyon cancrivorus", "confidence_score": 0.71 },
+                    { "scientific_name": "Bassariscus astutus", "confidence_score": 0.65 }
+                ]
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+
+        let candidates = try #require(wrapper.data.candidates, "candidates must decode from edge response JSON")
+        #expect(candidates.count == 2)
+        #expect(candidates[0].scientific_name == "Procyon cancrivorus")
+        #expect(candidates[0].confidence_score == 0.71)
+        #expect(candidates[1].scientific_name == "Bassariscus astutus")
+    }
+
+    @Test func testEdgeResponseNilCandidatesOnHighConfidenceScan() throws {
+        // Server strips candidates before sending when confidence >= diagnosticTrigger.
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "is_biological_subject": true,
+                "scientific_name": "Danaus plexippus",
+                "common_name": "Monarch Butterfly",
+                "confidence_score": 0.97,
+                "insight_data": { "ai_reasoning": "Distinctive wings.", "hazard_type": "none" }
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+
+        #expect(wrapper.data.candidates == nil, "Absent candidates key must decode as nil, not an empty array")
+    }
+
+    // MARK: - Identification Candidates: load(from:) — V28/V29 fields
+
+    @Test func testLoadFromRecordDecodesCandidatesData() throws {
+        let candidates: [IdentificationCandidate] = [
+            IdentificationCandidate(scientificName: "Procyon cancrivorus", confidenceScore: 0.71),
+            IdentificationCandidate(scientificName: "Bassariscus astutus", confidenceScore: 0.65)
+        ]
+        let blob = try JSONEncoder().encode(candidates)
+
+        let record = LocalScanRecord(
+            speciesId: "v28-candidates",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            candidatesData: blob
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+
+        let result = try #require(engine.speciesData)
+        let decoded = try #require(result.candidates, "load(from:) must decode candidatesData blob into SpeciesData.candidates")
+
+        #expect(decoded.count == 2)
+        #expect(decoded[0].scientificName == "Procyon cancrivorus")
+        #expect(decoded[0].confidenceScore == 0.71)
+    }
+
+    @Test func testLoadFromRecordNilCandidatesDataYieldsNilCandidates() throws {
+        let record = LocalScanRecord(
+            speciesId: "v28-no-candidates",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon"
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+
+        let result = try #require(engine.speciesData)
+        #expect(result.candidates == nil, "Nil candidatesData must produce nil candidates — not an empty array")
+    }
+
+    @Test func testLoadFromRecordPopulatesAIScientificName() throws {
+        // load(from:) passes record.scientificName as aiScientificName, capturing the AI's
+        // original identification before any user override can be applied.
+        let record = LocalScanRecord(
+            speciesId: "v29-ai-name",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon"
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+
+        let result = try #require(engine.speciesData)
+        #expect(result.aiScientificName == "Procyon lotor", "load(from:) must set aiScientificName from record.scientificName")
+    }
+
+    @Test func testLoadFromRecordPopulatesUserIdentificationOverride() throws {
+        // When a user previously overrode the identification, override is rehydrated on load.
+        let record = LocalScanRecord(
+            speciesId: "v29-override-load",
+            scientificName: "Procyon cancrivorus",
+            commonName: "Crab-eating Raccoon",
+            userIdentificationOverride: "Procyon cancrivorus"
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+
+        let result = try #require(engine.speciesData)
+        #expect(result.userIdentificationOverride == "Procyon cancrivorus", "load(from:) must restore userIdentificationOverride from the persisted record")
+    }
+
+    @Test func testLoadFromRecordPopulatesUserConfirmedIdentification() throws {
+        // When a user previously confirmed the AI, the flag is restored on load.
+        let record = LocalScanRecord(
+            speciesId: "v29-confirmed-load",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            userConfirmedIdentification: true
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+
+        let result = try #require(engine.speciesData)
+        #expect(result.userConfirmedIdentification == true, "load(from:) must restore userConfirmedIdentification from the persisted record")
+    }
+
+    // MARK: - Identification Review: engine methods
+
+    @Test func testConfirmAIIdentificationSetsConfirmedFlag() async throws {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "confirm_scan_001",
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: InsightData(aiReasoning: "A mammal.", hazardType: "none"),
+            confidenceScore: 0.92,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial"
+        )
+
+        await engine.confirmAIIdentification(modelContext: nil)
+
+        #expect(engine.speciesData?.userConfirmedIdentification == true, "confirmAIIdentification must set userConfirmedIdentification to true")
+        #expect(engine.speciesData?.userIdentificationOverride == nil, "confirmAIIdentification must not set an override")
+    }
+
+    @Test func testConfirmAIIdentificationIsNoOpWhenScanIdMissing() async throws {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: nil,
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: InsightData(aiReasoning: "A mammal.", hazardType: "none"),
+            confidenceScore: 0.92,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial"
+        )
+
+        await engine.confirmAIIdentification(modelContext: nil)
+
+        #expect(engine.speciesData?.userConfirmedIdentification == false, "No-op when scanId is nil — userConfirmedIdentification must remain false")
+    }
+
+    @Test func testApplyIdentificationOverrideMutatesSpeciesData() async throws {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "override_scan_001",
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: InsightData(aiReasoning: "A procyonid.", hazardType: "none"),
+            confidenceScore: 0.82,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial",
+            aiScientificName: "Procyon lotor"
+        )
+
+        await engine.applyIdentificationOverride(scientificName: "Procyon cancrivorus", modelContext: nil)
+
+        #expect(engine.speciesData?.scientificName == "Procyon cancrivorus", "Override must update scientificName immediately")
+        #expect(engine.speciesData?.userIdentificationOverride == "Procyon cancrivorus", "Override must set userIdentificationOverride")
+        #expect(engine.speciesData?.userConfirmedIdentification == false, "Override clears confirmed flag")
+        #expect(engine.speciesData?.aiScientificName == "Procyon lotor", "aiScientificName must be preserved after override")
+    }
+
+    @Test func testResetIdentificationReviewClearsBothFields() async throws {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "reset_scan_001",
+            commonName: "Crab-eating Raccoon",
+            scientificName: "Procyon cancrivorus",
+            insightData: InsightData(aiReasoning: "A procyonid.", hazardType: "none"),
+            confidenceScore: 0.82,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial",
+            aiScientificName: "Procyon lotor",
+            userIdentificationOverride: "Procyon cancrivorus"
+        )
+
+        await engine.resetIdentificationReview(modelContext: nil)
+
+        #expect(engine.speciesData?.userIdentificationOverride == nil, "Reset must clear userIdentificationOverride")
+        #expect(engine.speciesData?.userConfirmedIdentification == false, "Reset must clear userConfirmedIdentification")
+        #expect(engine.speciesData?.scientificName == "Procyon lotor", "Reset must revert scientificName to aiScientificName")
+        #expect(engine.speciesData?.aiScientificName == "Procyon lotor", "aiScientificName must remain unchanged after reset")
+    }
+
+    @Test func testResetIdentificationReviewIsNoOpWhenScanIdMissing() async throws {
+        // When scanId is nil, reset bails out without mutating any fields.
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: nil,
+            commonName: "Crab-eating Raccoon",
+            scientificName: "Procyon cancrivorus",
+            insightData: InsightData(aiReasoning: "A procyonid.", hazardType: "none"),
+            confidenceScore: 0.82,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial",
+            aiScientificName: "Procyon lotor",
+            userIdentificationOverride: "Procyon cancrivorus"
+        )
+
+        await engine.resetIdentificationReview(modelContext: nil)
+
+        #expect(engine.speciesData?.userIdentificationOverride == "Procyon cancrivorus", "No-op when scanId is nil — override must remain unchanged")
+        #expect(engine.speciesData?.scientificName == "Procyon cancrivorus", "No-op when scanId is nil — scientificName must remain unchanged")
+    }
+
     // MARK: - Inference Tier Configuration Validation
     @Test func testInferenceTier_ConfigurationValidation() throws {
         // Assert Flash Free-Tier thresholds are strict

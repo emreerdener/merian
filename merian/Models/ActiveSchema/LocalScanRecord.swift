@@ -41,6 +41,17 @@ public final class LocalScanRecord {
 
     public var similarSpecies: [String]?
     public var lookalikesData: Data?
+    /// JSON-encoded `[IdentificationCandidate]` — the model's top alternative species when
+    /// `confidenceScore` fell below the tier-specific `MerianConfig.diagnosticTrigger` threshold.
+    /// Nil for high-confidence scans and all scans captured before V28.
+    @Attribute public var candidatesData: Data?
+
+    /// Scientific name chosen by the user when they disagreed with the AI's identification.
+    /// Nil means no override — AI identification accepted by default. Cloud-synced.
+    @Attribute public var userIdentificationOverride: String?
+    /// Local-only flag set when user taps "Yes, correct" on the CandidatesCard prompt.
+    /// Suppresses the "Was the AI correct?" prompt on re-open. Not synced to cloud.
+    @Attribute public var userConfirmedIdentification: Bool = false
 
     @Attribute public var iucnRedListStatus: String?
     @Attribute public var gpsLatitude: Double?
@@ -99,6 +110,7 @@ public final class LocalScanRecord {
         collections: [ScanCollection]? = [],
         similarSpecies: [String]? = nil,
         lookalikesData: Data? = nil,
+        candidatesData: Data? = nil,
         iucnRedListStatus: String? = nil,
         gpsLatitude: Double? = nil,
         gpsLongitude: Double? = nil,
@@ -114,7 +126,9 @@ public final class LocalScanRecord {
         ecologicalInteractions: [String]? = nil,
         inferenceTier: String? = nil,
         customTags: [String] = [],
-        hasBeenViewed: Bool = false) {
+        hasBeenViewed: Bool = false,
+        userIdentificationOverride: String? = nil,
+        userConfirmedIdentification: Bool = false) {
 
         self.id = id
         self.speciesId = speciesId
@@ -151,6 +165,7 @@ public final class LocalScanRecord {
 
         self.similarSpecies = similarSpecies
         self.lookalikesData = lookalikesData
+        self.candidatesData = candidatesData
         self.iucnRedListStatus = iucnRedListStatus
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
@@ -169,5 +184,7 @@ public final class LocalScanRecord {
         self.inferenceTier = inferenceTier
         self.customTags = customTags
         self.hasBeenViewed = hasBeenViewed
+        self.userIdentificationOverride = userIdentificationOverride
+        self.userConfirmedIdentification = userConfirmedIdentification
     }
 }

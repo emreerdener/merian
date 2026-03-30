@@ -27,6 +27,13 @@ export interface MerianIdentification {
     | "not_applicable";
   individual_count?: number;
   ecological_interactions?: string[];
+  candidates?: IdentificationCandidate[] | null;
+}
+
+/** A single alternative species the model considered when confidence was below threshold. */
+export interface IdentificationCandidate {
+  scientific_name: string;
+  confidence_score: number;
 }
 
 export interface ClientPayload extends MerianIdentification {

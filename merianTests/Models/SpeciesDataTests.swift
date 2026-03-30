@@ -181,4 +181,139 @@ struct SpeciesDataTests {
         #expect(species.similarSpecies?.entries[0].scientificName == "Procyon cancrivorus")
         #expect(species.similarSpecies?.lookalikes == ["Procyon cancrivorus"])
     }
+
+    // MARK: - Identification Review: aiScientificName & override fields
+
+    @Test func testAIScientificNameSetFromEdgeResponseInit() throws {
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "is_biological_subject": true,
+                "scientific_name": "Danaus plexippus",
+                "common_name": "Monarch Butterfly",
+                "confidence_score": 0.98,
+                "insight_data": { "ai_reasoning": "A butterfly.", "hazard_type": "none" }
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+        let species = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
+
+        #expect(species.aiScientificName == "Danaus plexippus", "aiScientificName must mirror scientific_name from the edge response")
+        #expect(species.userIdentificationOverride == nil, "Override must be nil on fresh inference — no user action has occurred")
+        #expect(species.userConfirmedIdentification == false, "Confirmed must be false on fresh inference")
+    }
+
+    @Test func testMemberwiseInitAIScientificNameFallsBackToScientificName() {
+        // When aiScientificName is omitted (empty default), memberwise init falls back to scientificName.
+        // This ensures load(from:) callers don't need to guard against empty aiScientificName.
+        let insightData = InsightData(aiReasoning: "A raccoon.", hazardType: "none")
+        let species = SpeciesData(
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: insightData,
+            confidenceScore: 0.92
+            // aiScientificName omitted — defaults to "" which triggers the fallback
+        )
+
+        #expect(species.aiScientificName == "Procyon lotor", "Empty aiScientificName must fall back to scientificName in memberwise init")
+    }
+
+    @Test func testMemberwiseInitAIScientificNameIsPreservedWhenExplicit() {
+        // When both scientificName (display) and aiScientificName (AI original) are provided
+        // — the override scenario — aiScientificName must not be overwritten.
+        let insightData = InsightData(aiReasoning: "A raccoon.", hazardType: "none")
+        let species = SpeciesData(
+            commonName: "Crab-eating Raccoon",
+            scientificName: "Procyon cancrivorus",   // patched to override species
+            insightData: insightData,
+            confidenceScore: 0.92,
+            aiScientificName: "Procyon lotor"        // AI's original, preserved independently
+        )
+
+        #expect(species.aiScientificName == "Procyon lotor", "Explicit aiScientificName must not be overwritten by scientificName")
+        #expect(species.scientificName == "Procyon cancrivorus", "scientificName holds the override (display) name")
+    }
+
+    @Test func testReviewFieldDefaultsInMemberwiseInit() {
+        let insightData = InsightData(aiReasoning: "A butterfly.", hazardType: "none")
+        let species = SpeciesData(
+            commonName: "Monarch Butterfly",
+            scientificName: "Danaus plexippus",
+            insightData: insightData,
+            confidenceScore: 0.98
+        )
+
+        #expect(species.userIdentificationOverride == nil)
+        #expect(species.userConfirmedIdentification == false)
+    }
+
+    // MARK: - Identification Candidates: IdentificationCandidate
+
+    @Test func testIdentificationCandidateRoundTrip() throws {
+        let candidates: [IdentificationCandidate] = [
+            IdentificationCandidate(scientificName: "Procyon cancrivorus", confidenceScore: 0.71),
+            IdentificationCandidate(scientificName: "Bassariscus astutus", confidenceScore: 0.65)
+        ]
+
+        let encoded = try JSONEncoder().encode(candidates)
+        let decoded = try JSONDecoder().decode([IdentificationCandidate].self, from: encoded)
+
+        #expect(decoded.count == 2)
+        #expect(decoded[0].scientificName == "Procyon cancrivorus")
+        #expect(decoded[0].confidenceScore == 0.71)
+        #expect(decoded[1].scientificName == "Bassariscus astutus")
+        #expect(decoded[1].confidenceScore == 0.65)
+    }
+
+    @Test func testCandidatesMappedFromEdgeResponse() throws {
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "scan_id": "candidates_spec_scan",
+                "is_biological_subject": true,
+                "scientific_name": "Procyon lotor",
+                "common_name": "Raccoon",
+                "confidence_score": 0.78,
+                "insight_data": { "ai_reasoning": "A procyonid.", "hazard_type": "none" },
+                "candidates": [
+                    { "scientific_name": "Procyon cancrivorus", "confidence_score": 0.71 },
+                    { "scientific_name": "Bassariscus astutus", "confidence_score": 0.65 }
+                ]
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+        let species = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
+
+        let candidates = try #require(species.candidates, "SpeciesData must map candidates array from edge response")
+        #expect(candidates.count == 2)
+        #expect(candidates[0].scientificName == "Procyon cancrivorus")
+        #expect(candidates[0].confidenceScore == 0.71)
+    }
+
+    @Test func testNilCandidatesOnHighConfidenceEdgeResponse() throws {
+        // Server strips candidates before sending when confidence >= diagnosticTrigger.
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "is_biological_subject": true,
+                "scientific_name": "Danaus plexippus",
+                "common_name": "Monarch Butterfly",
+                "confidence_score": 0.97,
+                "insight_data": { "ai_reasoning": "Distinctive wings.", "hazard_type": "none" }
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+        let species = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
+
+        #expect(species.candidates == nil, "Absent candidates key must produce nil — not an empty array")
+    }
 }

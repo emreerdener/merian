@@ -49,6 +49,19 @@ const schemaProperties: Record<string, ResponseSchema> = {
     type: SchemaType.ARRAY,
     items: { type: SchemaType.STRING },
   },
+  candidates: {
+    type: SchemaType.ARRAY,
+    items: {
+      type: SchemaType.OBJECT,
+      properties: {
+        scientific_name: { type: SchemaType.STRING },
+        confidence_score: { type: SchemaType.NUMBER },
+      },
+      required: ["scientific_name", "confidence_score"],
+    },
+    description:
+      "Only populate when genuinely uncertain between multiple species (i.e. confidence_score is low). Include up to 2 alternative species you seriously considered, with your estimated confidence for each. Omit entirely for clear, confident identifications.",
+  },
 };
 
 export const merianResponseSchema: ResponseSchema = {

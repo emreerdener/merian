@@ -11,20 +11,21 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `InsightSheetViewModel` | `@Observable @MainActor final class` — UI state, SwiftData ops, share/export |
 | `InsightSheetView` | Root sheet view; owns `@State private var viewModel = InsightSheetViewModel()` |
 | `InsightContentView` | Routes to `BiologicalView` or `NonBiologicalView` based on `speciesData.isBiological` |
-| `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier` (indices 0–8). |
+| `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier` (indices 0–9). |
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
-| `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match" |
+| `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match". Passes `userIdentificationOverride` and `userConfirmedIdentification` from `speciesData` down to `ConfidenceBadge`. |
 | `ImagesCarousel` | Horizontally scrolling image strip combining live captures + historic paths + reference images |
-| `ConfidenceBadge` | Tappable capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap |
+| `ConfidenceBadge` | Tappable capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap. When `userIdentificationOverride` is non-nil, shows "Your ID" (indigo, `person.fill.checkmark`). When `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.seal.fill`). |
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
-| `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy |
+| `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an override is active, replaces normal content with override-specific explanation showing the override name, the original AI name, and undo instructions. |
+| `CandidatesCard` | Identification candidates card with a four-state approve/deny UX. Shown when `speciesData.candidates` has ≥ 2 entries **or** when a review state (override/confirmed) is already set. Gated in `BiologicalView` via `candidates.count >= 2 || hasReviewState`. |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
 | `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalikes sourced from `speciesData.similarSpecies`. Each `SimilarSpeciesCard` natively renders `referenceImageUrl` or asynchronously falls back to `SimilarSpeciesImageFetcher` (Wikipedia → GBIF waterfall). Features aggressive reactive filtering: if all backend and fallback media sources organically fail, or names are null, cards are dynamically purged via a shared `@State` invalidation set (`failedMediaIdentifiers`). If the entire dataset collapses, the gallery cleanly unmounts via `EmptyView()` to prevent uncentered layouts mapping. |
 | `OverviewCard` | Structural card rendering dynamic biological KeyValueRow metrics (e.g., size, life stage, interactions, invasive species status) followed by an 8-line truncated Wikipedia extract and a built-in Safari "Learn more" button. |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
 | `GBIFHeatmapMapView` | SwiftUI `View` that composites two images to render a full-world GBIF occurrence heatmap natively. (1) A static `WorldMapBase` custom Mapbox topography background image, entirely eliminating MapKit CPU overhead. (2) The GBIF density zoom-0 tile (`/0/0/0@2x.png`) — a single 512 px PNG covering the entire world in Web Mercator — is fetched and drawn on top. Both images perfectly align their projection/extent. Features a custom `UIViewRepresentable` bridge (`PinchPanOverlay`) which unlocks elastic 2-finger pinch and pan exploration. This gesture controller safely locks down the encompassing parent `ScrollView` and engages `.interactiveDismissDisabled` on the bottom sheet to prevent SwiftUI swipe cancellation conflicts during map manipulation. |
 | `HabitatAndDistributionCard` | Habitat and distribution card: encyclopedic habitat text. Has three states: (1) **Loaded** — habitat text; (2) **Loading** — shimmer skeleton shown while `inferenceEngine.isEnrichmentLoading` is `true`; (3) **Retry** — data missing, tap to re-trigger `fetchAndApplyEnrichment`. |
-| `ToxicityBanner` | Glassmorphic hazard warning banner shown when `insightData.hazardType != "none"`. Implements a premium liquid-glass design using `.regularMaterial` and amber tinting, explicitly constrained using `maxWidth: .infinity` full-bleed bounds. Displays hazard-specific copy: venomous, allergenic, irritant, or toxic. |
+| `ToxicityBanner` | Glassmorphic hazard warning banner shown when `insightData.hazardType != "none"`. Implements a premium liquid-glass design using `.regularMaterial` and dynamic tinting (`.red` for severe threats like venomous/poisonous, `.yellow` for allergens/irritants), explicitly constrained using `maxWidth: .infinity` full-bleed bounds. Displays hazard-specific copy. |
 | `ConservationBanner` | IUCN Red List status banner |
 | `CelebrationBanner` | "New Discovery" confetti overlay |
 
@@ -110,19 +111,84 @@ When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `ha
 | **Loading** | `inferenceEngine.isEnrichmentLoading == true` | Shimmer skeleton (3 text lines) |
 | **Retry** | No data, not loading | "Retry" button → calls `inferenceEngine.fetchAndApplyEnrichment` |
 
-### Similar Species Display Gate
+### Similar Species Rendering
 
-`similar_species` data is rendered by `SimilarSpeciesGallery` inside `BiologicalView` at `cardEntrance(index: 3)`. The gallery receives an `isLowConfidence` flag driven by the scan's `confidenceScore` against the user's tiered `.diagnosticTrigger` threshold (0.88 for Free/Flash; 0.80 for Premium/Pro). When `isLowConfidence = true`, the gallery shows a "POTENTIAL LOOKALIKES" warning label; otherwise it is presented as informational "SIMILAR SPECIES". `enrich-scan` always returns `similar_species` when data is available — no confidence gate is applied on the backend or in `fetchAndApplyEnrichment`.
+`similar_species` data is rendered by `SimilarSpeciesGallery` inside `BiologicalView` sequentially. The gallery is explicitly treated as informational and unconditionally renders as "SIMILAR SPECIES". (Previous dynamic confidence-based gating has been removed to prioritize objective reference availability).
 
-Each `SimilarSpeciesCard` receives a `SimilarSpeciesEntry` with `scientificName`, `commonName`, `referenceImageUrl`, and `iucnRedListStatus`. When `referenceImageUrl` is non-nil (join table resolved a field photo), the card renders it directly via `AsyncLocalImageView`. When nil (historical records without a join table entry), the card falls back to `SimilarSpeciesImageFetcher` for an on-demand Wikipedia/GBIF lookup.
+**Mathematical Baseline Constraints**: To prevent Apple's SwiftUI Layout Engine from allowing extreme intrinsic image aspect ratios (e.g., highly vertical photos) from stretching the `maxHeight` boundaries and destroying the symmetric masonry of the horizontal scrolling row, `SimilarSpeciesCard` enforces absolute mathematical geometry. The overall card bounds are strictly locked to `240` points. The bottom text compartment allocates `60` points (`48` text space + `12` padding) to comfortably fit a 2-line `.subheadline` Common Name and a 1-line `.caption` Scientific Name. The topmost image compartment is definitively clamped to `160` points. 
+
+Each `SimilarSpeciesCard` receives a `SimilarSpeciesEntry`. When `referenceImageUrl` is non-nil, the card renders it directly via `AsyncLocalImageView`. When nil, the card gracefully spawns an asynchronous `SimilarSpeciesImageFetcher` Wikipedia/GBIF waterfall lookup. If all media paths logically fail, the missing card instantly invalidates itself and collapses out of the gallery layout layer via an upstream state hook.
+
+---
+
+## Identification Candidates
+
+When the AI's confidence falls below the tier-specific `diagnosticTrigger` threshold (`0.88` for Free/Flash, `0.80` for Pro), Gemini is instructed to emit up to 2 alternative species it genuinely considered alongside the primary identification. These are stored on the scan and displayed as a `CandidatesCard` in `BiologicalView`.
+
+### Data Flow
+
+1. **Gemini schema** (`supabase/functions/identify/schema.ts`): The `merianResponseSchema` includes a `candidates` array field. The system instruction tells the model to only populate it when genuinely uncertain between species — not as a reflexive "alternatives" list. Each entry is `{ scientific_name, confidence_score }`.
+2. **Server-side strip** (`supabase/functions/identify/index.ts`): After Gemini returns, `index.ts` computes `diagnosticTrigger = userTier === "pro" ? 0.80 : 0.88`. If `confidence_score >= diagnosticTrigger`, the `candidates` array is cleared to `null` before the response is sent to the client and before the `insertScan` DB write. This is a defense-in-depth measure — even if the model emits candidates at high confidence, the server discards them.
+3. **Supabase persistence** (`candidates` JSONB, migration `20260330000000_add_candidates_to_scans.sql`): Stored as a JSONB column on `public.scans`. `NULL` for high-confidence scans and all scans from before this migration. A partial index (`WHERE candidates IS NOT NULL`) keeps index overhead minimal since the vast majority of scans are high-confidence.
+4. **SwiftData persistence** (`candidatesData: Data?`, `MerianSchemaV28`): The iOS client JSON-encodes `[IdentificationCandidate]` via `JSONEncoder` and stores the blob in `LocalScanRecord.candidatesData`. `InferenceEngine.load(from:)` decodes it back via `JSONDecoder` for historical scans.
+5. **Historical sync** (`ScanRepository.syncHistoricalScansDown`): The `candidates` column is included in the `SELECT` query. A `CloudIdentificationCandidate` DTO (`{ scientific_name: String, confidence_score: Double }`) decodes the cloud JSONB. `ingestScans` re-encodes it to `IdentificationCandidate` and persists as `candidatesData`. The `updateExistingScans` backfill path checks `existing.candidatesData == nil` before writing, ensuring cloud candidates are retroactively available in pre-existing local records.
+
+### Display Gate
+
+`BiologicalView` renders `CandidatesCard` when the scan has ≥ 2 candidates **or** when a review state is already recorded (so the card persists after the user has acted):
+```swift
+let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil
+                  || inferenceEngine.speciesData?.userConfirmedIdentification == true
+if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
+   let candidates = inferenceEngine.speciesData?.candidates,
+   (candidates.count >= 2 || hasReviewState) {
+    CandidatesCard(candidates: candidates,
+                   aiScientificName: primaryAIName,
+                   inferenceTier: speciesData.inferenceTier)
+        .cardEntrance(index: 3)
+}
+```
+
+The `candidates.count >= 2` guard prevents the card from showing for genuinely ambiguous single-alternative cases (rare, but possible). `CandidatesCard` internally computes the threshold via `MerianConfig.confidenceBands(forInferenceTier: inferenceTier).diagnosticTrigger` for display-only purposes (e.g., subtitle copy).
+
+### Stage 2 — Approve / Deny UX
+
+Users can confirm or override the AI's primary identification directly from `CandidatesCard`. The card manages a local `ReviewState` enum:
+
+- **`.pending`**: Default state. Shows a "Was the AI correct?" prompt with a "Yes, that's right" button and a "Not sure / Show alternatives" toggle. Tapping "Yes" calls `InferenceEngine.confirmAIIdentification(modelContext:)`, setting `userConfirmedIdentification = true` locally and transitioning to `.confirmed`.
+- **`.confirmed`**: Replaces the prompt with nothing (the card hides its body). `ConfidenceBadge` transitions to "Confirmed" (green, `checkmark.seal.fill`). `ConfidenceExplanationSheet` shows a confirmation message.
+- **`.overridden(to:)`**: Active after the user selects a candidate as their preferred identification. Renders an `OverriddenView` showing "Your identification" with the override name, "AI originally suggested X" footer, and an Undo button. `ConfidenceBadge` transitions to "Your ID" (indigo, `person.fill.checkmark`).
+
+**Override flow**: Selecting a candidate calls `InferenceEngine.applyIdentificationOverride(scientificName:modelContext:)`, which:
+1. Mutates `speciesData.userIdentificationOverride` and `speciesData.scientificName` to the override name.
+2. Persists `LocalScanRecord.userIdentificationOverride` via `BackgroundDatabaseActor.updateScanWithOverride`.
+3. Syncs to `public.scans.user_identification_override` via a direct PostgREST PATCH (`InferenceEngine.syncIdentificationReviewToCloud`), guarded by `.eq("user_id", userId)`.
+4. Fires `fetchAndPatchOverrideData(scientificName:scanId:modelContext:)` — queries `species_dictionary` for a cache hit and patches `speciesData` fields (common name, taxonomy, Wikipedia, etc.). On cache miss, calls `fetchAndApplyEnrichment` (which uses the already-mutated `speciesData.scientificName` as the lookup key).
+
+**Data model**: Two fields on `LocalScanRecord` (both added in `MerianSchemaV29`), both cloud-synced:
+- `userIdentificationOverride: String?` — mirrors `public.scans.user_identification_override`.
+- `userConfirmedIdentification: Bool` — mirrors `public.scans.user_confirmed_identification`. Both fields are sent in the same `ReviewSyncPayload` Encodable struct in `syncIdentificationReviewToCloud`.
+
+**Re-identification**: A user who has already acted on a review can always re-enter the selection flow:
+- From `.overridden`: tap Undo → calls `resetIdentificationReview` → reverts to `.pending` with full candidate list visible.
+- From `.confirmed`: tap "Change" in `ConfirmedView` → calls `resetIdentificationReview` → reverts to `.pending`.
+- `resetIdentificationReview` clears both fields locally and in the cloud, reverts `speciesData.scientificName` to `aiScientificName`, and re-hydrates the AI's original species data from `species_dictionary`.
+
+**Cross-device sync caveat**: `ScanRepository.updateExistingScans` propagates `userConfirmedIdentification` in the `true` direction only — a reset performed on device A (which syncs `user_confirmed_identification = false` to the cloud) will not propagate to device B during that device's next sync. Device B retains its local confirmed/overridden state. Full bidirectional review-state sync is deferred.
 
 ---
 
 ## Confidence Badge and Spectrum
 
-`ConfidenceBadge` is a tappable liquid-glass capsule that shows the AI's confidence band for the current scan. The band label, color, and icon are derived from `confidenceScore` against the `MerianConfig` thresholds. An animated holographic shimmer sweeps across the badge rim every 4–10 seconds. Tapping it opens `ConfidenceExplanationSheet`.
+`ConfidenceBadge` is a tappable liquid-glass capsule that shows the AI's confidence band for the current scan. The badge first checks identification review state before falling back to the confidence-band logic:
 
-Band thresholds (managed dynamically via `MerianConfig.confidenceBands(for: isPro)`):
+**Identification review states** (take precedence over confidence bands):
+| State | Label | Color | Icon | Trigger |
+|---|---|---|---|---|
+| User override | "Your ID" | Indigo | `person.fill.checkmark` | `userIdentificationOverride != nil` |
+| User confirmed | "Confirmed" | Green | `checkmark.seal.fill` | `userConfirmedIdentification == true` |
+
+**Confidence bands** (when no review state is set — managed dynamically via `MerianConfig.confidenceBands(for: isPro)`):
 
 **Gemini 2.5 Flash (Free Tier)**
 | Band label | Color | Score range |
@@ -138,9 +204,11 @@ Band thresholds (managed dynamically via `MerianConfig.confidenceBands(for: isPr
 | Possible match | Orange | 65% – 84% |
 | Weak match | Gray | Below 65% |
 
+The badge renders for override/confirmed states even when `confidenceScore == 0` (historical scans where confidence is unavailable).
+
 `ConfidenceSpectrum` renders a vertical list of `SpectrumNode` items using the same `MerianConfig` constants so the displayed percentage ranges are always in sync with the badge logic.
 
-`ConfidenceExplanationSheet` opens as a bottom sheet from the badge tap. It contains `ConfidenceHeader`, `ConfidenceSpectrum`, `AIMistakesBanner`, and `ProTips` (which conditionally shows a location permission prompt when GPS access is not granted).
+`ConfidenceExplanationSheet` opens as a bottom sheet from the badge tap. It contains `ConfidenceHeader`, `ConfidenceSpectrum`, `AIMistakesBanner`, and `ProTips` (which conditionally shows a location permission prompt when GPS access is not granted). When `userIdentificationOverride` is non-nil, the sheet replaces its normal content with an override-specific explanation showing the override species name, the original AI name (`aiScientificName` if provided), and undo instructions. When `userConfirmedIdentification == true` with no override, the sheet renders the normal confidence content — no confirmed-specific view is shown since the confidence explanation remains relevant and the `ConfirmedView` card already communicates the confirmed state inline.
 
 `blur_score` is populated from live inference only (`SpeciesData.blurScore` maps to `EdgeResponse.blur_score`). It is `nil` for scans loaded from the local SwiftData library since it is not persisted to `LocalScanRecord`.
 

@@ -3,18 +3,26 @@ import SwiftUI
 struct ConfidenceBadge: View {
     let confidenceScore: Double?
     let inferenceTier: String?
+    var userIdentificationOverride: String?
+    var userConfirmedIdentification: Bool = false
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isShowingExplanation = false
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
     @State private var allowedDetents: Set<PresentationDetent> = [.fraction(0.65), .large]
-    
+
     private struct BadgePayload {
         let label: String
         let color: Color
         let icon: String
     }
-    
+
     private var badgeData: BadgePayload {
+        if userIdentificationOverride != nil {
+            return BadgePayload(label: "Your ID", color: .indigo, icon: "person.fill.checkmark")
+        }
+        if userConfirmedIdentification {
+            return BadgePayload(label: "Confirmed", color: .green, icon: "checkmark.seal.fill")
+        }
         guard let score = confidenceScore else { return BadgePayload(label: "Unknown", color: .gray, icon: "questionmark") }
         let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
         switch score {
@@ -28,7 +36,7 @@ struct ConfidenceBadge: View {
     }
     
     var body: some View {
-        if let score = confidenceScore, score > 0 {
+        if userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
             let data = badgeData
             
             Button(action: {
@@ -114,7 +122,7 @@ struct ConfidenceBadge: View {
                 )
             }
             .buttonStyle(.plain)
-            .task(id: score) {
+            .task {
                 while !Task.isCancelled {
                     let randomSleepSeconds = Double.random(in: 4.0...10.0)
                     try? await Task.sleep(for: .seconds(randomSleepSeconds))
@@ -131,8 +139,12 @@ struct ConfidenceBadge: View {
                 }
             }
             .sheet(isPresented: $isShowingExplanation) {
-                ConfidenceExplanationSheet(inferenceTier: inferenceTier)
-                    .presentationDetents(allowedDetents, selection: $activeDetent)
+                ConfidenceExplanationSheet(
+                    inferenceTier: inferenceTier,
+                    userIdentificationOverride: userIdentificationOverride,
+                    aiScientificName: nil  // not needed in badge context — card shows it
+                )
+                .presentationDetents(allowedDetents, selection: $activeDetent)
                     .presentationCornerRadius(32)
                     .presentationBackground(.ultraThinMaterial)
                     .presentationDragIndicator(.visible)

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
-    let isLowConfidence: Bool
     
     @State private var failedMediaIdentifiers = Set<String>()
 
@@ -17,7 +16,7 @@ struct SimilarSpeciesGallery: View {
             VStack(alignment: .leading, spacing: 16) {
                 // MARK: - Lookalike Target Carousel
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(isLowConfidence ? "POTENTIAL LOOKALIKES" : "SIMILAR SPECIES")
+                    Text("SIMILAR SPECIES")
                         .font(.system(.caption, design: .monospaced))
                         .fontWeight(.bold)
                         .tracking(1)
@@ -28,7 +27,6 @@ struct SimilarSpeciesGallery: View {
                             ForEach(validEntries, id: \.scientificName) { entry in
                                 SimilarSpeciesCard(
                                     entry: entry,
-                                    isLowConfidence: isLowConfidence,
                                     onImageFailed: {
                                         withAnimation(.easeInOut) {
                                             _ = failedMediaIdentifiers.insert(entry.scientificName)
@@ -52,7 +50,6 @@ struct SimilarSpeciesGallery: View {
 
 struct SimilarSpeciesCard: View {
     let entry: SimilarSpeciesEntry
-    let isLowConfidence: Bool
     let onImageFailed: () -> Void
 
     // Fallback fetcher used only when the join table has no reference image URL.
@@ -83,7 +80,8 @@ struct SimilarSpeciesCard: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity)
+            .frame(height: 160)
             .clipped()
 
             // Text Details & Confirmation Hook
@@ -93,7 +91,7 @@ struct SimilarSpeciesCard: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -102,27 +100,11 @@ struct SimilarSpeciesCard: View {
                     .fontWeight(entry.commonName == nil ? .semibold : .regular)
                     .italic()
                     .foregroundColor(entry.commonName == nil ? .primary : .secondary)                    
-                    .lineLimit(2)
+                    .lineLimit(1)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                // TODO: Add confirmation hook
-                // if isLowConfidence {
-                //     Button(action: {
-                //         // Future hook: prompt user to override AI identity
-                //         HapticManager.shared.triggerLightImpact()
-                //     }) {
-                //         Text("Confirm Species")
-                //             .font(.system(size: 11, weight: .bold))
-                //             .foregroundColor(.white)
-                //             .padding(.vertical, 6)
-                //             .frame(maxWidth: .infinity)
-                //             .background(Color.accentColor)
-                //             .cornerRadius(6)
-                //     }
-                // }
             }
-            .frame(height: 48, alignment: .topLeading)
+            .frame(height: 60, alignment: .topLeading)
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(UIColor.secondarySystemGroupedBackground))
@@ -154,7 +136,7 @@ extension SimilarSpeciesGallery {
         var body: some View {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("POTENTIAL LOOKALIKES")
+                    Text("SIMILAR SPECIES")
                         .font(.system(.caption, design: .monospaced))
                         .fontWeight(.bold)
                         .tracking(1)
@@ -190,7 +172,9 @@ extension SimilarSpeciesGallery {
             VStack(spacing: 0) {
                 // Image Placeholder
                 Color(uiColor: .systemFill)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 160)
+                    .clipped()
                 
                 // Text Placeholder Details
                 VStack(alignment: .leading, spacing: 8) {
@@ -202,7 +186,7 @@ extension SimilarSpeciesGallery {
                         .fill(Color(uiColor: .systemFill))
                         .frame(width: 140, height: 16)
                 }
-                .frame(height: 48, alignment: .topLeading)
+                .frame(height: 60, alignment: .topLeading)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(UIColor.secondarySystemGroupedBackground))

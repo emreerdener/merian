@@ -7,12 +7,19 @@ struct InsightHeader: View {
     let paragraphs: [String]
     let confidenceScore: Double?
     let inferenceTier: String?
+    var userIdentificationOverride: String?
+    var userConfirmedIdentification: Bool = false
     var onScrollOffsetChange: ((CGFloat) -> Void)?
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
-            
-            ConfidenceBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
+
+            ConfidenceBadge(
+                confidenceScore: confidenceScore,
+                inferenceTier: inferenceTier,
+                userIdentificationOverride: userIdentificationOverride,
+                userConfirmedIdentification: userConfirmedIdentification
+            )
              
             VStack(alignment: .center, spacing: 8) {
                 Text(subtitle)

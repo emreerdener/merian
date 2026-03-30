@@ -513,6 +513,177 @@ private struct WikiSummaryResponse: Decodable {
         }
     }
 
+    // MARK: - Identification Override
+
+    /// Called when the user selects a candidate as their preferred identification.
+    /// Immediately updates display state, persists locally, syncs to cloud, and hydrates
+    /// species data for the override species from `species_dictionary`.
+    func applyIdentificationOverride(scientificName: String, modelContext: ModelContext?) async {
+        guard let scanId = speciesData?.scanId else { return }
+
+        // 1. Immediately update display — scientificName drives InsightHeader subtitle.
+        speciesData?.userIdentificationOverride = scientificName
+        speciesData?.scientificName = scientificName
+        speciesData?.userConfirmedIdentification = false
+
+        // 2. Persist to SwiftData.
+        if let context = modelContext {
+            let container = context.container
+            Task {
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.updateScanWithOverride(scanId: scanId, override: scientificName, confirmed: false)
+            }
+        }
+
+        // 3. Cloud sync — IDOR-guarded direct PostgREST update.
+        Task { [weak self] in
+            guard let self else { return }
+            await self.syncIdentificationReviewToCloud(scanId: scanId, override: scientificName, confirmed: false)
+        }
+
+        // 4. Fetch and patch species data for the override species.
+        await fetchAndPatchOverrideData(scientificName: scientificName, scanId: scanId, modelContext: modelContext)
+    }
+
+    /// Called when the user confirms the AI's primary identification ("Yes, correct").
+    /// Persists locally and syncs confirmation to the cloud scan record.
+    func confirmAIIdentification(modelContext: ModelContext?) async {
+        guard let scanId = speciesData?.scanId else { return }
+
+        speciesData?.userConfirmedIdentification = true
+
+        if let context = modelContext {
+            let container = context.container
+            Task {
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: true)
+            }
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: true)
+        }
+    }
+
+    /// Resets all identification review state, reverting the scan back to the AI's original
+    /// identification. Called by Undo (from `.overridden`) and Change (from `.confirmed`).
+    /// Clears both `userIdentificationOverride` and `userConfirmedIdentification` locally,
+    /// syncs both columns to null/false in the cloud, and re-hydrates the AI species data.
+    func resetIdentificationReview(modelContext: ModelContext?) async {
+        guard let scanId = speciesData?.scanId,
+              let aiName = speciesData?.aiScientificName,
+              !aiName.isEmpty else { return }
+
+        // 1. Revert in-memory state — scientificName must be restored before hydration fires.
+        speciesData?.userIdentificationOverride = nil
+        speciesData?.userConfirmedIdentification = false
+        speciesData?.scientificName = aiName
+
+        // 2. Persist both fields locally.
+        if let context = modelContext {
+            let container = context.container
+            Task {
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: false)
+            }
+        }
+
+        // 3. Zero both cloud columns.
+        Task { [weak self] in
+            guard let self else { return }
+            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: false)
+        }
+
+        // 4. Re-hydrate the AI's original species data from species_dictionary.
+        await fetchAndPatchOverrideData(scientificName: aiName, scanId: scanId, modelContext: modelContext)
+    }
+
+    /// Queries `species_dictionary` for the given scientific name and patches the live
+    /// `speciesData` in-place. On cache miss, falls through to `fetchAndApplyEnrichment`
+    /// which triggers the full enrichment pipeline for the override species.
+    private func fetchAndPatchOverrideData(scientificName: String, scanId: String?, modelContext: ModelContext?) async {
+        struct SpeciesDictRow: Decodable {
+            let common_names: [String: String?]?
+            let kingdom: String?
+            let phylum: String?
+            let `class`: String?
+            let order: String?
+            let family: String?
+            let genus: String?
+            let wikipedia_overview: String?
+            let hazard_type: String?
+            let reference_image_url: String?
+            let wikipedia_url: String?
+            let iucn_red_list_status: String?
+            let habitat_description: String?
+            let gbif_taxon_key: Int?
+        }
+
+        do {
+            let rows: [SpeciesDictRow] = try await SupabaseManager.shared.client
+                .from("species_dictionary")
+                .select("common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key")
+                .eq("scientific_name", value: scientificName)
+                .limit(1)
+                .execute()
+                .value
+
+            if let row = rows.first {
+                // Cache hit — patch all available fields reactively.
+                let commonName = row.common_names?.compactMap { $0.value }.first ?? scientificName
+                speciesData?.commonName = commonName.capitalized
+                speciesData?.insightData = InsightData(
+                    aiReasoning: speciesData?.insightData.aiReasoning ?? "",
+                    hazardType: row.hazard_type ?? "none"
+                )
+                speciesData?.taxonomy = TaxonomyData(
+                    kingdom: row.kingdom,
+                    phylum: row.phylum,
+                    className: row.class,
+                    order: row.order,
+                    family: row.family,
+                    genus: row.genus
+                )
+                speciesData?.iucnRedListStatus = row.iucn_red_list_status
+                speciesData?.habitatDescription = row.habitat_description
+                speciesData?.gbifTaxonKey = row.gbif_taxon_key
+                speciesData?.referenceImageUrl = row.reference_image_url
+                speciesData?.wikipediaOverview = row.wikipedia_overview
+                speciesData?.wikipediaUrl = row.wikipedia_url
+            } else {
+                // Cache miss — enrich the override species. fetchAndApplyEnrichment uses
+                // speciesData.scientificName which is already set to the override name.
+                await fetchAndApplyEnrichment(modelContext: modelContext)
+            }
+        } catch {
+            MerianLog.general.debug("fetchAndPatchOverrideData failed: \(error, privacy: .private)")
+        }
+    }
+
+    /// IDOR-guarded direct PostgREST update persisting both identification review fields.
+    /// Accepts nil for `override` to set the column to NULL (reset / confirmed-only path).
+    private func syncIdentificationReviewToCloud(scanId: String, override: String?, confirmed: Bool) async {
+        guard let userId = await MainActor.run(body: { SupabaseManager.shared.currentUser?.id.uuidString }) else { return }
+
+        struct ReviewSyncPayload: Encodable {
+            let user_identification_override: String?
+            let user_confirmed_identification: Bool
+        }
+
+        do {
+            try await SupabaseManager.shared.client
+                .from("scans")
+                .update(ReviewSyncPayload(user_identification_override: override,
+                                         user_confirmed_identification: confirmed))
+                .eq("id", value: scanId)
+                .eq("user_id", value: userId)
+                .execute()
+        } catch {
+            MerianLog.general.debug("syncIdentificationReviewToCloud failed: \(error, privacy: .private)")
+        }
+    }
+
     // MARK: - Pipeline Modifiers
 
     func cancelActiveRequest(isUserInitiated: Bool = false) {
@@ -586,6 +757,10 @@ private struct WikiSummaryResponse: Decodable {
             )
         }
 
+        let parsedCandidates: [IdentificationCandidate]? = record.candidatesData.flatMap {
+            try? JSONDecoder().decode([IdentificationCandidate].self, from: $0)
+        }
+
         self.speciesData = SpeciesData(
             scanId: record.id,
             commonName: record.commonName,
@@ -626,8 +801,25 @@ private struct WikiSummaryResponse: Decodable {
             ecologicalInteractions: record.ecologicalInteractions,
             aiReasoning: record.aiReasoning,
             habitatDescription: record.habitatDescription,
-            gbifTaxonKey: record.gbifTaxonKey
+            gbifTaxonKey: record.gbifTaxonKey,
+            inferenceTier: record.inferenceTier,
+            candidates: parsedCandidates,
+            aiScientificName: record.scientificName,
+            userIdentificationOverride: record.userIdentificationOverride,
+            userConfirmedIdentification: record.userConfirmedIdentification
         )
+
+        // If the user previously overrode the identification on this scan, apply the override
+        // species data asynchronously (common name, taxonomy, hazard type, etc. from species_dictionary).
+        if let override = record.userIdentificationOverride {
+            let scanId = record.id
+            let safeContext = record.modelContext
+            Task { [weak self] in
+                guard let self else { return }
+                await self.fetchAndPatchOverrideData(scientificName: override, scanId: scanId, modelContext: safeContext)
+            }
+        }
+
         self.isProcessing = false
 
         // Retroactively hydrate legacy scans that missed Wikipedia data on initial save.

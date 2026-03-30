@@ -113,7 +113,7 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, inference_tier, custom_tags, species_dictionary(*)")
+                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, species_dictionary(*)")
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
@@ -280,7 +280,15 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let ecological_interactions: [String]?
     let inference_tier: String?
     let custom_tags: [String]?
+    let candidates: [CloudIdentificationCandidate]?
+    let user_identification_override: String?
+    let user_confirmed_identification: Bool?
     let species_dictionary: CloudSpeciesDictionary?
+}
+
+struct CloudIdentificationCandidate: Decodable, Sendable {
+    let scientific_name: String
+    let confidence_score: Double
 }
 
 struct CloudCollectionResponse: Decodable, Sendable {
@@ -454,6 +462,21 @@ actor HistoricalDatabaseActor {
             if let newTags = res.custom_tags, existing.customTags != newTags {
                 existing.customTags = newTags; didUpdate = true
             }
+            if existing.candidatesData == nil, let cloudCandidates = res.candidates, !cloudCandidates.isEmpty {
+                existing.candidatesData = try? JSONEncoder().encode(cloudCandidates.map {
+                    IdentificationCandidate(scientificName: $0.scientific_name, confidenceScore: $0.confidence_score)
+                })
+                didUpdate = true
+            }
+            if let cloudOverride = res.user_identification_override,
+               existing.userIdentificationOverride != cloudOverride {
+                existing.userIdentificationOverride = cloudOverride
+                didUpdate = true
+            }
+            if res.user_confirmed_identification == true, !existing.userConfirmedIdentification {
+                existing.userConfirmedIdentification = true
+                didUpdate = true
+            }
         }
 
         if didUpdate {
@@ -480,6 +503,12 @@ actor HistoricalDatabaseActor {
 
             let rawR2Image = scan.image_storage_urls?.first
             let additionalUrls = scan.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
+            let semanticTags: [String] = [cName, sciName] + (scan.colors ?? []) + (dict?.group_tags ?? [])
+            let candidatesData: Data? = scan.candidates.flatMap { entries in
+                try? JSONEncoder().encode(entries.map {
+                    IdentificationCandidate(scientificName: $0.scientific_name, confidenceScore: $0.confidence_score)
+                })
+            }
 
             let record = LocalScanRecord(
                 id: scan.id,
@@ -489,7 +518,7 @@ actor HistoricalDatabaseActor {
                 timestamp: parsedDate,
                 captureDate: exifDate,
                 localImagePath: rawR2Image,
-                semanticTags: [cName, sciName] + (scan.colors ?? []) + (dict?.group_tags ?? []),
+                semanticTags: semanticTags,
                 hazardType: dict?.hazard_type ?? "none",
                 isBiological: true,
                 isLiveCapture: scan.is_live_capture ?? true,
@@ -510,6 +539,7 @@ actor HistoricalDatabaseActor {
                 locationName: scan.semantic_location,
                 weatherCondition: scan.weather_condition,
                 weatherTemperatureF: scan.weather_temperature_f,
+                candidatesData: candidatesData,
                 iucnRedListStatus: dict?.iucn_red_list_status,
                 gpsLatitude: scan.gps_lat_exact,
                 gpsLongitude: scan.gps_long_exact,
@@ -523,7 +553,9 @@ actor HistoricalDatabaseActor {
                 ecologicalInteractions: scan.ecological_interactions,
                 inferenceTier: scan.inference_tier ?? "flash",
                 customTags: scan.custom_tags ?? [],
-                hasBeenViewed: true
+                hasBeenViewed: true,
+                userIdentificationOverride: scan.user_identification_override,
+                userConfirmedIdentification: scan.user_confirmed_identification ?? false
             )
 
             modelContext.insert(record)

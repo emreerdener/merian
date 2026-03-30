@@ -39,7 +39,7 @@ import UIKit
     var subjectDistanceInMeters: Float?
     var isFlashEnabled = false
 
-    @ObservationIgnored nonisolated(unsafe) private var lastValidDeviceOrientation: UIDeviceOrientation = .portrait
+    @ObservationIgnored nonisolated(unsafe) private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
 
     // MARK: - Zoom
     private(set) var zoomFactor: CGFloat = 1.0
@@ -88,26 +88,7 @@ import UIKit
             .sink { [weak self] _ in self?.resetFocusAndExposure() }
             .store(in: &cancellables)
 
-        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
-        NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
-            .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    guard let self = self else { return }
-                    let current = UIDevice.current.orientation
-                    if current.isPortrait || current.isLandscape {
-                        self.stateLock.withLock {
-                            self.lastValidDeviceOrientation = current
-                        }
-                    }
-                }
-            }
-            .store(in: &cancellables)
-    }
-
-    deinit {
-        Task { @MainActor in
-            UIDevice.current.endGeneratingDeviceOrientationNotifications()
-        }
+        // AVCaptureDevice.RotationCoordinator automatically handles physical device rotation dynamically.
     }
 
     private func trackFPS() {
@@ -145,6 +126,10 @@ import UIKit
               let videoInput = try? AVCaptureDeviceInput(device: captureDevice) else {
             session.commitConfiguration()
             return
+        }
+        
+        self.stateLock.withLock {
+            self.rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: captureDevice, previewLayer: nil)
         }
 
         if session.canAddInput(videoInput) {
@@ -664,31 +649,11 @@ import UIKit
                     }
 
                     // Dynamically align the capture connection with the physical device orientation
-                    let orientation = self.stateLock.withLock { self.lastValidDeviceOrientation }
+                    let rotationAngle = self.stateLock.withLock { self.rotationCoordinator?.videoRotationAngleForHorizonLevelCapture ?? 90.0 }
                     
                     if let photoConnection = self.photoOutput.connection(with: .video) {
-                        if #available(iOS 17.0, *) {
-                            var rotationAngle: CGFloat = 90.0 // Default portrait back-camera
-                            switch orientation {
-                            case .landscapeLeft: rotationAngle = 0.0
-                            case .landscapeRight: rotationAngle = 180.0
-                            case .portraitUpsideDown: rotationAngle = 270.0
-                            default: rotationAngle = 90.0
-                            }
-                            if photoConnection.isVideoRotationAngleSupported(rotationAngle) {
-                                photoConnection.videoRotationAngle = rotationAngle
-                            }
-                        } else {
-                            var videoOrientation: AVCaptureVideoOrientation = .portrait
-                            switch orientation {
-                            case .landscapeLeft: videoOrientation = .landscapeRight
-                            case .landscapeRight: videoOrientation = .landscapeLeft
-                            case .portraitUpsideDown: videoOrientation = .portraitUpsideDown
-                            default: videoOrientation = .portrait
-                            }
-                            if photoConnection.isVideoOrientationSupported {
-                                photoConnection.videoOrientation = videoOrientation
-                            }
+                        if photoConnection.isVideoRotationAngleSupported(rotationAngle) {
+                            photoConnection.videoRotationAngle = rotationAngle
                         }
                     }
 

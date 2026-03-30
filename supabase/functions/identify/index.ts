@@ -185,6 +185,14 @@ serve((req: Request) =>
       inference_tier: userTier === "pro" ? "pro" : "flash",
     };
 
+    // Strip candidates when confidence is above the tier's diagnosticTrigger threshold.
+    // These values mirror MerianConfig.flashConfidence.diagnosticTrigger (0.88) and
+    // MerianConfig.proConfidence.diagnosticTrigger (0.80) in the iOS client.
+    const diagnosticTrigger = userTier === "pro" ? 0.80 : 0.88;
+    if ((parsedData.confidence_score ?? 1.0) >= diagnosticTrigger) {
+      payloadReadyForClient.candidates = null;
+    }
+
     const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
     let speciesId: string | null = null;
     let cachedSpecies: CachedSpeciesRow | null = null;
@@ -382,6 +390,7 @@ serve((req: Request) =>
             ecological_interactions: parsedData.ecological_interactions ?? [],
             estimated_size_cm: estimated_size_cm ?? null,
             inference_tier: userTier === "pro" ? "pro" : "flash",
+            candidates: payloadReadyForClient.candidates ?? null,
           },
           supabaseAdmin,
         );

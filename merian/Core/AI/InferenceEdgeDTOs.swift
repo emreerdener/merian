@@ -64,6 +64,14 @@ struct EdgeResponse: Codable {
     let reference_image_url: String?
     let iucn_red_list_status: String?
     let inference_tier: String?
+
+    /// Per-scan alternative candidates output by the model when it was genuinely uncertain.
+    /// Only present when `confidence_score` is below the tier's `diagnosticTrigger` threshold.
+    struct IdentificationCandidate: Codable {
+        let scientific_name: String
+        let confidence_score: Double
+    }
+    let candidates: [IdentificationCandidate]?
 }
 
 // MARK: - Enrich-Scan Response

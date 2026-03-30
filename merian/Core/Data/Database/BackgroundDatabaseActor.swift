@@ -239,6 +239,7 @@ actor BackgroundDatabaseActor {
             weatherCondition: mappedData.weatherCondition,
             weatherTemperatureF: mappedData.weatherTemperatureF,
             similarSpecies: mappedData.similarSpecies?.lookalikes,
+            candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
             iucnRedListStatus: mappedData.iucnRedListStatus,
             gpsLatitude: mappedData.gpsLatitude,
             gpsLongitude: mappedData.gpsLongitude,
@@ -316,6 +317,24 @@ actor BackgroundDatabaseActor {
         }
 
         try? modelContext.save()
+    }
+
+    // MARK: - Identification Override Persistence
+
+    /// Persists the user's identification review action to the local SwiftData store.
+    /// - Parameters:
+    ///   - scanId: The scan record to update.
+    ///   - override: The scientific name the user selected, or nil to clear.
+    ///   - confirmed: True when the user confirmed the AI identification ("Yes, correct").
+    func updateScanWithOverride(scanId: String, override: String?, confirmed: Bool) {
+        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let record = try? modelContext.fetch(descriptor).first else { return }
+        record.userIdentificationOverride = override
+        record.userConfirmedIdentification = confirmed
+        do { try modelContext.save() } catch {
+            MerianLog.data.error("updateScanWithOverride: save failed: \(error, privacy: .private)")
+        }
     }
 
     // MARK: - Collections Edge Sync

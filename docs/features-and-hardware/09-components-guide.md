@@ -39,11 +39,12 @@ A global `.viewModifier` that intercepts `.contextMenu` or `Menu` delete interac
 ## 6. Confidence Badge: `ConfidenceBadge`
 **Location**: `Features/Insights/Components/Confidence/ConfidenceBadge.swift`
 
-A tappable liquid-glass capsule shown in `InsightHeader` that communicates the AI's confidence band for a scan.
-- **Band logic**: Derives label, color, and icon dynamically from `confidenceScore` against `MerianConfig.confidenceBands(for: isPro)`. High constraints for Free tier (≥ 93%), relaxed bounds for Pro (≥ 85%). Three bands exist: Strong (green), Possible (orange), Weak (gray).
+A tappable liquid-glass capsule shown in `InsightHeader` that communicates the AI's confidence band — or the user's identification review decision — for a scan.
+- **Review state priority**: Before evaluating confidence bands, the badge checks `userIdentificationOverride` and `userConfirmedIdentification` passed from `InsightHeader`. If `userIdentificationOverride != nil`, the badge shows "Your ID" (indigo, `person.fill.checkmark`). If `userConfirmedIdentification == true`, it shows "Confirmed" (green, `checkmark.seal.fill`). Both states render regardless of `confidenceScore` (including zero for historical scans).
+- **Band logic**: When no review state is active, derives label, color, and icon dynamically from `confidenceScore` against `MerianConfig.confidenceBands(for: isPro)`. High constraints for Free tier (≥ 93%), relaxed bounds for Pro (≥ 85%). Three bands exist: Strong (green), Possible (orange), Weak (gray).
 - **Liquid glass aesthetic**: Layered `ZStack` — `ultraThickMaterial` base, volumetric color tint, glossy inner rim gradient, ambient border, animated holographic glare sweep.
 - **Shimmer animation**: An idle `.task` loop triggers a 3.5-second `easeOut` glare sweep every 4–10 seconds (random interval), creating a living feel without continuous CPU usage.
-- **Sheet integration**: Tap opens `ConfidenceExplanationSheet`.
+- **Sheet integration**: Tap opens `ConfidenceExplanationSheet`. The sheet receives `userIdentificationOverride` from the badge. When an override is active, the sheet shows override-specific content (override name, undo instructions). When only `userConfirmedIdentification` is true (no override), the sheet renders the normal confidence explanation — no confirmed-specific content is injected, since the `ConfirmedView` card already communicates confirmed state inline. Note: `aiScientificName` is passed as `nil` from the badge — the original AI name is visible in the `OverriddenView` card below, so there is no duplication.
 
 ## 7. Confidence Spectrum: `ConfidenceSpectrum`
 **Location**: `Features/Insights/Components/Confidence/ConfidenceSpectrum.swift`
@@ -68,7 +69,7 @@ A `ViewModifier` that animates cards into view with a fade + 20pt upward slide o
 - **Stagger via `index`**: Each card receives a sequential integer index. Delay is computed as `Double(index) × 0.07s`, producing a natural cascading entrance without firing simultaneous layout passes.
 - **One-shot guard**: The `hasAppeared: Bool` state flag prevents re-animation on SwiftUI view identity changes or sheet re-presentations.
 - **Spring curve**: `.spring(response: 0.5, dampingFraction: 0.78)` — responsive enough to feel alive without overshooting on dense content stacks.
-- **Current usage**: `BiologicalView` applies indices 0–8 across `InsightHeader` (0), `ToxicityBanner` (1), `ConservationBanner` (2), `SimilarSpeciesGallery` or its skeleton (3), `OverviewCard` (4), `HabitatAndDistributionCard` (5), `TaxonomyCard` (6), `ScanInformationCard` (7), and `UserTagsCard` (8), giving a ~630ms full-stack cascade at nominal hardware. Both the live `SimilarSpeciesGallery` and its `Skeleton` placeholder share index 3 so the stagger position is stable regardless of enrichment state.
+- **Current usage**: `BiologicalView` applies indices 0–9 across `InsightHeader` (0), `ToxicityBanner` (1), `ConservationBanner` (2), `CandidatesCard` (3), `SimilarSpeciesGallery` or its skeleton (4), `OverviewCard` (5), `HabitatAndDistributionCard` (6), `TaxonomyCard` (7), `ScanInformationCard` (8), and `UserTagsCard` (9), giving a ~700ms full-stack cascade at nominal hardware. `CandidatesCard` occupies index 3 unconditionally — when confidence is above the diagnostic threshold (card not shown), the stagger gap between `ConservationBanner` and `SimilarSpeciesGallery` simply increases by one step (~70ms). Both the live `SimilarSpeciesGallery` and its `Skeleton` placeholder share index 4 so the stagger position is stable regardless of enrichment state.
 
 ## 10. Habitat Map: `HabitatAndDistributionCard`
 **Location**: `Features/Insights/Components/Cards/HabitatAndDistributionCard.swift`
@@ -77,3 +78,16 @@ An edge-to-edge structural presentation component for the `gbifTaxonKey` density
 - **Edge-to-Edge Maps**: Rebuts the `.card()` background modifier found elsewhere, leveraging `-16pt` negative horizontal padding on its root `VStack` to cancel default `BiologicalView` safe area margins, allowing the map frame to stretch across the full width of the interface.
 - **Top Corner Radii**: The 280-pt-tall shimmering loading placeholder and the live `GBIFHeatmapMapView` apply a custom `TopRoundedRectangle` shape, bringing a subtle UI rounding exclusively to their top-left/top-right edges without adding a cutout effect below.
 - **Null Fallbacks**: Wraps the map in a `ZStack` so that if `isEnrichmentLoading` completes but the GBIF occurrence dataset yields no result (nil `gbifTaxonKey`), `GBIFHeatmapMapView` still renders its world-level base map snapshot and drops a distinct "No distribution data available" pill directly atop it.
+
+## 11. Identification Candidates: `CandidatesCard`
+**Location**: `Features/Insights/Components/Cards/CandidatesCard.swift`
+
+A diagnostic card surfacing up to 2 alternative species the AI genuinely considered, with a full approve/deny UX for the user's identification review. Manages a local `ReviewState` enum: `.pending`, `.confirmed`, `.overridden(to:)`.
+
+- **Display gate**: Rendered by `BiologicalView` when `candidates.count >= 2 || hasReviewState` (where `hasReviewState` is true if `userIdentificationOverride != nil` or `userConfirmedIdentification == true`). The `hasReviewState` gate keeps the card visible after the user has acted, even on subsequent opens.
+- **Threshold sourcing**: `CandidatesCard` computes the threshold internally via `MerianConfig.confidenceBands(forInferenceTier: inferenceTier).diagnosticTrigger` (`0.88` Flash / `0.80` Pro) for display copy, matching the server-side strip exactly.
+- **`.pending` state — PendingView**: Shows "Was the AI correct?" with a "Yes, that's right" button (calls `InferenceEngine.confirmAIIdentification`) and a "Not sure / Show alternatives" toggle. The toggle expands a list of tappable `CandidateRow` entries plus an "Actually correct" escape link. Selecting a candidate triggers a `confirmationDialog` then calls `InferenceEngine.applyIdentificationOverride`.
+- **`.confirmed` state — ConfirmedView**: Shows "You confirmed this identification" with a "Change" button. Tapping "Change" calls `resetIdentificationReview`, reverting to `.pending`. `ConfidenceBadge` shows "Confirmed" while this state is active.
+- **`.overridden(to:)` state — OverriddenView**: Shows "Your identification" header, the override species name, an "AI originally suggested [aiScientificName]" footer, and an Undo button that calls `resetIdentificationReview` to revert.
+- **`CandidateRow`**: Each row renders the scientific name in italic `.subheadline` and a rounded confidence percentage pill. Rows are ordered by descending `confidenceScore`.
+- **Data origin**: Candidates are scan-specific — they model genuine per-image uncertainty rather than species-level similarity. They are stored as a `candidates JSONB` column in `public.scans` (not in `species_dictionary`) and as `LocalScanRecord.candidatesData: Data?` (`MerianSchemaV28`) on-device. The override is stored as `LocalScanRecord.userIdentificationOverride: String?` (`MerianSchemaV29`) locally and in `public.scans.user_identification_override` in the cloud.

@@ -66,9 +66,9 @@ extension CaptureTelemetry {
 /// Parsed result from the AI edge function, representing a single identified biological observation.
 struct SpeciesData {
     let scanId: String?
-    let commonName: String
-    let scientificName: String
-    let insightData: InsightData
+    var commonName: String
+    var scientificName: String
+    var insightData: InsightData
     let confidenceScore: Double
     /// Gemini's self-reported image sharpness score (0 = sharp, 1 = very blurry).
     /// Populated from live inference only — nil when loading from local SwiftData records.
@@ -95,7 +95,7 @@ struct SpeciesData {
     var gpsLongitude: Double?
     var colors: [String]?
     var groupTags: [String]?
-    let iucnRedListStatus: String?
+    var iucnRedListStatus: String?
     var zoomFactor: Double?
     
     // Extended Ecological Telemetry
@@ -110,6 +110,20 @@ struct SpeciesData {
     var habitatDescription: String?
     var gbifTaxonKey: Int?
     var inferenceTier: String?
+
+    /// Per-scan alternative candidates the model considered when confidence was below the
+    /// tier-specific `MerianConfig.diagnosticTrigger` threshold. Nil for confident scans.
+    var candidates: [IdentificationCandidate]?
+
+    /// The AI's original scientific name — never mutated after init.
+    /// Preserved so CandidatesCard can show "AI originally suggested X" when override is active.
+    let aiScientificName: String
+
+    /// Scientific name chosen by the user when they disagreed with the AI. Nil = no action taken.
+    var userIdentificationOverride: String?
+
+    /// True when user tapped "Yes, correct" — suppresses the "Was the AI correct?" prompt locally.
+    var userConfirmedIdentification: Bool
 }
 
 // MARK: - Edge Response Init
@@ -173,6 +187,12 @@ extension SpeciesData {
         self.habitatDescription = edgeRes.species_insights?.habitat_description
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
         self.inferenceTier = edgeRes.inference_tier
+        self.candidates = edgeRes.candidates.map { entries in
+            entries.map { IdentificationCandidate(scientificName: $0.scientific_name, confidenceScore: $0.confidence_score) }
+        }
+        self.aiScientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
+        self.userIdentificationOverride = nil
+        self.userConfirmedIdentification = false
     }
 }
 
@@ -214,7 +234,11 @@ extension SpeciesData {
         aiReasoning: String? = nil,
         habitatDescription: String? = nil,
         gbifTaxonKey: Int? = nil,
-        inferenceTier: String? = nil
+        inferenceTier: String? = nil,
+        candidates: [IdentificationCandidate]? = nil,
+        aiScientificName: String = "",
+        userIdentificationOverride: String? = nil,
+        userConfirmedIdentification: Bool = false
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -250,6 +274,10 @@ extension SpeciesData {
         self.habitatDescription = habitatDescription
         self.gbifTaxonKey = gbifTaxonKey
         self.inferenceTier = inferenceTier
+        self.candidates = candidates
+        self.aiScientificName = aiScientificName.isEmpty ? scientificName : aiScientificName
+        self.userIdentificationOverride = userIdentificationOverride
+        self.userConfirmedIdentification = userConfirmedIdentification
     }
 }
 
@@ -284,4 +312,11 @@ struct SimilarSpecies {
 
     /// Backwards-compatible accessor returning the flat array of scientific names.
     var lookalikes: [String] { entries.map(\.scientificName) }
+}
+
+/// A single alternative species the model actively considered during identification.
+/// Scan-specific — reflects genuine uncertainty for this image, not a fixed species-level list.
+struct IdentificationCandidate: Codable {
+    let scientificName: String
+    let confidenceScore: Double
 }

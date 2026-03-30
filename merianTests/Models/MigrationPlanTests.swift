@@ -84,4 +84,47 @@ struct MigrationPlanTests {
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
     }
+
+    /// Simulates upgrading from V28 to V29 on-disk — verifies that adding
+    /// `userIdentificationOverride` and `userConfirmedIdentification` (lightweight migration,
+    /// no custom stage) does not crash during iOS 26 migration plan validation.
+    @Test func migrationFromV28ToV29DoesNotCrash() throws {
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v28migration_test.sqlite")
+
+        // Step 1 — create a V28 store with no migration plan.
+        let schema28 = Schema(versionedSchema: MerianSchemaV28.self)
+        let config28 = ModelConfiguration(schema: schema28, url: url)
+        let container28 = try ModelContainer(for: schema28, configurations: [config28])
+
+        // Insert a minimal V28 record so the store has data and is not empty.
+        let context28 = ModelContext(container28)
+        let record = MerianSchemaV28.LocalScanRecord(
+            speciesId: "test-v28-species",
+            scientificName: "Testus testus",
+            commonName: "Test Species",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+        context28.insert(record)
+        try context28.save()
+
+        // Close V28 container before reopening with migration plan.
+        _ = container28
+
+        // Step 2 — reopen with the full migration plan targeting the current schema (V29).
+        let schema29 = Schema(versionedSchema: CurrentSchema.self)
+        let config29 = ModelConfiguration(schema: schema29, url: url)
+        _ = try ModelContainer(
+            for: schema29,
+            migrationPlan: MerianMigrationPlan.self,
+            configurations: [config29]
+        )
+
+        // Clean up the temp file.
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    }
 }
