@@ -53,10 +53,11 @@ extension CameraViewModel {
                     // Instantly executes native `generateAutoCenterCrop` natively isolating UIImage and CGImage pointers 
                     // cleanly inside the background securely, exporting solely safe raw `.Data` out bypassing JetSam limits globally
                     
-                    // Inference payload: 1024 px longest edge — sufficient for Gemini species
-                    // identification while keeping the base64 payload small (~100-250 KB).
-                    // The full-resolution photo was already saved to Camera Roll above.
-                    let safeCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.inferenceImageMaxSize)
+                    // Inference payload: tier-conditional longest edge — 768 px (single Gemini
+                    // vision tile, ~75% token savings) for Flash/free tier, 1024 px (four tiles,
+                    // full morphological detail) for Pro. The full-resolution photo was already
+                    // saved to Camera Roll above.
+                    let safeCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: diContainer.revenueCatManager.isProActive))
 
                     // Crop to a square centered on the composing zone — the visible area between
                     // the mode toggle (top) and the capture button row (bottom). Falls back to the

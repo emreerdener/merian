@@ -19,20 +19,22 @@ Every capture produces **two independent downsampled images** from the same raw 
 
 | Path | Constant | Size | Destination |
 |---|---|---|---|
-| **Inference** | `MerianConfig.inferenceImageMaxSize` | 1024 px longest edge | Base64-encoded and sent to Gemini; retained in `activeLiveCaptureDatas` for background-rescue re-queuing |
+| **Inference** | `MerianConfig.inferenceImageMaxSize(isProActive:)` | **768 px** (Flash/free) or **1024 px** (Pro) longest edge | Base64-encoded and sent to Gemini; retained in `activeLiveCaptureDatas` for background-rescue re-queuing |
 | **Display** | `MerianConfig.displayImageMaxSize` | 2048 px longest edge | Written to disk by `FileIOActor`; read by the insight sheet carousel and scan library |
 
 ```swift
 // Camera shutter path (Capture.swift) — same captureData source, two passes
 let inferenceCGImage = ImageDownsampler.shared.downsample(
-    data: captureData, maxSize: MerianConfig.inferenceImageMaxSize)  // → Gemini
+    data: captureData,
+    maxSize: MerianConfig.inferenceImageMaxSize(isProActive: diContainer.revenueCatManager.isProActive))  // → Gemini
 
 let displayCGImage = ImageDownsampler.shared.downsample(
     data: captureData, maxSize: MerianConfig.displayImageMaxSize)    // → disk / insight sheet
 
 // Gallery picker path (CameraViewModel) — same dual pattern from a file URL
 let inferenceCGImage = ImageDownsampler.shared.downsample(
-    url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize)
+    url: validUrl,
+    maxSize: MerianConfig.inferenceImageMaxSize(isProActive: self.diContainer.revenueCatManager.isProActive))
 let displayCGImage = ImageDownsampler.shared.downsample(
     url: validUrl, maxSize: MerianConfig.displayImageMaxSize)
 ```
@@ -40,7 +42,7 @@ let displayCGImage = ImageDownsampler.shared.downsample(
 After downsampling, a **composing-zone-aware square crop** is applied to both payloads before WebP encoding. The crop geometry is calculated from the on-screen UI layout: `CameraRootView` measures the vertical center of the composing zone (the open area between the mode toggle at the top and the capture button row at the bottom) using the existing full-screen `GeometryReader` and stores it as `CameraViewModel.composingZoneVerticalCenter` (a fraction of screen height, e.g. ~0.42 on iPhone 15 Pro). `ImageCropProcessor.squareCrop(_:verticalCenterFraction:)` then crops each downsampled `CGImage` to the largest centered square, biasing the crop center to that fraction rather than 0.5 (geometric center). This aligns what Gemini analyzes with where the user actually framed their subject, rather than the dead center of the sensor image — a meaningful correction on tall-screen iPhones where the bottom chrome (shutter row + tab bar) occupies significantly more vertical space than the top chrome (mode toggle).
 
 Three staging buffers are populated in `CameraViewModel` after each capture or gallery pick:
-- `activeScannedDatas` — 1024 px inference payloads (square-cropped WebP `Data`)
+- `activeScannedDatas` — tier-conditional inference payloads: 768 px (Flash/free) or 1024 px (Pro), square-cropped WebP `Data`
 - `activeDisplayDatas` — 2048 px display payloads (square-cropped WebP `Data`, same geometry)
 - `activeScanImages` — in-memory `UIImage` thumbnails for the Active Scan Toolbar and scanning overlay, populated directly from the already-decoded `CGImage` (`UIImage(cgImage:)`) rather than by re-decoding the WebP payload
 
@@ -54,17 +56,17 @@ Using the `CGImage` directly for `activeScanImages` eliminates a WebP round-trip
 
 **Cancel handler**: `ActiveScanToolbar`'s cancel action clears all four staging buffers: `activeScanImages`, `activeScannedDatas`, `activeOriginals`, and `activeDisplayDatas` (both in `CameraViewModel` and `InferenceEngine`). All buffers must be cleared together to prevent stale payload mismatches on the next aborted session.
 
-**Why 1024 px for inference?** Sufficient for Gemini species identification. Keeps the base64 payload at ~100–250 KB, reducing token cost and upload latency by ~15× versus the previous 4000 px ceiling.
+**Why tier-conditional inference resolution (768 px / 1024 px)?** Gemini Vision tokenizes images by tiling them into 768×768 blocks: a 768 px square image occupies one tile (~258 input tokens), while a 1024 px square image occupies four tiles (~1032 input tokens). Free/Flash tier uses 768 px — a ~75% vision-token reduction with negligible accuracy impact for common-species macro-feature identification (bark texture, wing pattern, leaf shape). Pro tier uses 1024 px to preserve the fine morphological detail (feather barbs, gill spacing, lichen areolae) that subspecies and cultivar discrimination requires. Both payloads are well below the 5 MB guard (~100–250 KB base64 for 768 px; ~200–500 KB for 1024 px). `MerianConfig.inferenceImageMaxSize(isProActive:)` is the single source of truth — `diContainer.revenueCatManager.isProActive` is evaluated at the capture boundary before encoding in both the camera shutter path (`Capture.swift`) and the gallery picker path (`CameraViewModel.swift`).
 
 **Why 2048 px for display?** Covers the full-width pixel density of all current iOS devices without upscaling (iPhone Pro Max at 3× = 1290 px native; iPad Pro at 2× = 2048 px native). Stored as WebP, display-quality files are free from the blocking artifacts associated with lossy JPEG compression at lower resolutions. Files average ~300–700 KB vs ~100–250 KB at inference quality.
 
 **Why two `CGImageSourceCreateThumbnailAtIndex` calls instead of one?** Both operate on the compressed source bytes (JPEG / HEIC) without ever expanding the full 12 MP raster. The cost is two lightweight thumbnail decodes from the same buffer — negligible compared to the AVFoundation capture itself.
 
-**Manual crop export path**: `ImageCropProcessor.generateCrop(image:displaySize:scale:currentScale:offset:currentOffset:maxPixelSize:)` handles the manual crop tool (`ImageCropperView`). The `maxPixelSize` parameter defaults to `1024`, capping the inference output to match the baseline camera path. Compression quality uses `MerianConfig.imageCompressionQuality` throughout (previously hardcoded at 0.7, now consistent with the capture path).
+**Manual crop export path**: `ImageCropProcessor.generateCrop(image:displaySize:scale:currentScale:offset:currentOffset:maxPixelSize:)` handles the manual crop tool (`ImageCropperView`). The `maxPixelSize` parameter defaults to `1024`. Tier-appropriate sizing is preserved automatically: the image passed into `ImageCropperView` is sourced from `activeOriginals[index].image`, which was already downsampled to the tier-correct size (768 px or 1024 px) during capture or gallery pick. Because `kCGImageDestinationImageMaxPixelSize` is a *maximum cap* — never an upscale target — a free-tier 768 px source image passes through the 1024 px cap unchanged. No explicit tier lookup is needed at the crop boundary. Compression quality uses `MerianConfig.imageCompressionQuality` throughout (previously hardcoded at 0.7, now consistent with the capture path).
 
 When the user confirms a manual crop, `CropSheetModifier` updates both the inference and display payloads to keep them in sync:
 
-1. **Inference payload** (`activeScannedDatas[i]`): `generateCrop` is called on the 1024 px source with `maxPixelSize: 1024` — identical to the pre-crop result.
+1. **Inference payload** (`activeScannedDatas[i]`): `generateCrop` is called on the already-tier-sized inference source. The 1024 px cap is harmless for 768 px free-tier inputs — they are not upscaled.
 2. **Display payload** (`activeDisplayDatas[i]`): `generateCrop` is called again on the 2048 px WebP source (decoded off the main thread) with `maxPixelSize: nil` (no cap). The same `scale`, `offset`, and `displaySize` parameters are passed, so the crop geometry is pixel-accurately equivalent. The result (~1536 px at 1× zoom from a 2048 px source) replaces the original auto-cropped 2048 px file.
 
 Without this sync, the scan library would show the original auto-crop while Gemini analyzed the user's manually-adjusted crop — a visual mismatch in multi-capture mode.
@@ -172,7 +174,7 @@ This means the grid renders correctly with cloud images immediately, and any loc
 
 For captures that go into the offline queue, images are written to disk by `FileIOActor.writeTemporaryImages` before the `OfflineQueuedScan` SwiftData record is inserted. During upload, `OfflineQueueManager` copies each image to a temp file in `URL.cachesDirectory` (naming convention: `<scanId>_<index>_temp_upload.webp`) and hands the path to `URLSession.uploadTask(with:fromFile:)`. The `Content-Type: image/webp` header is applied to the `URLRequest` before the upload task is created. The OS background session owns the byte transmission from that point. On upload completion, the temp staging file is deleted unconditionally regardless of success or failure.
 
-**Offline queue image quality**: The offline queue stores inference-quality images only (1024 px). When an offline scan is reprocessed, `InferenceProcessingActor.parseAndSave` receives `displayDatas = []` and falls back to writing the inference-quality files to disk. This is a deliberate trade-off: the full-resolution photo is already saved to Camera Roll at capture time, so 1024 px on-disk files are an acceptable fallback for the subset of scans that passed through the offline queue. Live captures and gallery picks both produce display-quality on-disk files.
+**Offline queue image quality**: The offline queue stores inference-quality images only (768 px for Flash/free, 1024 px for Pro — whichever was applied at capture time). When an offline scan is reprocessed, `InferenceProcessingActor.parseAndSave` receives `displayDatas = []` and falls back to writing the inference-quality files to disk. This is a deliberate trade-off: the full-resolution photo is already saved to Camera Roll at capture time, so inference-quality on-disk files are an acceptable fallback for the subset of scans that passed through the offline queue. Live captures and gallery picks both produce display-quality on-disk files.
 
 **Auth-state race condition (cold background relaunch)**: `runInferencePipeline` (called from `urlSession(_:task:didCompleteWithError:)`) reconstructs the R2 object key as `staging/<userId>/<scanId>_<imagePath>`. The key's user-ID prefix must match the authenticated user's UUID — the Edge Function's IDOR check rejects any request where the key prefix doesn't match the JWT's `user.id`. On a cold background relaunch triggered by the OS delivering a background URLSession event, the Supabase SDK may not have finished initializing, leaving `currentUser` nil. Previously the code fell back to `DeviceIdentityManager.shared.deviceId`, which doesn't match any JWT claim → 403. The fix: `runInferencePipeline` now reads `currentUser?.id.uuidString` and, if nil, returns early with a debug log (`"Offline inference deferred — auth state not loaded"`). The `OfflineQueuedScan` record is not tombstoned; `syncPendingScans` retries on the next connectivity cycle once auth state is loaded.
 

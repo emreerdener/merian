@@ -176,9 +176,9 @@ final class CameraViewModel {
                     }
                     
                     if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
-                        // Inference payload: 1024 px — matches the camera shutter path so both paths
-                        // produce equivalently-sized payloads for consistent Gemini token costs.
-                        let inferenceCGImage = ImageDownsampler.shared.downsample(url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize)
+                        // Inference payload: tier-conditional longest edge — 768 px for Flash (free),
+                        // 1024 px for Pro. Matches the camera shutter path for consistent token costs per tier.
+                        let inferenceCGImage = ImageDownsampler.shared.downsample(url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: self.diContainer.revenueCatManager.isProActive))
 
                         if let cgImage = inferenceCGImage {
                             let rawImage = UIImage(cgImage: cgImage)

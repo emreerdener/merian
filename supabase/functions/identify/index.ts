@@ -429,7 +429,7 @@ serve((req: Request) =>
         const bgWriteStart = Date.now();
         await Promise.allSettled([
           needsSimilarSpecies && similarResult?.similar_species
-            ? updateSimilarSpecies(parsedData.scientific_name!, similarResult.similar_species, supabaseAdmin)
+            ? updateSimilarSpecies(parsedData.scientific_name!, similarResult.similar_species.map((e) => e.scientific_name), supabaseAdmin)
             : Promise.resolve(),
           needsGroupTags && groupTagsResult?.group_tags?.length
             ? updateGroupTags(parsedData.scientific_name!, groupTagsResult.group_tags, supabaseAdmin)

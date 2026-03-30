@@ -51,10 +51,23 @@ enum MerianConfig {
     /// Passed as `kCGImageDestinationLossyCompressionQuality` to `CGImageDestination`.
     static let imageCompressionQuality: CGFloat = 0.85
 
-    /// Longest-edge pixel cap for images sent to the AI inference pipeline.
-    /// 1024 px is sufficient for Gemini species identification and keeps the base64
-    /// payload small (~100-250 KB), reducing token cost and upload latency.
-    static let inferenceImageMaxSize: CGFloat = 1024
+    /// Longest-edge pixel cap for Pro tier inference payloads (gemini-2.5-pro).
+    /// At 1024 px a square image tiles into four 768×768 Gemini vision tiles (~1032 input tokens).
+    /// Full resolution is warranted for Pro: subspecies, fossils, and cultivars require fine
+    /// morphological detail (feather barbs, gill spacing, lichen areolae) to discriminate.
+    static let proInferenceImageMaxSize: CGFloat = 1024
+
+    /// Longest-edge pixel cap for Flash tier inference payloads (gemini-2.5-flash, free).
+    /// At 768 px a square image fits within a single Gemini vision tile (~258 input tokens) —
+    /// a ~75% token reduction vs the Pro cap with negligible accuracy impact for
+    /// common-species macro-feature identification (bark texture, wing pattern, leaf shape).
+    static let flashInferenceImageMaxSize: CGFloat = 768
+
+    /// Returns the appropriate inference image pixel cap for the user's active subscription tier.
+    /// Call this at the capture-pipeline boundary where `isProActive` is already resolved.
+    static func inferenceImageMaxSize(isProActive: Bool) -> CGFloat {
+        return isProActive ? proInferenceImageMaxSize : flashInferenceImageMaxSize
+    }
 
     /// Longest-edge pixel cap for images written to disk and shown in the insight sheet
     /// and scan library. 2048 px covers the full-width pixel density of the largest
