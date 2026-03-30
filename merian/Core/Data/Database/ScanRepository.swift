@@ -493,15 +493,23 @@ actor HistoricalDatabaseActor {
 
     private func ingestScans(missingScans: [HistoricalScanResponse]) {
         let checkpointInterval = MerianConfig.ingestCheckpointInterval
+        // Hoist encoder outside the loop — JSONEncoder allocation is non-trivial (Obj-C init,
+        // key strategy setup, etc.) and creating one per scan across thousands of records adds
+        // measurable GC pressure on the @ModelActor thread.
+        let encoder = JSONEncoder()
         for (index, scan) in missingScans.enumerated() {
             if Task.isCancelled { break }
-            let parsedDate = scan.timestamp.flatMap {
-                DateUtilities.iso8601FractionalFormatter.date(from: $0) ?? DateUtilities.iso8601Formatter.date(from: $0)
-            } ?? Date()
-
-            let exifDate = scan.timestamp.flatMap {
-                DateUtilities.iso8601FractionalFormatter.date(from: $0) ?? DateUtilities.iso8601Formatter.date(from: $0)
+            // Parse timestamp exactly once — parsedDate and exifDate are always identical
+            // derivations of the same string. Halves formatter invocations over the full batch.
+            let exifDate: Date? = scan.timestamp.flatMap { ts -> Date? in
+                if ts.contains(".") {
+                    return DateUtilities.iso8601FractionalFormatter.date(from: ts)
+                        ?? DateUtilities.iso8601Formatter.date(from: ts)
+                }
+                return DateUtilities.iso8601Formatter.date(from: ts)
+                    ?? DateUtilities.iso8601FractionalFormatter.date(from: ts)
             }
+            let parsedDate = exifDate ?? Date()
 
             let dict = scan.species_dictionary
             let sciName = dict?.scientific_name ?? "Unknown Subject"
@@ -515,7 +523,7 @@ actor HistoricalDatabaseActor {
             let additionalUrls = scan.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
             let semanticTags: [String] = [cName, sciName] + (scan.colors ?? []) + (dict?.group_tags ?? [])
             let candidatesData: Data? = scan.candidates.flatMap { entries in
-                try? JSONEncoder().encode(entries.map {
+                try? encoder.encode(entries.map {
                     IdentificationCandidate(scientificName: $0.scientific_name, confidenceScore: $0.confidence_score)
                 })
             }
@@ -580,7 +588,10 @@ actor HistoricalDatabaseActor {
     }
 
     private func syncCollections(remoteCollections: [CloudCollectionResponse]) {
-        let collectionsDescriptor = FetchDescriptor<ScanCollection>()
+        // fetchLimit: 500 is a defensive ceiling — an unbounded full-table scan can fault orphaned
+        // or schema-migrated collection records into memory before sync begins.
+        var collectionsDescriptor = FetchDescriptor<ScanCollection>()
+        collectionsDescriptor.fetchLimit = 500
         let collectionObjectIds = (try? modelContext.fetchIdentifiers(collectionsDescriptor)) ?? []
         let existingCollections = collectionObjectIds.compactMap { modelContext.model(for: $0) as? ScanCollection }
         var existingLookup = Dictionary(existingCollections.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })

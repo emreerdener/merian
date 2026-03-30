@@ -206,30 +206,7 @@ extension OfflineQueueManager {
     /// 4. If a new species was discovered, recalculates awards and sends a push notification
     ///    if the app is backgrounded and the user has enabled push notifications.
     private func runInferencePipeline(scanId: String, extracted: ExtractedScanData) async {
-        var finalTelemetry = extracted.telemetry
-
-        // Backfill historical weather for scans captured offline without a connection.
-        if finalTelemetry.weatherCondition == nil,
-           let lat = finalTelemetry.gpsLatitude,
-           let lon = finalTelemetry.gpsLongitude {
-            let pastLocation = CLLocation(latitude: lat, longitude: lon)
-            let historicalContext = await EnvironmentContextManager.shared.fetchHistoricalContext(
-                location: pastLocation,
-                date: extracted.originalTimestamp
-            )
-            finalTelemetry = CaptureTelemetry(
-                subjectDistanceInMeters: finalTelemetry.subjectDistanceInMeters,
-                gpsLatitude: finalTelemetry.gpsLatitude,
-                gpsLongitude: finalTelemetry.gpsLongitude,
-                gpsElevation: finalTelemetry.gpsElevation,
-                locationName: finalTelemetry.locationName ?? historicalContext.locationName,
-                weatherCondition: historicalContext.weatherCondition,
-                weatherTemperatureF: historicalContext.weatherTemperature,
-                timeOfDay: finalTelemetry.timeOfDay,
-                timestamp: finalTelemetry.timestamp
-            )
-            MerianLog.data.debug("Hydrated offline scan with historical weather: \(historicalContext.weatherCondition ?? "none", privacy: .public)")
-        }
+        let baseTelemetry = extracted.telemetry
 
         do {
             let pipelineStart = CFAbsoluteTimeGetCurrent()
@@ -244,12 +221,48 @@ extension OfflineQueueManager {
             }
             let resolvedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
 
+            // Run WeatherKit backfill and AI inference concurrently — weather is optional
+            // metadata and must not gate the scan result. Sequential awaiting previously added
+            // 200–800 ms of WeatherKit latency before the Gemini call even began.
+            let needsWeather = baseTelemetry.weatherCondition == nil
+                && baseTelemetry.gpsLatitude != nil
+                && baseTelemetry.gpsLongitude != nil
+
             await MainActor.run { SyncStateManager.shared.beginInferencing() }
-            let resultData = try await MerianNetworkClient.shared.analyzeSubject(
+
+            async let weatherContext = needsWeather
+                ? EnvironmentContextManager.shared.fetchHistoricalContext(
+                    location: CLLocation(latitude: baseTelemetry.gpsLatitude!, longitude: baseTelemetry.gpsLongitude!),
+                    date: extracted.originalTimestamp)
+                : nil
+
+            async let inferenceResult = MerianNetworkClient.shared.analyzeSubject(
                 r2ObjectKeys: resolvedKeys,
                 base64ImageDatas: nil,
-                telemetry: finalTelemetry
+                telemetry: baseTelemetry
             )
+
+            let (historicalContext, resultData) = try await (weatherContext, inferenceResult)
+
+            // Merge weather into telemetry only if backfill succeeded.
+            let finalTelemetry: CaptureTelemetry
+            if let ctx = historicalContext {
+                MerianLog.data.debug("Hydrated offline scan with historical weather: \(ctx.weatherCondition ?? "none", privacy: .public)")
+                finalTelemetry = CaptureTelemetry(
+                    subjectDistanceInMeters: baseTelemetry.subjectDistanceInMeters,
+                    gpsLatitude: baseTelemetry.gpsLatitude,
+                    gpsLongitude: baseTelemetry.gpsLongitude,
+                    gpsElevation: baseTelemetry.gpsElevation,
+                    locationName: baseTelemetry.locationName ?? ctx.locationName,
+                    weatherCondition: ctx.weatherCondition,
+                    weatherTemperatureF: ctx.weatherTemperature,
+                    timeOfDay: baseTelemetry.timeOfDay,
+                    timestamp: baseTelemetry.timestamp
+                )
+            } else {
+                finalTelemetry = baseTelemetry
+            }
+
             MerianLog.data.debug("⏱️ Inference: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
             await MainActor.run { SyncStateManager.shared.beginFinalizing() }

@@ -53,7 +53,9 @@ private struct WikiSummaryResponse: Decodable {
     /// cancellation handler knows the scan was intentionally backgrounded and should not refund.
     private(set) var isBackgroundRescued = false
     @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
-    private let wikiFetchAttemptCap = 500
+    /// Shared cap for all session-scoped deduplication sets. Matches `wikiFetchAttemptedIds` so
+    /// all three sets evict at the same threshold — ~100 bytes × 500 entries ≈ 50 KB per set.
+    private let sessionSetCap = 500
     /// Scan IDs for which `fetchAndApplyEnrichment` has already been attempted via `load(from:)`.
     /// Prevents re-firing on every open for species that permanently lack GBIF / habitat data.
     /// Live-inference scans (via `analyze()`) bypass this gate intentionally.
@@ -62,6 +64,11 @@ private struct WikiSummaryResponse: Decodable {
     /// live-inference path within this session. Skips the Edge round-trip for repeat observations
     /// of the same species — habitat, lookalikes, and taxonomy data is identical across scans.
     @ObservationIgnored private var enrichedSpeciesNames: Set<String> = []
+    /// Tracks the GBIF image hydration task spawned by `fetchAndApplyEnrichment` so it can be
+    /// cancelled immediately when the user navigates away or fires a new scan. Without this handle
+    /// the task survives `liveHydrationTask` cancellation and can write stale image URLs back to
+    /// a record that is no longer active, or to a record that has already been deleted.
+    @ObservationIgnored private var gbifHydrationTask: Task<Void, Never>?
     /// Tracks the single async hydration task spawned by `load(from:)` so it can be
     /// cancelled immediately when the user navigates to a different scan.
     @ObservationIgnored private var historicHydrationTask: Task<Void, Never>?
@@ -81,6 +88,8 @@ private struct WikiSummaryResponse: Decodable {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
+        self.gbifHydrationTask?.cancel()
+        self.gbifHydrationTask = nil
 
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
@@ -241,6 +250,10 @@ private struct WikiSummaryResponse: Decodable {
                                 }
                             }
                             if !capturedIsEnriched && !Task.isCancelled {
+                                // Evict 10% on cap hit — same policy as wikiFetchAttemptedIds.
+                                if self.enrichedSpeciesNames.count >= self.sessionSetCap {
+                                    self.enrichedSpeciesNames.subtract(self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10))
+                                }
                                 self.enrichedSpeciesNames.insert(capturedScientificName)
                             }
                         }
@@ -350,8 +363,8 @@ private struct WikiSummaryResponse: Decodable {
         guard !wikiFetchAttemptedIds.contains(species) else { return }
         // Evict 10% of entries on cap hit so recent attempts survive and the set never grows unboundedly.
         // Full wipe would reset species that were just successfully fetched, causing redundant network calls.
-        if wikiFetchAttemptedIds.count >= wikiFetchAttemptCap {
-            let evictCount = wikiFetchAttemptCap / 10
+        if wikiFetchAttemptedIds.count >= sessionSetCap {
+            let evictCount = sessionSetCap / 10
             wikiFetchAttemptedIds.subtract(wikiFetchAttemptedIds.prefix(evictCount))
         }
 
@@ -423,26 +436,26 @@ private struct WikiSummaryResponse: Decodable {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return }
 
-            let decoded = try JSONDecoder().decode(GBIFMediaResponse.self, from: data)
-            
-            var newUrls: [String] = []
-            if let results = decoded.results {
-                for result in results {
-                    if let mediaList = result.media {
-                        for mediaItem in mediaList {
-                            if mediaItem.type == "StillImage", let id = mediaItem.identifier {
-                                newUrls.append(id)
-                                break // Only take the primary image from each observation
-                            }
+            // Decode off @MainActor — GBIF occurrence responses can be 50–200 KB and
+            // JSONDecoder runs synchronously. Parsing on the main run loop produces a
+            // jank spike right after the user receives their scan result.
+            let newUrls = try await Task.detached(priority: .utility) {
+                let decoded = try JSONDecoder().decode(GBIFMediaResponse.self, from: data)
+                var urls: [String] = []
+                for result in decoded.results ?? [] {
+                    for mediaItem in result.media ?? [] {
+                        if mediaItem.type == "StillImage", let id = mediaItem.identifier {
+                            urls.append(id)
+                            break // Only take the primary image from each observation
                         }
                     }
                 }
-            }
+                return urls
+            }.value
 
             guard !newUrls.isEmpty else { return }
 
-            // Already on @MainActor — direct access, no hop needed.
-            // Capture the final URL string in the same pass to avoid a second MainActor hop.
+            // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
             var persistUrls: String?
             if self.speciesData?.gbifTaxonKey == taxonKey {
                 var currentUrls = self.speciesData?.referenceImageUrl?
@@ -503,7 +516,10 @@ private struct WikiSummaryResponse: Decodable {
             speciesData?.habitatDescription = enrichData.habitat_description
             if let key = enrichData.gbif_taxon_key {
                 speciesData?.gbifTaxonKey = key
-                Task { [weak self] in
+                // Store in a tracked handle so cancelActiveRequest() can kill this task
+                // before it writes stale GBIF image URLs to a record that is no longer active.
+                gbifHydrationTask?.cancel()
+                gbifHydrationTask = Task { [weak self] in
                     guard let self else { return }
                     await self.fetchGBIFImagesAndHydrate(for: key, scanId: scanId, modelContext: modelContext)
                 }
@@ -679,7 +695,12 @@ private struct WikiSummaryResponse: Decodable {
 
             if let row = rows.first {
                 // Cache hit — patch all available fields reactively.
-                let commonName = row.common_names?.compactMap { $0.value }.first ?? scientificName
+                // Prefer the authoritative "en" locale; fall back to any available translation;
+                // final fallback is the scientific name. Mirrors ScanRepository's resolution logic.
+                let commonName: String = {
+                    guard let names = row.common_names else { return scientificName }
+                    return names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName
+                }()
                 // Capture aiReasoning before any mutation to avoid a read-during-write
                 // exclusivity violation on the @Observable-tracked speciesData property.
                 let existingReasoning = speciesData?.insightData.aiReasoning ?? ""
@@ -743,6 +764,12 @@ private struct WikiSummaryResponse: Decodable {
             isBackgroundRescued = true
         }
         self.inferenceTask?.cancel()
+        self.liveHydrationTask?.cancel()
+        self.historicHydrationTask?.cancel()
+        // Cancel GBIF hydration so stale image URLs cannot be written to a record
+        // that is no longer active after the user fires a new scan or navigates away.
+        self.gbifHydrationTask?.cancel()
+        self.gbifHydrationTask = nil
         // isBackgroundRescued is reset by the task's cancellation catch block.
         // If the task was already finished, analyze() resets it at the start of the next scan.
         self.speciesData = nil
@@ -932,9 +959,16 @@ private struct WikiSummaryResponse: Decodable {
                 && !self.enrichmentAttemptedScanIds.contains(recordId)
                 && !self.enrichedSpeciesNames.contains(recordScientificName) {
                 guard !Task.isCancelled else { return }
+                // Evict 10% on cap hit to bound session-scoped set growth.
+                if self.enrichmentAttemptedScanIds.count >= self.sessionSetCap {
+                    self.enrichmentAttemptedScanIds.subtract(self.enrichmentAttemptedScanIds.prefix(self.sessionSetCap / 10))
+                }
                 self.enrichmentAttemptedScanIds.insert(recordId)
                 await self.fetchAndApplyEnrichment(modelContext: safeContext)
                 if !Task.isCancelled {
+                    if self.enrichedSpeciesNames.count >= self.sessionSetCap {
+                        self.enrichedSpeciesNames.subtract(self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10))
+                    }
                     self.enrichedSpeciesNames.insert(recordScientificName)
                 }
             } else if let key = gbifKey, recordIsBiological {

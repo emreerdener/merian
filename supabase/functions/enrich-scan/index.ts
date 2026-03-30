@@ -133,19 +133,25 @@ serve((req: Request) =>
       // Resolve newly-generated lookalike names into the join table.
       // resolveLookalikesToJoinTable returns the hydrated summaries directly —
       // no redundant fetchLookalikesFromJoinTable call needed.
-      // Mark lookalikes_flash_attempted after the call so future enrich-scan
-      // invocations skip Flash even when all common names are legitimately null
-      // (genuinely obscure lookalike species with no widely-recognised English name).
       if (similarResult?.similar_species && speciesId) {
         lookalikes = await resolveLookalikesToJoinTable(
           speciesId,
           similarResult.similar_species,
           supabaseAdmin,
         );
-        await supabaseAdmin
-          .from("species_dictionary")
-          .update({ lookalikes_flash_attempted: true })
-          .eq("id", speciesId);
+        // Mark lookalikes_flash_attempted so future cold-path calls skip Flash even when all
+        // common names are legitimately null (genuinely obscure lookalike species).
+        // Deferred via waitUntil — this flag is not needed before the response is flushed,
+        // and awaiting it sequentially added a gratuitous ~20 ms Postgres round-trip.
+        if (speciesId) {
+          EdgeRuntime.waitUntil(
+            supabaseAdmin
+              .from("species_dictionary")
+              .update({ lookalikes_flash_attempted: true })
+              .eq("id", speciesId)
+              .then(() => {}),
+          );
+        }
       }
 
       const totalTokens =
@@ -161,12 +167,17 @@ serve((req: Request) =>
         }).catch((e) => console.error("PostHog EnrichmentCostAnalyzed failed:", e));
       }
 
-      // Persist enrichment + write similar_species TEXT[] for backwards compatibility
-      await updateSpeciesEnrichment(
-        scientific_name,
-        enrichmentResult,
-        similarResult,
-        supabaseAdmin,
+      // Persist enrichment + write similar_species TEXT[] for backwards compatibility.
+      // Deferred via waitUntil — the response payload is fully formed at this point
+      // and the client does not need to wait for this write before consuming the response.
+      // Previously awaited sequentially, adding another ~20-30 ms to cold-path latency.
+      EdgeRuntime.waitUntil(
+        updateSpeciesEnrichment(
+          scientific_name,
+          enrichmentResult,
+          similarResult,
+          supabaseAdmin,
+        ),
       );
 
       console.log(`[enrich-scan] CACHE MISS: Generated enrichment for ${scientific_name}`);

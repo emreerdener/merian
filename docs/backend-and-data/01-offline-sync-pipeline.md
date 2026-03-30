@@ -49,7 +49,20 @@ All this payload work runs inside a `BackgroundTaskWrapper.execute` block so iOS
 - **Step E**: `SyncStateManager.shared.beginFinalizing()` transitions to `.finalizing`. `BackgroundDatabaseActor.processAndCleanupOfflineScan` decodes the JSON, inserts `LocalScanRecord`, deletes the `OfflineQueuedScan`, and saves. On inference failure, local image files are deleted via `FileIOActor.shared.deleteImages(at:)`.
 - **Step F**: `ProfileDatabaseActor.calculateAwards()` recalculates the full achievement state. Because awards can trigger on any condition over the scan history (time-of-day, species counts, ecology types, etc.) — not just new discoveries — this runs after every successful inference. `GamificationManager.shared.recordNewSpeciesDiscovered()` is additionally called when `isNewDiscovery == true`. The `UserDefaultsKeys.hasUnseenScan` flag is set to `true` to immediately trigger the MainTabBar red notification dot. A push notification is queued if the app is backgrounded.
 
-**Wireless Offline Weather Hydration**: If the scan was captured without a network connection and lacks `weatherCondition`, the pipeline retroactively calls `EnvironmentContextManager.shared.fetchHistoricalContext(location:date:)` using the stored GPS coordinates and capture timestamp before triggering inference, perfectly reconstructing the weather context for that moment.
+**Wireless Offline Weather Hydration (Concurrent)**: If the scan was captured without a network connection and lacks `weatherCondition`, the pipeline retroactively calls `EnvironmentContextManager.shared.fetchHistoricalContext(location:date:)` using the stored GPS coordinates and capture timestamp to reconstruct the weather context for that moment.
+
+This WeatherKit backfill and the `analyzeSubject` inference call run **concurrently via `async let`**:
+
+```swift
+async let weatherContext = needsWeather
+    ? EnvironmentContextManager.shared.fetchHistoricalContext(location:date:)
+    : nil
+async let inferenceResult = MerianNetworkClient.shared.analyzeSubject(
+    r2ObjectKeys: resolvedKeys, base64ImageDatas: nil, telemetry: baseTelemetry)
+let (historicalContext, resultData) = try await (weatherContext, inferenceResult)
+```
+
+Previously, the WeatherKit call was `await`ed sequentially before inference — adding 200–800 ms of WeatherKit latency to the hot path for every offline scan that needed weather backfill. Weather is optional metadata; the scan result must not be gated on it. If the weather call fails or returns nil, inference proceeds with the original telemetry unchanged.
 
 When all background upload tasks settle, `SyncStateManager.shared.completeSync()` transitions to `.idle`. If `unsyncedItemsCount > 0` after a batch, `syncPendingScans()` is called recursively to drain the queue automatically.
 

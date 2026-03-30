@@ -115,9 +115,57 @@ When opening a historical scan, `load(from:)` previously spawned up to 4 indepen
 
 For species that permanently lack GBIF data or habitat descriptions, the enrichment eligibility condition evaluated `true` on every open, firing an `enrich-scan` Edge Function call that returned the same empty result each time. `InferenceEngine` now maintains `@ObservationIgnored private var enrichmentAttemptedScanIds: Set<String>`. The gate is set **before** the call so even empty results prevent re-fires. Live inference scans (via `analyze()`) bypass this gate.
 
-### `wikiFetchAttemptedIds` Full-Wipe Eviction (`InferenceEngine`)
+### Session-Scoped Deduplication Set Eviction (`InferenceEngine`)
 
-When `wikiFetchAttemptedIds` hit the 500-entry cap, the entire set was wiped — causing immediate Wikipedia re-fetches for all 500 recently-seen species. Now **10% of entries** (`prefix(wikiFetchAttemptCap / 10)`) are evicted on cap hit, preserving 90% of recently-fetched entries.
+`InferenceEngine` maintains three session-scoped `Set<String>` guards to prevent redundant network calls across an app session:
+
+- **`wikiFetchAttemptedIds`** — Wikipedia fetch attempts, keyed by scientific name.
+- **`enrichedSpeciesNames`** — species that have completed a full `enrich-scan` Edge call, keyed by scientific name. Shared between the live-inference path and `load(from:)` so a second scan of the same species never re-enriches within a session.
+- **`enrichmentAttemptedScanIds`** — scan IDs for which enrichment was attempted via `load(from:)`. Prevents re-firing on every historical open for species that permanently lack GBIF or habitat data.
+
+All three sets share a single `private let sessionSetCap = 500` ceiling. When any set reaches the cap, **10% of entries** (`prefix(sessionSetCap / 10)`) are evicted, preserving 90% of recently-used entries and bounding session RAM to ~50 KB per set (~100 bytes × 500 entries). This replaced a previous full-wipe strategy on `wikiFetchAttemptedIds` that caused all 500 recently-fetched Wikipedia entries to be re-fetched immediately, and the absence of any cap on `enrichedSpeciesNames`/`enrichmentAttemptedScanIds` which allowed those sets to grow without bound for power users browsing large libraries.
+
+### Stale GBIF Write Prevention — Tracked `gbifHydrationTask` (`InferenceEngine`)
+
+`fetchAndApplyEnrichment` previously spawned a bare `Task { }` to call `fetchGBIFImagesAndHydrate` after resolving a `gbif_taxon_key` from the `enrich-scan` response. This task was not attached to any cancellable handle: when `cancelActiveRequest()` cancelled `liveHydrationTask` or `historicHydrationTask` (e.g. user starts a new scan), the GBIF task kept running. It would eventually complete and call `BackgroundDatabaseActor.updateScanWithWikipedia(scanId:..., imageUrl:)` — writing image URLs to a record that might now belong to a completely different species or, worse, to a record that was deleted between task spawn and completion.
+
+`InferenceEngine` now owns `@ObservationIgnored private var gbifHydrationTask: Task<Void, Never>?`. The property is:
+- **Cancelled and nil-ed** at the start of every `analyze()` call (new scan starts) and inside `cancelActiveRequest()` (background rescue or explicit cancel).
+- **Assigned** inside `fetchAndApplyEnrichment` using `gbifHydrationTask?.cancel(); gbifHydrationTask = Task { ... }` so only one GBIF hydration is ever in flight at a time.
+
+### GBIF Response Decoded Off `@MainActor` (`InferenceEngine`)
+
+`fetchGBIFImagesAndHydrate` is a method on `@MainActor InferenceEngine`. After `URLSession.shared.data(for:)` suspends and resumes, execution returns to the main actor. Previously, `JSONDecoder().decode(GBIFMediaResponse.self, from: data)` ran synchronously on the main run loop — for common species GBIF occurrence responses this payload is 50–200 KB. Parsing that on `@MainActor` produces a measurable jank spike immediately after the user receives their scan result, especially during `ScrollView` interactions at 120 Hz.
+
+The decode now runs inside `Task.detached(priority: .utility)`. Only the URL-extraction loop and the final `[String]` result cross back to `@MainActor` after the decode completes:
+
+```swift
+let newUrls = try await Task.detached(priority: .utility) {
+    let decoded = try JSONDecoder().decode(GBIFMediaResponse.self, from: data)
+    var urls: [String] = []
+    for result in decoded.results ?? [] {
+        for mediaItem in result.media ?? [] {
+            if mediaItem.type == "StillImage", let id = mediaItem.identifier {
+                urls.append(id); break
+            }
+        }
+    }
+    return urls
+}.value
+// @MainActor UI patching continues here
+```
+
+### `JSONEncoder` Hoist + Consolidated Date Parse in `ingestScans` (`HistoricalDatabaseActor`)
+
+`HistoricalDatabaseActor.ingestScans` processes up to `MerianConfig.historicalSyncPageSize` scan records per page call. Two per-iteration allocations compounded over bulk ingestion:
+
+1. **`JSONEncoder()` per scan** — `JSONEncoder` init touches multiple Obj-C objects (key encoding strategy, output formatting, date strategy). Over a 1,000-scan first sync this is 1,000 gratuitous allocations generating GC pressure and cache thrash on the `@ModelActor` thread. The encoder is now hoisted as `let encoder = JSONEncoder()` before the loop and reused across all records.
+
+2. **Double date parse per scan** — `parsedDate` and `exifDate` were derived from the exact same timestamp string through the exact same two formatters in two separate `flatMap` closures. `ISO8601DateFormatter.date(from:)` is a Calendar+Locale-sensitive parse, not a cheap O(1) op. On a 10,000-scan sync this was ~20,000 redundant formatter calls. Both values are now derived from a single parse: `let exifDate: Date? = ...`, then `let parsedDate = exifDate ?? Date()`. Formatter order is also optimised: a `.contains(".")` check on the timestamp string routes fractional timestamps to the fractional formatter first, and standard timestamps (the majority) to the plain formatter first, eliminating the consistent cold-path miss of always trying the fractional formatter first.
+
+### `syncCollections` Fetch Limit Guard (`HistoricalDatabaseActor`)
+
+`HistoricalDatabaseActor.syncCollections` previously issued `FetchDescriptor<ScanCollection>()` with no predicate and no fetch limit — a full-table scan that loads every `ScanCollection` record including any orphaned or schema-migrated rows. A defensive `fetchLimit = 500` is now set. For the vast majority of users (5–50 collections) this is invisible; it prevents a pathological case where a schema migration or bug creating duplicate collections causes the entire collection graph to be loaded and faulted into memory before sync begins.
 
 ### Reconnect Debounce Task Stacking (`OfflineQueueManager`)
 

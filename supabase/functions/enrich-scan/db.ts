@@ -123,10 +123,10 @@ export async function resolveLookalikesToJoinTable(
   //   b) the species_dictionary row has no "en" key yet
   //      (covers: common_names IS NULL, common_names = '{}', common_names = '{"fr":"..."}')
   //
-  // Uses the merge_common_name_en RPC (JSONB || merge) instead of a direct .update()
-  // so that existing locale keys (e.g. "fr", "de") are preserved rather than overwritten.
-  // The RPC's own WHERE guard (NOT (common_names ? 'en')) makes each call a safe no-op
-  // if "en" was already populated by a concurrent request.
+  // Uses merge_common_name_en_batch (JSONB || merge) instead of N individual RPCs so all
+  // back-fills complete in a single Postgres round-trip. The RPC's WHERE guard
+  // (NOT (common_names ? 'en')) makes each row update a safe no-op if "en" was already
+  // populated by a concurrent request, preserving existing locale keys (e.g. "fr", "de").
   const backfills = typed.filter((m) => {
     const flashName = entryByName.get(m.scientific_name)?.common_name ?? null;
     if (!flashName) return false;
@@ -134,14 +134,12 @@ export async function resolveLookalikesToJoinTable(
     return !hasEn;
   });
   if (backfills.length > 0) {
-    await Promise.allSettled(
-      backfills.map((m) =>
-        supabaseAdmin.rpc("merge_common_name_en", {
-          p_id: m.id,
-          p_en_name: entryByName.get(m.scientific_name)!.common_name,
-        }),
-      ),
-    );
+    await supabaseAdmin.rpc("merge_common_name_en_batch", {
+      p_updates: backfills.map((m) => ({
+        id: m.id,
+        en_name: entryByName.get(m.scientific_name)!.common_name,
+      })),
+    });
   }
 
   const matchedNames = new Set(typed.map((m) => m.scientific_name));
