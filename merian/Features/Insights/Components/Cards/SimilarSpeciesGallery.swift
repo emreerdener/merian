@@ -71,14 +71,14 @@ struct SimilarSpeciesCard: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 160)
+            .frame(height: 180)
             .clipped()
 
             // Text Details & Confirmation Hook
             VStack(alignment: .leading, spacing: 4) {
                 if let commonName = entry.commonName {
                     Text(commonName)
-                        .font(.subheadline)
+                        .font(.callout)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                         .lineLimit(2)
@@ -94,15 +94,15 @@ struct SimilarSpeciesCard: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(height: 60, alignment: .topLeading)
+            .frame(height: 80, alignment: .topLeading)
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(UIColor.secondarySystemGroupedBackground))
         }
-        .frame(width: 180, height: 240)
-        .cornerRadius(12)
+        .frame(width: 200, height: 260)
+        .cornerRadius(16)
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color(UIColor.separator), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
@@ -130,7 +130,7 @@ extension SimilarSpeciesGallery {
                         .foregroundColor(.secondary)
 
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: 16) {
                             ForEach(0..<3, id: \.self) { _ in
                                 SkeletonCard()
                             }
@@ -160,7 +160,7 @@ extension SimilarSpeciesGallery {
                 // Image Placeholder
                 Color(uiColor: .systemFill)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 160)
+                    .frame(height: 180)
                     .clipped()
                 
                 // Text Placeholder Details
@@ -173,15 +173,15 @@ extension SimilarSpeciesGallery {
                         .fill(Color(uiColor: .systemFill))
                         .frame(width: 140, height: 16)
                 }
-                .frame(height: 60, alignment: .topLeading)
+                .frame(height: 80, alignment: .topLeading)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(UIColor.secondarySystemGroupedBackground))
             }
-            .frame(width: 180, height: 240)
-            .cornerRadius(12)
+            .frame(width: 200, height: 260)
+            .cornerRadius(16)
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(Color(UIColor.separator), lineWidth: 0.5)
             )
         }
