@@ -106,9 +106,15 @@ private struct PendingView: View {
 
             if !isExpanded {
                 // State 1 — Prompt
-                Text("The model considered \(candidates.count) alternative\(candidates.count == 1 ? "" : "s"). Tap to review.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                if candidates.isEmpty {
+                    Text("The AI had below-average confidence on this identification.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("The model considered \(candidates.count) alternative\(candidates.count == 1 ? "" : "s"). Tap to review.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
 
                 HStack(spacing: 12) {
                     Button {
@@ -124,20 +130,22 @@ private struct PendingView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            isExpanded = true
+                    if !candidates.isEmpty {
+                        Button {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                isExpanded = true
+                            }
+                        } label: {
+                            Label("Not sure", systemImage: "xmark")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.orange.opacity(0.15))
+                                .foregroundColor(.orange)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
-                    } label: {
-                        Label("Not sure", systemImage: "xmark")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.orange.opacity(0.15))
-                            .foregroundColor(.orange)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             } else {
                 // State 2 — Expanded candidates

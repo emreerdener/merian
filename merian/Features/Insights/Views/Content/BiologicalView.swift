@@ -40,10 +40,12 @@ struct BiologicalView: View {
             // MARK: - Identification Candidates
             let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil ||
                                  inferenceEngine.speciesData?.userConfirmedIdentification == true
+            let candidates = inferenceEngine.speciesData?.candidates ?? []
+            let confidenceBands = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier)
+            let hasLowConfidence = (inferenceEngine.speciesData?.confidenceScore ?? 1.0) < confidenceBands.diagnosticTrigger
 
             if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-               let candidates = inferenceEngine.speciesData?.candidates,
-               candidates.count >= 2 || hasReviewState {
+               candidates.count >= 2 || hasReviewState || hasLowConfidence {
                 CandidatesCard(
                     candidates: candidates,
                     aiScientificName: primaryAIName,
