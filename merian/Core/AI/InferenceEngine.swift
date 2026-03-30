@@ -810,17 +810,19 @@ private struct WikiSummaryResponse: Decodable {
         let gbifKey = record.gbifTaxonKey
         let needsWiki = recordIsBiological &&
             (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty)
+        // Decode lookalikesData once here on @MainActor — the blob is small (3 entries × 4 fields).
+        // The result is reused for both the needsEnrichment gate check and the UI decode step
+        // inside historicHydrationTask, avoiding a second JSONDecoder allocation on the same data.
+        let preDecodedSimilar: SimilarSpecies? = lookalikesJsonData.flatMap {
+            (try? JSONDecoder().decode([SimilarSpeciesEntry].self, from: $0))
+                .map { SimilarSpecies(entries: $0) }
+        }
         // A scan needs enrichment when any of the three key fields are absent, OR when
         // lookalikesData exists but every decoded entry has a nil commonName — indicating
         // the join table was populated before the common-name back-fill pipeline was added.
-        // The lightweight decode here is a small allocation on an already-loaded blob; the
-        // full decode for UI use runs later in Task.detached.
-        let lookalikesHaveNoCommonNames: Bool = {
-            guard let json = record.lookalikesData,
-                  let entries = try? JSONDecoder().decode([SimilarSpeciesEntry].self, from: json),
-                  !entries.isEmpty else { return false }
-            return entries.allSatisfy { $0.commonName == nil }
-        }()
+        let lookalikesHaveNoCommonNames: Bool = preDecodedSimilar.map {
+            !$0.entries.isEmpty && $0.entries.allSatisfy { $0.commonName == nil }
+        } ?? false
         let needsEnrichment = recordIsBiological &&
             (record.habitatDescription == nil || record.gbifTaxonKey == nil || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
 
@@ -885,18 +887,17 @@ private struct WikiSummaryResponse: Decodable {
             guard !Task.isCancelled else { return }
             self.validHistoricImagePaths = validPaths
 
-            // Step 2: Decode JSON blobs off @MainActor (CPU-bound).
-            // Task.detached ensures the decoder does not block the main thread.
+            // Step 2: Resolve similar species and decode candidates off @MainActor (CPU-bound).
+            // similarSpecies reuses the pre-decoded result from the gate check above —
+            // no second JSONDecoder pass on lookalikesData. Candidates are decoded here
+            // since they were not needed for any @MainActor gate.
             let (parsedSimilar, parsedCandidates) = await Task.detached(priority: .userInitiated) {
-                var similar: SimilarSpecies?
-                if let json = lookalikesJsonData,
-                   let decoded = try? JSONDecoder().decode([SimilarSpeciesEntry].self, from: json) {
-                    similar = SimilarSpecies(entries: decoded)
-                } else if let legacyArray = lookalikesLegacyArray, !legacyArray.isEmpty {
-                    similar = SimilarSpecies(entries: legacyArray.map {
-                        SimilarSpeciesEntry(scientificName: $0, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
-                    })
-                }
+                let similar: SimilarSpecies? = preDecodedSimilar
+                    ?? lookalikesLegacyArray.flatMap { arr in
+                        arr.isEmpty ? nil : SimilarSpecies(entries: arr.map {
+                            SimilarSpeciesEntry(scientificName: $0, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
+                        })
+                    }
                 let candidates: [IdentificationCandidate]? = candidatesRawData.flatMap {
                     try? JSONDecoder().decode([IdentificationCandidate].self, from: $0)
                 }
@@ -920,12 +921,22 @@ private struct WikiSummaryResponse: Decodable {
             }
 
             // Step 5: Enrichment or GBIF-image hydration (mutually exclusive).
-            // The enrichment gate prevents infinite re-firing for species that permanently
-            // lack GBIF / habitat data — the attempt is recorded regardless of outcome.
-            if needsEnrichment && !self.enrichmentAttemptedScanIds.contains(recordId) {
+            // Two gates prevent redundant enrichment calls:
+            // - enrichmentAttemptedScanIds (scan-ID-scoped): prevents re-firing for the same
+            //   scan record within a session (e.g. user closes and reopens the same scan).
+            // - enrichedSpeciesNames (species-name-scoped): prevents a second enrichment call
+            //   if the user opens two different scans of the same species in the same session —
+            //   shared species-level data (habitat, lookalikes) is identical across all scans.
+            //   Mirrors the same gate used on the live inference path.
+            if needsEnrichment
+                && !self.enrichmentAttemptedScanIds.contains(recordId)
+                && !self.enrichedSpeciesNames.contains(recordScientificName) {
                 guard !Task.isCancelled else { return }
                 self.enrichmentAttemptedScanIds.insert(recordId)
                 await self.fetchAndApplyEnrichment(modelContext: safeContext)
+                if !Task.isCancelled {
+                    self.enrichedSpeciesNames.insert(recordScientificName)
+                }
             } else if let key = gbifKey, recordIsBiological {
                 guard !Task.isCancelled else { return }
                 await self.fetchGBIFImagesAndHydrate(for: key, scanId: recordId, modelContext: safeContext)
