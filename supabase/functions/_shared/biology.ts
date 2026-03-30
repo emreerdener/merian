@@ -142,13 +142,18 @@ export async function fetchStaticEncyclopedicData(
 
 // --- SIMILAR SPECIES LOGIC --- //
 
+export interface SimilarSpeciesEntry {
+  scientific_name: string;
+  common_name: string | null;
+}
+
 export async function fetchSimilarSpecies(
   user: User,
   scientificName: string,
-) {
+): Promise<{ similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } | null> {
   const model = createFlashModel(
-    "You are a world-class biologist. Given a species scientific name, identify the top 3 most commonly confused lookalike species. Provide them exclusively as an array of exact scientific names.",
-    150,
+    "You are a world-class biologist. Given a species scientific name, identify the top 3 most commonly confused lookalike species. For each, provide the exact scientific name and the most widely recognised English common name.",
+    300,
   );
 
   const schema: Record<string, unknown> = {
@@ -156,9 +161,16 @@ export async function fetchSimilarSpecies(
     properties: {
       similar_species: {
         type: SchemaType.ARRAY,
-        items: { type: SchemaType.STRING },
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+            scientific_name: { type: SchemaType.STRING },
+            common_name: { type: SchemaType.STRING },
+          },
+          required: ["scientific_name", "common_name"],
+        },
         description:
-          "Exact scientific names of the top 3 closely related but distinct lookalike species.",
+          "Top 3 closely related but distinct lookalike species, each with exact scientific name and English common name.",
       },
     },
     required: ["similar_species"],
@@ -190,14 +202,17 @@ export async function fetchSimilarSpecies(
         llm_total_tokens: usage.totalTokenCount,
       }).catch((e) => console.error("PostHog SimilarSpeciesLLMCompleted failed:", e));
     }
-    const extracted = extractJson<{
-      similar_species: string[];
-      usage?: UsageMetadata;
+    const raw = extractJson<{
+      similar_species: Array<{ scientific_name: string; common_name?: string }>;
     }>(result.response.text());
-    if (usage) {
-      extracted.usage = usage;
-    }
-    return extracted;
+    const normalized: { similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } = {
+      similar_species: (raw.similar_species ?? []).map((e) => ({
+        scientific_name: e.scientific_name,
+        common_name: e.common_name || null,
+      })),
+    };
+    if (usage) normalized.usage = usage;
+    return normalized;
   } catch (e) {
     console.error("fetchSimilarSpecies failed:", e);
     return null;

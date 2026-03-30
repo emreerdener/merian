@@ -59,14 +59,45 @@ trackPostHogEvent(user, "EventName", { ...props }).catch((e) =>
 // ✗ BAD — fetches all species_dictionary columns
 .select("lookalike_id, species_dictionary(*)")
 
-// ✓ GOOD — single embedded join, only decoded fields
+// ✓ GOOD — single embedded join, only decoded fields, unambiguous FK hint
 .from("species_lookalikes")
-.select("lookalike:lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)")
+.select("lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)")
 .eq("species_id", speciesId)
 ```
 The embedded join syntax resolves two sequential PostgREST round-trips (the old N+1 `SELECT id → SELECT IN (ids)` pattern) into a single SQL JOIN, cutting connection-pool acquisitions and Deno isolate latency in half.
 
+**PostgREST FK Disambiguation Rule — Always Use `table!column` Hint on Multi-FK Tables:** When a join table has two foreign keys that both reference the same target table, PostgREST cannot determine which FK to follow and returns an ambiguous-relationship error at runtime. The alias-only shorthand `"alias:column(fields)"` is insufficient in this case. Always use the full `"alias:table!column(fields)"` hint to specify both the target table and the FK column:
+```typescript
+// ✗ AMBIGUOUS — species_lookalikes has two FKs to species_dictionary;
+//               PostgREST cannot determine which one to follow
+.select("lookalike:lookalike_id(scientific_name, ...)")
+
+// ✓ UNAMBIGUOUS — explicit table!column hint resolves the correct FK
+.select("lookalike:species_dictionary!lookalike_id(scientific_name, ...)")
+```
+The `species_lookalikes` table (`species_id` and `lookalike_id`, both referencing `species_dictionary`) is the canonical example. Any future join table with self-referential or dual-FK relationships to the same table requires this pattern.
+
+**TEXT[] Fallback Rule — Always Return Scientific Names When Join Table Resolution Fails:** `resolveLookalikesToJoinTable` resolves scientific names only for species already present in `species_dictionary`. Lookalike species that have never been scanned by any user (and therefore have no dictionary row) silently fall through with zero results. `formatEnrichmentPayload` must apply a TEXT[] fallback when the join table resolution returns empty:
+```typescript
+const resolvedLookalikes: LookalikeSummary[] =
+  lookalikes.length > 0
+    ? lookalikes
+    : (cachedSpecies?.similar_species ?? []).map((name) => ({
+        scientific_name: name,
+        common_name: null,
+        reference_image_url: null,
+        iucn_red_list_status: null,
+      }));
+```
+This guarantees that clients always receive at least the scientific names rather than `similar_species: null`, which prevents the lookalikes UI from going blank when the join table is sparsely populated for rare or newly-added species.
+
 **Resolve-and-Return Pattern:** Functions that write to a join table and then need the hydrated rows must return the result directly from the write query — never call a separate fetch function after the write. This eliminates a redundant third round-trip on migration or LLM-completion paths. See `resolveLookalikesToJoinTable` in `enrich-scan/db.ts` for the reference implementation: the `species_dictionary` query that resolves names to IDs is expanded to also fetch the hydration columns, and the mapped `LookalikeSummary[]` is returned directly to the caller.
+
+**`fetchSimilarSpecies` Returns `SimilarSpeciesEntry[]` — Scientific Name + Common Name Pairs:** `fetchSimilarSpecies` in `_shared/biology.ts` returns structured objects `{ scientific_name, common_name }` rather than bare scientific name strings. The Flash model generates both fields in one call at negligible extra token cost. The common name flows through `resolveLookalikesToJoinTable` in two ways:
+1. **Runtime**: `LookalikeSummary.common_name` is populated as `dictionary_value ?? flash_value ?? null` — so even species that exist in `species_dictionary` without a `common_names.en` entry return a name immediately.
+2. **Persistent back-fill**: For species whose `common_names` column is entirely `NULL` (e.g. added to the dictionary via the enrichment path, never directly scanned), `resolveLookalikesToJoinTable` upserts `{ en: flash_common_name }` into `species_dictionary`. This ensures all future `fetchLookalikesFromJoinTable` calls return a populated name without re-running the Flash call.
+
+The migration path in `index.ts` converts legacy `TEXT[]` entries to `SimilarSpeciesEntry[]` with `common_name: null` before calling `resolveLookalikesToJoinTable` — the back-fill step will still fire for any matched dictionary rows whose column is null, even without a Flash-generated name in the entry.
 
 **Gemini Flash `thinkingBudget: 0` Rule — Disable Thinking Tokens on Structured-Output Tasks:** All calls to `createFlashModel` (in `_shared/gemini.ts`) pass `thinkingConfig: { thinkingBudget: 0 }`. Gemini 2.5 Flash thinking tokens add ~2–4 s of latency with no accuracy benefit for deterministic, schema-constrained JSON generation tasks (enrichment extraction, lookalike resolution, etc.). Because `thinkingConfig` is not yet a typed field in the SDK version pinned in `_shared/gemini.ts`, it is cast via `as unknown as GenerationConfig`. Do not remove this cast — it is intentional.
 

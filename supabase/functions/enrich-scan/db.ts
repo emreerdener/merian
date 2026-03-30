@@ -1,6 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { CachedSpeciesData, LookalikeSummary } from "./types.ts";
-import { EncyclopedicData } from "../_shared/biology.ts";
+import { EncyclopedicData, SimilarSpeciesEntry } from "../_shared/biology.ts";
 
 export async function getCachedSpecies(
   scientificName: string,
@@ -26,10 +26,13 @@ export async function fetchLookalikesFromJoinTable(
   speciesId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<LookalikeSummary[]> {
+  // Use explicit table!column hint to disambiguate the two FKs (species_id and lookalike_id)
+  // that both point to species_dictionary. Without the hint PostgREST cannot determine which
+  // FK to follow and returns an ambiguous-relationship error.
   const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
     .select(
-      "lookalike:lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)",
+      "lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)",
     )
     .eq("species_id", speciesId)
     .limit(10);
@@ -56,16 +59,22 @@ export async function fetchLookalikesFromJoinTable(
     }));
 }
 
-/// Resolves a list of scientific name strings to species_dictionary rows, inserts bidirectional
+/// Resolves a list of SimilarSpeciesEntry values to species_dictionary rows, inserts bidirectional
 /// rows into species_lookalikes, and returns the resolved entries as LookalikeSummary[].
-/// Silently skips names not yet in the dictionary. Returning the summaries directly allows the
-/// caller to skip a redundant fetchLookalikesFromJoinTable call after resolution.
+/// Silently skips entries whose scientific name is not yet in the dictionary.
+/// For dictionary rows whose common_names column is NULL, back-fills the Flash-generated
+/// common_name so future fetchLookalikesFromJoinTable calls return a populated common name.
+/// Returning the summaries directly allows the caller to skip a redundant
+/// fetchLookalikesFromJoinTable call after resolution.
 export async function resolveLookalikesToJoinTable(
   speciesId: string,
-  names: string[],
+  entries: SimilarSpeciesEntry[],
   supabaseAdmin: SupabaseClient,
 ): Promise<LookalikeSummary[]> {
-  if (names.length === 0) return [];
+  if (entries.length === 0) return [];
+
+  const names = entries.map((e) => e.scientific_name);
+  const entryByName = new Map(entries.map((e) => [e.scientific_name, e]));
 
   const { data: matches, error } = await supabaseAdmin
     .from("species_dictionary")
@@ -95,9 +104,28 @@ export async function resolveLookalikesToJoinTable(
 
   if (upsertError) throw upsertError;
 
+  // Back-fill common_names for species whose entire common_names column is NULL.
+  // Only fires when the Flash model returned a non-empty name and the DB column is
+  // fully absent (not merely missing the "en" key) — avoids overwriting partial locale data.
+  const backfills = typed.filter(
+    (m) => m.common_names === null && (entryByName.get(m.scientific_name)?.common_name ?? null) !== null,
+  );
+  if (backfills.length > 0) {
+    await Promise.allSettled(
+      backfills.map((m) =>
+        supabaseAdmin
+          .from("species_dictionary")
+          .update({ common_names: { en: entryByName.get(m.scientific_name)!.common_name } })
+          .eq("id", m.id)
+          .is("common_names", null),
+      ),
+    );
+  }
+
   return typed.map((m) => ({
     scientific_name: m.scientific_name,
-    common_name: m.common_names?.en ?? null,
+    // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
+    common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
     reference_image_url: m.reference_image_url,
     iucn_red_list_status: m.iucn_red_list_status,
   }));
@@ -106,7 +134,7 @@ export async function resolveLookalikesToJoinTable(
 export async function updateSpeciesEnrichment(
   scientificName: string,
   enrichmentResult: EncyclopedicData | null,
-  similarResult: { similar_species: string[] } | null,
+  similarResult: { similar_species: SimilarSpeciesEntry[] } | null,
   supabaseAdmin: SupabaseClient,
 ) {
   const persistOps: PromiseLike<unknown>[] = [];
@@ -129,11 +157,12 @@ export async function updateSpeciesEnrichment(
   }
 
   if (similarResult) {
+    // Persist scientific names only into the TEXT[] column for backwards compatibility.
     persistOps.push(
       supabaseAdmin
         .from("species_dictionary")
         .update({
-          similar_species: similarResult.similar_species,
+          similar_species: similarResult.similar_species.map((e) => e.scientific_name),
         })
         .eq("scientific_name", scientificName),
     );

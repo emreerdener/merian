@@ -484,12 +484,6 @@ private struct WikiSummaryResponse: Decodable {
               !data.scientificName.isEmpty,
               data.scientificName.lowercased() != "taxonomy unavailable" else { return }
 
-        // Short-circuit when enrichment is already fully hydrated from persisted storage.
-        // Historical scans have both fields populated after load(from:) runs the override patch.
-        // Live inference scans always have nil habitat/similarSpecies on first call, so this
-        // gate correctly fires only on historical re-opens with complete data.
-        if data.habitatDescription != nil, data.similarSpecies != nil { return }
-
         isEnrichmentLoading = true
         defer { isEnrichmentLoading = false }
 

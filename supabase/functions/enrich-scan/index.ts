@@ -17,13 +17,27 @@ function formatEnrichmentPayload(
   enrichmentResult: EncyclopedicData | null,
   lookalikes: LookalikeSummary[],
 ) {
+  // Prefer rich join-table entries. Fall back to TEXT[] scientific names when rich
+  // resolution failed (lookalike species not yet in species_dictionary). This ensures
+  // clients always receive at least species names rather than null, which prevents
+  // the UI from going blank when the join table is sparsely populated.
+  const resolvedLookalikes: LookalikeSummary[] =
+    lookalikes.length > 0
+      ? lookalikes
+      : (cachedSpecies?.similar_species ?? []).map((name) => ({
+          scientific_name: name,
+          common_name: null,
+          reference_image_url: null,
+          iucn_red_list_status: null,
+        }));
+
   return {
     habitat_description:
       enrichmentResult?.habitat_description ??
       cachedSpecies?.habitat_description ??
       "No habitat data available.",
     gbif_taxon_key: cachedSpecies?.gbif_taxon_key,
-    similar_species: lookalikes.length > 0 ? lookalikes : null,
+    similar_species: resolvedLookalikes.length > 0 ? resolvedLookalikes : null,
     taxonomy: {
       kingdom: enrichmentResult?.taxonomy?.kingdom ?? cachedSpecies?.kingdom ?? "Unknown",
       phylum: enrichmentResult?.taxonomy?.phylum ?? cachedSpecies?.phylum ?? "Unknown",
@@ -64,6 +78,8 @@ serve((req: Request) =>
 
       // Migration path: join table is empty but TEXT[] has names from the old pipeline —
       // resolve them into the join table once at zero Gemini token cost.
+      // Legacy TEXT[] entries carry no common_name; the back-fill in resolveLookalikesToJoinTable
+      // will populate common_names for any matched dictionary rows that have a null column.
       if (
         lookalikes.length === 0 &&
         cachedSpecies?.similar_species &&
@@ -73,7 +89,7 @@ serve((req: Request) =>
         // no redundant fetchLookalikesFromJoinTable call needed.
         lookalikes = await resolveLookalikesToJoinTable(
           speciesId,
-          cachedSpecies.similar_species,
+          cachedSpecies.similar_species.map((name) => ({ scientific_name: name, common_name: null })),
           supabaseAdmin,
         );
       }
