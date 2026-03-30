@@ -7,6 +7,7 @@ struct InsightHeader: View {
     let paragraphs: [String]
     let confidenceScore: Double?
     let inferenceTier: String?
+    var onScrollOffsetChange: ((CGFloat) -> Void)?
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
@@ -27,10 +28,10 @@ struct InsightHeader: View {
                     .accessibilityAddTraits(hazardType != "none" ? [] : .isHeader)
                     .background(
                         GeometryReader { geo in
-                            Color.clear.preference(
-                                key: CommonNameScrollOffsetKey.self,
-                                value: geo.frame(in: .named("InsightScrollSpace")).maxY
-                            )
+                            Color.clear
+                                .onChange(of: geo.frame(in: .named("InsightScrollSpace")).maxY, initial: true) { _, newMaxY in
+                                    onScrollOffsetChange?(newMaxY)
+                                }
                         }
                     )
 
@@ -69,16 +70,5 @@ struct InsightHeader: View {
         }
         
         return result
-    }
-}
-
-// MARK: - Layout Preference Keys
-struct CommonNameScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = .infinity
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        let next = nextValue()
-        if next != .infinity {
-            value = next
-        }
     }
 }

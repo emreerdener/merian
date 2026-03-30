@@ -9,11 +9,11 @@ struct ToxicityBanner: View {
 
     private var bannerTitle: String {
         switch hazardType {
-        case "venomous":   return "Caution: Venomous"
-        case "allergenic": return "Caution: Allergenic"
-        case "irritant":   return "Caution: Irritant"
-        case "poisonous":  return "Caution: Toxic"
-        default:           return "Caution: Toxic"
+        case "venomous":   return "Venomous"
+        case "allergenic": return "Allergenic"
+        case "irritant":   return "Irritant"
+        case "poisonous":  return "Toxic"
+        default:           return "Toxic"
         }
     }
 
@@ -26,27 +26,59 @@ struct ToxicityBanner: View {
         }
     }
 
+    private var baseColor: Color {
+        switch hazardType {
+        case "venomous", "poisonous": return .red
+        default:                      return .yellow
+        }
+    }
+
     var body: some View {
         if hazardType != "none" {
-            HStack {
-                Image(systemName: "exclamationmark.circle")
+
+            HStack(spacing: 16) {
+               Image(systemName: "exclamationmark.circle.fill")
                     .font(.title)
-                VStack(alignment: .leading) {
+                    .foregroundStyle(baseColor.opacity(0.8))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("CAUTION")
+                        .font(.system(.caption2, design: .monospaced))
+                        .fontWeight(.bold)
+                        .tracking(1)
+                        
                     Text(bannerTitle)
-                        .font(.system(.headline))
+                        .font(.system(.title3))
+                        .fontWeight(.bold)
+
                     Text(bannerSubtitle)
-                        .font(.system(.subheadline))
+                        .font(.system(.footnote))
                 }
                 Spacer()
             }
+
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
-            .background(Color.yellow.opacity(0.8))
-            .foregroundColor(.black)
-            .cornerRadius(16)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.yellow.opacity(0.4), lineWidth: 1)
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(.regularMaterial)
             )
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(baseColor.opacity(0.9)) // Subsurface threat ambient tint
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [baseColor.opacity(0.8), baseColor.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+            )
+            .foregroundColor(.primary)
             // Accessibility: Explicitly anchor screen readers to the threat first
             .accessibilityAddTraits(.isHeader)
             .allowsHitTesting(false)

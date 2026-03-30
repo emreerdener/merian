@@ -19,12 +19,12 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
 | `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
-| `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalike or similar species sourced from `speciesData.similarSpecies` (`SimilarSpecies` wrapper decoded from `LocalScanRecord.lookalikesData` for V27+ records, or from `LocalScanRecord.similarSpecies: [String]?` for pre-V27 records); each `SimilarSpeciesCard` renders `referenceImageUrl` directly when available, otherwise falls back to `SimilarSpeciesImageFetcher` |
+| `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalikes sourced from `speciesData.similarSpecies`. Each `SimilarSpeciesCard` natively renders `referenceImageUrl` or asynchronously falls back to `SimilarSpeciesImageFetcher` (Wikipedia → GBIF waterfall). Features aggressive reactive filtering: if all backend and fallback media sources organically fail, or names are null, cards are dynamically purged via a shared `@State` invalidation set (`failedMediaIdentifiers`). If the entire dataset collapses, the gallery cleanly unmounts via `EmptyView()` to prevent uncentered layouts mapping. |
 | `OverviewCard` | Structural card rendering dynamic biological KeyValueRow metrics (e.g., size, life stage, interactions, invasive species status) followed by an 8-line truncated Wikipedia extract and a built-in Safari "Learn more" button. |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
 | `GBIFHeatmapMapView` | SwiftUI `View` that composites two images to render a full-world GBIF occurrence heatmap natively. (1) A static `WorldMapBase` custom Mapbox topography background image, entirely eliminating MapKit CPU overhead. (2) The GBIF density zoom-0 tile (`/0/0/0@2x.png`) — a single 512 px PNG covering the entire world in Web Mercator — is fetched and drawn on top. Both images perfectly align their projection/extent. Features a custom `UIViewRepresentable` bridge (`PinchPanOverlay`) which unlocks elastic 2-finger pinch and pan exploration. This gesture controller safely locks down the encompassing parent `ScrollView` and engages `.interactiveDismissDisabled` on the bottom sheet to prevent SwiftUI swipe cancellation conflicts during map manipulation. |
 | `HabitatAndDistributionCard` | Habitat and distribution card: encyclopedic habitat text. Has three states: (1) **Loaded** — habitat text; (2) **Loading** — shimmer skeleton shown while `inferenceEngine.isEnrichmentLoading` is `true`; (3) **Retry** — data missing, tap to re-trigger `fetchAndApplyEnrichment`. |
-| `ToxicityBanner` | Hazard warning banner shown when `insightData.hazardType != "none"`. Displays hazard-specific copy: venomous (bite/sting), allergenic (allergic reaction), irritant (skin/eye), or poisonous (ingestion/contact). |
+| `ToxicityBanner` | Glassmorphic hazard warning banner shown when `insightData.hazardType != "none"`. Implements a premium liquid-glass design using `.regularMaterial` and amber tinting, explicitly constrained using `maxWidth: .infinity` full-bleed bounds. Displays hazard-specific copy: venomous, allergenic, irritant, or toxic. |
 | `ConservationBanner` | IUCN Red List status banner |
 | `CelebrationBanner` | "New Discovery" confetti overlay |
 
@@ -100,7 +100,7 @@ After a successful biological scan, `InferenceEngine.analyze()` fires `fetchAndA
 
 ### Loading Flow (historical scans)
 
-When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `habitatDescription`, `gbifTaxonKey`, or both `lookalikesData` and `similarSpecies` (i.e., no lookalike data in either form), it automatically fires `fetchAndApplyEnrichment`. This gap-fills enrichment for scans captured before the enrichment pipeline shipped.
+When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `habitatDescription`, `gbifTaxonKey`, or `lookalikesData`, it automatically fires `fetchAndApplyEnrichment`. This aggressively gap-fills enrichment for older scans (even those that already have flat `similarSpecies` string arrays) to ensure they retrieve rich image and common name JSON payloads from the V27 pipeline.
 
 ### States
 
@@ -173,9 +173,9 @@ if data.isNewDiscovery && data.isBiological
 
 ## Scroll-Aware Toolbar
 
-`InsightSheetView` tracks whether the common name has scrolled past the viewport using a `CommonNameScrollOffsetKey` preference key. `InsightSheetViewModel.evaluateScrollOffset(minY:)` compares the scroll position against a threshold of `-(screen width + 80)`. When the name scrolls past, `isCommonNameScrolledPast` flips to `true`, which causes `TopToolbar` to display the species name inline in the navigation bar title area.
+`InsightSheetView` tracks whether the common name has scrolled past the viewport boundary to seamlessly morph the species name into the `TopToolbar`'s `.principal` display. Tracking an element's `maxY` inside a stretchy header `ScrollView` creates cyclical layout resolution hazards if `PreferenceKey` architectures are used (which inherently force sequential multi-pass frame layouts).
 
-**Deferred preference consumption**: `.onPreferenceChange(CommonNameScrollOffsetKey.self)` wraps its body in `Task { @MainActor in }` to defer the state mutation off the synchronous layout pass. Without this, `evaluateScrollOffset` mutates `isCommonNameScrolledPast` during layout, triggering an immediate re-layout that re-propagates the preference in the same frame and produces the runtime warning *"Bound preference CommonNameScrollOffsetKey tried to update multiple times per frame."* The `Task` defers the write to the next run-loop tick, breaking the layout→mutation→layout cycle with no perceptible latency cost.
+**Asynchronous Geometry Telemetry**: To permanently eradicate the *"Bound preference tried to update multiple times per frame"* runtime warning, `InsightHeader` abandons the `PreferenceKey` system entirely. It embeds a passive `Color.clear.onChange(of: geo.maxY, initial: true)` hook directly within its `GeometryReader`. This intercepts the positional coordinate strictly post-layout and transmits it instantly to `viewModel.evaluateScrollOffset` via an injected callback (`onScrollOffsetChange`), cleanly decoupling the telemetry from SwiftUI's layout-invalidation phase lock constraint.
 
 ---
 

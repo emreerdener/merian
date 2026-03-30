@@ -20,7 +20,10 @@ struct BiologicalView: View {
                 hazardType: viewModel.hazardType,
                 paragraphs: viewModel.headerParagraphs,
                 confidenceScore: inferenceEngine.speciesData?.confidenceScore,
-                inferenceTier: inferenceEngine.speciesData?.inferenceTier
+                inferenceTier: inferenceEngine.speciesData?.inferenceTier,
+                onScrollOffsetChange: { maxY in
+                    viewModel.evaluateScrollOffset(minY: maxY)
+                }
             )
             .cardEntrance(index: 0)
 
@@ -33,18 +36,22 @@ struct BiologicalView: View {
                 .cardEntrance(index: 2)
 
             // MARK: - Similar Species Gallery
-            if let similarData = inferenceEngine.speciesData?.similarSpecies {
-                let score = inferenceEngine.speciesData?.confidenceScore ?? 1.0
-                let threshold = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger
-                SimilarSpeciesGallery(
-                    similarData: similarData,
-                    isLowConfidence: score < threshold
-                )
-                .cardEntrance(index: 3)
-            } else if inferenceEngine.isEnrichmentLoading {
-                SimilarSpeciesGallery.Skeleton()
-                    .cardEntrance(index: 3)
+            Group {
+                if let similarData = inferenceEngine.speciesData?.similarSpecies {
+                    let score = inferenceEngine.speciesData?.confidenceScore ?? 1.0
+                    let threshold = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier).diagnosticTrigger
+                    SimilarSpeciesGallery(
+                        similarData: similarData,
+                        isLowConfidence: score < threshold
+                    )
+                    .transition(.opacity)
+                } else if inferenceEngine.isEnrichmentLoading {
+                    SimilarSpeciesGallery.Skeleton()
+                        .transition(.opacity)
+                }
             }
+            .animation(.easeInOut, value: inferenceEngine.isEnrichmentLoading)
+            .cardEntrance(index: 3)
 
             // MARK: - Educational Reference
             OverviewCard(

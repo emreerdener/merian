@@ -644,7 +644,7 @@ private struct WikiSummaryResponse: Decodable {
         if record.isBiological {
             let needsEnrichment = record.habitatDescription == nil ||
                 record.gbifTaxonKey == nil ||
-                (record.lookalikesData == nil && (record.similarSpecies == nil || record.similarSpecies!.isEmpty))
+                record.lookalikesData == nil
             if needsEnrichment {
                 let safeContext = record.modelContext
                 Task { [weak self] in

@@ -3,21 +3,19 @@ import SwiftUI
 struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
     let isLowConfidence: Bool
+    
+    @State private var failedMediaIdentifiers = Set<String>()
+
+    private var validEntries: [SimilarSpeciesEntry] {
+        similarData.entries
+            .filter { !$0.scientificName.trimmingCharacters(in: .whitespaces).isEmpty }
+            .filter { !failedMediaIdentifiers.contains($0.scientificName) }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-
-            // MARK: - Header
-            // HStack(spacing: 8) {
-            //     Image(systemName: "square.grid.2x2")
-            //         .foregroundColor(.secondary)
-            //     Text("Similar species")
-            //         .font(.system(.headline))
-            //         .foregroundColor(.primary)
-            // }
-
-            // MARK: - Lookalike Target Carousel
-            if !similarData.entries.isEmpty {
+        if !validEntries.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                // MARK: - Lookalike Target Carousel
                 VStack(alignment: .leading, spacing: 12) {
                     Text(isLowConfidence ? "POTENTIAL LOOKALIKES" : "SIMILAR SPECIES")
                         .font(.system(.caption, design: .monospaced))
@@ -27,8 +25,16 @@ struct SimilarSpeciesGallery: View {
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 16) {
-                            ForEach(similarData.entries, id: \.scientificName) { entry in
-                                SimilarSpeciesCard(entry: entry, isLowConfidence: isLowConfidence)
+                            ForEach(validEntries, id: \.scientificName) { entry in
+                                SimilarSpeciesCard(
+                                    entry: entry,
+                                    isLowConfidence: isLowConfidence,
+                                    onImageFailed: {
+                                        withAnimation(.easeInOut) {
+                                            _ = failedMediaIdentifiers.insert(entry.scientificName)
+                                        }
+                                    }
+                                )
                             }
                         }
                         .padding(.vertical, 4)
@@ -37,8 +43,8 @@ struct SimilarSpeciesGallery: View {
                     .padding(.horizontal, -16) // Bleed parent padding
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -47,6 +53,7 @@ struct SimilarSpeciesGallery: View {
 struct SimilarSpeciesCard: View {
     let entry: SimilarSpeciesEntry
     let isLowConfidence: Bool
+    let onImageFailed: () -> Void
 
     // Fallback fetcher used only when the join table has no reference image URL.
     @StateObject private var imageFetcher = SimilarSpeciesImageFetcher()
@@ -59,7 +66,11 @@ struct SimilarSpeciesCard: View {
 
                 if let remoteUrl = entry.referenceImageUrl {
                     // Rich path: reference image pre-resolved by the join table query.
-                    AsyncLocalImageView(path: nil, fallbackImageUrl: remoteUrl)
+                    AsyncLocalImageView(
+                        path: nil,
+                        fallbackImageUrl: remoteUrl,
+                        onImageLoadFailed: onImageFailed
+                    )
                 } else if imageFetcher.isLoading {
                     ProgressView()
                 } else if let img = imageFetcher.image {
@@ -72,14 +83,14 @@ struct SimilarSpeciesCard: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .frame(height: 120)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
 
             // Text Details & Confirmation Hook
             VStack(alignment: .leading, spacing: 4) {
                 if let commonName = entry.commonName {
                     Text(commonName)
-                        .font(.caption)
+                        .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                         .lineLimit(1)
@@ -111,20 +122,25 @@ struct SimilarSpeciesCard: View {
                 //     }
                 // }
             }
+            .frame(height: 48, alignment: .topLeading)
             .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(UIColor.secondarySystemGroupedBackground))
         }
-        .frame(width: 140)
+        .frame(width: 180, height: 240)
         .cornerRadius(12)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(UIColor.separator).opacity(0.5), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(UIColor.separator), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
         .task(priority: .background) {
             // Fallback: lazy-load via Wikipedia/GBIF only when no reference URL was resolved.
             if entry.referenceImageUrl == nil {
-                await imageFetcher.fetchImage(for: entry.scientificName)
+                let success = await imageFetcher.fetchImage(for: entry.scientificName)
+                if !success {
+                    onImageFailed()
+                }
             }
         }
     }
@@ -133,17 +149,10 @@ struct SimilarSpeciesCard: View {
 // MARK: - Skeleton Shimmer State
 extension SimilarSpeciesGallery {
     struct Skeleton: View {
+        @State private var isPulsing = false
+
         var body: some View {
             VStack(alignment: .leading, spacing: 16) {
-                // MARK: - Header
-                HStack(spacing: 8) {
-                    Image(systemName: "square.grid.2x2")
-                        .foregroundColor(.secondary)
-                    Text("Similar Species")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                }
-
                 VStack(alignment: .leading, spacing: 12) {
                     Text("POTENTIAL LOOKALIKES")
                         .font(.system(.caption, design: .monospaced))
@@ -154,9 +163,7 @@ extension SimilarSpeciesGallery {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
                             ForEach(0..<3, id: \.self) { _ in
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color(uiColor: .systemFill))
-                                    .frame(width: 140, height: 180)
+                                SkeletonCard()
                             }
                         }
                         .padding(.vertical, 4)
@@ -169,8 +176,43 @@ extension SimilarSpeciesGallery {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .redacted(reason: .placeholder)
-            .shimmering()
-            .card()
+            .opacity(isPulsing ? 0.4 : 1.0)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            }
+        }
+    }
+
+    struct SkeletonCard: View {
+        var body: some View {
+            VStack(spacing: 0) {
+                // Image Placeholder
+                Color(uiColor: .systemFill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+                // Text Placeholder Details
+                VStack(alignment: .leading, spacing: 8) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color(uiColor: .systemFill))
+                        .frame(width: 100, height: 16)
+                    
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color(uiColor: .systemFill))
+                        .frame(width: 140, height: 16)
+                }
+                .frame(height: 48, alignment: .topLeading)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(UIColor.secondarySystemGroupedBackground))
+            }
+            .frame(width: 180, height: 240)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(UIColor.separator), lineWidth: 0.5)
+            )
         }
     }
 }

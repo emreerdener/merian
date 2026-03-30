@@ -40,11 +40,6 @@ struct InsightSheetView: View {
                 .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
                     viewModel.evaluateProcessingCompletion(isStillProcessing: isStillProcessing, inferenceEngine: inferenceEngine)
                 }
-                .onPreferenceChange(CommonNameScrollOffsetKey.self) { minY in
-                    Task { @MainActor in
-                        viewModel.evaluateScrollOffset(minY: minY)
-                    }
-                }
                 .task(id: inferenceEngine.speciesData?.scanId) {
                     if let scanId = inferenceEngine.speciesData?.scanId {
                         viewModel.fetchLocalRecord(for: scanId, modelContext: modelContext)

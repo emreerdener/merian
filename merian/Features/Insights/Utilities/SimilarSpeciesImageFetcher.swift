@@ -31,19 +31,19 @@ final class SimilarSpeciesImageFetcher: ObservableObject {
     // In-memory cache to prevent re-fetching the same lookalike image repeatedly
     private static let memoryCache = NSCache<NSString, UIImage>()
     
-    func fetchImage(for scientificName: String) async {
-        guard !scientificName.isEmpty else { return }
+    func fetchImage(for scientificName: String) async -> Bool {
+        guard !scientificName.isEmpty else { return false }
         
         let normalized = scientificName.replacingOccurrences(of: " ", with: "_")
         
         if let cachedImage = Self.memoryCache.object(forKey: normalized as NSString) {
             self.image = cachedImage
-            return
+            return true
         }
         
         guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") else {
-            return
+            return false
         }
         
         self.isLoading = true
@@ -110,6 +110,8 @@ final class SimilarSpeciesImageFetcher: ObservableObject {
         if let downloadedImage {
             Self.memoryCache.setObject(downloadedImage, forKey: normalized as NSString)
             self.image = downloadedImage
+            return true
         }
+        return false
     }
 }
