@@ -95,7 +95,11 @@ serve((req: Request) =>
       }
     }
 
-    const hasLookalikes = lookalikes.length > 0;
+    // Require at least one resolved common_name, not just any entry.
+    // Join table rows can exist from the migration path with common_name: null for every
+    // entry when species_dictionary.common_names was null at migration time. In that case
+    // we still need a Flash call to back-fill the common names via resolveLookalikesToJoinTable.
+    const hasLookalikes = lookalikes.some((l) => l.common_name !== null);
 
     if (hasEnrichment && hasLookalikes) {
       console.log(`[enrich-scan] CACHE HIT for ${scientific_name}`);

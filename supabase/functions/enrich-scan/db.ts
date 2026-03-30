@@ -83,15 +83,27 @@ export async function resolveLookalikesToJoinTable(
     .limit(10);
 
   if (error) throw error;
-  if (!matches || matches.length === 0) return [];
 
-  const typed = matches as {
+  const typed = (matches ?? []) as {
     id: string;
     scientific_name: string;
     common_names: Record<string, string> | null;
     reference_image_url: string | null;
     iucn_red_list_status: string | null;
   }[];
+
+  // If none of the lookalike species are in species_dictionary yet, return the
+  // Flash-generated entries directly (null referenceImageUrl/iucnRedListStatus) so
+  // common names are not discarded. The client falls back to Wikipedia/iNaturalist
+  // for thumbnail images when referenceImageUrl is null.
+  if (typed.length === 0) {
+    return entries.map((e) => ({
+      scientific_name: e.scientific_name,
+      common_name: e.common_name,
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    }));
+  }
 
   const inserts = typed.flatMap((m) => [
     { species_id: speciesId, lookalike_id: m.id },
@@ -122,13 +134,30 @@ export async function resolveLookalikesToJoinTable(
     );
   }
 
-  return typed.map((m) => ({
-    scientific_name: m.scientific_name,
-    // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
-    common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
-    reference_image_url: m.reference_image_url,
-    iucn_red_list_status: m.iucn_red_list_status,
-  }));
+  const matchedNames = new Set(typed.map((m) => m.scientific_name));
+
+  // Append any Flash-generated entries for species not yet in species_dictionary.
+  // These carry common_name from Flash but no reference image or IUCN data — the
+  // client falls back to Wikipedia/iNaturalist for thumbnails when referenceImageUrl is null.
+  const unmatched: LookalikeSummary[] = entries
+    .filter((e) => !matchedNames.has(e.scientific_name))
+    .map((e) => ({
+      scientific_name: e.scientific_name,
+      common_name: e.common_name,
+      reference_image_url: null,
+      iucn_red_list_status: null,
+    }));
+
+  return [
+    ...typed.map((m) => ({
+      scientific_name: m.scientific_name,
+      // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
+      common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
+      reference_image_url: m.reference_image_url,
+      iucn_red_list_status: m.iucn_red_list_status,
+    })),
+    ...unmatched,
+  ];
 }
 
 export async function updateSpeciesEnrichment(

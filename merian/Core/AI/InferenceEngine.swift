@@ -810,8 +810,19 @@ private struct WikiSummaryResponse: Decodable {
         let gbifKey = record.gbifTaxonKey
         let needsWiki = recordIsBiological &&
             (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty)
+        // A scan needs enrichment when any of the three key fields are absent, OR when
+        // lookalikesData exists but every decoded entry has a nil commonName — indicating
+        // the join table was populated before the common-name back-fill pipeline was added.
+        // The lightweight decode here is a small allocation on an already-loaded blob; the
+        // full decode for UI use runs later in Task.detached.
+        let lookalikesHaveNoCommonNames: Bool = {
+            guard let json = record.lookalikesData,
+                  let entries = try? JSONDecoder().decode([SimilarSpeciesEntry].self, from: json),
+                  !entries.isEmpty else { return false }
+            return entries.allSatisfy { $0.commonName == nil }
+        }()
         let needsEnrichment = recordIsBiological &&
-            (record.habitatDescription == nil || record.gbifTaxonKey == nil || record.lookalikesData == nil)
+            (record.habitatDescription == nil || record.gbifTaxonKey == nil || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
 
         // Set speciesData immediately with nil for blob-decoded fields.
         // similarSpecies and candidates are populated by the task below to avoid
