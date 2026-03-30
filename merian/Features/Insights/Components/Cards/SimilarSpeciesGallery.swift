@@ -12,12 +12,15 @@ struct SimilarSpeciesGallery: View {
         if !validEntries.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
                 // MARK: - Lookalike Target Carousel
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("SIMILAR SPECIES")
-                        .font(.system(.caption, design: .monospaced))
-                        .fontWeight(.bold)
-                        .tracking(1)
-                        .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 16) {
+                    // Header
+                    HStack(spacing: 8) {
+                        Image(systemName: "camera.filters")
+                            .foregroundColor(.secondary)
+                        Text("Similar Species")
+                            .font(.system(.headline))
+                            .foregroundColor(.primary)
+                    }
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 16) {
@@ -46,8 +49,8 @@ struct SimilarSpeciesCard: View {
     @State private var remoteImageFailed = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Reference Image
+        ZStack(alignment: .bottom) {
+            // Background Image
             ZStack {
                 Color(UIColor.systemGray6)
 
@@ -70,15 +73,14 @@ struct SimilarSpeciesCard: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 180)
+            .frame(width: 200, height: 260)
             .clipped()
 
-            // Text Details & Confirmation Hook
-            VStack(alignment: .leading, spacing: 4) {
+            // Text Details Overlay
+            VStack(alignment: .leading, spacing: 2) {
                 if let commonName = entry.commonName {
                     Text(commonName)
-                        .font(.callout)
+                        .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                         .lineLimit(2)
@@ -94,10 +96,23 @@ struct SimilarSpeciesCard: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(height: 80, alignment: .topLeading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.5), .white.opacity(0.0), .white.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
+            .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 4)
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(UIColor.secondarySystemGroupedBackground))
         }
         .frame(width: 200, height: 260)
         .cornerRadius(16)
@@ -122,12 +137,15 @@ extension SimilarSpeciesGallery {
 
         var body: some View {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("SIMILAR SPECIES")
-                        .font(.system(.caption, design: .monospaced))
-                        .fontWeight(.bold)
-                        .tracking(1)
-                        .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 16) {
+                    // Header
+                    HStack(spacing: 8) {
+                        Image(systemName: "camera.filters")
+                            .foregroundColor(.secondary)
+                        Text("Similar Species")
+                            .font(.system(.headline))
+                            .foregroundColor(.primary)
+                    }
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 16) {
@@ -156,14 +174,13 @@ extension SimilarSpeciesGallery {
 
     struct SkeletonCard: View {
         var body: some View {
-            VStack(spacing: 0) {
-                // Image Placeholder
+            ZStack(alignment: .bottom) {
+                // Background Image Placeholder
                 Color(uiColor: .systemFill)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 180)
+                    .frame(width: 200, height: 260)
                     .clipped()
                 
-                // Text Placeholder Details
+                // Text Placeholder Overlay
                 VStack(alignment: .leading, spacing: 8) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color(uiColor: .systemFill))
@@ -173,10 +190,24 @@ extension SimilarSpeciesGallery {
                         .fill(Color(uiColor: .systemFill))
                         .frame(width: 140, height: 16)
                 }
-                .frame(height: 80, alignment: .topLeading)
-                .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(UIColor.secondarySystemGroupedBackground))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.white.opacity(0.5), .white.opacity(0.0), .white.opacity(0.2)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
+                .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 4)
+                .padding(10)
             }
             .frame(width: 200, height: 260)
             .cornerRadius(16)
