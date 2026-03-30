@@ -167,6 +167,7 @@ Battery and thermal protection, monitoring device usage thresholds.
 - Bridges `.thermalStateDidChangeNotification`, dropping graphic resolutions and Glassmorphism shaders on `.critical` or `.serious` states.
 - Monitors `isLowPowerModeEnabled` and engages a 24fps `isExpeditionModeActive` pipeline on low-battery states.
 - **Expedition Mode Override**: Users can set `HardwareOrchestrator.shared.isExpeditionModeActive = true` via Settings to force the 24fps framerate cap and drop iOS glass materials, trading UI fidelity for maximum battery life off-grid. This flag is also read by `OfflineQueueManager`, pausing background cellular uploads.
+- **Animation Gate (`isAnimationEnabled`)**: A computed property that exposes the current UI motion budget to the view layer. Returns `isGlassmorphismEnabled`, which is already `false` under expedition mode and under `.serious`/`.critical` thermal states. `CardEntranceModifier` reads this property to decide whether to run staggered entrance animations or render cards instantly. `accessibilityReduceMotion` is evaluated separately within the modifier to respect the system accessibility setting independently of hardware constraints.
 
 ### `ViewfinderIntelligence` (VUI)
 

@@ -31,7 +31,7 @@ struct TopToolbar: ToolbarContent {
                     Label("Flag for review", systemImage: "flag")
                 }
                 Button(action: { onSavePhotos() }) {
-                    Label("Save my photos", systemImage: "arrow.down.circle")
+                    Label("Download my photos", systemImage: "arrow.down.circle")
                 }
                 .disabled(isSavingPhotos)
                 Button(role: .destructive, action: { showDeleteConfirmation = true }) {

@@ -59,7 +59,18 @@ An informational liquid-glass component displaying AI-enriched encyclopedic extr
 - **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, and `ecologicalInteractions` while safely omitting empty values. Note: The `individualCount` metric is captured via backend Edge Functions for DWCA telemetry but intentionally omitted from this front-end display to conserve UI space.
 - **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. When valid, the extract is capped at an 8-line truncation limit to avoid walls of text, terminating gracefully into a "Learn more on Wikipedia" pill that relies on injected parent `$isSafariPresented` bindings.
 
-## 9. Habitat Map: `HabitatAndDistributionCard`
+## 9. Staggered Entrance: `CardEntranceModifier`
+**Location**: `Core/UI/Modifiers/CardEntranceModifier.swift`
+
+A `ViewModifier` that animates cards into view with a fade + 20pt upward slide on first appearance. Applied via the `.cardEntrance(index:)` view extension.
+
+- **Two-gate system**: Motion is suppressed when either `HardwareOrchestrator.shared.isAnimationEnabled` is `false` (expedition mode or thermal state ≥ `.serious`) **or** the system `accessibilityReduceMotion` environment value is `true`. When either gate is closed, the card renders at full opacity instantly with no transform.
+- **Stagger via `index`**: Each card receives a sequential integer index. Delay is computed as `Double(index) × 0.07s`, producing a natural cascading entrance without firing simultaneous layout passes.
+- **One-shot guard**: The `hasAppeared: Bool` state flag prevents re-animation on SwiftUI view identity changes or sheet re-presentations.
+- **Spring curve**: `.spring(response: 0.5, dampingFraction: 0.78)` — responsive enough to feel alive without overshooting on dense content stacks.
+- **Current usage**: `BiologicalView` applies indices 0–7 across `InsightHeader`, `ToxicityBanner`, `ConservationBanner`, `OverviewCard`, `HabitatAndDistributionCard`, `TaxonomyCard`, `ScanInformationCard`, and `UserTagsCard`, giving a ~560ms full-stack cascade at nominal hardware.
+
+## 10. Habitat Map: `HabitatAndDistributionCard`
 **Location**: `Features/Insights/Components/Cards/HabitatAndDistributionCard.swift`
 
 An edge-to-edge structural presentation component for the `gbifTaxonKey` density map and LLM `habitatDescription`.

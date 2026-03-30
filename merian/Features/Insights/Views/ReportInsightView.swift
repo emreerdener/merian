@@ -20,11 +20,11 @@ struct ReportInsightView: View {
                     }
                 }
                 
-                Section(header: Text("Your Suggestion (Optional)"), footer: Text("Help us improve Merian by suggesting what you think it actually is.")) {
+                Section(header: Text("Your suggestion (optional)"), footer: Text("Help us improve Merian by suggesting what you think it actually is.")) {
                     TextField("E.g. Monarch Butterfly", text: $viewModel.userSuggestion)
                 }
             }
-            .navigationTitle("Report Incorrect ID")
+            .navigationTitle("Report incorrect ID")
             .navigationBarTitleDisplayMode(.inline)
             
             // MARK: Actions
@@ -39,7 +39,7 @@ struct ReportInsightView: View {
                     .disabled(viewModel.isSubmitting)
                 }
             }
-            .alert("Report Status", isPresented: $viewModel.showAlert) {
+            .alert("Report status", isPresented: $viewModel.showAlert) {
                 Button("OK") { dismiss() }
             } message: {
                 Text(viewModel.alertMessage)

@@ -72,7 +72,7 @@ struct InsightSheetView: View {
         } message: {
             Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
-        .alert("Photos Saved", isPresented: $viewModel.showSaveSuccessAlert) {
+        .alert("Photos saved", isPresented: $viewModel.showSaveSuccessAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Your photos have been securely saved to your Camera Roll.")

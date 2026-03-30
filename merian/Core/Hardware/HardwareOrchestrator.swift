@@ -121,6 +121,13 @@ extension UIDevice {
         }
     }
 
+    // MARK: - Animation Gate
+
+    /// True when the device can sustain entrance animations.
+    /// False under expedition mode (battery conservation) or serious/critical thermal pressure.
+    /// Mirrors `isGlassmorphismEnabled` — both flags are set together in `evaluateConstraints`.
+    var isAnimationEnabled: Bool { isGlassmorphismEnabled }
+
     // MARK: - App Lifecycle
 
     func onAppWillResignActive() {

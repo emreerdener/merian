@@ -11,7 +11,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `InsightSheetViewModel` | `@Observable @MainActor final class` — UI state, SwiftData ops, share/export |
 | `InsightSheetView` | Root sheet view; owns `@State private var viewModel = InsightSheetViewModel()` |
 | `InsightContentView` | Routes to `BiologicalView` or `NonBiologicalView` based on `speciesData.isBiological` |
-| `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic |
+| `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier` (indices 0–7). |
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
 | `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match" |
 | `ImagesCarousel` | Horizontally scrolling image strip combining live captures + historic paths + reference images |
