@@ -13,10 +13,28 @@ enum MerianSchemaV26: VersionedSchema {
 
     typealias PendingCloudDeletionTask = MerianSchemaV25.PendingCloudDeletionTask
     typealias OfflineQueuedScan        = MerianSchemaV25.OfflineQueuedScan
-    typealias ScanCollection           = MerianSchemaV25.ScanCollection
-}
 
-extension MerianSchemaV26 {
+    // ScanCollection redeclared so its inverse relationship points to V26.LocalScanRecord.
+    // Using typealias MerianSchemaV25.ScanCollection would embed a relationship to V25.LocalScanRecord
+    // by Swift type identity, causing iOS 26 to resolve V25 and V26 to the same NSManagedObjectModel.
+    @Model
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
+
+        @Relationship(inverse: \LocalScanRecord.collections) var scans: [LocalScanRecord]? = []
+
+        init(id: String = UUID().uuidString, name: String, createdAt: Date = Date(), isDeleted: Bool = false, scans: [LocalScanRecord]? = []) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
+    }
+
     @Model
     final class LocalScanRecord {
         @Attribute(.unique) var id: String

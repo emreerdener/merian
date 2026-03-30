@@ -118,12 +118,13 @@ Configures the automated garbage collection pipeline using `pg_cron` and `pg_net
 
 _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application executes a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage` closures that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`) without corrupting local scan data._
 
-**File layout:** The universally active models natively live in the global namespace within `merian/Models/ActiveSchema/`. Historical schema snapshots live in their own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV26.swift`). The file `merian/Models/SchemaVersions.swift` declares `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to V{N+1}, simply follow the runbook at `.agents/workflows/schema_update.md` (or run it via `/schema_update` command):
+**File layout:** The universally active models natively live in the global namespace within `merian/Models/ActiveSchema/`. Historical schema snapshots live in their own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV27.swift`). The file `merian/Models/SchemaVersions.swift` declares `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md` (or run it via `/schema_update` command):
 
-1. Create `SchemaV{N+1}.swift` tying its `models` array to the active global classes.
-2. Snapshot the outgoing structures from `ActiveSchema/` into `extension MerianSchemaV{N}` blocks inside the previous file.
-3. Update `typealias CurrentSchema = MerianSchemaV{N+1}` in `Aliases.swift`.
-4. Add the `migrateV{N}toV{N+1}` stage to `MerianMigrationPlan.stages`.
+1. **Run `python3 .agents/workflows/freeze_schema.py {N} --apply`** — generates a frozen `LocalScanRecord` snapshot for `SchemaV{N}.swift` from the current `ActiveSchema/` before any changes. Move the generated class into the enum body (not the extension block the script outputs).
+2. Update `SchemaV{N}.swift` `models` array to use fully-qualified `MerianSchemaV{N}.LocalScanRecord.self` references — this locks the checksum and prevents the iOS 26 "equal model references" crash for custom migration stages.
+3. Create `SchemaV{N+1}.swift` tying its `models` array to the active global classes.
+4. Update `typealias CurrentSchema = MerianSchemaV{N+1}` in `Aliases.swift`.
+5. Add the `migrateV{N}toV{N+1}` stage to `MerianMigrationPlan.stages`.
 
 There is **no need** to update model references in `MerianApp.swift`, nor anywhere else in the application, because the entire app dynamically inherits `CurrentSchema` and the active global models natively.
 

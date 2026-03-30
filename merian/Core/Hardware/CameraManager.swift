@@ -28,7 +28,7 @@ import UIKit
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Render Throttling
-    @ObservationIgnored private let stateLock = OSAllocatedUnfairLock()
+    @ObservationIgnored nonisolated let stateLock = OSAllocatedUnfairLock()
     @ObservationIgnored nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
     @ObservationIgnored nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
 
@@ -91,10 +91,13 @@ import UIKit
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)
             .sink { [weak self] _ in
-                let current = UIDevice.current.orientation
-                if current.isPortrait || current.isLandscape {
-                    self?.stateLock.withLock {
-                        self?.lastValidDeviceOrientation = current
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    let current = UIDevice.current.orientation
+                    if current.isPortrait || current.isLandscape {
+                        self.stateLock.withLock {
+                            self.lastValidDeviceOrientation = current
+                        }
                     }
                 }
             }
@@ -102,7 +105,9 @@ import UIKit
     }
 
     deinit {
-        UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        Task { @MainActor in
+            UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        }
     }
 
     private func trackFPS() {
@@ -660,17 +665,30 @@ import UIKit
 
                     // Dynamically align the capture connection with the physical device orientation
                     let orientation = self.stateLock.withLock { self.lastValidDeviceOrientation }
-                    var videoOrientation: AVCaptureVideoOrientation = .portrait
-                    switch orientation {
-                    case .landscapeLeft: videoOrientation = .landscapeRight
-                    case .landscapeRight: videoOrientation = .landscapeLeft
-                    case .portraitUpsideDown: videoOrientation = .portraitUpsideDown
-                    default: videoOrientation = .portrait
-                    }
                     
                     if let photoConnection = self.photoOutput.connection(with: .video) {
-                        if photoConnection.isVideoOrientationSupported {
-                            photoConnection.videoOrientation = videoOrientation
+                        if #available(iOS 17.0, *) {
+                            var rotationAngle: CGFloat = 90.0 // Default portrait back-camera
+                            switch orientation {
+                            case .landscapeLeft: rotationAngle = 0.0
+                            case .landscapeRight: rotationAngle = 180.0
+                            case .portraitUpsideDown: rotationAngle = 270.0
+                            default: rotationAngle = 90.0
+                            }
+                            if photoConnection.isVideoRotationAngleSupported(rotationAngle) {
+                                photoConnection.videoRotationAngle = rotationAngle
+                            }
+                        } else {
+                            var videoOrientation: AVCaptureVideoOrientation = .portrait
+                            switch orientation {
+                            case .landscapeLeft: videoOrientation = .landscapeRight
+                            case .landscapeRight: videoOrientation = .landscapeLeft
+                            case .portraitUpsideDown: videoOrientation = .portraitUpsideDown
+                            default: videoOrientation = .portrait
+                            }
+                            if photoConnection.isVideoOrientationSupported {
+                                photoConnection.videoOrientation = videoOrientation
+                            }
                         }
                     }
 

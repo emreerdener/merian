@@ -10,11 +10,10 @@ struct InsightHeader: View {
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
-             VStack(spacing: 16) {
-                 ConfidenceBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
-             }
+            
+            ConfidenceBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
              
-             VStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .center, spacing: 8) {
                 Text(subtitle)
                     .font(.system(.title3))
                     .italic()
@@ -48,12 +47,12 @@ struct InsightHeader: View {
                     }
                     .padding(.top, 8) // Separates the text distinctively from the bold title
                 }
-
-                 // MARK: - Model Tier Badge
-                ModelTierBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
              }
         }
         .frame(maxWidth: .infinity)
+
+        // MARK: - Model Tier Badge
+        ModelTierBadge(confidenceScore: confidenceScore, inferenceTier: inferenceTier)
     }
 
     private func styledParagraph(text: String, scientificName: String) -> AttributedString {

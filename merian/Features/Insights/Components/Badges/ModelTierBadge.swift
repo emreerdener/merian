@@ -13,12 +13,12 @@ struct ModelTierBadge: View {
             Button(action: {
                 showPaywall = true
             }) {
-                HStack(alignment: .center, spacing: 6) {
+                HStack(alignment: .center, spacing: 8) {
                      Image(systemName: "sparkle")
                         .font(.footnote.weight(.bold))
 
-                    Text("Get deeper analysis with Pro")
-                        .font(.footnote.weight(.medium))
+                    Text("Upgrade for advanced analysis")
+                        .font(.subheadline.weight(.semibold))
                         
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.bold))

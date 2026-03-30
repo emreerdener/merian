@@ -88,13 +88,14 @@ The workspace enforces this layout inside `merian/`:
 ## 10. Agent Workflows
 Merian maintains reproducible, automated workflows inside the `.agents/workflows/` directory. AI Agents **MUST** execute these runbooks (e.g. via slash commands or manually reading and running) for critical operations instead of guessing:
 - `schema_update.md`: Bumping SwiftData schema versions and snapshotting global active models.
+- `freeze_schema.py`: Script run as Step 1 of every schema bump. Reads `ActiveSchema/LocalScanRecord.swift` and generates a frozen `@Model` snapshot (with `public` modifiers stripped) for the outgoing schema. Usage: `python3 .agents/workflows/freeze_schema.py <version> --apply`. Run this BEFORE modifying any global model.
 - `deploy_edge_functions.md`: Deploying TypeScript Supabase modifications and executing type checks.
 - `revenuecat_entitlements.md`: Adding/Modifying in-app purchases and localized StoreKit files.
 - `mock_camera_inference.md`: Faking `AVCapturePhoto` hardware feeds via `InferenceEngine` to test caching lines on the simulator.
 
 ## 11. SwiftData Schema Migration Safety
 
-**CRITICAL — read `.agents/workflows/schema_update.md` before touching any schema.**
+**CRITICAL — read `.agents/workflows/schema_update.md` before touching any schema. Use `freeze_schema.py` to automate Step 1.**
 
 Two invariants govern every schema file:
 
@@ -104,27 +105,43 @@ Two invariants govern every schema file:
 | Current (V(N)) | Global types: `LocalScanRecord.self` | App code (`@Query`, `context.insert`, etc.) must operate on the same entity as the container |
 
 **The single rule that prevents `NSStagedMigrationManager` crashes:**
-> Freeze the outgoing schema (V(N)) by adding frozen model snapshots to `SchemaV{N}.swift` **BEFORE** modifying any global model in `ActiveSchema/`. Never add fields to a global model first.
+> Freeze the outgoing schema (V(N)) — run `python3 .agents/workflows/freeze_schema.py {N} --apply` — **BEFORE** modifying any global model in `ActiveSchema/`. Never add fields to a global model first.
 
 **Compile-time enforcement**: Retired schemas MUST use fully-qualified type names in their `models` array (e.g., `MerianSchemaV26.LocalScanRecord.self`). A missing snapshot causes a build error rather than a runtime crash at a user's device.
 
-**Recognition pattern for frozen snapshots:**
+**iOS 26 additional constraint — custom stages must have distinct model references**: On iOS 26+, when ANY migration runs (even a lightweight one), SwiftData iterates ALL custom stages in the migration plan and calls `NSCustomMigrationStage.init(migratingFrom:to:)` for each. If any stage's `fromVersion` and `toVersion` resolve to the same `NSManagedObjectModelReference`, the app crashes:
+```
+'NSInvalidArgumentException', reason: 'The current model reference and the next model reference cannot be equal.'
+```
+This means a user upgrading from V26 (lightweight migration V26→V27) will still crash if V24→V25 or any other custom stage has equal model references.
+
+**Two root causes of equal model references (both have been fixed as of V24–V26):**
+
+1. **Extension-pattern name resolution**: When `@Model` inner classes are declared via `extension MerianSchemaV{K}` (not directly in the enum body), the Swift compiler may silently resolve `LocalScanRecord.self` in the generated `@Model` metadata to the global `ActiveSchema` type, causing all extension-declared frozen snapshots to produce the same entity shape. Fix: declare all frozen `@Model` classes in the enum body (not extensions).
+
+2. **ScanCollection typealias carries relationship by type identity**: If schema V(N) uses `typealias ScanCollection = MerianSchemaV{N-1}.ScanCollection`, the aliased class has a `@Relationship(inverse: \LocalScanRecord.collections)` that was compiled pointing to `MerianSchemaV{N-1}.LocalScanRecord` by Swift type identity. When SwiftData builds the V(N) schema, it may resolve the relationship's destination by Swift class type rather than entity name — auto-including `V{N-1}.LocalScanRecord` and making V(N) schema identical to V(N-1). Fix: always redeclare `ScanCollection` in the enum body for each schema version that changes `LocalScanRecord`, so the relationship key path `\LocalScanRecord.collections` captures the current schema's `LocalScanRecord`.
+
+**Preferred frozen snapshot pattern — always declare in enum body:**
 ```swift
-// SchemaV{N}.swift — CORRECT (retired schema, frozen)
+// SchemaV{N}.swift — CORRECT (retired schema)
 enum MerianSchemaV26: VersionedSchema {
     static var models: [any PersistentModel.Type] {
-        [MerianSchemaV26.LocalScanRecord.self, ...]  // compile-error if snapshot missing
+        [MerianSchemaV26.LocalScanRecord.self, MerianSchemaV26.ScanCollection.self, ...]
     }
-    typealias ScanCollection = MerianSchemaV25.ScanCollection  // unchanged model → typealias
-}
-extension MerianSchemaV26 {
-    @Model final class LocalScanRecord { /* frozen copy without lookalikesData */ }
-}
+    typealias PendingCloudDeletionTask = MerianSchemaV25.PendingCloudDeletionTask
+    typealias OfflineQueuedScan        = MerianSchemaV25.OfflineQueuedScan
 
-// SchemaV27.swift — CORRECT (current schema, global types)
-enum MerianSchemaV27: VersionedSchema {
-    static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self, ...]  // global — intentional for current schema
+    // ScanCollection redeclared (not typealias) so relationship captures V26.LocalScanRecord
+    @Model final class ScanCollection {
+        @Relationship(inverse: \LocalScanRecord.collections) var scans: [LocalScanRecord]? = []
+        // ...
     }
+    @Model final class LocalScanRecord { /* frozen snapshot */ }
 }
 ```
+
+Only use `typealias` for models that are **unchanged AND not referenced by any relationship inside the schema** (e.g., `OfflineQueuedScan`, `PendingCloudDeletionTask`). Any model with a relationship to `LocalScanRecord` must be redeclared in each schema's enum body.
+
+**Two-tier regression test**: `merianTests/Models/MigrationPlanTests.swift` has two tests — both must pass on an iOS 26 simulator on every schema bump:
+- `migrationPlanContainerInitializesWithoutCrash` — fresh store (no migration), covers init-time validation.
+- `migrationFromV26ToV27DoesNotCrash` — creates a disk-based V26 store then reopens with migration plan, covers the migration execution path where iOS 26 validates ALL custom stages.

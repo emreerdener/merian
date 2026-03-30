@@ -90,7 +90,7 @@ struct SimilarSpeciesCard: View {
                     .font(.caption)
                     .fontWeight(entry.commonName == nil ? .semibold : .regular)
                     .italic()
-                    .foregroundColor(entry.commonName == nil ? .primary : .secondary)
+                    .foregroundColor(entry.commonName == nil ? .primary : .secondary)                    
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)

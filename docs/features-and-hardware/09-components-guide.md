@@ -68,7 +68,7 @@ A `ViewModifier` that animates cards into view with a fade + 20pt upward slide o
 - **Stagger via `index`**: Each card receives a sequential integer index. Delay is computed as `Double(index) × 0.07s`, producing a natural cascading entrance without firing simultaneous layout passes.
 - **One-shot guard**: The `hasAppeared: Bool` state flag prevents re-animation on SwiftUI view identity changes or sheet re-presentations.
 - **Spring curve**: `.spring(response: 0.5, dampingFraction: 0.78)` — responsive enough to feel alive without overshooting on dense content stacks.
-- **Current usage**: `BiologicalView` applies indices 0–7 across `InsightHeader`, `ToxicityBanner`, `ConservationBanner`, `OverviewCard`, `HabitatAndDistributionCard`, `TaxonomyCard`, `ScanInformationCard`, and `UserTagsCard`, giving a ~560ms full-stack cascade at nominal hardware.
+- **Current usage**: `BiologicalView` applies indices 0–8 across `InsightHeader` (0), `ToxicityBanner` (1), `ConservationBanner` (2), `SimilarSpeciesGallery` or its skeleton (3), `OverviewCard` (4), `HabitatAndDistributionCard` (5), `TaxonomyCard` (6), `ScanInformationCard` (7), and `UserTagsCard` (8), giving a ~630ms full-stack cascade at nominal hardware. Both the live `SimilarSpeciesGallery` and its `Skeleton` placeholder share index 3 so the stagger position is stable regardless of enrichment state.
 
 ## 10. Habitat Map: `HabitatAndDistributionCard`
 **Location**: `Features/Insights/Components/Cards/HabitatAndDistributionCard.swift`

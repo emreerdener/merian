@@ -175,6 +175,8 @@ if data.isNewDiscovery && data.isBiological
 
 `InsightSheetView` tracks whether the common name has scrolled past the viewport using a `CommonNameScrollOffsetKey` preference key. `InsightSheetViewModel.evaluateScrollOffset(minY:)` compares the scroll position against a threshold of `-(screen width + 80)`. When the name scrolls past, `isCommonNameScrolledPast` flips to `true`, which causes `TopToolbar` to display the species name inline in the navigation bar title area.
 
+**Deferred preference consumption**: `.onPreferenceChange(CommonNameScrollOffsetKey.self)` wraps its body in `Task { @MainActor in }` to defer the state mutation off the synchronous layout pass. Without this, `evaluateScrollOffset` mutates `isCommonNameScrolledPast` during layout, triggering an immediate re-layout that re-propagates the preference in the same frame and produces the runtime warning *"Bound preference CommonNameScrollOffsetKey tried to update multiple times per frame."* The `Task` defers the write to the next run-loop tick, breaking the layout→mutation→layout cycle with no perceptible latency cost.
+
 ---
 
 ## Collection Management

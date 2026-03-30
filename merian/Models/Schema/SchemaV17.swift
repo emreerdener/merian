@@ -7,7 +7,10 @@ enum MerianSchemaV17: VersionedSchema {
     static var versionIdentifier = Schema.Version(17, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self, OfflineQueuedScan.self, ScanCollection.self, PendingCloudDeletionTask.self]
+        // Fully-qualified references lock each schema's checksum to its own frozen snapshot,
+        // preventing iOS 26's NSCustomMigrationStage from seeing equal from/to model references.
+        [MerianSchemaV17.LocalScanRecord.self, MerianSchemaV17.OfflineQueuedScan.self,
+         MerianSchemaV17.ScanCollection.self, MerianSchemaV17.PendingCloudDeletionTask.self]
     }
 
     typealias PendingCloudDeletionTask = MerianSchemaV15.PendingCloudDeletionTask
