@@ -75,7 +75,7 @@ struct ToxicityBanner: View {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 1.5
+                        lineWidth: 1
                     )
             )
             .foregroundColor(.primary)

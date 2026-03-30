@@ -49,13 +49,14 @@ struct ConfidenceBadge: View {
                     Image(systemName: data.icon)
                         .imageScale(.medium)
                         .frame(width: 16, alignment: .center)
+                        .foregroundStyle(.white)
                     Text(data.label)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
                 .font(.system(.subheadline, weight: .bold))
                 // Text color pops brightly against the deeply tinted glass
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)

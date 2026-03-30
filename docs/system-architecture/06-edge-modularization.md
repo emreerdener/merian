@@ -110,7 +110,16 @@ Two conditions, either of which skips Flash:
 1. **`lookalikes.some(...)`**: at least one entry has a known common name — the species is enriched.
 2. **`lookalikes_flash_attempted`**: Flash was previously attempted for this species and returned all-null common names. This covers legitimately obscure lookalike species (e.g. rare subspecies, newly described taxa) that have no widely-recognised English common name. Without this flag, `.some()` would never become true and Flash would re-run on every `enrich-scan` call indefinitely, wasting tokens without ever resolving a name.
 
-`lookalikes_flash_attempted` (`BOOLEAN NOT NULL DEFAULT false` on `species_dictionary`) is set to `true` in `index.ts` immediately after a Flash-sourced `resolveLookalikesToJoinTable` call completes — regardless of how many names were resolved. It is **not** set by the legacy TEXT[] migration path (which passes `common_name: null` for all entries) so that species with legacy-only data still trigger Flash at least once.
+`lookalikes_flash_attempted` (`BOOLEAN NOT NULL DEFAULT false` on `species_dictionary`) is set to `true` in `index.ts` after a Flash-sourced `resolveLookalikesToJoinTable` call completes — **only when `lookalikes.length > 0`**. This is a critical guard: Flash can return `similar_species: []` (an empty array) for species it does not recognise (e.g. hybrid cultivars, newly described taxa with no well-known confusables). In JavaScript, `[]` is truthy, so the outer `if (similarResult?.similar_species && speciesId)` block fires regardless. Without the `lookalikes.length > 0` check the flag would be written after every empty-array response, permanently locking out future Flash retries for that species and causing similar-species cards to never appear. It is **not** set by the legacy TEXT[] migration path (which passes `common_name: null` for all entries) so that species with legacy-only data still trigger Flash at least once.
+
+**Recovery query for species incorrectly flagged before this guard was added:**
+```sql
+UPDATE species_dictionary
+SET lookalikes_flash_attempted = false
+WHERE lookalikes_flash_attempted = true
+  AND id NOT IN (SELECT DISTINCT species_id FROM species_lookalikes);
+```
+This resets only species where the flag was set but no join-table rows were ever written, allowing the next `enrich-scan` call to retry Flash.
 
 **`merge_common_name_en_batch` RPC — Batch Locale-Safe Common Name Back-fill:** `resolveLookalikesToJoinTable` back-fills English common names for matched `species_dictionary` rows that have a Flash-generated name but no existing `"en"` key. This uses `supabaseAdmin.rpc("merge_common_name_en_batch", { p_updates: [...] })` — a single Postgres round-trip that processes all back-fill candidates atomically via `jsonb_array_elements`.
 

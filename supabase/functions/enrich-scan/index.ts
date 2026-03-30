@@ -143,7 +143,12 @@ serve((req: Request) =>
         // common names are legitimately null (genuinely obscure lookalike species).
         // Deferred via waitUntil — this flag is not needed before the response is flushed,
         // and awaiting it sequentially added a gratuitous ~20 ms Postgres round-trip.
-        if (speciesId) {
+        //
+        // Guard: only set the flag when lookalikes were actually resolved. Flash can return
+        // similar_species: [] (empty array) for species it doesn't recognise; [] is truthy
+        // in JS so the outer `if` fires, but we must not permanently lock out future Flash
+        // retries when no lookalike data was produced.
+        if (speciesId && lookalikes.length > 0) {
           EdgeRuntime.waitUntil(
             supabaseAdmin
               .from("species_dictionary")
