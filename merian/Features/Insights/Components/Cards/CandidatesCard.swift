@@ -17,6 +17,9 @@ struct CandidatesCard: View {
     /// The AI's original scientific name — shown in the "overridden" state as "AI suggested X".
     let aiScientificName: String
     let inferenceTier: String?
+    /// Called when the user taps "No, incorrect" and there are no candidates to choose from.
+    /// The caller should route to the flag/report flow.
+    var onFlagIssue: (() -> Void)? = nil
 
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
@@ -60,7 +63,8 @@ struct CandidatesCard: View {
                     pendingCandidate: $pendingCandidate,
                     onConfirm: {
                         Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
-                    }
+                    },
+                    onFlagIssue: onFlagIssue
                 )
             }
         }
@@ -93,6 +97,7 @@ private struct PendingView: View {
     @Binding var isExpanded: Bool
     @Binding var pendingCandidate: IdentificationCandidate?
     let onConfirm: () -> Void
+    var onFlagIssue: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -130,7 +135,22 @@ private struct PendingView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if !candidates.isEmpty {
+                    if candidates.isEmpty {
+                        // No alternatives to offer — route straight to the flag/report flow
+                        // so the user can tell us what they think it actually is.
+                        Button {
+                            onFlagIssue?()
+                        } label: {
+                            Label("No, incorrect", systemImage: "xmark")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.orange.opacity(0.15))
+                                .foregroundColor(.orange)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    } else {
                         Button {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                                 isExpanded = true

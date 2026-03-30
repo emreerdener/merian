@@ -49,7 +49,8 @@ struct BiologicalView: View {
                 CandidatesCard(
                     candidates: candidates,
                     aiScientificName: primaryAIName,
-                    inferenceTier: inferenceEngine.speciesData?.inferenceTier
+                    inferenceTier: inferenceEngine.speciesData?.inferenceTier,
+                    onFlagIssue: { viewModel.isFlagIssuePresented = true }
                 )
                 .cardEntrance(index: 3)
             }
