@@ -57,6 +57,9 @@ import SwiftData
     var syncTask: Task<Void, Never>?
     /// Active collection sync task. Cancelled immediately on connectivity loss.
     var collectionSyncTask: Task<Void, Never>?
+    /// Debounced reconnect task. Cancelled and replaced on each connectivity-restored event
+    /// to prevent stacked syncs when the OS path monitor fires multiple times in quick succession.
+    @ObservationIgnored private var reconnectDebounceTask: Task<Void, Never>?
 
     /// In-memory counter tracking consecutive transient upload failures per scan ID.
     /// Resets on app restart — a fresh process always gets a clean slate of retries.
@@ -85,13 +88,22 @@ import SwiftData
                 MerianLog.data.debug("Network: \(newStatus ? "Online" : "Offline", privacy: .public)")
 
                 if newStatus {
-                    // Debounce 1s to let the OS networking stack fully settle before syncing.
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    self?.syncPendingScans()
-                    await self?.syncPendingDeletions()
-                    self?.syncCollectionsIfPending()
+                    // Cancel any pending debounce before rescheduling to prevent stacked sync
+                    // calls when the OS path monitor fires multiple times in quick succession
+                    // (e.g. WiFi → cellular → WiFi within a single second).
+                    self?.reconnectDebounceTask?.cancel()
+                    self?.reconnectDebounceTask = Task { [weak self] in
+                        guard let self else { return }
+                        // Debounce 1s to let the OS networking stack fully settle before syncing.
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        guard !Task.isCancelled else { return }
+                        self.syncPendingScans()
+                        await self.syncPendingDeletions()
+                        self.syncCollectionsIfPending()
+                    }
                 } else {
                     // Circuit-break active uploads immediately on connectivity loss.
+                    self?.reconnectDebounceTask?.cancel()
                     self?.syncTask?.cancel()
                     self?.collectionSyncTask?.cancel()
                     self?.isSyncing = false

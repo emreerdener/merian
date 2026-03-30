@@ -17,29 +17,43 @@ public actor FileIOActor {
         }
     }
     
-    /// Writes multiple physical arrays out to the Document Directory atomically.
-    /// - Returns: An array of filenames representing the successfully written bounds.
-    public func writeTemporaryImages(imageDatas: [Data]) -> [String] {
-        var savedPaths: [String] = []
+    /// Writes multiple image buffers to the Document Directory concurrently.
+    ///
+    /// Launches each write in a `Task.detached` so all disk writes proceed in parallel on worker
+    /// threads, bypassing `FileIOActor`'s serial executor. On a 3-frame scan this cuts wall-clock
+    /// write time from `3 × write_time` to `max(write_times)`.
+    ///
+    /// - Returns: Filenames in the **same order as `imageDatas`**, omitting any that failed to write.
+    public func writeTemporaryImages(imageDatas: [Data]) async -> [String] {
+        guard !imageDatas.isEmpty else { return [] }
         let docs = URL.documentsDirectory
-        
-        for (i, data) in imageDatas.enumerated() {
-            let filename: String
-            if i == 0 {
-                filename = "\(UUID().uuidString)_scan.webp"
-            } else {
-                filename = "\(UUID().uuidString)_additional_\(i).webp"
-            }
-            
-            do {
-                try data.write(to: docs.appendingPathComponent(filename), options: .atomic)
-                savedPaths.append(filename)
-            } catch {
-                MerianLog.data.error("FileIOActor: Failed writing buffer \(i, privacy: .public): \(error, privacy: .private)")
+
+        // Launch all writes concurrently before awaiting any result.
+        // Each task targets a unique UUID filename — no file contention.
+        let tasks: [Task<(index: Int, filename: String?), Never>] = imageDatas.enumerated().map { (i, data) in
+            let filename = i == 0
+                ? "\(UUID().uuidString)_scan.webp"
+                : "\(UUID().uuidString)_additional_\(i).webp"
+            return Task.detached(priority: .userInitiated) {
+                do {
+                    try data.write(to: docs.appendingPathComponent(filename), options: .atomic)
+                    return (index: i, filename: filename)
+                } catch {
+                    MerianLog.data.error("FileIOActor: Failed writing buffer \(i, privacy: .public): \(error, privacy: .private)")
+                    return (index: i, filename: nil)
+                }
             }
         }
-        
-        return savedPaths
+
+        // Collect results and restore original insertion order.
+        var indexed: [(index: Int, filename: String)] = []
+        for task in tasks {
+            let result = await task.value
+            if let filename = result.filename {
+                indexed.append((index: result.index, filename: filename))
+            }
+        }
+        return indexed.sorted { $0.index < $1.index }.map(\.filename)
     }
     
     /// Brutally purges an array of physical Sandboxed images off the OS bounds cleanly.

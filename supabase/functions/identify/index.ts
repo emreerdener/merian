@@ -392,6 +392,7 @@ serve((req: Request) =>
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: payloadReadyForClient.candidates ?? null,
             image_quality_score: parsedData.image_quality?.overall_score ?? null,
+            is_live_capture: parsedData.is_live_capture,
           },
           supabaseAdmin,
         );
@@ -409,7 +410,8 @@ serve((req: Request) =>
           (similarResult?.usage?.totalTokenCount ?? 0) +
           (groupTagsResult?.usage?.totalTokenCount ?? 0);
 
-        await trackPostHogEvent(user, "ScanCompleted", {
+        // Fire PostHog as fire-and-forget — analytics must never add latency to ingestion.
+        trackPostHogEvent(user, "ScanCompleted", {
           is_biological_subject: parsedData.is_biological_subject,
           tier: userTier,
           llm_model: targetModel,
@@ -421,19 +423,19 @@ serve((req: Request) =>
           group_tags_tokens: groupTagsResult?.usage?.totalTokenCount ?? 0,
           cumulative_scan_tokens: totalTokens,
           scientific_name: parsedData.scientific_name,
-        });
+        }).catch((e) => console.error("PostHog tracking failed:", e));
 
-        if (needsSimilarSpecies && similarResult?.similar_species) {
-          const diagStart = Date.now();
-          await updateSimilarSpecies(parsedData.scientific_name!, similarResult.similar_species, supabaseAdmin);
-          console.log(`[⏱ BENCH] bg_similar_species: ${Date.now() - diagStart}ms`);
-        }
-
-        if (needsGroupTags && groupTagsResult?.group_tags?.length) {
-          const tagsStart = Date.now();
-          await updateGroupTags(parsedData.scientific_name!, groupTagsResult.group_tags, supabaseAdmin);
-          console.log(`[⏱ BENCH] bg_group_tags: ${Date.now() - tagsStart}ms`);
-        }
+        // Run both species-dictionary DB writes in parallel — they are independent updates.
+        const bgWriteStart = Date.now();
+        await Promise.allSettled([
+          needsSimilarSpecies && similarResult?.similar_species
+            ? updateSimilarSpecies(parsedData.scientific_name!, similarResult.similar_species, supabaseAdmin)
+            : Promise.resolve(),
+          needsGroupTags && groupTagsResult?.group_tags?.length
+            ? updateGroupTags(parsedData.scientific_name!, groupTagsResult.group_tags, supabaseAdmin)
+            : Promise.resolve(),
+        ]);
+        console.log(`[⏱ BENCH] bg_species_writes: ${Date.now() - bgWriteStart}ms`);
       } catch (e) {
         // Revert R2 uploads to prevent untracked orphans when the scan DB write failed.
         // Only roll back if modResult exists (media was committed) but the scan row wasn't

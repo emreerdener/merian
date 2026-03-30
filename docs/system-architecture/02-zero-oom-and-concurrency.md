@@ -101,6 +101,32 @@ After a successful inference round-trip, `activeImageData` and `activeLiveCaptur
 
 A formerly-present third buffer, `activeCompressedImageData`, was an exact duplicate of `activeLiveCaptureDatas[0]` / `activeImageData` with zero external consumers. It has been removed entirely, eliminating a second copy of the compressed JPEG on the `@MainActor` heap.
 
+### Historical Scan Hydration Task Proliferation (`InferenceEngine.load(from:)`)
+
+When opening a historical scan, `load(from:)` previously spawned up to 4 independent untracked `Task { }` blocks (image path validation, JSON decode, Wikipedia hydration, enrichment/GBIF hydration). Navigating rapidly between scans left all prior tasks running — each decoding JSON, making network calls, and writing `@Observable` state for a scan no longer on screen.
+
+`InferenceEngine` now owns a single `@ObservationIgnored private var historicHydrationTask: Task<Void, Never>?`. At the start of every `load(from:)` call, the previous task is cancelled. All async hydration work (image-path validation → JSON blob decode → override patch → Wikipedia → enrichment) runs sequentially inside this one task with `guard !Task.isCancelled` checks between stages. The JSON blobs are decoded inside a nested `Task.detached` to keep `JSONDecoder` off `@MainActor`.
+
+### Unbounded GBIF Reference Image Accumulation (`InferenceEngine`)
+
+`fetchGBIFImagesAndHydrate` previously appended up to 4 new GBIF image URLs to `speciesData?.referenceImageUrl` (a comma-separated string) on every open. GBIF URLs are now capped at **5 entries** (`Array(currentUrls.prefix(5))`). The redundant `await MainActor.run { }` hops inside this method have also been removed — `InferenceEngine` is a `@MainActor` class, so all methods resume on the main actor after every `await`; the explicit wrappers were a no-op.
+
+### Enrichment Re-firing on Every Open (`InferenceEngine`)
+
+For species that permanently lack GBIF data or habitat descriptions, the enrichment eligibility condition evaluated `true` on every open, firing an `enrich-scan` Edge Function call that returned the same empty result each time. `InferenceEngine` now maintains `@ObservationIgnored private var enrichmentAttemptedScanIds: Set<String>`. The gate is set **before** the call so even empty results prevent re-fires. Live inference scans (via `analyze()`) bypass this gate.
+
+### `wikiFetchAttemptedIds` Full-Wipe Eviction (`InferenceEngine`)
+
+When `wikiFetchAttemptedIds` hit the 500-entry cap, the entire set was wiped — causing immediate Wikipedia re-fetches for all 500 recently-seen species. Now **10% of entries** (`prefix(wikiFetchAttemptCap / 10)`) are evicted on cap hit, preserving 90% of recently-fetched entries.
+
+### Reconnect Debounce Task Stacking (`OfflineQueueManager`)
+
+On a flapping WiFi ↔ cellular handoff, `NWPathMonitor` fires multiple `pathUpdateHandler` callbacks. Each positive-connectivity callback previously created a new untracked 1-second debounce task, causing stacked `syncPendingScans()` calls. `OfflineQueueManager` now holds `@ObservationIgnored private var reconnectDebounceTask: Task<Void, Never>?`. Every positive event cancels the previous debounce task before creating a new one. Connectivity-loss also cancels the pending debounce alongside `syncTask` and `collectionSyncTask`.
+
+### `AVCaptureSession.inputs` Thread Safety (`CameraManager`)
+
+`applyTargetFPS` and `throttleToIdleState` previously read `session.inputs` on `@MainActor` before entering `queue.async`. `AVCaptureSession.inputs` must be accessed on the session queue. Both methods now capture the session reference and move the `inputs` lookup inside `queue.async { capturedSession.inputs... }`.
+
 ### Thread Starvation & Dropped Frames (`InferenceEngine`)
 To prevent the Main Thread from stuttering during 120Hz `ScrollView` interactions, `JSONDecoder()` operations against large scientific dictionary responses run inside `Task.detached(priority: .userInitiated)`. To prevent Swift 6 race conditions causing `EXC_BAD_ACCESS` during rapid multithreading, SwiftData `.insert()` operations are decoupled from the raw `.detached` payload and routed through the `@ModelActor BackgroundDatabaseActor`, preserving isolated SQL boundaries.
 

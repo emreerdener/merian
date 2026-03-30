@@ -107,13 +107,13 @@ export async function fetchStaticEncyclopedicData(
       console.log(
         `Token Usage [Encyclopedic | ${scientificName}]: Sent: ${usage.promptTokenCount} | Received: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
       );
-      await trackPostHogEvent(user, "EncyclopedicLLMCompleted", {
+      trackPostHogEvent(user, "EncyclopedicLLMCompleted", {
         scientific_name: scientificName,
         llm_model: "gemini-2.5-flash",
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
-      });
+      }).catch((e) => console.error("PostHog EncyclopedicLLMCompleted failed:", e));
     }
 
     const extracted = extractJson<EncyclopedicData>(result.response.text());
@@ -182,13 +182,13 @@ export async function fetchSimilarSpecies(
       console.log(
         `Token Usage [SimilarSpecies | ${scientificName}]: Sent: ${usage.promptTokenCount} | Received: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
       );
-      await trackPostHogEvent(user, "SimilarSpeciesLLMCompleted", {
+      trackPostHogEvent(user, "SimilarSpeciesLLMCompleted", {
         scientific_name: scientificName,
         llm_model: "gemini-2.5-flash",
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
-      });
+      }).catch((e) => console.error("PostHog SimilarSpeciesLLMCompleted failed:", e));
     }
     const extracted = extractJson<{
       similar_species: string[];
@@ -246,13 +246,13 @@ export async function fetchGroupTags(
       console.log(
         `Token Usage [GroupTags | ${scientificName}]: Sent: ${usage.promptTokenCount} | Received: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
       );
-      await trackPostHogEvent(user, "GroupTagsLLMCompleted", {
+      trackPostHogEvent(user, "GroupTagsLLMCompleted", {
         scientific_name: scientificName,
         llm_model: "gemini-2.5-flash",
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
-      });
+      }).catch((e) => console.error("PostHog GroupTagsLLMCompleted failed:", e));
     }
 
     const parsed = extractJson<{ group_tags: string[] }>(

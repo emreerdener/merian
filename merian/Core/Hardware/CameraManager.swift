@@ -267,13 +267,15 @@ import UIKit
 
     func applyTargetFPS(_ fps: Int) {
         guard !HardwareOrchestrator.shared.isIdleLocked else { return }
-
-        guard let deviceInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
-            return
-        }
-        let device = deviceInput.device
+        // Capture session reference so the inputs lookup runs on the session queue,
+        // where AVFoundation mandates AVCaptureSession.inputs must be accessed.
+        let capturedSession = session
         queue.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
+            guard let deviceInput = capturedSession.inputs
+                .first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true })
+                as? AVCaptureDeviceInput else { return }
+            let device = deviceInput.device
             do {
                 try device.lockForConfiguration()
                 defer { device.unlockForConfiguration() }
@@ -289,13 +291,13 @@ import UIKit
         HardwareOrchestrator.shared.isIdleLocked = true
         cachedInferencePreferenceTracker = isLiveInferencePaused
         isLiveInferencePaused = true
-
-        guard let deviceInput = session.inputs.first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true }) as? AVCaptureDeviceInput else {
-            return
-        }
-        let device = deviceInput.device
+        let capturedSession = session
         queue.async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
+            guard let deviceInput = capturedSession.inputs
+                .first(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true })
+                as? AVCaptureDeviceInput else { return }
+            let device = deviceInput.device
             do {
                 try device.lockForConfiguration()
                 defer { device.unlockForConfiguration() }

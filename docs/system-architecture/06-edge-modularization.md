@@ -22,8 +22,9 @@ The `db.ts` file acts as the isolated boundary for PostgREST executions. This en
 
 **Rules for `db.ts`:**
 - **Strict Typing:** All Postgres responses must be typed manually or via generic Supabase generation bounds (e.g., `export interface DBScanRow { id: string }`). Do not allow `any` typings to bubble backwards up to `index.ts`.
-- **Query Memory Guards:** To natively defend against Deno V8 memory exhaustion, queries pulling arrays (`image_storage_urls`) must mathematically bound themselves via `.limit(500)` memory fences inherently within `db.ts` natively. 
+- **Query Memory Guards:** To natively defend against Deno V8 memory exhaustion, queries pulling arrays (`image_storage_urls`) must mathematically bound themselves via `.limit(500)` memory fences inherently within `db.ts` natively.
 - **Error Propagation:** All Supabase `{ data, error }` tuples must explicitly `throw new Error()` back to the `index.ts` orchestrator rather than attempting to return generic `null` responses natively.
+- **Complete Field Coverage in Insert Types:** `ScanInsertRow` (and equivalent insert interfaces in other functions) must include **every** AI-returned and telemetry field that maps to a DB column. Missing a field silently applies the column's Postgres `DEFAULT` (e.g., `is_live_capture` defaults to `true` — omitting it from `ScanInsertRow` caused all gallery/screen scans to be incorrectly flagged as live captures). When adding a new Gemini output field, always trace it through `types.ts` → `index.ts` payload → `db.ts` insert interface → SQL column in the same PR.
 
 ## 3. The API Interfaces (`types.ts`)
 
@@ -45,3 +46,10 @@ For exceptionally heavy or bespoke routing streams that violate the 10-second De
 By explicitly decoupling Data mapping from HTTP orchestration natively, the Deno backend becomes immediately immune to traditional Node.JS monolith "spaghetti-code" scaling failures. Engineers can formally upgrade complex PostgREST schemas in `db.ts` without jeopardizing the critical `timingSafeCompare` JWT block natively inside `index.ts`.
 
 All shared primitives natively driving API functions (`aws.ts`, `biology.ts`, `http.ts`, `posthog.ts`, `tierCache.ts`) are stored in `supabase/functions/_shared/`. For guidelines regarding the global dependencies, refer directly to `_shared/README.md`.
+
+**PostHog Rule — Fire-and-Forget:** All `trackPostHogEvent(...)` calls in both `index.ts` and `_shared/biology.ts` **must not be `await`-ed**. Analytics are best-effort and must never add latency to the critical path or the background ingestion flow. The correct pattern is:
+```typescript
+trackPostHogEvent(user, "EventName", { ...props }).catch((e) =>
+  console.error("PostHog EventName failed:", e)
+);
+```

@@ -54,6 +54,13 @@ private struct WikiSummaryResponse: Decodable {
     private(set) var isBackgroundRescued = false
     @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
     private let wikiFetchAttemptCap = 500
+    /// Scan IDs for which `fetchAndApplyEnrichment` has already been attempted via `load(from:)`.
+    /// Prevents re-firing on every open for species that permanently lack GBIF / habitat data.
+    /// Live-inference scans (via `analyze()`) bypass this gate intentionally.
+    @ObservationIgnored private var enrichmentAttemptedScanIds: Set<String> = []
+    /// Tracks the single async hydration task spawned by `load(from:)` so it can be
+    /// cancelled immediately when the user navigates to a different scan.
+    @ObservationIgnored private var historicHydrationTask: Task<Void, Never>?
 
     // MARK: - Live Inference Pipeline
 
@@ -303,9 +310,11 @@ private struct WikiSummaryResponse: Decodable {
               species.lowercased() != "taxonomy unavailable",
               species.lowercased() != "unknown subject" else { return }
         guard !wikiFetchAttemptedIds.contains(species) else { return }
-        // Evict the entire set when the cap is hit so a long session never grows unboundedly.
+        // Evict 10% of entries on cap hit so recent attempts survive and the set never grows unboundedly.
+        // Full wipe would reset species that were just successfully fetched, causing redundant network calls.
         if wikiFetchAttemptedIds.count >= wikiFetchAttemptCap {
-            wikiFetchAttemptedIds.removeAll()
+            let evictCount = wikiFetchAttemptCap / 10
+            wikiFetchAttemptedIds.subtract(wikiFetchAttemptedIds.prefix(evictCount))
         }
 
         let normalized = species.replacingOccurrences(of: " ", with: "_")
@@ -394,22 +403,26 @@ private struct WikiSummaryResponse: Decodable {
 
             guard !newUrls.isEmpty else { return }
 
-            await MainActor.run {
-                if self.speciesData?.gbifTaxonKey == taxonKey {
-                    var currentUrls = self.speciesData?.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
-                    
-                    // Prevent duplicates if already hydrated
-                    for urlStr in newUrls where !currentUrls.contains(urlStr) {
-                        currentUrls.append(urlStr)
-                    }
-                    
-                    self.speciesData?.referenceImageUrl = currentUrls.joined(separator: ",")
+            // Already on @MainActor — direct access, no hop needed.
+            // Capture the final URL string in the same pass to avoid a second MainActor hop.
+            var persistUrls: String?
+            if self.speciesData?.gbifTaxonKey == taxonKey {
+                var currentUrls = self.speciesData?.referenceImageUrl?
+                    .components(separatedBy: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty } ?? []
+
+                for urlStr in newUrls where !currentUrls.contains(urlStr) {
+                    currentUrls.append(urlStr)
                 }
+
+                // Cap at 5 URLs to prevent unbounded referenceImageUrl string growth across sessions.
+                let capped = Array(currentUrls.prefix(5))
+                self.speciesData?.referenceImageUrl = capped.joined(separator: ",")
+                persistUrls = self.speciesData?.referenceImageUrl
             }
-            
-            // Persist the updated image URLs to SwiftData if possible
-            let finalUrls = await MainActor.run { self.speciesData?.referenceImageUrl }
-            if let scanId = scanId, let context = modelContext, let finalUrls = finalUrls {
+
+            if let scanId = scanId, let context = modelContext, let finalUrls = persistUrls {
                 let container = context.container
                 Task {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
@@ -483,18 +496,14 @@ private struct WikiSummaryResponse: Decodable {
 
             if let context = modelContext {
                 let container = context.container
-                let encodedLookalikes: Data?
-                if let entries = speciesData?.similarSpecies?.entries {
-                    do {
-                        encodedLookalikes = try JSONEncoder().encode(entries)
-                    } catch {
-                        MerianLog.general.debug("Failed to encode similar species entries for persistence: \(error, privacy: .private)")
-                        encodedLookalikes = nil
-                    }
-                } else {
-                    encodedLookalikes = nil
-                }
+                // Capture entries as a Sendable value type before crossing the actor boundary.
+                let entriesToEncode = speciesData?.similarSpecies?.entries
                 Task {
+                    // Encode off @MainActor — JSONEncoder is CPU-bound and can block the run loop
+                    // for large lookalike arrays.
+                    let encodedLookalikes: Data? = entriesToEncode.flatMap {
+                        try? JSONEncoder().encode($0)
+                    }
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
                     await dbActor.updateScanWithEnrichment(
                         scanId: scanId,
@@ -733,38 +742,42 @@ private struct WikiSummaryResponse: Decodable {
     // MARK: - Local Record Loading
 
     /// Rehydrates engine state from a persisted `LocalScanRecord` for the insight sheet.
+    ///
+    /// All async work (path validation, JSON decoding, network hydration) runs inside a single
+    /// tracked `historicHydrationTask` so that navigating to a different scan immediately
+    /// cancels the previous scan's outstanding work.
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
+        historicHydrationTask?.cancel()
 
         self.activeImageData = nil
         self.activeLiveCaptureDatas = []
         self.activeDisplayDatas = []
         self.validHistoricImagePaths = []
 
-        var paths: [String] = []
-        if let localPath = record.localImagePath { paths.append(localPath) }
-        if let extras = record.additionalImagePaths { paths.append(contentsOf: extras) }
+        // Capture all non-Sendable model properties synchronously on @MainActor
+        // before crossing any concurrency boundary.
+        var imagePaths: [String] = []
+        if let localPath = record.localImagePath { imagePaths.append(localPath) }
+        if let extras = record.additionalImagePaths { imagePaths.append(contentsOf: extras) }
 
-        Task { [weak self] in
-            let validPaths = await FileIOActor.shared.validPaths(from: paths)
-            await MainActor.run { self?.validHistoricImagePaths = validPaths }
-        }
+        let lookalikesJsonData: Data? = record.lookalikesData
+        let lookalikesLegacyArray: [String]? = record.similarSpecies
+        let candidatesRawData: Data? = record.candidatesData
+        let overrideName: String? = record.userIdentificationOverride
+        let recordIsBiological = record.isBiological
+        let recordScientificName = record.scientificName
+        let recordId = record.id
+        let safeContext = record.modelContext
+        let gbifKey = record.gbifTaxonKey
+        let needsWiki = recordIsBiological &&
+            (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty)
+        let needsEnrichment = recordIsBiological &&
+            (record.habitatDescription == nil || record.gbifTaxonKey == nil || record.lookalikesData == nil)
 
-        var parsedSimilar: SimilarSpecies?
-        if let json = record.lookalikesData, let decoded = try? JSONDecoder().decode([SimilarSpeciesEntry].self, from: json) {
-            parsedSimilar = SimilarSpecies(entries: decoded)
-        } else if let lookalikesArray = record.similarSpecies, !lookalikesArray.isEmpty {
-            parsedSimilar = SimilarSpecies(
-                entries: lookalikesArray.map {
-                    SimilarSpeciesEntry(scientificName: $0, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
-                }
-            )
-        }
-
-        let parsedCandidates: [IdentificationCandidate]? = record.candidatesData.flatMap {
-            try? JSONDecoder().decode([IdentificationCandidate].self, from: $0)
-        }
-
+        // Set speciesData immediately with nil for blob-decoded fields.
+        // similarSpecies and candidates are populated by the task below to avoid
+        // blocking @MainActor with synchronous JSONDecoder calls on large datasets.
         self.speciesData = SpeciesData(
             scanId: record.id,
             commonName: record.commonName,
@@ -772,7 +785,7 @@ private struct WikiSummaryResponse: Decodable {
             insightData: InsightData(aiReasoning: record.aiReasoning ?? "No ecological description available for this subject.", hazardType: record.hazardType),
             confidenceScore: record.confidenceScore ?? 1.0,
             blurScore: nil,
-            similarSpecies: parsedSimilar,
+            similarSpecies: nil,
             wikipediaUrl: record.wikipediaUrl,
             wikipediaOverview: record.wikipediaOverview,
             referenceImageUrl: record.referenceImageUrl,
@@ -807,55 +820,66 @@ private struct WikiSummaryResponse: Decodable {
             habitatDescription: record.habitatDescription,
             gbifTaxonKey: record.gbifTaxonKey,
             inferenceTier: record.inferenceTier,
-            candidates: parsedCandidates,
+            candidates: nil,
             imageQualityScore: record.imageQualityScore,
             aiScientificName: record.scientificName,
             userIdentificationOverride: record.userIdentificationOverride,
             userConfirmedIdentification: record.userConfirmedIdentification
         )
-
-        // If the user previously overrode the identification on this scan, apply the override
-        // species data asynchronously (common name, taxonomy, hazard type, etc. from species_dictionary).
-        if let override = record.userIdentificationOverride {
-            let scanId = record.id
-            let safeContext = record.modelContext
-            Task { [weak self] in
-                guard let self else { return }
-                await self.fetchAndPatchOverrideData(scientificName: override, scanId: scanId, modelContext: safeContext)
-            }
-        }
-
         self.isProcessing = false
 
-        // Retroactively hydrate legacy scans that missed Wikipedia data on initial save.
-        if record.isBiological && (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty) {
-            let safeContext = record.modelContext
-            Task { [weak self] in
-                guard let self else { return }
-                await self.fetchWikipediaAndHydrate(for: record.scientificName, scanId: record.id, modelContext: safeContext)
-            }
-        }
+        historicHydrationTask = Task { [weak self] in
+            guard let self else { return }
 
-        // Fetch enrichment for any record missing habitat data, a GBIF key,
-        // or similar species data.
-        if record.isBiological {
-            let needsEnrichment = record.habitatDescription == nil ||
-                record.gbifTaxonKey == nil ||
-                record.lookalikesData == nil
-            if needsEnrichment {
-                let safeContext = record.modelContext
-                Task { [weak self] in
-                    guard let self else { return }
-                    await self.fetchAndApplyEnrichment(modelContext: safeContext)
+            // Step 1: Validate image paths (I/O-bound).
+            let validPaths = await FileIOActor.shared.validPaths(from: imagePaths)
+            guard !Task.isCancelled else { return }
+            self.validHistoricImagePaths = validPaths
+
+            // Step 2: Decode JSON blobs off @MainActor (CPU-bound).
+            // Task.detached ensures the decoder does not block the main thread.
+            let (parsedSimilar, parsedCandidates) = await Task.detached(priority: .userInitiated) {
+                var similar: SimilarSpecies?
+                if let json = lookalikesJsonData,
+                   let decoded = try? JSONDecoder().decode([SimilarSpeciesEntry].self, from: json) {
+                    similar = SimilarSpecies(entries: decoded)
+                } else if let legacyArray = lookalikesLegacyArray, !legacyArray.isEmpty {
+                    similar = SimilarSpecies(entries: legacyArray.map {
+                        SimilarSpeciesEntry(scientificName: $0, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)
+                    })
                 }
-            } else if let key = record.gbifTaxonKey {
-                // If we didn't need enrichment but have a key, ensure we dynamically hydrate GBIF images 
-                // deduplicating against any existing ones from the DB.
-                let safeContext = record.modelContext
-                Task { [weak self] in
-                    guard let self else { return }
-                    await self.fetchGBIFImagesAndHydrate(for: key, scanId: record.id, modelContext: safeContext)
+                let candidates: [IdentificationCandidate]? = candidatesRawData.flatMap {
+                    try? JSONDecoder().decode([IdentificationCandidate].self, from: $0)
                 }
+                return (similar, candidates)
+            }.value
+
+            guard !Task.isCancelled else { return }
+            self.speciesData?.similarSpecies = parsedSimilar
+            self.speciesData?.candidates = parsedCandidates
+
+            // Step 3: If an identification override is active, patch in the override species data.
+            if let override = overrideName {
+                guard !Task.isCancelled else { return }
+                await self.fetchAndPatchOverrideData(scientificName: override, scanId: recordId, modelContext: safeContext)
+            }
+
+            // Step 4: Retroactively hydrate legacy scans missing Wikipedia data.
+            if needsWiki {
+                guard !Task.isCancelled else { return }
+                await self.fetchWikipediaAndHydrate(for: recordScientificName, scanId: recordId, modelContext: safeContext)
+            }
+
+            // Step 5: Enrichment or GBIF-image hydration (mutually exclusive).
+            // The enrichment gate prevents infinite re-firing for species that permanently
+            // lack GBIF / habitat data — the attempt is recorded regardless of outcome.
+            if needsEnrichment && !self.enrichmentAttemptedScanIds.contains(recordId) {
+                guard !Task.isCancelled else { return }
+                self.enrichmentAttemptedScanIds.insert(recordId)
+                await self.fetchAndApplyEnrichment(modelContext: safeContext)
+            } else if let key = gbifKey, recordIsBiological {
+                guard !Task.isCancelled else { return }
+                await self.fetchGBIFImagesAndHydrate(for: key, scanId: recordId, modelContext: safeContext)
             }
         }
     }

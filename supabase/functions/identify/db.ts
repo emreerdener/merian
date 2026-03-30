@@ -145,6 +145,7 @@ export interface ScanInsertRow {
   inference_tier: string;
   candidates?: IdentificationCandidate[] | null;
   image_quality_score?: number | null;
+  is_live_capture?: boolean;
 }
 
 export async function insertScan(
