@@ -20,7 +20,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an override is active, replaces normal content with override-specific explanation showing the override name, the original AI name, and undo instructions. |
 | `CandidatesCard` | Identification candidates card with a four-state approve/deny UX. Shown when `speciesData.candidates` has ≥ 2 entries **or** when a review state (override/confirmed) is already set. Gated in `BiologicalView` via `candidates.count >= 2 || hasReviewState`. |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
-| `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalikes sourced from `speciesData.similarSpecies`. Each `SimilarSpeciesCard` natively renders `referenceImageUrl` or asynchronously falls back to `SimilarSpeciesImageFetcher` (Wikipedia → GBIF waterfall). Features aggressive reactive filtering: if all backend and fallback media sources organically fail, or names are null, cards are dynamically purged via a shared `@State` invalidation set (`failedMediaIdentifiers`). If the entire dataset collapses, the gallery cleanly unmounts via `EmptyView()` to prevent uncentered layouts mapping. |
+| `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalikes sourced from `speciesData.similarSpecies`. Each `SimilarSpeciesCard` renders `referenceImageUrl` via `AsyncLocalImageView` when available, or asynchronously falls back to `SimilarSpeciesImageFetcher` (Wikipedia → GBIF waterfall). Image load failures never remove a card — on failure the card falls back to a leaf-icon placeholder so species names remain visible. Cards are only excluded from `validEntries` when their `scientificName` is blank. |
 | `OverviewCard` | Structural card rendering dynamic biological KeyValueRow metrics (e.g., size, life stage, interactions, invasive species status) followed by an 8-line truncated Wikipedia extract and a built-in Safari "Learn more" button. |
 | `ScanInformationCard` | Spatiotemporal context card: location, elevation, zoom, weather, date/time, and a MapKit snapshot |
 | `GBIFHeatmapMapView` | SwiftUI `View` that composites two images to render a full-world GBIF occurrence heatmap natively. (1) A static `WorldMapBase` custom Mapbox topography background image, entirely eliminating MapKit CPU overhead. (2) The GBIF density zoom-0 tile (`/0/0/0@2x.png`) — a single 512 px PNG covering the entire world in Web Mercator — is fetched and drawn on top. Both images perfectly align their projection/extent. Features a custom `UIViewRepresentable` bridge (`PinchPanOverlay`) which unlocks elastic 2-finger pinch and pan exploration. This gesture controller safely locks down the encompassing parent `ScrollView` and engages `.interactiveDismissDisabled` on the bottom sheet to prevent SwiftUI swipe cancellation conflicts during map manipulation. |
@@ -117,7 +117,7 @@ When `InferenceEngine.load(from:)` loads a `LocalScanRecord` that is missing `ha
 
 **Mathematical Baseline Constraints**: To prevent Apple's SwiftUI Layout Engine from allowing extreme intrinsic image aspect ratios (e.g., highly vertical photos) from stretching the `maxHeight` boundaries and destroying the symmetric masonry of the horizontal scrolling row, `SimilarSpeciesCard` enforces absolute mathematical geometry. The overall card bounds are strictly locked to `240` points. The bottom text compartment allocates `60` points (`48` text space + `12` padding) to comfortably fit a 2-line `.subheadline` Common Name and a 1-line `.caption` Scientific Name. The topmost image compartment is definitively clamped to `160` points. 
 
-Each `SimilarSpeciesCard` receives a `SimilarSpeciesEntry`. When `referenceImageUrl` is non-nil, the card renders it directly via `AsyncLocalImageView`. When nil, the card gracefully spawns an asynchronous `SimilarSpeciesImageFetcher` Wikipedia/GBIF waterfall lookup. If all media paths logically fail, the missing card instantly invalidates itself and collapses out of the gallery layout layer via an upstream state hook.
+Each `SimilarSpeciesCard` receives a `SimilarSpeciesEntry`. When `referenceImageUrl` is non-nil, the card renders it via `AsyncLocalImageView`; if the URL fails, local `@State var remoteImageFailed` flips to `true` and the card shows the leaf-icon placeholder instead. When `referenceImageUrl` is nil, a `SimilarSpeciesImageFetcher` Wikipedia/GBIF waterfall runs in a `.task`. In all failure cases the card stays in the gallery — it is never removed. The only exclusion rule is a blank `scientificName` (truly invalid server data), filtered in `validEntries`.
 
 ---
 
@@ -141,7 +141,7 @@ let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != 
                   || inferenceEngine.speciesData?.userConfirmedIdentification == true
 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
    let candidates = inferenceEngine.speciesData?.candidates,
-   (candidates.count >= 2 || hasReviewState) {
+   candidates.count >= 2 || hasReviewState {
     CandidatesCard(candidates: candidates,
                    aiScientificName: primaryAIName,
                    inferenceTier: speciesData.inferenceTier)

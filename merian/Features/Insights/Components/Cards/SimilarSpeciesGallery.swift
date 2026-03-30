@@ -2,13 +2,10 @@ import SwiftUI
 
 struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
-    
-    @State private var failedMediaIdentifiers = Set<String>()
 
     private var validEntries: [SimilarSpeciesEntry] {
         similarData.entries
             .filter { !$0.scientificName.trimmingCharacters(in: .whitespaces).isEmpty }
-            .filter { !failedMediaIdentifiers.contains($0.scientificName) }
     }
 
     var body: some View {
@@ -25,14 +22,7 @@ struct SimilarSpeciesGallery: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 16) {
                             ForEach(validEntries, id: \.scientificName) { entry in
-                                SimilarSpeciesCard(
-                                    entry: entry,
-                                    onImageFailed: {
-                                        withAnimation(.easeInOut) {
-                                            _ = failedMediaIdentifiers.insert(entry.scientificName)
-                                        }
-                                    }
-                                )
+                                SimilarSpeciesCard(entry: entry)
                             }
                         }
                         .padding(.vertical, 4)
@@ -50,10 +40,10 @@ struct SimilarSpeciesGallery: View {
 
 struct SimilarSpeciesCard: View {
     let entry: SimilarSpeciesEntry
-    let onImageFailed: () -> Void
 
     // Fallback fetcher used only when the join table has no reference image URL.
     @StateObject private var imageFetcher = SimilarSpeciesImageFetcher()
+    @State private var remoteImageFailed = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,12 +51,12 @@ struct SimilarSpeciesCard: View {
             ZStack {
                 Color(UIColor.systemGray6)
 
-                if let remoteUrl = entry.referenceImageUrl {
+                if !remoteImageFailed, let remoteUrl = entry.referenceImageUrl {
                     // Rich path: reference image pre-resolved by the join table query.
                     AsyncLocalImageView(
                         path: nil,
                         fallbackImageUrl: remoteUrl,
-                        onImageLoadFailed: onImageFailed
+                        onImageLoadFailed: { remoteImageFailed = true }
                     )
                 } else if imageFetcher.isLoading {
                     ProgressView()
@@ -119,10 +109,7 @@ struct SimilarSpeciesCard: View {
         .task(priority: .background) {
             // Fallback: lazy-load via Wikipedia/GBIF only when no reference URL was resolved.
             if entry.referenceImageUrl == nil {
-                let success = await imageFetcher.fetchImage(for: entry.scientificName)
-                if !success {
-                    onImageFailed()
-                }
+                _ = await imageFetcher.fetchImage(for: entry.scientificName)
             }
         }
     }

@@ -91,3 +91,17 @@ A diagnostic card surfacing up to 2 alternative species the AI genuinely conside
 - **`.overridden(to:)` state — OverriddenView**: Shows "Your identification" header, the override species name, an "AI originally suggested [aiScientificName]" footer, and an Undo button that calls `resetIdentificationReview` to revert.
 - **`CandidateRow`**: Each row renders the scientific name in italic `.subheadline` and a rounded confidence percentage pill. Rows are ordered by descending `confidenceScore`.
 - **Data origin**: Candidates are scan-specific — they model genuine per-image uncertainty rather than species-level similarity. They are stored as a `candidates JSONB` column in `public.scans` (not in `species_dictionary`) and as `LocalScanRecord.candidatesData: Data?` (`MerianSchemaV28`) on-device. The override is stored as `LocalScanRecord.userIdentificationOverride: String?` (`MerianSchemaV29`) locally and in `public.scans.user_identification_override` in the cloud.
+
+## 12. Similar Species Gallery: `SimilarSpeciesGallery`
+**Location**: `Features/Insights/Components/Cards/SimilarSpeciesGallery.swift`
+
+A horizontally scrolling carousel of ecologically similar lookalike species, rendered in `BiologicalView` at card entrance index 4. Sourced from `speciesData.similarSpecies` (a `SimilarSpecies` struct with an `entries: [SimilarSpeciesEntry]` array), which is populated asynchronously by `fetchAndApplyEnrichment` and persisted to `LocalScanRecord.lookalikesData: Data?`.
+
+- **Visibility gate**: Shown when `inferenceEngine.speciesData?.similarSpecies` is non-nil. While enrichment is in-flight (`inferenceEngine.isEnrichmentLoading == true`) and `similarSpecies` is still nil, `SimilarSpeciesGallery.Skeleton` renders in its place at the same index. The transition is animated via `.animation(.easeInOut, value: inferenceEngine.isEnrichmentLoading)`.
+- **Entry filtering**: `validEntries` filters out only `SimilarSpeciesEntry` values whose `scientificName` trims to an empty string (truly invalid server data). Image load failure never removes a card.
+- **Image loading**: Each `SimilarSpeciesCard` uses a two-tier strategy:
+  1. **Rich path** (`referenceImageUrl != nil`): `AsyncLocalImageView` loads the pre-resolved join-table URL. If the URL fails (network error, simulator, expired CDN link), local `@State var remoteImageFailed` flips to `true` and the card falls through to the leaf-icon placeholder. The card stays visible.
+  2. **Fallback path** (`referenceImageUrl == nil`): A `.task` spawns `SimilarSpeciesImageFetcher`, which runs a Wikipedia → GBIF image waterfall lookup. If both fail, the card shows the leaf-icon placeholder.
+- **Fixed geometry**: Cards are locked to `width: 180, height: 240`. The image area is clamped to `height: 160`; the text compartment is `height: 60`. This prevents extreme image aspect ratios from breaking the horizontal row layout.
+- **Label**: Always "SIMILAR SPECIES" — no confidence-gated label switching.
+- **Skeleton**: `SimilarSpeciesGallery.Skeleton` renders three placeholder cards with a pulsing opacity loop (`easeInOut(duration: 1.0).repeatForever`).
