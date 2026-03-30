@@ -101,8 +101,9 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         let needsFullRebuild = self.searchableData.isEmpty && !allScans.isEmpty
         let targetScans = needsFullRebuild ? allScans : addedScans
         
-        // Critically extract ONLY lightweight persistent identifiers from the delta, bounding CPU execution down to practically zero!
-        let idsToExtract = targetScans.map { $0.persistentModelID }
+        // Extract lightweight string IDs so the background actor can batch-fetch all records
+        // in a single SQLite query rather than N individual `model(for:)` faults.
+        let idsToExtract = targetScans.map { $0.id }
         
         if idsToExtract.isEmpty { return }
         
@@ -125,12 +126,11 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     // MARK: - Dedicated Reindexing
     private func forceReindex(scanId: String) {
         guard let scan = scanMap[scanId], let container = scan.modelContext?.container else { return }
-        let persistentId = scan.persistentModelID
         self.searchableData.removeAll { $0.id == scanId }
-        
+
         Task { [weak self] in
             let dbActor = SearchDatabaseActor(modelContainer: container)
-            let newPayload = await dbActor.extractSearchablePayloads(from: [persistentId])
+            let newPayload = await dbActor.extractSearchablePayloads(from: [scanId])
             if Task.isCancelled { return }
             
             await MainActor.run { [weak self] in
@@ -305,44 +305,58 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 // MARK: - Actor Isolation Bounds
 @ModelActor
 actor SearchDatabaseActor {
-    func extractSearchablePayloads(from ids: [PersistentIdentifier]) -> [SearchableScan] {
+    /// Batch-fetches `LocalScanRecord` rows for the given string IDs in a single SQLite query,
+    /// then maps each record to a `SearchableScan` payload.
+    ///
+    /// Using a `FetchDescriptor` with an `#Predicate` avoids the N individual `model(for:)`
+    /// calls that each fault a full row from SQLite. For a 50-scan delta the old approach
+    /// issued 50 separate reads; this issues exactly 1.
+    func extractSearchablePayloads(from ids: [String]) -> [SearchableScan] {
+        guard !ids.isEmpty else { return [] }
+
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { ids.contains($0.id) }
+        )
+        descriptor.fetchLimit = ids.count
+
+        let records = (try? modelContext.fetch(descriptor)) ?? []
+        let recordMap = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+
         var processed: [SearchableScan] = []
         processed.reserveCapacity(ids.count)
 
         for id in ids {
             if Task.isCancelled { break }
+            guard let record = recordMap[id] else { continue }
 
-            if let record = self.modelContext.model(for: id) as? LocalScanRecord {
-                let tags = record.semanticTags.joined(separator: " ")
-                // Taxonomy class/order/family are appended so users can search Latin names
-                // (e.g. "aves", "passeriformes"). commonGroupName maps the class to plain
-                // English synonyms (e.g. "aves" → "bird birds") so casual queries work too.
-                let taxonomyTerms = [record.taxonomyClass, record.taxonomyOrder, record.taxonomyFamily]
-                    .compactMap { $0 }.joined(separator: " ")
-                let groupName = SearchDatabaseActor.commonGroupName(for: record.taxonomyClass)
-                
-                let reasoning = record.aiReasoning ?? ""
-                let location = record.locationName ?? ""
-                let habitat = record.habitatDescription ?? ""
-                let weather = record.weatherCondition ?? ""
-                let lifeStage = record.lifeStage ?? ""
-                let reproductive = record.reproductiveCondition ?? ""
-                let lookalike = record.similarSpecies?.joined(separator: " ") ?? ""
-                let iucn = record.iucnRedListStatus ?? ""
-                let hazard = record.hazardType == "none" ? "" : record.hazardType
-                let interactions = record.ecologicalInteractions?.joined(separator: " ") ?? ""
-                
-                let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(record.customTags.joined(separator: " ")) \(record.isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(reasoning) \(location) \(habitat) \(weather) \(lifeStage) \(reproductive) \(lookalike) \(iucn) \(hazard) \(interactions)".lowercased()
+            let tags = record.semanticTags.joined(separator: " ")
+            // Taxonomy class/order/family are appended so users can search Latin names
+            // (e.g. "aves", "passeriformes"). commonGroupName maps the class to plain
+            // English synonyms (e.g. "aves" → "bird birds") so casual queries work too.
+            let taxonomyTerms = [record.taxonomyClass, record.taxonomyOrder, record.taxonomyFamily]
+                .compactMap { $0 }.joined(separator: " ")
+            let groupName = SearchDatabaseActor.commonGroupName(for: record.taxonomyClass)
 
-                processed.append(SearchableScan(
-                    id: record.id,
-                    searchString: rawString,
-                    ecologyType: record.ecologyType.lowercased(),
-                    kingdom: record.taxonomyKingdom?.lowercased() ?? "",
-                    className: record.taxonomyClass?.lowercased() ?? ""
-                ))
-            }
+            let reasoning = record.aiReasoning ?? ""
+            let location = record.locationName ?? ""
+            let habitat = record.habitatDescription ?? ""
+            let weather = record.weatherCondition ?? ""
+            let lifeStage = record.lifeStage ?? ""
+            let reproductive = record.reproductiveCondition ?? ""
+            let lookalike = record.similarSpecies?.joined(separator: " ") ?? ""
+            let iucn = record.iucnRedListStatus ?? ""
+            let hazard = record.hazardType == "none" ? "" : record.hazardType
+            let interactions = record.ecologicalInteractions?.joined(separator: " ") ?? ""
 
+            let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(record.customTags.joined(separator: " ")) \(record.isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(reasoning) \(location) \(habitat) \(weather) \(lifeStage) \(reproductive) \(lookalike) \(iucn) \(hazard) \(interactions)".lowercased()
+
+            processed.append(SearchableScan(
+                id: record.id,
+                searchString: rawString,
+                ecologyType: record.ecologyType.lowercased(),
+                kingdom: record.taxonomyKingdom?.lowercased() ?? "",
+                className: record.taxonomyClass?.lowercased() ?? ""
+            ))
         }
 
         return processed

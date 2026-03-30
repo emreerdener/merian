@@ -1,6 +1,7 @@
 import {
   GoogleGenerativeAI,
   GenerativeModel,
+  GenerationConfig,
 } from "https://esm.sh/@google/generative-ai@0.24.1";
 
 // Instantiated once at module scope so warm isolate re-use avoids re-initialization overhead.
@@ -21,7 +22,15 @@ export function createFlashModel(
   return _genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
     systemInstruction,
-    generationConfig: { temperature: 0.1, maxOutputTokens },
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens,
+      // Disable thinking tokens on deterministic structured-output tasks.
+      // Flash 2.5 thinking adds ~2-4s latency with no accuracy benefit for schema-constrained
+      // JSON generation. `thinkingBudget: 0` is not yet a typed field in SDK 0.24.1 —
+      // cast through `unknown` to avoid a compile error.
+      thinkingConfig: { thinkingBudget: 0 },
+    } as unknown as GenerationConfig,
   });
 }
 

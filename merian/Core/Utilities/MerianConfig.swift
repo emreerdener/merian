@@ -38,7 +38,9 @@ enum MerianConfig {
 
     /// SwiftData save checkpoint interval during bulk historical scan ingestion.
     /// A checkpoint every N records caps maximum data loss if a background task is killed.
-    static let ingestCheckpointInterval = 50
+    /// 100 halves WAL flush frequency vs. the previous 50 — acceptable for initial syncs
+    /// since a task kill rolls back at most one 100-record batch, not the entire sync.
+    static let ingestCheckpointInterval = 100
 
     // MARK: - Image Quality
 

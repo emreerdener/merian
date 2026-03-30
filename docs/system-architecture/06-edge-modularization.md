@@ -67,3 +67,15 @@ trackPostHogEvent(user, "EventName", { ...props }).catch((e) =>
 The embedded join syntax resolves two sequential PostgREST round-trips (the old N+1 `SELECT id → SELECT IN (ids)` pattern) into a single SQL JOIN, cutting connection-pool acquisitions and Deno isolate latency in half.
 
 **Resolve-and-Return Pattern:** Functions that write to a join table and then need the hydrated rows must return the result directly from the write query — never call a separate fetch function after the write. This eliminates a redundant third round-trip on migration or LLM-completion paths. See `resolveLookalikesToJoinTable` in `enrich-scan/db.ts` for the reference implementation: the `species_dictionary` query that resolves names to IDs is expanded to also fetch the hydration columns, and the mapped `LookalikeSummary[]` is returned directly to the caller.
+
+**Gemini Flash `thinkingBudget: 0` Rule — Disable Thinking Tokens on Structured-Output Tasks:** All calls to `createFlashModel` (in `_shared/gemini.ts`) pass `thinkingConfig: { thinkingBudget: 0 }`. Gemini 2.5 Flash thinking tokens add ~2–4 s of latency with no accuracy benefit for deterministic, schema-constrained JSON generation tasks (enrichment extraction, lookalike resolution, etc.). Because `thinkingConfig` is not yet a typed field in the SDK version pinned in `_shared/gemini.ts`, it is cast via `as unknown as GenerationConfig`. Do not remove this cast — it is intentional.
+
+```typescript
+generationConfig: {
+  temperature: 0.1,
+  maxOutputTokens,
+  thinkingConfig: { thinkingBudget: 0 },
+} as unknown as GenerationConfig,
+```
+
+This rule applies only to `createFlashModel`. The vision model in `identify/index.ts` (which uses `_genAI.getGenerativeModel` directly) is **not** affected — multi-modal reasoning may benefit from thinking tokens on ambiguous species images.

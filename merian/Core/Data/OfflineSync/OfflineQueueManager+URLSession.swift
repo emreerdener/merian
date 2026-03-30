@@ -77,6 +77,10 @@ extension OfflineQueueManager {
         let scanId = components[0]
         let indexPart = components.count > 1 ? components[1] : ""
 
+        // Remove from the local active-IDs set now that the upload task has settled,
+        // so subsequent sync cycles no longer skip this scan ID.
+        activeScanUploadIds.remove(scanId)
+
         // Clean up the temp staging file regardless of upload outcome.
         let tempFileName = indexPart.isEmpty
             ? "\(scanId)_temp_upload.webp"

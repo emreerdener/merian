@@ -58,6 +58,10 @@ private struct WikiSummaryResponse: Decodable {
     /// Prevents re-firing on every open for species that permanently lack GBIF / habitat data.
     /// Live-inference scans (via `analyze()`) bypass this gate intentionally.
     @ObservationIgnored private var enrichmentAttemptedScanIds: Set<String> = []
+    /// Scientific names for which `fetchAndApplyEnrichment` has successfully completed on the
+    /// live-inference path within this session. Skips the Edge round-trip for repeat observations
+    /// of the same species — habitat, lookalikes, and taxonomy data is identical across scans.
+    @ObservationIgnored private var enrichedSpeciesNames: Set<String> = []
     /// Tracks the single async hydration task spawned by `load(from:)` so it can be
     /// cancelled immediately when the user navigates to a different scan.
     @ObservationIgnored private var historicHydrationTask: Task<Void, Never>?
@@ -203,17 +207,38 @@ private struct WikiSummaryResponse: Decodable {
                         // Single tracked task — cancelled by the next `analyze()` call so stale
                         // hydration results from a previous scan cannot overwrite the new one.
                         // Wikipedia completes first; enrichment and GBIF run concurrently after.
+                        // Capture wikipediaOverview before the task boundary — if the identify
+                        // response already included it from the species_dictionary join, the
+                        // Wikipedia round-trip can be skipped entirely.
+                        let capturedHasWikipedia = mappedData.wikipediaOverview != nil
                         liveHydrationTask = Task { [weak self] in
                             guard let self else { return }
-                            await self.fetchWikipediaAndHydrate(for: capturedScientificName, scanId: capturedScanId, modelContext: modelContext)
-                            guard !Task.isCancelled else { return }
-                            async let enrichment: Void = self.fetchAndApplyEnrichment(modelContext: modelContext)
+                            // Skip Wikipedia fetch when the identify response already includes an
+                            // overview from the species_dictionary join (species enriched before).
+                            if !capturedHasWikipedia {
+                                await self.fetchWikipediaAndHydrate(for: capturedScientificName, scanId: capturedScanId, modelContext: modelContext)
+                                guard !Task.isCancelled else { return }
+                            }
+                            // Gate enrichment at the species level — habitat, lookalikes, and taxonomy
+                            // are identical across all scans of the same species. After the first scan
+                            // enriches a species in this session, subsequent scans skip the Edge
+                            // round-trip entirely. GBIF image hydration always runs (it writes
+                            // referenceImageUrl for the specific scan record).
+                            let capturedIsEnriched = self.enrichedSpeciesNames.contains(capturedScientificName)
+                            async let enrichment: Void = {
+                                if !capturedIsEnriched {
+                                    await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                                }
+                            }()
                             async let gbif: Void = {
                                 if let key = capturedGbifKey {
                                     await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
                                 }
                             }()
                             _ = await (enrichment, gbif)
+                            if !capturedIsEnriched && !Task.isCancelled {
+                                self.enrichedSpeciesNames.insert(capturedScientificName)
+                            }
                         }
                     }
                 }
@@ -458,6 +483,12 @@ private struct WikiSummaryResponse: Decodable {
               data.isBiological,
               !data.scientificName.isEmpty,
               data.scientificName.lowercased() != "taxonomy unavailable" else { return }
+
+        // Short-circuit when enrichment is already fully hydrated from persisted storage.
+        // Historical scans have both fields populated after load(from:) runs the override patch.
+        // Live inference scans always have nil habitat/similarSpecies on first call, so this
+        // gate correctly fires only on historical re-opens with complete data.
+        if data.habitatDescription != nil, data.similarSpecies != nil { return }
 
         isEnrichmentLoading = true
         defer { isEnrichmentLoading = false }

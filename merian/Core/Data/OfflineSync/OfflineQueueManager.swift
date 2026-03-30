@@ -65,6 +65,15 @@ import SwiftData
     /// Resets on app restart — a fresh process always gets a clean slate of retries.
     @ObservationIgnored var uploadRetryCount: [String: Int] = [:]
 
+    /// Scan IDs with at least one URLSession upload task currently in-flight.
+    /// Seeded from `session.allTasks` exactly once on the first sync after a cold launch
+    /// (to re-attach tasks that survived an app restart), then maintained incrementally
+    /// so subsequent sync cycles skip the async session enumeration entirely.
+    @ObservationIgnored var activeScanUploadIds: Set<String> = []
+    /// Guards the one-time `session.allTasks` seed so subsequent `syncPendingScans` calls
+    /// skip the async URLSession enumeration and read `activeScanUploadIds` directly.
+    @ObservationIgnored private var hasSeededActiveScanIds = false
+
     /// Maximum consecutive transient errors before a scan is tombstoned.
     static let maxUploadRetries = 3
 

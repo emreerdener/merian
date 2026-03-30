@@ -326,12 +326,14 @@ actor HistoricalDatabaseActor {
         let chunkSize = 500
         for chunkStart in stride(from: 0, to: responseIds.count, by: chunkSize) {
             let chunk = Array(responseIds[chunkStart..<min(chunkStart + chunkSize, responseIds.count)])
-            let desc = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
-            let objectIds = (try? modelContext.fetchIdentifiers(desc)) ?? []
-            for id in objectIds {
-                if let record = modelContext.model(for: id) as? LocalScanRecord {
-                    existingIds.insert(record.id)
-                }
+            // propertiesToFetch: [\.id] loads only the id column — no full record fault.
+            // fetchIdentifiers + model(for:) previously faulted complete LocalScanRecord objects
+            // just to extract the id string, loading all columns for every existing record.
+            var desc = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
+            desc.propertiesToFetch = [\.id]
+            let records = (try? modelContext.fetch(desc)) ?? []
+            for record in records {
+                existingIds.insert(record.id)
             }
         }
 

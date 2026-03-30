@@ -190,6 +190,20 @@ While `SearchDatabaseActor.extractSearchablePayloads` insulated the Main Thread,
 
 **The Refactor**: The background search abstraction creates localized `@ModelActor` contexts for mapping operations. Because the Swift runtime isolates and executes these mappings inside transient `Task.detached` boundaries, Apple's `ModelContext` deallocates without requiring an explicit `.reset()` hook, restoring the active memory footprint to O(1) scaling.
 
+### Batch SQLite Fetch in Search Indexer (`SearchDatabaseActor`)
+`SearchDatabaseActor.extractSearchablePayloads` previously accepted `[PersistentIdentifier]` and called `modelContext.model(for: id)` in a loop — N individual full-row SQLite faults for a delta of N records. For a cold-launch rebuild of 5,000 entries this generated 5,000 sequential SQLite reads, pegging the background actor for hundreds of milliseconds.
+
+The signature was changed to `from ids: [String]` and the loop replaced with a single batch `FetchDescriptor`:
+
+```swift
+var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { ids.contains($0.id) })
+descriptor.fetchLimit = ids.count
+let records = (try? modelContext.fetch(descriptor)) ?? []
+let recordMap = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+```
+
+All N records are fetched in one SQL `SELECT ... WHERE id IN (...)` call. A dictionary lookup restores original ID order before mapping to `SearchableScan` structs. Callers were updated to pass `.map { $0.id }` instead of `.map { $0.persistentModelID }` — keeping the string ID on the main actor rather than crossing the persistence stack to retrieve an opaque `PersistentIdentifier`.
+
 ### O(N) CPU Indexing Thrash (`ScansManager`)
 Updating or deleting a single record previously triggered the `allScans` observer to wipe the entire multi-index tracking string and pass the full array into `SearchDatabaseActor` for re-evaluation of 5,000+ elements sequentially, pegging the CPU.
 
@@ -313,7 +327,7 @@ enum MerianConfig {
     static let pendingScanFetchLimit        = 50
     static let historicalSyncPageSize       = 200
     static let collectionsSyncPageSize      = 100
-    static let ingestCheckpointInterval     = 50
+    static let ingestCheckpointInterval     = 100
     static let diskSpaceThreshold: Int64    = 500 * 1024 * 1024
     static let archiveRescueWindowStartDays = 80
     static let archiveRescueWindowEndDays   = 88
@@ -546,3 +560,80 @@ Ordering matters: `fetchAndApplyEnrichment` writes `habitatDescription`; GBIF wr
 Inside `syncPendingScans`, when a source image file is found missing before upload, a fire-and-forget inner task tombstoned the scan by calling `OfflineQueueManager.shared.softDeleteQueuedScan(scanId:)` directly — bypassing the `[weak self]` capture established at the outer `BackgroundTaskWrapper.execute` boundary. If `self` had been deallocated, the outer `guard let self` exits cleanly, but any `withTaskGroup` child task already dispatched continues executing; those tasks created inner `Task { @MainActor in OfflineQueueManager.shared... }` closures that bound strongly to the singleton's method against a potentially torn-down `modelContext`. The fix captures `self` (already non-nil, verified by the outer `guard let self`) before the group loop and passes it into the inner task, keeping the lifecycle contract consistent with the rest of the function.
 
 **Rule:** When an inner fire-and-forget `Task` is created inside a `withTaskGroup` child that already lives within an outer `[weak self]` closure, always use the already-verified `self` reference — never re-access the singleton via `ClassName.shared`.
+
+### O(N) `session.allTasks` Enumeration on Every Sync Cycle (`OfflineQueueManager`)
+
+`syncPendingScans` called `await session.allTasks` on every invocation — an async URLSession enumeration — to build an `activeScanIDs` set used to skip scans already in-flight. On a warm device with many queued scans, this async round-trip adds latency on every reconnect event and every background-URLSession-completion-triggered re-sync.
+
+`OfflineQueueManager` now maintains a locally-tracked `Set<String>` (`activeScanUploadIds`) that is kept in sync incrementally:
+- **Cold launch seed (once):** Guarded by `hasSeededActiveScanIds: Bool`, the first sync after a cold start still calls `session.allTasks` to re-attach any upload tasks that survived an app restart. The set and flag are written on `@MainActor`.
+- **Incremental add:** After `withTaskGroup` dispatches each upload batch, `activeScanUploadIds.formUnion(Set(scanIDs))` is called on `@MainActor` to track the dispatched IDs.
+- **Incremental remove:** `processUploadCompletion` calls `activeScanUploadIds.remove(scanId)` immediately when a task settles, so the ID is never considered in-flight past its completion.
+
+Every subsequent sync cycle reads the local set directly — no async URLSession enumeration needed. The existing `session.allTasks` call in `urlSessionDidCompleteWithError` (used to detect when all tasks have settled for the `isSyncing = false` teardown) is **unchanged** — that use-case requires an authoritative task count from the OS.
+
+### `reconcileScanPage` ID-Only Column Projection (`ScanRepository`)
+
+Inside `reconcileScanPage`, the per-page existence check previously used the `fetchIdentifiers + model(for:)` pattern — first fetching opaque `PersistentIdentifier` handles, then calling `modelContext.model(for:)` for each, which faulted the full `LocalScanRecord` row including all enrichment text columns.
+
+The check was rewritten to use a `FetchDescriptor` with `propertiesToFetch = [\.id]`, which tells SQLite to return only the `id` column:
+
+```swift
+var desc = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
+desc.propertiesToFetch = [\.id]
+let records = (try? modelContext.fetch(desc)) ?? []
+for record in records { existingIds.insert(record.id) }
+```
+
+For a page of 200 incoming scans, this reduces SQLite column reads from every stored property (including large `habitatDescription` and `wikipediaOverview` text fields) to a single integer-column scan, cutting the per-page fault allocation significantly.
+
+### Persistent Field Gate in `fetchAndApplyEnrichment` (`InferenceEngine`)
+
+The `enrich-scan` Edge Function call in `fetchAndApplyEnrichment` was previously gated only by the in-memory `enrichmentAttemptedScanIds` set, which resets on every cold launch. On a device that restarts frequently, scans already fully enriched from previous sessions would still trigger an unnecessary Edge round-trip on the first open.
+
+A persistent field gate was added at the start of `fetchAndApplyEnrichment`:
+
+```swift
+if data.habitatDescription != nil, data.similarSpecies != nil { return }
+```
+
+`habitatDescription` and `similarSpecies` are written exclusively by `enrich-scan`. Their presence in the stored `LocalScanRecord` is the canonical signal that enrichment already completed. This gate fires before any network work begins, eliminating the round-trip for all previously-enriched scans regardless of session history.
+
+### Wikipedia Skip via `species_dictionary` Join (`InferenceEngine`)
+
+The live-inference path's `liveHydrationTask` previously always called `fetchWikipediaAndHydrate` for every successful scan, even if the `identify` Edge response already included `wikipedia_overview` from the `species_dictionary` embedded join.
+
+`mappedData.wikipediaOverview` is captured as `capturedHasWikipedia` before the task boundary. Inside the task, the Wikipedia round-trip is skipped when `capturedHasWikipedia` is `true`:
+
+```swift
+if !capturedHasWikipedia {
+    await self.fetchWikipediaAndHydrate(...)
+    guard !Task.isCancelled else { return }
+}
+```
+
+For any species that has been scanned at least once before (so `species_dictionary` is already populated), this eliminates a ~300–600 ms Wikipedia API call from the post-inference hot path.
+
+### Species-Level Enrichment Gate on Live Inference Path (`InferenceEngine`)
+
+`fetchAndApplyEnrichment` fetches habitat, lookalikes, and extended taxonomy for a species — data that is identical across every scan of the same species. The in-memory `enrichedSpeciesNames: Set<String>` tracks scientific names that have been fully enriched within the current session:
+
+```swift
+let capturedIsEnriched = self.enrichedSpeciesNames.contains(capturedScientificName)
+async let enrichment: Void = {
+    if !capturedIsEnriched { await self.fetchAndApplyEnrichment(modelContext: modelContext) }
+}()
+async let gbif: Void = { ... }()
+_ = await (enrichment, gbif)
+if !capturedIsEnriched && !Task.isCancelled {
+    self.enrichedSpeciesNames.insert(capturedScientificName)
+}
+```
+
+GBIF image hydration runs unconditionally because it writes `referenceImageUrl` to the specific scan record. Only the `enrich-scan` Edge call (which writes species-level fields shared across all scans) is skipped. For users scanning the same species repeatedly in a field session, this eliminates all but the first enrichment call per species.
+
+**Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on historic scan opens); `enrichedSpeciesNames` is species-name-scoped (guards redundant Edge calls during live-inference bursts). Both gates are in-memory and reset on launch — the persistent field gate (`habitatDescription != nil`) is the final backstop for cross-session deduplication.
+
+### WAL Flush Frequency (`MerianConfig.ingestCheckpointInterval`)
+
+The `ingestCheckpointInterval` constant (used by `HistoricalDatabaseActor` to determine how often to call `modelContext.save()` during bulk historical ingestion) was raised from 50 to 100. Halving the save frequency reduces SQLite WAL flush operations by 50% during initial historical sync-down. The trade-off is that an interrupted background task can roll back at most 100 records instead of 50 — an acceptable loss given that historical sync is fully resumable from the last committed page.

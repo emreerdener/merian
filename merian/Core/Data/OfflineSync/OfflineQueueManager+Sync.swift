@@ -122,11 +122,24 @@ extension OfflineQueueManager {
             let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
             let session = await MainActor.run { self.backgroundSession }
 
-            let activeScanIDs = Set(
-                await session.allTasks.compactMap {
+            // Seed `activeScanUploadIds` exactly once from the live URLSession task list on the first
+            // sync after a cold launch (to re-attach tasks that survived an app restart).
+            // Every subsequent call reads the locally-maintained Set directly, avoiding the O(n)
+            // async `session.allTasks` enumeration on every sync cycle.
+            let activeScanIDs: Set<String>
+            let needsSeeding = await MainActor.run { !self.hasSeededActiveScanIds }
+            if needsSeeding {
+                let allTasks = await session.allTasks
+                activeScanIDs = Set(allTasks.compactMap {
                     $0.taskDescription?.components(separatedBy: "_").first ?? $0.taskDescription
+                })
+                await MainActor.run {
+                    self.activeScanUploadIds = activeScanIDs
+                    self.hasSeededActiveScanIds = true
                 }
-            )
+            } else {
+                activeScanIDs = await MainActor.run { self.activeScanUploadIds }
+            }
             // For free users, cap the batch to however many scans they can still run today.
             let batchLimit = await MainActor.run {
                 isProActive ? MerianConfig.uploadBatchSize : UsageManager.shared.freeScansRemaining
@@ -226,6 +239,10 @@ extension OfflineQueueManager {
             } catch {
                 MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
             }
+
+            // Incrementally track the IDs dispatched in this batch so future sync cycles
+            // can read `activeScanUploadIds` directly without re-enumerating URLSession tasks.
+            await MainActor.run { self.activeScanUploadIds.formUnion(Set(scanIDs)) }
         }
     }
 
