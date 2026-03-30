@@ -206,13 +206,20 @@ final class MerianNetworkClient {
         return data
     }
 
-    func fetchEnrichment(scanId: String, scientificName: String, confidenceScore: Double, inferenceTier: String) async throws -> EnrichScanResponse {
+    func fetchEnrichment(
+        scanId: String,
+        scientificName: String,
+        confidenceScore: Double,
+        inferenceTier: String,
+        scope: String
+    ) async throws -> EnrichScanResponse {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/enrich-scan")!
         let payload: [String: Any] = [
             "scan_id": scanId,
             "scientific_name": scientificName,
             "confidence_score": confidenceScore,
-            "inference_tier": inferenceTier
+            "inference_tier": inferenceTier,
+            "scope": scope
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)

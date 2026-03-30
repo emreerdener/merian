@@ -87,12 +87,12 @@ struct BiologicalView: View {
                         similarData: similarData
                     )
                     .transition(.opacity)
-                } else if inferenceEngine.isEnrichmentLoading {
+                } else if inferenceEngine.isLookalikesLoading {
                     SimilarSpeciesGallery.Skeleton()
                         .transition(.opacity)
                 }
             }
-            .animation(.easeInOut, value: inferenceEngine.isEnrichmentLoading)
+            .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
             .cardEntrance(index: 4)
 
             // MARK: - Spatiotemporal Context

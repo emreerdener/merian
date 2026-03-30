@@ -663,25 +663,40 @@ if !capturedHasWikipedia {
 
 For any species that has been scanned at least once before (so `species_dictionary` is already populated), this eliminates a ~300–600 ms Wikipedia API call from the post-inference hot path.
 
-### Species-Level Enrichment Gate on Live Inference Path (`InferenceEngine`)
+### Scoped Concurrent Enrichment (`InferenceEngine.fetchAndApplyEnrichment`)
 
-`fetchAndApplyEnrichment` fetches habitat, lookalikes, and extended taxonomy for a species — data that is identical across every scan of the same species. The in-memory `enrichedSpeciesNames: Set<String>` tracks scientific names that have been fully enriched within the current session:
+`fetchAndApplyEnrichment` fires the `"enrichment"` scope (habitat, taxonomy, GBIF key) and `"lookalikes"` scope (similar species cards) of the `enrich-scan` Edge Function concurrently via `withTaskGroup`. Each `@MainActor` task group child applies its fields to `speciesData` as soon as its network call resolves — the habitat card and taxonomy section become visible independently of the similar species gallery:
 
 ```swift
-let capturedIsEnriched = self.enrichedSpeciesNames.contains(capturedScientificName)
-async let enrichment: Void = {
-    if !capturedIsEnriched { await self.fetchAndApplyEnrichment(modelContext: modelContext) }
-}()
-async let gbif: Void = { ... }()
-_ = await (enrichment, gbif)
-if !capturedIsEnriched && !Task.isCancelled {
-    self.enrichedSpeciesNames.insert(capturedScientificName)
+await withTaskGroup(of: Void.self) { group in
+    if needsMetadata {
+        group.addTask { @MainActor [self] in
+            defer { self.isEnrichmentLoading = false }
+            // fetches habitat_description, gbif_taxon_key, taxonomy
+        }
+    }
+    if needsLookalikes {
+        group.addTask { @MainActor [self] in
+            defer { self.isLookalikesLoading = false }
+            // fetches similar_species
+        }
+    }
 }
 ```
 
-GBIF image hydration runs unconditionally because it writes `referenceImageUrl` to the specific scan record. Only the `enrich-scan` Edge call (which writes species-level fields shared across all scans) is skipped. For users scanning the same species repeatedly in a field session, this eliminates all but the first enrichment call per species.
+Two `@Observable` flags gate their respective loading skeletons:
+- `isEnrichmentLoading` — habitat/distribution skeleton in `HabitatAndDistributionCard`
+- `isLookalikesLoading` — similar species gallery skeleton in `BiologicalView`
 
-**Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on historic scan opens); `enrichedSpeciesNames` is species-name-scoped (guards redundant Edge calls during live-inference bursts). Both gates are in-memory and reset on launch. The persistent cross-session backstop is the enrichment data itself: `load(from:)` computes a local `needsEnrichment` variable from `habitatDescription`, `gbifTaxonKey`, and lookalike join-table presence — enrichment is skipped when all three are already stored. There is no separate `needsEnrichment: Bool` column on `LocalScanRecord`. Do not add an explicit boolean flag; the stored field presence is the correct signal. Do not gate on `similarSpecies` field presence alone; see the "Persistent Field Gate — REMOVED" section for the regression that approach introduced.
+The historic `load(from:)` path computes `needsMetadata` and `needsLookalikes` independently so only the missing scope is requested:
+```swift
+let needsMetadata   = record.habitatDescription == nil || record.gbifTaxonKey == nil
+let needsLookalikes = record.lookalikesData == nil || lookalikesHaveNoCommonNames
+```
+
+GBIF image hydration continues to run unconditionally because it writes `referenceImageUrl` to the specific scan record. Only the `enrich-scan` Edge calls (which write species-level fields shared across all scans) are skipped when already present. For users scanning the same species repeatedly in a field session, this eliminates all but the first enrichment calls per species.
+
+**Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on historic scan opens); `enrichedSpeciesNames` is species-name-scoped (guards redundant Edge calls during live-inference bursts). Both gates are in-memory and reset on launch. The persistent cross-session backstop is the enrichment data itself: `load(from:)` computes `needsMetadata` and `needsLookalikes` from stored field presence — no separate `needsEnrichment: Bool` column exists on `LocalScanRecord`. Do not add an explicit boolean flag; the stored field presence is the correct signal. Do not gate on `similarSpecies` field presence alone; see the "Persistent Field Gate — REMOVED" section for the regression that approach introduced.
 
 ### WAL Flush Frequency (`MerianConfig.ingestCheckpointInterval`)
 

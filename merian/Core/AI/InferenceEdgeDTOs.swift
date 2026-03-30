@@ -88,14 +88,21 @@ struct EdgeResponse: Codable {
 // MARK: - Enrich-Scan Response
 
 /// Returned by the enrich-scan Edge Function for async enrichment + similar species loading.
+/// The endpoint accepts a `scope` parameter ("enrichment" | "lookalikes") and returns only
+/// the fields for that scope, allowing the iOS client to fire both scopes concurrently and
+/// apply each to the UI as soon as it resolves rather than waiting for a single combined response.
 struct EnrichScanResponse: Codable {
     let success: Bool?
     let data: EnrichData?
 
     struct EnrichData: Codable {
+        /// Present in "enrichment" scope responses only.
         let habitat_description: String?
+        /// Present in "enrichment" scope responses only.
         let gbif_taxon_key: Int?
+        /// Present in "enrichment" scope responses only.
         let taxonomy: EdgeResponse.Taxonomy?
+        /// Present in "lookalikes" scope responses only.
         /// Rich lookalike entries sourced from the species_lookalikes join table.
         /// Nil when no lookalike data is available for this species.
         let similar_species: [SimilarSpeciesEntry]?

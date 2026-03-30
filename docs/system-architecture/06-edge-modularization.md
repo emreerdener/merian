@@ -137,7 +137,27 @@ The single-species `merge_common_name_en(p_id uuid, p_en_name text)` RPC (migrat
 
 **`species_lookalikes` Index — O(log N) Fetch Path:** The UNIQUE constraint on `(species_id, lookalike_id)` required by the upsert in `resolveLookalikesToJoinTable` creates a composite index. PostgREST's `.eq("species_id", speciesId)` in `fetchLookalikesFromJoinTable` may not efficiently use this composite index at large table sizes depending on the Postgres planner's cost estimates. A dedicated single-column index `idx_species_lookalikes_species_id ON species_lookalikes(species_id)` (migration `20260330190000`) guarantees an O(log N) index scan on the fetch path independent of table cardinality, without affecting the upsert's conflict detection which continues to use the composite unique index.
 
-**`EdgeRuntime.waitUntil` for Post-Response Writes (`enrich-scan/index.ts`):** Two database writes that previously ran sequentially after `resolveLookalikesToJoinTable` — `update({ lookalikes_flash_attempted: true })` and `updateSpeciesEnrichment(...)` — are now deferred via `EdgeRuntime.waitUntil(...)`. The response payload is fully formed before either write begins; the client does not need to wait for them. Deferring these writes removes ~40–60 ms of cumulative Postgres round-trip time from the cold-path response latency.
+**`enrich-scan` Scoped API — Concurrent Progressive Enrichment:** `enrich-scan/index.ts` accepts a required `scope` parameter (`"enrichment"` | `"lookalikes"`). Each scope handles an independent sub-problem and returns only its own fields:
+
+| Scope | Fields returned | Flash call |
+|---|---|---|
+| `"enrichment"` | `habitat_description`, `gbif_taxon_key`, `taxonomy` | `fetchStaticEncyclopedicData` |
+| `"lookalikes"` | `similar_species` | `fetchSimilarSpecies` |
+
+The iOS client fires both scopes concurrently via `withTaskGroup` in `InferenceEngine.fetchAndApplyEnrichment`. Each task group child applies its fields to `speciesData` as soon as its network call resolves — habitat description and taxonomy appear independently of similar species cards. Two separate `@Observable` flags gate their respective loading states:
+- `isEnrichmentLoading` — gates the habitat/distribution skeleton in `HabitatAndDistributionCard`
+- `isLookalikesLoading` — gates the similar species gallery skeleton in `BiologicalView`
+
+On a **cache hit** (species already enriched) each scoped call returns after a single DB round-trip — no behavioral latency difference from the pre-split design. On a **cold path** the two Flash calls run in parallel Deno isolate fanout rather than sequentially, so the first resolved scope reaches the client before the second Flash call completes.
+
+The historic load path (`load(from:)`) computes `needsMetadata` and `needsLookalikes` separately and forwards them as arguments so only the missing scope is requested:
+```swift
+let needsMetadata  = record.habitatDescription == nil || record.gbifTaxonKey == nil
+let needsLookalikes = record.lookalikesData == nil || lookalikesHaveNoCommonNames
+await fetchAndApplyEnrichment(modelContext:, needsMetadata:, needsLookalikes:)
+```
+
+**`EdgeRuntime.waitUntil` for Post-Response Writes (`enrich-scan/index.ts`):** Each scope defers its `updateSpeciesEnrichment` / `lookalikes_flash_attempted` write via `EdgeRuntime.waitUntil(...)`. The response payload is fully formed before either write begins; the client does not need to wait for them. Deferring these writes removes ~40–60 ms of cumulative Postgres round-trip time from the cold-path response latency.
 
 Rule: Any `db.ts` write that is not required to build the response payload **must** be deferred with `EdgeRuntime.waitUntil`. The `lookalikes_flash_attempted` flag update and the `updateSpeciesEnrichment` call are the canonical examples.
 

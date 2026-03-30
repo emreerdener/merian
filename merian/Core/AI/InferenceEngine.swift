@@ -46,7 +46,10 @@ private struct WikiSummaryResponse: Decodable {
     private(set) var activeFlashFired: Bool?
     private(set) var activeDistanceInMeters: Float?
 
+    /// True while the "enrichment" scope call (habitat, taxonomy, GBIF key) is in flight.
     var isEnrichmentLoading: Bool = false
+    /// True while the "lookalikes" scope call (similar species cards) is in flight.
+    var isLookalikesLoading: Bool = false
 
     // MARK: - Background Rescue State
     /// Set to `true` by `cancelActiveRequest()` before cancelling the task, so the task's
@@ -90,6 +93,12 @@ private struct WikiSummaryResponse: Decodable {
         self.liveHydrationTask?.cancel()
         self.gbifHydrationTask?.cancel()
         self.gbifHydrationTask = nil
+
+        // Reset loading flags synchronously before the cancelled tasks' defer blocks can run
+        // on @MainActor. Without this, a stale defer from the old task can fire after the new
+        // pipeline has already set these flags to true, prematurely clearing the skeletons.
+        self.isEnrichmentLoading = false
+        self.isLookalikesLoading = false
 
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
@@ -489,90 +498,148 @@ private struct WikiSummaryResponse: Decodable {
 
     // MARK: - Species Enrichment
 
-    /// Fetches habitat, distribution, and (if low-confidence) diagnostic data from `enrich-scan`
-    /// and patches the live `speciesData` in-place, then persists the result to SwiftData.
+    /// Fires the "enrichment" and "lookalikes" scopes of `enrich-scan` concurrently via a
+    /// task group. Each scope applies its fields to `speciesData` as soon as its network call
+    /// resolves — habitat description and taxonomy appear independently of similar species cards.
+    ///
+    /// `isEnrichmentLoading` gates the habitat/distribution skeleton (enrichment scope).
+    /// `isLookalikesLoading` gates the similar species gallery skeleton (lookalikes scope).
     ///
     /// Called automatically after every successful biological scan and when reloading a historical
-    /// record that is missing enrichment data.
-    func fetchAndApplyEnrichment(modelContext: ModelContext?) async {
+    /// record that is missing enrichment data. `needsMetadata` / `needsLookalikes` allow callers
+    /// to skip whichever scope is already fully populated locally.
+    func fetchAndApplyEnrichment(
+        modelContext: ModelContext?,
+        needsMetadata: Bool = true,
+        needsLookalikes: Bool = true
+    ) async {
         guard let data = speciesData,
               let scanId = data.scanId,
               data.isBiological,
               !data.scientificName.isEmpty,
               data.scientificName.lowercased() != "taxonomy unavailable" else { return }
 
-        isEnrichmentLoading = true
-        defer { isEnrichmentLoading = false }
+        guard needsMetadata || needsLookalikes else { return }
 
-        do {
-            let response = try await MerianNetworkClient.shared.fetchEnrichment(
-                scanId: scanId,
-                scientificName: data.scientificName,
-                confidenceScore: data.confidenceScore,
-                inferenceTier: data.inferenceTier ?? "flash"
-            )
-            guard let enrichData = response.data else { return }
+        if needsMetadata { isEnrichmentLoading = true }
+        if needsLookalikes { isLookalikesLoading = true }
 
-            speciesData?.habitatDescription = enrichData.habitat_description
-            if let key = enrichData.gbif_taxon_key {
-                speciesData?.gbifTaxonKey = key
-                // Store in a tracked handle so cancelActiveRequest() can kill this task
-                // before it writes stale GBIF image URLs to a record that is no longer active.
-                gbifHydrationTask?.cancel()
-                gbifHydrationTask = Task { [weak self] in
-                    guard let self else { return }
-                    await self.fetchGBIFImagesAndHydrate(for: key, scanId: scanId, modelContext: modelContext)
-                }
-            }
-            if let tax = enrichData.taxonomy {
-                speciesData?.taxonomy = TaxonomyData(
-                    kingdom: tax.kingdom,
-                    phylum: tax.phylum,
-                    className: tax.`class`,
-                    order: tax.order,
-                    family: tax.family,
-                    genus: tax.genus
-                )
-            }
+        let capturedScanId = scanId
+        let capturedScientificName = data.scientificName
+        let capturedConfidence = data.confidenceScore
+        let capturedTier = data.inferenceTier ?? "flash"
 
-            if let entries = enrichData.similar_species, !entries.isEmpty {
-                speciesData?.similarSpecies = SimilarSpecies(
-                    entries: entries.map {
-                        SimilarSpeciesEntry(
-                            scientificName: $0.scientific_name,
-                            commonName: $0.common_name,
-                            referenceImageUrl: $0.reference_image_url,
-                            iucnRedListStatus: $0.iucn_red_list_status
+        await withTaskGroup(of: Void.self) { group in
+            if needsMetadata {
+                group.addTask { @MainActor [self] in
+                    defer { self.isEnrichmentLoading = false }
+                    do {
+                        let response = try await MerianNetworkClient.shared.fetchEnrichment(
+                            scanId: capturedScanId,
+                            scientificName: capturedScientificName,
+                            confidenceScore: capturedConfidence,
+                            inferenceTier: capturedTier,
+                            scope: "enrichment"
                         )
-                    }
-                )
-            }
+                        guard let enrichData = response.data else { return }
 
-            if let context = modelContext {
-                let container = context.container
-                // Capture entries as a Sendable value type before crossing the actor boundary.
-                let entriesToEncode = speciesData?.similarSpecies?.entries
-                Task {
-                    // Encode off @MainActor — JSONEncoder is CPU-bound and can block the run loop
-                    // for large lookalike arrays.
-                    let encodedLookalikes: Data? = entriesToEncode.flatMap {
-                        try? JSONEncoder().encode($0)
+                        self.speciesData?.habitatDescription = enrichData.habitat_description
+                        if let tax = enrichData.taxonomy {
+                            self.speciesData?.taxonomy = TaxonomyData(
+                                kingdom: tax.kingdom,
+                                phylum: tax.phylum,
+                                className: tax.`class`,
+                                order: tax.order,
+                                family: tax.family,
+                                genus: tax.genus
+                            )
+                        }
+                        if let key = enrichData.gbif_taxon_key {
+                            self.speciesData?.gbifTaxonKey = key
+                            // Store in a tracked handle so cancelActiveRequest() can kill this task
+                            // before it writes stale GBIF image URLs to a record no longer active.
+                            self.gbifHydrationTask?.cancel()
+                            self.gbifHydrationTask = Task { [weak self] in
+                                guard let self else { return }
+                                await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
+                            }
+                        }
+                        if let context = modelContext {
+                            let container = context.container
+                            let habitatSnapshot = enrichData.habitat_description
+                            let gbifSnapshot = enrichData.gbif_taxon_key
+                            let taxonomySnapshot = enrichData.taxonomy
+                            Task {
+                                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                                await dbActor.updateScanWithEnrichment(
+                                    scanId: capturedScanId,
+                                    habitatDescription: habitatSnapshot,
+                                    gbifTaxonKey: gbifSnapshot,
+                                    similarSpeciesJsonData: nil,
+                                    taxonomy: taxonomySnapshot
+                                )
+                            }
+                        }
+                    } catch let error as MerianError {
+                        if case .httpError(let code, _) = error, code == 403 { return }
+                        MerianLog.general.debug("Enrichment scope failed: \(error, privacy: .private)")
+                    } catch {
+                        MerianLog.general.debug("Enrichment scope failed: \(error, privacy: .private)")
                     }
-                    let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    await dbActor.updateScanWithEnrichment(
-                        scanId: scanId,
-                        habitatDescription: enrichData.habitat_description,
-                        gbifTaxonKey: enrichData.gbif_taxon_key,
-                        similarSpeciesJsonData: encodedLookalikes,
-                        taxonomy: enrichData.taxonomy
-                    )
                 }
             }
-        } catch let error as MerianError {
-            if case .httpError(let code, _) = error, code == 403 { return }
-            MerianLog.general.debug("Enrichment fetch failed: \(error, privacy: .private)")
-        } catch {
-            MerianLog.general.debug("Enrichment fetch failed: \(error, privacy: .private)")
+
+            if needsLookalikes {
+                group.addTask { @MainActor [self] in
+                    defer { self.isLookalikesLoading = false }
+                    do {
+                        let response = try await MerianNetworkClient.shared.fetchEnrichment(
+                            scanId: capturedScanId,
+                            scientificName: capturedScientificName,
+                            confidenceScore: capturedConfidence,
+                            inferenceTier: capturedTier,
+                            scope: "lookalikes"
+                        )
+                        guard let enrichData = response.data else { return }
+
+                        if let entries = enrichData.similar_species, !entries.isEmpty {
+                            self.speciesData?.similarSpecies = SimilarSpecies(
+                                entries: entries.map {
+                                    SimilarSpeciesEntry(
+                                        scientificName: $0.scientific_name,
+                                        commonName: $0.common_name,
+                                        referenceImageUrl: $0.reference_image_url,
+                                        iucnRedListStatus: $0.iucn_red_list_status
+                                    )
+                                }
+                            )
+                            if let context = modelContext {
+                                let container = context.container
+                                let entriesToEncode = self.speciesData?.similarSpecies?.entries
+                                Task {
+                                    // Encode off @MainActor — JSONEncoder is CPU-bound.
+                                    let encodedLookalikes: Data? = await Task.detached(priority: .utility) {
+                                        entriesToEncode.flatMap { try? JSONEncoder().encode($0) }
+                                    }.value
+                                    let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                                    await dbActor.updateScanWithEnrichment(
+                                        scanId: capturedScanId,
+                                        habitatDescription: nil,
+                                        gbifTaxonKey: nil,
+                                        similarSpeciesJsonData: encodedLookalikes,
+                                        taxonomy: nil
+                                    )
+                                }
+                            }
+                        }
+                    } catch let error as MerianError {
+                        if case .httpError(let code, _) = error, code == 403 { return }
+                        MerianLog.general.debug("Lookalikes scope failed: \(error, privacy: .private)")
+                    } catch {
+                        MerianLog.general.debug("Lookalikes scope failed: \(error, privacy: .private)")
+                    }
+                }
+            }
         }
     }
 
@@ -770,6 +837,10 @@ private struct WikiSummaryResponse: Decodable {
         // that is no longer active after the user fires a new scan or navigates away.
         self.gbifHydrationTask?.cancel()
         self.gbifHydrationTask = nil
+        // Reset loading flags synchronously so stale defer blocks from cancelled task group
+        // children cannot clear flags belonging to a subsequently opened scan.
+        self.isEnrichmentLoading = false
+        self.isLookalikesLoading = false
         // isBackgroundRescued is reset by the task's cancellation catch block.
         // If the task was already finished, analyze() resets it at the start of the next scan.
         self.speciesData = nil
@@ -850,8 +921,12 @@ private struct WikiSummaryResponse: Decodable {
         let lookalikesHaveNoCommonNames: Bool = preDecodedSimilar.map {
             !$0.entries.isEmpty && $0.entries.allSatisfy { $0.commonName == nil }
         } ?? false
-        let needsEnrichment = recordIsBiological &&
-            (record.habitatDescription == nil || record.gbifTaxonKey == nil || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
+        // Split enrichment needs by scope so each concurrent call is fired only when required.
+        let needsMetadata = recordIsBiological &&
+            (record.habitatDescription == nil || record.gbifTaxonKey == nil)
+        let needsLookalikes = recordIsBiological &&
+            (record.lookalikesData == nil || lookalikesHaveNoCommonNames)
+        let needsEnrichment = needsMetadata || needsLookalikes
 
         // Set speciesData immediately with nil for blob-decoded fields.
         // similarSpecies and candidates are populated by the task below to avoid
@@ -964,7 +1039,7 @@ private struct WikiSummaryResponse: Decodable {
                     self.enrichmentAttemptedScanIds.subtract(self.enrichmentAttemptedScanIds.prefix(self.sessionSetCap / 10))
                 }
                 self.enrichmentAttemptedScanIds.insert(recordId)
-                await self.fetchAndApplyEnrichment(modelContext: safeContext)
+                await self.fetchAndApplyEnrichment(modelContext: safeContext, needsMetadata: needsMetadata, needsLookalikes: needsLookalikes)
                 if !Task.isCancelled {
                     if self.enrichedSpeciesNames.count >= self.sessionSetCap {
                         self.enrichedSpeciesNames.subtract(self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10))
