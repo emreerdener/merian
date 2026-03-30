@@ -602,6 +602,7 @@ private struct WikiSummaryResponse: Decodable {
     /// Queries `species_dictionary` for the given scientific name and patches the live
     /// `speciesData` in-place. On cache miss, falls through to `fetchAndApplyEnrichment`
     /// which triggers the full enrichment pipeline for the override species.
+    @MainActor
     private func fetchAndPatchOverrideData(scientificName: String, scanId: String?, modelContext: ModelContext?) async {
         struct SpeciesDictRow: Decodable {
             let common_names: [String: String?]?
@@ -632,9 +633,12 @@ private struct WikiSummaryResponse: Decodable {
             if let row = rows.first {
                 // Cache hit — patch all available fields reactively.
                 let commonName = row.common_names?.compactMap { $0.value }.first ?? scientificName
+                // Capture aiReasoning before any mutation to avoid a read-during-write
+                // exclusivity violation on the @Observable-tracked speciesData property.
+                let existingReasoning = speciesData?.insightData.aiReasoning ?? ""
                 speciesData?.commonName = commonName.capitalized
                 speciesData?.insightData = InsightData(
-                    aiReasoning: speciesData?.insightData.aiReasoning ?? "",
+                    aiReasoning: existingReasoning,
                     hazardType: row.hazard_type ?? "none"
                 )
                 speciesData?.taxonomy = TaxonomyData(
