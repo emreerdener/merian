@@ -18,10 +18,10 @@ struct ConfidenceBadge: View {
 
     private var badgeData: BadgePayload {
         if userIdentificationOverride != nil {
-            return BadgePayload(label: "Your ID", color: .indigo, icon: "person.fill.checkmark")
+            return BadgePayload(label: "Manual ID", color: .indigo, icon: "person.fill.checkmark")
         }
         if userConfirmedIdentification {
-            return BadgePayload(label: "Confirmed", color: .green, icon: "checkmark.seal.fill")
+            return BadgePayload(label: "Confirmed match", color: .green, icon: "checkmark.fill")
         }
         guard let score = confidenceScore else { return BadgePayload(label: "Unknown", color: .gray, icon: "questionmark") }
         let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)

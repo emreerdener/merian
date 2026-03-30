@@ -16,6 +16,7 @@ options:
   deploymentTarget:
     iOS: 17.2
     macOS: 14.0
+  postGenCommand: "/bin/sh -c 'xcrun agvtool new-version -all $(/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" merian/Configuration/Info.plist)'"
 
 packages:
   RevenueCat:
