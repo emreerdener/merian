@@ -81,7 +81,7 @@ extension OfflineQueueManager {
         // so subsequent sync cycles no longer skip this scan ID.
         // Must run on MainActor — activeScanUploadIds is written via MainActor.run elsewhere
         // and is not concurrency-safe to mutate from an unbound async context.
-        await MainActor.run { OfflineQueueManager.shared.activeScanUploadIds.remove(scanId) }
+        _ = await MainActor.run { OfflineQueueManager.shared.activeScanUploadIds.remove(scanId) }
 
         // Clean up the temp staging file regardless of upload outcome.
         let tempFileName = indexPart.isEmpty

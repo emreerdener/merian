@@ -225,17 +225,21 @@ private struct WikiSummaryResponse: Decodable {
                             // round-trip entirely. GBIF image hydration always runs (it writes
                             // referenceImageUrl for the specific scan record).
                             let capturedIsEnriched = self.enrichedSpeciesNames.contains(capturedScientificName)
-                            async let enrichment: Void = {
-                                if !capturedIsEnriched {
-                                    await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                            // Use withTaskGroup + @MainActor child tasks so the ModelContext
+                            // capture stays actor-bound — async let closures are implicitly
+                            // @Sendable and cannot capture non-Sendable @MainActor types.
+                            await withTaskGroup(of: Void.self) { group in
+                                group.addTask { @MainActor [self] in
+                                    if !capturedIsEnriched {
+                                        await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                                    }
                                 }
-                            }()
-                            async let gbif: Void = {
-                                if let key = capturedGbifKey {
-                                    await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
+                                group.addTask { @MainActor [self] in
+                                    if let key = capturedGbifKey {
+                                        await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
+                                    }
                                 }
-                            }()
-                            _ = await (enrichment, gbif)
+                            }
                             if !capturedIsEnriched && !Task.isCancelled {
                                 self.enrichedSpeciesNames.insert(capturedScientificName)
                             }

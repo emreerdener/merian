@@ -72,7 +72,7 @@ import SwiftData
     @ObservationIgnored var activeScanUploadIds: Set<String> = []
     /// Guards the one-time `session.allTasks` seed so subsequent `syncPendingScans` calls
     /// skip the async URLSession enumeration and read `activeScanUploadIds` directly.
-    @ObservationIgnored private var hasSeededActiveScanIds = false
+    @ObservationIgnored var hasSeededActiveScanIds = false
 
     /// Maximum consecutive transient errors before a scan is tombstoned.
     static let maxUploadRetries = 3

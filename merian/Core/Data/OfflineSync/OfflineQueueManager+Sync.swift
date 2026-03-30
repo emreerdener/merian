@@ -242,7 +242,10 @@ extension OfflineQueueManager {
 
             // Incrementally track the IDs dispatched in this batch so future sync cycles
             // can read `activeScanUploadIds` directly without re-enumerating URLSession tasks.
-            await MainActor.run { self.activeScanUploadIds.formUnion(Set(scanIDs)) }
+            // Snapshot to a let before the @Sendable MainActor.run closure — capturing a var
+            // in concurrently-executing code is a Swift 6 error.
+            let dispatchedScanIDs = scanIDs
+            await MainActor.run { self.activeScanUploadIds.formUnion(dispatchedScanIDs) }
         }
     }
 
