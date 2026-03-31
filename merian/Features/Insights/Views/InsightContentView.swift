@@ -74,6 +74,12 @@ struct InsightContentView: View {
                 ReportInsightView(scanId: scanId)
             }
         }
+        .sheet(isPresented: $viewModel.isIdentificationFlagPresented) {
+            if let scanId = inferenceEngine.speciesData?.scanId {
+                FlagIdentificationModal(scanId: scanId)
+                    .presentationDetents([.height(400)])
+            }
+        }
     }
 }
 

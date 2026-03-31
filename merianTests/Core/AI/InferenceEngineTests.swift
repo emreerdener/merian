@@ -631,6 +631,24 @@ struct InferenceEngineTests {
         #expect(engine.speciesData?.isFlagged == true, "flagAIIdentification must flip the boolean contextually")
     }
 
+    @Test func testUnflagAIIdentificationMutatesLocalState() async throws {
+        // Assert that calling unflagAIIdentification successfully removes the flag native memory layer immediately
+        let record = LocalScanRecord(
+            speciesId: "unflag-test-01",
+            scientificName: "Puma concolor",
+            commonName: "Mountain Lion",
+            isFlagged: true
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+        
+        #expect(engine.speciesData?.isFlagged == true, "Initial state should be true as loaded from record")
+        
+        await engine.unflagAIIdentification(modelContext: nil)
+        
+        #expect(engine.speciesData?.isFlagged == false, "unflagAIIdentification must flip the boolean to false")
+    }
+
 
     // MARK: - Identification Review: engine methods
 

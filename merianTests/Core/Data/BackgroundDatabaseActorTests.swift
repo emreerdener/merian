@@ -105,4 +105,50 @@ struct BackgroundDatabaseActorTests {
         #expect(fetched?.userConfirmedIdentification == true, "updateScanWithOverride must persist confirmed=true")
         #expect(fetched?.userIdentificationOverride == nil, "override must remain nil on a confirm-only action")
     }
+
+    // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence
+
+    @Test func testUpdateScanAsFlaggedSetsFlag() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let record = LocalScanRecord(
+            speciesId: "flag-actor-test",
+            scientificName: "Aedes aegypti",
+            commonName: "Yellow Fever Mosquito",
+            isFlagged: false
+        )
+        context.insert(record)
+        try context.save()
+        let scanId = record.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.updateScanAsFlagged(scanId: scanId)
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.isFlagged == true, "updateScanAsFlagged must persist isFlagged=true")
+    }
+
+    @Test func testUpdateScanAsUnflaggedRemovesFlag() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let record = LocalScanRecord(
+            speciesId: "unflag-actor-test",
+            scientificName: "Aedes aegypti",
+            commonName: "Yellow Fever Mosquito",
+            isFlagged: true
+        )
+        context.insert(record)
+        try context.save()
+        let scanId = record.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.updateScanAsUnflagged(scanId: scanId)
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.isFlagged == false, "updateScanAsUnflagged must persist isFlagged=false")
+    }
 }

@@ -14,6 +14,7 @@ final class InsightSheetViewModel {
     
     // MARK: - Alert & Modal Flags
     var isFlagIssuePresented = false
+    var isIdentificationFlagPresented = false
     var showDeleteConfirmation = false
     var showSaveSuccessAlert = false
     var showNewCollectionAlert = false
