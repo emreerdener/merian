@@ -45,7 +45,7 @@ struct SimilarSpeciesCard: View {
     let entry: SimilarSpeciesEntry
 
     // Fallback fetcher used only when the join table has no reference image URL.
-    @StateObject private var imageFetcher = SimilarSpeciesImageFetcher()
+    @State private var imageFetcher = SimilarSpeciesImageFetcher()
     @State private var remoteImageFailed = false
 
     var body: some View {

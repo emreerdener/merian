@@ -1,5 +1,7 @@
 import Foundation
 import UIKit
+import SwiftUI
+import Observation
 
 private struct WikiThumbnail: Decodable {
     let source: String?
@@ -24,94 +26,69 @@ private struct FetcherGBIFMediaResponse: Decodable {
 }
 
 @MainActor
-final class SimilarSpeciesImageFetcher: ObservableObject {
-    @Published var image: UIImage?
-    @Published var isLoading: Bool = false
+@Observable
+final class SimilarSpeciesImageFetcher {
+    var image: UIImage?
+    var isLoading: Bool = false
     
-    // In-memory cache to prevent re-fetching the same lookalike image repeatedly
-    private static let memoryCache = NSCache<NSString, UIImage>()
-    
+    // Explicit network fallback strings that cache aggressively under OOM limits
     func fetchImage(for scientificName: String) async -> Bool {
         guard !scientificName.isEmpty else { return false }
         
-        let normalized = scientificName.replacingOccurrences(of: " ", with: "_")
-        
-        if let cachedImage = Self.memoryCache.object(forKey: normalized as NSString) {
-            self.image = cachedImage
-            return true
-        }
-        
-        guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") else {
-            return false
-        }
-        
+        // Ensure SwiftUI bindings track layout transitions
         self.isLoading = true
         defer { self.isLoading = false }
         
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 5.0
-        request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
+        let normalized = scientificName.replacingOccurrences(of: " ", with: "_")
         
-        let downloadedImage = await Task.detached(priority: .utility) { () -> UIImage? in
-                // 1. Attempt Wikipedia
-                do {
-                    let (data, response) = try await URLSession.shared.data(for: request)
-                    if let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
-                       let decoded = try? JSONDecoder().decode(WikiSummaryResponse.self, from: data),
-                       let imageUrlString = decoded.thumbnail?.source ?? decoded.originalimage?.source,
-                       let imageUrl = URL(string: imageUrlString) {
-                        
-                        var imageRequest = URLRequest(url: imageUrl)
-                        imageRequest.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
-                        
-                        let (imageData, imageResponse) = try await URLSession.shared.data(for: imageRequest)
-                        if let imageHttpRes = imageResponse as? HTTPURLResponse, imageHttpRes.statusCode == 200,
-                           let img = UIImage(data: imageData) {
-                            return img
-                        }
-                    }
-                } catch {
-                    // Fail over cleanly
-                }
+        // 1. Resolve remote URLs off-thread securely protecting the RAM ceiling
+        let resolvedUrls = await Task.detached(priority: .utility) { () -> [String] in
+            var validUrls: [String] = []
+            
+            // Wikipedia Pass
+            if let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+               let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") {
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 5.0
+                request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
                 
-                // 2. Fallback to GBIF Occurrence Search
-                guard let gbifEncoded = scientificName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-                      let gbifUrl = URL(string: "https://api.gbif.org/v1/occurrence/search?scientificName=\(gbifEncoded)&mediaType=StillImage&limit=1") else {
-                    return nil
+                if let (data, response) = try? await URLSession.shared.data(for: request),
+                   let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
+                   let decoded = try? JSONDecoder().decode(WikiSummaryResponse.self, from: data),
+                   let imageUrlString = decoded.thumbnail?.source ?? decoded.originalimage?.source {
+                    validUrls.append(imageUrlString)
                 }
-                
+            }
+            
+            // GBIF Pass
+            if let gbifEncoded = scientificName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+               let gbifUrl = URL(string: "https://api.gbif.org/v1/occurrence/search?scientificName=\(gbifEncoded)&mediaType=StillImage&limit=1") {
                 var gbifRequest = URLRequest(url: gbifUrl)
                 gbifRequest.timeoutInterval = 6.0
                 
-                do {
-                    let (data, response) = try await URLSession.shared.data(for: gbifRequest)
-                    guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return nil }
-                    
-                    let decoded = try JSONDecoder().decode(FetcherGBIFMediaResponse.self, from: data)
-                    guard let firstResult = decoded.results?.first,
-                          let firstMedia = firstResult.media?.first(where: { $0.type == "StillImage" }),
-                          let imageUrlString = firstMedia.identifier,
-                          let imageUrl = URL(string: imageUrlString) else { return nil }
-                    
-                    var imageRequest = URLRequest(url: imageUrl)
-                    imageRequest.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
-                    
-                    let (imageData, imageResponse) = try await URLSession.shared.data(for: imageRequest)
-                    guard let imageHttpRes = imageResponse as? HTTPURLResponse, imageHttpRes.statusCode == 200,
-                          let img = UIImage(data: imageData) else { return nil }
-                    
-                    return img
-                } catch {
-                    return nil
+                if let (data, response) = try? await URLSession.shared.data(for: gbifRequest),
+                   let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
+                   let decoded = try? JSONDecoder().decode(FetcherGBIFMediaResponse.self, from: data),
+                   let firstResult = decoded.results?.first,
+                   let firstMedia = firstResult.media?.first(where: { $0.type == "StillImage" }),
+                   let imageUrlString = firstMedia.identifier {
+                    validUrls.append(imageUrlString)
                 }
-            }.value
+            }
             
-        if let downloadedImage {
-            Self.memoryCache.setObject(downloadedImage, forKey: normalized as NSString)
+            return validUrls
+        }.value
+        
+        if resolvedUrls.isEmpty { return false }
+        
+        let fallbackUrlString = resolvedUrls.joined(separator: ",")
+        
+        // 2. Delegate uncompressed bitmap instantiation to Zero-OOM actor limits
+        if let downloadedImage = await LocalImageLoader.shared.loadImage(fromPath: nil, fallbackUrl: fallbackUrlString, maxDimension: 500) {
             self.image = downloadedImage
             return true
         }
+        
         return false
     }
 }

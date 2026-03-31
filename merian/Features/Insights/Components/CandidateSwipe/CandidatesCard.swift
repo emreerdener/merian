@@ -185,7 +185,7 @@ private struct PendingView: View {
 
 private struct FlayedCandidateThumbnail: View {
     let candidate: IdentificationCandidate
-    @StateObject private var imageFetcher = SimilarSpeciesImageFetcher()
+    @State private var imageFetcher = SimilarSpeciesImageFetcher()
     
     var body: some View {
         ZStack {

@@ -10,7 +10,7 @@ struct SwipeableCandidateCard: View {
 
     // NOTE: Uses SimilarSpeciesImageFetcher — dual-source Wikipedia/GBIF async image loading
     // with in-memory NSCache. See Features/Insights/Utilities/SimilarSpeciesImageFetcher.swift
-    @StateObject private var imageFetcher = SimilarSpeciesImageFetcher()
+    @State private var imageFetcher = SimilarSpeciesImageFetcher()
 
     var body: some View {
         ZStack(alignment: .bottom) {

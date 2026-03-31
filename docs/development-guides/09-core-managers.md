@@ -128,6 +128,18 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 | `zoomSideLeft` | `"zoomSideLeft"` | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView` |
 | `zoomSliderVisible` | `"zoomSliderVisible"` | `ZoomSliderView`, `CameraSettingsView` |
 
+## Media & Image Processing
+
+### `LocalImageLoader`
+- A Zero-OOM actor governing remote image fetches, APFS extraction, and thundering-herd cache coalescing.
+- Prevents redundant remote fetches using tracked `Task` closures off the `@MainActor`.
+- Supports fallback fetching: loops natively through comma-separated URLs via Zero-OOM `ImageDownsampler` bounds.
+
+### `SimilarSpeciesImageFetcher`
+- `@Observable` decoupled worker for resolving Wikipedia and GBIF encyclopedic image assets.
+- Explicitly delegates stream rendering to `LocalImageLoader` using standard string URLs, rather than directly inflating raw `UIImage(data:)` blobs, protecting the JetSam boundaries and unifying the global caching layer.
+
+
 ## Networking
 
 ### `MerianNetworkClient`

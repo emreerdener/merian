@@ -319,6 +319,11 @@ Within `LocalImageLoader`, fetching raw binary buffers over the network previous
 ### SSD Download Streaming (`LocalImageLoader`)
 When grid interfaces ingest hundreds of locally un-cached remote images, `URLSession.shared.data(from:)` caused RAM inflation by loading multi-megabyte blobs directly into system memory. Merian replaces `.data(from:)` with `.download(from:)`. The network payload streams into an ephemeral file URL on the SSD, which is passed directly to `ImageDownsampler.downsample(url:maxSize:)`. The temporary URL is deleted inside a `defer` block, preventing JetSam memory spikes and ensuring no raw image data touches RAM before downsampling.
 
+### Unbounded RAM Blob Accumulation (`SimilarSpeciesImageFetcher`)
+When querying encyclopedia assets for the Similar Species/Candidate gallery, relying on raw `URLSession.shared.data` loops inside detached utility tasks bypassed all Zero-OOM guardrails. Passing raw network `data` arrays into `UIImage(data:)` spawned heavy uncompressed RAM bitmaps outside `autoreleasepool` contexts, increasing the risk of iOS background application terminations. Also, retaining these large uncompressed bitmaps through `NSCache<NSString, UIImage>` generated permanent unbounded memory leaks.
+
+**The Refactor**: The layer strips custom parsing and cache dictionaries. After extracting dynamic Wikipedia and GBIF remote URLs off-thread, `SimilarSpeciesImageFetcher` explicitly pipes a unified fallback URL string directly into `LocalImageLoader.shared.loadImage(fallbackUrl:)`. This offloads the heavy lifting natively, forcing OS APFS caching limits and bounding `CGImageSource` instantiations dynamically inside `ImageDownsampler` without mutating existing UI bindings.
+
 ### Swift 6 Primitive Extraction (`ImageCropProcessor`)
 Passing `UIImage` objects directly into `Task.detached` closures violates Swift 6 strict concurrency rules because `UIImage` is non-Sendable and unsafe to cross actor boundaries. Merian prevents these traps by extracting thread-safe primitives (`targetImage.cgImage` and `targetImage.imageOrientation`) on the `@MainActor` before the detached task. These primitives are passed into the background processing pool for downsampling without triggering compiler warnings or runtime data races.
 
