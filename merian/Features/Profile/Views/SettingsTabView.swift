@@ -22,7 +22,6 @@ struct SettingsTabView: View {
     @State private var notificationSettingsActive = false
     @State private var cameraSettingsActive = false
 
-
     var body: some View {
         List {
             Preferences(
@@ -49,8 +48,6 @@ struct SettingsTabView: View {
                 isDeleting: $isDeleting,
                 showDeleteConfirmation: $showDeleteConfirmation
             )
-
-
         }
         .navigationDestination(isPresented: $notificationSettingsActive) {
             NotificationSettingsView()
@@ -72,7 +69,6 @@ struct SettingsTabView: View {
                 SafariView(url: url)
             }
         }
-
         .confirmationDialog(
             "Are you sure you want to permanently delete your account and all associated data?",
             isPresented: $showDeleteConfirmation,

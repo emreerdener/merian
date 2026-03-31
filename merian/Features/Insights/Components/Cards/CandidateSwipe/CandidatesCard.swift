@@ -85,41 +85,34 @@ private struct PendingView: View {
     var onFlagIssue: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
-                Image(systemName: "questionmark.circle")
-                    .foregroundColor(.secondary)
-                Text("Was the AI correct?")
-                    .font(.system(.headline))
-                    .foregroundColor(.primary)
-            }
+        if candidates.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "questionmark.circle")
+                        .foregroundColor(.secondary)
+                    Text("Was the AI correct?")
+                        .font(.system(.headline))
+                        .foregroundColor(.primary)
+                }
 
-            if candidates.isEmpty {
                 Text("The AI had below-average confidence on this identification.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-            } else {
-                Text("The model considered \(candidates.count) alternative\(candidates.count == 1 ? "" : "s"). Tap to review.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
 
-            HStack(spacing: 12) {
-                Button {
-                    onConfirm()
-                } label: {
-                    Label("Yes, correct", systemImage: "checkmark")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.green.opacity(0.15))
-                        .foregroundColor(.green)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                HStack(spacing: 12) {
+                    Button {
+                        onConfirm()
+                    } label: {
+                        Label("Yes, correct", systemImage: "checkmark")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
 
-                if candidates.isEmpty {
-                    // No alternatives — route straight to the flag/report flow.
                     Button {
                         onFlagIssue?()
                     } label: {
@@ -132,25 +125,99 @@ private struct PendingView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
-                } else {
-                    Button {
-                        onReviewAlternatives()
-                    } label: {
-                        Label("Not sure", systemImage: "questionmark")
-                            .font(.subheadline.weight(.semibold))
+                }
+            }
+            .padding(20)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        } else {
+            VStack(spacing: 24) {
+                // Content Heading
+                VStack(spacing: 8) {
+                    Text("Verify identification")
+                        .font(.system(.title2).weight(.bold))
+                        .foregroundColor(.primary)
+                    Text("The model found \(candidates.count) close matches.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                // Visual Graphic stack
+                ZStack {
+                    ForEach(Array(candidates.prefix(3).enumerated().reversed()), id: \.offset) { index, candidate in
+                        FlayedCandidateThumbnail(candidate: candidate)
+                            .rotationEffect(.degrees(index == 1 ? 8 : (index == 2 ? -8 : 0)))
+                            .offset(
+                                x: index == 1 ? 24 : (index == 2 ? -24 : 0),
+                                y: index == 0 ? 0 : 16
+                            )
+                            .zIndex(-Double(index))
+                    }
+                }
+                .padding(.bottom, 24)
+                   
+                // Action Buttons
+                VStack(spacing: 12) {
+                    Button(action: onReviewAlternatives) {
+                        Text("Review alternatives")
+                            .font(.headline)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
+                            .padding(.vertical, 16)
                             .background(Color.orange.opacity(0.15))
                             .foregroundColor(.orange)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: onConfirm) {
+                        Text("Confirm initial match")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 20)
+            }
+            .padding(.bottom, 24)
+        }
+    }
+}
+
+// MARK: - Flayed Thumbnail
+
+private struct FlayedCandidateThumbnail: View {
+    let candidate: IdentificationCandidate
+    @StateObject private var imageFetcher = SimilarSpeciesImageFetcher()
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+            
+            if let img = imageFetcher.image {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+            } else if imageFetcher.isLoading {
+                ProgressView()
+            } else {
+                Image(systemName: "leaf.fill")
+                    .foregroundStyle(.quaternary)
+                    .font(.system(size: 32))
             }
         }
-        .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .frame(width: 164, height: 180)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 6)
+        .task { _ = await imageFetcher.fetchImage(for: candidate.scientificName) }
     }
 }
 
