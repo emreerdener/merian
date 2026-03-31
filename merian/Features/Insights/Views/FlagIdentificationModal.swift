@@ -9,6 +9,7 @@ struct FlagIdentificationModal: View {
     // MARK: - State
     let scanId: String
     @State private var viewModel = FlagIdentificationViewModel()
+    @State private var playFlagAnimation = false
     
     // MARK: - Body
     var body: some View {
@@ -26,7 +27,8 @@ struct FlagIdentificationModal: View {
                             Image(systemName: "flag.fill")
                                 .font(.system(size: 32, weight: .semibold))
                                 .foregroundColor(.orange)
-                                .symbolEffect(.bounce, options: .nonRepeating)
+                                .symbolEffect(.bounce, value: playFlagAnimation)
+                                .onAppear { playFlagAnimation.toggle() }
                         }
                         .padding(.top, 24)
                         

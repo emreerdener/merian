@@ -91,7 +91,6 @@ private struct PendingView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-                .padding(.top, 16)
                 
                 // Action Buttons
                 VStack(spacing: 12) {
@@ -121,9 +120,8 @@ private struct PendingView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 20)
             }
-            .padding(.bottom, 24)
+            .card()
         } else {
             VStack(spacing: 24) {
                 // Content Heading
@@ -131,52 +129,53 @@ private struct PendingView: View {
                     Text("Verify identification")
                         .font(.system(.title2).weight(.bold))
                         .foregroundColor(.primary)
-                    Text("The model found \(candidates.count) close matches.")
+                    Text("The model found \(candidates.count) close \(candidates.count == 1 ? "match" : "matches").")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
 
-                // Visual Graphic stack
-                ZStack {
-                    ForEach(Array(candidates.prefix(3).enumerated().reversed()), id: \.offset) { index, candidate in
-                        FlayedCandidateThumbnail(candidate: candidate)
-                            .rotationEffect(.degrees(index == 1 ? 8 : (index == 2 ? -8 : 0)))
-                            .offset(
-                                x: index == 1 ? 24 : (index == 2 ? -24 : 0),
-                                y: index == 0 ? 0 : 16
-                            )
-                            .zIndex(-Double(index))
+                VStack(spacing: candidates.count > 1 ? 24 : 16) {
+                    // Visual Graphic stack
+                    ZStack {
+                        ForEach(Array(candidates.prefix(3).enumerated().reversed()), id: \.offset) { index, candidate in
+                            FlayedCandidateThumbnail(candidate: candidate)
+                                .rotationEffect(.degrees(index == 1 ? 8 : (index == 2 ? -8 : 0)))
+                                .offset(
+                                    x: index == 1 ? 24 : (index == 2 ? -24 : 0),
+                                    y: index == 0 ? 0 : 16
+                                )
+                                .zIndex(-Double(index))
+                        }
                     }
-                }
-                .padding(.bottom, 24)
-                   
-                // Action Buttons
-                VStack(spacing: 12) {
-                    Button(action: onReviewAlternatives) {
-                        Text("Review alternatives")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.orange.opacity(0.15))
-                            .foregroundColor(.orange)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
+                    .onTapGesture(perform: onReviewAlternatives)
+                       
+                    // Action Buttons
+                    VStack(spacing: 12) {
+                        Button(action: onReviewAlternatives) {
+                            Text("Review alternatives")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(Color.orange.opacity(0.15))
+                                .foregroundColor(.orange)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
 
-                    Button(action: onConfirm) {
-                        Text("Confirm initial match")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.green.opacity(0.15))
-                            .foregroundColor(.green)
-                            .clipShape(Capsule())
+                        Button(action: onConfirm) {
+                            Text("Confirm initial match")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(Color.green.opacity(0.15))
+                                .foregroundColor(.green)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 20)
             }
-            .padding(.bottom, 24)
+            .card()
         }
     }
 }
