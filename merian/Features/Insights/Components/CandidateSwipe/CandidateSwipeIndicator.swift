@@ -47,5 +47,10 @@ struct CandidateSwipeIndicator: View {
                 .foregroundStyle(.white)
                 .opacity(min(adjustedProgress * 2, 1))
         }
+        .onChange(of: adjustedProgress >= 1.0) { _, isFullyActivated in
+            if isFullyActivated {
+                HapticManager.shared.triggerSelectionPulse()
+            }
+        }
     }
 }

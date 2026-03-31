@@ -6,6 +6,7 @@ struct ConfidenceBadge: View {
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
+    var aiScientificName: String?
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isShowingExplanation = false
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
@@ -21,6 +22,7 @@ struct ConfidenceBadge: View {
         if isFlagged {
             return BadgePayload(label: "Under review", color: .orange, icon: "flag.fill")
         }
+
         if userIdentificationOverride != nil {
             return BadgePayload(label: "Manual ID", color: .indigo, icon: "person.fill.checkmark")
         }
@@ -148,7 +150,8 @@ struct ConfidenceBadge: View {
                 ConfidenceExplanationSheet(
                     inferenceTier: inferenceTier,
                     userIdentificationOverride: userIdentificationOverride,
-                    aiScientificName: nil  // not needed in badge context — card shows it
+                    userConfirmedIdentification: userConfirmedIdentification,
+                    aiScientificName: aiScientificName
                 )
                 .presentationDetents(allowedDetents, selection: $activeDetent)
                     .presentationCornerRadius(32)

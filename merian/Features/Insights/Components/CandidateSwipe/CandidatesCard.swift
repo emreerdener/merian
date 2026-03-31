@@ -42,24 +42,13 @@ struct CandidatesCard: View {
         Group {
             switch reviewState {
             case .confirmed:
-                ConfirmedView(
-                    aiScientificName: aiScientificName,
-                    onReset: {
-                        Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
-                    }
-                )
+                EmptyView()
 
-            case .overridden(let overrideName):
-                OverriddenView(
-                    overrideName: overrideName,
-                    aiScientificName: aiScientificName,
-                    onUndo: {
-                        Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
-                    }
-                )
+            case .overridden:
+                EmptyView()
 
             case .flagged:
-                FlaggedView()
+                EmptyView()
 
             case .pending:
                 PendingView(
@@ -94,12 +83,7 @@ private struct PendingView: View {
         if candidates.isEmpty {
             VStack(spacing: 32) {
                 // Content Heading
-                VStack(spacing: 8) {
-                    Image(systemName: "questionmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary.opacity(0.5))
-                        .padding(.bottom, 16)
-                        
+                VStack(spacing: 8) {                        
                     Text("Verify identification")
                         .font(.system(.title2).weight(.bold))
                         .foregroundColor(.primary)
@@ -112,6 +96,19 @@ private struct PendingView: View {
                 // Action Buttons
                 VStack(spacing: 12) {
                     Button {
+                        onConfirm()
+                    } label: {
+                        Text("Confirm match")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                     Button {
                         onFlagIssue?()
                     } label: {
                         Text("Flag as incorrect")
@@ -120,19 +117,6 @@ private struct PendingView: View {
                             .padding(.vertical, 16)
                             .background(Color.orange.opacity(0.15))
                             .foregroundColor(.orange)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        onConfirm()
-                    } label: {
-                        Text("Confirm initial match")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.green.opacity(0.15))
-                            .foregroundColor(.green)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -228,89 +212,5 @@ private struct FlayedCandidateThumbnail: View {
         )
         .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 6)
         .task { _ = await imageFetcher.fetchImage(for: candidate.scientificName) }
-    }
-}
-
-// MARK: - Confirmed View (State 3)
-
-private struct ConfirmedView: View {
-    let aiScientificName: String
-    let onReset: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.seal.fill")
-                .foregroundColor(.green)
-            Text("You confirmed this identification")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            Spacer()
-            Button("Change", action: onReset)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .buttonStyle(.plain)
-        }
-        .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-}
-
-// MARK: - Flagged View
-
-private struct FlaggedView: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "flag.fill")
-                .foregroundColor(.orange)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Under Review")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.primary)
-                Text("This match was flagged for manual review.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-        }
-        .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-}
-
-// MARK: - Overridden View (State 4)
-
-private struct OverriddenView: View {
-    let overrideName: String
-    let aiScientificName: String
-    let onUndo: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "person.fill.checkmark")
-                    .foregroundColor(.indigo)
-                Text("Your identification")
-                    .font(.system(.headline))
-                    .foregroundColor(.primary)
-                Spacer()
-                Button("Undo", action: onUndo)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .buttonStyle(.plain)
-            }
-
-            Text(overrideName)
-                .font(.system(.subheadline, design: .serif).italic())
-                .foregroundColor(.primary)
-
-            Text("AI originally suggested *\(aiScientificName)*")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }

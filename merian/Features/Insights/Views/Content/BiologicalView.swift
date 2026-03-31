@@ -23,19 +23,13 @@ struct BiologicalView: View {
                 inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                 userIdentificationOverride: inferenceEngine.speciesData?.userIdentificationOverride,
                 userConfirmedIdentification: inferenceEngine.speciesData?.userConfirmedIdentification ?? false,
+                isFlagged: inferenceEngine.speciesData?.isFlagged ?? false,
+                aiScientificName: inferenceEngine.speciesData?.aiScientificName,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
                 }
             )
             .cardEntrance(index: 0)
-
-            // MARK: - Toxicity Banner
-            ToxicityBanner()
-                .cardEntrance(index: 1)
-
-            // MARK: - Global Footprint
-            ConservationBanner()
-                .cardEntrance(index: 2)
 
             // MARK: - Identification Candidates
             let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil ||
@@ -54,6 +48,14 @@ struct BiologicalView: View {
                 )
                 .cardEntrance(index: 3)
             }
+
+            // MARK: - Toxicity Banner
+            ToxicityBanner()
+                .cardEntrance(index: 1)
+
+            // MARK: - Global Footprint
+            ConservationBanner()
+                .cardEntrance(index: 2)
 
             // MARK: - Educational Reference
             OverviewCard(

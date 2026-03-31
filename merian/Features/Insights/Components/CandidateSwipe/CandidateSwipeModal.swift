@@ -56,6 +56,7 @@ struct CandidateSwipeModal: View {
                 if stack.count > 1 {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
+                            HapticManager.shared.triggerSelectionPulse()
                             withAnimation(.spring(response: 0.3)) {
                                 isGridMode.toggle()
                                 topCardOffset = .zero
@@ -80,7 +81,10 @@ extension CandidateSwipeModal {
 
             // Skip Button
             if stack.count > 1 {
-                Button(action: skipTopCard) {
+                Button(action: {
+                    HapticManager.shared.triggerLightImpact()
+                    skipTopCard()
+                }) {
                     Text("Skip")
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 16)
@@ -185,6 +189,7 @@ extension CandidateSwipeModal {
             
             VStack(spacing: 12) {
                 Button {
+                    HapticManager.shared.triggerErrorThump()
                     dismiss()
                     onFlagIssue?()
                 } label: {
@@ -229,6 +234,7 @@ extension CandidateSwipeModal {
                 if abs(value.translation.width) >= swipeThreshold {
                     animateSwipe(value.translation.width > 0 ? .right : .left)
                 } else {
+                    HapticManager.shared.triggerLightImpact()
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) {
                         topCardOffset = .zero
                         topCardIsDragging = false
@@ -239,6 +245,7 @@ extension CandidateSwipeModal {
 
     private func animateSwipe(_ direction: CandidateSwipeDirection) {
         let targetX: CGFloat = direction == .right ? 700 : -700
+        HapticManager.shared.triggerMediumPulse()
         withAnimation(.easeInOut(duration: 0.3)) {
             topCardOffset = CGSize(width: targetX, height: 60)
         }

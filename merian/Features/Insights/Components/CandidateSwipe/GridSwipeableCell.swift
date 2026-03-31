@@ -39,8 +39,10 @@ struct GridSwipeableCell: View {
                 }
                 .onEnded { value in
                     if abs(value.translation.width) >= swipeThreshold {
+                        HapticManager.shared.triggerMediumPulse()
                         animateSwipe(direction: value.translation.width > 0 ? .right : .left)
                     } else {
+                        HapticManager.shared.triggerLightImpact()
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) {
                             offset = .zero
                             isDragging = false
