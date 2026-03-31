@@ -17,7 +17,7 @@ The `docs/` folder contains the master reference for the application:
 - **NEVER** directly modify `Merian.xcodeproj`.
 - **ALWAYS** update `project.yml` when adding new packages, frameworks, scopes, or entitlements.
 - Run `xcodegen generate` before attempting to build.
-- **Build Versioning & Fastlane**: Do not manually modify build versions in `Info.plist` or inject postGen scripts to map them. The project uses `agvtool` and `VERSIONING_SYSTEM: apple-generic` dynamically. `Info.plist` must strictly inherit `$(CURRENT_PROJECT_VERSION)` and `$(MARKETING_VERSION)`. *Never downgrade `MARKETING_VERSION` as it will break TestFlight delivery algorithms.*
+- **Build Versioning**: Do not manually modify build versions in `Info.plist` or inject postGen scripts to map them. The project uses `agvtool` and `VERSIONING_SYSTEM: apple-generic` dynamically. `Info.plist` must strictly inherit `$(CURRENT_PROJECT_VERSION)` and `$(MARKETING_VERSION)`. *Never downgrade `MARKETING_VERSION` as it will break TestFlight delivery algorithms.*
 - API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`. NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
 
 ## 2. Directory Structure
