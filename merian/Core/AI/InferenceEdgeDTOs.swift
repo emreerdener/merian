@@ -69,6 +69,7 @@ struct EdgeResponse: Codable {
     /// Only present when `confidence_score` is below the tier's `diagnosticTrigger` threshold.
     struct IdentificationCandidate: Codable {
         let scientific_name: String
+        let common_name: String?
         let confidence_score: Double
     }
     let candidates: [IdentificationCandidate]?

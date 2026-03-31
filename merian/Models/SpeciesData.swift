@@ -194,7 +194,7 @@ extension SpeciesData {
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
         self.inferenceTier = edgeRes.inference_tier
         self.candidates = edgeRes.candidates.map { entries in
-            entries.map { IdentificationCandidate(scientificName: $0.scientific_name, confidenceScore: $0.confidence_score) }
+            entries.map { IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score) }
         }
         self.imageQualityScore = edgeRes.image_quality?.overall_score
         self.aiScientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
@@ -327,5 +327,6 @@ struct SimilarSpecies {
 /// Scan-specific — reflects genuine uncertainty for this image, not a fixed species-level list.
 struct IdentificationCandidate: Codable {
     let scientificName: String
+    let commonName: String?
     let confidenceScore: Double
 }

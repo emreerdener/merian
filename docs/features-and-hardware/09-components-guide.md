@@ -105,3 +105,14 @@ A horizontally scrolling carousel of ecologically similar lookalike species, ren
 - **Fixed geometry**: Cards are locked to `width: 180, height: 240`. The image area is clamped to `height: 160`; the text compartment is `height: 60`. This prevents extreme image aspect ratios from breaking the horizontal row layout.
 - **Label**: Always "SIMILAR SPECIES" — no confidence-gated label switching.
 - **Skeleton**: `SimilarSpeciesGallery.Skeleton` renders three placeholder cards with a pulsing opacity loop (`easeInOut(duration: 1.0).repeatForever`).
+
+## 13. Candidate Swipe Experience: `CandidateSwipeModal`
+**Location**: `Features/Insights/Components/Cards/CandidateSwipe/` (Directory)
+
+A high-end, Tinder-style gesture interface allowing users to rapidly review and identify AI alternative candidates. The `CandidateSwipeModal` has been fully decoupled from a monolith into a clean, modular folder hierarchy consisting of 5 isolated files:
+
+- **`CandidateSwipeModal`**: The primary modal `.sheet` entry point. It manages the `stack` array natively and observes it via an `.onChange(of: stack.isEmpty)` interceptor, automatically executing `dismiss()` the moment the final card resolves (eliminating the need for an empty state). Uses clean native extensions to separate its layout definitions from gesture logic.
+- **`SwipeableCandidateCard`**: The core structural view for the individual species cards. Integrates `SimilarSpeciesImageFetcher` to asynchronously load the species' Wikipedia/GBIF visual, masking it under a 3-stop vertical gradient `[.clear, .black.opacity(0.6), .black.opacity(0.85)]` to strictly protect typographic contrast. Uses `.ultraThinMaterial` for the match-percentage confidence pills.
+- **`CandidateSwipeIndicator`**: An isolated view handling the complex 20% "deadzone" delay calculations that mask the `-90` degree radial progress stroke filling the rejection/confirmation circular visual bursts.
+- **`CandidateActionBar`**: Replaces icon-only toolbars with explicit, text-labeled liquid glass `.ultraThickMaterial` buttons ("Reject" / "Confirm") anchored at the bottom of the card stack interface. The "Skip" function was physically lifted out of this bar and transformed into a floating capsule at the top of the stack.
+- **`GridSwipeableCell`**: The fallback wrapper component utilized when the user toggles the interface out of the Card Deck into the Grid layout. It preserves identically matched `swipeThreshold` (now calibrated to `240` points) to guarantee gesture parity.
