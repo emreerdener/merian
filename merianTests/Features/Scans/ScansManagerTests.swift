@@ -109,7 +109,7 @@ final class ScansManagerTests: XCTestCase {
         
         // Isolate the background extraction actor explicitly
         let actor = SearchDatabaseActor(modelContainer: container)
-        let payloads = await actor.extractSearchablePayloads(from: [scan.persistentModelID])
+        let payloads = await actor.extractSearchablePayloads(from: [scan.id])
         
         XCTAssertEqual(payloads.count, 1)
         let payloadString = payloads.first!.searchString

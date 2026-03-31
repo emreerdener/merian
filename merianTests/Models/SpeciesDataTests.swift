@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Merian
 
@@ -204,6 +205,7 @@ struct SpeciesDataTests {
         #expect(species.aiScientificName == "Danaus plexippus", "aiScientificName must mirror scientific_name from the edge response")
         #expect(species.userIdentificationOverride == nil, "Override must be nil on fresh inference — no user action has occurred")
         #expect(species.userConfirmedIdentification == false, "Confirmed must be false on fresh inference")
+        #expect(species.isFlagged == false, "isFlagged must be false on fresh inference")
     }
 
     @Test func testMemberwiseInitAIScientificNameFallsBackToScientificName() {

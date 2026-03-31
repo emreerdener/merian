@@ -160,9 +160,9 @@ struct InferenceEngineTests {
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "wild",
+            lookalikesData: lookalikesData,                 // present but all-null common names
             habitatDescription: "Forests and urban areas.", // present — not the trigger
-            gbifTaxonKey: 2433697,                          // present — not the trigger
-            lookalikesData: lookalikesData                  // present but all-null common names
+            gbifTaxonKey: 2433697                          // present — not the trigger
         )
 
         let engine = InferenceEngine()
@@ -200,9 +200,9 @@ struct InferenceEngineTests {
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "wild",
+            lookalikesData: lookalikesData,
             habitatDescription: "Forests and urban areas.",
-            gbifTaxonKey: 2433697,
-            lookalikesData: lookalikesData
+            gbifTaxonKey: 2433697
         )
 
         let engine = InferenceEngine()
@@ -421,7 +421,7 @@ struct InferenceEngineTests {
 
     // MARK: - Similar Species: load(from:) — historical record wrapping
 
-    @Test func testLoadFromRecordWithSimilarSpecies() throws {
+    @Test func testLoadFromRecordWithSimilarSpecies() async throws {
         // Arrange: LocalScanRecord with legacy TEXT[] names (MerianSchemaV26 field)
         let record = LocalScanRecord(
             speciesId: "species_procyon",
@@ -431,6 +431,7 @@ struct InferenceEngineTests {
         )
         let engine = InferenceEngine()
         engine.load(from: record)
+        await engine.historicHydrationTask?.value
 
         let result = try #require(engine.speciesData)
         let similar = try #require(result.similarSpecies, "similarSpecies must be populated from LocalScanRecord.similarSpecies")
@@ -447,7 +448,7 @@ struct InferenceEngineTests {
         #expect(similar.lookalikes == ["Procyon cancrivorus", "Bassariscus astutus"])
     }
 
-    @Test func testLoadFromRecordWithNilSimilarSpecies() throws {
+    @Test func testLoadFromRecordWithNilSimilarSpecies() async throws {
         // Arrange: record with no lookalike data (pre-V26 or species with no known lookalikes)
         let record = LocalScanRecord(
             speciesId: "species_unique",
@@ -456,6 +457,7 @@ struct InferenceEngineTests {
         )
         let engine = InferenceEngine()
         engine.load(from: record)
+        await engine.historicHydrationTask?.value
 
         let result = try #require(engine.speciesData)
         #expect(result.similarSpecies == nil, "nil similarSpecies on LocalScanRecord must not produce an empty SimilarSpecies struct")
@@ -513,7 +515,7 @@ struct InferenceEngineTests {
 
     // MARK: - Identification Candidates: load(from:) — V28/V29 fields
 
-    @Test func testLoadFromRecordDecodesCandidatesData() throws {
+    @Test func testLoadFromRecordDecodesCandidatesData() async throws {
         let candidates: [IdentificationCandidate] = [
             IdentificationCandidate(scientificName: "Procyon cancrivorus", confidenceScore: 0.71),
             IdentificationCandidate(scientificName: "Bassariscus astutus", confidenceScore: 0.65)
@@ -528,6 +530,7 @@ struct InferenceEngineTests {
         )
         let engine = InferenceEngine()
         engine.load(from: record)
+        await engine.historicHydrationTask?.value
 
         let result = try #require(engine.speciesData)
         let decoded = try #require(result.candidates, "load(from:) must decode candidatesData blob into SpeciesData.candidates")
@@ -537,7 +540,7 @@ struct InferenceEngineTests {
         #expect(decoded[0].confidenceScore == 0.71)
     }
 
-    @Test func testLoadFromRecordNilCandidatesDataYieldsNilCandidates() throws {
+    @Test func testLoadFromRecordNilCandidatesDataYieldsNilCandidates() async throws {
         let record = LocalScanRecord(
             speciesId: "v28-no-candidates",
             scientificName: "Procyon lotor",
@@ -545,6 +548,7 @@ struct InferenceEngineTests {
         )
         let engine = InferenceEngine()
         engine.load(from: record)
+        await engine.historicHydrationTask?.value
 
         let result = try #require(engine.speciesData)
         #expect(result.candidates == nil, "Nil candidatesData must produce nil candidates — not an empty array")
@@ -593,6 +597,21 @@ struct InferenceEngineTests {
 
         let result = try #require(engine.speciesData)
         #expect(result.userConfirmedIdentification == true, "load(from:) must restore userConfirmedIdentification from the persisted record")
+    }
+
+    @Test func testLoadFromRecordPopulatesIsFlagged() throws {
+        // When a scan was previously flagged for moderation review, the flag is restored on load.
+        let record = LocalScanRecord(
+            speciesId: "v31-flagged-load",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            isFlagged: true
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+
+        let result = try #require(engine.speciesData)
+        #expect(result.isFlagged == true, "load(from:) must restore isFlagged from the persisted record")
     }
 
     // MARK: - Identification Review: engine methods

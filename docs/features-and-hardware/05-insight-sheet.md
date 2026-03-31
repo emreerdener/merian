@@ -15,10 +15,10 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
 | `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match". Passes `userIdentificationOverride` and `userConfirmedIdentification` from `speciesData` down to `ConfidenceBadge`. |
 | `ImagesCarousel` | Horizontally scrolling image strip combining live captures + historic paths + reference images |
-| `ConfidenceBadge` | Tappable capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap. When `userIdentificationOverride` is non-nil, shows "Your ID" (indigo, `person.fill.checkmark`). When `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.seal.fill`). |
+| `ConfidenceBadge` | Tappable capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap. When `isFlagged` is `true`, shows "Under Review" (orange, `flag.fill`) and disables interactions. When `userIdentificationOverride` is non-nil, shows "Your ID" (indigo, `person.fill.checkmark`). When `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.seal.fill`). |
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
 | `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an override is active, replaces normal content with override-specific explanation showing the override name, the original AI name, and undo instructions. |
-| `CandidatesCard` | Identification candidates card with a four-state approve/deny UX. Shown when `speciesData.candidates` has ≥ 2 entries **or** when a review state (override/confirmed) is already set. Gated in `BiologicalView` via `candidates.count >= 2 || hasReviewState`. |
+| `CandidatesCard` | Identification candidates card with a multi-state approve/deny and moderation UX. Shown when `speciesData.candidates` has ≥ 2 entries **or** when a review state (override/confirmed/flagged) is already set. Gated in `BiologicalView` via `candidates.count >= 2 || hasReviewState`. |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree |
 | `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalikes sourced from `speciesData.similarSpecies`. Each `SimilarSpeciesCard` renders `referenceImageUrl` via `AsyncLocalImageView` when available, or asynchronously falls back to `SimilarSpeciesImageFetcher` (Wikipedia → GBIF waterfall). Image load failures never remove a card — on failure the card falls back to a leaf-icon placeholder so species names remain visible. Cards are only excluded from `validEntries` when their `scientificName` is blank. |
 | `OverviewCard` | Structural card rendering dynamic biological KeyValueRow metrics (e.g., size, life stage, interactions, invasive species status) followed by an 8-line truncated Wikipedia extract and a built-in Safari "Learn more" button. |
@@ -139,6 +139,7 @@ When the AI's confidence falls below the tier-specific `diagnosticTrigger` thres
 ```swift
 let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil
                   || inferenceEngine.speciesData?.userConfirmedIdentification == true
+                  || inferenceEngine.speciesData?.isFlagged == true
 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
    let candidates = inferenceEngine.speciesData?.candidates,
    candidates.count >= 2 || hasReviewState {
@@ -155,9 +156,10 @@ The `candidates.count >= 2` guard prevents the card from showing for genuinely a
 
 Users can confirm or override the AI's primary identification directly from `CandidatesCard`. The card manages a local `ReviewState` enum:
 
-- **`.pending`**: Default state. Shows a "Was the AI correct?" prompt with a "Yes, that's right" button and a "Not sure / Show alternatives" toggle. Tapping "Yes" calls `InferenceEngine.confirmAIIdentification(modelContext:)`, setting `userConfirmedIdentification = true` locally and transitioning to `.confirmed`.
+- **`.pending`**: Default state. Shows a "Was the AI correct?" prompt with a "Yes, that's right" button and a "Not sure / Show alternatives" toggle. Tapping "Yes" calls `InferenceEngine.confirmAIIdentification(modelContext:)`, setting `userConfirmedIdentification = true` locally and transitioning to `.confirmed`. Refusing all alternatives allows the user to flag the scan.
 - **`.confirmed`**: Replaces the prompt with nothing (the card hides its body). `ConfidenceBadge` transitions to "Confirmed" (green, `checkmark.seal.fill`). `ConfidenceExplanationSheet` shows a confirmation message.
 - **`.overridden(to:)`**: Active after the user selects a candidate as their preferred identification. Renders an `OverriddenView` showing "Your identification" with the override name, "AI originally suggested X" footer, and an Undo button. `ConfidenceBadge` transitions to "Your ID" (indigo, `person.fill.checkmark`).
+- **`.flagged`**: Active when the user flags the AI payload for moderation. Renders an immutable `FlaggedView` stating the scan is under review. `ConfidenceBadge` locks into "Under Review" state and disables tap gestures.
 
 **Override flow**: Selecting a candidate calls `InferenceEngine.applyIdentificationOverride(scientificName:modelContext:)`, which:
 1. Mutates `speciesData.userIdentificationOverride` and `speciesData.scientificName` to the override name.
@@ -165,9 +167,10 @@ Users can confirm or override the AI's primary identification directly from `Can
 3. Syncs to `public.scans.user_identification_override` via a direct PostgREST PATCH (`InferenceEngine.syncIdentificationReviewToCloud`), guarded by `.eq("user_id", userId)`.
 4. Fires `fetchAndPatchOverrideData(scientificName:scanId:modelContext:)` — queries `species_dictionary` for a cache hit and patches `speciesData` fields (common name, taxonomy, Wikipedia, etc.). On cache miss, calls `fetchAndApplyEnrichment` (which uses the already-mutated `speciesData.scientificName` as the lookup key).
 
-**Data model**: Two fields on `LocalScanRecord` (both added in `MerianSchemaV29`), both cloud-synced:
+**Data model**: Three fields on `LocalScanRecord` (all cloud-synced):
 - `userIdentificationOverride: String?` — mirrors `public.scans.user_identification_override`.
 - `userConfirmedIdentification: Bool` — mirrors `public.scans.user_confirmed_identification`. Both fields are sent in the same `ReviewSyncPayload` Encodable struct in `syncIdentificationReviewToCloud`.
+- `isFlagged: Bool` — persisted to flag upstream manual moderation routines.
 
 **Re-identification**: A user who has already acted on a review can always re-enter the selection flow:
 - From `.overridden`: tap Undo → calls `resetIdentificationReview` → reverts to `.pending` with full candidate list visible.
@@ -185,6 +188,7 @@ Users can confirm or override the AI's primary identification directly from `Can
 **Identification review states** (take precedence over confidence bands):
 | State | Label | Color | Icon | Trigger |
 |---|---|---|---|---|
+| User flagged | "Under Review" | Orange | `flag.fill` | `isFlagged == true` |
 | User override | "Your ID" | Indigo | `person.fill.checkmark` | `userIdentificationOverride != nil` |
 | User confirmed | "Confirmed" | Green | `checkmark.seal.fill` | `userConfirmedIdentification == true` |
 

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import SwiftData
 @testable import Merian
@@ -120,6 +121,49 @@ struct MigrationPlanTests {
             for: schema29,
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config29]
+        )
+
+        // Clean up the temp file.
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    }
+
+    /// Simulates upgrading from V30 to V31 on-disk — verifies that adding
+    /// `isFlagged` (lightweight migration, no custom stage) does not crash during
+    /// iOS 26 migration plan validation.
+    @Test func migrationFromV30ToV31DoesNotCrash() throws {
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v30migration_test.sqlite")
+
+        // Step 1 — create a V30 store with no migration plan.
+        let schema30 = Schema(versionedSchema: MerianSchemaV30.self)
+        let config30 = ModelConfiguration(schema: schema30, url: url)
+        let container30 = try ModelContainer(for: schema30, configurations: [config30])
+
+        // Insert a minimal V30 record so the store has data and is not empty.
+        let context30 = ModelContext(container30)
+        let record = MerianSchemaV30.LocalScanRecord(
+            speciesId: "test-v30-species",
+            scientificName: "Testus testus",
+            commonName: "Test Species",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+        context30.insert(record)
+        try context30.save()
+
+        // Close V30 container before reopening with migration plan.
+        _ = container30
+
+        // Step 2 — reopen with the full migration plan targeting the current schema (V31).
+        let schema31 = Schema(versionedSchema: CurrentSchema.self)
+        let config31 = ModelConfiguration(schema: schema31, url: url)
+        _ = try ModelContainer(
+            for: schema31,
+            migrationPlan: MerianMigrationPlan.self,
+            configurations: [config31]
         )
 
         // Clean up the temp file.

@@ -6,6 +6,7 @@ private enum ReviewState: Equatable {
     case pending
     case confirmed
     case overridden(to: String)
+    case flagged
 }
 
 // MARK: - Candidates Card
@@ -26,7 +27,9 @@ struct CandidatesCard: View {
     @State private var isSwipeModalPresented = false
 
     private var reviewState: ReviewState {
-        if let override = inferenceEngine.speciesData?.userIdentificationOverride {
+        if inferenceEngine.speciesData?.isFlagged == true {
+            return .flagged
+        } else if let override = inferenceEngine.speciesData?.userIdentificationOverride {
             return .overridden(to: override)
         } else if inferenceEngine.speciesData?.userConfirmedIdentification == true {
             return .confirmed
@@ -54,6 +57,9 @@ struct CandidatesCard: View {
                         Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
                     }
                 )
+
+            case .flagged:
+                FlaggedView()
 
             case .pending:
                 PendingView(
@@ -243,6 +249,29 @@ private struct ConfirmedView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .buttonStyle(.plain)
+        }
+        .padding(20)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+// MARK: - Flagged View
+
+private struct FlaggedView: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "flag.fill")
+                .foregroundColor(.orange)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Under Review")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.primary)
+                Text("This match was flagged for manual review.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
         }
         .padding(20)
         .background(.regularMaterial)

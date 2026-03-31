@@ -74,7 +74,7 @@ private struct WikiSummaryResponse: Decodable {
     @ObservationIgnored private var gbifHydrationTask: Task<Void, Never>?
     /// Tracks the single async hydration task spawned by `load(from:)` so it can be
     /// cancelled immediately when the user navigates to a different scan.
-    @ObservationIgnored private var historicHydrationTask: Task<Void, Never>?
+    @ObservationIgnored var historicHydrationTask: Task<Void, Never>?
     /// Tracks the single async hydration task spawned after a live inference result so it can be
     /// cancelled if the user fires a new scan before Wikipedia/enrichment/GBIF finish.
     @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
@@ -696,6 +696,22 @@ private struct WikiSummaryResponse: Decodable {
         }
     }
 
+    /// Called when the user flags an identification for manual review because no models matched.
+    /// Mutates the local display state and persists the flag local-only via the `isFlagged` column.
+    func flagAIIdentification(modelContext: ModelContext?) async {
+        guard let scanId = speciesData?.scanId else { return }
+
+        speciesData?.isFlagged = true
+
+        if let context = modelContext {
+            let container = context.container
+            Task {
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.updateScanAsFlagged(scanId: scanId)
+            }
+        }
+    }
+
     /// Resets all identification review state, reverting the scan back to the AI's original
     /// identification. Called by Undo (from `.overridden`) and Change (from `.confirmed`).
     /// Clears both `userIdentificationOverride` and `userConfirmedIdentification` locally,
@@ -977,7 +993,8 @@ private struct WikiSummaryResponse: Decodable {
             imageQualityScore: record.imageQualityScore,
             aiScientificName: record.scientificName,
             userIdentificationOverride: record.userIdentificationOverride,
-            userConfirmedIdentification: record.userConfirmedIdentification
+            userConfirmedIdentification: record.userConfirmedIdentification,
+            isFlagged: record.isFlagged
         )
         self.isProcessing = false
 

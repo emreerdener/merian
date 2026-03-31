@@ -130,6 +130,9 @@ struct SpeciesData {
 
     /// True when user tapped "Yes, correct" — suppresses the "Was the AI correct?" prompt locally.
     var userConfirmedIdentification: Bool
+
+    /// True when the user flagged the AI's identification for manual review.
+    var isFlagged: Bool
 }
 
 // MARK: - Edge Response Init
@@ -200,6 +203,7 @@ extension SpeciesData {
         self.aiScientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
         self.userIdentificationOverride = nil
         self.userConfirmedIdentification = false
+        self.isFlagged = false
     }
 }
 
@@ -246,7 +250,8 @@ extension SpeciesData {
         imageQualityScore: Int? = nil,
         aiScientificName: String = "",
         userIdentificationOverride: String? = nil,
-        userConfirmedIdentification: Bool = false
+        userConfirmedIdentification: Bool = false,
+        isFlagged: Bool = false
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -287,6 +292,7 @@ extension SpeciesData {
         self.aiScientificName = aiScientificName.isEmpty ? scientificName : aiScientificName
         self.userIdentificationOverride = userIdentificationOverride
         self.userConfirmedIdentification = userConfirmedIdentification
+        self.isFlagged = isFlagged
     }
 }
 
@@ -329,4 +335,10 @@ struct IdentificationCandidate: Codable {
     let scientificName: String
     let commonName: String?
     let confidenceScore: Double
+
+    init(scientificName: String, commonName: String? = nil, confidenceScore: Double) {
+        self.scientificName = scientificName
+        self.commonName = commonName
+        self.confidenceScore = confidenceScore
+    }
 }

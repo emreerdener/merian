@@ -5,6 +5,7 @@ struct ConfidenceBadge: View {
     let inferenceTier: String?
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
+    var isFlagged: Bool = false
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isShowingExplanation = false
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
@@ -17,6 +18,9 @@ struct ConfidenceBadge: View {
     }
 
     private var badgeData: BadgePayload {
+        if isFlagged {
+            return BadgePayload(label: "Under review", color: .orange, icon: "flag.fill")
+        }
         if userIdentificationOverride != nil {
             return BadgePayload(label: "Manual ID", color: .indigo, icon: "person.fill.checkmark")
         }
@@ -36,7 +40,7 @@ struct ConfidenceBadge: View {
     }
     
     var body: some View {
-        if userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
+        if isFlagged || userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
             let data = badgeData
             
             Button(action: {
@@ -139,6 +143,7 @@ struct ConfidenceBadge: View {
                     }
                 }
             }
+            .disabled(isFlagged)
             .sheet(isPresented: $isShowingExplanation) {
                 ConfidenceExplanationSheet(
                     inferenceTier: inferenceTier,

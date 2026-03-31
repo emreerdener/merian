@@ -15,8 +15,9 @@ struct HardwareOrchestratorTests {
         let orchestrator = HardwareOrchestrator.shared
         
         // Assert base execution sets Expedition mode bounds internally
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: true, thermalState: .nominal)
-        #expect(orchestrator.isExpeditionModeActive == true, "ExpeditionMode requires LowPower mapping natively")
+        UserDefaults.standard.set(true, forKey: "isExpeditionModeActive")
+        orchestrator.evaluateConstraints(thermalState: .nominal)
+        #expect(orchestrator.isExpeditionModeActive == true, "ExpeditionMode maps to UserDefaults")
         
         let initialUploadTries = OfflineQueueManager.shared.unsyncedItemsCount
         
@@ -27,7 +28,8 @@ struct HardwareOrchestratorTests {
         #expect(OfflineQueueManager.shared.unsyncedItemsCount == initialUploadTries, "Pending offline queue should short-circuit and completely ignore queue execution natively when protecting hardware limits")
         
         // Cleanup mapping back to simulator bounds globally across test cases
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
+        orchestrator.evaluateConstraints(thermalState: .nominal)
     }
     
     @Test func testThermalStateThrottlingProperlyReducesFPS() {
@@ -37,41 +39,43 @@ struct HardwareOrchestratorTests {
         orchestrator.isIdleLocked = false
         
         // 1. Act & Assert Nominal
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        orchestrator.evaluateConstraints(thermalState: .nominal)
         #expect(orchestrator.targetFPS == 60)
         #expect(orchestrator.isGlassmorphismEnabled == true)
         #expect(orchestrator.isCriticalHeatWarningActive == false)
         
         // 2. Act & Assert Fair (Light Heat)
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .fair)
+        orchestrator.evaluateConstraints(thermalState: .fair)
         #expect(orchestrator.targetFPS == 45)
         #expect(orchestrator.isGlassmorphismEnabled == true)
         
         // 3. Act & Assert Serious (Noticeable iPhone Heating)
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .serious)
+        orchestrator.evaluateConstraints(thermalState: .serious)
         #expect(orchestrator.targetFPS == 30)
         #expect(orchestrator.isGlassmorphismEnabled == false) // Thermal bounds must automatically drop expensive UI modifiers
         
         // 4. Act & Assert Critical State (Sunlight Exposure Danger limits)
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .critical)
+        orchestrator.evaluateConstraints(thermalState: .critical)
         #expect(orchestrator.targetFPS == 15)
         #expect(orchestrator.isGlassmorphismEnabled == false)
         #expect(orchestrator.isCriticalHeatWarningActive == true)
         
         // 5. Assert Expedition Mode completely overrides physical heat maps
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: true, thermalState: .nominal)
+        UserDefaults.standard.set(true, forKey: "isExpeditionModeActive")
+        orchestrator.evaluateConstraints(thermalState: .nominal)
         #expect(orchestrator.targetFPS == 24)
         #expect(orchestrator.isGlassmorphismEnabled == false)
         
         // Reset defaults
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
+        orchestrator.evaluateConstraints(thermalState: .nominal)
     }
     
     @Test func testIdleLockPreventsThermalOverride() {
         let orchestrator = HardwareOrchestrator.shared
         
         // Set standard
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        orchestrator.evaluateConstraints(thermalState: .nominal)
         #expect(orchestrator.targetFPS == 60)
         
         // Lock constraints at runtime to freeze AI inference frame arrays
@@ -79,7 +83,7 @@ struct HardwareOrchestratorTests {
         orchestrator.isIdleLocked = true
         
         // Attempt to manipulate boundary via Thermal notifications
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        orchestrator.evaluateConstraints(thermalState: .nominal)
         
         #expect(orchestrator.targetFPS == 1, "Idle lock MUST physically block any heat/power checks natively until unlock bounds are fired.")
         
@@ -93,18 +97,18 @@ struct HardwareOrchestratorTests {
         
         // Assert nominal map
         UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        orchestrator.evaluateConstraints(thermalState: .nominal)
         #expect(orchestrator.targetFPS == 60)
         
         // Simulate User toggling "Expedition Mode" in SettingsView
         UserDefaults.standard.set(true, forKey: "isExpeditionModeActive")
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        orchestrator.evaluateConstraints(thermalState: .nominal)
         
         #expect(orchestrator.targetFPS == 24)
         #expect(orchestrator.isGlassmorphismEnabled == false)
         
         // Reset defaults
         UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
-        orchestrator.evaluateConstraints(isLowPowerModeEnabled: false, thermalState: .nominal)
+        orchestrator.evaluateConstraints(thermalState: .nominal)
     }
 }

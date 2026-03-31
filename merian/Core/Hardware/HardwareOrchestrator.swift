@@ -83,7 +83,7 @@ extension UIDevice {
 
     /// Evaluates current thermal and power conditions and updates FPS/quality targets.
     /// Parameters accept injected values for testing; nil reads live system state.
-    func evaluateConstraints(isLowPowerModeEnabled: Bool? = nil, thermalState: ProcessInfo.ThermalState? = nil) {
+    func evaluateConstraints(thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
 
         isExpeditionModeActive = UserDefaults.standard.bool(forKey: "isExpeditionModeActive")

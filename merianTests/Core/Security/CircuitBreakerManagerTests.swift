@@ -24,13 +24,17 @@ final class CircuitBreakerManagerTests: XCTestCase {
         circuitBreaker.recordFailure()
         XCTAssertFalse(circuitBreaker.isCircuitTripped)
         
-        // Threshold is 2 failures based on the implementation
+        // Threshold is 3 failures based on the implementation
+        circuitBreaker.recordFailure()
+        XCTAssertFalse(circuitBreaker.isCircuitTripped)
+        
         circuitBreaker.recordFailure()
         XCTAssertTrue(circuitBreaker.isCircuitTripped)
     }
 
     func testCircuitResetsOnSuccess() {
         // Force a trip
+        circuitBreaker.recordFailure()
         circuitBreaker.recordFailure()
         circuitBreaker.recordFailure()
         XCTAssertTrue(circuitBreaker.isCircuitTripped)

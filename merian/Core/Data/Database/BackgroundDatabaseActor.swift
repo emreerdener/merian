@@ -341,6 +341,17 @@ actor BackgroundDatabaseActor {
         }
     }
 
+    /// Persists the user's manual review flag to the local SwiftData store.
+    func updateScanAsFlagged(scanId: String) {
+        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let record = try? modelContext.fetch(descriptor).first else { return }
+        record.isFlagged = true
+        do { try modelContext.save() } catch {
+            MerianLog.data.error("updateScanAsFlagged: save failed: \(error, privacy: .private)")
+        }
+    }
+
     // MARK: - Collections Edge Sync
 
     struct SyncCollectionPayload: Encodable {

@@ -53,6 +53,10 @@ public final class LocalScanRecord {
     /// Suppresses the "Was the AI correct?" prompt on re-open. Not synced to cloud.
     @Attribute public var userConfirmedIdentification: Bool = false
 
+    /// Set to true when the user flags an identification for manual moderation review.
+    /// Retains the "Under Review" state across app sessions locally.
+    @Attribute public var isFlagged: Bool = false
+
     @Attribute public var iucnRedListStatus: String?
     @Attribute public var gpsLatitude: Double?
     @Attribute public var gpsLongitude: Double?
@@ -134,6 +138,7 @@ public final class LocalScanRecord {
         hasBeenViewed: Bool = false,
         userIdentificationOverride: String? = nil,
         userConfirmedIdentification: Bool = false,
+        isFlagged: Bool = false,
         imageQualityScore: Int? = nil) {
 
         self.id = id
@@ -192,6 +197,7 @@ public final class LocalScanRecord {
         self.hasBeenViewed = hasBeenViewed
         self.userIdentificationOverride = userIdentificationOverride
         self.userConfirmedIdentification = userConfirmedIdentification
+        self.isFlagged = isFlagged
         self.imageQualityScore = imageQualityScore
     }
 }
