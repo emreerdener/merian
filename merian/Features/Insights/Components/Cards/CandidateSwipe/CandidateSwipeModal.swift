@@ -35,15 +35,12 @@ struct CandidateSwipeModal: View {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
 
-                if isGridMode {
+                if stack.isEmpty {
+                    exhaustedStateContent
+                } else if isGridMode {
                     gridContent
                 } else {
                     cardStackContent
-                }
-            }
-            .onChange(of: stack.isEmpty) { _, isEmpty in
-                if isEmpty {
-                    dismiss()
                 }
             }
             .navigationTitle(stack.isEmpty ? "Review alternatives" : "\(stack.count) alternative\(stack.count == 1 ? "" : "s")")
@@ -167,6 +164,55 @@ extension CandidateSwipeModal {
             }
         }
         .padding(20)
+    }
+
+    private var exhaustedStateContent: some View {
+        VStack(spacing: 32) {
+            Image(systemName: "magnifyingglass.circle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary.opacity(0.5))
+            
+            VStack(spacing: 8) {
+                Text("No Matches Found")
+                    .font(.title2.weight(.bold))
+                    .foregroundColor(.primary)
+                Text("You've reviewed all available alternative species, but none of them matched your observation.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 32)
+            
+            VStack(spacing: 12) {
+                Button {
+                    dismiss()
+                    onFlagIssue?()
+                } label: {
+                    Text("Flag for manual review")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.orange.opacity(0.15))
+                        .foregroundColor(.orange)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Cancel and return")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color(.secondarySystemBackground))
+                        .foregroundColor(.secondary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+        }
     }
 }
 

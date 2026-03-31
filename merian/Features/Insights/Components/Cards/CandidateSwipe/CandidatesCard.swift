@@ -86,50 +86,54 @@ private struct PendingView: View {
 
     var body: some View {
         if candidates.isEmpty {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "questionmark.circle")
-                        .foregroundColor(.secondary)
-                    Text("Was the AI correct?")
-                        .font(.system(.headline))
+            VStack(spacing: 32) {
+                // Content Heading
+                VStack(spacing: 8) {
+                    Image(systemName: "questionmark.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary.opacity(0.5))
+                        .padding(.bottom, 16)
+                        
+                    Text("Verify identification")
+                        .font(.system(.title2).weight(.bold))
                         .foregroundColor(.primary)
+                    Text("The model had low confidence on this match.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-
-                Text("The AI had below-average confidence on this identification.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                HStack(spacing: 12) {
-                    Button {
-                        onConfirm()
-                    } label: {
-                        Label("Yes, correct", systemImage: "checkmark")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.green.opacity(0.15))
-                            .foregroundColor(.green)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-
+                .padding(.top, 16)
+                
+                // Action Buttons
+                VStack(spacing: 12) {
                     Button {
                         onFlagIssue?()
                     } label: {
-                        Label("No, incorrect", systemImage: "xmark")
-                            .font(.subheadline.weight(.semibold))
+                        Text("Flag as incorrect")
+                            .font(.headline)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
+                            .padding(.vertical, 16)
                             .background(Color.orange.opacity(0.15))
                             .foregroundColor(.orange)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        onConfirm()
+                    } label: {
+                        Text("Confirm initial match")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 20)
             }
-            .padding(20)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .padding(.bottom, 24)
         } else {
             VStack(spacing: 24) {
                 // Content Heading
