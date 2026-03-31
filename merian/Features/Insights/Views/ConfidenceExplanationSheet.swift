@@ -5,6 +5,7 @@ struct ConfidenceExplanationSheet: View {
     let inferenceTier: String?
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
+    var isFlagged: Bool = false
     var aiScientificName: String?
 
     @Environment(EnvironmentContextManager.self) private var environmentContext
@@ -21,7 +22,14 @@ struct ConfidenceExplanationSheet: View {
             VStack(spacing: 32) {
                 ConfidenceHeader()
                 
-                if let override = userIdentificationOverride {
+                if isFlagged {
+                    UnderReviewView(
+                        onUndo: {
+                            Task { await inferenceEngine.unflagAIIdentification(modelContext: modelContext) }
+                        }
+                    )
+                        .padding(.horizontal, 24)
+                } else if let override = userIdentificationOverride {
                     OverriddenView(
                         overrideName: override,
                         aiScientificName: aiScientificName ?? "Unknown",
@@ -121,6 +129,40 @@ private struct OverriddenView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Under Review View (State 5)
+
+private struct UnderReviewView: View {
+    let onUndo: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "flag.fill")
+                    .foregroundColor(.orange)
+                Text("Flagged for review")
+                    .font(.system(.headline))
+                    .foregroundColor(.primary)
+                Spacer()
+                Button("Undo", action: onUndo)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .buttonStyle(.plain)
+            }
+
+            Text("This identification has been flagged because it was incorrect. It will be verified by a moderator soon.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding(20)
+        .background(Color.orange.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.2), lineWidth: 0.5)
         )
     }
 }

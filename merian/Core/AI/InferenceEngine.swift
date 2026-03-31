@@ -712,6 +712,21 @@ private struct WikiSummaryResponse: Decodable {
         }
     }
 
+    /// Removes the manual review flag from an identification.
+    func unflagAIIdentification(modelContext: ModelContext?) async {
+        guard let scanId = speciesData?.scanId else { return }
+
+        speciesData?.isFlagged = false
+
+        if let context = modelContext {
+            let container = context.container
+            Task {
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.updateScanAsUnflagged(scanId: scanId)
+            }
+        }
+    }
+
     /// Resets all identification review state, reverting the scan back to the AI's original
     /// identification. Called by Undo (from `.overridden`) and Change (from `.confirmed`).
     /// Clears both `userIdentificationOverride` and `userConfirmedIdentification` locally,

@@ -145,12 +145,12 @@ struct ConfidenceBadge: View {
                     }
                 }
             }
-            .disabled(isFlagged)
             .sheet(isPresented: $isShowingExplanation) {
                 ConfidenceExplanationSheet(
                     inferenceTier: inferenceTier,
                     userIdentificationOverride: userIdentificationOverride,
                     userConfirmedIdentification: userConfirmedIdentification,
+                    isFlagged: isFlagged,
                     aiScientificName: aiScientificName
                 )
                 .presentationDetents(allowedDetents, selection: $activeDetent)
