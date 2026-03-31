@@ -1,4 +1,4 @@
-import { SafetyRating, Part, UsageMetadata } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { SafetyRating, Part } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHandler.ts";
@@ -316,7 +316,7 @@ serve((req: Request) =>
               hazard_type: cachedSpecies?.hazard_type ?? "none",
               native_region: "Unknown",
               iucn_red_list_status: cachedSpecies?.iucn_red_list_status ?? "not_evaluated",
-              habitat_description: cachedSpecies?.habitat_description ?? null,
+              habitat_description: cachedSpecies?.habitat_description || undefined,
               wikipedia_url: cachedSpecies?.wikipedia_url || externalData.wikipediaUrl,
               gbif_taxon_key: cachedSpecies?.gbif_taxon_key || externalData.gbifKey,
               reference_image_url:

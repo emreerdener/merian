@@ -69,7 +69,6 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         
         guard let firstScan = allScans.first, let container = firstScan.modelContext?.container else {
             self.searchableData = []
-            self.scanMap = [:]
             return
         }
         

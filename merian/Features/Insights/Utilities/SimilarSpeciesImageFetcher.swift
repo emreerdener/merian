@@ -1,7 +1,7 @@
 import Foundation
-import UIKit
-import SwiftUI
 import Observation
+import SwiftUI
+import UIKit
 
 private struct WikiThumbnail: Decodable {
     let source: String?
