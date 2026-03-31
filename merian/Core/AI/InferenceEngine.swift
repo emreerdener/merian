@@ -966,7 +966,7 @@ private struct WikiSummaryResponse: Decodable {
             scanId: record.id,
             commonName: record.commonName,
             scientificName: record.scientificName,
-            insightData: InsightData(aiReasoning: record.aiReasoning ?? "No ecological description available for this subject.", hazardType: record.hazardType),
+            insightData: InsightData(aiReasoning: record.aiReasoning ?? "", hazardType: record.hazardType),
             confidenceScore: record.confidenceScore ?? 1.0,
             blurScore: nil,
             similarSpecies: nil,

@@ -149,7 +149,7 @@ extension SpeciesData {
         gpsLongitude: Double? = nil
     ) {
         let insight = InsightData(
-            aiReasoning: edgeRes.insight_data?.ai_reasoning ?? "No ecological description available for this subject.",
+            aiReasoning: edgeRes.insight_data?.ai_reasoning ?? "",
             hazardType: edgeRes.insight_data?.hazard_type ?? "none"
         )
 
