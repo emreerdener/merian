@@ -2,7 +2,7 @@ import { SafetyRating, Part, UsageMetadata } from "https://esm.sh/@google/genera
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHandler.ts";
-import { fetchSimilarSpecies, fetchGroupTags, fetchStaticEncyclopedicData } from "../_shared/biology.ts";
+import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
@@ -12,13 +12,10 @@ import { requireParams } from "../_shared/http.ts";
 import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "./types.ts";
 import { systemInstruction, merianResponseSchema } from "./schema.ts";
 import { resolveImagePayloads } from "./media.ts";
-import {
   upsertGhostUserIfMissing,
   fetchCachedSpecies,
   upsertSpeciesDictionary,
-  backfillSpeciesHabitat,
   insertScan,
-  updateSimilarSpecies,
   updateGroupTags,
 } from "./db.ts";
 
@@ -283,32 +280,20 @@ serve((req: Request) =>
           return;
         }
 
-        // Start diagnostic and group-tag Flash calls in parallel with enrichment.
-        // Both are cheap, species-level, and skipped when already cached.
-        const needsSimilarSpecies =
-          isIdentifiedBio && !cachedSpecies?.similar_species?.length;
-        const similarSpeciesPromise = needsSimilarSpecies
-          ? fetchSimilarSpecies(user, parsedData.scientific_name!)
-          : Promise.resolve(null);
-
+        // Start diagnostic group-tag Flash call.
+        // Cheap, species-level, and skipped when already cached.
         const needsGroupTags = isIdentifiedBio && !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
           ? fetchGroupTags(user, parsedData.scientific_name!)
           : Promise.resolve(null);
 
-        let encyclopedicUsage: UsageMetadata | undefined;
-        let scanColors: string[] = [];
-
         // Cache Miss: enrich species_dictionary so the next scan of the same species is a Cache Hit.
         // Runs after moderation so we don't persist data for flagged content.
         if (!speciesId && isIdentifiedBio) {
           const bgEnrichStart = Date.now();
-          const [textResult, externalData] = await Promise.all([
-            fetchStaticEncyclopedicData(user, parsedData.scientific_name!, deviceLocale || "en"),
+          const [externalData] = await Promise.all([
             fetchExternalEnrichment(parsedData.scientific_name!),
           ]);
-          encyclopedicUsage = textResult.usage;
-          scanColors = textResult.colors ?? [];
 
           const newCommonNames = {
             ...(cachedSpecies?.common_names ?? {}),
@@ -319,20 +304,18 @@ serve((req: Request) =>
             {
               scientific_name: parsedData.scientific_name!,
               common_names: newCommonNames,
-              kingdom: cachedSpecies?.kingdom ?? textResult.taxonomy.kingdom,
-              phylum: cachedSpecies?.phylum ?? textResult.taxonomy.phylum,
-              class: cachedSpecies?.class ?? textResult.taxonomy.class,
-              order: cachedSpecies?.order ?? textResult.taxonomy.order,
-              family: cachedSpecies?.family ?? textResult.taxonomy.family,
-              genus: cachedSpecies?.genus ?? textResult.taxonomy.genus,
+              kingdom: cachedSpecies?.kingdom ?? "Unknown",
+              phylum: cachedSpecies?.phylum ?? "Unknown",
+              class: cachedSpecies?.class ?? "Unknown",
+              order: cachedSpecies?.order ?? "Unknown",
+              family: cachedSpecies?.family ?? "Unknown",
+              genus: cachedSpecies?.genus ?? "Unknown",
               wikipedia_overview:
                 cachedSpecies?.wikipedia_overview ?? externalData.wikiExtract ?? null,
-              hazard_type: cachedSpecies?.hazard_type ?? textResult.hazard_type ?? "none",
+              hazard_type: cachedSpecies?.hazard_type ?? "none",
               native_region: "Unknown",
-              iucn_red_list_status:
-                cachedSpecies?.iucn_red_list_status ?? textResult.iucn_red_list_status,
-              habitat_description:
-                cachedSpecies?.habitat_description ?? textResult.habitat_description,
+              iucn_red_list_status: cachedSpecies?.iucn_red_list_status ?? "not_evaluated",
+              habitat_description: cachedSpecies?.habitat_description ?? null,
               wikipedia_url: cachedSpecies?.wikipedia_url || externalData.wikipediaUrl,
               gbif_taxon_key: cachedSpecies?.gbif_taxon_key || externalData.gbifKey,
               reference_image_url:
@@ -342,19 +325,6 @@ serve((req: Request) =>
           );
           speciesId = upsertedId || cachedSpecies?.id || null;
           console.log(`[⏱ BENCH] bg_enrichment: ${Date.now() - bgEnrichStart}ms`);
-        } else if (cachedSpecies && isIdentifiedBio && !cachedSpecies.habitat_description) {
-          // Enrichment gap-fill: species exists in the DB but was stored before enrichment
-          // fields were introduced. Fetch from Flash and backfill silently for all tiers.
-          const bgEnrichStart = Date.now();
-          const textResult = await fetchStaticEncyclopedicData(
-            user,
-            parsedData.scientific_name!,
-            deviceLocale || "en",
-          );
-          encyclopedicUsage = textResult.usage;
-          scanColors = textResult.colors ?? [];
-          await backfillSpeciesHabitat(cachedSpecies.id, textResult.habitat_description, supabaseAdmin);
-          console.log(`[⏱ BENCH] bg_enrichment_fill: ${Date.now() - bgEnrichStart}ms`);
         }
 
         await insertScan(
@@ -379,7 +349,7 @@ serve((req: Request) =>
             depth_scale_text: depthScaleText,
             ai_reasoning: parsedData.ai_reasoning ?? null,
             extracted_visual_traits: parsedData.extracted_visual_traits ?? [],
-            colors: scanColors,
+            colors: [],
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_total_tokens: llmTotalTokens,
@@ -398,16 +368,11 @@ serve((req: Request) =>
         );
         scanInserted = true;
 
-        // Await species-level Flash calls so their metadata is aggregated for PostHog.
-        const [similarResult, groupTagsResult] = await Promise.all([
-          similarSpeciesPromise,
-          groupTagsPromise,
-        ]);
+        // Await species-level Flash call
+        const groupTagsResult = await groupTagsPromise;
 
         const totalTokens =
           (llmTotalTokens ?? 0) +
-          (encyclopedicUsage?.totalTokenCount ?? 0) +
-          (similarResult?.usage?.totalTokenCount ?? 0) +
           (groupTagsResult?.usage?.totalTokenCount ?? 0);
 
         // Fire PostHog as fire-and-forget — analytics must never add latency to ingestion.
@@ -418,19 +383,15 @@ serve((req: Request) =>
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_total_tokens: llmTotalTokens,
-          encyclopedic_tokens: encyclopedicUsage?.totalTokenCount ?? 0,
-          similar_species_tokens: similarResult?.usage?.totalTokenCount ?? 0,
+          encyclopedic_tokens: 0,
+          similar_species_tokens: 0,
           group_tags_tokens: groupTagsResult?.usage?.totalTokenCount ?? 0,
           cumulative_scan_tokens: totalTokens,
           scientific_name: parsedData.scientific_name,
         }).catch((e) => console.error("PostHog tracking failed:", e));
 
-        // Run both species-dictionary DB writes in parallel — they are independent updates.
         const bgWriteStart = Date.now();
         await Promise.allSettled([
-          needsSimilarSpecies && similarResult?.similar_species
-            ? updateSimilarSpecies(parsedData.scientific_name!, similarResult.similar_species.map((e) => e.scientific_name), supabaseAdmin)
-            : Promise.resolve(),
           needsGroupTags && groupTagsResult?.group_tags?.length
             ? updateGroupTags(parsedData.scientific_name!, groupTagsResult.group_tags, supabaseAdmin)
             : Promise.resolve(),

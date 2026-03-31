@@ -59,8 +59,6 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         didSet { updateSearchableData(oldScans: oldValue) }
     }
     
-    // MARK: - Cache & Threading State
-    @ObservationIgnored private var scanMap: [String: LocalScanRecord] = [:]
     @ObservationIgnored private var searchableData: [SearchableScan] = []
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var indexingTask: Task<Void, Never>?
@@ -80,12 +78,6 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
         let addedScans = allScans.filter { !oldIds.contains($0.id) }
         let removedIds = oldIds.subtracting(newIds)
-
-        // Incrementally patch scanMap instead of rebuilding the whole dictionary.
-        // A full rebuild is O(n) on @MainActor on every scan mutation; incremental updates
-        // are O(delta) — typically O(1) for a single add or delete.
-        for scan in addedScans { self.scanMap[scan.id] = scan }
-        for id in removedIds { self.scanMap.removeValue(forKey: id) }
         
         // 1. Instantly prune deleted UUIDs out of the string cache natively without touching the background thread!
         if !removedIds.isEmpty {
@@ -125,7 +117,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     
     // MARK: - Dedicated Reindexing
     private func forceReindex(scanId: String) {
-        guard let scan = scanMap[scanId], let container = scan.modelContext?.container else { return }
+        guard let scan = allScans.first(where: { $0.id == scanId }), let container = scan.modelContext?.container else { return }
         self.searchableData.removeAll { $0.id == scanId }
 
         Task { [weak self] in
@@ -171,7 +163,9 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 }.value
 
                 if Task.isCancelled { return }
-                let finalSorted = sortedIds.compactMap { self.scanMap[$0] }
+                
+                let transientMap = Dictionary(uniqueKeysWithValues: self.allScans.map { ($0.id, $0) })
+                let finalSorted = sortedIds.compactMap { transientMap[$0] }
                 withAnimation { self.filteredScans = finalSorted }
                 return
             }
@@ -189,7 +183,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             
             if Task.isCancelled { return }
             
-            let filteredSubset = matchingIds.compactMap { self.scanMap[$0] }
+            let transientMap = Dictionary(uniqueKeysWithValues: self.allScans.map { ($0.id, $0) })
+            let filteredSubset = matchingIds.compactMap { transientMap[$0] }
             let sortOpt = self.sortOption
             let subsetPrimitives = filteredSubset.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
             
@@ -199,7 +194,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             
             if Task.isCancelled { return }
             
-            let finalSorted = sortedIds.compactMap { self.scanMap[$0] }
+            let finalSorted = sortedIds.compactMap { transientMap[$0] }
             
             withAnimation {
                 self.filteredScans = finalSorted
