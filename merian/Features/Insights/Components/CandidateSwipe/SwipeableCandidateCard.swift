@@ -29,15 +29,17 @@ struct SwipeableCandidateCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             } else if imageFetcher.isLoading {
                 ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "leaf.circle")
                         .font(.system(size: 56))
                         .foregroundStyle(.quaternary)
-                    Text("Loading image…")
+                    Text("Image unavailable")
                         .font(.caption)
                         .foregroundStyle(.quaternary)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             // Colour overlays — scale with drag progress
@@ -117,7 +119,7 @@ struct SwipeableCandidateCard: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous))
             )
         }
         .frame(maxWidth: .infinity, maxHeight: 420)

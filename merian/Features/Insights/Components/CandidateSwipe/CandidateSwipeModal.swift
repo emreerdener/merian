@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Candidate Swipe Modal
 
 struct CandidateSwipeModal: View {
+    let originalCandidates: [IdentificationCandidate]
     let aiScientificName: String
     var onFlagIssue: (() -> Void)?
 
@@ -18,6 +19,7 @@ struct CandidateSwipeModal: View {
     private let swipeThreshold: CGFloat = 200
 
     init(candidates: [IdentificationCandidate], aiScientificName: String, onFlagIssue: (() -> Void)?) {
+        self.originalCandidates = candidates
         self.aiScientificName = aiScientificName
         self.onFlagIssue = onFlagIssue
         self._stack = State(initialValue: candidates)
@@ -172,12 +174,12 @@ extension CandidateSwipeModal {
 
     private var exhaustedStateContent: some View {
         VStack(spacing: 32) {
-            Image(systemName: "magnifyingglass.circle.fill")
+            Image(systemName: "sparkle.2")
                 .font(.system(size: 64))
                 .foregroundStyle(.secondary.opacity(0.5))
             
             VStack(spacing: 8) {
-                Text("No Matches Found")
+                Text("No other alternatives")
                     .font(.title2.weight(.bold))
                     .foregroundColor(.primary)
                 Text("You've reviewed all available alternative species, but none of them matched your observation.")
@@ -193,7 +195,7 @@ extension CandidateSwipeModal {
                     dismiss()
                     onFlagIssue?()
                 } label: {
-                    Text("Flag for manual review")
+                    Text("Flag for review")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -204,9 +206,14 @@ extension CandidateSwipeModal {
                 .buttonStyle(.plain)
                 
                 Button {
-                    dismiss()
+                    HapticManager.shared.triggerLightImpact()
+                    withAnimation(.spring(response: 0.35)) {
+                        stack = originalCandidates
+                        topCardOffset = .zero
+                        topCardIsDragging = false
+                    }
                 } label: {
-                    Text("Cancel and return")
+                    Text("Start over")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)

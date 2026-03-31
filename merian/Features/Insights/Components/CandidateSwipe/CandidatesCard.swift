@@ -91,10 +91,11 @@ private struct PendingView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
+                .multilineTextAlignment(.center)
                 
                 // Action Buttons
                 VStack(spacing: 12) {
-                    Button {
+                     Button {
                         onConfirm()
                     } label: {
                         Text("Confirm match")
@@ -133,8 +134,9 @@ private struct PendingView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
+                .multilineTextAlignment(.center)
 
-                VStack(spacing: candidates.count > 1 ? 24 : 16) {
+                VStack(spacing: candidates.count > 1 ? 48 : 16) {
                     // Visual Graphic stack
                     ZStack {
                         ForEach(Array(candidates.prefix(3).enumerated().reversed()), id: \.offset) { index, candidate in
@@ -156,8 +158,8 @@ private struct PendingView: View {
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(Color.orange.opacity(0.15))
-                                .foregroundColor(.orange)
+                                .background(Color.blue.opacity(0.15))
+                                .foregroundColor(.blue)
                                 .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -167,9 +169,13 @@ private struct PendingView: View {
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(Color.green.opacity(0.15))
+                                .background(Color(.systemBackground).opacity(0.01))
                                 .foregroundColor(.green)
                                 .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(Color.green.opacity(0.3), lineWidth: 1)
+                                )
                         }
                         .buttonStyle(.plain)
                     }
