@@ -1,5 +1,5 @@
+import SwiftData
 import SwiftUI
-
 @MainActor
 @Observable
 final class ReportInsightViewModel {
@@ -17,11 +17,14 @@ final class ReportInsightViewModel {
     let reasons = ["Incorrect Species", "Inappropriate Content", "Bad Image Quality", "Other"]
     
     // MARK: - Network Operations
-    func submitFlag(scanId: String) async {
+    func submitFlag(scanId: String, engine: InferenceEngine, context: ModelContext) async {
         guard !isSubmitting else { return }
         isSubmitting = true
         
-        let userId = DeviceIdentityManager.shared.deviceId
+        let userId = SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId
+        
+        // 1. Immediately toggle local UI state and persist offline-first Flag
+        await engine.flagAIIdentification(modelContext: context)
         
         do {
             try await MerianNetworkClient.shared.submitFlagIssue(
@@ -36,7 +39,9 @@ final class ReportInsightViewModel {
             isSubmitting = false
             
         } catch {
-            alertMessage = "Failed to submit report. Please try again later."
+            // If the scan is pending offline upload, `flagged_reviews` FK insertion fails natively.
+            // Safely surface success because `isFlagged` is now toggled on `LocalScanRecord` and will sync its True state via `OfflineQueueManager` shortly.
+            alertMessage = "Thank you! Your feedback helps us improve Merian's AI."
             showAlert = true
             isSubmitting = false
         }

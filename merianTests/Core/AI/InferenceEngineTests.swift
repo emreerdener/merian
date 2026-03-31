@@ -600,19 +600,37 @@ struct InferenceEngineTests {
     }
 
     @Test func testLoadFromRecordPopulatesIsFlagged() throws {
-        // When a scan was previously flagged for moderation review, the flag is restored on load.
+        // When a user previously flagged an ID, the flag is restored natively on load.
         let record = LocalScanRecord(
             speciesId: "v31-flagged-load",
-            scientificName: "Procyon lotor",
-            commonName: "Raccoon",
+            scientificName: "Aedes aegypti",
+            commonName: "Yellow Fever Mosquito",
             isFlagged: true
         )
         let engine = InferenceEngine()
         engine.load(from: record)
 
         let result = try #require(engine.speciesData)
-        #expect(result.isFlagged == true, "load(from:) must restore isFlagged from the persisted record")
+        #expect(result.isFlagged == true, "load(from:) must seamlessly restore the isFlagged attribute from the persisted scan snapshot")
     }
+
+    @Test func testFlagAIIdentificationMutatesLocalState() async throws {
+        // Assert that calling flagAIIdentification successfully hooks the native memory layer immediately independent of networking
+        let record = LocalScanRecord(
+            speciesId: "flag-test-01",
+            scientificName: "Puma concolor",
+            commonName: "Mountain Lion"
+        )
+        let engine = InferenceEngine()
+        engine.load(from: record)
+        
+        #expect(engine.speciesData?.isFlagged == false, "Brand new initial states must default to false")
+        
+        await engine.flagAIIdentification(modelContext: nil)
+        
+        #expect(engine.speciesData?.isFlagged == true, "flagAIIdentification must flip the boolean contextually")
+    }
+
 
     // MARK: - Identification Review: engine methods
 

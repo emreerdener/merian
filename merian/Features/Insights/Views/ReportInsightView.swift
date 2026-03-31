@@ -3,6 +3,8 @@ import SwiftUI
 struct ReportInsightView: View {
     // MARK: - Dependencies
     @Environment(\.dismiss) var dismiss
+    @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(\.modelContext) var modelContext
     
     // MARK: - State
     let scanId: String
@@ -34,7 +36,7 @@ struct ReportInsightView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Submit") { 
-                        Task { await viewModel.submitFlag(scanId: scanId) }
+                        Task { await viewModel.submitFlag(scanId: scanId, engine: inferenceEngine, context: modelContext) }
                     }
                     .disabled(viewModel.isSubmitting)
                 }
