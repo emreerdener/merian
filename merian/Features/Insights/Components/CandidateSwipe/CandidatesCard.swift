@@ -136,7 +136,7 @@ private struct PendingView: View {
                 }
                 .multilineTextAlignment(.center)
 
-                VStack(spacing: candidates.count > 1 ? 48 : 16) {
+                VStack(spacing: candidates.count > 1 ? 48 : 24) {
                     // Visual Graphic stack
                     ZStack {
                         let displayCandidates = Array(candidates.prefix(2))

@@ -198,14 +198,14 @@ import UIKit
     /// to match the useful quality range; Apple's Camera app applies a similar soft cap.
     /// `virtualDeviceSwitchOverVideoZoomFactors` gives the exact factors where the hardware
     /// physically changes lenses — these become the tappable dots on the slider.
-    nonisolated private func readZoomConfig() -> (maxZoom: CGFloat, stops: [CGFloat]) {
+    nonisolated private func readZoomConfig() -> (maxZoom: CGFloat, stops: [CGFloat], nativeZoom: CGFloat) {
         #if targetEnvironment(simulator)
-        return (5.0, [1.0, 2.0, 5.0])
+        return (5.0, [1.0, 2.0, 5.0], 2.0)
         #else
         let activeVideoDevice = session.inputs
             .compactMap { $0 as? AVCaptureDeviceInput }
             .first(where: { $0.device.hasMediaType(.video) })?.device
-        guard let activeVideoDevice else { return (1.0, []) }
+        guard let activeVideoDevice else { return (1.0, [], 1.0) }
         let available = activeVideoDevice.maxAvailableVideoZoomFactor
         let cap = min(available, 15.0)
         let rawStops = activeVideoDevice.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.doubleValue) }
@@ -214,7 +214,11 @@ import UIKit
         let isVirtual = activeVideoDevice.isVirtualDevice
         MerianLog.hardware.debug("Zoom device: \(activeVideoDevice.localizedName, privacy: .public), available=\(available, privacy: .public), cap=\(cap, privacy: .public)")
         MerianLog.hardware.debug("Zoom format: formatMax=\(formatMax, privacy: .public), isVirtual=\(isVirtual, privacy: .public)")
-        return (cap, stops)
+        
+        // AVFoundation natively defaults the builtInTripleCamera to the standard Wide lens 
+        // (usually 2.0x videoZoomFactor, where 1.0x is the Ultra-Wide).
+        // By capturing it here, we sync the UI without forcing a hardware lens ramp.
+        return (cap, stops, CGFloat(activeVideoDevice.videoZoomFactor))
         #endif
     }
 
@@ -243,14 +247,14 @@ import UIKit
 
             // maxAvailableVideoZoomFactor is only accurate after startRunning() —
             // the active format is not fully resolved until the session is live.
-            let (capturedMaxZoom, capturedStops) = self.readZoomConfig()
+            let (capturedMaxZoom, capturedStops, nativeZoom) = self.readZoomConfig()
 
             Task { @MainActor in
                 self.isSessionRunning = true
                 self.maxZoomFactor = capturedMaxZoom
                 self.opticalZoomStops = capturedStops
-                self.setZoom(factor: 1.0) // resets both UI state and device.videoZoomFactor
-                MerianLog.hardware.debug("Zoom: maxZoomFactor=\(capturedMaxZoom, privacy: .public), stops=\(capturedStops, privacy: .public), isZoomSupported=\(self.isZoomSupported, privacy: .public)")
+                self.zoomFactor = nativeZoom // Sync UI silently without ramping hardware away from its natural default
+                MerianLog.hardware.debug("Zoom: native=\(nativeZoom, privacy: .public), maxZoomFactor=\(capturedMaxZoom, privacy: .public), stops=\(capturedStops, privacy: .public)")
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
                 ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
             }
