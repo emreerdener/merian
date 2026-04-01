@@ -7,6 +7,7 @@ struct ConfidenceBadge: View {
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
     var aiScientificName: String?
+    var candidateCount: Int = 0
     /// When set, the badge shows an analyzing state with this phrase as its label.
     /// The explanation sheet is suppressed while analyzing.
     var analyzingPhrase: String?
@@ -204,7 +205,8 @@ struct ConfidenceBadge: View {
                     userIdentificationOverride: userIdentificationOverride,
                     userConfirmedIdentification: userConfirmedIdentification,
                     isFlagged: isFlagged,
-                    aiScientificName: aiScientificName
+                    aiScientificName: aiScientificName,
+                    candidateCount: candidateCount
                 )
                 .presentationDetents(allowedDetents, selection: $activeDetent)
                     .presentationCornerRadius(32)

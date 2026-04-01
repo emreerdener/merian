@@ -11,6 +11,7 @@ struct InsightHeader: View {
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
     var aiScientificName: String?
+    var candidateCount: Int = 0
     var onScrollOffsetChange: ((CGFloat) -> Void)?
 
     var body: some View {
@@ -21,7 +22,8 @@ struct InsightHeader: View {
                     userIdentificationOverride: userIdentificationOverride,
                     userConfirmedIdentification: userConfirmedIdentification,
                     isFlagged: isFlagged,
-                    aiScientificName: aiScientificName
+                    aiScientificName: aiScientificName,
+                    candidateCount: candidateCount
                 )
 
             // MARK: - Subtitle and Title

@@ -7,6 +7,11 @@ struct ConfidenceExplanationSheet: View {
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
     var aiScientificName: String?
+    /// Number of candidates the model produced for this scan.
+    /// When `isFlagged == true` and this is ≥ 2, the user rejected all alternatives
+    /// via the swipe UX — show the condensed AllCandidatesReviewedView instead of
+    /// the generic UnderReviewView.
+    var candidateCount: Int = 0
 
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -22,7 +27,15 @@ struct ConfidenceExplanationSheet: View {
             VStack(spacing: 32) {
                 ConfidenceHeader()
                 
-                if isFlagged {
+                if isFlagged && candidateCount >= 2 {
+                    AllCandidatesReviewedView(
+                        candidateCount: candidateCount,
+                        onReset: {
+                            Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
+                        }
+                    )
+                    .padding(.horizontal, 24)
+                } else if isFlagged {
                     UnderReviewView(
                         onUndo: {
                             Task { await inferenceEngine.unflagAIIdentification(modelContext: modelContext) }
@@ -73,18 +86,12 @@ private struct ConfirmedView: View {
                 .font(.subheadline)
                 .foregroundColor(.primary)
             Spacer()
-            Button("Change", action: onReset)
+            Button("Undo", action: onReset)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .buttonStyle(.plain)
         }
-        .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
-        )
+        .card()
     }
 }
 
@@ -118,17 +125,43 @@ private struct OverriddenView: View {
                 .font(.footnote)
                 .foregroundColor(.secondary)
         }
-        .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
-        )
+        .card()
     }
 }
 
-// MARK: - Under Review View (State 5)
+// MARK: - All Candidates Reviewed View (State 5a — swipe path)
+
+/// Shown in ConfidenceExplanationSheet when the user reviewed all swipe-deck alternatives
+/// and rejected each one. Replaces CandidatesCard in BiologicalView for this state.
+private struct AllCandidatesReviewedView: View {
+    let candidateCount: Int
+    let onReset: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "rectangle.stack.badge.minus")
+                    .foregroundColor(.secondary)
+                Text("Alternatives reviewed")
+                    .font(.system(.headline))
+                    .foregroundColor(.primary)
+                Spacer()
+                Button("Reset", action: onReset)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .buttonStyle(.plain)
+            }
+
+            Text("You reviewed all \(candidateCount) alternative\(candidateCount == 1 ? "" : "s") and none matched. The original AI identification remains active.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .card()
+    }
+}
+
+// MARK: - Under Review View (State 5b — no-candidates flag path)
 
 private struct UnderReviewView: View {
     let onUndo: () -> Void

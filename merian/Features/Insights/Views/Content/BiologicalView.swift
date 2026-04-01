@@ -25,6 +25,7 @@ struct BiologicalView: View {
                 userConfirmedIdentification: inferenceEngine.speciesData?.userConfirmedIdentification ?? false,
                 isFlagged: inferenceEngine.speciesData?.isFlagged ?? false,
                 aiScientificName: inferenceEngine.speciesData?.aiScientificName,
+                candidateCount: inferenceEngine.speciesData?.candidates?.count ?? 0,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
                 }
@@ -43,9 +44,12 @@ struct BiologicalView: View {
                 let candidates = inferenceEngine.speciesData?.candidates ?? []
                 let confidenceBands = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier)
                 let hasLowConfidence = (inferenceEngine.speciesData?.confidenceScore ?? 1.0) < confidenceBands.diagnosticTrigger
-    
+                // When the user has rejected all swipe-deck alternatives, hide the card here —
+                // a condensed summary is surfaced inside ConfidenceExplanationSheet instead.
+                let allCandidatesRejected = (inferenceEngine.speciesData?.isFlagged == true) && candidates.count >= 2
+
                 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-                   candidates.count >= 2 || hasReviewState || hasLowConfidence {
+                   !allCandidatesRejected && (candidates.count >= 2 || hasReviewState || hasLowConfidence) {
                     CandidatesCard(
                         candidates: candidates,
                         aiScientificName: primaryAIName,
