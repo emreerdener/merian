@@ -56,6 +56,10 @@ export async function fetchAndFormatScans(
   supabaseAdmin: SupabaseClient,
   secretHashSalt: string,
 ): Promise<{ occurrenceCsv: string; multimediaCsv: string; metaXml: string }> {
+  if (exportScope !== "global" && exportScope !== "personal") {
+    throw new Error(`Invalid exportScope: "${exportScope}"`);
+  }
+
   // Query verified academic captures
   let query = supabaseAdmin
     .from("scans")
@@ -88,10 +92,6 @@ export async function fetchAndFormatScans(
     .eq("is_live_capture", true)
     .neq("ecology_type", "domesticated")
     .order("id", { ascending: true });
-
-  if (exportScope !== "global" && exportScope !== "personal") {
-    throw new Error(`Invalid exportScope: "${exportScope}"`);
-  }
 
   if (exportScope === "global") {
     query = query.eq("geoprivacy", "open");
