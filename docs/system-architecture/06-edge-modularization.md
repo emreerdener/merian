@@ -34,12 +34,14 @@ The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
 - **Exact Field Matching:** Interface keys must perfectly align with the JSON decoder keys evaluated directly inside `InferenceEdgeDTOs.swift`.
 - **Oversharing Defense:** Only declare fields strictly consumed by the frontend; do not dump generic Postgres wildcard `*` objects out locally to the client natively. 
 
-## 4. Auxiliary Streams (`storage.ts` & `mail.ts`)
+## 4. Auxiliary Streams (`storage.ts`, `mail.ts`, `media.ts`, `moderation.ts`)
 
 For exceptionally heavy or bespoke routing streams that violate the 10-second Deno isolate timeout window, operations must be cordoned off into domain-specific streams explicitly executed via `runBackground`.
 
 - **`storage.ts`**: Handles heavy `AWS` bindings via native `aws4fetch`. When streaming multimegabyte binaries directly into Cloudflare R2, implementations like `JSZip` must pipe their outputs efficiently into a `ReadableStream` natively chunked into S3 without overloading memory buffers.
 - **`mail.ts`**: Aggregates 3rd-party SaaS integrations like the `Resend` Node SDK for transactional email delivery.
+- **`media.ts`** (`identify/` only): Resolves the image payload for the Gemini vision call. Handles two paths — R2 key fetch (downloads staging objects serially to avoid heap spikes) and `imageBase64s` direct pass-through (validates size limits). Extracted from `index.ts` to keep the HTTP orchestrator lean and to isolate the heap-safety logic for independent testing.
+- **`moderation.ts`** (`identify/` only): Evaluates Gemini safety ratings, manages abuse strikes, and promotes safe media from `staging/` to `public_uploads/` in Cloudflare R2. Always runs inside `runBackground` — never on the critical HTTP path. See [Safety & Moderation](../development-guides/10-safety-and-moderation.md) for the full pipeline specification.
 
 ## Architectural Unification
 

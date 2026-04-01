@@ -13,6 +13,8 @@ Tracks the global state of the anonymous/authenticated user.
 - `default_geoprivacy` (ENUM): `'open'` | `'obscured'` | `'private'`. Dictates the GPS fuzzing applied to new scans. `obscured` rounds coordinates to a ~50km approximation; `private` hides them from all public bounds.
 - `current_streak_count` (Int): Gamification metric.
 - `total_species_discovered` (Int): Calculated at the database level via a Postgres `AFTER INSERT` trigger (`update_user_species_count()`). To avoid TOCTOU race conditions during bulk offline uploads, it recalculates the sum via a subquery (`COUNT(DISTINCT species_id)`) rather than auto-incrementing. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS. This metric is also maintained via an `AFTER DELETE` trigger (`decrement_user_species_count()`) that deducts from the sum when a user deletes their last scan of a species.
+- `abuse_strikes` (INT, DEFAULT 0): Incremented by the `/identify` background moderation pipeline each time Gemini's safety ratings flag submitted media as `MEDIUM` or `HIGH` probability, or when `finishReason === "SAFETY"`. Never decremented automatically. See [Safety & Moderation](../development-guides/10-safety-and-moderation.md).
+- `is_shadowbanned` (BOOLEAN, DEFAULT false): Set to `true` when `abuse_strikes` reaches 3. Shadowbanned users continue to receive AI identification responses (the HTTP response is unchanged), but all background ingestion silently halts — no scans are persisted. Not currently read by the iOS client.
 
 
 ### `species_dictionary`

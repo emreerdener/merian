@@ -32,6 +32,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/07-feature-modules-and-ui.md`](./features-and-hardware/07-feature-modules-and-ui.md)** — SwiftUI architectural views and modular extraction blocks.
 - **[`/features-and-hardware/08-app-intents.md`](./features-and-hardware/08-app-intents.md)** — App Intents integration for Siri and Shortcuts.
 - **[`/features-and-hardware/09-components-guide.md`](./features-and-hardware/09-components-guide.md)** — Shared UI components and design system primitives.
+- **[`/features-and-hardware/10-watchos-integration.md`](./features-and-hardware/10-watchos-integration.md)** — watchOS companion target: acoustic capture pipeline, WatchConnectivity delivery, and iOS receiver status.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** — Roadmap for extending inference to rocks, minerals, and fossils.
 
 ### Development Guides
@@ -45,6 +46,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/development-guides/07-ai-agent-guidelines.md`](./development-guides/07-ai-agent-guidelines.md)** — Architecture constraints and conventions for AI coding agents working on this codebase.
 - **[`/development-guides/08-testing-strategy.md`](./development-guides/08-testing-strategy.md)** — Swift testing isolation using in-memory SwiftData and local context mocks.
 - **[`/development-guides/09-core-managers.md`](./development-guides/09-core-managers.md)** — Deep dive into singleton instances across Merian (e.g. `HardwareOrchestrator`).
+- **[`/development-guides/10-safety-and-moderation.md`](./development-guides/10-safety-and-moderation.md)** — Gemini safety rating evaluation, abuse strike system, shadowban logic, and R2 media promotion pipeline.
 
 ## About Merian
 

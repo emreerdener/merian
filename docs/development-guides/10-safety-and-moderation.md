@@ -1,0 +1,135 @@
+# Safety & Moderation Pipeline
+
+Merian runs all user-submitted media through a two-layer moderation system before persisting any scan to the database. The system operates entirely within the `/identify` background ingestion task — it never blocks the HTTP response.
+
+## Architecture Overview
+
+```
+[Gemini Vision Response]
+        │
+        ▼
+[evaluateAndProcessPayload]  ← identify/moderation.ts
+        │
+        ├─ UNSAFE (SAFETY finish reason or HIGH/MEDIUM safety rating)
+        │       │
+        │       ├─ Delete staging R2 object (if r2ObjectKeys path)
+        │       ├─ Increment users.abuse_strikes
+        │       ├─ Set users.is_shadowbanned = true  (if strikes ≥ 3)
+        │       └─ Return SHADOWBANNED | DELETED_WARNING  → halt ingestion
+        │
+        └─ SAFE
+                │
+                ├─ Promote staging image → public_uploads/{tier}/{userId}/
+                │     (or upload base64 directly to public_uploads)
+                └─ Return PROMOTED { publicUrls[] }  → continue to insertScan
+```
+
+## Gemini Safety Ratings Evaluation
+
+Before any data is persisted, the Edge Function checks two Gemini safety signals:
+
+1. **`finishReason === "SAFETY"`** — Gemini refused to generate a full response due to content policy. Immediately flagged as unsafe.
+2. **`safetyRatings[]` probability** — If any individual safety category is rated `"MEDIUM"` or `"HIGH"`, the media is flagged regardless of `finishReason`.
+
+`"LOW"` and `"NEGLIGIBLE"` probability ratings are treated as safe and do not trigger moderation.
+
+## Abuse Strike System
+
+Each unsafe media submission increments `users.abuse_strikes` in the Supabase `users` table:
+
+| Strike Count | Status Returned | Behavior |
+|---|---|---|
+| 1–2 | `DELETED_WARNING` | Staging image deleted, scan not persisted, no user-facing message |
+| 3+ | `SHADOWBANNED` | Same as above, plus `users.is_shadowbanned = true` |
+
+The strike counter is read and written via the Supabase service role in `moderation.ts`. The read uses `.select("abuse_strikes").eq("id", userId).single()` — if this query fails (e.g. `PGRST116` — no row found), the failure is logged but does not abort the strike write.
+
+### Shadowban Behavior
+
+`is_shadowbanned` is a boolean column on the `users` table (default `false`). Shadowbanned users are not informed of their status. The expected downstream effect is that their scans are silently dropped (background ingestion halts at the moderation gate), so the app appears to function normally from their perspective while no data is persisted.
+
+**Important**: The shadowban is applied at the scan ingestion level only. The iOS client still receives a successful `200 OK` response with AI identification data — the background task halts invisibly. No iOS-layer check for `is_shadowbanned` currently exists.
+
+## Media Promotion Pipeline
+
+For safe scans, `moderation.ts` promotes images from temporary staging storage to permanent public storage.
+
+### R2 Bucket Layout
+
+| Purpose | Path Pattern |
+|---|---|
+| Temporary staging (pre-moderation) | `staging/{userId}/{filename}.webp` |
+| Permanent public storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.webp` |
+| CDN base URL | `https://media.merian.app/` |
+
+`{tier}` is either `"pro"` or `"free"`, determined from `userTier` resolved on the critical path.
+
+### Two Promotion Paths
+
+**Path A — R2 Staging Key** (standard offline queue flow):
+1. Copy the object from `staging/{userId}/...` to `public_uploads/{tier}/{userId}/...` via `copyR2Object`
+2. Delete the staging object via `deleteR2Object`
+3. Return the CDN URL as `https://media.merian.app/{publicUploadKey}`
+
+**Path B — Base64 Direct Upload** (instant capture flow):
+1. Decode the base64 string
+2. `PUT` the bytes directly to `public_uploads/{tier}/{userId}/{filename}` via a signed S3 request
+3. Return the CDN URL
+
+The filename is derived from `r2ObjectKeys[i].split("/").pop()` when available; otherwise a random UUID is generated. When uploading from base64, `r2ObjectKeys` carries only the desired destination filename, not a staging object to copy.
+
+### Upload Failure Handling
+
+If an individual image upload fails (non-OK HTTP response), `moderation.ts` logs the error and continues to the next image rather than aborting. The scan is still inserted with a partial or empty `image_storage_urls` array. This is intentional — the scan record is more valuable than a retry loop that could block ingestion.
+
+### R2 Rollback on Scan Insert Failure
+
+If `modResult.publicUrls` is populated but `insertScan` throws, `index.ts` rolls back the already-promoted public objects:
+
+```typescript
+if (!scanInserted && modResult?.publicUrls?.length) {
+  const keysToPurge = modResult.publicUrls.map((url) =>
+    url.replace("https://media.merian.app/", "")
+  );
+  await Promise.allSettled(
+    keysToPurge.map((key) => deleteR2Object(key, r2Config))
+  );
+}
+```
+
+This prevents orphaned public objects when the database write fails after media has already been committed.
+
+## Moderation Status Codes
+
+| Status | Meaning | Ingestion Continues? |
+|---|---|---|
+| `PROMOTED` | Media safe, promoted to public storage | Yes |
+| `DELETED_WARNING` | Unsafe (strike 1–2), staging deleted | No |
+| `SHADOWBANNED` | Unsafe (strike 3+), user shadowbanned | No |
+| `ERROR` | Internal exception in moderation pipeline | Yes (scan inserted with empty `image_storage_urls`) |
+
+The `ERROR` fallthrough is intentional — a technical failure in the moderation module does not cause the scan to be silently lost. The scan is persisted without images, and the error is logged for investigation.
+
+## Flagged Reviews (User-Reported)
+
+Separate from the automated moderation system, users can manually report a scan via the flag flow in `BiologicalView`. This writes a row to the `flagged_reviews` table via the `/flag-issue` Edge Function:
+
+- `scan_id` — The scan being reported
+- `user_id` — The reporting user
+- `flag_reason` — e.g. "Incorrect Species" or "Inappropriate Content"
+- `user_suggestion` — Optional free-text from the user
+- `status` — Defaults to `PENDING_REVIEW`
+
+Flagged reviews require human review and do not trigger automatic action. The automated abuse strike system and the flagged review system are entirely independent pipelines.
+
+## Database Columns
+
+### `users` table additions
+
+- `abuse_strikes` (INT, DEFAULT 0) — Incremented on each unsafe media detection. Never decremented automatically.
+- `is_shadowbanned` (BOOLEAN, DEFAULT false) — Set to `true` when `abuse_strikes >= 3`. Read by the moderation module; not currently read by the iOS client.
+
+### `scans` table
+
+- `is_flagged` (BOOLEAN) — Set by the `/flag-issue` Edge Function when a user-reported flag reaches a review threshold. Managed via `00005_flagged_reviews.sql`.
+- `is_tombstoned` (BOOLEAN) — GDPR-compliant account deletion marker. Anonymizes scan metadata while preserving the row for offline cache continuity. Managed via `00006_apply_user_tombstone.sql`.
