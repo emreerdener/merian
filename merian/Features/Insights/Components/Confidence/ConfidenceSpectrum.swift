@@ -10,6 +10,12 @@ struct ConfidenceSpectrum: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            ModelInfoSection(inferenceTier: inferenceTier)
+                .padding(.bottom, 24)
+
+            Divider()
+                .padding(.bottom, 24)
+
             SpectrumNode(
                 color: .green,
                 nextColor: .orange,

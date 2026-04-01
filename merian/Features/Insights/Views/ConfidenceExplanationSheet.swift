@@ -28,7 +28,7 @@ struct ConfidenceExplanationSheet: View {
                             Task { await inferenceEngine.unflagAIIdentification(modelContext: modelContext) }
                         }
                     )
-                        .padding(.horizontal, 24)
+                    .padding(.horizontal, 24)
                 } else if let override = userIdentificationOverride {
                     OverriddenView(
                         overrideName: override,
@@ -49,17 +49,11 @@ struct ConfidenceExplanationSheet: View {
                         }
                     )
                     .padding(.horizontal, 24)
-
-                    ConfidenceSpectrum(inferenceTier: inferenceTier)
-                    ModelInfoSection(inferenceTier: inferenceTier)
-                    AIMistakesBanner()
-                    ProTips(showLocationPrompt: showLocationPrompt)
-                } else {
-                    ConfidenceSpectrum(inferenceTier: inferenceTier)
-                    ModelInfoSection(inferenceTier: inferenceTier)
-                    AIMistakesBanner()
-                    ProTips(showLocationPrompt: showLocationPrompt)
                 }
+
+                ConfidenceSpectrum(inferenceTier: inferenceTier)
+                AIMistakesBanner()
+                ProTips(showLocationPrompt: showLocationPrompt)
             }
             .padding(.top, 32)
             .padding(.bottom, 48)

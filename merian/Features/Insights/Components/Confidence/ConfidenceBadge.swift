@@ -14,6 +14,8 @@ struct ConfidenceBadge: View {
     @State private var isShowingExplanation = false
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
     @State private var allowedDetents: Set<PresentationDetent> = [.fraction(0.65), .large]
+    @State private var iconRotation: Double = 0.0
+    @State private var textHuePhase: Double = 0.0
 
     private struct BadgePayload {
         let label: String
@@ -21,10 +23,23 @@ struct ConfidenceBadge: View {
         let icon: String
     }
 
+    // A rich, mesmerizing primary gradient for the AI inference state
+    private var aiGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.25, green: 0.55, blue: 1.0),   // AI Blue
+                Color(red: 0.55, green: 0.25, blue: 1.0),   // AI Purple
+                Color(red: 0.95, green: 0.35, blue: 0.65)   // AI Pink
+            ],
+            startPoint: .bottomLeading,
+            endPoint: .topTrailing
+        )
+    }
+
     private var badgeData: BadgePayload {
         if let phrase = analyzingPhrase {
             let label = phrase.hasSuffix("...") ? phrase : phrase + "..."
-            return BadgePayload(label: label, color: .blue, icon: "sparkles.2")
+            return BadgePayload(label: label, color: .blue, icon: "sparkle")
         }
         if isFlagged {
             return BadgePayload(label: "Under review", color: .orange, icon: "flag.fill")
@@ -64,13 +79,15 @@ struct ConfidenceBadge: View {
                     Image(systemName: data.icon)
                         .imageScale(.medium)
                         .frame(width: 16, alignment: .center)
-                        .foregroundStyle(isAnalyzing ? Color.primary : Color.white)
+                        .rotationEffect(.degrees(isAnalyzing ? iconRotation : 0))
+                        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isAnalyzing)
                     RevealText(text: data.label)
                 }
                 .animation(.spring(response: 0.45, dampingFraction: 0.85), value: data.label)
                 .font(.system(.subheadline, weight: .bold))
-                // Text color pops brightly against the deeply tinted glass or standard primary when transparent
-                .foregroundStyle(isAnalyzing ? Color.primary : Color.white)
+                // Mesmerizing gradient applies across the whole stack and shifts colors in lock-step natively
+                .foregroundStyle(isAnalyzing ? AnyShapeStyle(aiGradient) : AnyShapeStyle(Color.white))
+                .hueRotation(.degrees(textHuePhase))
                 .shadow(color: isAnalyzing ? .clear : .black.opacity(0.15), radius: 2, x: 0, y: 1)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -138,6 +155,7 @@ struct ConfidenceBadge: View {
                                     .strokeBorder(lineWidth: 1.5)
                             )
                     }
+                    .opacity(isAnalyzing ? 0 : 1)
                 )
                 // Smoothly animate the fill transition when analysis finishes
                 .animation(.easeInOut(duration: 0.4), value: isAnalyzing)
@@ -156,6 +174,27 @@ struct ConfidenceBadge: View {
                     // Slowed down from 1.8s to 3.5s so it lazily sweeps across the wider capsule
                     withAnimation(.easeOut(duration: 3.5)) {
                         shimmerPhase = 2.5
+                    }
+                }
+            }
+            .task(id: isAnalyzing) {
+                if isAnalyzing {
+                    // Start smooth, continuous rainbow roll decoupled from the energetic icon sparkle
+                    withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
+                        textHuePhase = 360.0
+                    }
+                } else {
+                    withAnimation(.easeOut(duration: 0.5)) {
+                        textHuePhase = 0.0
+                    }
+                }
+                
+                guard isAnalyzing else { return }
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(2.0))
+                    guard !Task.isCancelled else { break }
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.45)) {
+                        iconRotation += 360
                     }
                 }
             }

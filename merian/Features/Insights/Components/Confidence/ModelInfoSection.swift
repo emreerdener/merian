@@ -57,15 +57,6 @@ struct ModelInfoSection: View {
                 }
             }
         }
-        .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemFill).opacity(0.5))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-                )
-        )
-        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -23,6 +23,12 @@ struct ImagesCarousel: View {
                 // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
                 .id(scanId ?? "null")
                 .ignoresSafeArea(.all, edges: .top)
+                .overlay {
+                    if inferenceEngine.isProcessing {
+                        AIBreathingOverlay()
+                            .transition(.opacity.animation(.easeInOut(duration: 0.8)))
+                    }
+                }
                 .overlay(alignment: .bottom) { paginationDots }
                 .overlay(alignment: .top) {
                     LinearGradient(
@@ -300,5 +306,42 @@ private extension ImagesCarousel {
         }
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: inferenceEngine.isProcessing)
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: totalImages)
+    }
+}
+
+// MARK: - AI Breathing Overlay
+private struct AIBreathingOverlay: View {
+    @State private var textHuePhase: Double = 0.0
+    @State private var pulseOpacity: Double = 0.15
+    
+    // Mirrors the exact AI brand palette from ConfidenceBadge
+    private var aiGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.25, green: 0.55, blue: 1.0),
+                Color(red: 0.55, green: 0.25, blue: 1.0),
+                Color(red: 0.95, green: 0.35, blue: 0.65)
+            ],
+            startPoint: .bottomLeading,
+            endPoint: .topTrailing
+        )
+    }
+
+    var body: some View {
+        Rectangle()
+            .fill(aiGradient)
+            .hueRotation(.degrees(textHuePhase))
+            .opacity(pulseOpacity)
+            .allowsHitTesting(false)
+            .onAppear {
+                // Same 4.0s endless color shift loop
+                withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
+                    textHuePhase = 360.0
+                }
+                // Gentle opacity pulse from 15% -> 40%
+                withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                    pulseOpacity = 0.40
+                }
+            }
     }
 }

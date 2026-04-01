@@ -23,6 +23,11 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Governs `UIImpactFeedbackGenerator` tactile feedback.
 - Generates `NotificationFeedback` for success/failure workflows without requiring `AudioToolbox` imports.
 - **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or `.sensoryFeedback` modifiers directly in views. Always route haptic feedback through `HapticManager.shared` API methods (e.g., `triggerSheetSpring()`, `triggerLightImpact()`) to ensure the user's `isHapticsEnabled` preference is respected globally.
+- **Analysis-phase haptic map**: Four strategic touchpoints span the analyzing experience in `InferenceEngine` and `InsightHeader`:
+  - `triggerLightImpact(intensity: 0.3)` — fires when `isVisionStreaming` flips to `true` (Vision pipeline onset).
+  - `triggerSelectionPulse()` — fires on every badge phrase rotation tick after the first (every 2.3 s).
+  - `triggerLightImpact(intensity: 0.5)` — fires in `InsightHeader.onAppear` when the common name title animates in from the analyzing state (peak reveal moment).
+  - `triggerSelectionPulse()` — fires after the 700 ms Vision→Gemini paragraph crossfade delay, marking the hand-off from local to cloud reasoning.
 
 ### `PushNotificationManager`
 - Encapsulates `UNUserNotificationCenter` operations on the `@MainActor` thread.
@@ -97,7 +102,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `MerianConfig`
 - Centralized enum (`Core/Utilities/MerianConfig.swift`) holding all policy constants for the data and AI layers.
 - A policy change requires exactly one edit, with no risk of values diverging across files.
-- Referenced by `OfflineQueueManager`, `ScanRepository` (`HistoricalDatabaseActor`), `ArchiveManager`, `CameraViewModel`, and `Analysis`.
+- Referenced by `OfflineQueueManager`, `ScanRepository` (`HistoricalDatabaseActor`), `ArchiveManager`, `CameraViewModel`, and `InferenceEngine`.
 
 | Constant | Value | Consumer |
 |---|---|---|
@@ -110,10 +115,10 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 | `archiveRescueWindowStartDays` | 80 | `ArchiveManager` |
 | `archiveRescueWindowEndDays` | 88 | `ArchiveManager` |
 | `imageCompressionQuality` | 0.85 | `Capture`, `CameraViewModel` |
-| `visionConfidenceThreshold` | 0.65 | `Analysis` (Vision pre-classifier) |
-| `visionConfidenceMargin` | 0.15 | `Analysis` (margin guard vs. second-best) |
-| `scanningPhaseSubjectDelayNs` | 3 s | `Analysis` (delay before subject phrases) |
-| `scanningPhaseRotationIntervalNs` | 2.3 s | `Analysis` (between phase phrases) |
+| `visionConfidenceThreshold` | 0.65 | `InferenceEngine` (Vision pre-classifier) |
+| `visionConfidenceMargin` | 0.15 | `InferenceEngine` (margin guard vs. second-best) |
+| `scanningPhaseSubjectDelayNs` | 1.5 s | `InferenceEngine` (delay before subject-specific phrases replace generic series) |
+| `scanningPhaseRotationIntervalNs` | 2.3 s | `InferenceEngine` (between phase phrases) |
 
 ### `UserDefaultsKeys`
 - Centralized enum (`Core/Utilities/UserDefaultsKeys.swift`) holding all `UserDefaults` / `@AppStorage` key strings.

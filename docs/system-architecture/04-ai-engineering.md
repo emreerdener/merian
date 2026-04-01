@@ -102,37 +102,70 @@ Additionally, `load(from:)` now inserts `recordScientificName` into `enrichedSpe
 
 ## On-Device Pre-Classification & Scanning Phase UX
 
-While the Edge inference round-trip runs (typically 3–8s on `gemini-2.5-flash` / 6–12s on `gemini-2.5-pro`), `InferenceEngine` runs a concurrent `VNClassifyImageRequest` on-device to drive the InsightSheet's `AnalyzingContentView` status text.
+While the Edge inference round-trip runs, `InferenceEngine` runs a concurrent **multi-pass Apple Vision pipeline** on-device. This serves two purposes: (1) driving the `ConfidenceBadge` phrase in `AnalyzingContentView` and (2) streaming a real-time analysis paragraph to `inferenceEngine.visionAnalysisText` character-by-character as each Vision pass completes.
+
+### Multi-Pass Vision Pipeline
+
+`classifySubjectLocally(from:)` launches a single `Task.detached(priority: .userInitiated)` that runs five sequential Vision requests against a 512 px downsampled `CGImage` (shared `VNImageRequestHandler`):
+
+| Pass | Request | Output sentence |
+|---|---|---|
+| 1 | `VNClassifyImageRequest` | Category + confidence label. Also drives the subject-specific phrase series. |
+| 2 | `VNGenerateAttentionBasedSaliencyImageRequest` | Subject position in frame (e.g. "Focal attention concentrated on upper-right subject.") |
+| 3 | `VNRecognizeAnimalsRequest` | On-device animal species confirmation (e.g. "Robin confirmed by on-device species model.") |
+| 4 | `VNGenerateObjectnessBasedSaliencyImageRequest` | Multi-subject detection (e.g. "Two distinct subjects present in scene.") |
+| 5 | `VNRecognizeTextRequest` | Text/label detection ("Text or labels detected in frame.") |
+
+Each pass calls `await self.streamSentence(sentence)` on `@MainActor`, which appends the sentence character-by-character (22 ms per character) to `inferenceEngine.visionAnalysisText`. `isVisionStreaming` is `true` for the duration of the pipeline and `false` once all five passes complete (or on cancellation). A `guard !Task.isCancelled` precedes every pass so cancellation is handled cleanly between requests.
 
 ### Phase Rotation System
 
-`classifySubjectLocally(from:)` starts a **generic phrase series** immediately ("Scanning subject...", "Detecting morphological features...", etc.) so `AnalyzingContentView`'s phase text is never empty. Concurrently, `VNClassifyImageRequest` executes on a `Task.detached(priority: .userInitiated)` background thread (typically < 100ms). If Vision returns a confident subject category, a **subject-specific phrase series** is queued. Phrases rotate every 2.3 seconds via a cancellable `phaseRotationTask` owned by `InferenceEngine`.
+`classifySubjectLocally(from:)` starts a **generic phrase series** immediately ("Scanning subject...", "Analyzing subject morphology", etc.) so `ConfidenceBadge`'s analyzing phrase is never empty. After Pass 1, if Vision returns a confident subject category, a **subject-specific phrase series** replaces the generic one after a 1.5-second hold. Phrases rotate every 2.3 seconds via a cancellable `phaseRotationTask`. Each phrase change fires `HapticManager.shared.triggerSelectionPulse()` (skipping the first to avoid a double-tap with the sheet-open haptic).
 
 ### Subject-Specific Series Qualification
 
 A specific phrase series is only activated if all three conditions are met:
 
 1. **Confidence threshold** — the top `VNClassificationObservation` must score ≥ 0.65 (`MerianConfig.visionConfidenceThreshold`)
-2. **Margin guard** — the top observation must lead the second-best by ≥ 0.15 (`MerianConfig.visionMarginThreshold`); split/ambiguous results (e.g., 0.67 bird / 0.60 plant) stay on the generic series. Implemented at the top of `specificPhraseSeries(for:)` before any category matching runs.
-3. **1.5-second minimum delay** (`MerianConfig.scanningPhaseSubjectDelayNs`) — even when Vision qualifies, the specific series is held for 1.5 seconds before replacing the generic one; this guarantees the user always sees neutral phrases first and limits the visible duration of an incorrect category label to the back half of the scan.
+2. **Margin guard** — the top observation must lead the second-best by ≥ 0.15 (`MerianConfig.visionMarginThreshold`); split/ambiguous results stay on the generic series.
+3. **1.5-second minimum delay** (`MerianConfig.scanningPhaseSubjectDelayNs`) — guarantees the user always sees neutral phrases first and limits the visible duration of an incorrect category label to the back half of the scan.
 
-If `isProcessing` has already been set to `false` by the time the 1.5-second hold expires (fast network response), the switch is silently dropped.
+If `isProcessing` has already been set to `false` by the time the hold expires (fast network response), the switch is silently dropped.
+
+### Phrase Format
+
+All phrases use a verb-prefix format to describe active analysis: openers ("Arthropod detected") and closers ("Confirming species...") are kept as-is; all middle phrases use "Analyzing …" for morphological examination (e.g., "Analyzing wing venation", "Analyzing skin texture") and "Checking …" for record/database lookups (e.g., "Checking eBird records", "Checking herpetology records"). `ConfidenceBadge` auto-appends `...` to any phrase not already ending with one.
 
 ### Phrase Cycling & Freshness
 
-`startPhaseRotation` runs an infinite `while !Task.isCancelled` loop rather than a one-shot pass through the phrase array. This prevents the overlay from stalling on a frozen final phrase during long inference calls — `gemini-2.5-pro` responses can reach 25–30s on slow connections, which would leave "Awaiting identification..." static for ~10s after the 8-phrase × 2.3s rotation (18.4s) exhausted the array. The loop is cancelled cleanly by `cancelActiveRequest()` or upon a successful response mapping.
+`startPhaseRotation` runs an infinite `while !Task.isCancelled` loop. This prevents the badge from stalling on a frozen final phrase during long `gemini-2.5-pro` responses (25–30s on slow connections). Generic phrases are shuffled on each scan (with "Scanning subject..." anchored first) so frequent users do not memorise the sequence.
 
-Generic phrases are shuffled on each scan (with "Scanning subject..." anchored first) so frequent users do not memorise the sequence.
+### Vision → Gemini Paragraph Transition
 
-### Analyzing Mode Feedback
+When the Gemini result arrives and `InsightHeader` renders for the first time, `visionTransitionText` is passed as the Vision paragraph accumulated so far. `InsightHeader.onAppear` fires two haptics and two animations:
 
-The `AnalyzingContentView` inside the `InsightSheetView` adds micro-interactions on each phrase change:
-- The text explicitly uses an asymmetric transition with spring animation to crossfade cleanly.
-- The skeleton cards naturally pulse using a continuous animation curve to indicate background work.
+1. `HapticManager.shared.triggerLightImpact(intensity: 0.5)` — the peak reveal moment.
+2. Spring animation (`.delay(0.15)`) slides the common name title up from a 10 pt offset.
+3. After 700 ms, `HapticManager.shared.triggerSelectionPulse()` + `showVisionParagraph = false` — the Vision paragraph cross-fades to the Gemini `aiReasoning` text via `.easeInOut(duration: 0.45)`.
+
+### Analyzing Mode Haptics
+
+Four strategic haptic touchpoints span the full analysis experience:
+
+| Moment | Call | Style |
+|---|---|---|
+| Vision pipeline onset (`isVisionStreaming = true`) | `triggerLightImpact(intensity: 0.3)` | Barely perceptible — "AI is reading the image" |
+| Each badge phrase rotation tick (after first) | `triggerSelectionPulse()` | Subtle selection click every 2.3 s |
+| Common name title reveal | `triggerLightImpact(intensity: 0.5)` | Marks the peak reveal moment |
+| Vision → Gemini paragraph crossfade (700 ms) | `triggerSelectionPulse()` | Signals the hand-off from local to cloud reasoning |
+
+### Debug Simulation
+
+`InferenceEngine` exposes a `#if DEBUG func simulateAnalyzing()` method that sets `isProcessing = true`, seeds `visionAnalysisText` with pre-baked arthropod copy, and calls `startPhaseRotation` with the arthropod series — enabling full analyzing-state UI development in the simulator without a real scan submission.
 
 ### Supported Categories
 
-Subject-specific series exist for: birds, insects/arthropods, arachnids, fungi/lichen, flowering plants, trees/conifers, cacti/succulents, general plants, reptiles, amphibians, fish, and mammals. Each series is 8 phrases long, starting with moderately general observations and progressing to field-specific terminology. Unrecognised or low-confidence subjects fall through to the generic series.
+Subject-specific series exist for: birds, insects/arthropods, arachnids, fungi/lichen, flowering plants, trees/conifers, cacti/succulents, general plants, reptiles, amphibians, fish, and mammals. Each series is 8 phrases long. Unrecognised or low-confidence subjects fall through to the generic series.
 
 ---
 
