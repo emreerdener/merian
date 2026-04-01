@@ -27,9 +27,6 @@ struct GBIFHeatmapMapView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    Color(.secondarySystemBackground)
-                        .opacity(0.5)
                 }
             }
             .scaleEffect(zoomScale)

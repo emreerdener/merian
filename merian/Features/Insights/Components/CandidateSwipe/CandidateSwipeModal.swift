@@ -81,22 +81,6 @@ extension CandidateSwipeModal {
         VStack(spacing: 16) {
             Spacer()
 
-            // Skip Button
-            if stack.count > 1 {
-                Button(action: {
-                    HapticManager.shared.triggerLightImpact()
-                    skipTopCard()
-                }) {
-                    Text("Skip")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(Capsule())
-                }
-                .transition(.opacity)
-            }
-
             // Card Stack
             ZStack {
                 ForEach(
@@ -136,6 +120,22 @@ extension CandidateSwipeModal {
             }
             .frame(maxWidth: .infinity, maxHeight: 460)
             .padding(.horizontal, 20)
+
+            // Skip Button
+            if stack.count > 1 {
+                Button(action: {
+                    HapticManager.shared.triggerLightImpact()
+                    skipTopCard()
+                }) {
+                    Text("Skip")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(Capsule())
+                }
+                .transition(.opacity)
+            }
 
             Spacer()
 

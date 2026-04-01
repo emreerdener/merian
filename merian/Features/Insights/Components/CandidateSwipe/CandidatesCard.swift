@@ -139,13 +139,17 @@ private struct PendingView: View {
                 VStack(spacing: candidates.count > 1 ? 48 : 16) {
                     // Visual Graphic stack
                     ZStack {
-                        ForEach(Array(candidates.prefix(3).enumerated().reversed()), id: \.offset) { index, candidate in
+                        let displayCandidates = Array(candidates.prefix(2))
+                        let isPair = displayCandidates.count == 2
+                        
+                        ForEach(Array(displayCandidates.enumerated().reversed()), id: \.offset) { index, candidate in
+                            let rotation: Double = isPair ? (index == 0 ? -5 : 5) : .zero
+                            let offsetX: CGFloat = isPair ? (index == 0 ? -16 : 16) : .zero
+                            let offsetY: CGFloat = isPair ? (index == 0 ? 0 : 12) : .zero
+
                             FlayedCandidateThumbnail(candidate: candidate)
-                                .rotationEffect(.degrees(index == 1 ? 8 : (index == 2 ? -8 : 0)))
-                                .offset(
-                                    x: index == 1 ? 24 : (index == 2 ? -24 : 0),
-                                    y: index == 0 ? 0 : 16
-                                )
+                                .rotationEffect(.degrees(rotation))
+                                .offset(x: offsetX, y: offsetY)
                                 .zIndex(-Double(index))
                         }
                     }
@@ -155,12 +159,24 @@ private struct PendingView: View {
                     VStack(spacing: 12) {
                         Button(action: onReviewAlternatives) {
                             Text("Review alternatives")
-                                .font(.headline)
+                                .font(.headline.weight(.semibold))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(Color.blue.opacity(0.15))
-                                .foregroundColor(.blue)
-                                .clipShape(Capsule())
+                                .background(
+                                    ZStack {
+                                        Capsule()
+                                            .fill(.ultraThinMaterial)
+                                        Capsule()
+                                            .fill(Color.blue.opacity(0.75))
+                                    }
+                                )
+                                .foregroundColor(.white)
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(Color.white.opacity(0.4), lineWidth: 0.5)
+                                        .blendMode(.overlay)
+                                )
+                                .shadow(color: Color.blue.opacity(0.3), radius: 10, x: 0, y: 6)
                         }
                         .buttonStyle(.plain)
 
