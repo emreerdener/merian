@@ -10,7 +10,7 @@ import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 
 import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "./types.ts";
-import { systemInstruction, merianResponseSchema } from "./schema.ts";
+import { getSystemInstruction, getMerianResponseSchema } from "./schema.ts";
 import { resolveImagePayloads } from "./media.ts";
 import {
   upsertGhostUserIfMissing,
@@ -101,10 +101,11 @@ serve((req: Request) =>
     // Pro users get gemini-2.5-pro for maximum identification depth (rare species, fossils,
     // subspecies, cultivars). Free users use gemini-2.5-flash for 2–3× lower latency.
     const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
+    const diagnosticTrigger = userTier === "pro" ? 0.80 : 0.88;
 
     const model = _genAI.getGenerativeModel({
       model: targetModel,
-      systemInstruction,
+      systemInstruction: getSystemInstruction(diagnosticTrigger),
       generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
     });
 
@@ -143,7 +144,7 @@ serve((req: Request) =>
         contents: [{ role: "user", parts }],
         generationConfig: {
           responseMimeType: "application/json",
-          responseSchema: merianResponseSchema,
+          responseSchema: getMerianResponseSchema(diagnosticTrigger),
         },
       });
       const candidate = result.response.candidates?.[0];
@@ -186,7 +187,6 @@ serve((req: Request) =>
     // Strip candidates when confidence is above the tier's diagnosticTrigger threshold.
     // These values mirror MerianConfig.flashConfidence.diagnosticTrigger (0.88) and
     // MerianConfig.proConfidence.diagnosticTrigger (0.80) in the iOS client.
-    const diagnosticTrigger = userTier === "pro" ? 0.80 : 0.88;
     if ((parsedData.confidence_score ?? 1.0) >= diagnosticTrigger) {
       payloadReadyForClient.candidates = null;
     }

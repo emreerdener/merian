@@ -3,9 +3,9 @@ import {
   ResponseSchema,
 } from "https://esm.sh/@google/generative-ai@0.24.1";
 
-export const systemInstruction = `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food, debris, shadows, cracks) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name. 7) Micro-CoT & Pareidolia Avoidance: You MUST extract 3 structural observations in extracted_visual_traits BEFORE determining is_biological_subject or scientific_name. Actively reject optical illusions, pareidolia, and inanimate objects mimicking biology (e.g., cracks looking like snakes). Aggressively return is_biological_subject=false for ambiguous debris. 8) If the primary subject is actively interacting with another biological organism, describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count. 10) Score the image as a potential encyclopedic field-guide reference photo in image_quality: sharpness (1–10, focus and absence of motion blur), framing (1–10, subject fully in frame and isolated from chaotic background), diagnostic_utility (1–10, taxonomic identification features clearly displayed — e.g. leaf venation, plumage, bark texture), and overall_score (0–100, holistic reference quality synthesizing all three dimensions).`;
+export const getSystemInstruction = (diagnosticTrigger: number) => `Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food, debris, shadows, cracks) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, colors, regional_status_rationale, common_name. 7) Micro-CoT & Pareidolia Avoidance: You MUST extract 3 structural observations in extracted_visual_traits BEFORE determining is_biological_subject or scientific_name. Actively reject optical illusions, pareidolia, and inanimate objects mimicking biology (e.g., cracks looking like snakes). Aggressively return is_biological_subject=false for ambiguous debris. 8) If the primary subject is actively interacting with another biological organism, describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count. 10) Score the image as a potential encyclopedic field-guide reference photo in image_quality: sharpness (1–10, focus and absence of motion blur), framing (1–10, subject fully in frame and isolated from chaotic background), diagnostic_utility (1–10, taxonomic identification features clearly displayed — e.g. leaf venation, plumage, bark texture), and overall_score (0–100, holistic reference quality synthesizing all three dimensions). 11) Candidates: If your confidence_score is strictly less than ${diagnosticTrigger}, you MUST provide 1-2 alternative species candidates in the candidates array.`;
 
-const schemaProperties: Record<string, ResponseSchema> = {
+const getSchemaProperties = (diagnosticTrigger: number): Record<string, ResponseSchema> => ({
   is_biological_subject: { type: SchemaType.BOOLEAN },
   is_live_capture: { type: SchemaType.BOOLEAN },
   ecology_type: {
@@ -60,7 +60,7 @@ const schemaProperties: Record<string, ResponseSchema> = {
       required: ["scientific_name", "confidence_score"],
     },
     description:
-      "Only populate when genuinely uncertain between multiple species (i.e. confidence_score is low). Include up to 2 alternative species you seriously considered, with your estimated confidence for each. Omit entirely for clear, confident identifications.",
+      `CRITICAL: You MUST populate this array with 1-2 alternative species if your primary confidence_score is less than ${diagnosticTrigger}. Only omit entirely if you are highly confident (${diagnosticTrigger} or above).`,
   },
   image_quality: {
     type: SchemaType.OBJECT,
@@ -74,11 +74,11 @@ const schemaProperties: Record<string, ResponseSchema> = {
     description:
       "Photographic quality scores for encyclopedic reference use. sharpness 1–10: focus and motion blur. framing 1–10: subject fully visible and isolated. diagnostic_utility 1–10: taxonomic features clearly displayed. overall_score 0–100: holistic reference quality.",
   },
-};
+});
 
-export const merianResponseSchema: ResponseSchema = {
+export const getMerianResponseSchema = (diagnosticTrigger: number): ResponseSchema => ({
   type: SchemaType.OBJECT,
-  properties: schemaProperties,
+  properties: getSchemaProperties(diagnosticTrigger),
   required: [
     "is_biological_subject",
     "is_live_capture",
@@ -88,4 +88,4 @@ export const merianResponseSchema: ResponseSchema = {
     "blur_score",
     "image_quality",
   ],
-};
+});
