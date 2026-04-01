@@ -767,17 +767,17 @@ struct InferenceEngineTests {
         let flashBands = MerianConfig.confidenceBands(forInferenceTier: "flash")
         #expect(flashBands.strong == 0.96)
         #expect(flashBands.possible == 0.75)
-        #expect(flashBands.diagnosticTrigger == 0.88)
-        
+        #expect(flashBands.diagnosticTrigger == 0.96)
+
         // Assert Pro Premium-Tier thresholds are relaxed
         let proBands = MerianConfig.confidenceBands(forInferenceTier: "pro")
-        #expect(proBands.strong == 0.85) 
+        #expect(proBands.strong == 0.85)
         #expect(proBands.possible == 0.65)
-        #expect(proBands.diagnosticTrigger == 0.80)
-        
+        #expect(proBands.diagnosticTrigger == 0.85)
+
         // Assert Legacy/Nil scans resolve to Flash thresholds for safety
         let legacyBands = MerianConfig.confidenceBands(forInferenceTier: nil)
         #expect(legacyBands.strong == 0.96)
-        #expect(legacyBands.diagnosticTrigger == 0.88)
+        #expect(legacyBands.diagnosticTrigger == 0.96)
     }
 }

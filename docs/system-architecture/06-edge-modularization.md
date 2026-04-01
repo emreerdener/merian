@@ -34,7 +34,21 @@ The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
 - **Exact Field Matching:** Interface keys must perfectly align with the JSON decoder keys evaluated directly inside `InferenceEdgeDTOs.swift`.
 - **Oversharing Defense:** Only declare fields strictly consumed by the frontend; do not dump generic Postgres wildcard `*` objects out locally to the client natively. 
 
-## 4. Auxiliary Streams (`storage.ts`, `mail.ts`, `media.ts`, `moderation.ts`)
+## 4. Threshold Constants (`thresholds.ts`)
+
+`supabase/functions/identify/thresholds.ts` is the **canonical source of truth** for confidence threshold values used across the `identify` pipeline:
+
+```typescript
+export const FLASH_STRONG = 0.96;              // == FLASH_DIAGNOSTIC_TRIGGER
+export const FLASH_DIAGNOSTIC_TRIGGER = 0.96;
+export const PRO_STRONG = 0.85;                // == PRO_DIAGNOSTIC_TRIGGER
+export const PRO_DIAGNOSTIC_TRIGGER = 0.85;
+export function diagnosticTriggerForTier(tier: "pro" | "flash"): number
+```
+
+`index.ts` imports `FLASH_DIAGNOSTIC_TRIGGER`, `PRO_DIAGNOSTIC_TRIGGER`, and `diagnosticTriggerForTier` from this file — model cache initialisation and the per-request strip logic both reference the same constants, eliminating drift. The iOS client mirrors these in `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`; comments in that file point back to `thresholds.ts` as the source of truth. Any threshold change must be applied in both places.
+
+## 5. Auxiliary Streams (`storage.ts`, `mail.ts`, `media.ts`, `moderation.ts`)
 
 For exceptionally heavy or bespoke routing streams that violate the 10-second Deno isolate timeout window, operations must be cordoned off into domain-specific streams explicitly executed via `runBackground`.
 
@@ -78,6 +92,20 @@ The embedded join syntax resolves two sequential PostgREST round-trips (the old 
 .select("lookalike:species_dictionary!lookalike_id(scientific_name, ...)")
 ```
 The `species_lookalikes` table (`species_id` and `lookalike_id`, both referencing `species_dictionary`) is the canonical example. Any future join table with self-referential or dual-FK relationships to the same table requires this pattern.
+
+**First-Scan Replication-Lag Rule — Return Raw Flash Names When `speciesId` Is Null:** When a species is scanned for the first time, `identify` creates a new `species_dictionary` row in the background task. If `enrich-scan?scope=lookalikes` fires before that row has propagated to the Supabase read replica, `getCachedSpecies()` returns `null` and `speciesId` is `null`. In that case `fetchLookalikesFromJoinTable` and `resolveLookalikesToJoinTable` are both skipped (they require a `speciesId`). To prevent `similar_species: null` being returned to the client on the first scan of every new species, `enrich-scan/index.ts` maps the raw `SimilarSpeciesEntry[]` from Flash directly to `LookalikeSummary[]` (with `reference_image_url: null` and `iucn_red_list_status: null`) when `speciesId` is null but Flash returned results:
+```typescript
+} else {
+  // Replication lag on first scan — return raw Flash names so the client is not left with null.
+  lookalikes = similarResult.similar_species.map((e) => ({
+    scientific_name: e.scientific_name,
+    common_name: e.common_name,
+    reference_image_url: null,
+    iucn_red_list_status: null,
+  }));
+}
+```
+The `SimilarSpeciesGallery` renders these entries immediately (scientific + common names visible); `SimilarSpeciesImageFetcher` fills in card images via the Wikipedia/GBIF waterfall. On the next `enrich-scan` call for the same species (once the row is visible on the replica), `speciesId` resolves normally and the join table is populated with full data.
 
 **TEXT[] Fallback Rule — Always Return Scientific Names When Join Table Resolution Fails:** `resolveLookalikesToJoinTable` may return entries for species already in `species_dictionary`, plus Flash-generated stubs for species not yet in the dictionary. However, `formatEnrichmentPayload` applies a secondary TEXT[] fallback in case the resolution returns completely empty (e.g. speciesId is null, or the function threw and was caught upstream):
 ```typescript

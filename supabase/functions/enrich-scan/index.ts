@@ -180,26 +180,40 @@ serve((req: Request) =>
         family: cachedSpecies?.family,
       });
 
-      if (similarResult?.similar_species && speciesId) {
-        lookalikes = await resolveLookalikesToJoinTable(
-          speciesId,
-          similarResult.similar_species,
-          supabaseAdmin,
-          cachedSpecies?.kingdom,
-        );
-        // Guard: only set the flag when lookalikes were actually resolved. Flash can return
-        // similar_species: [] (empty array) for species it doesn't recognise; [] is truthy
-        // in JS so the outer `if` fires, but we must not permanently lock out future Flash
-        // retries when no lookalike data was produced.
-        if (lookalikes.length > 0) {
-          runBackground(
-            Promise.resolve(
-              supabaseAdmin
-                .from("species_dictionary")
-                .update({ lookalikes_flash_attempted: true })
-                .eq("id", speciesId),
-            ).then(() => {}),
+      if (similarResult?.similar_species) {
+        if (speciesId) {
+          lookalikes = await resolveLookalikesToJoinTable(
+            speciesId,
+            similarResult.similar_species,
+            supabaseAdmin,
+            cachedSpecies?.kingdom,
           );
+          // Guard: only set the flag when lookalikes were actually resolved. Flash can return
+          // similar_species: [] (empty array) for species it doesn't recognise; [] is truthy
+          // in JS so the outer `if` fires, but we must not permanently lock out future Flash
+          // retries when no lookalike data was produced.
+          if (lookalikes.length > 0) {
+            runBackground(
+              Promise.resolve(
+                supabaseAdmin
+                  .from("species_dictionary")
+                  .update({ lookalikes_flash_attempted: true })
+                  .eq("id", speciesId),
+              ).then(() => {}),
+            );
+          }
+        } else {
+          // Species row not yet visible on the read replica (replication lag on first scan).
+          // Return the raw Flash names so the client is not left with null. Image URLs and
+          // IUCN status are unavailable without a DB lookup, but scientific + common names
+          // are enough for the SimilarSpeciesGallery to render. The join table will be
+          // populated on the next enrich-scan call once the row is visible.
+          lookalikes = similarResult.similar_species.map((e) => ({
+            scientific_name: e.scientific_name,
+            common_name: e.common_name,
+            reference_image_url: null,
+            iucn_red_list_status: null,
+          }));
         }
       }
 

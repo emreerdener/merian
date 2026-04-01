@@ -7,11 +7,6 @@ struct ConfidenceExplanationSheet: View {
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
     var aiScientificName: String?
-    /// Number of candidates the model produced for this scan.
-    /// When `isFlagged == true` and this is ≥ 2, the user rejected all alternatives
-    /// via the swipe UX — show the condensed AllCandidatesReviewedView instead of
-    /// the generic UnderReviewView.
-    var candidateCount: Int = 0
 
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -27,9 +22,11 @@ struct ConfidenceExplanationSheet: View {
             VStack(spacing: 32) {
                 ConfidenceHeader()
                 
-                if isFlagged && candidateCount >= 2 {
+                let candidates = inferenceEngine.speciesData?.candidates ?? []
+                if isFlagged && candidates.count >= 2 {
                     AllCandidatesReviewedView(
-                        candidateCount: candidateCount,
+                        candidates: candidates,
+                        aiScientificName: aiScientificName ?? "Unknown",
                         onReset: {
                             Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
                         }
@@ -134,8 +131,10 @@ private struct OverriddenView: View {
 /// Shown in ConfidenceExplanationSheet when the user reviewed all swipe-deck alternatives
 /// and rejected each one. Replaces CandidatesCard in BiologicalView for this state.
 private struct AllCandidatesReviewedView: View {
-    let candidateCount: Int
+    let candidates: [IdentificationCandidate]
+    let aiScientificName: String
     let onReset: () -> Void
+    @State private var isSwipeModalPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -152,12 +151,35 @@ private struct AllCandidatesReviewedView: View {
                     .buttonStyle(.plain)
             }
 
-            Text("You reviewed all \(candidateCount) alternative\(candidateCount == 1 ? "" : "s") and none matched. The original AI identification remains active.")
+            Text("You reviewed all \(candidates.count) alternative\(candidates.count == 1 ? "" : "s") and none matched.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                isSwipeModalPresented = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.2.circlepath")
+                    Text("Review again")
+                }
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.secondary.opacity(0.1))
+                .foregroundColor(.primary)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
         }
         .card()
+        .sheet(isPresented: $isSwipeModalPresented) {
+            CandidateSwipeModal(
+                candidates: candidates,
+                aiScientificName: aiScientificName,
+                onFlagIssue: nil
+            )
+        }
     }
 }
 

@@ -11,6 +11,7 @@ import { requireParams } from "../_shared/http.ts";
 
 import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "./types.ts";
 import { getSystemInstruction, getMerianResponseSchema } from "./schema.ts";
+import { FLASH_DIAGNOSTIC_TRIGGER, PRO_DIAGNOSTIC_TRIGGER, diagnosticTriggerForTier } from "./thresholds.ts";
 import { resolveImagePayloads } from "./media.ts";
 import {
   upsertGhostUserIfMissing,
@@ -25,12 +26,12 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 const modelCache = {
   flash: _genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
-    systemInstruction: getSystemInstruction(0.88),
+    systemInstruction: getSystemInstruction(FLASH_DIAGNOSTIC_TRIGGER),
     generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
   }),
   pro: _genAI.getGenerativeModel({
     model: "gemini-2.5-pro",
-    systemInstruction: getSystemInstruction(0.80),
+    systemInstruction: getSystemInstruction(PRO_DIAGNOSTIC_TRIGGER),
     generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
   }),
 };
@@ -114,7 +115,7 @@ serve((req: Request) =>
     // Pro users get gemini-2.5-pro for maximum identification depth (rare species, fossils,
     // subspecies, cultivars). Free users use gemini-2.5-flash for 2–3× lower latency.
     const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
-    const diagnosticTrigger = userTier === "pro" ? 0.80 : 0.88;
+    const diagnosticTrigger = diagnosticTriggerForTier(userTier === "pro" ? "pro" : "flash");
 
     const model = userTier === "pro" ? modelCache.pro : modelCache.flash;
 

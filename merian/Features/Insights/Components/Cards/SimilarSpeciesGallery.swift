@@ -17,7 +17,7 @@ struct SimilarSpeciesGallery: View {
                     HStack(spacing: 8) {
                         Image(systemName: "camera.filters")
                             .foregroundColor(.secondary)
-                        Text("Similar Species")
+                        Text("Similar species")
                             .font(.system(.headline))
                             .foregroundColor(.primary)
                     }
@@ -142,7 +142,7 @@ extension SimilarSpeciesGallery {
                     HStack(spacing: 8) {
                         Image(systemName: "camera.filters")
                             .foregroundColor(.secondary)
-                        Text("Similar Species")
+                        Text("Similar species")
                             .font(.system(.headline))
                             .foregroundColor(.primary)
                     }

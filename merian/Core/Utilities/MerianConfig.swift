@@ -90,20 +90,28 @@ enum MerianConfig {
     /// Gemini 2.5 Flash (Free Tier)
     /// Flash is fast but can be overconfident on edge cases. We enforce stricter
     /// thresholds here to ensure we don't confidently misidentify lookalikes.
+    ///
+    /// **Server-side source of truth**: `supabase/functions/identify/thresholds.ts`
+    /// — FLASH_STRONG, FLASH_POSSIBLE, FLASH_DIAGNOSTIC_TRIGGER.
+    /// Any change here must be mirrored there, and vice versa.
     static let flashConfidence = ConfidenceBands(
-        strong: 0.96,             // Require higher certainty for the green badge
+        strong: 0.96,
         possible: 0.75,
-        diagnosticTrigger: 0.88   // Trigger the diagnostic lookalike UI more frequently
+        diagnosticTrigger: 0.96   // == strong: candidates on every non-strong-match scan
     )
-    
+
     /// Gemini 2.5 Pro (Premium Tier)
     /// Pro is a deep reasoning engine. It is more cautious and better calibrated.
-    /// An 85% from Pro is highly trustworthy, so we relax the UI thresholds to 
+    /// An 85% from Pro is highly trustworthy, so we relax the UI thresholds to
     /// reward the premium user with a more decisive experience.
+    ///
+    /// **Server-side source of truth**: `supabase/functions/identify/thresholds.ts`
+    /// — PRO_STRONG, PRO_POSSIBLE, PRO_DIAGNOSTIC_TRIGGER.
+    /// Any change here must be mirrored there, and vice versa.
     static let proConfidence = ConfidenceBands(
-        strong: 0.85,             // Trust the model's rigorous evaluation
+        strong: 0.85,
         possible: 0.65,
-        diagnosticTrigger: 0.80   // Only trigger diagnostics on truly ambiguous scans
+        diagnosticTrigger: 0.85   // == strong: candidates on every non-strong-match scan
     )
     
     /// Helper to grab the correct bands based on the exact inference model tier used.
