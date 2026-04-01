@@ -124,7 +124,9 @@ extension CameraViewModel {
         guard !isStillProcessing else { return }
         // Mark a new unread scan only for real results (scanId is nil on error placeholders
         // like "Analysis Failed" / "Network Timeout" which are not persisted to the library).
-        if diContainer.inferenceEngine.speciesData?.scanId != nil {
+        // Skip if the insight sheet is already open — the user is actively viewing the result
+        // and closing the sheet should not trigger the indicator.
+        if diContainer.inferenceEngine.speciesData?.scanId != nil, activeSheet != .insight {
             UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
         }
     }

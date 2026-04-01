@@ -63,7 +63,6 @@ struct AnalyzingContentView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal)
-        .padding(.top, 16)
     }
 }
 
