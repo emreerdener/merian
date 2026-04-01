@@ -703,7 +703,8 @@ struct InferenceEngineTests {
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "Terrestrial",
-            aiScientificName: "Procyon lotor"
+            aiScientificName: "Procyon lotor",
+            isFlagged: true  // simulate the "Review again" path where all cards were rejected first
         )
 
         await engine.applyIdentificationOverride(scientificName: "Procyon cancrivorus", modelContext: nil)
@@ -712,9 +713,10 @@ struct InferenceEngineTests {
         #expect(engine.speciesData?.userIdentificationOverride == "Procyon cancrivorus", "Override must set userIdentificationOverride")
         #expect(engine.speciesData?.userConfirmedIdentification == false, "Override clears confirmed flag")
         #expect(engine.speciesData?.aiScientificName == "Procyon lotor", "aiScientificName must be preserved after override")
+        #expect(engine.speciesData?.isFlagged == false, "Override must clear isFlagged so ConfidenceExplanationSheet transitions from AllCandidatesReviewedView to OverriddenView")
     }
 
-    @Test func testResetIdentificationReviewClearsBothFields() async throws {
+    @Test func testResetIdentificationReviewClearsAllFields() async throws {
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
             scanId: "reset_scan_001",
@@ -727,13 +729,15 @@ struct InferenceEngineTests {
             isInvasive: false,
             ecologyType: "Terrestrial",
             aiScientificName: "Procyon lotor",
-            userIdentificationOverride: "Procyon cancrivorus"
+            userIdentificationOverride: "Procyon cancrivorus",
+            isFlagged: true  // simulate AllCandidatesReviewedView → Reset path
         )
 
         await engine.resetIdentificationReview(modelContext: nil)
 
         #expect(engine.speciesData?.userIdentificationOverride == nil, "Reset must clear userIdentificationOverride")
         #expect(engine.speciesData?.userConfirmedIdentification == false, "Reset must clear userConfirmedIdentification")
+        #expect(engine.speciesData?.isFlagged == false, "Reset must clear isFlagged so CandidatesCard reappears in BiologicalView")
         #expect(engine.speciesData?.scientificName == "Procyon lotor", "Reset must revert scientificName to aiScientificName")
         #expect(engine.speciesData?.aiScientificName == "Procyon lotor", "aiScientificName must remain unchanged after reset")
     }

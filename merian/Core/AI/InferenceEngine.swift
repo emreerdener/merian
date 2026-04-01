@@ -723,6 +723,9 @@ private struct WikiSummaryResponse: Decodable {
         speciesData?.gbifTaxonKey = nil
         speciesData?.similarSpecies = nil
         speciesData?.userConfirmedIdentification = false
+        // Clear the swipe-rejection flag so ConfidenceExplanationSheet transitions
+        // from AllCandidatesReviewedView → OverriddenView correctly.
+        speciesData?.isFlagged = false
 
         // 2. Persist to SwiftData.
         if let context = modelContext {
@@ -807,14 +810,16 @@ private struct WikiSummaryResponse: Decodable {
         // 1. Revert in-memory state — scientificName must be restored before hydration fires.
         speciesData?.userIdentificationOverride = nil
         speciesData?.userConfirmedIdentification = false
+        speciesData?.isFlagged = false
         speciesData?.scientificName = aiName
 
-        // 2. Persist both fields locally.
+        // 2. Persist all reset fields locally.
         if let context = modelContext {
             let container = context.container
             Task {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: false)
+                await dbActor.updateScanAsUnflagged(scanId: scanId)
             }
         }
 

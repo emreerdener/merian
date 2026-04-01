@@ -167,6 +167,9 @@ extension CandidateSwipeModal {
                         withAnimation(.spring(response: 0.25)) {
                             stack.removeAll { $0.scientificName == candidate.scientificName }
                         }
+                        if stack.isEmpty {
+                            Task { await inferenceEngine.flagAIIdentification(modelContext: modelContext) }
+                        }
                     }
                 )
             }
@@ -290,6 +293,12 @@ extension CandidateSwipeModal {
             stack.removeFirst()
             topCardOffset = .zero
             topCardIsDragging = false
+        }
+        // When the last alternative is rejected, mark the scan as flagged so
+        // BiologicalView hides CandidatesCard and ConfidenceExplanationSheet
+        // surfaces AllCandidatesReviewedView instead.
+        if stack.isEmpty {
+            Task { await inferenceEngine.flagAIIdentification(modelContext: modelContext) }
         }
     }
 

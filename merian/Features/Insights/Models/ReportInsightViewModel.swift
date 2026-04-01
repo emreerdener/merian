@@ -5,7 +5,7 @@ import SwiftUI
 final class ReportInsightViewModel {
     
     // MARK: - Input State
-    var flagReason: String = "Incorrect species"
+    var flagReason: String = "Inappropriate content"
     var userSuggestion: String = ""
     
     // MARK: - UI Flags
@@ -14,7 +14,7 @@ final class ReportInsightViewModel {
     var alertMessage: String = ""
     
     // MARK: - Constants
-    let reasons = ["Incorrect species", "Inappropriate content", "Bad image quality", "Other"]
+    let reasons = ["Inappropriate content", "Bad image quality", "Other"]
     
     // MARK: - Network Operations
     func submitFlag(scanId: String, engine: InferenceEngine, context: ModelContext) async {

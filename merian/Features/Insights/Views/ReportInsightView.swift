@@ -22,11 +22,11 @@ struct ReportInsightView: View {
                     }
                 }
                 
-                Section(header: Text("Your suggestion (optional)"), footer: Text("Help us improve Merian by suggesting what you think it actually is.")) {
-                    TextField("E.g. Monarch Butterfly", text: $viewModel.userSuggestion)
+                Section(header: Text("Additional details (optional)"), footer: Text("Help us understand the issue so we can fix it.")) {
+                    TextField("E.g. The map is showing the wrong location", text: $viewModel.userSuggestion)
                 }
             }
-            .navigationTitle("Report incorrect ID")
+            .navigationTitle("Report an issue")
             .navigationBarTitleDisplayMode(.inline)
             
             // MARK: Actions
