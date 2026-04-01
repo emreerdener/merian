@@ -31,83 +31,90 @@ struct BiologicalView: View {
             )
             .cardEntrance(index: 0)
 
-            // MARK: - Identification Candidates
-            let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil ||
-                                 inferenceEngine.speciesData?.userConfirmedIdentification == true
-            let candidates = inferenceEngine.speciesData?.candidates ?? []
-            let confidenceBands = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier)
-            let hasLowConfidence = (inferenceEngine.speciesData?.confidenceScore ?? 1.0) < confidenceBands.diagnosticTrigger
+            // MARK: - Layout Guards
+            let isErrorState = inferenceEngine.speciesData?.scientificName == "Offline Mode" ||
+                               inferenceEngine.speciesData?.scientificName == "Data Unreadable"
+            let isBiological = inferenceEngine.speciesData?.isBiological ?? false
 
-            if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-               candidates.count >= 2 || hasReviewState || hasLowConfidence {
-                CandidatesCard(
-                    candidates: candidates,
-                    aiScientificName: primaryAIName,
-                    inferenceTier: inferenceEngine.speciesData?.inferenceTier,
-                    onFlagIssue: { viewModel.isIdentificationFlagPresented = true }
-                )
-                .cardEntrance(index: 3)
-            }
-
-            // MARK: - Toxicity Banner
-            ToxicityBanner()
-                .cardEntrance(index: 1)
-
-            // MARK: - Global Footprint
-            ConservationBanner()
-                .cardEntrance(index: 2)
-
-            // MARK: - Educational Reference
-            OverviewCard(
-                isSafariPresented: $isSafariPresented,
-                selectedWikiURL: $selectedWikiURL
-            )
-            .cardEntrance(index: 5)
-
-            // MARK: - Habitat & Distribution
-            if let data = inferenceEngine.speciesData {
-                HabitatAndDistributionCard(
-                    habitatDescription: data.habitatDescription,
-                    scientificName: data.scientificName,
-                    scanId: data.scanId
-                )
-                .padding(.top, 8)
-                .cardEntrance(index: 6)
-            }
-
-            // MARK: - Biological Classification
-            TaxonomyCard(
-                taxonomyData: inferenceEngine.speciesData?.taxonomy,
-                scientificName: inferenceEngine.speciesData?.scientificName
-            )
-            .cardEntrance(index: 7)
-
-             // MARK: - Similar Species Gallery
-            Group {
-                if let similarData = inferenceEngine.speciesData?.similarSpecies {
-                    SimilarSpeciesGallery(
-                        similarData: similarData
+            if !isErrorState && isBiological {
+                // MARK: - Identification Candidates
+                let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil ||
+                                     inferenceEngine.speciesData?.userConfirmedIdentification == true
+                let candidates = inferenceEngine.speciesData?.candidates ?? []
+                let confidenceBands = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier)
+                let hasLowConfidence = (inferenceEngine.speciesData?.confidenceScore ?? 1.0) < confidenceBands.diagnosticTrigger
+    
+                if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
+                   candidates.count >= 2 || hasReviewState || hasLowConfidence {
+                    CandidatesCard(
+                        candidates: candidates,
+                        aiScientificName: primaryAIName,
+                        inferenceTier: inferenceEngine.speciesData?.inferenceTier,
+                        onFlagIssue: { viewModel.isIdentificationFlagPresented = true }
                     )
-                    .transition(.opacity)
-                } else if inferenceEngine.isLookalikesLoading {
-                    SimilarSpeciesGallery.Skeleton()
-                        .transition(.opacity)
+                    .cardEntrance(index: 3)
                 }
-            }
-            .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
-            .cardEntrance(index: 4)
-
-            // MARK: - Spatiotemporal Context
-            ScanInformationCard(
-                speciesData: inferenceEngine.speciesData,
-                timestamp: timestamp
-            )
-            .cardEntrance(index: 8)
-
-            // MARK: - Custom Tags
-            if let scanId = inferenceEngine.speciesData?.scanId {
-                UserTagsCard(scanId: scanId)
-                    .cardEntrance(index: 9)
+    
+                // MARK: - Toxicity Banner
+                ToxicityBanner()
+                    .cardEntrance(index: 1)
+    
+                // MARK: - Global Footprint
+                ConservationBanner()
+                    .cardEntrance(index: 2)
+    
+                // MARK: - Educational Reference
+                OverviewCard(
+                    isSafariPresented: $isSafariPresented,
+                    selectedWikiURL: $selectedWikiURL
+                )
+                .cardEntrance(index: 5)
+    
+                // MARK: - Habitat & Distribution
+                if let data = inferenceEngine.speciesData {
+                    HabitatAndDistributionCard(
+                        habitatDescription: data.habitatDescription,
+                        scientificName: data.scientificName,
+                        scanId: data.scanId
+                    )
+                    .padding(.top, 8)
+                    .cardEntrance(index: 6)
+                }
+    
+                // MARK: - Biological Classification
+                TaxonomyCard(
+                    taxonomyData: inferenceEngine.speciesData?.taxonomy,
+                    scientificName: inferenceEngine.speciesData?.scientificName
+                )
+                .cardEntrance(index: 7)
+    
+                 // MARK: - Similar Species Gallery
+                Group {
+                    if let similarData = inferenceEngine.speciesData?.similarSpecies {
+                        SimilarSpeciesGallery(
+                            similarData: similarData
+                        )
+                        .transition(.opacity)
+                    } else if inferenceEngine.isLookalikesLoading {
+                        SimilarSpeciesGallery.Skeleton()
+                            .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
+                .cardEntrance(index: 4)
+    
+                // MARK: - Spatiotemporal Context
+                ScanInformationCard(
+                    speciesData: inferenceEngine.speciesData,
+                    timestamp: timestamp
+                )
+                .cardEntrance(index: 8)
+    
+                // MARK: - Custom Tags
+                if let scanId = inferenceEngine.speciesData?.scanId {
+                    UserTagsCard(scanId: scanId)
+                        .cardEntrance(index: 9)
+                }
             }
         }
         .padding(.horizontal)
