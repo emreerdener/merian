@@ -26,11 +26,13 @@ struct InsightHeader: View {
 
             // MARK: - Subtitle and Title
             VStack(alignment: .center, spacing: 8) {
-                Text(subtitle)
-                    .font(.system(.title3))
-                    .italic()
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                if !subtitle.isEmpty && subtitle.lowercased() != title.lowercased() {
+                    Text(subtitle)
+                        .font(.system(.title3))
+                        .italic()
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
 
                 Text(title)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))

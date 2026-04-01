@@ -41,11 +41,16 @@ struct InsightSheetView: View {
                     }
                 }
                 .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
-                    viewModel.evaluateProcessingCompletion(isStillProcessing: isStillProcessing, inferenceEngine: inferenceEngine)
+                    viewModel.evaluateProcessingCompletion(isStillProcessing: isStillProcessing, inferenceEngine: inferenceEngine, modelContext: modelContext)
                 }
                 .task(id: inferenceEngine.speciesData?.scanId) {
                     if let scanId = inferenceEngine.speciesData?.scanId {
-                        viewModel.fetchLocalRecord(for: scanId, modelContext: modelContext)
+                        // Loop up to 5 times (2.5s max) to allow SwiftData background stores to propagate to the @MainActor context.
+                        for _ in 0..<5 {
+                            viewModel.fetchLocalRecord(for: scanId, modelContext: modelContext)
+                            if viewModel.activeLocalRecord != nil { break }
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                        }
                     }
                 }
                 .task(id: viewModel.toastMessage) {

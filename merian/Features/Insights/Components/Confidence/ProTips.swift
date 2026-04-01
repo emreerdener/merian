@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProTips: View {
     let showLocationPrompt: Bool
+    @State private var showPaywall = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -33,6 +34,52 @@ struct ProTips: View {
                                     .foregroundColor(.primary)
                                 
                                 Text("Inject local topology and weather telemetry directly into the AI for max accuracy.")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .lineSpacing(2)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(Color(uiColor: .tertiaryLabel))
+                                .padding(.top, 8)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Divider()
+                        .opacity(0.5)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 4)
+                }
+                
+                if !RevenueCatManager.shared.isProActive {
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        HStack(alignment: .top, spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.orange.opacity(0.15))
+                                    .frame(width: 32, height: 32)
+                                
+                                Image(systemName: "sparkle")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.orange)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Upgrade your model")
+                                    .font(.system(.subheadline, weight: .bold))
+                                    .foregroundColor(.primary)
+                                
+                                Text("Unlock our most capable and accurate premium AI analysis.")
                                     .font(.footnote)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -90,5 +137,8 @@ struct ProTips: View {
                 )
         )
         .padding(.horizontal, 16)
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+        }
     }
 }

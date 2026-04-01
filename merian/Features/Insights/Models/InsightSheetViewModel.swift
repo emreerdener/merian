@@ -60,7 +60,20 @@ final class InsightSheetViewModel {
     
     // MARK: - Header Computed Properties
     var headerTitle: String {
-        inferenceEngine?.speciesData?.commonName.capitalized ?? "Scanning subject..."
+        guard let species = inferenceEngine?.speciesData else {
+            return "Scanning subject..."
+        }
+        
+        let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scientific = species.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if common.isEmpty {
+            return scientific
+        } else if common.lowercased() == scientific.lowercased() {
+            return common
+        } else {
+            return common.capitalized
+        }
     }
     
     var headerSubtitle: String {
@@ -124,8 +137,11 @@ final class InsightSheetViewModel {
         }
     }
     
-    func evaluateProcessingCompletion(isStillProcessing: Bool, inferenceEngine: InferenceEngine) {
+    func evaluateProcessingCompletion(isStillProcessing: Bool, inferenceEngine: InferenceEngine, modelContext: ModelContext) {
         guard !isStillProcessing else { return }
+        
+        markRecordViewedIfAppropriate(modelContext: modelContext)
+        
         // The sheet was opened before inference completed, so onAppear saw nil speciesData.
         // Re-evaluate celebration and VoiceOver now that data has arrived.
         evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
@@ -243,10 +259,15 @@ final class InsightSheetViewModel {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
-            if !record.hasBeenViewed {
-                record.hasBeenViewed = true
-                try? modelContext.save()
-            }
+            markRecordViewedIfAppropriate(modelContext: modelContext)
+        }
+    }
+    
+    func markRecordViewedIfAppropriate(modelContext: ModelContext) {
+        guard let record = activeLocalRecord else { return }
+        if !record.hasBeenViewed && (inferenceEngine?.isProcessing == false) {
+            record.hasBeenViewed = true
+            try? modelContext.save()
         }
     }
 }
