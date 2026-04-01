@@ -89,10 +89,12 @@ export async function evaluateAndProcessPayload(
         const signedUpload = await s3Client.sign(uploadReq);
         const uploadRes = await fetch(signedUpload);
         if (!uploadRes.ok) {
-          console.error(`Failed to upload base64 image to R2.`);
-        } else {
-          publicUrls.push(`https://media.merian.app/${publicUploadKey}`);
+          // Throw so the outer catch in runBackgroundIngestion rolls back all
+          // successfully uploaded images from this scan — partial publicUrls
+          // would silently leave the scan record with fewer images than submitted.
+          throw new Error(`Failed to upload base64 image to R2: ${uploadRes.status} ${uploadRes.statusText}`);
         }
+        publicUrls.push(`https://media.merian.app/${publicUploadKey}`);
         index++;
       }
     } else if (r2ObjectKeys && r2ObjectKeys.length > 0) {

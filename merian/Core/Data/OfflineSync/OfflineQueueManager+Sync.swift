@@ -17,7 +17,8 @@ extension OfflineQueueManager {
 
         let pendingTasks: [PendingCloudDeletionTask]
         do {
-            let descriptor = FetchDescriptor<PendingCloudDeletionTask>(sortBy: [SortDescriptor(\.timestamp)])
+            var descriptor = FetchDescriptor<PendingCloudDeletionTask>(sortBy: [SortDescriptor(\.timestamp)])
+            descriptor.fetchLimit = 200
             pendingTasks = try context.fetch(descriptor)
         } catch {
             MerianLog.data.debug("syncPendingDeletions: fetch failed: \(error, privacy: .private)")

@@ -198,9 +198,11 @@ serve((req: Request) =>
     };
 
     // Strip candidates when confidence is above the tier's diagnosticTrigger threshold.
-    // These values mirror MerianConfig.flashConfidence.diagnosticTrigger (0.88) and
-    // MerianConfig.proConfidence.diagnosticTrigger (0.80) in the iOS client.
-    if ((parsedData.confidence_score ?? 1.0) >= diagnosticTrigger) {
+    // These values mirror MerianConfig.flashConfidence.diagnosticTrigger (0.96) and
+    // MerianConfig.proConfidence.diagnosticTrigger (0.85) in the iOS client.
+    // Fallback to 0.0 (not 1.0) on a null score: a missing confidence_score means the
+    // LLM returned a malformed response — preserve candidates rather than silently strip them.
+    if ((parsedData.confidence_score ?? 0.0) >= diagnosticTrigger) {
       payloadReadyForClient.candidates = null;
     }
 
@@ -365,7 +367,7 @@ serve((req: Request) =>
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_total_tokens: llmTotalTokens,
-            image_storage_urls: modResult.publicUrls?.length ? modResult.publicUrls : [],
+            image_storage_urls: modResult.publicUrls?.length ? modResult.publicUrls : null,
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ?? "not_applicable",
             individual_count: parsedData.individual_count ?? null,
