@@ -147,12 +147,35 @@ export interface SimilarSpeciesEntry {
   common_name: string | null;
 }
 
+export interface SpeciesTaxonomy {
+  kingdom?: string | null;
+  class?: string | null;
+  order?: string | null;
+  family?: string | null;
+}
+
 export async function fetchSimilarSpecies(
   user: User,
   scientificName: string,
+  taxonomy?: SpeciesTaxonomy | null,
 ): Promise<{ similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } | null> {
+  // Build a taxonomic context string so Flash is grounded in the correct kingdom/class/order.
+  // Without this, the model can hallucinate cross-kingdom suggestions (e.g. plants for insects).
+  const taxonomicContext = [
+    taxonomy?.kingdom ? `Kingdom: ${taxonomy.kingdom}` : null,
+    taxonomy?.class ? `Class: ${taxonomy.class}` : null,
+    taxonomy?.order ? `Order: ${taxonomy.order}` : null,
+    taxonomy?.family ? `Family: ${taxonomy.family}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const taxonomyLine = taxonomicContext
+    ? ` The species belongs to: ${taxonomicContext}. ALL lookalikes MUST belong to the same kingdom and, where possible, the same class or order.`
+    : "";
+
   const model = createFlashModel(
-    "You are a world-class biologist. Given a species scientific name, identify the top 3 most commonly confused lookalike species. For each, provide the exact scientific name and the most widely recognised English common name.",
+    `You are a world-class biologist. Given a species scientific name, identify the top 3 most commonly confused lookalike species that a field observer might misidentify it as.${taxonomyLine} For each lookalike, provide the exact scientific name and the most widely recognised English common name. CRITICAL: Every lookalike must be from the same taxonomic kingdom as the primary species. Never suggest species from a different kingdom (e.g., never suggest plants as lookalikes for animals).`,
     300,
   );
 
@@ -170,18 +193,22 @@ export async function fetchSimilarSpecies(
           required: ["scientific_name", "common_name"],
         },
         description:
-          "Top 3 closely related but distinct lookalike species, each with exact scientific name and English common name.",
+          `Top 3 closely related but distinct lookalike species from the same kingdom${taxonomy?.class ? ` and class (${taxonomy.class})` : ""}, each with exact scientific name and English common name.`,
       },
     },
     required: ["similar_species"],
   };
+
+  const userPrompt = taxonomicContext
+    ? `Identify the top 3 lookalike species for: ${scientificName} (${taxonomicContext})`
+    : `Identify lookalikes for: ${scientificName}`;
 
   try {
     const result = await model.generateContent({
       contents: [
         {
           role: "user",
-          parts: [{ text: `Identify lookalikes for: ${scientificName}` }],
+          parts: [{ text: userPrompt }],
         },
       ],
       generationConfig: {

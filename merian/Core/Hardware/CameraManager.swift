@@ -372,17 +372,20 @@ import UIKit
         }
         if !shouldProcess { return }
 
-        let depthPixelBuffer = depthData.depthDataMap
+        // Guarantee 32-bit Cartesian Depth (meters), even if hardware defaulted to Parallax Disparity (1/meters) or 16-bit.
+        let convertedDepthData: AVDepthData
+        if depthData.depthDataType == kCVPixelFormatType_DepthFloat32 {
+            convertedDepthData = depthData
+        } else {
+            convertedDepthData = depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat32)
+        }
+
+        let depthPixelBuffer = convertedDepthData.depthDataMap
         CVPixelBufferLockBaseAddress(depthPixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(depthPixelBuffer, .readOnly) }
 
         let width = CVPixelBufferGetWidth(depthPixelBuffer)
         let height = CVPixelBufferGetHeight(depthPixelBuffer)
-
-        let format = CVPixelBufferGetPixelFormatType(depthPixelBuffer)
-        guard format == kCVPixelFormatType_DepthFloat32 || format == kCVPixelFormatType_DepthFloat16 else {
-            return
-        }
 
         let baseAddress = CVPixelBufferGetBaseAddress(depthPixelBuffer)
         let bytesPerRow = CVPixelBufferGetBytesPerRow(depthPixelBuffer)
@@ -398,22 +401,13 @@ import UIKit
         let startY = max(0, centerY - 2)
         let endY = min(height - 1, centerY + 2)
 
-        let isFloat16 = format == kCVPixelFormatType_DepthFloat16
-
         for y in startY...endY {
             guard let base = baseAddress else { continue }
             let rowData = base.advanced(by: y * bytesPerRow)
+            let pixelData = rowData.assumingMemoryBound(to: Float32.self)
 
             for x in startX...endX {
-                var depth: Float = 0.0
-                if isFloat16 {
-                    let pixelData = rowData.assumingMemoryBound(to: Float16.self)
-                    depth = Float(pixelData[x])
-                } else {
-                    let pixelData = rowData.assumingMemoryBound(to: Float32.self)
-                    depth = pixelData[x]
-                }
-
+                let depth = pixelData[x]
                 if depth > 0 && !depth.isNaN {
                     distanceSum += depth
                     validPixelCount += 1

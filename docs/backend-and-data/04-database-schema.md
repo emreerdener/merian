@@ -47,7 +47,9 @@ Self-referential join table linking species that are visually similar or commonl
 
 **Postgres trigger** (`trg_link_taxonomy_lookalikes`): Fires `AFTER INSERT` on `species_dictionary`. Auto-links same-genus species at zero token cost. The trigger was backfilled on all existing rows at migration time.
 
-**Rich hydration**: The `/enrich-scan` `db.ts` resolves entries with two queries — `species_lookalikes` for IDs, then `species_dictionary` for `scientific_name`, `common_names->>'en'`, `reference_image_url`, and `iucn_red_list_status`.
+**Rich hydration**: The `/enrich-scan` `db.ts` resolves entries with two queries — `species_lookalikes` for IDs, then `species_dictionary` for `scientific_name`, `common_names->>'en'`, `reference_image_url`, `iucn_red_list_status`, and `kingdom`.
+
+**Kingdom validation guard**: `resolveLookalikesToJoinTable` rejects any resolved lookalike whose `kingdom` differs from the primary species' kingdom before writing to this table. Prevents cross-kingdom hallucinations (e.g. plants stored as insect lookalikes) from persisting in cache. Rows with a `NULL` kingdom pass through unchecked. If bad cross-kingdom data was previously cached, clear it with `DELETE FROM species_lookalikes WHERE species_id = (SELECT id FROM species_dictionary WHERE scientific_name = '...')` and reset `lookalikes_flash_attempted = FALSE` on the primary species row.
 
 ### `scans`
 

@@ -127,37 +127,38 @@ private struct PendingView: View {
             }
             .card()
         } else {
-            VStack(spacing: 24) {
-                // Content Heading
-                VStack(spacing: 8) {
-                    Text("Verify identification")
-                        .font(.system(.title2).weight(.bold))
-                        .foregroundColor(.primary)
-                    Text("The model found \(candidates.count) close \(candidates.count == 1 ? "match" : "matches").")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .multilineTextAlignment(.center)
+            VStack(spacing: candidates.count > 1 ? 48 : 24) {
+                // Visual Graphic stack
+                ZStack {
+                    let displayCandidates = Array(candidates.prefix(2))
+                    let isPair = displayCandidates.count == 2
+                    
+                    ForEach(Array(displayCandidates.enumerated().reversed()), id: \.offset) { index, candidate in
+                        let rotation: Double = isPair ? (index == 0 ? -5 : 5) : .zero
+                        let offsetX: CGFloat = isPair ? (index == 0 ? -16 : 16) : .zero
+                        let offsetY: CGFloat = isPair ? (index == 0 ? 0 : 12) : .zero
 
-                VStack(spacing: candidates.count > 1 ? 48 : 24) {
-                    // Visual Graphic stack
-                    ZStack {
-                        let displayCandidates = Array(candidates.prefix(2))
-                        let isPair = displayCandidates.count == 2
-                        
-                        ForEach(Array(displayCandidates.enumerated().reversed()), id: \.offset) { index, candidate in
-                            let rotation: Double = isPair ? (index == 0 ? -5 : 5) : .zero
-                            let offsetX: CGFloat = isPair ? (index == 0 ? -16 : 16) : .zero
-                            let offsetY: CGFloat = isPair ? (index == 0 ? 0 : 12) : .zero
-
-                            FlayedCandidateThumbnail(candidate: candidate)
-                                .rotationEffect(.degrees(rotation))
-                                .offset(x: offsetX, y: offsetY)
-                                .zIndex(-Double(index))
-                        }
+                        FlayedCandidateThumbnail(candidate: candidate)
+                            .rotationEffect(.degrees(rotation))
+                            .offset(x: offsetX, y: offsetY)
+                            .zIndex(-Double(index))
                     }
-                    .onTapGesture(perform: onReviewAlternatives)
-                       
+                }
+                .padding(.top, 8)
+                .onTapGesture(perform: onReviewAlternatives)
+
+                VStack(spacing: 24) {
+                    // Content Heading
+                    VStack(spacing: 8) {
+                        Text("Verify identification")
+                            .font(.system(.title2).weight(.bold))
+                            .foregroundColor(.primary)
+                        Text("The model found \(candidates.count) close \(candidates.count == 1 ? "match" : "matches").")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+
                     // Action Buttons
                     VStack(spacing: 12) {
                         Button(action: onReviewAlternatives) {
@@ -237,3 +238,32 @@ private struct FlayedCandidateThumbnail: View {
         .task { _ = await imageFetcher.fetchImage(for: candidate.scientificName) }
     }
 }
+
+// MARK: - Previews
+
+#if DEBUG
+#Preview("Pending State - Single") {
+    CandidatesCard(
+        candidates: [
+            IdentificationCandidate(scientificName: "Limenitis archippus", commonName: "Viceroy", confidenceScore: 0.71)
+        ],
+        aiScientificName: "Danaus plexippus",
+        inferenceTier: "flash"
+    )
+    .environment(InferenceEngine())
+    .padding()
+}
+
+#Preview("Pending State - Pair") {
+    CandidatesCard(
+        candidates: [
+            IdentificationCandidate(scientificName: "Limenitis archippus", commonName: "Viceroy", confidenceScore: 0.71),
+            IdentificationCandidate(scientificName: "Danaus gilippus", commonName: "Queen", confidenceScore: 0.58)
+        ],
+        aiScientificName: "Danaus plexippus",
+        inferenceTier: "flash"
+    )
+    .environment(InferenceEngine())
+    .padding()
+}
+#endif

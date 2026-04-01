@@ -28,7 +28,7 @@ The `/enrich-scan` Supabase Edge Function handles on-demand encyclopedic lookup 
 
 - **`index.ts`**: The main orchestrator. Re-routes data fetched by the shared micro-agents, handling the concurrent `Promise.all` logic based on what Postgres data is currently missing. Unifies the output via `formatEnrichmentPayload` to strictly guarantee uniform JSON contracts back to Swift.
 - **`types.ts`**: Strict TypeScript interfaces tracking the shape of `CachedSpeciesData` returned from Postgres. Removing these inline types from the orchestrator eliminates dangerous semantic type-casting across asynchronous LLM results.
-- **`db.ts`**: Encapsulates all Postgres operations: `getCachedSpecies` (dictionary lookup with `id` field), `fetchLookalikesFromJoinTable` (embedded join hydration from `species_lookalikes`), `resolveLookalikesToJoinTable` (maps Gemini-generated scientific names to join table rows, back-fills `common_names`, and returns Flash-generated stubs for species not yet in the dictionary), and `updateSpeciesEnrichment` (UPSERT patching).
+- **`db.ts`**: Encapsulates all Postgres operations: `getCachedSpecies` (dictionary lookup with `id` field), `fetchLookalikesFromJoinTable` (embedded join hydration from `species_lookalikes`), `resolveLookalikesToJoinTable` (maps Gemini-generated scientific names to join table rows, back-fills `common_names`, returns Flash-generated stubs for species not yet in the dictionary, and **rejects any resolved species whose `kingdom` differs from the primary species' kingdom** — hard guard against cross-kingdom hallucinations persisting in cache), and `updateSpeciesEnrichment` (UPSERT patching).
 
 ### Enrichment Pipeline (`isEnrichmentLoading` / `fetchAndApplyEnrichment`)
 

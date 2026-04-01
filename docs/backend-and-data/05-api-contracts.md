@@ -231,7 +231,18 @@ Only `scientific_name` is strictly required by the Edge function. `scan_id`, `co
 
 **Two-Layer Lookalike Strategy**:
 - **Layer 1 — Taxonomy trigger (zero token cost)**: A Postgres `AFTER INSERT` trigger (`trg_link_taxonomy_lookalikes`) auto-populates `species_lookalikes` with bidirectional same-genus links whenever a new species row is inserted. Same-genus species are almost always visually similar; this alone covers the majority of cases without any Gemini call.
-- **Layer 2 — Gemini Flash for cross-family visual mimics**: `fetchSimilarSpecies` is only invoked when the `species_lookalikes` join table is empty AND `similar_species TEXT[]` has no legacy names. After Gemini returns scientific name strings, `resolveLookalikesToJoinTable` looks them up in `species_dictionary` and inserts bidirectional join table rows.
+- **Layer 2 — Gemini Flash for cross-family visual mimics**: `fetchSimilarSpecies` is only invoked when the `species_lookalikes` join table is empty AND `similar_species TEXT[]` has no legacy names. Flash receives the species' full taxonomy (kingdom, class, order, family) from `cachedSpecies` and is explicitly constrained to return lookalikes from the same kingdom. After Gemini returns entries, `resolveLookalikesToJoinTable` looks them up in `species_dictionary`, validates kingdom match, and inserts bidirectional join table rows.
+
+**Taxonomy Grounding (`fetchSimilarSpecies` + `resolveLookalikesToJoinTable`)**: Flash is passed `kingdom`, `class`, `order`, and `family` from `species_dictionary` as context. The system instruction explicitly forbids cross-kingdom results (e.g. plants as lookalikes for insects). As a second line of defence, `resolveLookalikesToJoinTable` accepts `primaryKingdom` and silently rejects any resolved species whose `kingdom` column in `species_dictionary` doesn't match — preventing hallucinated cross-kingdom entries from ever being written to the join table or served from cache.
+
+**Cache Invalidation for Bad Data**: If cross-kingdom lookalikes were previously cached (before this fix), clear them with:
+```sql
+DELETE FROM species_lookalikes
+WHERE species_id = (SELECT id FROM species_dictionary WHERE scientific_name = '<scientific_name>');
+UPDATE species_dictionary SET similar_species = NULL, lookalikes_flash_attempted = FALSE
+WHERE scientific_name = '<scientific_name>';
+```
+The next `enrich-scan` call will re-run Flash with the taxonomy-grounded prompt.
 
 **Migration Path**: If the join table is empty but `similar_species TEXT[]` has legacy name strings (populated by older pipeline versions), they are resolved to the join table at zero token cost before returning.
 

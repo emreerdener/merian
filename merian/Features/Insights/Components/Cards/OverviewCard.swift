@@ -97,7 +97,7 @@ struct OverviewCard: View {
                             }()
                             
                             KeyValueRow(
-                                title: "IUCN RED LIST", 
+                                title: "CONSERVATION STATUS", 
                                 value: status.text, 
                                 valueIcon: iconName,
                                 valueIconColor: iconColor,

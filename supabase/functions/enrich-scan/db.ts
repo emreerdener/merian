@@ -68,10 +68,15 @@ export async function fetchLookalikesFromJoinTable(
 /// common_name so future fetchLookalikesFromJoinTable calls return a populated common name.
 /// Returning the summaries directly allows the caller to skip a redundant
 /// fetchLookalikesFromJoinTable call after resolution.
+///
+/// @param primaryKingdom - When provided, any resolved lookalike whose kingdom differs from
+///   this value is rejected before being written to the join table. Prevents cross-kingdom
+///   hallucinations (e.g. plants appearing as lookalikes for insects) from persisting in cache.
 export async function resolveLookalikesToJoinTable(
   speciesId: string,
   entries: SimilarSpeciesEntry[],
   supabaseAdmin: SupabaseClient,
+  primaryKingdom?: string | null,
 ): Promise<LookalikeSummary[]> {
   if (entries.length === 0) return [];
 
@@ -80,7 +85,7 @@ export async function resolveLookalikesToJoinTable(
 
   const { data: matches, error } = await supabaseAdmin
     .from("species_dictionary")
-    .select("id, scientific_name, common_names, reference_image_url, iucn_red_list_status")
+    .select("id, scientific_name, common_names, reference_image_url, iucn_red_list_status, kingdom")
     .in("scientific_name", names)
     .limit(10);
 
@@ -92,6 +97,7 @@ export async function resolveLookalikesToJoinTable(
     common_names: Record<string, string> | null;
     reference_image_url: string | null;
     iucn_red_list_status: string | null;
+    kingdom: string | null;
   }[];
 
   // If none of the lookalike species are in species_dictionary yet, return the
@@ -107,7 +113,24 @@ export async function resolveLookalikesToJoinTable(
     }));
   }
 
-  const inserts = typed.flatMap((m) => [
+  // Reject any resolved species whose kingdom differs from the primary species' kingdom.
+  // This is a hard guard against cross-kingdom hallucinations persisting in the join table
+  // (e.g. plants being stored as lookalikes for insects/birds).
+  const validated = primaryKingdom
+    ? typed.filter((m) => {
+        if (!m.kingdom) return true; // No kingdom on record — allow through, can't verify.
+        return m.kingdom.toLowerCase() === primaryKingdom.toLowerCase();
+      })
+    : typed;
+
+  if (validated.length === 0) {
+    console.warn(
+      `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed kingdom validation (expected: ${primaryKingdom}). Returning empty.`,
+    );
+    return [];
+  }
+
+  const inserts = validated.flatMap((m) => [
     { species_id: speciesId, lookalike_id: m.id },
     { species_id: m.id, lookalike_id: speciesId },
   ]);
@@ -127,7 +150,7 @@ export async function resolveLookalikesToJoinTable(
   // back-fills complete in a single Postgres round-trip. The RPC's WHERE guard
   // (NOT (common_names ? 'en')) makes each row update a safe no-op if "en" was already
   // populated by a concurrent request, preserving existing locale keys (e.g. "fr", "de").
-  const backfills = typed.filter((m) => {
+  const backfills = validated.filter((m) => {
     const flashName = entryByName.get(m.scientific_name)?.common_name ?? null;
     if (!flashName) return false;
     const hasEn = m.common_names != null && (m.common_names as Record<string, string>)["en"] != null;
@@ -142,7 +165,7 @@ export async function resolveLookalikesToJoinTable(
     });
   }
 
-  const matchedNames = new Set(typed.map((m) => m.scientific_name));
+  const matchedNames = new Set(validated.map((m) => m.scientific_name));
 
   // Append any Flash-generated entries for species not yet in species_dictionary.
   // These carry common_name from Flash but no reference image or IUCN data — the
@@ -157,7 +180,7 @@ export async function resolveLookalikesToJoinTable(
     }));
 
   return [
-    ...typed.map((m) => ({
+    ...validated.map((m) => ({
       scientific_name: m.scientific_name,
       // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
       common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,

@@ -150,6 +150,7 @@ serve((req: Request) =>
           speciesId,
           cachedSpecies.similar_species.map((name) => ({ scientific_name: name, common_name: null })),
           supabaseAdmin,
+          cachedSpecies?.kingdom,
         );
       }
     }
@@ -172,13 +173,19 @@ serve((req: Request) =>
     }
 
     try {
-      const similarResult = await fetchSimilarSpecies(_user, scientific_name);
+      const similarResult = await fetchSimilarSpecies(_user, scientific_name, {
+        kingdom: cachedSpecies?.kingdom,
+        class: cachedSpecies?.class,
+        order: cachedSpecies?.order,
+        family: cachedSpecies?.family,
+      });
 
       if (similarResult?.similar_species && speciesId) {
         lookalikes = await resolveLookalikesToJoinTable(
           speciesId,
           similarResult.similar_species,
           supabaseAdmin,
+          cachedSpecies?.kingdom,
         );
         // Guard: only set the flag when lookalikes were actually resolved. Flash can return
         // similar_species: [] (empty array) for species it doesn't recognise; [] is truthy
