@@ -33,16 +33,11 @@ struct CandidateActionButton: View {
         Button(action: action) {
             Text(label)
                 .font(.body.weight(.bold))
-                .foregroundStyle(color)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(color.opacity(0.15))
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(color.opacity(0.3), lineWidth: 0.5)
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .tint(color)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
     }
 }

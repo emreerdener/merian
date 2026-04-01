@@ -1202,10 +1202,11 @@ private struct WikiSummaryResponse: Decodable {
             }
 
             guard !Task.isCancelled else { return }
+            let finalPhraseIndex = syncedPhraseIndex
             await MainActor.run { [weak self] in 
                 guard let self else { return }
                 self.isVisionStreaming = false 
-                self.startPhaseRotation(phrases: specificPhrases, startIndex: syncedPhraseIndex)
+                self.startPhaseRotation(phrases: specificPhrases, startIndex: finalPhraseIndex)
             }
         }
     }

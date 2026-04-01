@@ -222,7 +222,7 @@ private struct RevealText: View {
                     revealProgress = 1.0
                 }
             }
-            .onChange(of: text) { _ in
+            .onChange(of: text) {
                 // 1. Instantly snap mask back to hidden without a reverse spring transition
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
