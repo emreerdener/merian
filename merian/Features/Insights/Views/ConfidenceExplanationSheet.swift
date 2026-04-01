@@ -31,14 +31,14 @@ struct ConfidenceExplanationSheet: View {
                             Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
                         }
                     )
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 16)
                 } else if isFlagged {
                     UnderReviewView(
                         onUndo: {
                             Task { await inferenceEngine.unflagAIIdentification(modelContext: modelContext) }
                         }
                     )
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 16)
                 } else if let override = userIdentificationOverride {
                     OverriddenView(
                         overrideName: override,
@@ -49,7 +49,7 @@ struct ConfidenceExplanationSheet: View {
                             }
                         }
                     )
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 16)
                 } else if userConfirmedIdentification {
                     ConfirmedView(
                         onReset: {
@@ -58,7 +58,7 @@ struct ConfidenceExplanationSheet: View {
                             }
                         }
                     )
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, 16)
                 }
 
                 ConfidenceSpectrum(inferenceTier: inferenceTier)

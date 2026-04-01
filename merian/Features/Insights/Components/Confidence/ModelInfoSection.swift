@@ -21,7 +21,7 @@ struct ModelInfoSection: View {
                         Text("Merian AI")
                             .font(.system(.title3, weight: .bold))
                             .foregroundStyle(.primary)
-                        Text(isPro ? "Pro" : "Flash")
+                        Text(isPro ? "Pro model" : "Flash model")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(isPro ? Color.indigo : Color.secondary)
                             .padding(.horizontal, 7)
