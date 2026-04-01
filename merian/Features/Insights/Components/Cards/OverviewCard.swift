@@ -97,8 +97,8 @@ struct OverviewCard: View {
                             }()
                             
                             KeyValueRow(
-                                title: "CONSERVATION STATUS", 
-                                value: status.text, 
+                                title: "CONSERVATION",
+                                value: status.text,
                                 valueIcon: iconName,
                                 valueIconColor: iconColor,
                                 valueTextColor: textColor
