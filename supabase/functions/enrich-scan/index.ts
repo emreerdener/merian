@@ -60,6 +60,13 @@ function formatLookalikesOnlyPayload(
   };
 }
 
+// TODO(rate-limiting): _user is authenticated but there is no per-user server-side throttle on
+// LLM-triggering enrichment calls. Any authenticated user can invoke this endpoint an unbounded
+// number of times, each triggering a Gemini generation round-trip. Add a per-user daily quota
+// check against `usage_limits` (or a dedicated `enrichment_calls_today` counter) that returns
+// HTTP 429 before reaching `fetchStaticEncyclopedicData` / `fetchSimilarSpecies`. The client-side
+// `InferenceEngine` already gates via `enrichedSpeciesNames`, but the server must not trust it.
+
 serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
     let body;

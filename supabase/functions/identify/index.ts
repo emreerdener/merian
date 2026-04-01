@@ -22,6 +22,19 @@ import {
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
+const modelCache = {
+  flash: _genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: getSystemInstruction(0.88),
+    generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
+  }),
+  pro: _genAI.getGenerativeModel({
+    model: "gemini-2.5-pro",
+    systemInstruction: getSystemInstruction(0.80),
+    generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
+  }),
+};
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
@@ -103,11 +116,7 @@ serve((req: Request) =>
     const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
     const diagnosticTrigger = userTier === "pro" ? 0.80 : 0.88;
 
-    const model = _genAI.getGenerativeModel({
-      model: targetModel,
-      systemInstruction: getSystemInstruction(diagnosticTrigger),
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
-    });
+    const model = userTier === "pro" ? modelCache.pro : modelCache.flash;
 
     const telemetryItems = [
       gpsLatitude != null && gpsLongitude != null ? `GPS:${gpsLatitude},${gpsLongitude}` : null,
@@ -123,10 +132,10 @@ serve((req: Request) =>
     ].filter(Boolean);
 
     const parts: Part[] = [
+      { text: `Context: ${telemetryItems.join(", ")}. Perform biological identification.` },
       ...base64Payloads.map((payload) => ({
         inlineData: { mimeType: mimeType || "image/webp", data: payload },
       })),
-      { text: `Context: ${telemetryItems.join(", ")}. Perform biological identification.` },
     ];
 
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
@@ -176,6 +185,9 @@ serve((req: Request) =>
       console.error("Failed to parse AI response:", parseError);
       return jsonResponse({ error: "Processing Error: Malformed AI response." }, 422);
     }
+
+    // Derive blur_score from sharpness (1-10) for latency savings
+    parsedData.blur_score = Math.max(0, (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10);
 
     const generatedScanId = crypto.randomUUID();
     const payloadReadyForClient: ClientPayload = {
@@ -392,11 +404,21 @@ serve((req: Request) =>
         }).catch((e) => console.error("PostHog tracking failed:", e));
 
         const bgWriteStart = Date.now();
-        await Promise.allSettled([
+        const bgWriteResults = await Promise.allSettled([
           needsGroupTags && groupTagsResult?.group_tags?.length
             ? updateGroupTags(parsedData.scientific_name!, groupTagsResult.group_tags, supabaseAdmin)
             : Promise.resolve(),
         ]);
+        for (const result of bgWriteResults) {
+          if (result.status === "rejected") {
+            console.error(JSON.stringify({
+              event: "bg_species_write_failed",
+              scan_id: generatedScanId,
+              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+              ts: new Date().toISOString(),
+            }));
+          }
+        }
         console.log(`[⏱ BENCH] bg_species_writes: ${Date.now() - bgWriteStart}ms`);
       } catch (e) {
         // Revert R2 uploads to prevent untracked orphans when the scan DB write failed.

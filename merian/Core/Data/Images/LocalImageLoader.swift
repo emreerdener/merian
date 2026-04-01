@@ -32,37 +32,32 @@ actor LocalImageLoader {
         let fetchTask = Task.detached(priority: .userInitiated) { () -> UIImage? in
             // 3. Remote URL Execution (if 'imagePath' is actually a cloud URL payload directly)
             if let safePath = imagePath, safePath.starts(with: "http"), let remoteUrl = URL(string: safePath) {
-                if let networkImage = await self.fetchNetworkFallback(url: remoteUrl, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
+                if let networkImage = await LocalImageLoader.fetchRemote(url: remoteUrl, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
                     return networkImage
                 }
             }
             // 4. Local File Extraction directly off Main Thread
             else if let safePath = imagePath, !safePath.isEmpty, !safePath.starts(with: "http") {
-                let filename = (safePath as NSString).lastPathComponent
-                let url = URL.documentsDirectory.appendingPathComponent(filename)
-                
-                if let cgImage = ImageDownsampler.shared.downsample(url: url, maxSize: CGFloat(maxDimension)) {
-                    let decoded = UIImage(cgImage: cgImage)
-                    ImageCache.shared.set(decoded, forKey: cacheKey)
-                    return decoded
+                if let image = LocalImageLoader.loadLocal(path: safePath, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
+                    return image
                 }
             }
-            
+
             // 5. Explicit Network Fallback explicitly routing legacy bounds
             if let fallbackUrlString = fallbackUrl {
                 let urls = fallbackUrlString.components(separatedBy: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .compactMap { URL(string: $0) }
-                
+
                 for url in urls {
-                    // We intentionally do NOT check `Task.isCancelled` here because this is a 
+                    // We intentionally do NOT check `Task.isCancelled` here because this is a
                     // detached task serving multiple coalesced callers. We want it to finish caching.
-                    if let networkImage = await self.fetchNetworkFallback(url: url, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
+                    if let networkImage = await LocalImageLoader.fetchRemote(url: url, cacheKey: cacheKey, maxSize: CGFloat(maxDimension)) {
                         return networkImage
                     }
                 }
             }
-            
+
             return nil
         }
         
@@ -112,28 +107,33 @@ actor LocalImageLoader {
         }
     }
 
-    // MARK: - Network Edge Loaders
-    // Explicit network fallback natively isolated off Main Thread
-    private nonisolated func fetchNetworkFallback(url: URL, cacheKey: String, maxSize: CGFloat = 500) async -> UIImage? {
+    // MARK: - Nonisolated Fetch Helpers
+    // Static nonisolated functions so the Task.detached body above never re-enters the actor's
+    // executor mid-operation. All I/O and CGImage work runs on the detached task's thread pool;
+    // only the final ImageCache.shared.set call crosses into the cache (which is @unchecked Sendable).
+
+    /// Decodes a local APFS file path into a UIImage without touching the actor's executor.
+    private static nonisolated func loadLocal(path: String, cacheKey: String, maxSize: CGFloat) -> UIImage? {
+        let filename = (path as NSString).lastPathComponent
+        let url = URL.documentsDirectory.appendingPathComponent(filename)
+        guard let cgImage = ImageDownsampler.shared.downsample(url: url, maxSize: maxSize) else { return nil }
+        let image = UIImage(cgImage: cgImage)
+        ImageCache.shared.set(image, forKey: cacheKey)
+        return image
+    }
+
+    /// Downloads a remote URL, downsamples, and caches — entirely off the actor executor.
+    static nonisolated func fetchRemote(url: URL, cacheKey: String, maxSize: CGFloat = 500) async -> UIImage? {
         if Task.isCancelled { return nil }
-        
         do {
             let (tempURL, response) = try await URLSession.shared.download(from: url)
             defer { try? FileManager.default.removeItem(at: tempURL) }
-            
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return nil
-            }
-            
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
             if Task.isCancelled { return nil }
-            
-            if let cgImage = ImageDownsampler.shared.downsample(url: tempURL, maxSize: maxSize) {
-                let thumbnail = UIImage(cgImage: cgImage)
-                ImageCache.shared.set(thumbnail, forKey: cacheKey)
-                return thumbnail
-            }
-            
-            return nil
+            guard let cgImage = ImageDownsampler.shared.downsample(url: tempURL, maxSize: maxSize) else { return nil }
+            let thumbnail = UIImage(cgImage: cgImage)
+            ImageCache.shared.set(thumbnail, forKey: cacheKey)
+            return thumbnail
         } catch {
             return nil
         }

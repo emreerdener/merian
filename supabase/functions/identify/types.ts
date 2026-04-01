@@ -4,11 +4,10 @@ export interface MerianIdentification {
   ecology_type?: "wild" | "urban" | "domesticated" | "unknown";
   scientific_name?: string;
   confidence_score: number;
-  blur_score: number;
+  blur_score?: number;
   is_invasive?: boolean;
   ai_reasoning: string;
   extracted_visual_traits: string[];
-  colors?: string[];
   common_name?: string;
   hazard_type?: "none" | "poisonous" | "venomous" | "allergenic" | "irritant";
   life_stage?: "egg" | "larva" | "pupa" | "nymph" | "juvenile" | "subadult" | "adult" | "seedling" | "sapling" | "unknown";

@@ -88,26 +88,56 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             return
         }
         
-        // If we have an initial load mismatch, execute a unified global sync organically!
         let needsFullRebuild = self.searchableData.isEmpty && !allScans.isEmpty
-        let targetScans = needsFullRebuild ? allScans : addedScans
-        
-        // Extract lightweight string IDs so the background actor can batch-fetch all records
-        // in a single SQLite query rather than N individual `model(for:)` faults.
-        let idsToExtract = targetScans.map { $0.id }
-        
-        if idsToExtract.isEmpty { return }
-        
-        indexingTask = Task { [weak self] in
-            let dbActor = SearchDatabaseActor(modelContainer: container)
-            let processedNewScans = await dbActor.extractSearchablePayloads(from: idsToExtract)
-            
-            if Task.isCancelled { return }
-            
-            await MainActor.run { [weak self] in
-                if needsFullRebuild {
-                    self?.searchableData = processedNewScans
-                } else {
+
+        if needsFullRebuild {
+            // Full rebuild: allScans is already resident in @MainActor memory via @Query.
+            // Extract lightweight Sendable snapshots here rather than passing IDs to
+            // SearchDatabaseActor, which would fetch the same rows a second time into a
+            // separate ModelContext — doubling memory usage for the initial library load.
+            let snapshots = allScans.map { record in
+                RawScanSnapshot(
+                    id: record.id,
+                    commonName: record.commonName,
+                    scientificName: record.scientificName,
+                    ecologyType: record.ecologyType,
+                    semanticTags: record.semanticTags,
+                    customTags: record.customTags,
+                    isInvasive: record.isInvasive,
+                    taxonomyKingdom: record.taxonomyKingdom,
+                    taxonomyClass: record.taxonomyClass,
+                    taxonomyOrder: record.taxonomyOrder,
+                    taxonomyFamily: record.taxonomyFamily,
+                    aiReasoning: record.aiReasoning,
+                    locationName: record.locationName,
+                    habitatDescription: record.habitatDescription,
+                    weatherCondition: record.weatherCondition,
+                    lifeStage: record.lifeStage,
+                    reproductiveCondition: record.reproductiveCondition,
+                    similarSpecies: record.similarSpecies,
+                    iucnRedListStatus: record.iucnRedListStatus,
+                    hazardType: record.hazardType,
+                    ecologicalInteractions: record.ecologicalInteractions
+                )
+            }
+            indexingTask = Task.detached(priority: .utility) { [weak self] in
+                let processed = SearchDatabaseActor.buildSearchablePayloads(from: snapshots)
+                guard !Task.isCancelled else { return }
+                await MainActor.run { [weak self] in
+                    self?.searchableData = processed
+                }
+            }
+        } else {
+            // Incremental: only newly added scans. These IDs may not be faulted yet in the
+            // @Query result (sync wrote them to the store while we were mid-frame), so
+            // let SearchDatabaseActor fetch them fresh from its own ModelContext.
+            let idsToExtract = addedScans.map { $0.id }
+            if idsToExtract.isEmpty { return }
+            indexingTask = Task { [weak self] in
+                let dbActor = SearchDatabaseActor(modelContainer: container)
+                let processedNewScans = await dbActor.extractSearchablePayloads(from: idsToExtract)
+                guard !Task.isCancelled else { return }
+                await MainActor.run { [weak self] in
                     self?.searchableData.append(contentsOf: processedNewScans)
                 }
             }
@@ -119,11 +149,14 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         guard let scan = allScans.first(where: { $0.id == scanId }), let container = scan.modelContext?.container else { return }
         self.searchableData.removeAll { $0.id == scanId }
 
-        Task { [weak self] in
+        // Cancel any prior reindex so two rapid calls cannot both append to searchableData,
+        // which would produce duplicate SearchableScan entries in the search index.
+        indexingTask?.cancel()
+        indexingTask = Task { [weak self] in
             let dbActor = SearchDatabaseActor(modelContainer: container)
             let newPayload = await dbActor.extractSearchablePayloads(from: [scanId])
             if Task.isCancelled { return }
-            
+
             await MainActor.run { [weak self] in
                 self?.searchableData.append(contentsOf: newPayload)
             }
@@ -297,8 +330,64 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 }
 
 // MARK: - Actor Isolation Bounds
+// MARK: - Sendable Snapshot for Full-Rebuild Path
+
+/// Lightweight value-type mirror of `LocalScanRecord` used when building the search index
+/// from records already loaded in the `@MainActor` `@Query` result. All fields are `Sendable`
+/// so the snapshot can safely cross into a `Task.detached` for CPU-bound string processing
+/// without fetching the same records twice from SwiftData.
+struct RawScanSnapshot: Sendable {
+    let id: String
+    let commonName: String
+    let scientificName: String
+    let ecologyType: String
+    let semanticTags: [String]
+    let customTags: [String]
+    let isInvasive: Bool
+    let taxonomyKingdom: String?
+    let taxonomyClass: String?
+    let taxonomyOrder: String?
+    let taxonomyFamily: String?
+    let aiReasoning: String?
+    let locationName: String?
+    let habitatDescription: String?
+    let weatherCondition: String?
+    let lifeStage: String?
+    let reproductiveCondition: String?
+    let similarSpecies: [String]?
+    let iucnRedListStatus: String?
+    let hazardType: String
+    let ecologicalInteractions: [String]?
+}
+
 @ModelActor
 actor SearchDatabaseActor {
+    /// Builds `SearchableScan` payloads from pre-extracted `RawScanSnapshot` values.
+    ///
+    /// Called on the full-rebuild path where `allScans` is already resident in `@MainActor`
+    /// memory. Snapshots are extracted on `@MainActor` and processed here off the main thread,
+    /// avoiding a second SwiftData fetch into a separate `ModelContext`.
+    static func buildSearchablePayloads(from snapshots: [RawScanSnapshot]) -> [SearchableScan] {
+        var processed: [SearchableScan] = []
+        processed.reserveCapacity(snapshots.count)
+        for snapshot in snapshots {
+            if Task.isCancelled { break }
+            let tags = snapshot.semanticTags.joined(separator: " ")
+            let taxonomyTerms = [snapshot.taxonomyClass, snapshot.taxonomyOrder, snapshot.taxonomyFamily]
+                .compactMap { $0 }.joined(separator: " ")
+            let groupName = commonGroupName(for: snapshot.taxonomyClass)
+            let rawString = "\(snapshot.commonName) \(snapshot.scientificName) \(snapshot.ecologyType) \(tags) \(snapshot.customTags.joined(separator: " ")) \(snapshot.isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(snapshot.aiReasoning ?? "") \(snapshot.locationName ?? "") \(snapshot.habitatDescription ?? "") \(snapshot.weatherCondition ?? "") \(snapshot.lifeStage ?? "") \(snapshot.reproductiveCondition ?? "") \(snapshot.similarSpecies?.joined(separator: " ") ?? "") \(snapshot.iucnRedListStatus ?? "") \(snapshot.hazardType == "none" ? "" : snapshot.hazardType) \(snapshot.ecologicalInteractions?.joined(separator: " ") ?? "")".lowercased()
+            processed.append(SearchableScan(
+                id: snapshot.id,
+                searchString: rawString,
+                ecologyType: snapshot.ecologyType.lowercased(),
+                kingdom: snapshot.taxonomyKingdom?.lowercased() ?? "",
+                className: snapshot.taxonomyClass?.lowercased() ?? ""
+            ))
+        }
+        return processed
+    }
+
     /// Batch-fetches `LocalScanRecord` rows for the given string IDs in a single SQLite query,
     /// then maps each record to a `SearchableScan` payload.
     ///

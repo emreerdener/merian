@@ -78,6 +78,10 @@ private struct WikiSummaryResponse: Decodable {
     /// the task survives `liveHydrationTask` cancellation and can write stale image URLs back to
     /// a record that is no longer active, or to a record that has already been deleted.
     @ObservationIgnored private var gbifHydrationTask: Task<Void, Never>?
+    /// Tracks the background SwiftData write spawned inside `fetchAndApplyEnrichment` after a
+    /// successful enrichment Edge response. Holding the handle lets `cancelActiveRequest()` abort
+    /// the write before it triggers a spurious `@Query` invalidation on the next scan's UI.
+    @ObservationIgnored private var enrichmentWriteTask: Task<Void, Never>?
     /// Tracks the single async hydration task spawned by `load(from:)` so it can be
     /// cancelled immediately when the user navigates to a different scan.
     @ObservationIgnored var historicHydrationTask: Task<Void, Never>?
@@ -98,9 +102,11 @@ private struct WikiSummaryResponse: Decodable {
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.gbifHydrationTask?.cancel()
+        self.enrichmentWriteTask?.cancel()
         self.phaseRotationTask?.cancel()
         self.visionStreamingTask?.cancel()
         self.gbifHydrationTask = nil
+        self.enrichmentWriteTask = nil
 
         // Reset loading flags synchronously before the cancelled tasks' defer blocks can run
         // on @MainActor. Without this, a stale defer from the old task can fire after the new
@@ -589,7 +595,9 @@ private struct WikiSummaryResponse: Decodable {
                             let habitatSnapshot = enrichData.habitat_description
                             let gbifSnapshot = enrichData.gbif_taxon_key
                             let taxonomySnapshot = enrichData.taxonomy
-                            Task {
+                            self.enrichmentWriteTask?.cancel()
+                            self.enrichmentWriteTask = Task {
+                                guard !Task.isCancelled else { return }
                                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                                 await dbActor.updateScanWithEnrichment(
                                     scanId: capturedScanId,
@@ -889,6 +897,10 @@ private struct WikiSummaryResponse: Decodable {
         // that is no longer active after the user fires a new scan or navigates away.
         self.gbifHydrationTask?.cancel()
         self.gbifHydrationTask = nil
+        // Cancel the enrichment SwiftData write so it cannot trigger a spurious @Query
+        // invalidation on a subsequently opened scan's UI.
+        self.enrichmentWriteTask?.cancel()
+        self.enrichmentWriteTask = nil
         // Reset loading flags synchronously so stale defer blocks from cancelled task group
         // children cannot clear flags belonging to a subsequently opened scan.
         self.scanningPhaseText = "Analyzing subject..."

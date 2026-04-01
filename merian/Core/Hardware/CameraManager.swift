@@ -27,10 +27,22 @@ import UIKit
     @ObservationIgnored private let queue = DispatchQueue(label: "com.merian.camera")
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
-    // MARK: - Render Throttling
+    // MARK: - Lock-Protected Mutable State
+    // All `nonisolated(unsafe)` vars below are exclusively read and written inside
+    // `stateLock.withLock { }` closures. This is the manual synchronization contract that
+    // replaces Swift actor isolation for state shared with AVFoundation nonisolated delegates.
+    // INVARIANT: Never access these vars outside a `stateLock.withLock` block.
     @ObservationIgnored nonisolated let stateLock = OSAllocatedUnfairLock()
+    /// Frame-delivery throttle timestamp — updated at most once per 300 ms from the depth delegate.
     @ObservationIgnored nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
+    /// Frame-delivery throttle timestamp — updated at most once per 300 ms from the video delegate.
     @ObservationIgnored nonisolated(unsafe) private var lastCaptureTime: CFAbsoluteTime = 0
+    /// Mirror of `isLiveInferencePaused` kept here for lock-safe nonisolated reads.
+    @ObservationIgnored nonisolated(unsafe) private var activeInferencePaused: Bool = false
+    /// Rotation coordinator — set once during `setupSession`, read inside the capture queue.
+    @ObservationIgnored nonisolated(unsafe) private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    /// One-shot flag preventing `setupSession` from running twice on concurrent `startSession` calls.
+    @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
 
     // MARK: - State
     private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
@@ -38,8 +50,6 @@ import UIKit
     var isSessionRunning = false
     var subjectDistanceInMeters: Float?
     var isFlashEnabled = false
-
-    @ObservationIgnored nonisolated(unsafe) private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
 
     // MARK: - Zoom
     private(set) var zoomFactor: CGFloat = 1.0
@@ -50,7 +60,6 @@ import UIKit
     var isZoomSupported: Bool { maxZoomFactor >= 2.0 }
 
     // MARK: - Live Inference State
-    @ObservationIgnored nonisolated(unsafe) private var activeInferencePaused: Bool = false
 
     var isLiveInferencePaused: Bool = UserDefaults.standard.object(forKey: UserDefaultsKeys.isLiveInferencePaused) as? Bool ?? UIDevice.current.isModernIPhone {
         didSet {
@@ -175,8 +184,6 @@ import UIKit
 
         session.commitConfiguration()
     }
-
-    @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
 
     /// Guards the recursive `withObservationTracking` chain against double-registration.
     /// Two rapid thermal/power-state changes can both fire `onChange` before either

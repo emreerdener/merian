@@ -21,6 +21,13 @@ export async function fetchUserEmail(
   return user.email;
 }
 
+type ExportJobUpdatePayload = {
+  status: "processing" | "completed" | "failed";
+  error_message?: string;
+  completed_at?: string;
+  file_url?: string;
+};
+
 export async function updateExportJobStatus(
   jobId: string,
   status: "processing" | "completed" | "failed",
@@ -28,8 +35,7 @@ export async function updateExportJobStatus(
   errorMessage?: string,
   fileUrl?: string,
 ) {
-  // deno-lint-ignore no-explicit-any
-  const payload: any = { status };
+  const payload: ExportJobUpdatePayload = { status };
 
   if (status === "failed") {
     payload.error_message = errorMessage;
@@ -82,6 +88,10 @@ export async function fetchAndFormatScans(
     .eq("is_live_capture", true)
     .neq("ecology_type", "domesticated")
     .order("id", { ascending: true });
+
+  if (exportScope !== "global" && exportScope !== "personal") {
+    throw new Error(`Invalid exportScope: "${exportScope}"`);
+  }
 
   if (exportScope === "global") {
     query = query.eq("geoprivacy", "open");

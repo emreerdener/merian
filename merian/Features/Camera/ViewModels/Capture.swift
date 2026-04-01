@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 extension CameraViewModel {
     
     // MARK: - UI Coordination
@@ -65,46 +64,23 @@ extension CameraViewModel {
                         ImageCropProcessor.squareCrop($0, verticalCenterFraction: composingCenter)
                     } ?? safeCGImage
 
-                    let finalSafeData: Data = {
-                        guard let cgImage = croppedCGImage else { return Data() }
-                        return autoreleasepool {
-                            // kCGImageSourceCreateThumbnailWithTransform already bakes the EXIF
-                            // orientation into the CGImage pixels — no orientation option needed.
-                            let renderData = NSMutableData()
-                            guard let destination =
-                                CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
-                                CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
-                            else { return Data() }
-                            let options: [CFString: Any] = [
-                                kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
-                            ]
-                            CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
-                            guard CGImageDestinationFinalize(destination) else { return Data() }
-                            return Data(renderData)
-                        }
-                    }()
+                    // kCGImageSourceCreateThumbnailWithTransform already bakes the EXIF
+                    // orientation into the CGImage pixels — no orientation option needed.
+                    let finalSafeData: Data = croppedCGImage.flatMap {
+                        ImageCropProcessor.encode($0)
+                    } ?? Data()
 
                     // Display payload: 2048 px longest edge — written to disk so the insight
                     // sheet and scan library render crisp. The AI never sees this data;
                     // only finalSafeData is base64-encoded for Gemini.
                     // Same composing-zone crop applied for visual consistency with the inference frame.
-                    let displaySafeData: Data = autoreleasepool {
+                    let displaySafeData: Data = {
                         guard let displayCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.displayImageMaxSize) else {
                             return finalSafeData // fallback to inference quality
                         }
                         let croppedDisplayCGImage = ImageCropProcessor.squareCrop(displayCGImage, verticalCenterFraction: composingCenter) ?? displayCGImage
-                        let renderData = NSMutableData()
-                        guard let destination =
-                            CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
-                            CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
-                        else { return finalSafeData }
-                        let options: [CFString: Any] = [
-                            kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
-                        ]
-                        CGImageDestinationAddImage(destination, croppedDisplayCGImage, options as CFDictionary)
-                        guard CGImageDestinationFinalize(destination) else { return finalSafeData }
-                        return Data(renderData)
-                    }
+                        return ImageCropProcessor.encode(croppedDisplayCGImage) ?? finalSafeData
+                    }()
 
                     if !finalSafeData.isEmpty, let validCGImage = safeCGImage {
                         // 5. Environmental Pre-Fetching

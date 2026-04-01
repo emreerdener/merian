@@ -26,6 +26,36 @@ struct ImageCropProcessor {
         CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
         CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
     }
+
+    /// Encodes a `CGImage` to WebP (JPEG fallback) inside an `autoreleasepool`, returning the
+    /// compressed bytes. Consolidates the repeated CGImageDestination → NSMutableData pattern
+    /// used across `generateCrop`, `generateAutoCenterCrop`, and `Capture.swift`.
+    ///
+    /// - Parameters:
+    ///   - cgImage: Source image to encode.
+    ///   - quality: Lossy compression quality 0.0–1.0. Defaults to `MerianConfig.imageCompressionQuality`.
+    ///   - orientation: EXIF orientation to embed. Pass `nil` when the transform is already baked.
+    ///   - maxPixelSize: Optional longest-edge cap applied during encoding (nil = no limit).
+    /// - Returns: Encoded `Data`, or `nil` if the destination or finalize step fails.
+    static nonisolated func encode(
+        _ cgImage: CGImage,
+        quality: Double = MerianConfig.imageCompressionQuality,
+        orientation: CGImagePropertyOrientation? = nil,
+        maxPixelSize: Int? = nil
+    ) -> Data? {
+        autoreleasepool {
+            let renderData = NSMutableData()
+            guard let destination = makeImageDestination(renderData) else { return nil }
+            var options: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: quality
+            ]
+            if let orientation { options[kCGImagePropertyOrientation] = orientation.rawValue }
+            if let maxPixelSize { options[kCGImageDestinationImageMaxPixelSize] = maxPixelSize }
+            CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+            guard CGImageDestinationFinalize(destination) else { return nil }
+            return Data(renderData)
+        }
+    }
     
     // MARK: - Async Generation Boundary
     nonisolated static func generateCrop(
@@ -111,28 +141,9 @@ struct ImageCropProcessor {
                 // Fallback to original cgImg if cropping fails to ensure off-main-thread processing
                 let finalCG = cgImg.cropping(to: cropRect) ?? cgImg
 
-                let renderData = NSMutableData()
-
-                // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
-                guard let destination = makeImageDestination(renderData) else {
-                    return nil
-                }
-
-                var options: [CFString: Any] = [
-                    kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality,
-                    kCGImagePropertyOrientation: cgOrientation.rawValue
-                ]
-                if let maxPixelSize { options[kCGImageDestinationImageMaxPixelSize] = maxPixelSize }
-                
-                CGImageDestinationAddImage(destination, finalCG, options as CFDictionary)
-                
-                guard CGImageDestinationFinalize(destination) else {
-                    return nil
-                }
-                
-            return Data(renderData)
+                return ImageCropProcessor.encode(finalCG, orientation: cgOrientation, maxPixelSize: maxPixelSize)
         }
-        
+
         return processedBytes ?? Data()
     }
     
@@ -178,28 +189,9 @@ struct ImageCropProcessor {
                 // MARK: 2. Native Bitmap Payload Dispatch
                 let finalCG = cgImg.cropping(to: cropRect) ?? cgImg
 
-                let renderData = NSMutableData()
-
-                // Write the payload using native C abstractions strictly bypassing intermediate UIGraphicsImageRenderer bitmap RAM bloat routines
-                guard let destination = makeImageDestination(renderData) else {
-                    return nil
-                }
-
-                let options: [CFString: Any] = [
-                    kCGImageDestinationLossyCompressionQuality: 0.7,
-                    kCGImagePropertyOrientation: cgOrientation.rawValue,
-                    kCGImageDestinationImageMaxPixelSize: 1024 // Force maximum gemini down-render dynamically natively guaranteeing speed
-                ]
-                
-                CGImageDestinationAddImage(destination, finalCG, options as CFDictionary)
-                
-                guard CGImageDestinationFinalize(destination) else {
-                    return nil
-                }
-                
-            return Data(renderData)
+                return ImageCropProcessor.encode(finalCG, quality: 0.7, orientation: cgOrientation, maxPixelSize: 1024)
         }
-        
+
         return processedBytes ?? Data()
     }
 }

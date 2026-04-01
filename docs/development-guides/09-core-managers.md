@@ -141,6 +141,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - A Zero-OOM actor governing remote image fetches, APFS extraction, and thundering-herd cache coalescing.
 - Prevents redundant remote fetches using tracked `Task` closures off the `@MainActor`.
 - Supports fallback fetching: loops natively through comma-separated URLs via Zero-OOM `ImageDownsampler` bounds.
+- I/O helpers (`loadLocal`, `fetchRemote`) are `static nonisolated` — prevents `Task.detached` from re-entering the actor executor mid-operation and keeps all file/network work on the background thread pool.
 
 ### `SimilarSpeciesImageFetcher`
 - `@Observable` decoupled worker for resolving Wikipedia and GBIF encyclopedic image assets.
