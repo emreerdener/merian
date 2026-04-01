@@ -80,7 +80,6 @@ export interface CachedSpeciesRow {
   iucn_red_list_status: string | null;
   habitat_description: string | null;
   gbif_taxon_key: number | null;
-  similar_species: string[] | null;
   group_tags: string[] | null;
 }
 

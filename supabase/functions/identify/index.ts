@@ -304,9 +304,7 @@ serve((req: Request) =>
         // Runs after moderation so we don't persist data for flagged content.
         if (!speciesId && isIdentifiedBio) {
           const bgEnrichStart = Date.now();
-          const [externalData] = await Promise.all([
-            fetchExternalEnrichment(parsedData.scientific_name!),
-          ]);
+          const externalData = await fetchExternalEnrichment(parsedData.scientific_name!);
 
           const newCommonNames = {
             ...(cachedSpecies?.common_names ?? {}),

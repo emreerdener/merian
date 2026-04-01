@@ -28,7 +28,7 @@ export async function upsertGhostUserIfMissing(
 }
 
 const SPECIES_SELECT =
-  "id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key, similar_species, group_tags";
+  "id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags";
 
 export async function fetchCachedSpecies(
   scientificName: string,
@@ -73,30 +73,6 @@ export async function upsertSpeciesDictionary(
     .maybeSingle();
   if (error) throw new Error(`upsertSpeciesDictionary: ${error.message}`);
   return row?.id ?? null;
-}
-
-export async function backfillSpeciesHabitat(
-  speciesId: string,
-  habitatDescription: string,
-  supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("species_dictionary")
-    .update({ habitat_description: habitatDescription })
-    .eq("id", speciesId);
-  if (error) throw new Error(`backfillSpeciesHabitat: ${error.message}`);
-}
-
-export async function updateSimilarSpecies(
-  scientificName: string,
-  similarSpecies: string[],
-  supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("species_dictionary")
-    .update({ similar_species: similarSpecies })
-    .eq("scientific_name", scientificName);
-  if (error) throw new Error(`updateSimilarSpecies: ${error.message}`);
 }
 
 export async function updateGroupTags(
