@@ -16,26 +16,30 @@ extension CameraViewModel {
     func submitActiveScan(modelContext: ModelContext) {
         guard !activeScannedDatas.isEmpty else { return }
 
-        // 1. Eagerly set the Insight sheet to open in its "Analyzing" skeleton state.
+        // 1. Clear any stale image paths from a previously-viewed library scan so the
+        // carousel doesn't flash old images while waiting for analyze() to be called.
+        diContainer.inferenceEngine.validHistoricImagePaths = []
+
+        // 2. Eagerly set the Insight sheet to open in its "Analyzing" skeleton state.
         activeSheet = .insight
 
-        // 2. Capture the context needed for inference before clearing the staging buffers.
+        // 3. Capture the context needed for inference before clearing the staging buffers.
         let datasToAnalyze = activeScannedDatas
         let displayDatasToAnalyze = activeDisplayDatas
         let capturedOriginals = activeOriginals
         let capturedPreFetchTask = preFetchTask
 
-        // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
+        // 4. Clear the staging buffers immediately so the UI resets behind the overlay.
         activeScanImages.removeAll()
         activeScannedDatas.removeAll()
         activeDisplayDatas.removeAll()
         activeOriginals.removeAll()
         preFetchTask = nil
 
-        // 4. Fire the inference pipeline.
+        // 5. Fire the inference pipeline.
 
         Task {
-            // 5. Resolve the pre-fetched environment context (started at shutter press).
+            // 6. Resolve the pre-fetched environment context (started at shutter press).
             // Snapshot zoom before the first await — at 1× it carries no signal, so nil is sent.
             let capturedZoom: CGFloat? = diContainer.cameraManager.zoomFactor > 1.0
                 ? diContainer.cameraManager.zoomFactor
@@ -104,7 +108,7 @@ extension CameraViewModel {
                 )
             }
 
-            // 6. Fire the inference pipeline.
+            // 7. Fire the inference pipeline.
             await MainActor.run {
                 diContainer.inferenceEngine.analyze(
                     imageDatas: datasToAnalyze,

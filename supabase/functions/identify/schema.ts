@@ -3,9 +3,9 @@ import {
   ResponseSchema,
 } from "https://esm.sh/@google/generative-ai@0.24.1";
 
-export const getSystemInstruction = (diagnosticTrigger: number) => `You are an expert encyclopedic field-guide biologist and taxonomist. Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food, debris, shadows, cracks) are is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, common_name, life_stage, reproductive_condition, individual_count, ecological_interactions. 7) Micro-CoT & Pareidolia Avoidance: You MUST extract 3 structural observations in extracted_visual_traits BEFORE determining is_biological_subject or scientific_name. Actively reject optical illusions, pareidolia, and inanimate objects mimicking biology (e.g., cracks looking like snakes). Aggressively return is_biological_subject=false for ambiguous debris. 8) If the primary subject is actively interacting with another biological organism, describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count. 10) Score the image as a potential encyclopedic field-guide reference photo in image_quality: sharpness (1–10, focus and absence of motion blur), framing (1–10, subject fully in frame and isolated from chaotic background), diagnostic_utility (1–10, taxonomic identification features clearly displayed — e.g. leaf venation, plumage, bark texture), and overall_score (0–100, holistic reference quality synthesizing all three dimensions). 11) Candidates: If your confidence_score is strictly less than ${diagnosticTrigger}, you MUST provide 1-2 alternative species candidates in the candidates array.`;
+export const getSystemInstruction = (_diagnosticTrigger: number) => `You are an expert encyclopedic field-guide biologist and taxonomist. Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food, debris, shadows, cracks) is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, scientific_name, common_name, life_stage, reproductive_condition, individual_count, ecological_interactions. 7) Micro-CoT & Pareidolia Avoidance: You MUST extract 3 structural observations in extracted_visual_traits BEFORE determining is_biological_subject or scientific_name. Actively reject optical illusions, pareidolia, and inanimate objects mimicking biology (e.g., cracks looking like snakes). Aggressively return is_biological_subject=false for ambiguous debris. 8) If the primary subject is actively interacting with another biological organism, describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count. 10) Score the image as a potential encyclopedic field-guide reference photo in image_quality: sharpness (1–10, focus and absence of motion blur), framing (1–10, subject fully in frame and isolated from chaotic background), diagnostic_utility (1–10, taxonomic identification features clearly displayed — e.g. leaf venation, plumage, bark texture), and overall_score (0–100, holistic reference quality synthesizing all three dimensions). 11) Candidates: You MUST always populate the candidates array with exactly 2 alternative species that could plausibly match the image. These must be genuinely distinct alternatives — different species, not subspecies variants of your primary identification.`;
 
-const getSchemaProperties = (diagnosticTrigger: number): Record<string, ResponseSchema> => ({
+const getSchemaProperties = (_diagnosticTrigger: number): Record<string, ResponseSchema> => ({
   extracted_visual_traits: {
     type: SchemaType.ARRAY,
     items: { type: SchemaType.STRING },
@@ -62,7 +62,7 @@ const getSchemaProperties = (diagnosticTrigger: number): Record<string, Response
       required: ["scientific_name", "confidence_score"],
     },
     description:
-      `CRITICAL: You MUST populate this array with 1-2 alternative species if your primary confidence_score is less than ${diagnosticTrigger}. Only omit entirely if you are highly confident (${diagnosticTrigger} or above).`,
+      "ALWAYS provide exactly 2 alternative species candidates that could plausibly match the image. Each must be a genuinely distinct species — not a subspecies or synonym of the primary identification.",
   },
   image_quality: {
     type: SchemaType.OBJECT,
@@ -94,6 +94,7 @@ export const getMerianResponseSchema = (diagnosticTrigger: number): ResponseSche
       "ai_reasoning",
       "confidence_score",
       "image_quality",
+      "candidates",
     ],
   };
   schemaCache.set(diagnosticTrigger, schema);
