@@ -672,11 +672,18 @@ private struct WikiSummaryResponse: Decodable {
         guard let scanId = speciesData?.scanId else { return }
 
         // 1. Immediately update display — scientificName drives InsightHeader subtitle.
-        // Wipe aiReasoning and commonName to prevent stale UI during the fetch.
+        // Wipe stale contextual data to prevent old UI cards from lingering during the fetch.
         speciesData?.userIdentificationOverride = scientificName
         speciesData?.scientificName = scientificName
         speciesData?.commonName = scientificName
         speciesData?.insightData = InsightData(aiReasoning: "", hazardType: "none")
+        speciesData?.wikipediaOverview = nil
+        speciesData?.wikipediaUrl = nil
+        speciesData?.referenceImageUrl = nil
+        speciesData?.iucnRedListStatus = nil
+        speciesData?.habitatDescription = nil
+        speciesData?.gbifTaxonKey = nil
+        speciesData?.similarSpecies = nil
         speciesData?.userConfirmedIdentification = false
 
         // 2. Persist to SwiftData.

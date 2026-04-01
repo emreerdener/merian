@@ -90,7 +90,10 @@ struct FlagIdentificationModal: View {
             }
             // Alert on success
             .alert("Flag submitted", isPresented: $viewModel.showAlert) {
-                Button("Got it", role: .cancel) { dismiss() }
+                Button("Got it", role: .cancel) { 
+                    Task { await inferenceEngine.flagAIIdentification(modelContext: modelContext) }
+                    dismiss() 
+                }
             } message: {
                 Text(viewModel.alertMessage)
             }

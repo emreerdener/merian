@@ -28,7 +28,7 @@ struct ModelInfoSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text("Merian AI")
-                            .font(.system(.subheadline, weight: .bold))
+                            .font(.system(.title3, weight: .bold))
                             .foregroundStyle(.primary)
                         Text(isPro ? "Pro" : "Standard")
                             .font(.caption.weight(.semibold))
@@ -44,7 +44,7 @@ struct ModelInfoSection: View {
                     Text(isPro
                          ? "This scan used an enhanced reasoning model for deeper accuracy."
                          : "This scan used the standard model optimized for speed.")
-                        .font(.footnote)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .lineSpacing(2)

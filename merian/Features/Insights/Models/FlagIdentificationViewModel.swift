@@ -24,9 +24,6 @@ final class FlagIdentificationViewModel {
         
         let userId = SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId
         
-        // 1. Immediately toggle local UI state and persist offline-first Flag
-        await engine.flagAIIdentification(modelContext: context)
-        
         do {
             try await MerianNetworkClient.shared.submitFlagIssue(
                 scanId: scanId,
