@@ -16,9 +16,11 @@ extension CameraViewModel {
     func submitActiveScan(modelContext: ModelContext) {
         guard !activeScannedDatas.isEmpty else { return }
 
-        // 1. Clear any stale image paths from a previously-viewed library scan so the
-        // carousel doesn't flash old images while waiting for analyze() to be called.
-        diContainer.inferenceEngine.validHistoricImagePaths = []
+        // 1. Reset all InferenceEngine display state synchronously so the content router
+        // immediately sees `isProcessing == true && speciesData == nil`. Without this,
+        // stale data from a previously-viewed library scan (isProcessing=false,
+        // speciesData!=nil) causes BiologicalView to flash before analyze() fires.
+        diContainer.inferenceEngine.prepareForNewScan()
 
         // 2. Eagerly set the Insight sheet to open in its "Analyzing" skeleton state.
         activeSheet = .insight

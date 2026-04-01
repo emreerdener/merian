@@ -11,6 +11,24 @@ struct OverviewCard: View {
         return String(first).uppercased() + string.dropFirst()
     }
     
+    private var iucnStatus: (text: String, isGood: Bool?)? {
+        guard let rawStatus = inferenceEngine.speciesData?.iucnRedListStatus?.lowercased() else { return nil }
+        if rawStatus == "not applicable" || rawStatus.isEmpty || rawStatus == "data deficient" { return nil }
+        let normalizedStatus = rawStatus.replacingOccurrences(of: "_", with: " ")
+        
+        switch normalizedStatus {
+        case _ where normalizedStatus.contains("not evaluated"): return ("Not evaluated", nil)
+        case _ where normalizedStatus.contains("least concern"): return ("Not at risk", true)
+        case _ where normalizedStatus.contains("near threatened"): return ("Near threatened", false)
+        case _ where normalizedStatus.contains("vulnerable"): return ("Vulnerable", false)
+        case _ where normalizedStatus.contains("endangered") && !normalizedStatus.contains("critically"): return ("Endangered", false)
+        case _ where normalizedStatus.contains("critically endangered"): return ("Critically endangered", false)
+        case _ where normalizedStatus.contains("extinct in the wild"): return ("Extinct in the wild", false)
+        case _ where normalizedStatus.contains("extinct"): return ("Extinct", false)
+        default: return (capitalizeFirstLetter(normalizedStatus), true)
+        }
+    }
+    
     var body: some View {
         if let data = inferenceEngine.speciesData {
             let wikiExtract = data.wikipediaOverview
@@ -24,7 +42,7 @@ struct OverviewCard: View {
             let reproduction = (data.reproductiveCondition == "not_applicable" || data.reproductiveCondition == nil) ? nil : capitalizeFirstLetter(data.reproductiveCondition!.replacingOccurrences(of: "_", with: " "))
             let interactions = data.ecologicalInteractions?.isEmpty == false ? data.ecologicalInteractions?.joined(separator: "; ") : nil
             
-            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || interactions != nil || data.isInvasive
+            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || interactions != nil || data.isInvasive || iucnStatus != nil
             
             if hasAnyMetadata {
                 VStack(alignment: .leading, spacing: 16) {
@@ -53,9 +71,39 @@ struct OverviewCard: View {
                         KeyValueRow(
                             title: "NATIVE STATUS", 
                             value: invasive, 
-                            valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : nil,
-                            valueIconColor: data.isInvasive ? .yellow : nil
+                            valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
+                            valueIconColor: data.isInvasive ? .yellow : .green
                         )
+                        if let status = iucnStatus {
+                            let iconName: String? = {
+                                switch status.isGood {
+                                case true?: return "checkmark.circle.fill"
+                                case false?: return "exclamationmark.shield.fill"
+                                case nil: return nil
+                                }
+                            }()
+                            let iconColor: Color? = {
+                                switch status.isGood {
+                                case true?: return .green
+                                case false?: return .red
+                                case nil: return nil
+                                }
+                            }()
+                            let textColor: Color? = {
+                                switch status.isGood {
+                                case false?: return .red
+                                default: return nil
+                                }
+                            }()
+                            
+                            KeyValueRow(
+                                title: "IUCN RED LIST", 
+                                value: status.text, 
+                                valueIcon: iconName,
+                                valueIconColor: iconColor,
+                                valueTextColor: textColor
+                            )
+                        }
                         if let val = colors, !val.isEmpty {
                             KeyValueRow(title: "DOMINANT COLORS", value: val)
                         }

@@ -88,6 +88,42 @@ private struct WikiSummaryResponse: Decodable {
 
     // MARK: - Live Inference Pipeline
 
+    /// Synchronously resets all display state so the content router sees
+    /// `isProcessing == true && speciesData == nil` from the very first frame
+    /// when the insight sheet opens — even when the previous scan was a library
+    /// load that had already finished (`isProcessing == false`, `speciesData != nil`).
+    ///
+    /// Called by `CameraViewModel.submitActiveScan()` before `activeSheet = .insight`.
+    /// `analyze()` will subsequently overwrite image and telemetry fields with the
+    /// new scan's data once the async telemetry Task resolves.
+    func prepareForNewScan() {
+        self.inferenceTask?.cancel()
+        self.liveHydrationTask?.cancel()
+        self.historicHydrationTask?.cancel()
+        self.historicHydrationTask = nil
+        self.gbifHydrationTask?.cancel()
+        self.gbifHydrationTask = nil
+        self.enrichmentWriteTask?.cancel()
+        self.enrichmentWriteTask = nil
+        self.phaseRotationTask?.cancel()
+        self.isEnrichmentLoading = false
+        self.isLookalikesLoading = false
+        self.scanningPhaseText = "Analyzing subject..."
+        self.isProcessing = true
+        self.speciesData = nil
+        self.validHistoricImagePaths = []
+        self.activeImageData = nil
+        self.activeLiveCaptureDatas = []
+        self.activeDisplayDatas = []
+        self.activeLatitude = nil
+        self.activeLongitude = nil
+        self.activeElevation = nil
+        self.activeLocationName = nil
+        self.activeWeatherCondition = nil
+        self.activeTemperatureF = nil
+        self.isBackgroundRescued = false
+    }
+
     /// - Parameters:
     ///   - imageDatas: 1024 px inference-quality images. Sent to Gemini as base64 and
     ///     retained in `activeLiveCaptureDatas` for background rescue re-queuing.
@@ -98,6 +134,8 @@ private struct WikiSummaryResponse: Decodable {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
+        self.historicHydrationTask?.cancel()
+        self.historicHydrationTask = nil
         self.gbifHydrationTask?.cancel()
         self.enrichmentWriteTask?.cancel()
         self.phaseRotationTask?.cancel()

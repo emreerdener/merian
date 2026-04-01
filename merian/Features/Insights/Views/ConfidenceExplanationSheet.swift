@@ -52,7 +52,6 @@ struct ConfidenceExplanationSheet: View {
                 }
 
                 ConfidenceSpectrum(inferenceTier: inferenceTier)
-                AIMistakesBanner()
                 ProTips(showLocationPrompt: showLocationPrompt)
             }
             .padding(.top, 32)

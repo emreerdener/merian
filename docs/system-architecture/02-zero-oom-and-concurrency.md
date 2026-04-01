@@ -106,6 +106,21 @@ When opening a historical scan, `load(from:)` previously spawned up to 4 indepen
 
 `InferenceEngine` now owns a single `@ObservationIgnored private var historicHydrationTask: Task<Void, Never>?`. At the start of every `load(from:)` call, the previous task is cancelled. All async hydration work (image-path validation → JSON blob decode → override patch → Wikipedia → enrichment) runs sequentially inside this one task with `guard !Task.isCancelled` checks between stages. The JSON blobs are decoded inside a nested `Task.detached` to keep `JSONDecoder` off `@MainActor`.
 
+`historicHydrationTask` is also cancelled at the start of both `prepareForNewScan()` and `analyze()` (see below), so a library-scan hydration that is still running when the user submits a new capture can never write stale image paths, candidates, or species data over the new scan's cleared state.
+
+### Stale Content-Router State on New Scan (`InferenceEngine.prepareForNewScan()`)
+
+**Background:** `InsightContentView` routes to `AnalyzingContentView` only when `inferenceEngine.isProcessing == true && inferenceEngine.speciesData == nil`. After `load(from:)` finishes for a library scan, `isProcessing = false` and `speciesData` is fully populated. If the user then submits a new scan, `CameraViewModel.submitActiveScan()` opens the sheet immediately (`activeSheet = .insight`) but calls `analyze()` only after an async telemetry-resolution Task resolves — a gap that can span hundreds of milliseconds. During that window, the router evaluated the stale library state and briefly rendered `BiologicalView` (or `NonBiologicalView`) before `analyze()` cleared `speciesData`.
+
+**Fix:** `InferenceEngine` exposes `prepareForNewScan()`, called synchronously by `submitActiveScan()` **before** setting `activeSheet = .insight`. It:
+- Cancels all in-flight tasks: `inferenceTask`, `liveHydrationTask`, `historicHydrationTask`, `gbifHydrationTask`, `enrichmentWriteTask`, `phaseRotationTask`.
+- Nil-s the task handles for `historicHydrationTask`, `gbifHydrationTask`, and `enrichmentWriteTask`.
+- Resets all loading flags (`isEnrichmentLoading`, `isLookalikesLoading`) and `scanningPhaseText`.
+- Sets `isProcessing = true` and `speciesData = nil` atomically, so the router sees the correct `AnalyzingContentView` condition from the very first SwiftUI frame.
+- Clears all image and telemetry state (`validHistoricImagePaths`, `activeDisplayDatas`, `activeLiveCaptureDatas`, `activeImageData`, all environmental telemetry fields).
+
+`analyze()` subsequently overwrites the image and telemetry fields with the new scan's data once the async Task resolves. `analyze()` also cancels `historicHydrationTask` internally so the offline-queue reprocessing path (which calls `analyze()` directly without going through `submitActiveScan()`) gets the same protection.
+
 ### Unbounded GBIF Reference Image Accumulation (`InferenceEngine`)
 
 `fetchGBIFImagesAndHydrate` previously appended up to 4 new GBIF image URLs to `speciesData?.referenceImageUrl` (a comma-separated string) on every open. GBIF URLs are now capped at **5 entries** (`Array(currentUrls.prefix(5))`). The redundant `await MainActor.run { }` hops inside this method have also been removed — `InferenceEngine` is a `@MainActor` class, so all methods resume on the main actor after every `await`; the explicit wrappers were a no-op.

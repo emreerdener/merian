@@ -60,10 +60,6 @@ struct BiologicalView: View {
                 ToxicityBanner()
                     .cardEntrance(index: 1)
     
-                // MARK: - Global Footprint
-                ConservationBanner()
-                    .cardEntrance(index: 2)
-    
                 // MARK: - Educational Reference
                 OverviewCard(
                     isSafariPresented: $isSafariPresented,

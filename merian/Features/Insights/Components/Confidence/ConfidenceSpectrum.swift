@@ -13,9 +13,6 @@ struct ConfidenceSpectrum: View {
             ModelInfoSection(inferenceTier: inferenceTier)
                 .padding(.bottom, 24)
 
-            Divider()
-                .padding(.bottom, 24)
-
             SpectrumNode(
                 color: .green,
                 nextColor: .orange,
@@ -39,16 +36,43 @@ struct ConfidenceSpectrum: View {
                 title: "Weak match",
                 description: "The model is uncertain. Try capturing another angle or bringing it into focus."
             )
+            
+            AIMistakesBanner()
+                .padding(.top, 32)
         }
-        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .padding(.horizontal, 16)
+    }
+}
+
+private struct AIMistakesBanner: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.yellow)
+                    .font(.title3)
+                
+                Text("AI can make mistakes")
+                    .font(.callout.bold())
+                    .foregroundColor(.primary)
+            }
+            
+            Text("While Merian uses advanced models, consider verifying critical identifications with experts, especially regarding toxicity or foraging.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(4)
+        }
+        .padding(20)
         .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemFill).opacity(0.5)) // Ambient Glass Card Housing
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.yellow.opacity(0.1))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .strokeBorder(.white.opacity(0.1), lineWidth: 1) // Structural Glare Line
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(Color.yellow.opacity(0.2), lineWidth: 1)
                 )
         )
-        .padding(.horizontal, 16)
     }
 }

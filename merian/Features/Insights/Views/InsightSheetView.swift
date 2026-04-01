@@ -122,6 +122,7 @@ private extension InsightSheetView {
             commonName: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject...",
             isCommonNameScrolledPast: viewModel.isCommonNameScrolledPast,
             isFlagIssuePresented: $viewModel.isFlagIssuePresented,
+            isIdentificationFlagPresented: $viewModel.isIdentificationFlagPresented,
             isSavingPhotos: $viewModel.isSavingPhotos,
             showDeleteConfirmation: $viewModel.showDeleteConfirmation,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },

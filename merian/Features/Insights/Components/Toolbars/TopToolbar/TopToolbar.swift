@@ -6,6 +6,7 @@ struct TopToolbar: ToolbarContent {
     let commonName: String
     let isCommonNameScrolledPast: Bool
     @Binding var isFlagIssuePresented: Bool
+    @Binding var isIdentificationFlagPresented: Bool
     @Binding var isSavingPhotos: Bool
     @Binding var showDeleteConfirmation: Bool
     let onSavePhotos: () -> Void
@@ -30,7 +31,10 @@ struct TopToolbar: ToolbarContent {
             if !isAnalyzing {
                 Menu {
                     Button(action: { isFlagIssuePresented = true }) {
-                        Label("Flag for review", systemImage: "flag")
+                        Label("Report", systemImage: "exclamationmark.shield")
+                    }
+                    Button(action: { isIdentificationFlagPresented = true }) {
+                        Label("Flag identification", systemImage: "flag")
                     }
                     Button(action: { onSavePhotos() }) {
                         Label("Download my photos", systemImage: "arrow.down.circle")

@@ -5,6 +5,7 @@ public struct KeyValueRow: View {
     public let value: String
     public var valueIcon: String?
     public var valueIconColor: Color?
+    public var valueTextColor: Color?
     public var valueFontWeight: Font.Weight = .medium
     public var isValueItalic: Bool = false
     
@@ -13,6 +14,7 @@ public struct KeyValueRow: View {
         value: String,
         valueIcon: String? = nil,
         valueIconColor: Color? = nil,
+        valueTextColor: Color? = nil,
         valueFontWeight: Font.Weight = .medium,
         isValueItalic: Bool = false
     ) {
@@ -20,6 +22,7 @@ public struct KeyValueRow: View {
         self.value = value
         self.valueIcon = valueIcon
         self.valueIconColor = valueIconColor
+        self.valueTextColor = valueTextColor
         self.valueFontWeight = valueFontWeight
         self.isValueItalic = isValueItalic
     }
@@ -44,7 +47,7 @@ public struct KeyValueRow: View {
             .font(.system(.subheadline))
             .italic(isValueItalic)
             .fontWeight(valueFontWeight)
-            .foregroundColor(.primary)
+            .foregroundColor(valueTextColor ?? .primary)
             .multilineTextAlignment(.trailing)
         }
     }

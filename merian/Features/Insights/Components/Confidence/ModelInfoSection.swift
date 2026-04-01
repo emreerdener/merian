@@ -8,29 +8,20 @@ struct ModelInfoSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
-                Image(systemName: "cpu")
+                Image(systemName: "sparkles.2")
                     .foregroundColor(.secondary)
-                Text("Model")
+                Text("Confidence score")
                     .font(.system(.headline))
                     .foregroundColor(.primary)
             }
 
             HStack(alignment: .top, spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(isPro ? Color.indigo.opacity(0.15) : Color.blue.opacity(0.12))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: isPro ? "sparkles" : "cpu")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(isPro ? Color.indigo : Color.blue)
-                }
-
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text("Merian AI")
                             .font(.system(.title3, weight: .bold))
                             .foregroundStyle(.primary)
-                        Text(isPro ? "Pro" : "Standard")
+                        Text(isPro ? "Pro" : "Flash")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(isPro ? Color.indigo : Color.secondary)
                             .padding(.horizontal, 7)

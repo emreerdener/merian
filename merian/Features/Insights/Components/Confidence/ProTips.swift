@@ -66,12 +66,12 @@ struct ProTips: View {
                         HStack(alignment: .top, spacing: 16) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.orange.opacity(0.15))
+                                    .fill(Color.pink.opacity(0.15))
                                     .frame(width: 32, height: 32)
                                 
                                 Image(systemName: "sparkle")
                                     .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.orange)
+                                    .foregroundColor(.pink)
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
@@ -127,15 +127,8 @@ struct ProTips: View {
                 )
             }
         }
-        .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemFill).opacity(0.5))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-                )
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
         .padding(.horizontal, 16)
         .sheet(isPresented: $showPaywall) {
             PaywallView()
