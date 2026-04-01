@@ -178,6 +178,8 @@ private struct ActiveScanThumbnailGrid: View {
     @Binding var selectedPhotoItems: [PhotosPickerItem]
     let onThumbnailTap: (Int) -> Void
 
+    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
+
     var body: some View {
         HStack(spacing: 16) {
             ForEach(0..<images.count, id: \.self) { index in
@@ -192,8 +194,9 @@ private struct ActiveScanThumbnailGrid: View {
                 .buttonStyle(PlainButtonStyle())
             }
             
-            if images.count < 2 {
-                PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: max(1, 2 - images.count), matching: .images, photoLibrary: .shared()) {
+            let currentLimit = isMultiCaptureEnabled ? 2 : 1
+            if images.count < currentLimit {
+                PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: max(1, currentLimit - images.count), matching: .images, photoLibrary: .shared()) {
                     Circle()
                         .strokeBorder(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
                         .frame(width: 48, height: 48)

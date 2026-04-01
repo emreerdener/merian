@@ -11,6 +11,7 @@ struct Preferences: View {
 
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
+    @AppStorage("requiresScanConfirmation") private var requiresScanConfirmation: Bool = false
 
     @Binding var notificationSettingsActive: Bool
     @Binding var cameraSettingsActive: Bool
@@ -68,6 +69,15 @@ struct Preferences: View {
                 isOn: $isMultiCaptureEnabled,
                 icon: "rectangle.stack.badge.plus",
                 iconColor: .blue
+            )
+            
+            // MARK: - Confirm Submissions
+            SettingsToggleRow(
+                title: "Confirm scan submission",
+                description: "Present the 'Identify' button after capturing to physically confirm the scan. When disabled, single captures are sent to AI immediately.",
+                isOn: $requiresScanConfirmation,
+                icon: "sparkles.2",
+                iconColor: Color(red: 0.11, green: 0.52, blue: 0.28)
             )
 
             // MARK: - Expedition Mode

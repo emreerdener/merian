@@ -229,8 +229,13 @@ struct CameraRootView: View {
             viewModel.handlePhotoPickerSelection(newItems: newItems, modelContext: modelContext)
         }
         .onChange(of: viewModel.activeScanImages.count) { _, count in
-            guard count == 1,
-                  !UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") else { return }
+            // If the user explicitly wants to confirm all submissions, never auto-submit
+            guard !UserDefaults.standard.bool(forKey: "requiresScanConfirmation") else { return }
+            
+            // Otherwise, auto-submit when the user hits their configured capacity limit
+            let limit = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") ? 2 : 1
+            guard count == limit else { return }
+            
             viewModel.submitActiveScan(modelContext: modelContext)
         }
         .onChange(of: captureMode) { _, newMode in

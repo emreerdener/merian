@@ -55,8 +55,26 @@ struct ImageCropperView: View {
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(.white)
                                 .frame(width: 44, height: 44)
-                                .background(Color.white.opacity(0.15))
-                                .clipShape(Circle())
+                                .background(
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 8)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(0.5),
+                                                    Color.white.opacity(0.1),
+                                                    Color.white.opacity(0.3)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 0.5
+                                        )
+                                )
                         }
 
                         Spacer()
@@ -65,13 +83,32 @@ struct ImageCropperView: View {
                             Button(action: { deleteAction() }) {
                                 Image(systemName: "trash")
                                     .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.red) // Icon stays red to indicate destructive action
                                     .frame(width: 44, height: 44)
-                                    .background(Color.red.opacity(0.8))
-                                    .clipShape(Circle())
+                                    .background(
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 8)
+                                    )
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(
+                                                LinearGradient(
+                                                    colors: [
+                                                        Color.white.opacity(0.5),
+                                                        Color.white.opacity(0.1),
+                                                        Color.white.opacity(0.3)
+                                                    ],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                ),
+                                                lineWidth: 0.5
+                                            )
+                                    )
                             }
                         }
                     }
+                    .environment(\.colorScheme, .dark)
                     .padding(.horizontal, 24)
                     .padding(.top, 16)
 
@@ -148,13 +185,12 @@ struct ImageCropperView: View {
                     // 4. Confirm Button
                     Button(action: { generateCrop(displaySize: displaySize) }) {
                         Text("Confirm crop")
-                            .font(.headline)
+                            .font(.headline.weight(.semibold))
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(14)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)
                 }
