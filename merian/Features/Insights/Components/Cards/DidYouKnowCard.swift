@@ -79,15 +79,15 @@ struct DidYouKnowCard: View {
                     }
                 }
         )
-        .task {
+        .task(id: factManager.currentIndex) {
             // Defers the actual JSON decoding and array shuffling to a background thread after the view renders
             await factManager.prepareIfNeeded()
             
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 8_500_000_000)
-                guard !Task.isCancelled else { return }
-                advance()
-            }
+            // Modern iOS clock API prevents runaway ms loops
+            try? await Task.sleep(for: .seconds(8.5))
+            guard !Task.isCancelled else { return }
+            
+            advance()
         }
     }
 
