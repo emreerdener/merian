@@ -5,30 +5,38 @@ struct ScanInformationCard: View {
     let speciesData: SpeciesData?
     var timestamp: Date?
     
+    // Optional rendering fallbacks when speciesData is unvailable during live analysis
+    var fallbackLocationName: String?
+    var fallbackTemperature: Double?
+    var fallbackCondition: String?
+    var fallbackElevation: Double?
+    var fallbackLatitude: Double?
+    var fallbackLongitude: Double?
+    
     var hasValidData: Bool {
-        guard let sd = speciesData else { return false }
-        let nameValid = sd.locationName.map { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
-        let weatherValid = sd.weatherTemperatureF != nil && sd.weatherCondition != nil
-        // A mathematically exact `0.0` output from CoreLocation natively denotes a missing 
-        // vertical altitude fix. Authentic sea-level topological readings always float (e.g., 0.3m, -1.2m).
-        let elevationValid = sd.gpsElevation != nil && sd.gpsElevation != 0
+        let nameValid = (speciesData?.locationName ?? fallbackLocationName).map { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
+        let weatherValid = (speciesData?.weatherTemperatureF ?? fallbackTemperature) != nil && (speciesData?.weatherCondition ?? fallbackCondition) != nil
+        let elev = speciesData?.gpsElevation ?? fallbackElevation
+        let elevationValid = elev != nil && elev != 0
         let coordsValid: Bool = {
-            guard let lat = sd.gpsLatitude, let lon = sd.gpsLongitude else { return false }
+            let lat = speciesData?.gpsLatitude ?? fallbackLatitude
+            let lon = speciesData?.gpsLongitude ?? fallbackLongitude
+            guard let lat = lat, let lon = lon else { return false }
             let latValid = lat >= -90 && lat <= 90
             let lonValid = lon >= -180 && lon <= 180
             return latValid && lonValid && !(lat == 0 && lon == 0)
         }()
-        let zoomValid = sd.zoomFactor != nil
+        let zoomValid = speciesData?.zoomFactor != nil
         return nameValid || weatherValid || elevationValid || coordsValid || zoomValid || timestamp != nil
     }
     
     var body: some View {
-        let name: String? = speciesData?.locationName
-        let temp: Double? = speciesData?.weatherTemperatureF
-        let cond: String? = speciesData?.weatherCondition
-        let elevation: Double? = speciesData?.gpsElevation
-        let lat: Double? = speciesData?.gpsLatitude
-        let lon: Double? = speciesData?.gpsLongitude
+        let name: String? = speciesData?.locationName ?? fallbackLocationName
+        let temp: Double? = speciesData?.weatherTemperatureF ?? fallbackTemperature
+        let cond: String? = speciesData?.weatherCondition ?? fallbackCondition
+        let elevation: Double? = speciesData?.gpsElevation ?? fallbackElevation
+        let lat: Double? = speciesData?.gpsLatitude ?? fallbackLatitude
+        let lon: Double? = speciesData?.gpsLongitude ?? fallbackLongitude
         let zoom: Double? = speciesData?.zoomFactor
         
         if hasValidData {

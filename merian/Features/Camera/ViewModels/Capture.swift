@@ -22,7 +22,6 @@ extension CameraViewModel {
         // 1. Concurrency Guards
         // Prevent accidental hardware captures while a modal, sheet, or crop view is actively presented
         guard activeSheet == nil,
-              !isAnalyzingFullscreen, 
               !isCapturing,
               activeScanImages.count < 2,
               imageToCrop == nil else { return }

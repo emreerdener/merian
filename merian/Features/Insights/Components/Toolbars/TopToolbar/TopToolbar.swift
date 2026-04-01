@@ -9,6 +9,7 @@ struct TopToolbar: ToolbarContent {
     @Binding var isSavingPhotos: Bool
     @Binding var showDeleteConfirmation: Bool
     let onSavePhotos: () -> Void
+    let isAnalyzing: Bool
     
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
@@ -26,20 +27,22 @@ struct TopToolbar: ToolbarContent {
         }
         
         ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button(action: { isFlagIssuePresented = true }) {
-                    Label("Flag for review", systemImage: "flag")
+            if !isAnalyzing {
+                Menu {
+                    Button(action: { isFlagIssuePresented = true }) {
+                        Label("Flag for review", systemImage: "flag")
+                    }
+                    Button(action: { onSavePhotos() }) {
+                        Label("Download my photos", systemImage: "arrow.down.circle")
+                    }
+                    .disabled(isSavingPhotos)
+                    Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+                        Label("Delete scan", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
                 }
-                Button(action: { onSavePhotos() }) {
-                    Label("Download my photos", systemImage: "arrow.down.circle")
-                }
-                .disabled(isSavingPhotos)
-                Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                    Label("Delete scan", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .bold))
             }
         }
     }

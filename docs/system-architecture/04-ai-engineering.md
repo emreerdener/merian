@@ -102,11 +102,11 @@ Additionally, `load(from:)` now inserts `recordScientificName` into `enrichedSpe
 
 ## On-Device Pre-Classification & Scanning Phase UX
 
-While the Edge inference round-trip runs (typically 3–8s on `gemini-2.5-flash` / 6–12s on `gemini-2.5-pro`), `CameraViewModel` runs a concurrent `VNClassifyImageRequest` on-device to drive the fullscreen scanning overlay's status pill text.
+While the Edge inference round-trip runs (typically 3–8s on `gemini-2.5-flash` / 6–12s on `gemini-2.5-pro`), `InferenceEngine` runs a concurrent `VNClassifyImageRequest` on-device to drive the InsightSheet's `AnalyzingContentView` status text.
 
 ### Phase Rotation System
 
-`classifySubjectLocally(from:)` starts a **generic phrase series** immediately ("Scanning subject...", "Detecting morphological features...", etc.) so the overlay is never blank. Concurrently, `VNClassifyImageRequest` executes on a `Task.detached(priority: .userInitiated)` background thread (typically < 100ms). If Vision returns a confident subject category, a **subject-specific phrase series** is queued. Phrases rotate every 2.3 seconds via a cancellable `phaseRotationTask`.
+`classifySubjectLocally(from:)` starts a **generic phrase series** immediately ("Scanning subject...", "Detecting morphological features...", etc.) so `AnalyzingContentView`'s phase text is never empty. Concurrently, `VNClassifyImageRequest` executes on a `Task.detached(priority: .userInitiated)` background thread (typically < 100ms). If Vision returns a confident subject category, a **subject-specific phrase series** is queued. Phrases rotate every 2.3 seconds via a cancellable `phaseRotationTask` owned by `InferenceEngine`.
 
 ### Subject-Specific Series Qualification
 
@@ -116,19 +116,19 @@ A specific phrase series is only activated if all three conditions are met:
 2. **Margin guard** — the top observation must lead the second-best by ≥ 0.15 (`MerianConfig.visionMarginThreshold`); split/ambiguous results (e.g., 0.67 bird / 0.60 plant) stay on the generic series. Implemented at the top of `specificPhraseSeries(for:)` before any category matching runs.
 3. **1.5-second minimum delay** (`MerianConfig.scanningPhaseSubjectDelayNs`) — even when Vision qualifies, the specific series is held for 1.5 seconds before replacing the generic one; this guarantees the user always sees neutral phrases first and limits the visible duration of an incorrect category label to the back half of the scan.
 
-If `isAnalyzingFullscreen` has already been set to `false` by the time the 1.5-second hold expires (fast network response), the switch is silently dropped.
+If `isProcessing` has already been set to `false` by the time the 1.5-second hold expires (fast network response), the switch is silently dropped.
 
 ### Phrase Cycling & Freshness
 
-`startPhaseRotation` runs an infinite `while !Task.isCancelled` loop rather than a one-shot pass through the phrase array. This prevents the overlay from stalling on a frozen final phrase during long inference calls — `gemini-2.5-pro` responses can reach 25–30s on slow connections, which would leave "Awaiting identification..." static for ~10s after the 8-phrase × 2.3s rotation (18.4s) exhausted the array. The loop is cancelled cleanly by `synchronizeAnalysisState` when the overlay closes.
+`startPhaseRotation` runs an infinite `while !Task.isCancelled` loop rather than a one-shot pass through the phrase array. This prevents the overlay from stalling on a frozen final phrase during long inference calls — `gemini-2.5-pro` responses can reach 25–30s on slow connections, which would leave "Awaiting identification..." static for ~10s after the 8-phrase × 2.3s rotation (18.4s) exhausted the array. The loop is cancelled cleanly by `cancelActiveRequest()` or upon a successful response mapping.
 
 Generic phrases are shuffled on each scan (with "Scanning subject..." anchored first) so frequent users do not memorise the sequence.
 
-### Pill Feedback
+### Analyzing Mode Feedback
 
-`ScanningOverlayView` adds two micro-interactions on each phrase change:
-- The `sparkles.2` icon fires one `.variableColor.cumulative` animation cycle per phrase instead of looping blindly — communicating "new information arrived" rather than continuous idle activity.
-- The pill container briefly scales to 1.04× via a spring animation (response: 0.18, dampingFraction: 0.45) before settling back to 1.0×, giving tactile feedback that analysis state has updated.
+The `AnalyzingContentView` inside the `InsightSheetView` adds micro-interactions on each phrase change:
+- The text explicitly uses an asymmetric transition with spring animation to crossfade cleanly.
+- The skeleton cards naturally pulse using a continuous animation curve to indicate background work.
 
 ### Supported Categories
 

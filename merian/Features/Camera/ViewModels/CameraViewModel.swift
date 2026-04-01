@@ -41,18 +41,13 @@ final class CameraViewModel {
     /// center the auto-crop on the region the user actually frames their subject in,
     /// rather than the geometric center of the full sensor image.
     var composingZoneVerticalCenter: CGFloat = 0.5
-
     // MARK: - Camera & Scanning State
     var isCapturing: Bool = false
     var flashOpacity: Double = 0.0
-    var isAnalyzingFullscreen: Bool = false
-    var scanningPhaseText: String = "Analyzing subject..."
-    var analysisImages: [UIImage] = []
     
     // MARK: - Asynchronous Jobs
     @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>?
     @ObservationIgnored private var focusTask: Task<Void, Never>?
-    @ObservationIgnored var phaseRotationTask: Task<Void, Never>?
     
     // MARK: - Lifecycle
     init() {
@@ -72,7 +67,6 @@ final class CameraViewModel {
                     self?.resetModalsForBackground()
                 case .triggerPaywall:
                     self?.activeSheet = .paywall
-                    self?.isAnalyzingFullscreen = false
                 case .appDidEnterActivePhaseWithScan(let scanId):
                     self?.handleDeepLinkRoute(scanId: scanId)
                 }
@@ -106,18 +100,6 @@ final class CameraViewModel {
             activeOriginals.removeAll()
             activeDisplayDatas.removeAll()
             selectedPhotoItems.removeAll()
-        }
-
-        // Always clear the analysis overlay when the app leaves the foreground.
-        // handleBackgroundPhase() owns inference cancellation and re-queuing separately —
-        // keeping isAnalyzingFullscreen = true here would hold the camera blocked on return
-        // until the offline URLSession scan fully completes (potentially minutes later).
-        if isAnalyzingFullscreen {
-            phaseRotationTask?.cancel()
-            phaseRotationTask = nil
-            isAnalyzingFullscreen = false
-            scanningPhaseText = "Analyzing subject..."
-            analysisImages.removeAll()
         }
     }
     
@@ -271,8 +253,8 @@ final class CameraViewModel {
     /// Updates the global notification suppression flag used by PushNotificationManager.
     /// Informs the OS whether the user is actively engaged with the live scan UI.
     func updateNotificationSuppression() {
-        // Suppress if the user is looking at the analysis spinner OR the final insight sheet.
-        let isActivelyWatchingScan = isAnalyzingFullscreen || activeSheet == .insight
+        // Suppress if the user is looking at the final insight sheet.
+        let isActivelyWatchingScan = activeSheet == .insight
         UserDefaults.standard.set(isActivelyWatchingScan, forKey: "suppressInferenceBanners")
     }
 }

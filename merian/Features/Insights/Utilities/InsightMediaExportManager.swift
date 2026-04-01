@@ -23,7 +23,7 @@ final class InsightMediaExportManager {
     // MARK: - Single Item Sharing
     func shareDiscovery(commonName: String, scientificName: String, liveData: Data?, historicPath: String?, referenceImageUrl: String?, presentShareSheet: @escaping ([Any]) -> Void) {
         var items: [Any] = [
-            "Check out this \(commonName) (\(scientificName)) I discovered using Merian! \nhttps://merian.app"
+            "Check out this \(commonName) (\(scientificName)) I discovered using Merian!"
         ]
         
         let refUrls: [String] = referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []

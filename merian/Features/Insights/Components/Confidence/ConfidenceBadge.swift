@@ -7,6 +7,9 @@ struct ConfidenceBadge: View {
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
     var aiScientificName: String?
+    /// When set, the badge shows an analyzing state with this phrase as its label.
+    /// The explanation sheet is suppressed while analyzing.
+    var analyzingPhrase: String?
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isShowingExplanation = false
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
@@ -19,6 +22,10 @@ struct ConfidenceBadge: View {
     }
 
     private var badgeData: BadgePayload {
+        if let phrase = analyzingPhrase {
+            let label = phrase.hasSuffix("...") ? phrase : phrase + "..."
+            return BadgePayload(label: label, color: .blue, icon: "sparkles.2")
+        }
         if isFlagged {
             return BadgePayload(label: "Under review", color: .orange, icon: "flag.fill")
         }
@@ -42,10 +49,12 @@ struct ConfidenceBadge: View {
     }
     
     var body: some View {
-        if isFlagged || userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
+        if analyzingPhrase != nil || isFlagged || userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
             let data = badgeData
+            let isAnalyzing = analyzingPhrase != nil
             
             Button(action: {
+                guard !isAnalyzing else { return }
                 HapticManager.shared.triggerSheetSpring()
                 activeDetent = .fraction(0.65)
                 allowedDetents = [.fraction(0.65), .large]
@@ -55,15 +64,14 @@ struct ConfidenceBadge: View {
                     Image(systemName: data.icon)
                         .imageScale(.medium)
                         .frame(width: 16, alignment: .center)
-                        .foregroundStyle(.white)
-                    Text(data.label)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                        .foregroundStyle(isAnalyzing ? Color.primary : Color.white)
+                    RevealText(text: data.label)
                 }
+                .animation(.spring(response: 0.45, dampingFraction: 0.85), value: data.label)
                 .font(.system(.subheadline, weight: .bold))
-                // Text color pops brightly against the deeply tinted glass
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+                // Text color pops brightly against the deeply tinted glass or standard primary when transparent
+                .foregroundStyle(isAnalyzing ? Color.primary : Color.white)
+                .shadow(color: isAnalyzing ? .clear : .black.opacity(0.15), radius: 2, x: 0, y: 1)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .frame(minHeight: 36)
@@ -73,6 +81,7 @@ struct ConfidenceBadge: View {
                         // Blurred System Glass Foundation
                         Capsule()
                             .fill(.ultraThickMaterial)
+                            .opacity(isAnalyzing ? 0 : 1)
                         
                         // Volumetric Color Tint
                         Capsule()
@@ -83,6 +92,7 @@ struct ConfidenceBadge: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
+                            .opacity(isAnalyzing ? 0 : 1)
                         
                         // Glossy Inner Rim Highlight
                         Capsule()
@@ -94,25 +104,27 @@ struct ConfidenceBadge: View {
                                 ),
                                 lineWidth: 1.5
                             )
+                            .opacity(isAnalyzing ? 0 : 1)
                     }
                 )
                 // Ambient Static Glass Boundary
                 .overlay(
                     Capsule()
-                        .strokeBorder(data.color.opacity(0.2), lineWidth: 1)
+                        .strokeBorder(isAnalyzing ? Color.primary.opacity(0.2) : data.color.opacity(0.2), lineWidth: 1)
                 )
                 // Animated Holographic Glare Sweep
                 .overlay(
                     GeometryReader { geo in
+                        let sweepColor = isAnalyzing ? Color.primary : Color.white
                         Rectangle()
                             .fill(
                                 LinearGradient(
                                     stops: [
                                         .init(color: .clear, location: 0.0),
-                                        .init(color: .white.opacity(0.8), location: 0.45),
-                                        // Solid, stark white highlight that ignores background saturation
-                                        .init(color: .white, location: 0.5),
-                                        .init(color: .white.opacity(0.8), location: 0.55),
+                                        .init(color: sweepColor.opacity(isAnalyzing ? 0.3 : 0.8), location: 0.45),
+                                        // Solid, stark highlight that ignores background saturation
+                                        .init(color: sweepColor, location: 0.5),
+                                        .init(color: sweepColor.opacity(isAnalyzing ? 0.3 : 0.8), location: 0.55),
                                         .init(color: .clear, location: 1.0)
                                     ],
                                     startPoint: .topLeading,
@@ -127,6 +139,8 @@ struct ConfidenceBadge: View {
                             )
                     }
                 )
+                // Smoothly animate the fill transition when analysis finishes
+                .animation(.easeInOut(duration: 0.4), value: isAnalyzing)
             }
             .buttonStyle(.plain)
             .task {
@@ -165,5 +179,61 @@ struct ConfidenceBadge: View {
                     }
             }
         }
+    }
+}
+
+// MARK: - Left-to-Right Text Reveal
+
+/// Reveals its text with a left-to-right fluid mask sweep on each string change.
+/// Because it maintains view identity (no `.id()`), the parent container can smoothly
+/// interpolate and "hug" the bounds of the new characters while they softly fade in.
+private struct RevealText: View {
+    let text: String
+    @State private var revealProgress: CGFloat = 0.0
+
+    var body: some View {
+        Text(text)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            // A dynamic soft-gradient mask to reveal left-to-right
+            .mask(alignment: .leading) {
+                GeometryReader { geo in
+                    let maskWidth = geo.size.width * 1.5
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .black, location: 0.0),
+                                    .init(color: .black, location: 0.75),
+                                    .init(color: .clear, location: 1.0)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        // A generous width to ensure the gradient fully clears the text
+                        .frame(width: max(maskWidth, 50))
+                        .offset(x: (revealProgress - 1.0) * max(maskWidth, 50))
+                }
+            }
+            .onAppear {
+                revealProgress = 0.0
+                withAnimation(.easeOut(duration: 0.6)) {
+                    revealProgress = 1.0
+                }
+            }
+            .onChange(of: text) { _ in
+                // 1. Instantly snap mask back to hidden without a reverse spring transition
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    revealProgress = 0.0
+                }
+                
+                // 2. Execute smooth soft-fade forward across the new text
+                withAnimation(.easeOut(duration: 0.6)) {
+                    revealProgress = 1.0
+                }
+            }
     }
 }

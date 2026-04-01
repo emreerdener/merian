@@ -125,15 +125,32 @@ final class InsightSheetViewModel {
     }
     
     func evaluateProcessingCompletion(isStillProcessing: Bool, inferenceEngine: InferenceEngine) {
-        if !isStillProcessing {
-            if let data = inferenceEngine.speciesData {
-                let lowerName = data.commonName.lowercased()
-                let isValidCelebration = data.isNewDiscovery && data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object"
-                
-                if !isValidCelebration {
-                    HapticManager.shared.triggerSheetSpring()
-                }
+        guard !isStillProcessing else { return }
+        // The sheet was opened before inference completed, so onAppear saw nil speciesData.
+        // Re-evaluate celebration and VoiceOver now that data has arrived.
+        evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
+        if let data = inferenceEngine.speciesData {
+            let lowerName = data.commonName.lowercased()
+            let isValidCelebration = data.isNewDiscovery && data.isBiological
+                && lowerName != "not applicable"
+                && lowerName != "unknown subject"
+                && lowerName != "inanimate object"
+            if !isValidCelebration {
+                HapticManager.shared.triggerSheetSpring()
             }
+        }
+    }
+    
+    // MARK: - Analysis Dismissal
+    
+    func dismissAnalysisToBackground(inferenceEngine: InferenceEngine) {
+        if inferenceEngine.isProcessing, !inferenceEngine.activeLiveCaptureDatas.isEmpty {
+            OfflineQueueManager.shared.enqueueCapture(
+                imageDatas: inferenceEngine.activeLiveCaptureDatas,
+                telemetry: CaptureTelemetry(from: inferenceEngine),
+                blurScore: nil
+            )
+            inferenceEngine.cancelActiveRequest(isUserInitiated: false)
         }
     }
     

@@ -31,7 +31,17 @@ struct Preferences: View {
             }
             .padding(.vertical, 4)
 
-            // MARK: - Upgrades
+            // MARK: - Camera
+            Button { cameraSettingsActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Camera",
+                    description: "Zoom controls, viewfinder hints, and capture preferences.",
+                    icon: "camera.fill",
+                    iconColor: .gray
+                )
+            }
+
+              // MARK: - Upgrades
             Button { managePlanActive = true } label: {
                 SettingsNavigationRow(
                     title: "Upgrade",
@@ -41,23 +51,13 @@ struct Preferences: View {
                 )
             }
 
-            // MARK: - Push Notifications
+             // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
                 SettingsNavigationRow(
                     title: "Notifications",
                     description: "Configure alerts for new discoveries and achievement milestones.",
                     icon: "bell.fill",
                     iconColor: .red
-                )
-            }
-
-             // MARK: - Camera
-            Button { cameraSettingsActive = true } label: {
-                SettingsNavigationRow(
-                    title: "Camera",
-                    description: "Zoom controls, viewfinder hints, and capture preferences.",
-                    icon: "camera.fill",
-                    iconColor: .gray
                 )
             }
 
@@ -120,9 +120,29 @@ struct Preferences: View {
         } header: {
             Text("Preferences")
         }
+
+        #if DEBUG
+        Section {
+            Button {
+                let engine = AppDIContainer.shared.inferenceEngine
+                engine.simulateAnalyzing()
+                NotificationCenter.default.post(name: .devPreviewAnalyzing, object: nil)
+            } label: {
+                Label("Preview analyzing state", systemImage: "play.circle")
+            }
+        } header: {
+            Text("Developer")
+        }
+        #endif
     }
 
 }
+
+#if DEBUG
+extension Notification.Name {
+    static let devPreviewAnalyzing = Notification.Name("dev.merian.previewAnalyzing")
+}
+#endif
 
 // MARK: - Reusable Row Primitives
 

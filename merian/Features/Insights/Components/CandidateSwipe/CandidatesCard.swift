@@ -167,7 +167,7 @@ private struct PendingView: View {
                                         Capsule()
                                             .fill(.ultraThinMaterial)
                                         Capsule()
-                                            .fill(Color.blue.opacity(0.75))
+                                            .fill(Color.green.opacity(0.75))
                                     }
                                 )
                                 .foregroundColor(.white)
@@ -176,7 +176,6 @@ private struct PendingView: View {
                                         .strokeBorder(Color.white.opacity(0.4), lineWidth: 0.5)
                                         .blendMode(.overlay)
                                 )
-                                .shadow(color: Color.blue.opacity(0.3), radius: 10, x: 0, y: 6)
                         }
                         .buttonStyle(.plain)
 

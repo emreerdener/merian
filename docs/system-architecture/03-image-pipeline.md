@@ -44,7 +44,7 @@ After downsampling, a **composing-zone-aware square crop** is applied to both pa
 Three staging buffers are populated in `CameraViewModel` after each capture or gallery pick:
 - `activeScannedDatas` — tier-conditional inference payloads: 768 px (Flash/free) or 1024 px (Pro), square-cropped WebP `Data`
 - `activeDisplayDatas` — 2048 px display payloads (square-cropped WebP `Data`, same geometry)
-- `activeScanImages` — in-memory `UIImage` thumbnails for the Active Scan Toolbar and scanning overlay, populated directly from the already-decoded `CGImage` (`UIImage(cgImage:)`) rather than by re-decoding the WebP payload
+- `activeScanImages` — in-memory `UIImage` thumbnails for the Active Scan Toolbar, populated directly from the already-decoded `CGImage` (`UIImage(cgImage:)`) rather than by re-decoding the WebP payload
 
 Using the `CGImage` directly for `activeScanImages` eliminates a WebP round-trip decode step (encode to `Data` → decode back to `UIImage`). The `activeScanImages.count` change is what the `onChange(of: activeScanImages.count)` observer in `CameraRootView` watches to auto-trigger `submitActiveScan`.
 

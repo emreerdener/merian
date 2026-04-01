@@ -33,6 +33,17 @@ struct ImagesCarousel: View {
                     .frame(height: 120)
                     .allowsHitTesting(false)
                 }
+        } else {
+            ZStack {
+                Color.black
+                Image(systemName: "globe.americas.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 140, height: 140)
+                    .foregroundStyle(.white.opacity(0.15))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.all, edges: .top)
         }
     }
 
@@ -265,21 +276,29 @@ private extension ImagesCarousel {
 
     @ViewBuilder
     var paginationDots: some View {
-        if totalImages > 1 {
-            HStack(spacing: 8) {
-                ForEach(0..<totalImages, id: \.self) { index in
-                    Circle()
-                        .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.4))
-                        .frame(width: 6, height: 6)
-                        .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+        ZStack {
+            if totalImages > 1 && !inferenceEngine.isProcessing {
+                HStack(spacing: 8) {
+                    ForEach(0..<totalImages, id: \.self) { index in
+                        Circle()
+                            .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.4))
+                            .frame(width: 6, height: 6)
+                            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                    }
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.black.opacity(0.2))
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.bottom, 40)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .bottom)),
+                    removal: .opacity
+                ))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color.black.opacity(0.2))
-            .background(.ultraThinMaterial, in: Capsule())
-            .padding(.bottom, 40)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex)
         }
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: inferenceEngine.isProcessing)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: totalImages)
     }
 }

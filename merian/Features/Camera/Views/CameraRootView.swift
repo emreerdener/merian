@@ -89,8 +89,7 @@ struct CameraRootView: View {
 
                                     // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
                                     CameraControlsLayer(
-                                        activeScanImages: viewModel.activeScanImages,
-                                        isAnalyzingFullscreen: viewModel.isAnalyzingFullscreen
+                                        activeScanImages: viewModel.activeScanImages
                                     )
                                 }
                                 .frame(width: proxy.size.width, height: proxy.size.height)
@@ -203,16 +202,6 @@ struct CameraRootView: View {
                 }
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.activeScanImages.count)
 
-                // Scanning overlay — above the pager and fixed controls.
-                if viewModel.isAnalyzingFullscreen, !viewModel.analysisImages.isEmpty {
-                    ScanningOverlayView(
-                        images: viewModel.analysisImages,
-                        scanningPhaseText: viewModel.scanningPhaseText,
-                        onDismiss: { viewModel.dismissAnalysisToBackground() }
-                    )
-                        .transition(.opacity)
-                        .zIndex(10)
-                }
         } // ZStack
         .background(Color.black.ignoresSafeArea())
 
@@ -248,34 +237,23 @@ struct CameraRootView: View {
             HapticManager.shared.triggerSheetSpring()
             if newMode == .audio {
                 cameraManager.stopSession()
-            } else if !viewModel.isAnalyzingFullscreen && scenePhase == .active && viewModel.activeSheet == nil {
+            } else if scenePhase == .active && viewModel.activeSheet == nil {
                 // Only start the camera if the app is fully active and not occluded by a sheet.
                 // Guarding this prevents deadlocking the hardware queue if the mode shifts
                 // while the app is suspending (e.g., closing a full-screen sheet on background).
                 cameraManager.startSession()
             }
         }
-        .onChange(of: viewModel.isAnalyzingFullscreen) { _, isFullscreen in
-            viewModel.synchronizeAnalysisState(isFullscreen: isFullscreen)
-            viewModel.updateNotificationSuppression()
-            
-            if isFullscreen {
-                cameraManager.stopSession()
-            } else if captureMode == .visual && scenePhase == .active && viewModel.activeSheet == nil {
-                // Must explicitly guard against `scenePhase == .active`.
-                // When an app sweeps into the background, the UI implicitly closes modal sheets
-                // which broadcasts `isFullscreen = false`. Without this guard, we'd fire a
-                // hardware start request into the `AVCaptureSession` while suspended,
-                // permanently hanging the video data queue on foreground return.
-                cameraManager.startSession()
-            }
-        }
+
         .onChange(of: viewModel.activeSheet) { _, newSheet in
             viewModel.updateNotificationSuppression()
             
             if newSheet != nil {
                 cameraManager.stopSession()
-            } else if captureMode == .visual && scenePhase == .active && !viewModel.isAnalyzingFullscreen {
+            } else if captureMode == .visual && scenePhase == .active {
+                if inferenceEngine.isProcessing {
+                    viewModel.dismissAnalysisToBackground()
+                }
                 // Strictly guard the un-pause with `scenePhase == .active`, ensuring the
                 // startSession() hardware call can never fire indiscriminately during
                 // backgrounding transitions when the UI naturally dismisses sheets.
@@ -285,9 +263,13 @@ struct CameraRootView: View {
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             viewModel.handleInferenceProcessingChange(isStillProcessing: isStillProcessing)
         }
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: .devPreviewAnalyzing)) { _ in
+            viewModel.activeSheet = .insight
+        }
+        #endif
         .onPhysicalCameraShutter(
             isEnabled: viewModel.activeSheet == nil &&
-                       !viewModel.isAnalyzingFullscreen &&
                        viewModel.imageToCrop == nil
         ) {
             viewModel.executeCapture()
@@ -301,12 +283,9 @@ struct CameraRootView: View {
 
 private struct CameraControlsLayer: View {
     let activeScanImages: [UIImage]
-    let isAnalyzingFullscreen: Bool
 
     var body: some View {
-        if !isAnalyzingFullscreen {
-            MainOverlayView(activeScanImages: activeScanImages)
-        }
+        MainOverlayView(activeScanImages: activeScanImages)
     }
 }
 

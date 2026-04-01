@@ -31,6 +31,9 @@ struct InsightSheetView: View {
                 .onAppear {
                     viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
                 }
+                .onDisappear {
+                    viewModel.dismissAnalysisToBackground(inferenceEngine: inferenceEngine)
+                }
                 .task {
                     try? await Task.sleep(nanoseconds: 350_000_000)
                     withAnimation(.easeIn(duration: 0.2)) {
@@ -116,11 +119,12 @@ private extension InsightSheetView {
             isFlagIssuePresented: $viewModel.isFlagIssuePresented,
             isSavingPhotos: $viewModel.isSavingPhotos,
             showDeleteConfirmation: $viewModel.showDeleteConfirmation,
-            onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) }
+            onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
+            isAnalyzing: inferenceEngine.isProcessing
         )
         
         InsightBottomToolbar(
-            showBottomBarTools: viewModel.showBottomBarTools,
+            showBottomBarTools: viewModel.showBottomBarTools && !(inferenceEngine.isProcessing && inferenceEngine.speciesData == nil),
             collections: collections,
             activeLocalRecord: viewModel.activeLocalRecord,
             toggleScanInCollection: { collection in 

@@ -90,8 +90,13 @@ private extension InsightContentView {
     @ViewBuilder
     var contentCards: some View {
         VStack(alignment: .leading, spacing: 16) {
-            
-            if let speciesData = inferenceEngine.speciesData, 
+
+            if inferenceEngine.isProcessing && inferenceEngine.speciesData == nil {
+
+                AnalyzingContentView()
+                    .transition(.opacity)
+
+            } else if let speciesData = inferenceEngine.speciesData,
                !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
                 
                 NonBiologicalView(
@@ -110,8 +115,9 @@ private extension InsightContentView {
             }
             Spacer(minLength: 40)
         }
+        .animation(.easeInOut(duration: 0.35), value: inferenceEngine.isProcessing)
     }
-    
+
     /// The rounded white background encapsulating the structural content cards smoothly.
     @ViewBuilder
     var contentSheetBackground: some View {

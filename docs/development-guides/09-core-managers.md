@@ -28,8 +28,10 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Encapsulates `UNUserNotificationCenter` operations on the `@MainActor` thread.
 - Polls `authorizationStatus` to keep the local `@AppStorage(UserDefaultsKeys.isPushNotificationsEnabled)` flag in sync with the OS Settings state. If a user revokes permissions externally, the local flag is corrected asynchronously via `Task { @MainActor in }` (not `DispatchQueue.main.async`) to maintain Swift 6 strict concurrency compliance.
 - Configured as the `UNUserNotificationCenterDelegate`. Injects `scanId` values into `.userInfo` payloads so background offline completions can surface notifications over the lock screen.
-- Intercepts deep link taps from notification actions and routes the UI directly to the relevant `InsightSheet`.
-- **Context-Aware Suppression**: Evaluates the `suppressInferenceBanners` UserDefaults flag within `completionHandler` to conditionally suppress "Analysis Complete" banners when the user is actively viewing the camera scanning overlay or the insight sheet. Achievement notifications bypass this suppression and are unconditionally displayed.
+- **Rich Media & Categorization**: Registers custom categories (`INFERENCE_COMPLETE`) with Interactive Actions ("View Details", "Share Discovery") and natively attaches species thumbnail images for premium lock-screen previews.
+- **Delivery Control**: Uses `threadIdentifier` (`inference_complete_thread`) to prevent lock-screen explosion when sequentially scanning subjects, and elevates deliveries to `.timeSensitive` automatically (iOS 15+) for priority pass-through during field-use.
+- **Safe Deep Linking**: Intercepts deep link taps from notification actions and routes the UI directly to the relevant `InsightSheet`. It rigorously filters out `UNNotificationDismissActionIdentifier` to ensure users who simply swipe away a notification are not forcefully navigated when they next open the app.
+- **Context-Aware Suppression**: Evaluates the `suppressInferenceBanners` UserDefaults flag within `completionHandler` to conditionally suppress "Analysis Complete" banners when the user is actively viewing the insight sheet (including while it is in analyzing mode). Achievement notifications bypass this suppression and are unconditionally displayed.
 
 ## AI & Offline Synchronization
 

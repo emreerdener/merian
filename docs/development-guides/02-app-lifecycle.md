@@ -39,8 +39,6 @@ Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay).
 
 **Always reset (unconditionally):**
 - `activeSheet`, `imageToCrop`, `editingCropIndex` — sheets hold UI locks and must not reopen stale.
-- `isAnalyzingFullscreen` + `phaseRotationTask` — keeps the camera unblocked on foreground return; inference rescue is handled separately by `handleBackgroundPhase()`.
-
 **Conditionally preserved — governed by `shouldPreserveStagingOnBackground`:**
 - `activeScannedDatas`, `activeScanImages`, `activeOriginals`, `activeDisplayDatas`, `selectedPhotoItems` — staged captures are only wiped when `shouldPreserveStagingOnBackground` returns `false`.
 

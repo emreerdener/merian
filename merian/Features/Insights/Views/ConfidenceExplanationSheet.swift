@@ -49,12 +49,14 @@ struct ConfidenceExplanationSheet: View {
                         }
                     )
                     .padding(.horizontal, 24)
-                    
+
                     ConfidenceSpectrum(inferenceTier: inferenceTier)
+                    ModelInfoSection(inferenceTier: inferenceTier)
                     AIMistakesBanner()
                     ProTips(showLocationPrompt: showLocationPrompt)
                 } else {
                     ConfidenceSpectrum(inferenceTier: inferenceTier)
+                    ModelInfoSection(inferenceTier: inferenceTier)
                     AIMistakesBanner()
                     ProTips(showLocationPrompt: showLocationPrompt)
                 }

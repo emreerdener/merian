@@ -5,6 +5,7 @@ import ImageIO
 import os
 import SwiftData
 import SwiftUI
+import Vision
 
 // MARK: - Wikipedia Response (private)
 
@@ -27,6 +28,11 @@ private struct WikiSummaryResponse: Decodable {
     // MARK: - Pipeline State
     @ObservationIgnored var inferenceTask: Task<Void, Error>?
     var isProcessing: Bool = false
+    var scanningPhaseText: String = "Analyzing subject..."
+    var visionAnalysisText: String = ""
+    var isVisionStreaming: Bool = false
+    @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
+    @ObservationIgnored private var visionStreamingTask: Task<Void, Never>?
     var activeImageData: Data?
     var activeLiveCaptureDatas: [Data] = []
     var activeDisplayDatas: [Data] = []
@@ -92,6 +98,8 @@ private struct WikiSummaryResponse: Decodable {
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.gbifHydrationTask?.cancel()
+        self.phaseRotationTask?.cancel()
+        self.visionStreamingTask?.cancel()
         self.gbifHydrationTask = nil
 
         // Reset loading flags synchronously before the cancelled tasks' defer blocks can run
@@ -99,6 +107,9 @@ private struct WikiSummaryResponse: Decodable {
         // pipeline has already set these flags to true, prematurely clearing the skeletons.
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
+        self.scanningPhaseText = "Analyzing subject..."
+        self.visionAnalysisText = ""
+        self.isVisionStreaming = false
 
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
@@ -118,11 +129,20 @@ private struct WikiSummaryResponse: Decodable {
 
         let capturedDisplayDatas = displayDatas
 
+        if let firstData = imageDatas.first {
+            classifySubjectLocally(from: firstData)
+        }
+
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
 
             // Single exit point for isProcessing — covers all success, error, and cancellation paths.
-            defer { self.isProcessing = false }
+            defer {
+                self.isProcessing = false
+                self.phaseRotationTask?.cancel()
+                self.visionStreamingTask?.cancel()
+                self.isVisionStreaming = false
+            }
 
             let pipelineStart = CFAbsoluteTimeGetCurrent()
             let compressedDatas = imageDatas  // 1024 px — only these are base64-encoded for Gemini
@@ -864,12 +884,17 @@ private struct WikiSummaryResponse: Decodable {
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.historicHydrationTask?.cancel()
+        self.phaseRotationTask?.cancel()
         // Cancel GBIF hydration so stale image URLs cannot be written to a record
         // that is no longer active after the user fires a new scan or navigates away.
         self.gbifHydrationTask?.cancel()
         self.gbifHydrationTask = nil
         // Reset loading flags synchronously so stale defer blocks from cancelled task group
         // children cannot clear flags belonging to a subsequently opened scan.
+        self.scanningPhaseText = "Analyzing subject..."
+        self.visionStreamingTask?.cancel()
+        self.visionAnalysisText = ""
+        self.isVisionStreaming = false
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         // isBackgroundRescued is reset by the task's cancellation catch block.
@@ -1082,6 +1107,303 @@ private struct WikiSummaryResponse: Decodable {
                 guard !Task.isCancelled else { return }
                 await self.fetchGBIFImagesAndHydrate(for: key, scanId: recordId, modelContext: safeContext)
             }
+        }
+    }
+
+    // MARK: - On-Device Subject Study
+
+    /// Sequential multi-pass Vision pipeline — each request runs off the main actor and
+    /// streams its observation to the UI the moment that model completes.
+    /// Phase rotation is updated independently in parallel via a fire-and-forget Task.
+    private func classifySubjectLocally(from data: Data) {
+        var shuffled = Self.genericFallbackPhrases
+        let anchor = shuffled.removeFirst()
+        shuffled.shuffle()
+        shuffled.insert(anchor, at: 0)
+        startPhaseRotation(phrases: shuffled)
+
+        visionStreamingTask?.cancel()
+        visionAnalysisText = ""
+        isVisionStreaming = true
+        HapticManager.shared.triggerLightImpact(intensity: 0.3)
+
+        visionStreamingTask = Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
+
+            // Downsample once — all five requests share the same handler instance
+            guard let cgImage = ImageDownsampler.shared.downsample(data: data, maxSize: 512) else {
+                await MainActor.run { [weak self] in self?.isVisionStreaming = false }
+                return
+            }
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+
+            // ── Pass 1: Broad classification ─────────────────────────────────
+            let classifyReq = VNClassifyImageRequest()
+            autoreleasepool { try? handler.perform([classifyReq]) }
+            let observations = classifyReq.results ?? []
+
+            guard !Task.isCancelled else { return }
+            
+            let specificPhrases = Self.specificPhraseSeries(for: observations) ?? Self.genericFallbackPhrases
+            var syncedPhraseIndex = 0
+            
+            let consumeNextPhrase: () -> String? = {
+                guard syncedPhraseIndex < specificPhrases.count else { return nil }
+                let phrase = specificPhrases[syncedPhraseIndex]
+                syncedPhraseIndex += 1
+                return phrase
+            }
+            
+            // Cancel the initial randomized fallback rotation immediately so we can lock-step with Vision
+            await MainActor.run { [weak self] in self?.phaseRotationTask?.cancel() }
+
+            await self.streamSentence(Self.classificationSentence(from: observations), phaseText: consumeNextPhrase())
+
+            try? await Task.sleep(nanoseconds: 100_000_000)
+
+            // ── Pass 2: Attention saliency (focal point & subject isolation) ──
+            guard !Task.isCancelled else { return }
+            let attentionReq = VNGenerateAttentionBasedSaliencyImageRequest()
+            autoreleasepool { try? handler.perform([attentionReq]) }
+
+            if let sentence = Self.saliencySentence(from: attentionReq.results?.first) {
+                await self.streamSentence(sentence, phaseText: consumeNextPhrase())
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+
+            // ── Pass 3: Animal species recognition ───────────────────────────
+            guard !Task.isCancelled else { return }
+            let animalsReq = VNRecognizeAnimalsRequest()
+            autoreleasepool { try? handler.perform([animalsReq]) }
+
+            if let sentence = Self.animalsSentence(from: animalsReq.results ?? []) {
+                await self.streamSentence(sentence, phaseText: consumeNextPhrase())
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+
+            // ── Pass 4: Object-based saliency (multi-subject scene detection) ─
+            guard !Task.isCancelled else { return }
+            let objectnessReq = VNGenerateObjectnessBasedSaliencyImageRequest()
+            autoreleasepool { try? handler.perform([objectnessReq]) }
+
+            if let sentence = Self.objectnessSentence(from: objectnessReq.results?.first) {
+                await self.streamSentence(sentence, phaseText: consumeNextPhrase())
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+
+            // ── Pass 5: Text and label detection ─────────────────────────────
+            guard !Task.isCancelled else { return }
+            let textReq = VNRecognizeTextRequest()
+            textReq.recognitionLevel = .fast
+            autoreleasepool { try? handler.perform([textReq]) }
+
+            if let sentence = Self.textSentence(from: textReq.results ?? []) {
+                await self.streamSentence(sentence, phaseText: consumeNextPhrase())
+            }
+
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in 
+                guard let self else { return }
+                self.isVisionStreaming = false 
+                self.startPhaseRotation(phrases: specificPhrases, startIndex: syncedPhraseIndex)
+            }
+        }
+    }
+
+    private func startPhaseRotation(phrases: [String], startIndex: Int = 0) {
+        phaseRotationTask?.cancel()
+        phaseRotationTask = Task { @MainActor [weak self] in
+            guard !phrases.isEmpty else { return }
+            var index = startIndex % phrases.count
+            
+            // If passing off sequentially, we don't delay to hit the next phrase immediately
+            guard !Task.isCancelled else { return }
+            
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: MerianConfig.scanningPhaseRotationIntervalNs)
+                guard !Task.isCancelled else { break }
+                guard let self else { return }
+                self.scanningPhaseText = phrases[index]
+                HapticManager.shared.triggerSelectionPulse()
+                index = (index + 1) % phrases.count
+            }
+        }
+    }
+
+    #if DEBUG
+    /// Simulates a live analyzing state for UI development — starts phase rotation
+    /// so the badge cycles visibly without requiring a real scan submission.
+    func simulateAnalyzing() {
+        isProcessing = true
+        visionAnalysisText = "Arthropod subject detected with high confidence. Evaluating wing venation, body segmentation, and diagnostic field markers. Preparing entomological context for species-level identification."
+        isVisionStreaming = false
+        startPhaseRotation(phrases: [
+            "Arthropod detected",
+            "Analyzing wing venation",
+            "Analyzing body segmentation",
+            "Analyzing field markers",
+            "Checking taxonomic indicators",
+            "Checking entomology records",
+            "Checking regional distribution",
+            "Confirming species..."
+        ])
+    }
+    #endif
+
+    /// Appends `sentence` to `visionAnalysisText` character-by-character on the main actor.
+    /// Inserts a space separator when appending to existing text.
+    @MainActor
+    private func streamSentence(_ sentence: String, phaseText: String? = nil) async {
+        if let phaseText {
+            self.scanningPhaseText = phaseText
+            // Fire haptic unless vision analysis is entirely empty (sheet just initialized)
+            if !visionAnalysisText.isEmpty {
+                HapticManager.shared.triggerSelectionPulse()
+            }
+        }
+        
+        let prefix = visionAnalysisText.isEmpty ? "" : " "
+        for char in prefix + sentence {
+            guard isProcessing, !Task.isCancelled else { break }
+            visionAnalysisText.append(char)
+            try? await Task.sleep(nanoseconds: 22_000_000)
+        }
+    }
+
+    private nonisolated static let genericFallbackPhrases: [String] = [
+        "Scanning subject...",
+        "Analyzing subject morphology",
+        "Analyzing biological traits",
+        "Analyzing structural patterns",
+        "Checking taxonomic data",
+        "Checking species records",
+        "Checking habitat context",
+        "Identifying species..."
+    ]
+
+    private nonisolated static func specificPhraseSeries(for observations: [VNClassificationObservation]) -> [String]? {
+        guard let top = observations.first, top.confidence >= MerianConfig.visionConfidenceThreshold else { return nil }
+        if observations.count >= 2 { guard top.confidence - observations[1].confidence >= MerianConfig.visionMarginThreshold else { return nil } }
+
+        let id = top.identifier.lowercased()
+
+        if id.contains("bird") || id.contains("avian") || id.contains("raptor") || id.contains("songbird") || id.contains("waterfowl") || id.contains("owl") {
+            return ["Avian detected", "Analyzing plumage", "Analyzing bill morphology", "Checking seasonal variation", "Checking eBird records", "Checking geographic range", "Checking subspecies", "Confirming species..."]
+        }
+        if id.contains("insect") || id.contains("arthropod") || id.contains("butterfly") || id.contains("moth") || id.contains("bee") || id.contains("beetle") || id.contains("fly") || id.contains("ant") || id.contains("wasp") || id.contains("dragonfly") || id.contains("cricket") || id.contains("grasshopper") {
+            return ["Arthropod detected", "Analyzing wing venation", "Analyzing body segmentation", "Analyzing field markers", "Checking taxonomic indicators", "Checking entomology records", "Checking regional distribution", "Confirming species..."]
+        }
+        if id.contains("spider") || id.contains("arachnid") || id.contains("scorpion") || id.contains("tick") || id.contains("mite") {
+            return ["Arachnid detected", "Analyzing body segmentation", "Analyzing appendage morphology", "Analyzing leg spinnerets", "Checking taxonomic data", "Checking arachnology records", "Checking occurrence records", "Confirming species..."]
+        }
+        if id.contains("mushroom") || id.contains("fungi") || id.contains("fungus") || id.contains("lichen") {
+            return ["Fungal specimen", "Analyzing cap morphology", "Analyzing gill structure", "Analyzing surface coloration", "Checking substrate context", "Checking mycology records", "Checking fruiting patterns", "Confirming species..."]
+        }
+        if id.contains("flower") || id.contains("blossom") || id.contains("bloom") {
+            return ["Flowering plant", "Analyzing petal arrangement", "Analyzing reproductive structures", "Analyzing inflorescence pattern", "Checking pollinator associations", "Checking botanical records", "Checking flora records", "Confirming species..."]
+        }
+        if id.contains("tree") || id.contains("conifer") || id.contains("palm") {
+            return ["Arboreal detected", "Analyzing bark texture", "Analyzing leaf form", "Analyzing growth habit", "Checking fruit characteristics", "Checking botanical records", "Checking elevation range", "Confirming species..."]
+        }
+        if id.contains("cactus") || id.contains("cactaceae") || id.contains("succulent") {
+            return ["Succulent detected", "Analyzing spine patterns", "Analyzing stem morphology", "Analyzing growth form", "Analyzing surface texture", "Checking flora records", "Checking native range", "Confirming species..."]
+        }
+        if id.contains("plant") || id.contains("leaf") || id.contains("vegetation") || id.contains("shrub") || id.contains("grass") || id.contains("fern") || id.contains("moss") || id.contains("algae") || id.contains("vine") {
+            return ["Botanical detected", "Analyzing leaf morphology", "Analyzing structural patterns", "Analyzing growth habit", "Checking field markers", "Checking flora records", "Checking native range", "Confirming species..."]
+        }
+        if id.contains("reptile") || id.contains("snake") || id.contains("lizard") || id.contains("turtle") || id.contains("crocodile") || id.contains("gecko") {
+            return ["Reptilian detected", "Analyzing scale patterns", "Analyzing body plan", "Analyzing dorsal pattern", "Checking taxonomic data", "Checking herpetology records", "Checking population data", "Confirming species..."]
+        }
+        if id.contains("amphibian") || id.contains("frog") || id.contains("toad") || id.contains("salamander") || id.contains("newt") || id.contains("caecilian") {
+            return ["Amphibian detected", "Analyzing skin texture", "Analyzing body form", "Checking taxonomic indicators", "Analyzing call signatures", "Checking herpetology records", "Checking wetland habitat", "Confirming species..."]
+        }
+        if id.contains("fish") || id.contains("shark") || id.contains("ray") || id.contains("eel") || id.contains("salmon") || id.contains("trout") {
+            return ["Aquatic vertebrate", "Analyzing fin morphology", "Analyzing lateral line", "Analyzing lateral coloration", "Analyzing body shape", "Checking ichthyology records", "Checking watershed data", "Confirming species..."]
+        }
+        if id.contains("mammal") || id.contains("dog") || id.contains("cat") || id.contains("deer") || id.contains("fox") || id.contains("bear") || id.contains("rabbit") || id.contains("squirrel") || id.contains("raccoon") || id.contains("rodent") || id.contains("primate") {
+            return ["Mammalian detected", "Analyzing body proportions", "Analyzing pelage detail", "Checking behavioural markers", "Checking geographic range", "Checking habitat indicators", "Checking population range", "Confirming species..."]
+        }
+        return nil
+    }
+
+    // MARK: - Vision Observation Sentence Builders
+
+    private nonisolated static func classificationSentence(from observations: [VNClassificationObservation]) -> String {
+        guard let top = observations.first, top.confidence >= MerianConfig.visionConfidenceThreshold else {
+            return "Subject classification indeterminate — scanning morphological features."
+        }
+        return "\(categoryName(for: top.identifier)) identified with \(confidenceLabel(top.confidence)) confidence."
+    }
+
+    private nonisolated static func saliencySentence(from observation: VNSaliencyImageObservation?) -> String? {
+        guard let observation, let salient = observation.salientObjects, !salient.isEmpty else { return nil }
+        let largest = salient.max { $0.boundingBox.width * $0.boundingBox.height < $1.boundingBox.width * $1.boundingBox.height }
+        let position = framePosition(of: largest?.boundingBox)
+        return salient.count == 1
+            ? "Focal attention concentrated \(position)."
+            : "\(salient.count) attention regions detected — primary focus \(position)."
+    }
+
+    private nonisolated static func animalsSentence(from observations: [VNRecognizedObjectObservation]) -> String? {
+        guard !observations.isEmpty else { return nil }
+        let labels = observations.prefix(2).compactMap { $0.labels.first?.identifier }
+        guard !labels.isEmpty else { return nil }
+        return labels.count == 1
+            ? "\(labels[0]) confirmed by on-device species model."
+            : "\(labels[0]) identified — \(labels[1]) as secondary candidate."
+    }
+
+    private nonisolated static func objectnessSentence(from observation: VNSaliencyImageObservation?) -> String? {
+        guard let observation, let objects = observation.salientObjects, objects.count > 1 else { return nil }
+        return objects.count == 2
+            ? "Two distinct subjects present in scene."
+            : "\(objects.count) distinct subjects detected in scene."
+    }
+
+    private nonisolated static func textSentence(from observations: [VNRecognizedTextObservation]) -> String? {
+        guard observations.contains(where: { $0.confidence > 0.5 }) else { return nil }
+        return "Text or labels detected in frame."
+    }
+
+    private nonisolated static func categoryName(for identifier: String) -> String {
+        let id = identifier.lowercased()
+        if id.contains("butterfly") || id.contains("moth") { return "Lepidopteran subject" }
+        if id.contains("bee") || id.contains("wasp") { return "Hymenopteran subject" }
+        if id.contains("beetle") { return "Coleopteran subject" }
+        if id.contains("dragonfly") || id.contains("damselfly") { return "Odonatan subject" }
+        if id.contains("bird") || id.contains("avian") || id.contains("raptor") || id.contains("owl") { return "Avian subject" }
+        if id.contains("insect") || id.contains("arthropod") { return "Arthropod subject" }
+        if id.contains("spider") || id.contains("arachnid") || id.contains("scorpion") { return "Arachnid subject" }
+        if id.contains("mushroom") || id.contains("fungi") || id.contains("fungus") { return "Fungal specimen" }
+        if id.contains("lichen") { return "Lichen specimen" }
+        if id.contains("flower") || id.contains("blossom") || id.contains("bloom") { return "Flowering plant" }
+        if id.contains("tree") || id.contains("conifer") || id.contains("palm") { return "Arboreal subject" }
+        if id.contains("cactus") || id.contains("succulent") { return "Succulent subject" }
+        if id.contains("plant") || id.contains("leaf") || id.contains("vegetation") || id.contains("shrub") || id.contains("grass") || id.contains("fern") || id.contains("moss") { return "Botanical subject" }
+        if id.contains("reptile") || id.contains("snake") || id.contains("lizard") || id.contains("turtle") { return "Reptilian subject" }
+        if id.contains("frog") || id.contains("toad") || id.contains("amphibian") { return "Amphibian subject" }
+        if id.contains("fish") || id.contains("shark") { return "Aquatic vertebrate" }
+        if id.contains("mammal") || id.contains("dog") || id.contains("cat") || id.contains("deer") || id.contains("bear") { return "Mammalian subject" }
+        return "Biological subject"
+    }
+
+    private nonisolated static func framePosition(of rect: CGRect?) -> String {
+        guard let rect else { return "on central subject" }
+        // Vision coordinate space: origin at bottom-left
+        let h = rect.midY > 0.6 ? "upper" : rect.midY < 0.4 ? "lower" : "mid"
+        let v = rect.midX < 0.4 ? "left" : rect.midX > 0.6 ? "right" : "center"
+        if h == "mid" && v == "center" { return "on central subject" }
+        if h == "mid" { return "on \(v) subject" }
+        if v == "center" { return "on \(h) subject" }
+        return "on \(h)-\(v) subject"
+    }
+
+    private nonisolated static func confidenceLabel(_ confidence: Float) -> String {
+        switch confidence {
+        case 0.9...: return "very high"
+        case 0.7..<0.9: return "high"
+        case 0.5..<0.7: return "moderate"
+        default: return "low"
         }
     }
 }

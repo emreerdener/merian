@@ -51,7 +51,6 @@ final class CameraViewModel {
 
     // UI state only — no business logic in stored properties
     var activeSheet: ActiveSheet? = nil
-    var isAnalyzingFullscreen: Bool = false
 }
 ```
 

@@ -11,6 +11,7 @@ struct SwipeableCandidateCard: View {
     // NOTE: Uses SimilarSpeciesImageFetcher — dual-source Wikipedia/GBIF async image loading
     // with in-memory NSCache. See Features/Insights/Utilities/SimilarSpeciesImageFetcher.swift
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
+    @Environment(InferenceEngine.self) private var inferenceEngine
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -76,6 +77,23 @@ struct SwipeableCandidateCard: View {
                 }
             }
 
+            // Bottom gradient — sits above the image/overlays but below the text and PIP.
+            // Inserted here in ZStack source order so no explicit zIndex manipulation is needed.
+            VStack {
+                Spacer()
+                Color.clear
+                    .frame(height: 200)
+                    .background(
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.6), .black.opacity(0.85)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous))
+                    )
+                    .allowsHitTesting(false)
+            }
+
             // Species info bottom bar
             VStack(alignment: .leading, spacing: 8) {
                 // Confidence score
@@ -112,15 +130,25 @@ struct SwipeableCandidateCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 28)
             .padding(.bottom, 20)
-            .padding(.top, 64)
-            .background(
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.6), .black.opacity(0.85)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 24, bottomTrailingRadius: 24, style: .continuous))
-            )
+            
+            // Original Image PIP (Bottom Right)
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    OriginalCapturePiPView()
+                        .frame(width: 58, height: 76)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(.white.opacity(0.4), lineWidth: 1)
+                        )
+                        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 20)
+                }
+            }
+            
         }
         .frame(maxWidth: .infinity, maxHeight: 420)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -130,5 +158,49 @@ struct SwipeableCandidateCard: View {
         )
         .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
         .task { _ = await imageFetcher.fetchImage(for: candidate.scientificName) }
+    }
+}
+
+// MARK: - Subcomponents
+
+private struct OriginalCapturePiPView: View {
+    @Environment(InferenceEngine.self) private var inferenceEngine
+    @State private var decodedImage: UIImage?
+
+    var body: some View {
+        Group {
+            if let imageData = inferenceEngine.activeDisplayDatas.first {
+                if let img = decodedImage {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color.black.opacity(0.8)
+                        .overlay {
+                            ProgressView()
+                                .tint(.white)
+                        }
+                        .task {
+                            let img = await Task.detached(priority: .userInitiated) {
+                                autoreleasepool { () -> UIImage? in
+                                    if let cgImage = ImageDownsampler.shared.downsample(data: imageData, maxSize: 512) {
+                                        return UIImage(cgImage: cgImage)
+                                    }
+                                    return nil
+                                }
+                            }.value
+                            decodedImage = img
+                        }
+                }
+            } else if let path = inferenceEngine.validHistoricImagePaths.first {
+                AsyncLocalImageView(
+                    path: path,
+                    fallbackImageUrl: nil,
+                    onImageLoadFailed: nil
+                )
+            } else {
+                Color.black.opacity(0.8)
+            }
+        }
     }
 }
