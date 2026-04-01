@@ -25,7 +25,6 @@ struct BiologicalView: View {
                 userConfirmedIdentification: inferenceEngine.speciesData?.userConfirmedIdentification ?? false,
                 isFlagged: inferenceEngine.speciesData?.isFlagged ?? false,
                 aiScientificName: inferenceEngine.speciesData?.aiScientificName,
-                visionTransitionText: inferenceEngine.visionAnalysisText.isEmpty ? nil : inferenceEngine.visionAnalysisText,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
                 }

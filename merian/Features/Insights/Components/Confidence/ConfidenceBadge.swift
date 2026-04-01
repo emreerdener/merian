@@ -179,9 +179,9 @@ struct ConfidenceBadge: View {
             }
             .task(id: isAnalyzing) {
                 if isAnalyzing {
-                    // Start smooth, continuous rainbow roll decoupled from the energetic icon sparkle
-                    withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
-                        textHuePhase = 360.0
+                    // Start smooth, continuous color shift instead of a full 360 rainbow roll
+                    withAnimation(.easeInOut(duration: 8.0).repeatForever(autoreverses: true)) {
+                        textHuePhase = 45.0
                     }
                 } else {
                     withAnimation(.easeOut(duration: 0.5)) {

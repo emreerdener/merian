@@ -16,12 +16,8 @@ struct HabitatAndDistributionCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // MARK: - Map View
             ZStack(alignment: .bottom) {
-                // Dim the map out completely when there's no data available
-                let hasData = inferenceEngine.speciesData?.gbifTaxonKey != nil
                 GBIFHeatmapMapView(taxonKey: inferenceEngine.speciesData?.gbifTaxonKey)
                     .frame(height: 260)
-                    .saturation(hasData ? 1.0 : 0.0)
-                    .opacity(hasData ? 1.0 : 0.4)
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)

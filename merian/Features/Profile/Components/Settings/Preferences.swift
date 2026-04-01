@@ -32,6 +32,16 @@ struct Preferences: View {
             }
             .padding(.vertical, 4)
 
+               // MARK: - Upgrades
+            Button { managePlanActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Upgrade",
+                    description: "Upgrade or manage your active subscription tier.",
+                    icon: "bag.fill",
+                    iconColor: .orange
+                )
+            }
+
             // MARK: - Camera
             Button { cameraSettingsActive = true } label: {
                 SettingsNavigationRow(
@@ -41,16 +51,7 @@ struct Preferences: View {
                     iconColor: .gray
                 )
             }
-
-              // MARK: - Upgrades
-            Button { managePlanActive = true } label: {
-                SettingsNavigationRow(
-                    title: "Upgrade",
-                    description: "Upgrade or manage your active subscription tier.",
-                    icon: "bag.fill",
-                    iconColor: .orange
-                )
-            }
+           
 
              // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
