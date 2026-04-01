@@ -787,14 +787,28 @@ private struct WikiSummaryResponse: Decodable {
         }
 
         // 4. Re-hydrate the AI's original species data from species_dictionary.
-        await fetchAndPatchOverrideData(scientificName: aiName, scanId: scanId, modelContext: modelContext)
+        // Read the original aiReasoning from the record so it reappears after undo.
+        // The record is always accessible on @MainActor here; modelContext is never crossed
+        // into a concurrent scope at this point.
+        var originalAiReasoning: String?
+        if let context = modelContext {
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+            originalAiReasoning = (try? context.fetch(descriptor))?.first?.aiReasoning
+        }
+        await fetchAndPatchOverrideData(scientificName: aiName, scanId: scanId, modelContext: modelContext, restoringAiReasoning: originalAiReasoning)
     }
 
     /// Queries `species_dictionary` for the given scientific name and patches the live
     /// `speciesData` in-place. On cache miss, falls through to `fetchAndApplyEnrichment`
     /// which triggers the full enrichment pipeline for the override species.
+    ///
+    /// - Parameter restoringAiReasoning: When non-nil, the AI reasoning text is restored to
+    ///   this value instead of being wiped. Pass the original `record.aiReasoning` when
+    ///   called from `resetIdentificationReview` so the reasoning reappears after an undo.
+    ///   Pass nil (default) when called from `applyIdentificationOverride` to suppress the
+    ///   original AI reasoning under the override species name.
     @MainActor
-    private func fetchAndPatchOverrideData(scientificName: String, scanId: String?, modelContext: ModelContext?) async {
+    private func fetchAndPatchOverrideData(scientificName: String, scanId: String?, modelContext: ModelContext?, restoringAiReasoning: String? = nil) async {
         struct SpeciesDictRow: Decodable {
             let common_names: [String: String?]?
             let kingdom: String?
@@ -829,11 +843,12 @@ private struct WikiSummaryResponse: Decodable {
                     guard let names = row.common_names else { return scientificName }
                     return names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName
                 }()
-                // Wipe aiReasoning since the AI's structural explanation applies to the originally
-                // predicted species. We do not want to display explanations for a rejected identification.
+                // On override: wipe aiReasoning — the AI's explanation was for the rejected species.
+                // On reset (restoringAiReasoning != nil): restore the original reasoning so the
+                // paragraph reappears under the reverted AI identification.
                 speciesData?.commonName = commonName.capitalized
                 speciesData?.insightData = InsightData(
-                    aiReasoning: "",
+                    aiReasoning: restoringAiReasoning ?? "",
                     hazardType: row.hazard_type ?? "none"
                 )
                 speciesData?.taxonomy = TaxonomyData(
@@ -850,9 +865,63 @@ private struct WikiSummaryResponse: Decodable {
                 speciesData?.referenceImageUrl = row.reference_image_url
                 speciesData?.wikipediaOverview = row.wikipedia_overview
                 speciesData?.wikipediaUrl = row.wikipedia_url
+
+                // Persist updated species fields so they survive sheet dismissal and reopen.
+                // scientificName is intentionally excluded — it is preserved as aiScientificName.
+                if let scanId, let context = modelContext {
+                    let container = context.container
+                    let capturedCommonName = commonName.capitalized
+                    let capturedHazardType = row.hazard_type ?? "none"
+                    let capturedTaxonomy = TaxonomyData(
+                        kingdom: row.kingdom, phylum: row.phylum, className: row.class,
+                        order: row.order, family: row.family, genus: row.genus
+                    )
+                    let capturedWikiOverview = row.wikipedia_overview
+                    let capturedWikiUrl = row.wikipedia_url
+                    let capturedRefImageUrl = row.reference_image_url
+                    let capturedIucn = row.iucn_red_list_status
+                    let capturedHabitat = row.habitat_description
+                    let capturedGbif = row.gbif_taxon_key
+                    Task {
+                        let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                        await dbActor.updateScanWithOverrideSpeciesData(
+                            scanId: scanId,
+                            commonName: capturedCommonName,
+                            hazardType: capturedHazardType,
+                            wikipediaOverview: capturedWikiOverview,
+                            wikipediaUrl: capturedWikiUrl,
+                            referenceImageUrl: capturedRefImageUrl,
+                            iucnRedListStatus: capturedIucn,
+                            habitatDescription: capturedHabitat,
+                            gbifTaxonKey: capturedGbif,
+                            taxonomy: capturedTaxonomy
+                        )
+                    }
+                }
             } else {
                 // Cache miss — enrich the override species. fetchAndApplyEnrichment uses
                 // speciesData.scientificName which is already set to the override name.
+                // Persist the scientific name as a commonName placeholder so the title survives
+                // sheet reopen before enrichment data arrives.
+                if let scanId, let context = modelContext {
+                    let container = context.container
+                    let capturedScientificName = scientificName
+                    Task {
+                        let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                        await dbActor.updateScanWithOverrideSpeciesData(
+                            scanId: scanId,
+                            commonName: capturedScientificName,
+                            hazardType: "none",
+                            wikipediaOverview: nil,
+                            wikipediaUrl: nil,
+                            referenceImageUrl: nil,
+                            iucnRedListStatus: nil,
+                            habitatDescription: nil,
+                            gbifTaxonKey: nil,
+                            taxonomy: nil
+                        )
+                    }
+                }
                 await fetchAndApplyEnrichment(modelContext: modelContext)
             }
         } catch {
@@ -966,6 +1035,14 @@ private struct WikiSummaryResponse: Decodable {
         let lookalikesLegacyArray: [String]? = record.similarSpecies
         let candidatesRawData: Data? = record.candidatesData
         let overrideName: String? = record.userIdentificationOverride
+        // When a manual override is active, display the override scientific name as the title.
+        // record.scientificName is preserved as the original-AI identifier and reused below
+        // as aiScientificName so that resetIdentificationReview can recover it without a new
+        // schema field.
+        let displayScientificName: String = overrideName ?? record.scientificName
+        // Suppress AI reasoning when an override is active — it was written for the originally
+        // predicted species and is misleading when displayed under the override species name.
+        let displayAiReasoning: String = overrideName == nil ? (record.aiReasoning ?? "") : ""
         let recordIsBiological = record.isBiological
         let recordScientificName = record.scientificName
         let recordId = record.id
@@ -999,8 +1076,8 @@ private struct WikiSummaryResponse: Decodable {
         self.speciesData = SpeciesData(
             scanId: record.id,
             commonName: record.commonName,
-            scientificName: record.scientificName,
-            insightData: InsightData(aiReasoning: record.aiReasoning ?? "", hazardType: record.hazardType),
+            scientificName: displayScientificName,
+            insightData: InsightData(aiReasoning: displayAiReasoning, hazardType: record.hazardType),
             confidenceScore: record.confidenceScore ?? 1.0,
             blurScore: nil,
             similarSpecies: nil,
@@ -1040,7 +1117,7 @@ private struct WikiSummaryResponse: Decodable {
             inferenceTier: record.inferenceTier,
             candidates: nil,
             imageQualityScore: record.imageQualityScore,
-            aiScientificName: record.scientificName,
+            aiScientificName: recordScientificName,
             userIdentificationOverride: record.userIdentificationOverride,
             userConfirmedIdentification: record.userConfirmedIdentification,
             isFlagged: record.isFlagged

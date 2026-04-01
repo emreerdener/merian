@@ -341,6 +341,48 @@ actor BackgroundDatabaseActor {
         }
     }
 
+    /// Persists the species-dictionary data fetched for an identification override or reset,
+    /// so the corrected species fields survive sheet dismissal and reopen.
+    ///
+    /// `scientificName` is deliberately excluded — that column is preserved as the authoritative
+    /// original-AI identifier and is reused as `aiScientificName` on `load(from:)`. This allows
+    /// `resetIdentificationReview` to recover the original name without a separate schema field.
+    func updateScanWithOverrideSpeciesData(
+        scanId: String,
+        commonName: String,
+        hazardType: String,
+        wikipediaOverview: String?,
+        wikipediaUrl: String?,
+        referenceImageUrl: String?,
+        iucnRedListStatus: String?,
+        habitatDescription: String?,
+        gbifTaxonKey: Int?,
+        taxonomy: TaxonomyData?
+    ) {
+        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let record = try? modelContext.fetch(descriptor).first else { return }
+        record.commonName = commonName
+        record.hazardType = hazardType
+        record.wikipediaOverview = wikipediaOverview
+        record.wikipediaUrl = wikipediaUrl
+        record.referenceImageUrl = referenceImageUrl
+        record.iucnRedListStatus = iucnRedListStatus
+        record.habitatDescription = habitatDescription
+        record.gbifTaxonKey = gbifTaxonKey
+        if let tax = taxonomy {
+            record.taxonomyKingdom = tax.kingdom
+            record.taxonomyPhylum = tax.phylum
+            record.taxonomyClass = tax.className
+            record.taxonomyOrder = tax.order
+            record.taxonomyFamily = tax.family
+            record.taxonomyGenus = tax.genus
+        }
+        do { try modelContext.save() } catch {
+            MerianLog.data.error("updateScanWithOverrideSpeciesData: save failed: \(error, privacy: .private)")
+        }
+    }
+
     /// Persists the user's manual review flag to the local SwiftData store.
     func updateScanAsFlagged(scanId: String) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })

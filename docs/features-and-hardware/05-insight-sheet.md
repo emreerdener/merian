@@ -171,6 +171,12 @@ Users can confirm or override the AI's primary identification directly from `Can
 2. Persists `LocalScanRecord.userIdentificationOverride` via `BackgroundDatabaseActor.updateScanWithOverride`.
 3. Syncs to `public.scans.user_identification_override` via a direct PostgREST PATCH (`InferenceEngine.syncIdentificationReviewToCloud`), guarded by `.eq("user_id", userId)`.
 4. Fires `fetchAndPatchOverrideData(scientificName:scanId:modelContext:)` — queries `species_dictionary` for a cache hit and patches `speciesData` fields (common name, taxonomy, Wikipedia, etc.). On cache miss, calls `fetchAndApplyEnrichment` (which uses the already-mutated `speciesData.scientificName` as the lookup key).
+5. After patching `speciesData`, persists the updated species-dict fields (common name, hazard type, taxonomy, Wikipedia, habitat, GBIF key, etc.) to `LocalScanRecord` via `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData`. `scientificName` is intentionally excluded from this write — `record.scientificName` is preserved as the authoritative original-AI identifier, reused as `aiScientificName` on `load(from:)` so that `resetIdentificationReview` can recover the original name without a separate schema field.
+
+**Re-opening an overridden scan**: `InferenceEngine.load(from:)` applies two rules when `record.userIdentificationOverride != nil`:
+- Sets `speciesData.scientificName` to `record.userIdentificationOverride` (the override name) rather than `record.scientificName` (the original AI name).
+- Suppresses `InsightData.aiReasoning` — the AI's vision reasoning was written for the original species and is misleading under the override name.
+`record.scientificName` is always used as `aiScientificName`, enabling the "AI originally suggested X" footer and the Undo/reset path regardless of how many times the sheet is reopened.
 
 **Data model**: Three fields on `LocalScanRecord` (all cloud-synced):
 - `userIdentificationOverride: String?` — mirrors `public.scans.user_identification_override`.

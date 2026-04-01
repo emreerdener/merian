@@ -140,14 +140,14 @@ The current active schema is `MerianSchemaV31`.
 
 **`SpeciesData` override fields** (`merian/Models/SpeciesData.swift`): `SpeciesData` carries four identification-review fields that are never part of the Edge response but are synthesised from `LocalScanRecord` when opening a historical scan:
 - `aiScientificName: String` — always set to `LocalScanRecord.scientificName` (the AI's original identification). Preserved immutably (`let`) so the UI can display "AI originally suggested X" after an override. Derived in `InferenceEngine.load(from:)` as `record.scientificName`.
-- `userIdentificationOverride: String?` — mirrors `LocalScanRecord.userIdentificationOverride`. When non-nil, `speciesData.scientificName` (and species display data) is patched to the override name. Drives the "Your ID" state in `ConfidenceBadge`.
+- `userIdentificationOverride: String?` — mirrors `LocalScanRecord.userIdentificationOverride`. When non-nil, `InferenceEngine.load(from:)` sets `speciesData.scientificName` to the override name directly (not via an async patch), so the correct title is immediately visible on sheet open. All accompanying species-dict fields (`commonName`, `hazardType`, `taxonomy`, etc.) are persisted to `LocalScanRecord` by `fetchAndPatchOverrideData` → `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` when the override is first applied, so they survive reopen without a network call. Drives the "Your ID" state in `ConfidenceBadge`.
 - `userConfirmedIdentification: Bool` — mirrors `LocalScanRecord.userConfirmedIdentification`. Cloud-synced. Drives the "Confirmed" state in `ConfidenceBadge`.
 - `isFlagged: Bool` — mirrors `LocalScanRecord.isFlagged`. When `true`, overrides the `ConfidenceBadge` state natively to display an "Under Review" status and smoothly unmounts `CandidatesCard` from the view hierarchy via `EmptyView()`. Tapping the badge allows the user to undo the flag via `unflagAIIdentification`, which persists locally.
 
 **`SpeciesData` mutable display fields**: Three `SpeciesData` properties are declared `var` (not `let`) specifically because the identification override hydration path (`fetchAndPatchOverrideData`) patches them in-place after querying `species_dictionary` for the override species:
-- `var scientificName: String` — patched by `applyIdentificationOverride` and `resetIdentificationReview` to the chosen/reverted name.
-- `var commonName: String` — patched by `fetchAndPatchOverrideData` to the override species' canonical common name from `species_dictionary.common_names`.
-- `var iucnRedListStatus: String?` — patched by `fetchAndPatchOverrideData` to the override species' conservation status.
+- `var scientificName: String` — patched by `applyIdentificationOverride` and `resetIdentificationReview` to the chosen/reverted name. On `load(from:)`, set to `userIdentificationOverride ?? record.scientificName` so the correct name is visible immediately.
+- `var commonName: String` — patched by `fetchAndPatchOverrideData` to the override species' canonical common name from `species_dictionary.common_names`. Also persisted to `LocalScanRecord.commonName` by `updateScanWithOverrideSpeciesData` so the name survives reopen.
+- `var iucnRedListStatus: String?` — patched by `fetchAndPatchOverrideData` to the override species' conservation status. Also persisted to `LocalScanRecord.iucnRedListStatus` by `updateScanWithOverrideSpeciesData`.
 
 `aiScientificName` remains `let` — it is set once at init and never mutated, making it a safe anchor for revert operations regardless of how many times the user cycles through overrides.
 

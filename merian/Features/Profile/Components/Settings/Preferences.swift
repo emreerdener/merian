@@ -77,7 +77,7 @@ struct Preferences: View {
                 description: "Present the 'Identify' button after capturing to physically confirm the scan. When disabled, single captures are sent to AI immediately.",
                 isOn: $requiresScanConfirmation,
                 icon: "hand.tap.fill",
-                iconColor: Color(red: 0.11, green: 0.52, blue: 0.28)
+                iconColor: .purple
             )
 
             // MARK: - Expedition Mode
