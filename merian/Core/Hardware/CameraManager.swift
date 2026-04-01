@@ -211,7 +211,7 @@ import UIKit
         let activeVideoDevice = session.inputs
             .compactMap { $0 as? AVCaptureDeviceInput }
             .first(where: { $0.device.hasMediaType(.video) })?.device
-        guard let activeVideoDevice else { return (1.0, [], 1.0) }
+        guard let activeVideoDevice else { return ZoomConfig(maxZoom: 1.0, stops: [], nativeZoom: 1.0) }
         let available = activeVideoDevice.maxAvailableVideoZoomFactor
         let cap = min(available, 15.0)
         let rawStops = activeVideoDevice.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.doubleValue) }

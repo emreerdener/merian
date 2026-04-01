@@ -67,7 +67,7 @@ struct Preferences: View {
                 title: "Multi-capture mode",
                 description: "Attach up to 2 items (photos or audio clips) before submitting. By default, a single capture is sent to AI immediately.",
                 isOn: $isMultiCaptureEnabled,
-                icon: "rectangle.stack.badge.plus",
+                icon: "square.stack.fill",
                 iconColor: .blue
             )
             
@@ -76,7 +76,7 @@ struct Preferences: View {
                 title: "Confirm scan submission",
                 description: "Present the 'Identify' button after capturing to physically confirm the scan. When disabled, single captures are sent to AI immediately.",
                 isOn: $requiresScanConfirmation,
-                icon: "sparkles.2",
+                icon: "hand.tap.fill",
                 iconColor: Color(red: 0.11, green: 0.52, blue: 0.28)
             )
 
