@@ -90,7 +90,7 @@ private struct PendingView: View {
                     Text("Verify identification")
                         .font(.system(.title2).weight(.bold))
                         .foregroundColor(.primary)
-                    Text("The model had low confidence on this match.")
+                    Text("The model had low confidence on this match")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -153,7 +153,7 @@ private struct PendingView: View {
                         Text("Verify identification")
                             .font(.system(.title2).weight(.bold))
                             .foregroundColor(.primary)
-                        Text("The model found \(candidates.count) close \(candidates.count == 1 ? "match" : "matches").")
+                        Text("The model found \(candidates.count) close \(candidates.count == 1 ? "match" : "matches")")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }

@@ -12,6 +12,7 @@ struct SwipeableCandidateCard: View {
     // with in-memory NSCache. See Features/Insights/Utilities/SimilarSpeciesImageFetcher.swift
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
     @State private var isOriginalImageExpanded = false
+    @State private var isCandidateImageExpanded = false
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     var body: some View {
@@ -29,6 +30,10 @@ struct SwipeableCandidateCard: View {
                             .scaledToFill()
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        isCandidateImageExpanded = true
+                    }
             } else if imageFetcher.isLoading {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -174,6 +179,14 @@ struct SwipeableCandidateCard: View {
                 .presentationDetents([.fraction(0.85), .large])
                 .presentationCornerRadius(32)
         }
+        .sheet(isPresented: $isCandidateImageExpanded) {
+            if let img = imageFetcher.image {
+                CandidateImageExpandedView(image: img)
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.fraction(0.85), .large])
+                    .presentationCornerRadius(32)
+            }
+        }
     }
 }
 
@@ -266,7 +279,42 @@ private struct OriginalCaptureExpandedView: View {
                      Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
                     }
+                     .padding()
+                }
+                Spacer()
+            }
+        }
+    }
+}
+
+// MARK: - Candidate Image Expanded View
+private struct CandidateImageExpandedView: View {
+    let image: UIImage
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    Spacer()
+                     Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Circle().fill(.white.opacity(0.15)))
+                    }
+                    .buttonStyle(.plain)
+                    .padding()
                 }
                 Spacer()
             }
