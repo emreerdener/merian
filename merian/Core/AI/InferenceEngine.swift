@@ -101,7 +101,6 @@ private struct WikiSummaryResponse: Decodable {
         self.gbifHydrationTask?.cancel()
         self.enrichmentWriteTask?.cancel()
         self.phaseRotationTask?.cancel()
-        self.visionStreamingTask?.cancel()
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
 
@@ -141,8 +140,6 @@ private struct WikiSummaryResponse: Decodable {
             defer {
                 self.isProcessing = false
                 self.phaseRotationTask?.cancel()
-                self.visionStreamingTask?.cancel()
-                self.isVisionStreaming = false
             }
 
             let pipelineStart = CFAbsoluteTimeGetCurrent()
@@ -675,8 +672,11 @@ private struct WikiSummaryResponse: Decodable {
         guard let scanId = speciesData?.scanId else { return }
 
         // 1. Immediately update display — scientificName drives InsightHeader subtitle.
+        // Wipe aiReasoning and commonName to prevent stale UI during the fetch.
         speciesData?.userIdentificationOverride = scientificName
         speciesData?.scientificName = scientificName
+        speciesData?.commonName = scientificName
+        speciesData?.insightData = InsightData(aiReasoning: "", hazardType: "none")
         speciesData?.userConfirmedIdentification = false
 
         // 2. Persist to SwiftData.
@@ -822,12 +822,11 @@ private struct WikiSummaryResponse: Decodable {
                     guard let names = row.common_names else { return scientificName }
                     return names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName
                 }()
-                // Capture aiReasoning before any mutation to avoid a read-during-write
-                // exclusivity violation on the @Observable-tracked speciesData property.
-                let existingReasoning = speciesData?.insightData.aiReasoning ?? ""
+                // Wipe aiReasoning since the AI's structural explanation applies to the originally
+                // predicted species. We do not want to display explanations for a rejected identification.
                 speciesData?.commonName = commonName.capitalized
                 speciesData?.insightData = InsightData(
-                    aiReasoning: existingReasoning,
+                    aiReasoning: "",
                     hazardType: row.hazard_type ?? "none"
                 )
                 speciesData?.taxonomy = TaxonomyData(

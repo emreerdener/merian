@@ -11,6 +11,7 @@ struct SwipeableCandidateCard: View {
     // NOTE: Uses SimilarSpeciesImageFetcher — dual-source Wikipedia/GBIF async image loading
     // with in-memory NSCache. See Features/Insights/Utilities/SimilarSpeciesImageFetcher.swift
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
+    @State private var isOriginalImageExpanded = false
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     var body: some View {
@@ -128,7 +129,8 @@ struct SwipeableCandidateCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 28)
+            .padding(.leading, 28)
+            .padding(.trailing, 96) // Clear the PiP (58 width + 20 margin + 18 gap)
             .padding(.bottom, 20)
             
             // Original Image PIP (Bottom Right)
@@ -136,16 +138,22 @@ struct SwipeableCandidateCard: View {
                 Spacer()
                 HStack {
                     Spacer()
-                    OriginalCapturePiPView()
-                        .frame(width: 58, height: 76)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(.white.opacity(0.4), lineWidth: 1)
-                        )
-                        .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 20)
+                    Button {
+                        isOriginalImageExpanded = true
+                    } label: {
+                        OriginalCapturePiPView()
+                            .frame(width: 58, height: 76)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(.white.opacity(0.4), lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                            .contentShape(Rectangle()) // Ensures tap registers on whole frame
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
                 }
             }
             
@@ -158,6 +166,10 @@ struct SwipeableCandidateCard: View {
         )
         .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
         .task { _ = await imageFetcher.fetchImage(for: candidate.scientificName) }
+        .fullScreenCover(isPresented: $isOriginalImageExpanded) {
+            OriginalCaptureExpandedView()
+                .environment(inferenceEngine)
+        }
     }
 }
 
@@ -200,6 +212,61 @@ private struct OriginalCapturePiPView: View {
                 )
             } else {
                 Color.black.opacity(0.8)
+            }
+        }
+    }
+}
+
+// MARK: - Original Capture Expanded View
+private struct OriginalCaptureExpandedView: View {
+    @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(\.dismiss) private var dismiss
+    @State private var decodedImage: UIImage?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            Group {
+                if let imageData = inferenceEngine.activeDisplayDatas.first {
+                    if let img = decodedImage {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        ProgressView().tint(.white)
+                            .task {
+                                let img = await Task.detached(priority: .userInitiated) {
+                                    autoreleasepool { UIImage(data: imageData) }
+                                }.value
+                                decodedImage = img
+                            }
+                    }
+                } else if let path = inferenceEngine.validHistoricImagePaths.first {
+                    AsyncLocalImageView(
+                        path: path,
+                        fallbackImageUrl: nil,
+                        onImageLoadFailed: nil
+                    )
+                    .scaledToFit()
+                } else {
+                    Text("Image unavailable")
+                        .foregroundColor(.white)
+                }
+            }
+            .ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(.white.opacity(0.8), .black.opacity(0.4))
+                            .padding()
+                    }
+                }
+                Spacer()
             }
         }
     }

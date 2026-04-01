@@ -50,7 +50,8 @@ struct BiologicalView: View {
                         candidates: candidates,
                         aiScientificName: primaryAIName,
                         inferenceTier: inferenceEngine.speciesData?.inferenceTier,
-                        onFlagIssue: { viewModel.isIdentificationFlagPresented = true }
+                        onFlagIssue: { viewModel.isIdentificationFlagPresented = true },
+                        onMatchConfirmed: { viewModel.toastMessage = "Match confirmed" }
                     )
                     .cardEntrance(index: 3)
                 }

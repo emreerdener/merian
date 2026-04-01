@@ -21,6 +21,7 @@ struct CandidatesCard: View {
     /// Called when the user taps "No, incorrect" and there are no candidates to choose from.
     /// The caller should route to the flag/report flow.
     var onFlagIssue: (() -> Void)?
+    var onMatchConfirmed: (() -> Void)?
 
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
@@ -54,6 +55,8 @@ struct CandidatesCard: View {
                 PendingView(
                     candidates: candidates,
                     onConfirm: {
+                        HapticManager.shared.triggerSuccessPulse()
+                        onMatchConfirmed?()
                         Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
                     },
                     onReviewAlternatives: { isSwipeModalPresented = true },

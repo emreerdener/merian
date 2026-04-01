@@ -52,8 +52,7 @@ struct Preferences: View {
                 )
             }
            
-
-             // MARK: - Push Notifications
+            // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
                 SettingsNavigationRow(
                     title: "Notifications",

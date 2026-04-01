@@ -32,7 +32,7 @@ struct FlagIdentificationModal: View {
                         }
                         .padding(.top, 24)
                         
-                        Text("Flag for Review")
+                        Text("Flag for review")
                             .font(.title2)
                             .fontWeight(.bold)
                         
@@ -89,7 +89,7 @@ struct FlagIdentificationModal: View {
                 }
             }
             // Alert on success
-            .alert("Flag Submitted", isPresented: $viewModel.showAlert) {
+            .alert("Flag submitted", isPresented: $viewModel.showAlert) {
                 Button("Got it", role: .cancel) { dismiss() }
             } message: {
                 Text(viewModel.alertMessage)

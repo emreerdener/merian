@@ -15,6 +15,7 @@ struct CandidateSwipeModal: View {
     @State private var isGridMode = false
     @State private var topCardOffset: CGSize = .zero
     @State private var topCardIsDragging = false
+    @State private var isDismissing = false
 
     private let swipeThreshold: CGFloat = 200
 
@@ -37,7 +38,7 @@ struct CandidateSwipeModal: View {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
 
-                if stack.isEmpty {
+                if stack.isEmpty && !isDismissing {
                     exhaustedStateContent
                 } else if isGridMode {
                     gridContent
@@ -153,6 +154,7 @@ extension CandidateSwipeModal {
                 GridSwipeableCell(
                     candidate: candidate,
                     onConfirm: {
+                        isDismissing = true
                         Task {
                             await inferenceEngine.applyIdentificationOverride(
                                 scientificName: candidate.scientificName,
@@ -267,6 +269,7 @@ extension CandidateSwipeModal {
     private func confirmTopCard() {
         guard let top = stack.first else { return }
         let name = top.scientificName
+        isDismissing = true
         withAnimation(.spring(response: 0.25)) {
             stack.removeFirst()
             topCardOffset = .zero

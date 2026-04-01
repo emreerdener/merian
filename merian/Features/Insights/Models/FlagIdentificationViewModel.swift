@@ -30,7 +30,7 @@ final class FlagIdentificationViewModel {
         do {
             try await MerianNetworkClient.shared.submitFlagIssue(
                 scanId: scanId,
-                flagReason: "Incorrect Species",
+                flagReason: "Incorrect species",
                 userSuggestion: userSuggestion.trimmingCharacters(in: .whitespacesAndNewlines),
                 userId: userId
             )
