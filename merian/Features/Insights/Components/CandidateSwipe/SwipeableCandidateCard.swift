@@ -78,7 +78,7 @@ struct SwipeableCandidateCard: View {
                 }
             }
 
-            // Bottom gradient — sits above the image/overlays but below the text and PIP.
+            // Bottom gradient — sits above the image/overlays but below the text and PIP Picture in Picture.
             // Inserted here in ZStack source order so no explicit zIndex manipulation is needed.
             VStack {
                 Spacer()
@@ -167,9 +167,12 @@ struct SwipeableCandidateCard: View {
         )
         .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
         .task { _ = await imageFetcher.fetchImage(for: candidate.scientificName) }
-        .fullScreenCover(isPresented: $isOriginalImageExpanded) {
+        .sheet(isPresented: $isOriginalImageExpanded) {
             OriginalCaptureExpandedView()
                 .environment(inferenceEngine)
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.fraction(0.85), .large])
+                .presentationCornerRadius(32)
         }
     }
 }
@@ -260,11 +263,9 @@ private struct OriginalCaptureExpandedView: View {
             VStack {
                 HStack {
                     Spacer()
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 30))
-                            .foregroundStyle(.white.opacity(0.8), .black.opacity(0.4))
-                            .padding()
+                     Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
                     }
                 }
                 Spacer()

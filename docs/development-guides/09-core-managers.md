@@ -127,7 +127,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 | Constant | Key string | Sites |
 |---|---|---|
-| `hasUnseenScan` | `"hasUnseenScan"` | `MainTabBar` (read), `Analysis` (write), `CameraSheetRouter` (clear) |
+| `hasUnseenScan` | `"hasUnseenScan"` | `MainTabBar` (read), `Analysis` (write — guarded: only written when `activeSheet != .insight`, preventing a false-positive indicator while the user is actively viewing the result), `CameraSheetRouter` (clear) |
 | `isPushNotificationsEnabled` | `"isPushNotificationsEnabled"` | `NotificationSettingsView`, `PushNotificationManager`, `InferenceEngine`, `OfflineQueueManager+URLSession` |
 | `suppressInferenceBanners` | `"suppressInferenceBanners"` | `CameraViewModel` (write), `PushNotificationManager` (read) |
 | `isLiveInferencePaused` | `"isLiveInferencePaused"` | `CameraSettingsView`, `CameraManager` |

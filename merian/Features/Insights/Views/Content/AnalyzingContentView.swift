@@ -48,6 +48,10 @@ struct AnalyzingContentView: View {
                 analyzingPhrase: inferenceEngine.scanningPhaseText
             )
 
+            // Fun-fact carousel — gives users something to read while Gemini processes
+            DidYouKnowCard()
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+
             // Render basic scan telemetry immediately while waiting for Gemini analysis
             ScanInformationCard(
                 speciesData: nil,
