@@ -10,8 +10,7 @@ struct OfflineQueueManagerTests {
     @MainActor
     private func createInMemoryContext() throws -> ModelContext {
         let schema = Schema(CurrentSchema.models)
-        let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
-        let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
+        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         return ModelContext(container)
     }

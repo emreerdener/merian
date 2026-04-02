@@ -17,6 +17,7 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 2. `UsageManager.evaluateDailyRefresh()` — resets daily scan token count if the calendar day has rolled over.
 3. `PushNotificationManager.setupDelegate()` — re-registers the UNUserNotificationCenter delegate.
 4. `PushNotificationManager.syncPermissionState()` — reconciles the local `@AppStorage(UserDefaultsKeys.isPushNotificationsEnabled)` flag with the OS authorization status to handle revocations in Settings.
+5. **Deep Linking (Intents & Notifications):** `handleActivePhase` securely routes `MerianAppIntents.swift` triggers (Spotlight / Shortcuts) and Push Notification deep links by intercepting payload IDs and firing `AppEventPublisher.shared.send(.appDidEnterActivePhaseWithScan(scanId: scanId))`. This seamlessly injects modal presentation parameters universally across the codebase without causing race conditions against App init phases.
 
 **Async `Task {}` (off Main thread):**
 5. `SupabaseManager.initializeGhostSession()` — ensures a valid anonymous or authenticated session exists before any network calls.

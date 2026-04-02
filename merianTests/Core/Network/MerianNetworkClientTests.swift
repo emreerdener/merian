@@ -32,6 +32,7 @@ class MockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+@Suite("Network Client Tests", .serialized)
 @MainActor
 struct MerianNetworkClientTests {
     

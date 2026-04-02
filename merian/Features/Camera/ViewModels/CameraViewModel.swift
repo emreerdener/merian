@@ -69,6 +69,8 @@ final class CameraViewModel {
                     self?.activeSheet = .paywall
                 case .appDidEnterActivePhaseWithScan(let scanId):
                     self?.handleDeepLinkRoute(scanId: scanId)
+                default:
+                    break
                 }
             }
             .store(in: &cancellables)

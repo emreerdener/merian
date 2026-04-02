@@ -9,9 +9,8 @@ struct CompositeLibraryTests {
     // MARK: - Test Infrastructure
 
     private func makeContext() throws -> ModelContext {
-        let schema = Schema(MerianSchemaV9.models)
-        let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
-        let config = ModelConfiguration(schema: schema, url: tempURL)
+        let schema = Schema(CurrentSchema.models)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, configurations: [config])
         return ModelContext(container)
     }

@@ -10,19 +10,18 @@ Test suites must not pollute the local iOS file system or SQLite databases. All 
 @MainActor
 private func createIsolatedContext() throws -> ModelContainer {
     let schema = Schema(CurrentSchema.models)
-    let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
-    let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
+    let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     return try ModelContainer(for: schema, configurations: [modelConfiguration])
 }
 ```
 
 Always use `CurrentSchema` (aliased to the latest active `MerianSchemaV{N}`). Never pin tests to historical versioned schemas — a pinned schema silently drops new model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing persistence tests to pass against the wrong shape.
 
-> **Disk-based isolation**: `BackgroundDatabaseActorTests` uses a temp SQLite file on `URL.cachesDirectory` instead of in-memory storage because of a known iOS 18 simulator bug where `NSCache`-backed in-memory containers mishandle `[String]` array appends. The temp file is UUID-named to guarantee zero cross-test contamination.
+> **Primitive Mapping Constraints:** Tests must explicitly apply `isStoredInMemoryOnly: true` as the primary isolated context configuration. Do **not** bind testing contexts dynamically to disk via `.sqlite` caches. Under iOS 17/18 Simulator configurations during concurrent execution paths, assigning implicit types like `[String]` primitive arrays to dynamically loaded disk caches triggers an unrecoverable `_KKMDBackingData` materialization crash. True RAM mappings fundamentally bypass cache serialization and safely bridge properties without needing external attributes.
 
 This guarantees that:
-1. Operations like `context.save()` happen in RAM and resolve immediately, bypassing disk I/O.
-2. The user's real `Scans` and `OfflineQueuedScan` records are shielded from test mutations.
+1. Operations like `context.save()` happen strictly in RAM securely decoupling from native schemas mappings.
+2. The user's real `Scans` and `OfflineQueuedScan` records are completely shielded from parallel mutations.
 
 ## Mocking the App DI Environment (`AppDIContainer`)
 
@@ -80,7 +79,8 @@ Tests are organized under `merianTests/Core` and `merianTests/Features`:
 - **`PhotoLibraryManagerTests.swift`**: Validates that toggling `UserDefaults("saveToCameraRoll")` drops the payload without triggering `PHPhotoLibrary` memory allocations.
 
 ### Security, Network & Identity
-- **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Tests API routing, including `.401` retry cycles for Ghost User flows and JSON body payload serialization.
+- **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Tests API routing, including `.401` retry cycles for Ghost User flows and JSON body payload serialization. 
+  - **MockURLProtocol Contamination & `.serialized`:** Because XCTest routines process entirely concurrently natively inside Xcode 16+, using generic static closures (like `MockURLProtocol.requestHandler`) generates race conditions during intercept evaluations natively returning expectations completely malformed. You MUST rigidly prefix global Network suites heavily utilizing mock singletons with `@Suite(.serialized)` assuring clean serial-execution pathways.
 - **`DeviceIdentityManagerTests.swift`, `RevenueCatManagerTests.swift`**: Isolates authentication loops away from live production identifiers. `DeviceIdentityManagerTests` reads `DeviceIdentityManager.shared.deviceId` (the public `@Observable` property) — it does **not** call the private `getOrGeneratePersistentIDFV()` method directly. The test wipes the relevant Keychain item via `SecItemDelete` before and after the assertion to prevent cross-run contamination.
 - **`SocialGuardManagerTests.swift`, `CircuitBreakerManagerTests.swift`**: Asserts offline logic ensuring blocked users do not re-populate the feed.
 
