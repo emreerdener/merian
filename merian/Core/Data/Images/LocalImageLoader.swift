@@ -11,6 +11,9 @@ actor LocalImageLoader {
     // MARK: - Thread-Safe Task Queues
     private var activeTasks: [String: Task<UIImage?, Never>] = [:]
     
+    // Limits concurrent ImageIO decodes to prevent JetSam OOM on large grid layouts.
+    private static let decodeSemaphore = DispatchSemaphore(value: 4)
+    
     // MARK: - Asset Orchestration
     func loadImage(fromPath imagePath: String?, fallbackUrl: String? = nil, maxDimension: Int = 1024) async -> UIImage? {
         guard let baseKey = imagePath ?? fallbackUrl else {
@@ -116,6 +119,10 @@ actor LocalImageLoader {
     private static nonisolated func loadLocal(path: String, cacheKey: String, maxSize: CGFloat) -> UIImage? {
         let filename = (path as NSString).lastPathComponent
         let url = URL.documentsDirectory.appendingPathComponent(filename)
+        
+        LocalImageLoader.decodeSemaphore.wait()
+        defer { LocalImageLoader.decodeSemaphore.signal() }
+        
         guard let cgImage = ImageDownsampler.shared.downsample(url: url, maxSize: maxSize) else { return nil }
         let image = UIImage(cgImage: cgImage)
         ImageCache.shared.set(image, forKey: cacheKey)
@@ -130,9 +137,21 @@ actor LocalImageLoader {
             defer { try? FileManager.default.removeItem(at: tempURL) }
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
             if Task.isCancelled { return nil }
-            guard let cgImage = ImageDownsampler.shared.downsample(url: tempURL, maxSize: maxSize) else { return nil }
-            let thumbnail = UIImage(cgImage: cgImage)
-            ImageCache.shared.set(thumbnail, forKey: cacheKey)
+            
+            let thumbnail: UIImage? = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    LocalImageLoader.decodeSemaphore.wait()
+                    defer { LocalImageLoader.decodeSemaphore.signal() }
+                    
+                    if let cgImage = ImageDownsampler.shared.downsample(url: tempURL, maxSize: maxSize) {
+                        let result = UIImage(cgImage: cgImage)
+                        ImageCache.shared.set(result, forKey: cacheKey)
+                        continuation.resume(returning: result)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
             return thumbnail
         } catch {
             return nil

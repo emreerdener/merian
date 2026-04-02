@@ -306,6 +306,19 @@ actor BackgroundDatabaseActor {
         }
     }
 
+    // MARK: - Core Mutation Core
+
+    /// Safe, generic SwiftData mutation block capturing the exact fetching pattern.
+    private func mutateScan(id: String, mutation: (LocalScanRecord) -> Void) {
+        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        guard let record = try? modelContext.fetch(descriptor).first else { return }
+        mutation(record)
+        do { try modelContext.save() } catch {
+            MerianLog.data.error("mutateScan: save failed for \(id, privacy: .private): \(error, privacy: .private)")
+        }
+    }
+
     // MARK: - Species Enrichment
 
     func updateScanWithEnrichment(
@@ -315,23 +328,19 @@ actor BackgroundDatabaseActor {
         similarSpeciesJsonData: Data?,
         taxonomy: EdgeResponse.Taxonomy?
     ) {
-        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        descriptor.fetchLimit = 1
-        guard let record = try? modelContext.fetch(descriptor).first else { return }
-
-        if let habitat = habitatDescription { record.habitatDescription = habitat }
-        if let key = gbifTaxonKey { record.gbifTaxonKey = key }
-        if let jsonData = similarSpeciesJsonData { record.lookalikesData = jsonData }
-        if let tax = taxonomy {
-            record.taxonomyKingdom = tax.kingdom
-            record.taxonomyPhylum = tax.phylum
-            record.taxonomyClass = tax.`class`
-            record.taxonomyOrder = tax.order
-            record.taxonomyFamily = tax.family
-            record.taxonomyGenus = tax.genus
+        mutateScan(id: scanId) { record in
+            if let habitat = habitatDescription { record.habitatDescription = habitat }
+            if let key = gbifTaxonKey { record.gbifTaxonKey = key }
+            if let jsonData = similarSpeciesJsonData { record.lookalikesData = jsonData }
+            if let tax = taxonomy {
+                record.taxonomyKingdom = tax.kingdom
+                record.taxonomyPhylum = tax.phylum
+                record.taxonomyClass = tax.`class`
+                record.taxonomyOrder = tax.order
+                record.taxonomyFamily = tax.family
+                record.taxonomyGenus = tax.genus
+            }
         }
-
-        try? modelContext.save()
     }
 
     // MARK: - Identification Override Persistence
@@ -342,13 +351,9 @@ actor BackgroundDatabaseActor {
     ///   - override: The scientific name the user selected, or nil to clear.
     ///   - confirmed: True when the user confirmed the AI identification ("Yes, correct").
     func updateScanWithOverride(scanId: String, override: String?, confirmed: Bool) {
-        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        descriptor.fetchLimit = 1
-        guard let record = try? modelContext.fetch(descriptor).first else { return }
-        record.userIdentificationOverride = override
-        record.userConfirmedIdentification = confirmed
-        do { try modelContext.save() } catch {
-            MerianLog.data.error("updateScanWithOverride: save failed: \(error, privacy: .private)")
+        mutateScan(id: scanId) { record in
+            record.userIdentificationOverride = override
+            record.userConfirmedIdentification = confirmed
         }
     }
 
@@ -370,50 +375,34 @@ actor BackgroundDatabaseActor {
         gbifTaxonKey: Int?,
         taxonomy: TaxonomyData?
     ) {
-        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        descriptor.fetchLimit = 1
-        guard let record = try? modelContext.fetch(descriptor).first else { return }
-        record.commonName = commonName
-        record.hazardType = hazardType
-        record.wikipediaOverview = wikipediaOverview
-        record.wikipediaUrl = wikipediaUrl
-        record.referenceImageUrl = referenceImageUrl
-        record.iucnRedListStatus = iucnRedListStatus
-        record.habitatDescription = habitatDescription
-        record.gbifTaxonKey = gbifTaxonKey
-        if let tax = taxonomy {
-            record.taxonomyKingdom = tax.kingdom
-            record.taxonomyPhylum = tax.phylum
-            record.taxonomyClass = tax.className
-            record.taxonomyOrder = tax.order
-            record.taxonomyFamily = tax.family
-            record.taxonomyGenus = tax.genus
-        }
-        do { try modelContext.save() } catch {
-            MerianLog.data.error("updateScanWithOverrideSpeciesData: save failed: \(error, privacy: .private)")
+        mutateScan(id: scanId) { record in
+            record.commonName = commonName
+            record.hazardType = hazardType
+            record.wikipediaOverview = wikipediaOverview
+            record.wikipediaUrl = wikipediaUrl
+            record.referenceImageUrl = referenceImageUrl
+            record.iucnRedListStatus = iucnRedListStatus
+            record.habitatDescription = habitatDescription
+            record.gbifTaxonKey = gbifTaxonKey
+            if let tax = taxonomy {
+                record.taxonomyKingdom = tax.kingdom
+                record.taxonomyPhylum = tax.phylum
+                record.taxonomyClass = tax.className
+                record.taxonomyOrder = tax.order
+                record.taxonomyFamily = tax.family
+                record.taxonomyGenus = tax.genus
+            }
         }
     }
 
     /// Persists the user's manual review flag to the local SwiftData store.
     func updateScanAsFlagged(scanId: String) {
-        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        descriptor.fetchLimit = 1
-        guard let record = try? modelContext.fetch(descriptor).first else { return }
-        record.isFlagged = true
-        do { try modelContext.save() } catch {
-            MerianLog.data.error("updateScanAsFlagged: save failed: \(error, privacy: .private)")
-        }
+        mutateScan(id: scanId) { $0.isFlagged = true }
     }
 
     /// Removes the user's manual review flag from the local SwiftData store.
     func updateScanAsUnflagged(scanId: String) {
-        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        descriptor.fetchLimit = 1
-        guard let record = try? modelContext.fetch(descriptor).first else { return }
-        record.isFlagged = false
-        do { try modelContext.save() } catch {
-            MerianLog.data.error("updateScanAsUnflagged: save failed: \(error, privacy: .private)")
-        }
+        mutateScan(id: scanId) { $0.isFlagged = false }
     }
 
     // MARK: - Collections Edge Sync

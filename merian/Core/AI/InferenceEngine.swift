@@ -303,12 +303,14 @@ private struct WikiSummaryResponse: Decodable {
                             // capture stays actor-bound — async let closures are implicitly
                             // @Sendable and cannot capture non-Sendable @MainActor types.
                             await withTaskGroup(of: Void.self) { group in
-                                group.addTask { @MainActor [self] in
+                                group.addTask { @MainActor [weak self] in
+                                    guard let self else { return }
                                     if !capturedIsEnriched {
                                         await self.fetchAndApplyEnrichment(modelContext: modelContext)
                                     }
                                 }
-                                group.addTask { @MainActor [self] in
+                                group.addTask { @MainActor [weak self] in
+                                    guard let self else { return }
                                     if let key = capturedGbifKey {
                                         await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
                                     }
@@ -587,7 +589,8 @@ private struct WikiSummaryResponse: Decodable {
 
         await withTaskGroup(of: Void.self) { group in
             if needsMetadata {
-                group.addTask { @MainActor [self] in
+                group.addTask { @MainActor [weak self] in
+                    guard let self else { return }
                     defer { self.isEnrichmentLoading = false }
                     do {
                         let response = try await MerianNetworkClient.shared.fetchEnrichment(
@@ -648,7 +651,8 @@ private struct WikiSummaryResponse: Decodable {
             }
 
             if needsLookalikes {
-                group.addTask { @MainActor [self] in
+                group.addTask { @MainActor [weak self] in
+                    guard let self else { return }
                     defer { self.isLookalikesLoading = false }
                     do {
                         let response = try await MerianNetworkClient.shared.fetchEnrichment(

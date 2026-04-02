@@ -47,6 +47,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Maps ephemeral telemetry metadata (`gpsLatitude`, `gpsLongitude`, `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, `locationName`) into the parsed `SpeciesData` model, abstracting this detail from the Edge runtime and making it consistent across live and offline inference paths.
 - On network failure, routes the payload to `OfflineQueueManager` and triggers the Graceful Degradation UI state.
 - **Post-inference carousel handoff + buffer release**: On a successful result, `validHistoricImagePaths` is set from the on-disk paths returned by `InferenceProcessingActor.parseAndSave` *before* `speciesData` is assigned and before `activeLiveCaptureDatas` is cleared. This ensures the insight sheet carousel always has the user's saved image available on first render — the reference image is never the only visible page when the sheet opens. After `speciesData` is set, `activeImageData`, `activeCompressedImageData`, and `activeLiveCaptureDatas` are cleared to release the compressed image bytes (potentially several MB per multi-shot capture).
+- **TaskGroup Retain Cycles (`InferenceEngine`)**: Replaced implicit, strong `[self]` captures across `withTaskGroup` blocks with robust `@MainActor [weak self]` guard unwrapping. If network tasks stall, the engine immediately abandons `activeLiveCaptureDatas` constraints seamlessly, enabling dynamic RAM scavenging and eliminating implicit zombie executions bounding the `InferenceEngine` layer constraints.
 - **Unconditional Local Notifications**: Dispatches a local "Analysis Complete" push notification upon successful inference regardless of application state. The `PushNotificationManager` delegate is responsible for evaluating the user's active UI context to intelligently suppress the banner if they are already looking at the result.
 
 **Multi-File Structure**: The engine is split across three files:
@@ -140,6 +141,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `LocalImageLoader`
 - A Zero-OOM actor governing remote image fetches, APFS extraction, and thundering-herd cache coalescing.
 - Prevents redundant remote fetches using tracked `Task` closures off the `@MainActor`.
+- **Detached Task Bounds**: Wraps core OS disk and network execution through a strictly limited `DispatchSemaphore(value: 4)` pipeline constraint. This ensures excessive detached closures do not cause ImageIO over-subscription JetSam panics during high-speed multi-item view grid scrolls. 
 - Supports fallback fetching: loops natively through comma-separated URLs via Zero-OOM `ImageDownsampler` bounds.
 - I/O helpers (`loadLocal`, `fetchRemote`) are `static nonisolated` — prevents `Task.detached` from re-entering the actor executor mid-operation and keeps all file/network work on the background thread pool.
 
