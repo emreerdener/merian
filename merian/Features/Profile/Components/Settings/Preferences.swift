@@ -231,7 +231,7 @@ struct CameraSettingsView: View {
     @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
     @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
     @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
-    @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = false
+    @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = UIDevice.current.isModernIPhone
     @AppStorage("saveToCameraRoll") private var saveToCameraRoll: Bool = true
 
     var body: some View {

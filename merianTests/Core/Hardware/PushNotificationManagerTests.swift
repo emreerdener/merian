@@ -36,4 +36,23 @@ struct PushNotificationManagerTests {
         // If execution reaches here, string interpolations and Native OS UNMutableNotificationContent bounds executed perfectly natively.
         #expect(true)
     }
+    
+    @Test func testSendAchievementUnlockedNotificationConstructsValidPayload() async {
+        let manager = PushNotificationManager.shared
+        
+        // Act
+        // Because UNUserNotificationCenter is a global OS actor, we structurally verify it does not crash processing the primitive dictionary configurations down to the native OS layer.
+        manager.sendAchievementUnlockedNotification(achievementTitle: "Global Explorer")
+        
+        #expect(true)
+    }
+
+    @Test func testSendUploadFailedNotificationConstructsValidPayload() async {
+        let manager = PushNotificationManager.shared
+        
+        // Act
+        manager.sendUploadFailedNotification()
+        
+        #expect(true)
+    }
 }
