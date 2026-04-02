@@ -50,16 +50,16 @@ actor InferenceProcessingActor {
         compressedDatas: [Data],
         displayDatas: [Data] = []
     ) async throws -> ParseAndSaveResult {
-        let parsedWrapper: EdgeResponseWrapper
+        let parsedResponse: EdgeResponse
         do {
-            parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
+            parsedResponse = try JSONDecoder().decode(EdgeResponse.self, from: resultData)
         } catch let error as DecodingError {
             MerianLog.general.debug("AI JSON decoding error: \(error.localizedDescription, privacy: .private)")
             throw MerianError.decodingFailed
         }
 
         var mappedData = SpeciesData(
-            fromEdgeResponse: parsedWrapper.data,
+            fromEdgeResponse: parsedResponse,
             locationName: telemetry.locationName,
             weatherCondition: telemetry.weatherCondition,
             weatherTemperatureF: telemetry.weatherTemperatureF,

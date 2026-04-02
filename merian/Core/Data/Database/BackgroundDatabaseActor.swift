@@ -82,17 +82,17 @@ actor BackgroundDatabaseActor {
         var finalIsNewDiscovery = false
         var resultingScanId: String?
 
-        let parsedWrapper: EdgeResponseWrapper?
+        let parsedResponse: EdgeResponse?
         do {
-            parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
+            parsedResponse = try JSONDecoder().decode(EdgeResponse.self, from: resultData)
         } catch {
             MerianLog.data.debug("processAndCleanupOfflineScan: JSON decode failed: \(error, privacy: .private)")
-            parsedWrapper = nil
+            parsedResponse = nil
         }
 
-        if let parsedWrapper {
+        if let parsedResponse {
             var mappedData = SpeciesData(
-                fromEdgeResponse: parsedWrapper.data,
+                fromEdgeResponse: parsedResponse,
                 locationName: telemetry?.locationName,
                 weatherCondition: telemetry?.weatherCondition,
                 weatherTemperatureF: telemetry?.weatherTemperatureF,
@@ -181,13 +181,13 @@ actor BackgroundDatabaseActor {
             }
         }
 
-        // Atomic commit: delete the OfflineQueuedScan (and, if inference succeeded,
-        // insert the LocalScanRecord) in a single save.
-        // delete(model:where:) avoids faulting the full OfflineQueuedScan object into
-        // memory — it marks the matching row for deletion in the context's change set
-        // and the batch is committed with the pending insert on the next save() call.
+        // Fetch and delete instantiates the object ensuring SwiftData propagates deletes to the main context.
         do {
-            try modelContext.delete(model: OfflineQueuedScan.self, where: #Predicate { $0.id == scanId })
+            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            descriptor.fetchLimit = 1
+            if let scanToDelete = try modelContext.fetch(descriptor).first {
+                modelContext.delete(scanToDelete)
+            }
             try modelContext.save()
 
             if inferenceFailed {

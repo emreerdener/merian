@@ -47,6 +47,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/development-guides/08-testing-strategy.md`](./development-guides/08-testing-strategy.md)** — Swift testing isolation using in-memory SwiftData and local context mocks.
 - **[`/development-guides/09-core-managers.md`](./development-guides/09-core-managers.md)** — Deep dive into singleton instances across Merian (e.g. `HardwareOrchestrator`).
 - **[`/development-guides/10-safety-and-moderation.md`](./development-guides/10-safety-and-moderation.md)** — Gemini safety rating evaluation, abuse strike system, shadowban logic, and R2 media promotion pipeline.
+- **[`/development-guides/11-swiftdata-and-api-gotchas.md`](./development-guides/11-swiftdata-and-api-gotchas.md)** — SwiftData background synchronization drops and API envelope parsing constraints.
 
 ## About Merian
 

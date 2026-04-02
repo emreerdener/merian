@@ -24,6 +24,7 @@ struct PhotoLibraryButton: View {
             .frame(width: 50, height: 50)
             .background(.ultraThinMaterial, in: Circle())
             .environment(\.colorScheme, .dark)
+            .accessibilityIdentifier("PhotoLibraryButton")
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)

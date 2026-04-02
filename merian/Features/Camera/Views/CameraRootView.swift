@@ -354,6 +354,8 @@ private struct CaptureButton: View {
                 .animation(.easeInOut(duration: 0.25), value: captureMode)
         }
         .environment(\.colorScheme, .dark)
+        .accessibilityIdentifier("CaptureShutter")
+        .accessibilityAddTraits(.isButton)
         .onTapGesture {
             guard captureMode == .visual else { return }
             HapticManager.shared.triggerFocusSnap()
