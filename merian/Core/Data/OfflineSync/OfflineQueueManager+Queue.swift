@@ -37,6 +37,14 @@ extension OfflineQueueManager {
             MerianLog.data.error("softDeleteQueuedScan: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
         updateUnsyncedItemCount()
+        
+        if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
+            #if canImport(UIKit)
+            if UIApplication.shared.applicationState != .active {
+                PushNotificationManager.shared.sendUploadFailedNotification()
+            }
+            #endif
+        }
     }
 
     /// Explicitly deletes an offline queued scan immediately.

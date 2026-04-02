@@ -113,6 +113,23 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         }
     }
 
+    func sendUploadFailedNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Upload failed"
+        content.body = "A background scan was unable to upload and has been discarded."
+        content.sound = .default
+        content.userInfo = ["type": "failure"]
+        
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                MerianLog.hardware.debug("Failed to schedule failure notification: \(error, privacy: .private)")
+            } else {
+                MerianLog.hardware.debug("Failure notification scheduled.")
+            }
+        }
+    }
+
     func sendAchievementUnlockedNotification(achievementTitle: String) {
         let content = UNMutableNotificationContent()
         content.title = "Achievement Unlocked!"

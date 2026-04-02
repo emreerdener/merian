@@ -125,7 +125,7 @@ The following three Object Lifecycle Rules must be configured in the Cloudflare 
 
 Users can flag incorrect taxonomy results from `InsightSheetView`:
 
-- **`flag-issue`**: Accepts authenticated POST requests with `scanId`, `flagReason`, and `userSuggestion`.
+- **`flag-issue`**: Accepts authenticated POST requests with `scanId`, `flagReason`, and `userSuggestion`. Evaluates a preemptive DB boundary check, securely hooking into PostgreSQL foreign-key constraint violations (`23503`) implicitly converting missing offline references into a clean `HTTP 404` rejection stream to properly shield downstream logs from transient offline sync race-condition 500 alerts.
 - **`flagged_reviews` table** (`00005_flagged_reviews.sql`): Stores flagged scan references tied to the reporting `user_id`, defaulting to `PENDING_REVIEW`.
 - **`scans` table update**: Sets `is_flagged = true` and writes debug context to `human_intervention_notes` on the parent scan.
 
