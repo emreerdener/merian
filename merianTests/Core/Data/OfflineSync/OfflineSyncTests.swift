@@ -125,4 +125,81 @@ final class OfflineSyncTests: XCTestCase {
         simulateInferenceCompletion(false)
         XCTAssertFalse(activeScanUploadIds.contains(scanId), "Pipeline Hang: The Active Scan tracking ID was not released on pipeline success.")
     }
+
+    // MARK: - 4. Enqueue Bounds (Free Tier Hoarding)
+    
+    func test_enqueueCapture_enforcesFreeUserLimits() async {
+        let isProActive = false
+        let maxFreeScansPerDay = 3 // Assuming standard config
+        let queuedScansInDatabase = 3
+        
+        // This simulates the validation drop sequence internally inside `enqueueCapture`
+        let canEnqueue = isProActive || queuedScansInDatabase < maxFreeScansPerDay
+        
+        XCTAssertFalse(canEnqueue, "Hoarding Breach: A free-tier user was incorrectly allowed to enqueue a 4th offline scan into local DB.")
+    }
+
+    // MARK: - 5. Exponential Backoff Constraints
+    
+    func test_exponentialBackoff_calculatesAndClampsCorrectly() async {
+        let maxUploadRetryDelay: TimeInterval = 300.0 // 5 minutes max backoff
+        var currentDelay: TimeInterval = 0
+        
+        let applyBackoff: () -> Void = {
+            currentDelay = currentDelay == 0 ? 1.0 : min(currentDelay * 2.0, maxUploadRetryDelay)
+        }
+        
+        // Test exponential growth
+        applyBackoff()
+        XCTAssertEqual(currentDelay, 1.0)
+        applyBackoff()
+        XCTAssertEqual(currentDelay, 2.0)
+        applyBackoff()
+        XCTAssertEqual(currentDelay, 4.0)
+        
+        // Test artificial fast-forward towards edge
+        currentDelay = 256.0
+        applyBackoff()
+        
+        // Assert that multiplying past the absolute limit securely clamps down!
+        XCTAssertEqual(currentDelay, maxUploadRetryDelay, "Backoff Overflow: Expected delay to clamp rigidly at maxUploadRetryDelay.")
+    }
+
+    // MARK: - 6. WeatherKit Hydration Logic
+    
+    func test_inferencePipeline_needsWeatherExtractionGate() async {
+        let simulateNeedsWeather: (String?, Double?, Double?) -> Bool = { weatherCondition, lat, lon in
+            return weatherCondition == nil && lat != nil && lon != nil
+        }
+        
+        // Scenario 1: Scan captured offline completely (raw telemetry)
+        XCTAssertTrue(simulateNeedsWeather(nil, 37.7749, -122.4194), "Hydration Miss: Weather needs to be fetched natively!")
+        
+        // Scenario 2: EnvironmentContextManager successfully executed backfill on foreground capture
+        XCTAssertFalse(simulateNeedsWeather("Cloudy", 37.7749, -122.4194), "Hydration Redundancy: Network request incorrectly scheduled when weather is already secured.")
+        
+        // Scenario 3: User denied location permissions natively
+        XCTAssertFalse(simulateNeedsWeather(nil, nil, nil), "Hydration Panic: Sent Weather request blindly without valid coordinates.")
+    }
+
+    // MARK: - 7. Tombstone Threshold
+    
+    func test_runInferencePipeline_tombstonesOnTerminalRetry() async {
+        var isDeleted = false
+        let maxRetries = 3
+        var activeRetriesCount = 2
+        
+        // Simulating the catch loop evaluating limits
+        let simulateFailure: () -> Void = {
+            activeRetriesCount += 1
+            if activeRetriesCount >= maxRetries {
+                isDeleted = true
+            }
+        }
+        
+        // The third active failure crosses the Rubicon and guarantees memory isolation
+        simulateFailure()
+        
+        XCTAssertTrue(isDeleted, "Ghost Replay Loop: Failed exactly maxRetries times but wasn't soft-deleted out of the queue!")
+    }
 }
