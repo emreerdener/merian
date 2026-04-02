@@ -33,6 +33,10 @@ final class AppLifecycleManager {
         Task {
             await container.supabaseManager.initializeGhostSession()
             container.offlineQueueManager.syncPendingScans()
+            // Recover scans whose upload completed but inference was interrupted
+            // (e.g. app killed or suspended mid-inference). NWPathMonitor only fires
+            // on connectivity *changes*, so this must also run on every foreground.
+            container.offlineQueueManager.replayInferenceForUploadedScans()
 
             let now = Date()
 

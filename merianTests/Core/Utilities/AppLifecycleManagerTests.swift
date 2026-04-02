@@ -1,10 +1,52 @@
 import Testing
 import Foundation
+import SwiftData
 @testable import Merian
 
 @MainActor
 struct AppLifecycleManagerTests {
-    
+
+    @Test("handleActivePhase recovers isUploaded scans stuck before inference on foreground with stable connectivity")
+    func testHandleActivePhasePlaysBackUploadedScans() async throws {
+        let diContainer = AppDIContainer.preview
+        let manager = AppLifecycleManager(container: diContainer)
+        let offlineManager = diContainer.offlineQueueManager
+
+        let schema = Schema(CurrentSchema.models)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = ModelContext(container)
+
+        let stuck = OfflineQueuedScan(localImagePaths: ["stuck.webp"], isDeleted: false, isUploaded: true)
+        context.insert(stuck)
+        try context.save()
+
+        let originalContext = offlineManager.modelContext
+        let originalOnline  = offlineManager.isOnline
+        let originalActive  = offlineManager.activeScanUploadIds
+        let originalOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        defer {
+            offlineManager.modelContext        = originalContext
+            offlineManager.isOnline            = originalOnline
+            offlineManager.activeScanUploadIds = originalActive
+            UserDefaults.standard.set(originalOnboarding, forKey: "hasCompletedOnboarding")
+        }
+
+        offlineManager.modelContext        = context
+        offlineManager.isOnline            = true
+        offlineManager.activeScanUploadIds = []
+        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+
+        manager.handleActivePhase()
+        // Allow the inner Task {} in handleActivePhase one scheduling tick.
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        #expect(
+            offlineManager.activeScanUploadIds.contains(stuck.id),
+            "handleActivePhase must call replayInferenceForUploadedScans() so scans stuck mid-inference are recovered on foreground, not just on connectivity change"
+        )
+    }
+
     @Test("AppLifecycleManager intercepts active UI inference and pushes it to OfflineQueue on backgrounding")
     func testHandleBackgroundPhaseRescuesActiveLiveCapture() async {
         // Arrange
