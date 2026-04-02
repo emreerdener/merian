@@ -39,6 +39,36 @@ extension OfflineQueueManager {
         updateUnsyncedItemCount()
     }
 
+    /// Explicitly deletes an offline queued scan immediately.
+    /// Cancels any in-flight background uploads and purges the item from disk.
+    func deleteQueuedScan(scanId: String) async {
+        // 1. Cancel in-flight URLSession tasks
+        let allTasks = await backgroundSession.allTasks
+        for task in allTasks {
+            if let desc = task.taskDescription, desc.starts(with: "\(scanId)_") {
+                task.cancel()
+            }
+        }
+        
+        // 2. Eradicate from SwiftData and Disk
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        guard let scan = (try? context.fetch(descriptor))?.first else { return }
+        
+        let documentsDirectory = URL.documentsDirectory
+        for path in scan.localImagePaths {
+            try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
+        }
+        
+        context.delete(scan)
+        do {
+            try context.save()
+            updateUnsyncedItemCount()
+        } catch {
+            MerianLog.data.error("deleteQueuedScan: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+        }
+    }
+
     /// Permanently removes all soft-deleted `OfflineQueuedScan` records and their associated image files from disk.
     /// Called at appropriate cleanup points (e.g., after a successful sync cycle or on app foreground).
     func purgeSoftDeletedRecords() {

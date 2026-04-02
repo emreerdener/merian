@@ -30,11 +30,18 @@ import SwiftData
 
     /// Background `URLSession` used for resumable R2 staging uploads.
     /// Lazy so iOS can re-attach in-flight tasks on relaunch before the session is first accessed.
+    /// Note: Background sessions permanently stall in the iOS Simulator due to Xcode debugger attachment.
+    /// A `.default` configuration is conditionally used for `.simulator` builds to ensure local testing works.
     @ObservationIgnored
     lazy var backgroundSession: URLSession = {
+        #if targetEnvironment(simulator)
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForResource = 90
+        #else
         let config = URLSessionConfiguration.background(withIdentifier: "com.merian.OfflineSyncBackground")
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
+        #endif
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 

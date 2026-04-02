@@ -16,8 +16,9 @@ struct LibraryView: View {
     let onSelect: (LocalScanRecord) -> Void
     let onDelete: (LocalScanRecord) -> Void
 
-    // MARK: - Toast State
+    // MARK: - Component State
     @State private var toastMessage: String?
+    @State private var scanToManage: OfflineQueuedScan?
 
     // MARK: - Visual Layout
     var body: some View {
@@ -68,12 +69,12 @@ struct LibraryView: View {
                             onDelete: onDelete,
                             isSelectionMode: isSelectionMode,
                             isSelected: isSelected,
-                            onQueuedScanTapped: {
-                                let message = offlineQueueManager.isOnline
-                                    ? "Scan is uploading..."
-                                    : "Analysis pending network connection"
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    toastMessage = message
+                            onQueuedScanTapped: { queuedScan in
+                                scanToManage = queuedScan
+                            },
+                            onQueuedScanDelete: { queuedScan in
+                                Task {
+                                    await offlineQueueManager.deleteQueuedScan(scanId: queuedScan.id)
                                 }
                             }
                         )
@@ -97,6 +98,19 @@ struct LibraryView: View {
                 if let message = toastMessage {
                     Toast(message: message)
                 }
+            }
+            .alert("Pending scan", isPresented: Binding(
+                get: { scanToManage != nil },
+                set: { if !$0 { scanToManage = nil } }
+            ), presenting: scanToManage) { queuedScan in
+                Button("Cancel upload & delete", role: .destructive) {
+                    Task {
+                        await offlineQueueManager.deleteQueuedScan(scanId: queuedScan.id)
+                    }
+                }
+                Button("Close", role: .cancel) { }
+            } message: { _ in
+                Text(offlineQueueManager.isOnline ? "Scan is uploading..." : "Analysis pending network connection")
             }
             .task(id: toastMessage) {
                 guard toastMessage != nil else { return }

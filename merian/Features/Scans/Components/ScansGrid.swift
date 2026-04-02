@@ -11,7 +11,8 @@ struct ScansGrid<MenuContent: View>: View {
     var onDelete: ((LocalScanRecord) -> Void)?
     var isSelected: ((LocalScanRecord) -> Bool)?
     var onAddScans: (() -> Void)?
-    var onQueuedScanTapped: (() -> Void)?
+    var onQueuedScanTapped: ((OfflineQueuedScan) -> Void)?
+    var onQueuedScanDelete: ((OfflineQueuedScan) -> Void)?
 
     // MARK: - Generic View Builders
     @ViewBuilder var customMenuItems: ((LocalScanRecord) -> MenuContent)
@@ -19,6 +20,9 @@ struct ScansGrid<MenuContent: View>: View {
     // MARK: - User Preferences
     var isSelectionMode: Bool = false
     @AppStorage("gridColumns") private var gridColumns: Int = 3
+    
+    // MARK: - App State Context
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
     
     // MARK: - Layout Engines
     private var columns: [GridItem] {
@@ -40,7 +44,7 @@ struct ScansGrid<MenuContent: View>: View {
             ForEach(queuedScans) { queued in
                 Button(action: {
                     HapticManager.shared.triggerMediumPulse()
-                    onQueuedScanTapped?()
+                    onQueuedScanTapped?(queued)
                 }) {
                     ScanThumbnail(
                         imagePath: queued.localImagePaths.first,
@@ -49,14 +53,27 @@ struct ScansGrid<MenuContent: View>: View {
                     )
                     .overlay(
                         ZStack {
-                            Color.black.opacity(0.45)
-                            Image(systemName: "cloud.arrow.up.fill")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundColor(.white)
+                            Color.black.opacity(offlineQueueManager.isOnline ? 0.6 : 0.45)
+                            if offlineQueueManager.isOnline {
+                                ProgressView()
+                                    .controlSize(.regular)
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "network.slash")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
                         }
                     )
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button(role: .destructive) {
+                        onQueuedScanDelete?(queued)
+                    } label: {
+                        Label("Cancel upload & delete", systemImage: "trash")
+                    }
+                }
             }
 
             ForEach(scans) { scan in
@@ -141,7 +158,8 @@ extension ScansGrid where MenuContent == EmptyView {
         isSelectionMode: Bool = false,
         isSelected: ((LocalScanRecord) -> Bool)? = nil,
         onAddScans: (() -> Void)? = nil,
-        onQueuedScanTapped: (() -> Void)? = nil
+        onQueuedScanTapped: ((OfflineQueuedScan) -> Void)? = nil,
+        onQueuedScanDelete: ((OfflineQueuedScan) -> Void)? = nil
     ) {
         self.scans = scans
         self.queuedScans = queuedScans
@@ -151,6 +169,7 @@ extension ScansGrid where MenuContent == EmptyView {
         self.isSelected = isSelected
         self.onAddScans = onAddScans
         self.onQueuedScanTapped = onQueuedScanTapped
+        self.onQueuedScanDelete = onQueuedScanDelete
         self.customMenuItems = { _ in EmptyView() }
     }
 }

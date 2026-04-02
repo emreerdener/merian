@@ -247,6 +247,16 @@ extension OfflineQueueManager {
             // in concurrently-executing code is a Swift 6 error.
             let dispatchedScanIDs = scanIDs
             await MainActor.run { self.activeScanUploadIds.formUnion(dispatchedScanIDs) }
+            
+            // Failsafe: If no tasks were spawned (e.g. generation failed, or all files missing),
+            // the delegate will never fire. We must unlock syncing manually.
+            let activeTaskCount = await session.allTasks.count
+            if activeTaskCount == 0 {
+                await MainActor.run { 
+                    self.isSyncing = false 
+                    SyncStateManager.shared.completeSync()
+                }
+            }
         }
     }
 
