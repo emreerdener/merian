@@ -82,6 +82,18 @@ final class MerianNetworkClient {
 
     // MARK: - URLSession
 
+    #if DEBUG
+    /// Allows test suites to inject ephemeral configurations (like MockURLProtocol).
+    var overridingSession: URLSession?
+    #endif
+
+    private var activeSession: URLSession {
+        #if DEBUG
+        if let overridingSession { return overridingSession }
+        #endif
+        return session
+    }
+
     /// Dedicated session with sensible timeouts, connection limits, and TLS pinning.
     /// Replaces `URLSession.shared` to avoid inheriting the system-wide shared configuration.
     private lazy var session: URLSession = {
@@ -115,7 +127,7 @@ final class MerianNetworkClient {
             request.setValue(val, forHTTPHeaderField: key)
         }
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await activeSession.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MerianError.invalidResponse
         }
@@ -247,7 +259,7 @@ final class MerianNetworkClient {
         request.httpBody = data
 
         let uploadStart = CFAbsoluteTimeGetCurrent()
-        let (responseData, response) = try await session.data(for: request)
+        let (responseData, response) = try await activeSession.data(for: request)
         MerianLog.network.debug("R2 upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
 
         guard let httpResponse = response as? HTTPURLResponse else {

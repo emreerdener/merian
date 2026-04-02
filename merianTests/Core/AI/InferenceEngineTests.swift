@@ -216,6 +216,61 @@ struct InferenceEngineTests {
 
     // MARK: - Premium Insights: EdgeResponse decoding
 
+    @Test func testEnrichScanTaskHydratesSpeciesDataContent() async throws {
+        // Arrange: Inject Mock URL Session
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        
+        let testData = """
+        {
+            "success": true,
+            "data": {
+                "gbif_taxon_key": 2433697,
+                "habitat_description": "Deciduous forests and urban areas.",
+                "similar_species": [
+                    {
+                        "scientific_name": "Procyon cancrivorus",
+                        "common_name": "Crab-eating Raccoon",
+                        "reference_image_url": "https://example.com/cancrivorus.jpg",
+                        "iucn_red_list_status": "LC"
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.url?.path.hasSuffix("/enrich-scan") == true)
+            return (mockResponse, testData)
+        }
+        
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "test_scan_123",
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: InsightData(aiReasoning: "A mammal.", hazardType: "none"),
+            confidenceScore: 0.95,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild",
+            habitatDescription: nil, // Starts totally empty (cache miss)
+            inferenceTier: "pro"
+        )
+        
+        // Act
+        await engine.fetchAndApplyEnrichment(modelContext: nil)
+        
+        // Assert: Ensure the insight sheet data was updated natively
+        let data = try #require(engine.speciesData)
+        #expect(data.habitatDescription == "Deciduous forests and urban areas.", "fetchAndApplyEnrichment must mutate the Engine's SpeciesData state directly for the View")
+        #expect(data.gbifTaxonKey == 2433697)
+        #expect(data.similarSpecies?.entries.first?.commonName == "Crab-eating Raccoon", "fetchAndApplyEnrichment must decode and populate similarity entries")
+    }
+
     @Test func testEdgeResponseDecodesSpeciesInsights() throws {
         // species_insights is populated on cache hit for all tiers — sourced from species_dictionary
         let jsonString = """

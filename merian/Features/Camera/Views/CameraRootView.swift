@@ -273,6 +273,20 @@ struct CameraRootView: View {
             viewModel.activeSheet = .insight
         }
         #endif
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            switch event {
+            case .requestIdentifyNatureIntent:
+                // Close any open modals and shift pager strictly to visual scanning
+                viewModel.activeSheet = nil
+                captureMode = .visual
+            case .requestRecallLastFindIntent:
+                // If there's an active or historical cache for a scan, open the modal natively
+                if inferenceEngine.historicHydrationTask != nil || inferenceEngine.speciesData != nil {
+                    viewModel.activeSheet = .insight
+                }
+            default: break
+            }
+        }
         .onPhysicalCameraShutter(
             isEnabled: viewModel.activeSheet == nil &&
                        viewModel.imageToCrop == nil

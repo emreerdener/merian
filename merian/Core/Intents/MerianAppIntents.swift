@@ -5,12 +5,8 @@ import os
 // MARK: - Core OS Integration
 
 // MARK: - Intent Routing Abstraction
-// Mocking the Navigation architecture to represent standard Merian implementations
-struct AppState {
-    static let shared = AppState()
-    func navigateTo(_ destination: String) { MerianLog.general.debug("Navigated seamlessly to \(destination, privacy: .public)") }
-    func navigateToLastScan() { MerianLog.general.debug("Pushed Last Scan Modal natively.") }
-}
+// These Intents proxy into the running SwiftUI hierarchy via the AppEventPublisher
+// ensuring the OS immediately jumps into the requested states without UI locks.
 
 // MARK: - Primary Discovery Intent
 struct IdentifyNatureIntent: AppIntent {
@@ -22,7 +18,7 @@ struct IdentifyNatureIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult {
-        AppState.shared.navigateTo("camera")
+        AppEventPublisher.shared.send(.requestIdentifyNatureIntent)
         HapticManager.shared.triggerFocusSnap()
         return .result()
     }
@@ -37,7 +33,7 @@ struct RecallLastFindIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult {
-        AppState.shared.navigateToLastScan()
+        AppEventPublisher.shared.send(.requestRecallLastFindIntent)
         HapticManager.shared.triggerSheetSpring()
         return .result()
     }

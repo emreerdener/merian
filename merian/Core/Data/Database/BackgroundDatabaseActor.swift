@@ -65,10 +65,11 @@ actor BackgroundDatabaseActor {
         scanId: String,
         originalTimestamp: Date,
         telemetry: CaptureTelemetry? = nil
-    ) -> (resolvedSpeciesName: String?, isNewDiscovery: Bool) {
+    ) -> (resolvedSpeciesName: String?, isNewDiscovery: Bool, finalScanId: String?) {
         var inferenceFailed = true
         var resolvedSpeciesName: String?
         var finalIsNewDiscovery = false
+        var resultingScanId: String?
 
         let parsedWrapper: EdgeResponseWrapper?
         do {
@@ -166,6 +167,7 @@ actor BackgroundDatabaseActor {
                 } catch {
                     MerianLog.data.error("processAndCleanupOfflineScan: save failed: \(error, privacy: .private)")
                 }
+                resultingScanId = record.id
             }
         }
 
@@ -184,7 +186,7 @@ actor BackgroundDatabaseActor {
             MerianLog.data.error("processAndCleanupOfflineScan: dequeue failed — scan may be reprocessed on next sync: \(error, privacy: .private)")
         }
 
-        return (resolvedSpeciesName, finalIsNewDiscovery)
+        return (resolvedSpeciesName, finalIsNewDiscovery, resultingScanId)
     }
 
     // MARK: - Live Scan Recording

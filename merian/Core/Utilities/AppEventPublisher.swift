@@ -11,6 +11,12 @@ enum AppEvent {
     
     /// Dispatched when the app enters the background / inactive phase. Modals should be dismissed.
     case appDidEnterInactivePhase
+    
+    /// Dispatched by Siri/OS intents to immediately jump the user to the lens viewfinder.
+    case requestIdentifyNatureIntent
+    
+    /// Dispatched by Siri/OS intents to immediately open the historical scans insight page.
+    case requestRecallLastFindIntent
 }
 
 /// A centralized, `@MainActor`-bound event bus for system-wide internal message routing.

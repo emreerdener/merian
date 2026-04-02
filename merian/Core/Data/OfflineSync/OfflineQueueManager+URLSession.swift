@@ -275,7 +275,7 @@ extension OfflineQueueManager {
                 telemetry: finalTelemetry
             )
 
-            if let speciesName = resultTuple.resolvedSpeciesName {
+            if let speciesName = resultTuple.resolvedSpeciesName, let dbScanId = resultTuple.finalScanId {
                 let profileActor = ProfileDatabaseActor(modelContainer: extracted.container)
                 let updatedAwards = await profileActor.calculateAwards()
                 await MainActor.run {
@@ -287,7 +287,7 @@ extension OfflineQueueManager {
                     if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
                         #if canImport(UIKit)
                         if UIApplication.shared.applicationState != .active {
-                            PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: scanId)
+                            PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
                         }
                         #endif
                     }
