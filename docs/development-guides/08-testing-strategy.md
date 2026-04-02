@@ -65,6 +65,11 @@ Tests are organized under `merianTests/Core` and `merianTests/Features`:
   - **In-Memory Isolation**: Spins up a `@MainActor ModelContext` with `.isStoredInMemoryOnly = true` to isolate test data from the user's real offline queue.
   - **Core Lifecycles**: Exercises `.enqueueCapture` (asserting SwiftData record counts increment correctly) and `.purgeSoftDeletedRecords()` (asserting soft-deleted items are removed while undeleted items persist).
   - **Disk Teardown**: Confirms that sandbox files in `URL.documentsDirectory` are deleted during purges to prevent storage bloat.
+- **`CompositeLibraryTests.swift`** (`merianTests/Features/Scans/`): Validates the bounding behaviors of the composite `ScansGrid` that renders both `OfflineQueuedScan` and `LocalScanRecord` items in the same `LazyVGrid`.
+  - **Unique ID Guarantee**: Inserts three `OfflineQueuedScan` records and asserts all three `id` values are distinct, guarding against accidental identifier collisions inside the grid's `ForEach` key space.
+  - **`localImagePaths` Default**: Asserts a freshly constructed `OfflineQueuedScan` has `localImagePaths == []`, so `ScanThumbnail(imagePath: queued.localImagePaths.first, ...)` safely receives `nil` rather than an unexpected path.
+  - **`isDeleted` Predicate**: Mirrors the exact `#Predicate<OfflineQueuedScan> { !$0.isDeleted }` used in `ScansSheetView`'s `@Query` and asserts soft-deleted records are excluded while active ones are returned, guaranteeing tombstoned uploads never resurface in the library.
+  - **Selection Engine Decoupling**: Injects an `OfflineQueuedScan` ID directly into `ScansManager.selectedScans` (the adversarial case) and confirms `getSelectedLocalRecords()` returns nothing for it. Because `getSelectedLocalRecords()` filters from `filteredScans: [LocalScanRecord]`, the queued scan ID cannot reach the batch-share / batch-delete pipeline regardless of what is in `selectedScans`.
 - **`ImageCacheTests.swift`**: Ensures the Swift RAM cache does not exceed maximum system allocation limits.
 
 ### Hardware & Ecosystem Integrations

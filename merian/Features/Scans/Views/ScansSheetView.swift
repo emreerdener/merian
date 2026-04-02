@@ -16,6 +16,7 @@ struct ScansSheetView: View {
         rawRecords.filter { $0.isBiological == true && $0.commonName != "Unknown Subject" }
     }
     @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
+    @Query(filter: #Predicate<OfflineQueuedScan> { !$0.isDeleted }, sort: \OfflineQueuedScan.timestamp, order: .reverse) private var queuedScans: [OfflineQueuedScan]
     
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) var inferenceEngine
@@ -55,6 +56,7 @@ struct ScansSheetView: View {
                 HStack(spacing: 0) {
                     LibraryTabContent(
                         searchManager: searchManager, filterCategories: filterCategories,
+                        queuedScans: queuedScans,
                         isSearchFocused: $isSearchFocused, selectedScanForInsight: $selectedScanForInsight,
                         showSelectionLimitAlert: $showSelectionLimitAlert, scanToDelete: $scanToDelete,
                         showDeleteConfirmation: $showDeleteConfirmation
@@ -141,6 +143,7 @@ struct ScansSheetView: View {
 private struct LibraryTabContent: View {
     @Bindable var searchManager: ScansManager
     let filterCategories: [String]
+    let queuedScans: [OfflineQueuedScan]
     @Binding var isSearchFocused: Bool
     @Binding var selectedScanForInsight: LocalScanRecord?
     @Binding var showSelectionLimitAlert: Bool
@@ -153,6 +156,7 @@ private struct LibraryTabContent: View {
             searchManager: searchManager,
             filterCategories: filterCategories,
             isSearchFocused: isSearchFocused,
+            queuedScans: queuedScans,
             isSelectionMode: searchManager.isSelectionMode,
             isSelected: { scan in searchManager.selectedScans.contains(scan.id) },
             onSelect: { scan in

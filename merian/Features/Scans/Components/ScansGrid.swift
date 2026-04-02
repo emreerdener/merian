@@ -4,16 +4,18 @@ import SwiftUI
 struct ScansGrid<MenuContent: View>: View {
     // MARK: - State Properties
     let scans: [LocalScanRecord]
-    
+    var queuedScans: [OfflineQueuedScan] = []
+
     // MARK: - Component Callbacks
     let onSelect: (LocalScanRecord) -> Void
     var onDelete: ((LocalScanRecord) -> Void)?
     var isSelected: ((LocalScanRecord) -> Bool)?
     var onAddScans: (() -> Void)?
-    
+    var onQueuedScanTapped: (() -> Void)?
+
     // MARK: - Generic View Builders
     @ViewBuilder var customMenuItems: ((LocalScanRecord) -> MenuContent)
-    
+
     // MARK: - User Preferences
     var isSelectionMode: Bool = false
     @AppStorage("gridColumns") private var gridColumns: Int = 3
@@ -32,6 +34,31 @@ struct ScansGrid<MenuContent: View>: View {
     // MARK: - Visual Layout
     var body: some View {
         LazyVGrid(columns: columns, spacing: 2) {
+            // Offline-queued scans render first — they have no AI analysis yet and
+            // are excluded from selection mode. Tapping them shows a toast via the
+            // onQueuedScanTapped callback rather than opening InsightSheet.
+            ForEach(queuedScans) { queued in
+                Button(action: {
+                    HapticManager.shared.triggerMediumPulse()
+                    onQueuedScanTapped?()
+                }) {
+                    ScanThumbnail(
+                        imagePath: queued.localImagePaths.first,
+                        fallbackImageUrl: nil,
+                        maxDimension: thumbnailSize
+                    )
+                    .overlay(
+                        ZStack {
+                            Color.black.opacity(0.45)
+                            Image(systemName: "cloud.arrow.up.fill")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
             ForEach(scans) { scan in
                 Button(action: {
                     HapticManager.shared.triggerSheetSpring()
@@ -106,13 +133,24 @@ struct ScansGrid<MenuContent: View>: View {
 // MARK: - Empty Context Menu Extensions
 
 extension ScansGrid where MenuContent == EmptyView {
-    init(scans: [LocalScanRecord], onSelect: @escaping (LocalScanRecord) -> Void, onDelete: ((LocalScanRecord) -> Void)? = nil, isSelectionMode: Bool = false, isSelected: ((LocalScanRecord) -> Bool)? = nil, onAddScans: (() -> Void)? = nil) {
+    init(
+        scans: [LocalScanRecord],
+        queuedScans: [OfflineQueuedScan] = [],
+        onSelect: @escaping (LocalScanRecord) -> Void,
+        onDelete: ((LocalScanRecord) -> Void)? = nil,
+        isSelectionMode: Bool = false,
+        isSelected: ((LocalScanRecord) -> Bool)? = nil,
+        onAddScans: (() -> Void)? = nil,
+        onQueuedScanTapped: (() -> Void)? = nil
+    ) {
         self.scans = scans
+        self.queuedScans = queuedScans
         self.onSelect = onSelect
         self.onDelete = onDelete
         self.isSelectionMode = isSelectionMode
         self.isSelected = isSelected
         self.onAddScans = onAddScans
+        self.onQueuedScanTapped = onQueuedScanTapped
         self.customMenuItems = { _ in EmptyView() }
     }
 }
