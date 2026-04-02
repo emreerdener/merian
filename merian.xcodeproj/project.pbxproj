@@ -135,6 +135,7 @@
 		6D5C637E3D2017FBEBED47C6 /* AchievementsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F6635AD6808AD34A38D54B /* AchievementsCalculator.swift */; };
 		6ECDDB86B3FF6BA3B6239B90 /* SchemaV9.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA942E70D2AAE75BC52FFE09 /* SchemaV9.swift */; };
 		6EEEE9C5FC565DAFF5849E6A /* MainOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC25E93A028D3A4A055F1CE8 /* MainOverlayView.swift */; };
+		6EFFA6264E05B4588C6E1872 /* OfflineSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA84514C31109B593D6A89DB /* OfflineSyncTests.swift */; };
 		6F8A519B83E72CFFF47B83C5 /* SchemaVersions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDE7C1E0144DC475CB8DDF5 /* SchemaVersions.swift */; };
 		7167258103BD53E6E9BF6D58 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3EC0CD2961B5B50E5D1DA82A /* Assets.xcassets */; };
 		71973E388CE20D34E61A57EF /* SpeciesDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9045A590B6F5BFF4AC17B29 /* SpeciesDataTests.swift */; };
@@ -520,6 +521,7 @@
 		A8725C15EA2D38C3661ED9B0 /* ScanDeletionDialogModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanDeletionDialogModifier.swift; sourceTree = "<group>"; };
 		AA401B34F87B7B4B66AD1FD5 /* FadingScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FadingScrollView.swift; sourceTree = "<group>"; };
 		AA81CA82AF3ADA2BFFE69D86 /* ShareButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareButton.swift; sourceTree = "<group>"; };
+		AA84514C31109B593D6A89DB /* OfflineSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineSyncTests.swift; sourceTree = "<group>"; };
 		AB739F74712284C3C00F625A /* ScansGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansGrid.swift; sourceTree = "<group>"; };
 		ABA58DFF88DFB969570C8ABB /* LocalImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalImageLoader.swift; sourceTree = "<group>"; };
 		ACD1CD4175445A49F1FC0C0E /* MerianAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianAppIntents.swift; sourceTree = "<group>"; };
@@ -1012,6 +1014,14 @@
 			path = Profile;
 			sourceTree = "<group>";
 		};
+		64E0A23E666BE81942FDA639 /* OfflineSync */ = {
+			isa = PBXGroup;
+			children = (
+				AA84514C31109B593D6A89DB /* OfflineSyncTests.swift */,
+			);
+			path = OfflineSync;
+			sourceTree = "<group>";
+		};
 		64E8E0DE4767CB0E0A22C286 /* Components */ = {
 			isa = PBXGroup;
 			children = (
@@ -1055,6 +1065,7 @@
 				B6F185F0F653451ECA9FA3BD /* PhotoLibraryManagerTests.swift */,
 				EB63682C61190F71EFFC9C18 /* ScanRepositoryTests.swift */,
 				E4A40B1F153A7BE2C2E7B2E0 /* SyncStateManagerTests.swift */,
+				64E0A23E666BE81942FDA639 /* OfflineSync */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -1885,6 +1896,7 @@
 				C9DF5F802DF3F720A5646290 /* MigrationPlanTests.swift in Sources */,
 				988F5087F8F1A1606364B9EC /* OfflineQueueManagerTests.swift in Sources */,
 				EBF373400BAC804666158D2B /* OfflineQueuedScanDeletionTests.swift in Sources */,
+				6EFFA6264E05B4588C6E1872 /* OfflineSyncTests.swift in Sources */,
 				1B24CE3DB82C58CA835665D5 /* OnboardingViewModelTests.swift in Sources */,
 				E8C3697BDE8BF44A272739F7 /* PhotoLibraryManagerTests.swift in Sources */,
 				329169F2439B45C14F911359 /* PostHogManagerTests.swift in Sources */,

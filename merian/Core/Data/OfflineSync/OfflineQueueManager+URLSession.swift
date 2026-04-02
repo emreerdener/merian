@@ -38,7 +38,8 @@ extension OfflineQueueManager: URLSessionTaskDelegate {
 
             // Signal sync completion once all background upload tasks have settled.
             let remaining = await session.allTasks
-            if remaining.isEmpty {
+            let activeTasks = remaining.filter { $0.taskIdentifier != taskIdentifier }
+            if activeTasks.isEmpty {
                 await MainActor.run {
                     OfflineQueueManager.shared.isSyncing = false
                     if OfflineQueueManager.shared.unsyncedItemsCount > 0 {
