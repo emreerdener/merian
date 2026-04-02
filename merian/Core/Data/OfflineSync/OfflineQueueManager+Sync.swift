@@ -237,16 +237,15 @@ extension OfflineQueueManager {
                         }
                     }
                 }
+                // Incrementally track the IDs dispatched in this batch so future sync cycles
+                // can read `activeScanUploadIds` directly without re-enumerating URLSession tasks.
+                // Snapshot to a let before the @Sendable MainActor.run closure — capturing a var
+                // in concurrently-executing code is a Swift 6 error.
+                let dispatchedScanIDs = scanIDs
+                await MainActor.run { self.activeScanUploadIds.formUnion(dispatchedScanIDs) }
             } catch {
                 MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
             }
-
-            // Incrementally track the IDs dispatched in this batch so future sync cycles
-            // can read `activeScanUploadIds` directly without re-enumerating URLSession tasks.
-            // Snapshot to a let before the @Sendable MainActor.run closure — capturing a var
-            // in concurrently-executing code is a Swift 6 error.
-            let dispatchedScanIDs = scanIDs
-            await MainActor.run { self.activeScanUploadIds.formUnion(dispatchedScanIDs) }
             
             // Failsafe: If no tasks were spawned (e.g. generation failed, or all files missing),
             // the delegate will never fire. We must unlock syncing manually.
