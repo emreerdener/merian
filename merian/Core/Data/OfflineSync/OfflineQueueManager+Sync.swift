@@ -115,7 +115,13 @@ extension OfflineQueueManager {
             name: "OfflineQueueSync",
             expirationHandler: {
                 MerianLog.data.debug("OfflineQueueSync background task expired")
-                Task { @MainActor in SyncStateManager.shared.completeSync() }
+                Task { @MainActor in
+                    // Reset the latch so the next connectivity event can start a fresh sync.
+                    // Without this, an expiration before URLSession tasks are dispatched leaves
+                    // isSyncing = true permanently — no future syncPendingScans() call can proceed.
+                    OfflineQueueManager.shared.isSyncing = false
+                    SyncStateManager.shared.completeSync()
+                }
             }
         ) { [weak self] _ in
             guard let self else { return }
@@ -166,16 +172,23 @@ extension OfflineQueueManager {
             }
 
             // Flatten scan → image-file pairs. Total is bounded by prefix(5) above.
+            // imageIndices tracks the per-scan image index (0…N-1) alongside the flat arrays so
+            // the URLSession taskDescription encodes the per-scan slot, not the flat batch slot.
+            // Using the flat batch index was a bug: the guard in processUploadCompletion that
+            // decides when to trigger inference compares indexPart against localImagePaths.count-1
+            // (a per-scan value), so any scan beyond the first in a batch would never fire inference.
             let documentsDirectory = URL.documentsDirectory
             var fileNames: [String] = []
             var fileURLs: [URL] = []
             var scanIDs: [String] = []
+            var imageIndices: [Int] = []
 
             for scan in filteredScans {
-                for path in scan.localImagePaths {
+                for (imageIndex, path) in scan.localImagePaths.enumerated() {
                     fileNames.append("\(scan.id)_\(path)")
                     fileURLs.append(documentsDirectory.appendingPathComponent(path))
                     scanIDs.append(scan.id)
+                    imageIndices.append(imageIndex)
                 }
             }
 
@@ -218,7 +231,8 @@ extension OfflineQueueManager {
                             continue
                         }
 
-                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_\(index)_temp_upload.webp")
+                        let imageIndex = imageIndices[index]
+                        let tempFileURL = URL.cachesDirectory.appendingPathComponent("\(scanId)_\(imageIndex)_temp_upload.webp")
 
                         group.addTask {
                             try? FileManager.default.removeItem(at: tempFileURL)
@@ -232,7 +246,7 @@ extension OfflineQueueManager {
                             request.httpMethod = "PUT"
                             request.setValue("image/webp", forHTTPHeaderField: "Content-Type")
                             let uploadTask = session.uploadTask(with: request, fromFile: tempFileURL)
-                            uploadTask.taskDescription = "\(scanId)_\(index)"
+                            uploadTask.taskDescription = "\(scanId)_\(imageIndex)"
                             uploadTask.resume()
                         }
                     }
