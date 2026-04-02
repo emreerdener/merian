@@ -88,6 +88,20 @@ extension OfflineQueueManager {
             : "\(scanId)_\(indexPart)_temp_upload.webp"
         try? FileManager.default.removeItem(at: URL.cachesDirectory.appendingPathComponent(tempFileName))
 
+        // 1. Compute completion state universally upfront to prevent state-machine deadlocks.
+        let remainingTasks = await session.allTasks
+        let hasActiveTasksForScan = remainingTasks.contains {
+            $0.taskIdentifier != taskIdentifier &&
+            ($0.taskDescription?.starts(with: "\(scanId)_") ?? false)
+        }
+
+        // 2. Remove from the local active-IDs set ONLY when all image uploads for the scan are fully settled.
+        // It must happen BEFORE early-returning on errors, otherwise the scan ID is trapped permanently in the
+        // set and all future `syncPendingScans` or `replayInferenceForUploadedScans` cycles will ignore it forever.
+        if !hasActiveTasksForScan {
+            _ = await MainActor.run { OfflineQueueManager.shared.activeScanUploadIds.remove(scanId) }
+        }
+
         // Handle transport-level errors.
         if let uploadError {
             let nsError = uploadError as NSError
@@ -186,19 +200,9 @@ extension OfflineQueueManager {
         }
         guard let extracted else { return }
 
-        // Look ahead and ensure no other upload tasks for this specific scan ID are still in flight.
-        // Background URLSession doesn't guarantee sequential delivery, so `indexPart == count - 1`
-        // is susceptible to race conditions.
-        let remainingTasks = await session.allTasks
-        let hasActiveTasksForScan = remainingTasks.contains {
-            $0.taskIdentifier != taskIdentifier &&
-            ($0.taskDescription?.starts(with: "\(scanId)_") ?? false)
-        }
+        // Ensure no other upload tasks for this specific scan ID are still in flight.
+        // If they are, allow them to finish (the last one handles the inference triggering).
         guard !hasActiveTasksForScan else { return }
-
-        // Remove from the local active-IDs set only when ALL image uploads for the scan are fully settled.
-        // Doing this prematurely allows `syncPendingScans` to re-trigger parallel uploads of missing chunks.
-        _ = await MainActor.run { OfflineQueueManager.shared.activeScanUploadIds.remove(scanId) }
 
         // Persist the isUploaded flag before inference so a mid-inference crash or app kill
         // doesn't force re-uploading already-staged files. replayInferenceForUploadedScans()
@@ -225,6 +229,16 @@ extension OfflineQueueManager {
     /// 4. If a new species was discovered, recalculates awards and sends a push notification
     ///    if the app is backgrounded and the user has enabled push notifications.
     func runInferencePipeline(scanId: String, extracted: ExtractedScanData) async {
+        // ALWAYS release the active-queue lock when pipeline exits (both on success or failure).
+        // `replayInferenceForUploadedScans` acquires this lock upon launch to prevent double-execution,
+        // and if a transient error occurs during Gemini backfill without this release, the scan
+        // would become permanently deadlocked during all future connection restore attempts!
+        defer {
+            Task { @MainActor in
+                OfflineQueueManager.shared.activeScanUploadIds.remove(scanId)
+            }
+        }
+        
         let baseTelemetry = extracted.telemetry
 
         do {

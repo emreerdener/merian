@@ -222,7 +222,7 @@ extension OfflineQueueManager {
 
                 // File copies and upload task creation are independent per-image — fan them out
                 // concurrently so NVMe writes for a 3-image scan overlap instead of queuing serially.
-                await withTaskGroup(of: Void.self) { group in
+                let dispatchedScanIDs: Set<String> = await withTaskGroup(of: String?.self) { group in
                     for (index, presignedURL) in presignedUrls.enumerated() {
                         guard !Task.isCancelled else { break }
                         guard index < uploadItems.count else {
@@ -249,13 +249,13 @@ extension OfflineQueueManager {
                             "\(item.scanId)_\(item.imageIndex)_temp_upload.webp"
                         )
 
-                        group.addTask {
+                        group.addTask { () -> String? in
                             try? FileManager.default.removeItem(at: tempFileURL)
                             do {
                                 try FileManager.default.copyItem(at: item.fileURL, to: tempFileURL)
                             } catch {
                                 MerianLog.data.debug("syncPendingScans: temp file staging failed: \(error, privacy: .private)")
-                                return
+                                return nil
                             }
                             var request = URLRequest(url: remoteUrl)
                             request.httpMethod = "PUT"
@@ -263,15 +263,31 @@ extension OfflineQueueManager {
                             let uploadTask = session.uploadTask(with: request, fromFile: tempFileURL)
                             uploadTask.taskDescription = "\(item.scanId)_\(item.imageIndex)"
                             uploadTask.resume()
+                            return item.scanId
                         }
                     }
+                    
+                    var dispatchedIds = Set<String>()
+                    for await successfulScanId in group {
+                        if let id = successfulScanId { dispatchedIds.insert(id) }
+                    }
+                    return dispatchedIds
                 }
                 // Incrementally track the IDs dispatched in this batch so future sync cycles
                 // can read `activeScanUploadIds` directly without re-enumerating URLSession tasks.
-                // Snapshot to a let before the @Sendable MainActor.run closure — capturing a var
-                // in concurrently-executing code is a Swift 6 error.
-                let dispatchedScanIDs = uploadItems.map(\.scanId)
                 await MainActor.run { self.activeScanUploadIds.formUnion(dispatchedScanIDs) }
+                
+                if dispatchedScanIDs.isEmpty {
+                    // If no valid URLSession tasks were created (e.g., total local cache copy failure),
+                    // the URLSession delegate will never fire. We must manually unlock the queue pipeline.
+                    let taskCount = await session.allTasks.count
+                    if taskCount == 0 {
+                        await MainActor.run {
+                            self.isSyncing = false
+                            SyncStateManager.shared.completeSync()
+                        }
+                    }
+                }
             } catch {
                 MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
                 // Exponential backoff: double the delay on each consecutive failure, capped at
