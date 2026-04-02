@@ -84,10 +84,8 @@ extension OfflineQueueManager {
         let indexPart = components.count > 1 ? components[1] : ""
 
         // Clean up the temp staging file regardless of upload outcome.
-        let tempFileName = indexPart.isEmpty
-            ? "\(scanId)_temp_upload.webp"
-            : "\(scanId)_\(indexPart)_temp_upload.webp"
-        try? FileManager.default.removeItem(at: URL.cachesDirectory.appendingPathComponent(tempFileName))
+        // Obsolete: We now stream directly from Documents to avoid Cache purging.
+
 
         // 1. Compute completion state universally upfront to prevent state-machine deadlocks.
         let remainingTasks = await session.allTasks

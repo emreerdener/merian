@@ -245,22 +245,14 @@ extension OfflineQueueManager {
                             continue
                         }
 
-                        let tempFileURL = URL.cachesDirectory.appendingPathComponent(
-                            "\(item.scanId)_\(item.imageIndex)_temp_upload.webp"
-                        )
-
                         group.addTask { () -> String? in
-                            try? FileManager.default.removeItem(at: tempFileURL)
-                            do {
-                                try FileManager.default.copyItem(at: item.fileURL, to: tempFileURL)
-                            } catch {
-                                MerianLog.data.debug("syncPendingScans: temp file staging failed: \(error, privacy: .private)")
-                                return nil
-                            }
                             var request = URLRequest(url: remoteUrl)
                             request.httpMethod = "PUT"
                             request.setValue("image/webp", forHTTPHeaderField: "Content-Type")
-                            let uploadTask = session.uploadTask(with: request, fromFile: tempFileURL)
+                            
+                            // Pass the authoritative document-directory URL directly instead of staging
+                            // it in Caches, preventing aggressive iOS memory purges from killing the task.
+                            let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
                             uploadTask.taskDescription = "\(item.scanId)_\(item.imageIndex)"
                             uploadTask.resume()
                             return item.scanId

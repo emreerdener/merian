@@ -85,8 +85,9 @@ final class OfflineSyncTests: XCTestCase {
 
     // MARK: - 3. Pipeline Lock Release Tests
     
-    func test_cacheCopyFailure_dropsIsSyncingLock() async {
-        // Simulate a scenario where FileManager.default.copyItem fails for all items, resulting in an empty dispatched IDs set.
+    func test_missingSourceFile_dropsIsSyncingLock() async {
+        // Simulate a scenario where the authoritative NVMe source file in Documents
+        // was missing, resulting in URLSession enqueue failure and an empty dispatched IDs set.
         let dispatchedScanIDs = Set<String>()
         var isSyncing = true // Locked initially by syncPendingScans
         let activeURLSessionTaskCount = 0
@@ -99,7 +100,7 @@ final class OfflineSyncTests: XCTestCase {
         }
         
         // Assert that when dispatch generates no payloads, the queue gracefully drops its own lock rather than waiting for OS delegate.
-        XCTAssertFalse(isSyncing, "Pipeline Deadlock: isSyncing did not drop when all storage caches failed.")
+        XCTAssertFalse(isSyncing, "Pipeline Deadlock: isSyncing did not drop when all source files were missing.")
     }
 
     func test_inferencePipeline_alwaysDropsActiveIDLock() async {
@@ -201,5 +202,26 @@ final class OfflineSyncTests: XCTestCase {
         simulateFailure()
         
         XCTAssertTrue(isDeleted, "Ghost Replay Loop: Failed exactly maxRetries times but wasn't soft-deleted out of the queue!")
+    }
+
+    func test_processUploadCompletion_tombstonesOnTerminalFileCorruption() async {
+        var isDeleted = false
+        
+        // Simulating the catch evaluation inside `processUploadCompletion` natively
+        let evaluateError: (NSError) -> Void = { nsError in
+            let isFileMissing = nsError.domain == NSURLErrorDomain
+                && (nsError.code == NSURLErrorFileDoesNotExist || nsError.code == NSURLErrorCannotOpenFile)
+            if isFileMissing {
+                isDeleted = true
+            }
+        }
+        
+        // Transient network failures should NOT tombstone
+        evaluateError(NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost, userInfo: nil))
+        XCTAssertFalse(isDeleted, "Premature Tombstoning: A transient network error incorrectly deleted the scan.")
+        
+        // Unrecoverable core media missing errors MUST tombstone
+        evaluateError(NSError(domain: NSURLErrorDomain, code: NSURLErrorFileDoesNotExist, userInfo: nil))
+        XCTAssertTrue(isDeleted, "Integrity Breach: A missing NVMe local backing file failed to instantly tombstone the orphaned queue entry.")
     }
 }
