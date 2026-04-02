@@ -193,6 +193,18 @@ extension OfflineQueueManager {
         // Only trigger inference after the last image file for this scan is confirmed uploaded.
         guard indexPart == "\(extracted.localImagePaths.count - 1)" else { return }
 
+        // Persist the isUploaded flag before inference so a mid-inference crash or app kill
+        // doesn't force re-uploading already-staged files. replayInferenceForUploadedScans()
+        // detects these records on the next connectivity restore and resumes from here.
+        await MainActor.run {
+            guard let context = OfflineQueueManager.shared.modelContext else { return }
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            if let scan = try? context.fetch(descriptor).first, !scan.isUploaded {
+                scan.isUploaded = true
+                try? context.save()
+            }
+        }
+
         await runInferencePipeline(scanId: scanId, extracted: extracted)
     }
 
@@ -205,7 +217,7 @@ extension OfflineQueueManager {
     /// 3. Persists the `LocalScanRecord` and removes the `OfflineQueuedScan` via `BackgroundDatabaseActor`.
     /// 4. If a new species was discovered, recalculates awards and sends a push notification
     ///    if the app is backgrounded and the user has enabled push notifications.
-    private func runInferencePipeline(scanId: String, extracted: ExtractedScanData) async {
+    func runInferencePipeline(scanId: String, extracted: ExtractedScanData) async {
         let baseTelemetry = extracted.telemetry
 
         do {
@@ -266,7 +278,12 @@ extension OfflineQueueManager {
             MerianLog.data.debug("⏱️ Inference: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
             await MainActor.run { SyncStateManager.shared.beginFinalizing() }
-            let dbActor = BackgroundDatabaseActor(modelContainer: extracted.container)
+            // Reuse the long-lived actor instead of allocating a fresh one per completion.
+            // The actor serializes concurrent completions automatically via its executor,
+            // so rapid-burst scenarios queue safely without racing.
+            // runInferencePipeline is @MainActor-isolated, so resolvedInferenceDbActor can
+            // be called directly — no MainActor.run hop needed.
+            let dbActor = resolvedInferenceDbActor(container: extracted.container)
             let processingResult = await dbActor.processAndCleanupOfflineScan(
                 resultData: resultData,
                 originalImagePaths: extracted.localImagePaths,
@@ -276,20 +293,33 @@ extension OfflineQueueManager {
             )
 
             if let speciesName = processingResult.resolvedSpeciesName, let dbScanId = processingResult.finalScanId {
-                let profileActor = ProfileDatabaseActor(modelContainer: extracted.container)
-                let updatedAwards = await profileActor.calculateAwards()
+                let capturedContainer = extracted.container
                 await MainActor.run {
                     UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
                     if processingResult.isNewDiscovery {
                         GamificationManager.shared.recordNewSpeciesDiscovered()
                     }
-                    GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
                     if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
                         #if canImport(UIKit)
                         if UIApplication.shared.applicationState != .active {
                             PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
                         }
                         #endif
+                    }
+                    // Debounce award recalculation so a 5-scan burst fires one calculateAwards()
+                    // pass instead of five. Per-completion side-effects (notification, discovery
+                    // tracking) fire immediately above; only the heavier DB read is coalesced.
+                    awardsDebounceTask?.cancel()
+                    awardsDebounceTask = Task { [weak self] in
+                        guard let self else { return }
+                        try? await Task.sleep(for: .seconds(0.5))
+                        guard !Task.isCancelled else { return }
+                        // Task inherits @MainActor isolation (created inside MainActor.run),
+                        // so resolvedProfileDbActor and evaluateAchievementsForNotifications
+                        // can be called directly — no MainActor.run hops needed.
+                        let profileActor = self.resolvedProfileDbActor(container: capturedContainer)
+                        let updatedAwards = await profileActor.calculateAwards()
+                        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
                     }
                 }
             }

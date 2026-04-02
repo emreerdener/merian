@@ -23,6 +23,10 @@ public final class OfflineQueuedScan {
     @Attribute public var zoomFactor: Double?
 
     public var isDeleted: Bool
+    /// `true` once all image files for this scan have been confirmed received by R2 staging
+    /// (HTTP 200 on the last image upload). Prevents re-uploading already-staged files
+    /// across app restarts when inference hasn't yet processed the scan.
+    public var isUploaded: Bool
 
     public init(
         id: String = UUID().uuidString,
@@ -42,7 +46,8 @@ public final class OfflineQueuedScan {
         relativeHumidity: Double? = nil,
         uvIndex: Int? = nil,
         zoomFactor: Double? = nil,
-        isDeleted: Bool = false) {
+        isDeleted: Bool = false,
+        isUploaded: Bool = false) {
 
         self.id = id
         self.timestamp = timestamp
@@ -62,5 +67,6 @@ public final class OfflineQueuedScan {
         self.uvIndex = uvIndex
         self.zoomFactor = zoomFactor
         self.isDeleted = isDeleted
+        self.isUploaded = isUploaded
     }
 }

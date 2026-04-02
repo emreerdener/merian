@@ -83,6 +83,45 @@ import SwiftData
 
     /// Maximum consecutive transient errors before a scan is tombstoned.
     static let maxUploadRetries = 3
+    /// Maximum delay between `generateUploadURLs` failure retries (seconds).
+    static let maxUploadRetryDelay: TimeInterval = 30
+
+    // MARK: - Backoff & Debounce State
+
+    /// Current exponential-backoff delay for `generateUploadURLs` failures.
+    /// Doubles on each consecutive failure up to `maxUploadRetryDelay`; reset to 0 on success.
+    @ObservationIgnored var uploadRetryDelay: TimeInterval = 0
+    /// Cancellable task that fires a delayed `syncPendingScans()` retry after a URL-generation failure.
+    /// Cancelled on connectivity loss so stale retries never fire after going offline.
+    @ObservationIgnored private var retryBackoffTask: Task<Void, Never>?
+    /// Cancellable task that coalesces rapid burst completions into a single `calculateAwards()` pass.
+    /// Scheduled 0.5 s after the last inference completion; cancelled and rescheduled on each new result.
+    @ObservationIgnored var awardsDebounceTask: Task<Void, Never>?
+
+    // MARK: - Long-Lived Database Actors
+
+    /// Persistent `BackgroundDatabaseActor` reused across offline inference calls.
+    /// Avoids the per-call actor allocation + ModelContext setup overhead when scans
+    /// complete in rapid succession. Initialized lazily on first use after `modelContext` is set.
+    @ObservationIgnored private var _inferenceDbActor: BackgroundDatabaseActor?
+    /// Persistent `ProfileDatabaseActor` reused for award recalculation.
+    @ObservationIgnored private var _profileDbActor: ProfileDatabaseActor?
+
+    /// Returns the shared inference actor, creating it once from the provided container.
+    func resolvedInferenceDbActor(container: ModelContainer) -> BackgroundDatabaseActor {
+        if let existing = _inferenceDbActor { return existing }
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        _inferenceDbActor = actor
+        return actor
+    }
+
+    /// Returns the shared profile actor, creating it once from the provided container.
+    func resolvedProfileDbActor(container: ModelContainer) -> ProfileDatabaseActor {
+        if let existing = _profileDbActor { return existing }
+        let actor = ProfileDatabaseActor(modelContainer: container)
+        _profileDbActor = actor
+        return actor
+    }
 
     // MARK: - Lifecycle
 
@@ -114,6 +153,7 @@ import SwiftData
                         try? await Task.sleep(nanoseconds: 1_000_000_000)
                         guard !Task.isCancelled else { return }
                         self.syncPendingScans()
+                        self.replayInferenceForUploadedScans()
                         await self.syncPendingDeletions()
                         self.syncCollectionsIfPending()
                     }
@@ -122,6 +162,8 @@ import SwiftData
                     self?.reconnectDebounceTask?.cancel()
                     self?.syncTask?.cancel()
                     self?.collectionSyncTask?.cancel()
+                    // Cancel any pending backoff retry — it must not fire while offline.
+                    self?.retryBackoffTask?.cancel()
                     self?.isSyncing = false
                     self?.isCollectionSyncing = false
                     SyncStateManager.shared.completeSync()

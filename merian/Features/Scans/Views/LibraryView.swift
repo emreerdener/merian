@@ -99,18 +99,55 @@ struct LibraryView: View {
                     Toast(message: message)
                 }
             }
-            .alert("Pending scan", isPresented: Binding(
-                get: { scanToManage != nil },
-                set: { if !$0 { scanToManage = nil } }
-            ), presenting: scanToManage) { queuedScan in
-                Button("Cancel upload & delete", role: .destructive) {
-                    Task {
-                        await offlineQueueManager.deleteQueuedScan(scanId: queuedScan.id)
+            .sheet(item: $scanToManage) { queuedScan in
+                VStack(spacing: 32) {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .padding(.bottom, 4)
+                        
+                        Text("Pending analysis")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                        
+                        Text(offlineQueueManager.isOnline ? "Scan is uploading..." : "Analysis pending network connection")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    VStack(spacing: 12) {
+                        Button(role: .destructive) {
+                            Task {
+                                await offlineQueueManager.deleteQueuedScan(scanId: queuedScan.id)
+                            }
+                            scanToManage = nil
+                        } label: {
+                            Text("Cancel analysis & delete")
+                                .font(.headline)
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        
+                        Button(role: .cancel) {
+                            scanToManage = nil
+                        } label: {
+                            Text("Close")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(.systemGray5))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
                     }
                 }
-                Button("Close", role: .cancel) { }
-            } message: { _ in
-                Text(offlineQueueManager.isOnline ? "Scan is uploading..." : "Analysis pending network connection")
+                .padding(24)
+                .presentationDetents([.height(340)])
+                .presentationDragIndicator(.visible)
             }
             .task(id: toastMessage) {
                 guard toastMessage != nil else { return }

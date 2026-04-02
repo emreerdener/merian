@@ -103,6 +103,48 @@ extension OfflineQueueManager {
         }
     }
 
+    // MARK: - Uploaded Scan Replay
+
+    /// Re-triggers inference for scans that were fully staged to R2 but whose inference
+    /// pipeline was interrupted by an app kill, crash, or connectivity loss before completion.
+    ///
+    /// Called on connectivity restore. Scans with `isUploaded == true` have already paid
+    /// the upload cost — only the Edge Function call and database commit remain. Re-uploading
+    /// their image files would be wasteful and would produce duplicate R2 objects.
+    func replayInferenceForUploadedScans() {
+        guard isOnline else { return }
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.isUploaded == true && $0.isDeleted == false }
+        )
+        guard let uploaded = try? context.fetch(descriptor), !uploaded.isEmpty else { return }
+        let container = context.container
+        for scan in uploaded {
+            guard !activeScanUploadIds.contains(scan.id) else { continue }
+            activeScanUploadIds.insert(scan.id)
+            var telemetry = CaptureTelemetry(
+                subjectDistanceInMeters: scan.subjectDistanceInMeters,
+                gpsLatitude: scan.gpsLatitude,
+                gpsLongitude: scan.gpsLongitude,
+                gpsElevation: scan.gpsElevation,
+                locationName: scan.locationName,
+                weatherCondition: scan.weatherCondition,
+                weatherTemperatureF: scan.weatherTemperatureF,
+                timeOfDay: nil,
+                timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
+            )
+            telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
+            let extracted = ExtractedScanData(
+                telemetry: telemetry,
+                localImagePaths: scan.localImagePaths,
+                container: container,
+                originalTimestamp: scan.timestamp
+            )
+            let scanId = scan.id
+            Task { await self.runInferencePipeline(scanId: scanId, extracted: extracted) }
+        }
+    }
+
     // MARK: - Capture Enqueue
 
     /// Writes image data to the Documents directory and inserts a new `OfflineQueuedScan` record.

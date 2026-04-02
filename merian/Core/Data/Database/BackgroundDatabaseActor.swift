@@ -45,9 +45,15 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Pending Scan Fetching
 
-    /// Returns up to `limit` undeleted `OfflineQueuedScan` records sorted oldest-first.
+    /// Returns up to `limit` undeleted, not-yet-uploaded `OfflineQueuedScan` records sorted oldest-first.
+    ///
+    /// Scans with `isUploaded == true` are excluded — their files are already in R2 staging
+    /// and will be picked up by `replayInferenceForUploadedScans()` for direct inference
+    /// rather than a redundant re-upload.
     func fetchPendingScans(limit: Int) -> [PendingScanPayload] {
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == false })
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.isDeleted == false && $0.isUploaded == false }
+        )
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
         descriptor.fetchLimit = limit
 
@@ -167,21 +173,21 @@ actor BackgroundDatabaseActor {
                     imageQualityScore: mappedData.imageQualityScore
                 )
                 modelContext.insert(record)
-                do {
-                    try modelContext.save()
-                } catch {
-                    MerianLog.data.error("processAndCleanupOfflineScan: save failed: \(error, privacy: .private)")
-                }
+                // resultingScanId is set here; the actual save is deferred to the
+                // combined commit below so the insert and OfflineQueuedScan deletion
+                // land in one atomic transaction, closing the ghost-record window
+                // where both records coexist in the composite library grid.
                 resultingScanId = record.id
             }
         }
 
-        // Dequeue the OfflineQueuedScan and purge local image files if inference failed.
+        // Atomic commit: delete the OfflineQueuedScan (and, if inference succeeded,
+        // insert the LocalScanRecord) in a single save.
+        // delete(model:where:) avoids faulting the full OfflineQueuedScan object into
+        // memory — it marks the matching row for deletion in the context's change set
+        // and the batch is committed with the pending insert on the next save() call.
         do {
-            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            descriptor.fetchLimit = 1
-            let matches = try modelContext.fetch(descriptor)
-            for scan in matches { modelContext.delete(scan) }
+            try modelContext.delete(model: OfflineQueuedScan.self, where: #Predicate { $0.id == scanId })
             try modelContext.save()
 
             if inferenceFailed {
