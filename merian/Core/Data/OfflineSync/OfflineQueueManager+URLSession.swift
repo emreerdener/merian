@@ -314,6 +314,7 @@ extension OfflineQueueManager {
                 let capturedContainer = extracted.container
                 await MainActor.run {
                     UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
+                    PushNotificationManager.shared.setBadgeCount(1)
                     if processingResult.isNewDiscovery {
                         GamificationManager.shared.recordNewSpeciesDiscovered()
                     }

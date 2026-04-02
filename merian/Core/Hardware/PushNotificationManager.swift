@@ -148,6 +148,20 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         }
     }
 
+    func setBadgeCount(_ count: Int) {
+        if #available(iOS 16.0, *) {
+            UNUserNotificationCenter.current().setBadgeCount(count) { error in
+                if let error = error {
+                    MerianLog.hardware.debug("Failed to set badge count: \(error, privacy: .private)")
+                }
+            }
+        } else {
+            #if canImport(UIKit)
+            UIApplication.shared.applicationIconBadgeNumber = count
+            #endif
+        }
+    }
+
     // MARK: - UNUserNotificationCenterDelegate
 
     nonisolated func userNotificationCenter(

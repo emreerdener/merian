@@ -37,6 +37,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Delivery Control**: Uses `threadIdentifier` (`inference_complete_thread`) to prevent lock-screen explosion when sequentially scanning subjects, and elevates deliveries to `.timeSensitive` automatically (iOS 15+) for priority pass-through during field-use.
 - **Safe Deep Linking**: Intercepts deep link taps from notification actions and routes the UI directly to the relevant `InsightSheet`. It rigorously filters out `UNNotificationDismissActionIdentifier` to ensure users who simply swipe away a notification are not forcefully navigated when they next open the app.
 - **Context-Aware Suppression**: Evaluates the `suppressInferenceBanners` UserDefaults flag within `completionHandler` to conditionally suppress "Analysis Complete" banners when the user is actively viewing the insight sheet (including while it is in analyzing mode). Achievement notifications bypass this suppression and are unconditionally displayed.
+- **App Icon Badge Synchronization**: Exposes `setBadgeCount(_:)` to mirror the application's `hasUnseenScan` state into the OS-level app icon badge count, seamlessly providing a visual indicator on the Home screen. This cleanly branches between modern `UNUserNotificationCenter` APIs (iOS 16+) and standard `UIApplication` fallbacks, keeping inference alerts directly coupled to the user's scan-viewing behavior.
 
 ## AI & Offline Synchronization
 

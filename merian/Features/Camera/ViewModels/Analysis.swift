@@ -134,6 +134,7 @@ extension CameraViewModel {
         // and closing the sheet should not trigger the indicator.
         if diContainer.inferenceEngine.speciesData?.scanId != nil, activeSheet != .insight {
             UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
+            PushNotificationManager.shared.setBadgeCount(1)
         }
     }
 

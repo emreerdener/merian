@@ -16,6 +16,7 @@ struct CameraSheetRouter: ViewModifier {
                         ))
                         .onAppear {
                             UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
+                            PushNotificationManager.shared.setBadgeCount(0)
                         }
                     case .paywall:
                         PaywallView()
@@ -28,6 +29,7 @@ struct CameraSheetRouter: ViewModifier {
                         ))
                         .onAppear {
                             UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
+                            PushNotificationManager.shared.setBadgeCount(0)
                         }
                     }
                 }
