@@ -267,7 +267,7 @@ extension OfflineQueueManager {
 
             await MainActor.run { SyncStateManager.shared.beginFinalizing() }
             let dbActor = BackgroundDatabaseActor(modelContainer: extracted.container)
-            let resultTuple = await dbActor.processAndCleanupOfflineScan(
+            let processingResult = await dbActor.processAndCleanupOfflineScan(
                 resultData: resultData,
                 originalImagePaths: extracted.localImagePaths,
                 scanId: scanId,
@@ -275,12 +275,12 @@ extension OfflineQueueManager {
                 telemetry: finalTelemetry
             )
 
-            if let speciesName = resultTuple.resolvedSpeciesName, let dbScanId = resultTuple.finalScanId {
+            if let speciesName = processingResult.resolvedSpeciesName, let dbScanId = processingResult.finalScanId {
                 let profileActor = ProfileDatabaseActor(modelContainer: extracted.container)
                 let updatedAwards = await profileActor.calculateAwards()
                 await MainActor.run {
                     UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
-                    if resultTuple.isNewDiscovery {
+                    if processingResult.isNewDiscovery {
                         GamificationManager.shared.recordNewSpeciesDiscovered()
                     }
                     GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)

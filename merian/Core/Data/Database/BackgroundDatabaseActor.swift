@@ -17,8 +17,13 @@ struct ExtractedScanData {
     let localImagePaths: [String]
     /// The model container, used to create a new `BackgroundDatabaseActor` on the inference thread.
     let container: ModelContainer
-    /// Original capture timestamp, used for historical weather backfill and record persistence.
     let originalTimestamp: Date
+}
+
+struct OfflineScanProcessingResult {
+    let resolvedSpeciesName: String?
+    let isNewDiscovery: Bool
+    let finalScanId: String?
 }
 
 // MARK: - Background Database Actor
@@ -65,7 +70,7 @@ actor BackgroundDatabaseActor {
         scanId: String,
         originalTimestamp: Date,
         telemetry: CaptureTelemetry? = nil
-    ) -> (resolvedSpeciesName: String?, isNewDiscovery: Bool, finalScanId: String?) {
+    ) -> OfflineScanProcessingResult {
         var inferenceFailed = true
         var resolvedSpeciesName: String?
         var finalIsNewDiscovery = false
@@ -186,7 +191,11 @@ actor BackgroundDatabaseActor {
             MerianLog.data.error("processAndCleanupOfflineScan: dequeue failed — scan may be reprocessed on next sync: \(error, privacy: .private)")
         }
 
-        return (resolvedSpeciesName, finalIsNewDiscovery, resultingScanId)
+        return OfflineScanProcessingResult(
+            resolvedSpeciesName: resolvedSpeciesName,
+            isNewDiscovery: finalIsNewDiscovery,
+            finalScanId: resultingScanId
+        )
     }
 
     // MARK: - Live Scan Recording

@@ -17,6 +17,9 @@ export async function insertFlagRecord(
     });
 
   if (insertError) {
+    if (insertError.code === "23503") {
+      throw { status: 404, message: "Scan does not exist on server yet." };
+    }
     throw new Error(
       `Failed to insert flagged review record: ${insertError.message}`,
     );
