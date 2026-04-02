@@ -79,6 +79,7 @@ struct InsightSheetViewModelTests {
         // Validation that the viewmodel gracefully pulls state and assigns local memory
         let ctx = try createIsolatedContext()
         let viewModel = InsightSheetViewModel()
+        viewModel.inferenceEngine = InferenceEngine()
         
         // Assert initial unassigned state
         #expect(viewModel.activeLocalRecord == nil)

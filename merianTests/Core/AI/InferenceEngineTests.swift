@@ -427,6 +427,7 @@ struct InferenceEngineTests {
             speciesId: "species_procyon",
             scientificName: "Procyon lotor",
             commonName: "Raccoon",
+            isBiological: false,
             similarSpecies: ["Procyon cancrivorus", "Bassariscus astutus"]
         )
         let engine = InferenceEngine()
@@ -453,7 +454,8 @@ struct InferenceEngineTests {
         let record = LocalScanRecord(
             speciesId: "species_unique",
             scientificName: "Ailuropoda melanoleuca",
-            commonName: "Giant Panda"
+            commonName: "Giant Panda",
+            isBiological: false
         )
         let engine = InferenceEngine()
         engine.load(from: record)

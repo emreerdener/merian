@@ -18,7 +18,7 @@ struct CameraViewModelTests {
         // Arrange
         let viewModel = CameraViewModel()
         viewModel.activeSheet = .insight
-        viewModel.isAnalyzingFullscreen = true
+        viewModel.editingCropIndex = 1
 
         // Act: fire the inactive-phase event via AppEventPublisher (replaces legacy NotificationCenter)
         AppEventPublisher.shared.send(.appDidEnterInactivePhase)
@@ -28,6 +28,6 @@ struct CameraViewModelTests {
 
         // Assert: all modal state is reset
         #expect(viewModel.activeSheet == nil, "activeSheet must be nil after app backgrounds")
-        #expect(viewModel.isAnalyzingFullscreen == false, "isAnalyzingFullscreen must be false after app backgrounds")
+        #expect(viewModel.editingCropIndex == nil, "editingCropIndex must be nil after app backgrounds")
     }
 }
