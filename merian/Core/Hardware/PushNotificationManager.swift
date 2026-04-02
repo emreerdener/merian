@@ -139,11 +139,16 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
+        handleNotificationAction(userInfo: userInfo, actionIdentifier: response.actionIdentifier)
+        completionHandler()
+    }
 
+    /// Extracted for testability since `UNNotificationResponse` cannot be cleanly mocked in XCTest.
+    nonisolated func handleNotificationAction(userInfo: [AnyHashable: Any], actionIdentifier: String) {
         if let scanId = userInfo["scanId"] as? String {
-            if response.actionIdentifier != UNNotificationDismissActionIdentifier {
+            if actionIdentifier != UNNotificationDismissActionIdentifier {
                 Task { @MainActor in
-                    if response.actionIdentifier == "SHARE_ACTION" {
+                    if actionIdentifier == "SHARE_ACTION" {
                         MerianLog.hardware.debug("Share action tapped for scanId \(scanId, privacy: .private)")
                     } else {
                         MerianLog.hardware.debug("Push notification tapped — routing to scanId \(scanId, privacy: .private)")
@@ -154,8 +159,6 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                 }
             }
         }
-
-        completionHandler()
     }
 
     nonisolated func userNotificationCenter(
