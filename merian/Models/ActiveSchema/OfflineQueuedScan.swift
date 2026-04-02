@@ -26,7 +26,7 @@ public final class OfflineQueuedScan {
     /// `true` once all image files for this scan have been confirmed received by R2 staging
     /// (HTTP 200 on the last image upload). Prevents re-uploading already-staged files
     /// across app restarts when inference hasn't yet processed the scan.
-    public var isUploaded: Bool
+    public var isUploaded: Bool = false
 
     public init(
         id: String = UUID().uuidString,

@@ -108,6 +108,30 @@ struct BackgroundDatabaseActorTests {
 
     // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence
 
+    // MARK: - fetchPendingScans: isUploaded exclusion (V32)
+
+    @Test func testFetchPendingScansExcludesUploadedScans() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        // One scan not yet uploaded — should appear in results.
+        let pending = OfflineQueuedScan(localImagePaths: ["pending.webp"], isUploaded: false)
+        // One scan already staged in R2 — should be excluded so it isn't re-uploaded.
+        let uploaded = OfflineQueuedScan(localImagePaths: ["uploaded.webp"], isUploaded: true)
+
+        context.insert(pending)
+        context.insert(uploaded)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let payloads = await actor.fetchPendingScans(limit: 10)
+
+        #expect(payloads.count == 1, "fetchPendingScans must exclude isUploaded=true records")
+        #expect(payloads.first?.id == pending.id, "Only the non-uploaded scan must be returned")
+    }
+
+    // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence
+
     @Test func testUpdateScanAsFlaggedSetsFlag() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)

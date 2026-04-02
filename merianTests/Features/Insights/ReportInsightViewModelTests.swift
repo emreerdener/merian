@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import SwiftData
-@testable import merian
+@testable import Merian
 
 @Suite("ReportInsightViewModel Tests")
 @MainActor
@@ -21,17 +21,13 @@ struct ReportInsightViewModelTests {
 
     @Test("Submit Flag Edge Fallback Toggles UI State Properly", .timeLimit(.minutes(1)))
     func testSubmitFlagTogglesState() async throws {
-        let schema = Schema([LocalScanRecord.self])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let schema = Schema(CurrentSchema.models)
+        let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
+        let config = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [config])
-        let context = container.mainContext
-        
-        let engine = InferenceEngine(
-            modelContext: context,
-            hardwareOrchestrator: HardwareOrchestrator(),
-            cameraManager: CameraManager(),
-            environmentContextManager: EnvironmentContextManager()
-        )
+        let context = ModelContext(container)
+
+        let engine = InferenceEngine()
         
         let viewModel = ReportInsightViewModel()
         

@@ -93,7 +93,7 @@ import SwiftData
     @ObservationIgnored var uploadRetryDelay: TimeInterval = 0
     /// Cancellable task that fires a delayed `syncPendingScans()` retry after a URL-generation failure.
     /// Cancelled on connectivity loss so stale retries never fire after going offline.
-    @ObservationIgnored private var retryBackoffTask: Task<Void, Never>?
+    @ObservationIgnored var retryBackoffTask: Task<Void, Never>?
     /// Cancellable task that coalesces rapid burst completions into a single `calculateAwards()` pass.
     /// Scheduled 0.5 s after the last inference completion; cancelled and rescheduled on each new result.
     @ObservationIgnored var awardsDebounceTask: Task<Void, Never>?

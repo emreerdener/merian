@@ -34,7 +34,14 @@ struct CompositeLibraryTests {
         #expect(uniqueIds.count == ids.count, "Each OfflineQueuedScan must have a distinct id")
     }
 
-    // MARK: - Test 2: localImagePaths defaults to empty array
+    // MARK: - Test 2: isUploaded defaults to false
+
+    @Test func testIsUploadedDefaultsFalse() {
+        let scan = OfflineQueuedScan()
+        #expect(scan.isUploaded == false, "isUploaded must default to false so existing records are not treated as already staged in R2")
+    }
+
+    // MARK: - Test 3: localImagePaths defaults to empty array
 
     @Test func testLocalImagePathsDefaultsToEmpty() throws {
         let scan = OfflineQueuedScan()

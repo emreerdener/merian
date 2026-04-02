@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import merian
+@testable import Merian
 
 @Suite("ProfileViewModel Tests")
 @MainActor
