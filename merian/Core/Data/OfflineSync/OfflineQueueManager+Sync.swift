@@ -127,6 +127,11 @@ extension OfflineQueueManager {
             }
         ) { [weak self] _ in
             guard let self else { return }
+            
+            // Periodically retry any scans that successfully made it to R2 but whose inference 
+            // failed transiently, so they don't remain orphaned while the app is kept open.
+            await MainActor.run { self.replayInferenceForUploadedScans() }
+            
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
             let session = await MainActor.run { self.backgroundSession }

@@ -15,6 +15,7 @@ extension OfflineQueueManager: URLSessionTaskDelegate {
         let taskDescription = task.taskDescription
         let originalRequestUrlPath = task.originalRequest?.url?.path
         let responseStatusCode = (task.response as? HTTPURLResponse)?.statusCode
+        let taskIdentifier = task.taskIdentifier // Capture ID natively before passing to background
 
         BackgroundTaskWrapper.execute(
             name: "OfflineInference",
@@ -27,7 +28,9 @@ extension OfflineQueueManager: URLSessionTaskDelegate {
                     taskDescription: taskDescription,
                     originalRequestUrlPath: originalRequestUrlPath,
                     responseStatusCode: responseStatusCode,
-                    uploadError: error
+                    uploadError: error,
+                    taskIdentifier: taskIdentifier,
+                    session: session
                 )
             }
 
@@ -69,19 +72,15 @@ extension OfflineQueueManager {
         taskDescription: String?,
         originalRequestUrlPath: String?,
         responseStatusCode: Int?,
-        uploadError: Error?
+        uploadError: Error?,
+        taskIdentifier: Int,
+        session: URLSession
     ) async {
         guard let taskDesc = taskDescription else { return }
 
         let components = taskDesc.components(separatedBy: "_")
         let scanId = components[0]
         let indexPart = components.count > 1 ? components[1] : ""
-
-        // Remove from the local active-IDs set now that the upload task has settled,
-        // so subsequent sync cycles no longer skip this scan ID.
-        // Must run on MainActor — activeScanUploadIds is written via MainActor.run elsewhere
-        // and is not concurrency-safe to mutate from an unbound async context.
-        _ = await MainActor.run { OfflineQueueManager.shared.activeScanUploadIds.remove(scanId) }
 
         // Clean up the temp staging file regardless of upload outcome.
         let tempFileName = indexPart.isEmpty
@@ -149,9 +148,6 @@ extension OfflineQueueManager {
             return
         }
 
-        // Clear any prior transient-error retry count now that this upload succeeded.
-        await MainActor.run { _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId) }
-
         // Only trigger inference for files that landed in the staging bucket.
         guard let urlPath = originalRequestUrlPath, urlPath.contains("staging/") else { return }
 
@@ -190,8 +186,19 @@ extension OfflineQueueManager {
         }
         guard let extracted else { return }
 
-        // Only trigger inference after the last image file for this scan is confirmed uploaded.
-        guard indexPart == "\(extracted.localImagePaths.count - 1)" else { return }
+        // Look ahead and ensure no other upload tasks for this specific scan ID are still in flight.
+        // Background URLSession doesn't guarantee sequential delivery, so `indexPart == count - 1`
+        // is susceptible to race conditions.
+        let remainingTasks = await session.allTasks
+        let hasActiveTasksForScan = remainingTasks.contains {
+            $0.taskIdentifier != taskIdentifier &&
+            ($0.taskDescription?.starts(with: "\(scanId)_") ?? false)
+        }
+        guard !hasActiveTasksForScan else { return }
+
+        // Remove from the local active-IDs set only when ALL image uploads for the scan are fully settled.
+        // Doing this prematurely allows `syncPendingScans` to re-trigger parallel uploads of missing chunks.
+        _ = await MainActor.run { OfflineQueueManager.shared.activeScanUploadIds.remove(scanId) }
 
         // Persist the isUploaded flag before inference so a mid-inference crash or app kill
         // doesn't force re-uploading already-staged files. replayInferenceForUploadedScans()
@@ -223,14 +230,10 @@ extension OfflineQueueManager {
         do {
             let pipelineStart = CFAbsoluteTimeGetCurrent()
             // The R2 object key must match the key the Edge Function stored on upload, which
-            // includes the authenticated user's UUID. If auth state hasn't loaded yet (e.g., cold
-            // relaunch before Supabase SDK initialises), fall back to the next sync cycle rather
-            // than using the device ID — a device-ID path fails the Edge Function's IDOR check.
-            let authUserId = await MainActor.run { SupabaseManager.shared.currentUser?.id.uuidString.lowercased() }
-            guard let userId = authUserId else {
-                MerianLog.data.debug("Offline inference deferred — auth state not loaded for \(scanId, privacy: .private). Will retry on next sync.")
-                return
-            }
+            // deterministically aligns with the auth session active during pipeline execution.
+            let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+            let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+            let userId = (authUserId ?? deviceId).lowercased()
             let resolvedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
 
             // Run WeatherKit backfill and AI inference concurrently — weather is optional
@@ -328,6 +331,7 @@ extension OfflineQueueManager {
             await MainActor.run {
                 OfflineQueueManager.shared.updateUnsyncedItemCount()
                 CircuitBreakerManager.shared.recordSuccess()
+                _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
             }
         } catch let MerianError.httpError(code, message) where (400...499).contains(code) {
             MerianLog.data.debug("Inference failed permanently for \(scanId, privacy: .private) [\(code)]: \(message, privacy: .private) — tombstoning scan")

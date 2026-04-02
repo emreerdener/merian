@@ -206,7 +206,9 @@ private struct WikiSummaryResponse: Decodable {
                     return (prefix[0] == 0xFF && prefix[1] == 0xD8 && prefix[2] == 0xFF) ? "image/jpeg" : "image/webp"
                 }()
 
-                let resolvedUserId = await MainActor.run { (SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId).lowercased() }
+                let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+                let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+                let resolvedUserId = (authUserId ?? deviceId).lowercased()
                 let targetObjectKey = "staging/\(resolvedUserId)/\(UUID().uuidString.lowercased()).webp"
 
                 try Task.checkCancellation()
@@ -1003,6 +1005,7 @@ private struct WikiSummaryResponse: Decodable {
 
     func cancelActiveRequest(isUserInitiated: Bool = false) {
         MerianLog.general.debug("Cancelled active inference request.")
+        self.isProcessing = false
         if !isUserInitiated {
             isBackgroundRescued = true
         }
