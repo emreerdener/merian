@@ -152,7 +152,7 @@ actor BackgroundDatabaseActor {
     func reconcileOrphanedUploadingScans(activeScanIds: Set<String>) {
         let uploadingRaw = ScanQueueState.uploading.rawValue
         let pendingRaw   = ScanQueueState.pending.rawValue
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.scanStateRaw == uploadingRaw }
         )
         let scans: [OfflineQueuedScan]
@@ -184,7 +184,7 @@ actor BackgroundDatabaseActor {
     func resetOrphanedInferencingScans() {
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         let stagedRaw      = ScanQueueState.staged.rawValue
-        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.scanStateRaw == inferencingRaw }
         )
         let scans: [OfflineQueuedScan]
