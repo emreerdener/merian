@@ -97,17 +97,26 @@ actor BackgroundDatabaseActor {
         return true
     }
 
-    /// Transitions a scan to an explicit state and persists.
-    /// Used for error paths (`.failed`) and retry paths (`.inferencing → .staged`).
-    func transitionScan(id scanId: String, to state: ScanQueueState) {
+    /// Transitions a scan back to `.staged` from `.inferencing` and persists.
+    ///
+    /// **Only valid for the transient-error retry path** (`runInferencePipeline` transient catch).
+    /// Guarded to `.inferencing` as source state so a concurrent `softDeleteQueuedScan` on
+    /// the MainActor that already tombstoned the scan to `.failed` cannot be overwritten —
+    /// the last-writer-wins nature of two separate `ModelContext`s would otherwise resurrect
+    /// a tombstoned scan back into the inference replay queue.
+    func transitionScanToStaged(id scanId: String) {
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        let stagedRaw      = ScanQueueState.staged.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
-        scan.scanStateRaw = state.rawValue
+        // Only retreat from .inferencing — do not overwrite a concurrent tombstone (.failed).
+        guard scan.scanStateRaw == inferencingRaw else { return }
+        scan.scanStateRaw = stagedRaw
         do {
             try modelContext.save()
         } catch {
-            MerianLog.data.error("transitionScan: save failed for \(scanId, privacy: .private) → \(state.rawValue): \(error, privacy: .private)")
+            MerianLog.data.error("transitionScanToStaged: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
     }
 
@@ -200,8 +209,15 @@ actor BackgroundDatabaseActor {
     func markScansAsUploading(scanIds: [String]) {
         guard !scanIds.isEmpty else { return }
         let idSet = Set(scanIds)
+        let pendingRaw   = ScanQueueState.pending.rawValue
         let uploadingRaw = ScanQueueState.uploading.rawValue
-        let descriptor = FetchDescriptor<OfflineQueuedScan>()
+        // Predicate-filter to .pending only — avoids loading tombstoned (.failed) and in-flight
+        // records into memory when the queue has accumulated a large backlog of failed scans.
+        // #Predicate cannot express "id IN set", so ID-set filtering still happens in memory,
+        // but the row count is now bounded by the number of pending scans (typically tiny).
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.scanStateRaw == pendingRaw }
+        )
         let scans: [OfflineQueuedScan]
         do {
             scans = try modelContext.fetch(descriptor).filter { idSet.contains($0.id) }
@@ -209,11 +225,9 @@ actor BackgroundDatabaseActor {
             MerianLog.data.debug("markScansAsUploading: fetch failed: \(error, privacy: .private)")
             return
         }
-        let pendingRaw = ScanQueueState.pending.rawValue
-        // Only advance scans that are still .pending — a concurrent tombstone (softDeleteQueuedScan)
-        // may have already transitioned one to .failed between fetchPendingScans and this call.
-        // Overwriting .failed with .uploading would silently resurrect a tombstoned scan.
-        for scan in scans where scan.scanStateRaw == pendingRaw { scan.scanStateRaw = uploadingRaw }
+        // All fetched scans are already .pending (predicate-guaranteed), so no per-scan state
+        // check is needed here. The predicate itself acts as the source-state guard.
+        for scan in scans { scan.scanStateRaw = uploadingRaw }
         do {
             try modelContext.save()
         } catch {

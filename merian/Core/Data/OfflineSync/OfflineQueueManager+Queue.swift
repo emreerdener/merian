@@ -205,9 +205,6 @@ extension OfflineQueueManager {
 
     /// Writes image data to the Documents directory and inserts a new `OfflineQueuedScan` record.
     ///
-    /// Dedup guard: if an `OfflineQueuedScan` with the same `captureSessionId` already exists,
-    /// the enqueue is skipped — prevents double-enqueue from multiple backgrounding code paths.
-    ///
     /// All disk I/O runs inside a `BackgroundTaskWrapper` so iOS grants extended time even if
     /// the user backgrounds the app immediately after capture. On success, `syncPendingScans()`
     /// is called immediately to start uploading while the background window is still active.

@@ -157,6 +157,12 @@ extension OfflineQueueManager {
         // Only trigger inference for files that landed in the staging bucket.
         guard let urlPath = originalRequestUrlPath, urlPath.contains("staging/") else { return }
 
+        // Ensure no other upload tasks for this specific scan ID are still in flight.
+        // If they are, allow them to finish (the last one handles the inference triggering).
+        // Guard here — before the main-actor metadata fetch and auth session lookup — so that
+        // multi-image scans don't pay those costs on every intermediate completion (only the last).
+        guard !hasActiveTasksForScan else { return }
+
         // Fetch scan metadata on the main actor before handing off to background inference.
         let extracted = await MainActor.run { () -> ExtractedScanData? in
             guard let context = OfflineQueueManager.shared.modelContext else { return nil }
@@ -192,10 +198,6 @@ extension OfflineQueueManager {
             )
         }
         guard let extracted else { return }
-
-        // Ensure no other upload tasks for this specific scan ID are still in flight.
-        // If they are, allow them to finish (the last one handles the inference triggering).
-        guard !hasActiveTasksForScan else { return }
 
         // Compute the R2 object keys using the auth session active at upload time and persist
         // them atomically with the .staged transition. Storing keys now eliminates the
@@ -365,7 +367,7 @@ extension OfflineQueueManager {
                 // next connectivity restore. Without this the scan stays in .inferencing,
                 // invisible to replay (which only queries .staged scans).
                 let retryActor = resolvedInferenceDbActor(container: extracted.container)
-                await retryActor.transitionScan(id: scanId, to: .staged)
+                await retryActor.transitionScanToStaged(id: scanId)
                 MerianLog.data.debug("Inference failed for \(scanId, privacy: .private): \(error, privacy: .private)")
             }
         }

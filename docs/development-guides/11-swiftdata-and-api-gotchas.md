@@ -125,3 +125,35 @@ for item in uploadItems {
 ```
 
 The same principle applies to any durable operation that must survive a crash: write the intent before performing the action, not after.
+
+---
+
+## 5. Unguarded `BackgroundDatabaseActor` Writes Can Overwrite MainActor Tombstones
+
+`OfflineQueueManager` (MainActor) and `BackgroundDatabaseActor` (`@ModelActor`, background executor) both write to the same SwiftData persistent store. Each holds its own independent `ModelContext`. When both save concurrently, the **last writer wins** at the SQLite layer — the persistent store coordinator merges changes based on commit order, not semantic intent.
+
+### The Vulnerability
+
+`softDeleteQueuedScan` tombstones a scan to `.failed` on the MainActor (e.g., when the user deletes a scan from the UI while inference is running). Concurrently, `runInferencePipeline`'s transient-error catch block calls:
+
+```swift
+// ❌ Unguarded: overwrites any state, including .failed
+actor.transitionScan(id: scanId, to: .staged)
+```
+
+If the BackgroundDatabaseActor's save commits after the MainActor's tombstone, the scan transitions `.failed → .staged` and is immediately eligible for inference replay — the tombstone is silently lost.
+
+### ✅ The Pattern: Source-State Guard on Every Write
+
+Any write that advances or retreats through the state machine must guard the source state it expects:
+
+```swift
+// transitionScanToStaged (background actor)
+guard scan.scanStateRaw == ScanQueueState.inferencing.rawValue else { return }
+scan.scanStateRaw = ScanQueueState.staged.rawValue
+try modelContext.save()
+```
+
+The guard is checked inside the actor's serial executor. If a concurrent MainActor tombstone wins the race and saves first, the background actor reads the updated state (`.failed`) on its next fetch and the guard rejects the transition, leaving the tombstone intact.
+
+This principle mirrors the existing guards on `markScanAsStaged` (`.uploading`-only) and `markScansAsUploading` (`.pending`-only): every state transition function is responsible for asserting the valid source state, not the caller.
