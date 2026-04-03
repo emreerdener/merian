@@ -129,10 +129,10 @@ struct MigrationPlanTests {
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
     }
 
-    /// Simulates upgrading from V30 to V32 on-disk — verifies that adding
-    /// `isFlagged` (V31) and `isUploaded` (V32) via lightweight migrations does not crash
-    /// during iOS 26 migration plan validation.
-    @Test func migrationFromV30ToV32DoesNotCrash() throws {
+    /// Simulates upgrading from V30 to V33 on-disk — verifies that adding
+    /// `isFlagged` (V31), `isUploaded` (V32), and migrating to `scanStateRaw` (V33)
+    /// does not crash during iOS 26 migration plan validation.
+    @Test func migrationFromV30ToV33DoesNotCrash() throws {
         let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v30migration_test.sqlite")
 
         // Step 1 — create a V30 store with no migration plan.
@@ -157,13 +157,13 @@ struct MigrationPlanTests {
         // Close V30 container before reopening with migration plan.
         _ = container30
 
-        // Step 2 — reopen with the full migration plan targeting the current schema (V32).
-        let schema32 = Schema(versionedSchema: CurrentSchema.self)
-        let config32 = ModelConfiguration(schema: schema32, url: url)
+        // Step 2 — reopen with the full migration plan targeting the current schema (V33).
+        let schema33 = Schema(versionedSchema: CurrentSchema.self)
+        let config33 = ModelConfiguration(schema: schema33, url: url)
         _ = try ModelContainer(
-            for: schema32,
+            for: schema33,
             migrationPlan: MerianMigrationPlan.self,
-            configurations: [config32]
+            configurations: [config33]
         )
 
         // Clean up the temp file.

@@ -136,7 +136,7 @@ _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.
 
 There is **no need** to update model references in `MerianApp.swift`, nor anywhere else in the application, because the entire app dynamically inherits `CurrentSchema` and the active global models natively.
 
-The current active schema is `MerianSchemaV31`.
+The current active schema is `MerianSchemaV33`.
 
 **Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse` contains nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps `scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`) structs. `EdgeResponse` also contains a nested `IdentificationCandidate` struct (`scientific_name: String`, `confidence_score: Double`) and a `candidates: [IdentificationCandidate]?` field mapping the `/identify` response candidates array. `EdgeResponse` additionally contains a nested `ImageQuality` struct (`sharpness: Int?`, `framing: Int?`, `diagnostic_utility: Int?`, `overall_score: Int?`) and an `image_quality: ImageQuality?` field. When adding new fields to either Edge Function response, update both the TypeScript schema and the corresponding Swift `Codable` struct simultaneously.
 
@@ -161,13 +161,14 @@ Captures state when network connectivity is unavailable. `MerianSchemaV13` adds 
 
 - `id`: String (UUID)
 - `timestamp`: Date
-- `localImagePaths`: [String] (References to high-res JPEGs written inside `URL.documentsDirectory`)
+- `localImagePaths`: [String] (References to high-res WEBPs written inside `URL.documentsDirectory`)
 - `gpsLatitude`, `gpsLongitude`, `gpsElevation`: Double?
 - `weatherCondition`, `locationName`: String?
 - `weatherTemperatureF`, `blurScore`: Double?
 - `subjectDistanceInMeters`: Float?
 - `zoomFactor`: Double? (Added in `MerianSchemaV13`. Active zoom factor at capture. `nil` at 1× — omitted when it carries no signal.)
-- `isDeleted`: Bool (Soft-delete flag set after receiving HTTP 200 from Edge)
+- `scanStateRaw`: Int (Added in `MerianSchemaV33`. Raw value of `ScanQueueState`, replacing the old `isUploaded: Bool` + `isDeleted: Bool` pair. Stored as `Int` for `#Predicate` compatibility. Valid values: `0` = `.pending`, `1` = `.uploading`, `2` = `.staged`, `3` = `.inferencing`, `5` = `.failed` (raw value 4 reserved). Defaults to `0` (`.pending`). Access via the typed `queueState: ScanQueueState` computed property — never read `scanStateRaw` directly in business logic. The `migrateV32toV33` custom migration stage backfills this field from the old booleans: `isDeleted=true` → `5`, `isUploaded=true` → `2`, else → `0`.)
+- `stagedR2Keys`: [String]? (Added in `MerianSchemaV33`. Cloudflare R2 object keys written atomically by `BackgroundDatabaseActor.markScanAsStaged` when the last image upload receives HTTP 200. Eliminating auth-dependent key reconstruction at inference time — keys are recorded at upload-completion time under the auth session that performed the upload, preventing the 403 IDOR edge case that occurred when keys were reconstructed hours later from an expired session. `nil` for scans migrated from V32; `replayInferenceForUploadedScans` falls back to reconstructing keys from the current session for those records.)
 
 ### `LocalScanRecord` (Scans)
 

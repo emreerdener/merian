@@ -17,19 +17,41 @@ The main thread owns the SwiftUI view hierarchy and the primary `ModelContext`. 
 **Declaration**: `@ModelActor actor BackgroundDatabaseActor`
 
 **Responsibilities:**
-- `fetchPendingScans(limit:)` — fetches `OfflineQueuedScan` records for the upload pipeline
-- `processAndCleanupOfflineScan(...)` — decodes an edge inference result, inserts a `LocalScanRecord` (including `candidatesData`, `inferenceTier`, and `imageQualityScore` from the edge response), deletes the `OfflineQueuedScan`, purges local images on failure
+
+*Upload state machine (V33):*
+- `fetchPendingScans(limit:)` — fetches `.pending` (state 0) `OfflineQueuedScan` records for upload dispatch. Scans in `.uploading`, `.staged`, `.inferencing`, or `.failed` states are excluded — they are either in-flight or terminal.
+- `markScansAsUploading(scanIds:)` — transitions scans from `.pending → .uploading` and persists before URLSession tasks are dispatched. Source-state guard: predicate restricts the fetch to `.pending` records only, so in-flight or tombstoned scans cannot be double-dispatched.
+- `markScanAsStaged(scanId:r2Keys:)` — called once the last image upload for a scan confirms HTTP 200. Persists the confirmed R2 object keys into `stagedR2Keys` and transitions `.uploading → .staged`. Source-state guard: only advances from `.uploading`; prevents a concurrent tombstone from being resurrected.
+- `tryClaimForInference(scanId:)` — atomic distributed lock for inference. Transitions `.staged → .inferencing`; returns `false` if the scan is already `.inferencing` or not found. Because `BackgroundDatabaseActor` serializes all calls on its executor, only one pipeline can win this claim per scan — the race between `processUploadCompletion` and `replayInferenceForUploadedScans` is closed here.
+- `transitionScanToStaged(id:)` — retreats `.inferencing → .staged` on transient inference failure so `replayInferenceForUploadedScans` can reclaim the scan on the next connectivity restore. Source-state guard: only retreats from `.inferencing` — will not overwrite a concurrent `softDeleteQueuedScan` tombstone (`.failed`) written by the MainActor.
+- `reconcileOrphanedUploadingScans(activeScanIds:)` — called once per process life on first connectivity restore. Resets `.uploading → .pending` for scans with no active URLSession task. Safe because no upload tasks are dispatched during the startup window.
+- `resetOrphanedInferencingScans()` — called once per process life before the first inference replay. Resets all `.inferencing → .staged` scans so `replayInferenceForUploadedScans` can re-claim them. Safe because no inference pipelines are running when a fresh process starts.
+
+*Offline scan processing:*
+- `processAndCleanupOfflineScan(...)` — decodes an edge inference result, inserts a `LocalScanRecord` (including `candidatesData`, `inferenceTier`, and `imageQualityScore` from the edge response), and deletes the `OfflineQueuedScan` in a **single atomic `modelContext.save()`**. Uses explicit fetch-then-delete (not `delete(model:where:)`) to ensure MainActor `@Query` views receive change notifications. On save failure, `resolvedSpeciesName` and `finalScanId` are cleared so the caller does not fire push notifications or record discoveries for an uncommitted scan.
 - `saveLiveScanRecord(mappedData:localImagePaths:)` — persists a real-time scan result after live inference. Persists `imageQualityScore` (Gemini's photographic quality score, 0–100) from `SpeciesData`. Unlike `blurScore` (ephemeral, live-only, never written to disk), `imageQualityScore` is stored permanently for future community reference-photo curation.
+
+*Enrichment and metadata:*
 - `updateScanWithWikipedia(scanId:extract:url:imageUrl:)` — retroactively hydrates a scan with Wikipedia or GBIF data. By accepting optional `String?` parameters, this method permits selective patching (e.g., updating only `referenceImageUrl` from GBIF without overwriting an existing `wikipediaOverview`).
 - `updateScanWithOverrideSpeciesData(scanId:commonName:hazardType:wikipediaOverview:wikipediaUrl:referenceImageUrl:iucnRedListStatus:habitatDescription:gbifTaxonKey:taxonomy:)` — persists species-dictionary data fetched for an identification override or reset so the corrected fields survive sheet dismissal and reopen. Intentionally excludes `scientificName` — that column is preserved as the original-AI identifier and is reused as `aiScientificName` in `InferenceEngine.load(from:)`.
 - `updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:)` — retroactively persists enrichment data returned by the `enrich-scan` Edge Function. Called by `InferenceEngine.fetchAndApplyEnrichment` after the async enrichment call completes. Updates `habitatDescription`, `gbifTaxonKey`, `lookalikesData` (a JSON-encoded `[SimilarSpeciesEntry]` blob, added in `MerianSchemaV27`), and taxonomic ranks (`Kingdom` through `Genus`) on `LocalScanRecord`. The caller is responsible for encoding `[SimilarSpeciesEntry]` to `Data` via `JSONEncoder` before calling this method — the `JSONEncoder().encode()` call runs inside the background `Task { }` that creates this actor (not on `@MainActor`) to avoid blocking the UI run loop. Encode failures result in a `nil` payload so the field is never written with corrupt data.
 - `pushCollectionsToEdge()` — serializes local `ScanCollection` records and calls the `sync-collections` Edge function. Upon a successful HTTP 200 response, it strictly purges any successfully synced tombstoned collections (`isDeleted == true`) from SwiftData to prevent ghost persistence. Note: its invocation is strictly serialised via an `isCollectionSyncing` gate in `OfflineQueueManager` to prevent out-of-order race conditions from resurrecting deleted local entities on the server.
 
-**When to create**: Always create ad-hoc per operation:
+**When to create**: Two patterns — ad-hoc for most operations, long-lived for inference:
+
 ```swift
+// Ad-hoc: for live scan saving, enrichment, Wikipedia, collections
 let container = modelContext.container
 let dbActor = BackgroundDatabaseActor(modelContainer: container)
 await dbActor.saveLiveScanRecord(mappedData: data, localImagePaths: paths)
+
+// Long-lived: for the offline inference pipeline
+// OfflineQueueManager maintains a single shared instance via resolvedInferenceDbActor(container:).
+// This serializes markScanAsStaged + tryClaimForInference + transitionScanToStaged on one executor,
+// closing the double-pipeline race between processUploadCompletion and replayInferenceForUploadedScans.
+// Never call resolvedInferenceDbActor directly from outside OfflineQueueManager.
+let inferenceActor = resolvedInferenceDbActor(container: container)
+guard await inferenceActor.tryClaimForInference(scanId: scanId) else { return }
 ```
 
 ---
@@ -155,15 +177,21 @@ actor BackgroundDatabaseActor {
 
 ---
 
-## Ad-hoc vs Singleton: Why Ad-hoc?
+## Ad-hoc vs Singleton: Why Ad-hoc (and When Not)
 
-All `@ModelActor` actors are created ad-hoc (per operation) rather than stored as singletons because:
+Most `@ModelActor` actors are created ad-hoc (per operation) rather than stored as singletons because:
 
 1. **`ModelContext` is not thread-safe** — a singleton actor holding a `ModelContext` would need to be the *only* writer for the duration of its operation. Ad-hoc creation gives each operation its own isolated context.
 2. **Backpressure is explicit** — if `syncHistoricalScansDown` creates an actor and `await`s it, the caller naturally blocks until reconciliation is complete. A singleton with a queue would make this implicit and harder to reason about.
 3. **No state leakage** — each operation starts with a fresh context. There is no risk of a previous operation's unflushed changes affecting the next one.
 
-`FileIOActor` is the only singleton because it has no `ModelContext` and manages a single shared resource (the Documents directory).
+**Exception — long-lived inference actor**: `OfflineQueueManager` stores a single `BackgroundDatabaseActor` instance in `_inferenceDbActor` (accessed via `resolvedInferenceDbActor(container:)`). This is intentional:
+
+- **Serialization**: All inference-path state transitions (`markScanAsStaged`, `tryClaimForInference`, `transitionScanToStaged`) must execute on the *same* actor executor to close the race between `processUploadCompletion` and `replayInferenceForUploadedScans`. A fresh actor per call would have its own executor, defeating the serial guarantee.
+- **Performance**: Offline upload bursts can complete multiple scans in rapid succession. Reusing one actor avoids repeated `ModelContainer → ModelContext` setup cost per completion.
+- The shared actor is still safe for concurrent callers — Swift actors serialize all calls through their executor automatically.
+
+`FileIOActor` is also a singleton because it has no `ModelContext` and manages a single shared resource (the Documents directory).
 
 ---
 
@@ -172,10 +200,14 @@ All `@ModelActor` actors are created ad-hoc (per operation) rather than stored a
 | Task | Actor to use |
 |---|---|
 | Save a live scan result | `BackgroundDatabaseActor` (ad-hoc) |
-| Process an offline scan after upload | `BackgroundDatabaseActor` (ad-hoc) |
+| Transition scan state for upload pipeline | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
+| Claim a scan for inference (`tryClaimForInference`) | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
+| Reset scan to `.staged` on transient failure | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
+| Process an offline scan after upload | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
+| Startup reconciliation (orphan reset) | `BackgroundDatabaseActor` (ad-hoc, one-time per process) |
 | Sync historical scans from cloud | `HistoricalDatabaseActor` (ad-hoc) |
 | Calculate all profile data (stats + heatmap + awards) | `ProfileDatabaseActor.calculateAll()` (ad-hoc) |
-| Calculate achievement awards only (post-inference) | `ProfileDatabaseActor.calculateAwards()` (ad-hoc) |
+| Calculate achievement awards only (post-inference) | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived) |
 | Calculate profile stats (species count, streak) | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc) |
 | Write image files to disk | `FileIOActor.shared` |
 | Delete image files from disk | `FileIOActor.shared` |
