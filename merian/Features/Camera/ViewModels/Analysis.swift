@@ -38,10 +38,17 @@ extension CameraViewModel {
         activeOriginals.removeAll()
         preFetchTask = nil
 
-        // 5. Fire the inference pipeline.
+        // 5. Eagerly populate activeLiveCaptureDatas so background-rescue enqueue works
+        // immediately. analyze() sets this same value, but it runs inside a Task that first
+        // awaits capturedPreFetchTask (GPS/weather, 1–3 s). If the user backgrounds or
+        // dismisses before that await resolves, activeLiveCaptureDatas is empty and both
+        // rescue handlers silently drop the scan. Setting it here closes that window.
+        diContainer.inferenceEngine.activeLiveCaptureDatas = datasToAnalyze
+
+        // 6. Fire the inference pipeline.
 
         Task {
-            // 6. Resolve the pre-fetched environment context (started at shutter press).
+            // 7. Resolve the pre-fetched environment context (started at shutter press).
             // Snapshot zoom before the first await — at 1× it carries no signal, so nil is sent.
             let capturedZoom: CGFloat? = diContainer.cameraManager.zoomFactor > 1.0
                 ? diContainer.cameraManager.zoomFactor
@@ -112,6 +119,11 @@ extension CameraViewModel {
 
             // 7. Fire the inference pipeline.
             await MainActor.run {
+                // Guard: if the user backgrounded or dismissed during the preFetchTask await,
+                // cancelActiveRequest() was already called (isProcessing = false) and the images
+                // were already enqueued via the offline queue. Starting analyze() now would launch
+                // a duplicate live inference for a scan already in-flight via URLSession.
+                guard self.diContainer.inferenceEngine.isProcessing else { return }
                 diContainer.inferenceEngine.analyze(
                     imageDatas: datasToAnalyze,
                     displayDatas: displayDatasToAnalyze,
