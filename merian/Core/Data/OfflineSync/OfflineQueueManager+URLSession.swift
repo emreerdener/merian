@@ -204,8 +204,18 @@ extension OfflineQueueManager {
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
         let userId = (authUserId ?? deviceId).lowercased()
         let r2Keys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
-        let stagingActor = BackgroundDatabaseActor(modelContainer: extracted.container)
-        await stagingActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+
+        // Use the same shared actor as replayInferenceForUploadedScans so that
+        // markScanAsStaged and tryClaimForInference are serialized on a single executor.
+        // This closes the race where processUploadCompletion and replayInferenceForUploadedScans
+        // could both see the scan in .staged and both call runInferencePipeline concurrently.
+        let inferenceActor = resolvedInferenceDbActor(container: extracted.container)
+        await inferenceActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+
+        // Atomically claim the scan for inference. If replayInferenceForUploadedScans already
+        // claimed it between markScanAsStaged and here (same actor, so serialized), skip —
+        // the replay path is already running the pipeline.
+        guard await inferenceActor.tryClaimForInference(scanId: scanId) else { return }
 
         // Rebuild extracted with the confirmed R2 keys so runInferencePipeline uses them directly.
         let extractedWithKeys = ExtractedScanData(
