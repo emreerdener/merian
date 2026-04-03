@@ -363,6 +363,12 @@ actor BackgroundDatabaseActor {
             }
         } catch {
             MerianLog.data.error("processAndCleanupOfflineScan: dequeue failed — scan may be reprocessed on next sync: \(error, privacy: .private)")
+            // The atomic save failed: neither the LocalScanRecord insert nor the
+            // OfflineQueuedScan deletion was committed. Clear the result fields so the
+            // caller does not fire push notifications, record discoveries, or set the
+            // badge count for a scan that was never persisted to the library.
+            resolvedSpeciesName = nil
+            resultingScanId = nil
         }
 
         return OfflineScanProcessingResult(
