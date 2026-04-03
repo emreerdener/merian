@@ -19,7 +19,7 @@ extension OfflineQueueManager {
             MerianLog.data.debug("updateUnsyncedItemCount: fetchCount failed: \(error, privacy: .private)")
             return
         }
-        Task { @MainActor in self.unsyncedItemsCount = count }
+        self.unsyncedItemsCount = count
     }
 
     /// Marks an `OfflineQueuedScan` as deleted without removing it from the database.
