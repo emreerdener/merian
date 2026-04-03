@@ -214,6 +214,9 @@ extension OfflineQueueManager {
         // the replay path is already running the pipeline.
         guard await inferenceActor.tryClaimForInference(scanId: scanId) else { return }
 
+        await MainActor.run { OfflineQueueManager.shared.activeInferencePipelineCount += 1 }
+        defer { Task { @MainActor in OfflineQueueManager.shared.activeInferencePipelineCount -= 1 } }
+
         // Rebuild extracted with the confirmed R2 keys so runInferencePipeline uses them directly.
         let extractedWithKeys = ExtractedScanData(
             telemetry: extracted.telemetry,

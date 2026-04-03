@@ -72,9 +72,14 @@ import SwiftData
     /// Resets on app restart — a fresh process always gets a clean slate of retries.
     @ObservationIgnored var uploadRetryCount: [String: Int] = [:]
 
-    /// Guards the one-time startup reconciliation of orphaned `.uploading` and `.inferencing`
-    /// scans. Runs exactly once per process life on the first connectivity restore.
+    /// Guards the one-time cold-start reconciliation of orphaned `.uploading` scans.
+    /// Runs exactly once per process life on the first connectivity restore.
     @ObservationIgnored var hasReconciledStartupState = false
+
+    /// Counts inference pipelines currently in flight.
+    /// Used by `replayInferenceForUploadedScans` to skip `resetOrphanedInferencingScans`
+    /// when a live pipeline holds `.inferencing` legitimately, preventing a double-pipeline race.
+    @ObservationIgnored var activeInferencePipelineCount: Int = 0
 
     /// Maximum consecutive transient errors before a scan is tombstoned.
     static let maxUploadRetries = 3
