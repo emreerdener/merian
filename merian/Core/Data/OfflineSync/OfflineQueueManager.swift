@@ -68,18 +68,13 @@ import SwiftData
     /// to prevent stacked syncs when the OS path monitor fires multiple times in quick succession.
     @ObservationIgnored private var reconnectDebounceTask: Task<Void, Never>?
 
-    /// In-memory counter tracking consecutive transient upload failures per scan ID.
+    /// In-memory counter tracking consecutive transient upload/inference failures per scan ID.
     /// Resets on app restart — a fresh process always gets a clean slate of retries.
     @ObservationIgnored var uploadRetryCount: [String: Int] = [:]
 
-    /// Scan IDs with at least one URLSession upload task currently in-flight.
-    /// Seeded from `session.allTasks` exactly once on the first sync after a cold launch
-    /// (to re-attach tasks that survived an app restart), then maintained incrementally
-    /// so subsequent sync cycles skip the async session enumeration entirely.
-    @ObservationIgnored var activeScanUploadIds: Set<String> = []
-    /// Guards the one-time `session.allTasks` seed so subsequent `syncPendingScans` calls
-    /// skip the async URLSession enumeration and read `activeScanUploadIds` directly.
-    @ObservationIgnored var hasSeededActiveScanIds = false
+    /// Guards the one-time startup reconciliation of orphaned `.uploading` and `.inferencing`
+    /// scans. Runs exactly once per process life on the first connectivity restore.
+    @ObservationIgnored var hasReconciledStartupState = false
 
     /// Maximum consecutive transient errors before a scan is tombstoned.
     static let maxUploadRetries = 3

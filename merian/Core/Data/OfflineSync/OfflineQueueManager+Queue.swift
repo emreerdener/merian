@@ -8,10 +8,13 @@ import UIKit
 
 extension OfflineQueueManager {
 
-    /// Refreshes `unsyncedItemsCount` by fetching the count of non-deleted `OfflineQueuedScan` records.
+    /// Refreshes `unsyncedItemsCount` from the count of active (non-failed) `OfflineQueuedScan` records.
     func updateUnsyncedItemCount() {
         guard let context = modelContext else { return }
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == false })
+        let failedRaw = ScanQueueState.failed.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.scanStateRaw != failedRaw }
+        )
         let count: Int
         do {
             count = try context.fetchCount(descriptor)
@@ -22,22 +25,24 @@ extension OfflineQueueManager {
         self.unsyncedItemsCount = count
     }
 
-    /// Marks an `OfflineQueuedScan` as deleted without removing it from the database.
+    /// Tombstones a scan by transitioning it to `.failed`.
     ///
-    /// Used to tombstone scans whose source files are missing or whose uploads have been permanently
-    /// rejected. The record is excluded from future sync attempts and cleaned up by `purgeSoftDeletedRecords()`.
+    /// Used for scans whose source files are missing or whose uploads were permanently rejected.
+    /// The record is excluded from future sync attempts and cleaned up by `purgeSoftDeletedRecords()`.
     func softDeleteQueuedScan(scanId: String) {
         guard let context = modelContext else { return }
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate<OfflineQueuedScan> { $0.id == scanId })
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate<OfflineQueuedScan> { $0.id == scanId }
+        )
         guard let match = (try? context.fetch(descriptor))?.first else { return }
-        match.isDeleted = true
+        match.scanStateRaw = ScanQueueState.failed.rawValue
         do {
             try context.save()
         } catch {
             MerianLog.data.error("softDeleteQueuedScan: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
         updateUnsyncedItemCount()
-        
+
         if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
             #if canImport(UIKit)
             if UIApplication.shared.applicationState != .active {
@@ -57,17 +62,17 @@ extension OfflineQueueManager {
                 task.cancel()
             }
         }
-        
+
         // 2. Eradicate from SwiftData and Disk
         guard let context = modelContext else { return }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         guard let scan = (try? context.fetch(descriptor))?.first else { return }
-        
+
         let documentsDirectory = URL.documentsDirectory
         for path in scan.localImagePaths {
             try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
         }
-        
+
         context.delete(scan)
         do {
             try context.save()
@@ -77,16 +82,19 @@ extension OfflineQueueManager {
         }
     }
 
-    /// Permanently removes all soft-deleted `OfflineQueuedScan` records and their associated image files from disk.
-    /// Called at appropriate cleanup points (e.g., after a successful sync cycle or on app foreground).
+    /// Permanently removes all `.failed` `OfflineQueuedScan` records and their image files from disk.
+    /// Called at cleanup points (e.g., after a successful sync cycle or on app foreground).
     func purgeSoftDeletedRecords() {
         guard let context = modelContext else { return }
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == true })
+        let failedRaw = ScanQueueState.failed.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.scanStateRaw == failedRaw }
+        )
         let documentsDirectory = URL.documentsDirectory
 
         do {
-            let deletedScans = try context.fetch(descriptor)
-            for scan in deletedScans {
+            let failedScans = try context.fetch(descriptor)
+            for scan in failedScans {
                 for path in scan.localImagePaths {
                     do {
                         try FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
@@ -105,23 +113,43 @@ extension OfflineQueueManager {
 
     // MARK: - Uploaded Scan Replay
 
-    /// Re-triggers inference for scans that were fully staged to R2 but whose inference
-    /// pipeline was interrupted by an app kill, crash, or connectivity loss before completion.
+    /// Re-triggers inference for scans in `.staged` state — images confirmed in R2 but whose
+    /// inference pipeline was interrupted by an app kill, crash, or connectivity loss.
     ///
-    /// Called on connectivity restore. Scans with `isUploaded == true` have already paid
-    /// the upload cost — only the Edge Function call and database commit remain. Re-uploading
-    /// their image files would be wasteful and would produce duplicate R2 objects.
+    /// On first call per process: resets any `.inferencing` orphans (left by a crash) to
+    /// `.staged`, and reconciles `.uploading` orphans (tasks never dispatched) to `.pending`.
+    /// This is safe because no pipelines are running when a fresh process starts.
     func replayInferenceForUploadedScans() {
         guard isOnline else { return }
         guard let context = modelContext else { return }
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.isUploaded == true && $0.isDeleted == false }
-        )
-        guard let uploaded = try? context.fetch(descriptor), !uploaded.isEmpty else { return }
         let container = context.container
-        for scan in uploaded {
-            guard !activeScanUploadIds.contains(scan.id) else { continue }
-            activeScanUploadIds.insert(scan.id)
+
+        // One-time startup reconciliation per process.
+        if !hasReconciledStartupState {
+            hasReconciledStartupState = true
+            Task {
+                // Collect active URLSession task scan IDs before reconciling.
+                let allTasks = await backgroundSession.allTasks
+                let activeIds = Set(allTasks.compactMap {
+                    $0.taskDescription?.components(separatedBy: "_").first
+                })
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                await dbActor.resetOrphanedInferencingScans()
+                await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeIds)
+                await MainActor.run { self.replayInferenceForUploadedScans() }
+            }
+            return
+        }
+
+        let stagedRaw = ScanQueueState.staged.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.scanStateRaw == stagedRaw }
+        )
+        guard let staged = try? context.fetch(descriptor), !staged.isEmpty else { return }
+
+        for scan in staged {
+            let scanId       = scan.id
+            let r2Keys       = scan.stagedR2Keys ?? []
             var telemetry = CaptureTelemetry(
                 subjectDistanceInMeters: scan.subjectDistanceInMeters,
                 gpsLatitude: scan.gpsLatitude,
@@ -137,17 +165,26 @@ extension OfflineQueueManager {
             let extracted = ExtractedScanData(
                 telemetry: telemetry,
                 localImagePaths: scan.localImagePaths,
+                r2Keys: r2Keys,
                 container: container,
                 originalTimestamp: scan.timestamp
             )
-            let scanId = scan.id
-            Task { await self.runInferencePipeline(scanId: scanId, extracted: extracted) }
+            Task {
+                let dbActor = resolvedInferenceDbActor(container: container)
+                // Atomic claim: transitions .staged → .inferencing.
+                // If another path already claimed it, this returns false and we skip.
+                guard await dbActor.tryClaimForInference(scanId: scanId) else { return }
+                await self.runInferencePipeline(scanId: scanId, extracted: extracted)
+            }
         }
     }
 
     // MARK: - Capture Enqueue
 
     /// Writes image data to the Documents directory and inserts a new `OfflineQueuedScan` record.
+    ///
+    /// Dedup guard: if an `OfflineQueuedScan` with the same `captureSessionId` already exists,
+    /// the enqueue is skipped — prevents double-enqueue from multiple backgrounding code paths.
     ///
     /// All disk I/O runs inside a `BackgroundTaskWrapper` so iOS grants extended time even if
     /// the user backgrounds the app immediately after capture. On success, `syncPendingScans()`
@@ -174,7 +211,10 @@ extension OfflineQueueManager {
                     // If the cap is already hit, clean up the files we just wrote and bail.
                     if !RevenueCatManager.shared.isProActive,
                        let modelContext = OfflineQueueManager.shared.modelContext {
-                        let capDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.isDeleted == false })
+                        let failedRaw = ScanQueueState.failed.rawValue
+                        let capDescriptor = FetchDescriptor<OfflineQueuedScan>(
+                            predicate: #Predicate { $0.scanStateRaw != failedRaw }
+                        )
                         let currentCount = (try? modelContext.fetchCount(capDescriptor)) ?? 0
                         if currentCount >= UsageManager.shared.maxFreeScansPerDay {
                             MerianLog.data.debug("enqueueCapture: free user queue cap reached — scan not enqueued")
@@ -201,7 +241,7 @@ extension OfflineQueueManager {
                         relativeHumidity: nil,
                         uvIndex: nil,
                         zoomFactor: telemetry.zoomFactor.map { Double($0) },
-                        isDeleted: false
+                        scanState: .pending
                     )
                     guard let modelContext = OfflineQueueManager.shared.modelContext else { return }
                     modelContext.insert(scan)

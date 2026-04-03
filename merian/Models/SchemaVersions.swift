@@ -35,7 +35,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV29.self,
             MerianSchemaV30.self,
             MerianSchemaV31.self,
-            MerianSchemaV32.self
+            MerianSchemaV32.self,
+            MerianSchemaV33.self
         ]
     }
 
@@ -71,9 +72,39 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV28toV29,
             migrateV29toV30,
             migrateV30toV31,
-            migrateV31toV32
+            migrateV31toV32,
+            migrateV32toV33
         ]
     }
+
+    // Temporary backfill storage for V32→V33 migration.
+    // Captures the old Bool state before the column is dropped, then writes scanStateRaw in didMigrate.
+    nonisolated(unsafe) static var _scanStateBackfill: [String: Int] = [:]
+
+    static let migrateV32toV33 = MigrationStage.custom(
+        fromVersion: MerianSchemaV32.self,
+        toVersion: MerianSchemaV33.self,
+        willMigrate: { context in
+            let scans = try context.fetch(FetchDescriptor<MerianSchemaV32.OfflineQueuedScan>())
+            _scanStateBackfill = Dictionary(uniqueKeysWithValues: scans.map { scan in
+                let state: Int
+                if scan.isDeleted       { state = ScanQueueState.failed.rawValue   }
+                else if scan.isUploaded { state = ScanQueueState.staged.rawValue   }
+                else                    { state = ScanQueueState.pending.rawValue  }
+                return (scan.id, state)
+            })
+        },
+        didMigrate: { context in
+            let scans = try context.fetch(FetchDescriptor<MerianSchemaV33.OfflineQueuedScan>())
+            for scan in scans {
+                if let state = _scanStateBackfill[scan.id] {
+                    scan.scanStateRaw = state
+                }
+            }
+            try context.save()
+            _scanStateBackfill = [:]
+        }
+    )
 
     static let migrateV31toV32 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV31.self,

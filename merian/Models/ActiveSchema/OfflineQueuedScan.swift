@@ -22,11 +22,20 @@ public final class OfflineQueuedScan {
     public var uvIndex: Int?
     @Attribute public var zoomFactor: Double?
 
-    public var isDeleted: Bool
-    /// `true` once all image files for this scan have been confirmed received by R2 staging
-    /// (HTTP 200 on the last image upload). Prevents re-uploading already-staged files
-    /// across app restarts when inference hasn't yet processed the scan.
-    public var isUploaded: Bool = false
+    /// Raw value of `ScanQueueState`. Stored as `Int` for `#Predicate` compatibility.
+    /// Use `queueState` for typed access. Replaces the old `isUploaded` / `isDeleted` booleans.
+    public var scanStateRaw: Int = ScanQueueState.pending.rawValue
+
+    /// R2 object keys written at upload confirmation time.
+    /// Eliminates auth-dependent key reconstruction at inference time.
+    public var stagedR2Keys: [String]?
+
+    // MARK: - Typed accessor
+
+    public var queueState: ScanQueueState {
+        get { ScanQueueState(rawValue: scanStateRaw) ?? .pending }
+        set { scanStateRaw = newValue.rawValue }
+    }
 
     public init(
         id: String = UUID().uuidString,
@@ -46,9 +55,9 @@ public final class OfflineQueuedScan {
         relativeHumidity: Double? = nil,
         uvIndex: Int? = nil,
         zoomFactor: Double? = nil,
-        isDeleted: Bool = false,
-        isUploaded: Bool = false) {
-
+        scanState: ScanQueueState = .pending,
+        stagedR2Keys: [String]? = nil
+    ) {
         self.id = id
         self.timestamp = timestamp
         self.localImagePaths = localImagePaths
@@ -66,7 +75,7 @@ public final class OfflineQueuedScan {
         self.relativeHumidity = relativeHumidity
         self.uvIndex = uvIndex
         self.zoomFactor = zoomFactor
-        self.isDeleted = isDeleted
-        self.isUploaded = isUploaded
+        self.scanStateRaw = scanState.rawValue
+        self.stagedR2Keys = stagedR2Keys
     }
 }

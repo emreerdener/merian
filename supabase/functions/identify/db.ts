@@ -128,6 +128,11 @@ export async function insertScan(
   row: ScanInsertRow,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
-  const { error } = await supabaseAdmin.from("scans").insert(row);
+  // Upsert with ignoreDuplicates so a client-provided scan ID makes this idempotent.
+  // If the scan was already inserted (e.g. inference ran twice after an app crash),
+  // the second call is a silent no-op rather than a duplicate-key error.
+  const { error } = await supabaseAdmin
+    .from("scans")
+    .upsert(row, { onConflict: "id", ignoreDuplicates: true });
   if (error) throw new Error(`insertScan: ${error.message}`);
 }

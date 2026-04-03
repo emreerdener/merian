@@ -176,7 +176,7 @@ final class MerianNetworkClient {
 
     // MARK: - Inference
 
-    func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry) async throws -> Data {
+    func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry, clientScanId: String? = nil) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
 
         let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
@@ -191,6 +191,7 @@ final class MerianNetworkClient {
         let timeOfDay = formatter.string(from: Date())
 
         let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
+        let capturedClientScanId = clientScanId
         let bodyData = try await Task.detached(priority: .userInitiated) {
             let isolatedPayload: [String: Any?] = [
                 "r2ObjectKeys": r2ObjectKeys,
@@ -209,9 +210,10 @@ final class MerianNetworkClient {
                 "currentMonth": currentMonth,
                 "timeOfDay": timeOfDay,
                 "timestamp": telemetry.timestamp,
-                "estimated_size_cm": telemetry.estimatedSizeCm
+                "estimated_size_cm": telemetry.estimatedSizeCm,
+                "client_scan_id": capturedClientScanId
             ]
-            
+
             return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
         }.value
         // Inference calls can take up to 25–30s on gemini-2.5-pro with slow connections.

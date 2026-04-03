@@ -94,13 +94,6 @@ extension OfflineQueueManager {
             ($0.taskDescription?.starts(with: "\(scanId)_") ?? false)
         }
 
-        // 2. Remove from the local active-IDs set ONLY when all image uploads for the scan are fully settled.
-        // It must happen BEFORE early-returning on errors, otherwise the scan ID is trapped permanently in the
-        // set and all future `syncPendingScans` or `replayInferenceForUploadedScans` cycles will ignore it forever.
-        if !hasActiveTasksForScan {
-            _ = await MainActor.run { OfflineQueueManager.shared.activeScanUploadIds.remove(scanId) }
-        }
-
         // Handle transport-level errors.
         if let uploadError {
             let nsError = uploadError as NSError
@@ -193,6 +186,7 @@ extension OfflineQueueManager {
             return ExtractedScanData(
                 telemetry: telemetry,
                 localImagePaths: scan.localImagePaths,
+                r2Keys: scan.stagedR2Keys ?? [],
                 container: container,
                 originalTimestamp: scan.timestamp
             )
@@ -203,19 +197,25 @@ extension OfflineQueueManager {
         // If they are, allow them to finish (the last one handles the inference triggering).
         guard !hasActiveTasksForScan else { return }
 
-        // Persist the isUploaded flag before inference so a mid-inference crash or app kill
-        // doesn't force re-uploading already-staged files. replayInferenceForUploadedScans()
-        // detects these records on the next connectivity restore and resumes from here.
-        await MainActor.run {
-            guard let context = OfflineQueueManager.shared.modelContext else { return }
-            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            if let scan = try? context.fetch(descriptor).first, !scan.isUploaded {
-                scan.isUploaded = true
-                try? context.save()
-            }
-        }
+        // Compute the R2 object keys using the auth session active at upload time and persist
+        // them atomically with the .staged transition. Storing keys now eliminates the
+        // auth-expiry 403 edge case that occurred when keys were reconstructed at inference time.
+        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let userId = (authUserId ?? deviceId).lowercased()
+        let r2Keys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
+        let stagingActor = BackgroundDatabaseActor(modelContainer: extracted.container)
+        await stagingActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
 
-        await runInferencePipeline(scanId: scanId, extracted: extracted)
+        // Rebuild extracted with the confirmed R2 keys so runInferencePipeline uses them directly.
+        let extractedWithKeys = ExtractedScanData(
+            telemetry: extracted.telemetry,
+            localImagePaths: extracted.localImagePaths,
+            r2Keys: r2Keys,
+            container: extracted.container,
+            originalTimestamp: extracted.originalTimestamp
+        )
+        await runInferencePipeline(scanId: scanId, extracted: extractedWithKeys)
     }
 
     // MARK: - Inference Pipeline
@@ -228,26 +228,13 @@ extension OfflineQueueManager {
     /// 4. If a new species was discovered, recalculates awards and sends a push notification
     ///    if the app is backgrounded and the user has enabled push notifications.
     func runInferencePipeline(scanId: String, extracted: ExtractedScanData) async {
-        // ALWAYS release the active-queue lock when pipeline exits (both on success or failure).
-        // `replayInferenceForUploadedScans` acquires this lock upon launch to prevent double-execution,
-        // and if a transient error occurs during Gemini backfill without this release, the scan
-        // would become permanently deadlocked during all future connection restore attempts!
-        defer {
-            Task { @MainActor in
-                OfflineQueueManager.shared.activeScanUploadIds.remove(scanId)
-            }
-        }
-        
         let baseTelemetry = extracted.telemetry
 
         do {
             let pipelineStart = CFAbsoluteTimeGetCurrent()
-            // The R2 object key must match the key the Edge Function stored on upload, which
-            // deterministically aligns with the auth session active during pipeline execution.
-            let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-            let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-            let userId = (authUserId ?? deviceId).lowercased()
-            let resolvedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
+            // R2 keys were persisted at upload-completion time via markScanAsStaged.
+            // Using stored keys eliminates auth-dependent reconstruction and the 403 edge case.
+            let resolvedKeys = extracted.r2Keys
 
             // Run WeatherKit backfill and AI inference concurrently — weather is optional
             // metadata and must not gate the scan result. Sequential awaiting previously added
@@ -267,7 +254,8 @@ extension OfflineQueueManager {
             async let inferenceResult = MerianNetworkClient.shared.analyzeSubject(
                 r2ObjectKeys: resolvedKeys,
                 base64ImageDatas: nil,
-                telemetry: baseTelemetry
+                telemetry: baseTelemetry,
+                clientScanId: scanId
             )
 
             let (historicalContext, resultData) = try await (weatherContext, inferenceResult)
@@ -363,6 +351,11 @@ extension OfflineQueueManager {
                     OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
                 }
             } else {
+                // Reset to .staged so replayInferenceForUploadedScans can reclaim it on the
+                // next connectivity restore. Without this the scan stays in .inferencing,
+                // invisible to replay (which only queries .staged scans).
+                let retryActor = resolvedInferenceDbActor(container: extracted.container)
+                await retryActor.transitionScan(id: scanId, to: .staged)
                 MerianLog.data.debug("Inference failed for \(scanId, privacy: .private): \(error, privacy: .private)")
             }
         }

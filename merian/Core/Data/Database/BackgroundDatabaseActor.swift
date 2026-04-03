@@ -15,6 +15,9 @@ struct ExtractedScanData {
     let telemetry: CaptureTelemetry
     /// Filenames of local images relative to the Documents directory.
     let localImagePaths: [String]
+    /// Confirmed R2 object keys stored at upload time.
+    /// Non-empty on the offline queue path; empty on the live inference path.
+    let r2Keys: [String]
     /// The model container, used to create a new `BackgroundDatabaseActor` on the inference thread.
     let container: ModelContainer
     let originalTimestamp: Date
@@ -45,14 +48,14 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Pending Scan Fetching
 
-    /// Returns up to `limit` undeleted, not-yet-uploaded `OfflineQueuedScan` records sorted oldest-first.
+    /// Returns up to `limit` `.pending` (state 0) `OfflineQueuedScan` records sorted oldest-first.
     ///
-    /// Scans with `isUploaded == true` are excluded — their files are already in R2 staging
-    /// and will be picked up by `replayInferenceForUploadedScans()` for direct inference
-    /// rather than a redundant re-upload.
+    /// Scans in `.uploading`, `.staged`, `.inferencing`, or `.failed` states are excluded —
+    /// they are either already in flight or terminal, and handled by separate recovery paths.
     func fetchPendingScans(limit: Int) -> [PendingScanPayload] {
+        let pendingRaw = ScanQueueState.pending.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.isDeleted == false && $0.isUploaded == false }
+            predicate: #Predicate { $0.scanStateRaw == pendingRaw }
         )
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
         descriptor.fetchLimit = limit
@@ -65,6 +68,146 @@ actor BackgroundDatabaseActor {
             return []
         }
         return pending.map { PendingScanPayload(id: $0.id, localImagePaths: $0.localImagePaths) }
+    }
+
+    // MARK: - State Transitions
+
+    /// Atomically transitions a scan from `.staged` to `.inferencing`.
+    ///
+    /// Returns `true` if the claim succeeded (scan was in `.staged` state and is now `.inferencing`).
+    /// Returns `false` if the scan was already `.inferencing` or not found — caller must skip.
+    ///
+    /// This is the distributed lock that prevents two concurrent inference pipelines
+    /// from running for the same scan: only one actor can win the `.staged → .inferencing`
+    /// transition because `BackgroundDatabaseActor` serializes writes through its executor.
+    func tryClaimForInference(scanId: String) -> Bool {
+        let stagedRaw     = ScanQueueState.staged.rawValue
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return false }
+        guard scan.scanStateRaw == stagedRaw else { return false }
+        scan.scanStateRaw = inferencingRaw
+        do {
+            try modelContext.save()
+        } catch {
+            MerianLog.data.error("tryClaimForInference: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
+        }
+        return true
+    }
+
+    /// Transitions a scan to an explicit state and persists.
+    /// Used for error paths (`.failed`) and retry paths (`.inferencing → .staged`).
+    func transitionScan(id scanId: String, to state: ScanQueueState) {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
+        scan.scanStateRaw = state.rawValue
+        do {
+            try modelContext.save()
+        } catch {
+            MerianLog.data.error("transitionScan: save failed for \(scanId, privacy: .private) → \(state.rawValue): \(error, privacy: .private)")
+        }
+    }
+
+    /// Persists the confirmed R2 object keys on the scan record and transitions it to `.staged`.
+    ///
+    /// Called once the last image upload for a scan is confirmed (HTTP 200).
+    /// Storing keys here eliminates auth-dependent key reconstruction at inference time.
+    func markScanAsStaged(scanId: String, r2Keys: [String]) {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
+        scan.stagedR2Keys  = r2Keys
+        scan.scanStateRaw  = ScanQueueState.staged.rawValue
+        do {
+            try modelContext.save()
+        } catch {
+            MerianLog.data.error("markScanAsStaged: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+        }
+    }
+
+    /// Marks scans in `.uploading` state that have no active URLSession task as `.pending`,
+    /// so `syncPendingScans` re-dispatches them on the next sync cycle.
+    ///
+    /// Called once per process lifetime on first connectivity restore. Safe because no
+    /// URLSession tasks are dispatched during the window between process start and this call.
+    func reconcileOrphanedUploadingScans(activeScanIds: Set<String>) {
+        let uploadingRaw = ScanQueueState.uploading.rawValue
+        let pendingRaw   = ScanQueueState.pending.rawValue
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.scanStateRaw == uploadingRaw }
+        )
+        let scans: [OfflineQueuedScan]
+        do {
+            scans = try modelContext.fetch(descriptor)
+        } catch {
+            MerianLog.data.debug("reconcileOrphanedUploadingScans: fetch failed: \(error, privacy: .private)")
+            return
+        }
+        var changed = false
+        for scan in scans where !activeScanIds.contains(scan.id) {
+            scan.scanStateRaw = pendingRaw
+            changed = true
+        }
+        if changed {
+            do {
+                try modelContext.save()
+            } catch {
+                MerianLog.data.error("reconcileOrphanedUploadingScans: save failed: \(error, privacy: .private)")
+            }
+        }
+    }
+
+    /// Resets any `.inferencing` scans back to `.staged` so `replayInferenceForUploadedScans`
+    /// can re-claim them on the next cycle.
+    ///
+    /// Called once per process lifetime before the first inference replay. Safe because
+    /// no inference pipelines are running when a fresh process starts.
+    func resetOrphanedInferencingScans() {
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        let stagedRaw      = ScanQueueState.staged.rawValue
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.scanStateRaw == inferencingRaw }
+        )
+        let scans: [OfflineQueuedScan]
+        do {
+            scans = try modelContext.fetch(descriptor)
+        } catch {
+            MerianLog.data.debug("resetOrphanedInferencingScans: fetch failed: \(error, privacy: .private)")
+            return
+        }
+        guard !scans.isEmpty else { return }
+        for scan in scans { scan.scanStateRaw = stagedRaw }
+        do {
+            try modelContext.save()
+            MerianLog.data.debug("resetOrphanedInferencingScans: reset \(scans.count, privacy: .public) orphaned scans to .staged")
+        } catch {
+            MerianLog.data.error("resetOrphanedInferencingScans: save failed: \(error, privacy: .private)")
+        }
+    }
+
+    /// Transitions scans to `.uploading` state and persists, preventing `syncPendingScans`
+    /// from re-dispatching upload tasks for these scans after an app restart.
+    func markScansAsUploading(scanIds: [String]) {
+        guard !scanIds.isEmpty else { return }
+        let idSet = Set(scanIds)
+        let uploadingRaw = ScanQueueState.uploading.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>()
+        let scans: [OfflineQueuedScan]
+        do {
+            scans = try modelContext.fetch(descriptor).filter { idSet.contains($0.id) }
+        } catch {
+            MerianLog.data.debug("markScansAsUploading: fetch failed: \(error, privacy: .private)")
+            return
+        }
+        for scan in scans { scan.scanStateRaw = uploadingRaw }
+        do {
+            try modelContext.save()
+        } catch {
+            MerianLog.data.error("markScansAsUploading: save failed: \(error, privacy: .private)")
+        }
     }
 
     // MARK: - Offline Scan Processing

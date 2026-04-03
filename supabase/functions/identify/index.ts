@@ -61,6 +61,7 @@ serve((req: Request) =>
       timeOfDay,
       timestamp,
       estimated_size_cm,
+      client_scan_id,
     } = body;
 
     if (
@@ -190,7 +191,13 @@ serve((req: Request) =>
     // Derive blur_score from sharpness (1-10) for latency savings
     parsedData.blur_score = Math.max(0, (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10);
 
-    const generatedScanId = crypto.randomUUID();
+    // Use the client-provided scan ID when available so the iOS offline queue can
+    // correlate the server record with its local OfflineQueuedScan. Combined with the
+    // idempotent upsert in insertScan, this makes replayed inference requests safe.
+    const generatedScanId: string =
+      typeof client_scan_id === "string" && client_scan_id.length > 0
+        ? client_scan_id
+        : crypto.randomUUID();
     const payloadReadyForClient: ClientPayload = {
       ...parsedData,
       scan_id: generatedScanId,

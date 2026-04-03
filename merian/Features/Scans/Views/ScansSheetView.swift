@@ -16,7 +16,7 @@ struct ScansSheetView: View {
         rawRecords.filter { $0.isBiological == true && $0.commonName != "Unknown Subject" }
     }
     @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
-    @Query(filter: #Predicate<OfflineQueuedScan> { !$0.isDeleted }, sort: \OfflineQueuedScan.timestamp, order: .reverse) private var queuedScans: [OfflineQueuedScan]
+    @Query(filter: #Predicate<OfflineQueuedScan> { $0.scanStateRaw < 5 }, sort: \OfflineQueuedScan.timestamp, order: .reverse) private var queuedScans: [OfflineQueuedScan]
     
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) var inferenceEngine

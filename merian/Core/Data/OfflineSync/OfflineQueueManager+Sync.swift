@@ -90,14 +90,15 @@ extension OfflineQueueManager {
 
     // MARK: - Uploads
 
-    /// Fetches up to 5 unsynced scans and schedules a background `PUT` upload to Cloudflare R2 staging for each image file.
+    /// Fetches `.pending` scans and schedules background `PUT` uploads to Cloudflare R2 staging.
     ///
-    /// Upload tasks are tracked by `taskDescription` (`"\(scanId)_\(imageIndex)"`). Active scan IDs
-    /// are deduplicated against the live `URLSession` task list to avoid double-uploading on relaunch.
-    /// Gemini inference is triggered server-side by a Supabase Storage webhook once files land.
+    /// Upload tasks are tracked by `taskDescription` (`"\(scanId)_\(imageIndex)"`).
+    /// Scans are atomically transitioned to `.uploading` state before tasks are dispatched,
+    /// so `syncPendingScans` never re-dispatches in-flight uploads after an app restart.
+    /// Confirmed R2 keys are persisted on the record at upload completion (in URLSession delegate).
     ///
     /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
-    /// Free users are additionally gated by their daily scan quota and their queue is capped at `maxFreeScansPerDay` items.
+    /// Free users are additionally gated by their daily scan quota.
     func syncPendingScans() {
         guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }
@@ -119,46 +120,27 @@ extension OfflineQueueManager {
                 MerianLog.data.debug("OfflineQueueSync background task expired")
                 Task { @MainActor in
                     // Reset the latch so the next connectivity event can start a fresh sync.
-                    // Without this, an expiration before URLSession tasks are dispatched leaves
-                    // isSyncing = true permanently — no future syncPendingScans() call can proceed.
                     OfflineQueueManager.shared.isSyncing = false
                     SyncStateManager.shared.completeSync()
                 }
             }
         ) { [weak self] _ in
             guard let self else { return }
-            
-            // Periodically retry any scans that successfully made it to R2 but whose inference 
-            // failed transiently, so they don't remain orphaned while the app is kept open.
-            await MainActor.run { self.replayInferenceForUploadedScans() }
-            
-            let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
-            let session = await MainActor.run { self.backgroundSession }
 
-            // Seed `activeScanUploadIds` exactly once from the live URLSession task list on the first
-            // sync after a cold launch (to re-attach tasks that survived an app restart).
-            // Every subsequent call reads the locally-maintained Set directly, avoiding the O(n)
-            // async `session.allTasks` enumeration on every sync cycle.
-            let activeScanIDs: Set<String>
-            let needsSeeding = await MainActor.run { !self.hasSeededActiveScanIds }
-            if needsSeeding {
-                let allTasks = await session.allTasks
-                activeScanIDs = Set(allTasks.compactMap {
-                    $0.taskDescription?.components(separatedBy: "_").first ?? $0.taskDescription
-                })
-                await MainActor.run {
-                    self.activeScanUploadIds = activeScanIDs
-                    self.hasSeededActiveScanIds = true
-                }
-            } else {
-                activeScanIDs = await MainActor.run { self.activeScanUploadIds }
-            }
+            // Periodically retry staged scans whose inference failed transiently.
+            await MainActor.run { self.replayInferenceForUploadedScans() }
+
+            let dbActor = BackgroundDatabaseActor(modelContainer: container)
+            // fetchPendingScans only returns scanStateRaw == .pending — .uploading/.staged scans
+            // are excluded by the state machine, eliminating the need for activeScanUploadIds.
+            let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
+            let session  = await MainActor.run { self.backgroundSession }
+
             // For free users, cap the batch to however many scans they can still run today.
             let batchLimit = await MainActor.run {
                 isProActive ? MerianConfig.uploadBatchSize : UsageManager.shared.freeScansRemaining
             }
-            let filteredScans = Array(scanData.filter { !activeScanIDs.contains($0.id) }.prefix(batchLimit))
+            let filteredScans = Array(scanData.prefix(batchLimit))
 
             guard !filteredScans.isEmpty else {
                 await MainActor.run {
@@ -171,17 +153,17 @@ extension OfflineQueueManager {
             await MainActor.run {
                 SyncStateManager.shared.beginSync(itemCount: filteredScans.count)
                 // Consume one scan quota slot per item being uploaded.
-                // Pro users have unlimited quota; free users are deducted here so the daily
-                // limit is enforced even when scans complete via background URLSession.
                 if !isProActive {
                     for _ in filteredScans { UsageManager.shared.consumeScan() }
                 }
             }
 
+            // Transition scans to .uploading BEFORE dispatching URLSession tasks.
+            // This ensures that if the app restarts between here and task dispatch,
+            // syncPendingScans won't re-dispatch (it only fetches .pending scans).
+            await dbActor.markScansAsUploading(scanIds: filteredScans.map(\.id))
+
             // Flatten scan → image-file pairs into a typed array.
-            // A single struct eliminates the class of flat-index bug that plagued the
-            // previous 4-array layout: every consumer indexes into one ScanUploadItem
-            // and gets the correct per-scan imageIndex together with its sibling fields.
             struct ScanUploadItem {
                 let scanId: String
                 let imageIndex: Int   // per-scan slot (0…N-1), NOT the flat batch index
@@ -211,17 +193,12 @@ extension OfflineQueueManager {
             }
 
             do {
-                // Fetch Cloudflare R2 pre-signed staging URLs.
-                // Gemini inference is triggered client-side via runInferencePipeline once
-                // the last image file for a scan lands (guarded by imageIndex == count-1).
                 let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(
                     fileNames: uploadItems.map(\.fileName)
                 )
                 // Reset exponential backoff — this request succeeded.
                 await MainActor.run { self.uploadRetryDelay = 0 }
 
-                // File copies and upload task creation are independent per-image — fan them out
-                // concurrently so NVMe writes for a 3-image scan overlap instead of queuing serially.
                 let dispatchedScanIDs: Set<String> = await withTaskGroup(of: String?.self) { group in
                     for (index, presignedURL) in presignedUrls.enumerated() {
                         guard !Task.isCancelled else { break }
@@ -238,8 +215,6 @@ extension OfflineQueueManager {
 
                         guard FileManager.default.fileExists(atPath: item.fileURL.path) else {
                             MerianLog.data.debug("syncPendingScans: source file missing for \(item.fileURL.lastPathComponent, privacy: .private) — tombstoning")
-                            // Use the already-resolved `self` from the outer [weak self] guard
-                            // rather than the singleton, so the lifecycle contract is consistent.
                             let capturedSelf = self
                             Task { @MainActor in capturedSelf.softDeleteQueuedScan(scanId: item.scanId) }
                             continue
@@ -249,29 +224,21 @@ extension OfflineQueueManager {
                             var request = URLRequest(url: remoteUrl)
                             request.httpMethod = "PUT"
                             request.setValue("image/webp", forHTTPHeaderField: "Content-Type")
-                            
-                            // Pass the authoritative document-directory URL directly instead of staging
-                            // it in Caches, preventing aggressive iOS memory purges from killing the task.
                             let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
                             uploadTask.taskDescription = "\(item.scanId)_\(item.imageIndex)"
                             uploadTask.resume()
                             return item.scanId
                         }
                     }
-                    
+
                     var dispatchedIds = Set<String>()
                     for await successfulScanId in group {
                         if let id = successfulScanId { dispatchedIds.insert(id) }
                     }
                     return dispatchedIds
                 }
-                // Incrementally track the IDs dispatched in this batch so future sync cycles
-                // can read `activeScanUploadIds` directly without re-enumerating URLSession tasks.
-                await MainActor.run { self.activeScanUploadIds.formUnion(dispatchedScanIDs) }
-                
+
                 if dispatchedScanIDs.isEmpty {
-                    // If no valid URLSession tasks were created (e.g., total local cache copy failure),
-                    // the URLSession delegate will never fire. We must manually unlock the queue pipeline.
                     let taskCount = await session.allTasks.count
                     if taskCount == 0 {
                         await MainActor.run {
@@ -282,9 +249,7 @@ extension OfflineQueueManager {
                 }
             } catch {
                 MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
-                // Exponential backoff: double the delay on each consecutive failure, capped at
-                // maxUploadRetryDelay. This prevents the sync loop from hammering a degraded
-                // presigned-URL endpoint every time connectivity is restored.
+                // Exponential backoff.
                 let delay: TimeInterval = await MainActor.run {
                     let current = self.uploadRetryDelay
                     let next = current == 0 ? 1.0 : min(current * 2.0, OfflineQueueManager.maxUploadRetryDelay)
@@ -294,8 +259,6 @@ extension OfflineQueueManager {
                 await MainActor.run {
                     self.isSyncing = false
                     SyncStateManager.shared.completeSync()
-                    // Schedule a delayed retry via a cancellable task so that connectivity loss
-                    // (which cancels retryBackoffTask) prevents stale retries from firing.
                     self.retryBackoffTask?.cancel()
                     self.retryBackoffTask = Task { [weak self] in
                         guard let self else { return }
@@ -306,13 +269,12 @@ extension OfflineQueueManager {
                 }
                 return
             }
-            
-            // Failsafe: If no tasks were spawned (e.g. generation failed, or all files missing),
-            // the delegate will never fire. We must unlock syncing manually.
+
+            // Failsafe: if no tasks were spawned, unlock manually.
             let activeTaskCount = await session.allTasks.count
             if activeTaskCount == 0 {
-                await MainActor.run { 
-                    self.isSyncing = false 
+                await MainActor.run {
+                    self.isSyncing = false
                     SyncStateManager.shared.completeSync()
                 }
             }
