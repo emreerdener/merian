@@ -115,10 +115,17 @@ actor BackgroundDatabaseActor {
     ///
     /// Called once the last image upload for a scan is confirmed (HTTP 200).
     /// Storing keys here eliminates auth-dependent key reconstruction at inference time.
+    ///
+    /// Guards: only transitions from `.uploading`. If the scan was tombstoned (`.failed`) while
+    /// a subset of its images were still in transit — e.g., one source file was missing —
+    /// this prevents the completed uploads from resurrecting the scan into the inference pipeline
+    /// with partial image data.
     func markScanAsStaged(scanId: String, r2Keys: [String]) {
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
+        // Only advance from .uploading — do not resurrect tombstoned (.failed) scans.
+        guard scan.scanStateRaw == ScanQueueState.uploading.rawValue else { return }
         scan.stagedR2Keys  = r2Keys
         scan.scanStateRaw  = ScanQueueState.staged.rawValue
         do {
