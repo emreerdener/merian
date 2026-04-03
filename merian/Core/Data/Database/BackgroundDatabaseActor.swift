@@ -82,17 +82,17 @@ actor BackgroundDatabaseActor {
         var finalIsNewDiscovery = false
         var resultingScanId: String?
 
-        let parsedResponse: EdgeResponse?
+        let parsedWrapper: EdgeResponseWrapper?
         do {
-            parsedResponse = try JSONDecoder().decode(EdgeResponse.self, from: resultData)
+            parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
         } catch {
             MerianLog.data.debug("processAndCleanupOfflineScan: JSON decode failed: \(error, privacy: .private)")
-            parsedResponse = nil
+            parsedWrapper = nil
         }
 
-        if let parsedResponse {
+        if let parsedWrapper {
             var mappedData = SpeciesData(
-                fromEdgeResponse: parsedResponse,
+                fromEdgeResponse: parsedWrapper.data,
                 locationName: telemetry?.locationName,
                 weatherCondition: telemetry?.weatherCondition,
                 weatherTemperatureF: telemetry?.weatherTemperatureF,
