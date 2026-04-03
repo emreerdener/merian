@@ -174,7 +174,29 @@ extension OfflineQueueManager {
                 // Atomic claim: transitions .staged → .inferencing.
                 // If another path already claimed it, this returns false and we skip.
                 guard await dbActor.tryClaimForInference(scanId: scanId) else { return }
-                await self.runInferencePipeline(scanId: scanId, extracted: extracted)
+
+                // Migration fallback: scans promoted from V32's isUploaded=true have no
+                // stagedR2Keys (the field didn't exist). Reconstruct from the current auth
+                // session — same approach as the pre-V33 code, safe because the userId
+                // embedded in the R2 key matches the session that performed the upload.
+                let finalExtracted: ExtractedScanData
+                if extracted.r2Keys.isEmpty {
+                    let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+                    let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+                    let userId = (authUserId ?? deviceId).lowercased()
+                    let reconstructedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
+                    finalExtracted = ExtractedScanData(
+                        telemetry: extracted.telemetry,
+                        localImagePaths: extracted.localImagePaths,
+                        r2Keys: reconstructedKeys,
+                        container: extracted.container,
+                        originalTimestamp: extracted.originalTimestamp
+                    )
+                } else {
+                    finalExtracted = extracted
+                }
+
+                await self.runInferencePipeline(scanId: scanId, extracted: finalExtracted)
             }
         }
     }

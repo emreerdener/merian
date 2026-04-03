@@ -202,7 +202,11 @@ actor BackgroundDatabaseActor {
             MerianLog.data.debug("markScansAsUploading: fetch failed: \(error, privacy: .private)")
             return
         }
-        for scan in scans { scan.scanStateRaw = uploadingRaw }
+        let pendingRaw = ScanQueueState.pending.rawValue
+        // Only advance scans that are still .pending — a concurrent tombstone (softDeleteQueuedScan)
+        // may have already transitioned one to .failed between fetchPendingScans and this call.
+        // Overwriting .failed with .uploading would silently resurrect a tombstoned scan.
+        for scan in scans where scan.scanStateRaw == pendingRaw { scan.scanStateRaw = uploadingRaw }
         do {
             try modelContext.save()
         } catch {
