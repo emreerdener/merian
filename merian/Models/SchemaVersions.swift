@@ -88,9 +88,13 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             let scans = try context.fetch(FetchDescriptor<MerianSchemaV32.OfflineQueuedScan>())
             _scanStateBackfill = Dictionary(uniqueKeysWithValues: scans.map { scan in
                 let state: Int
-                if scan.isDeleted       { state = ScanQueueState.failed.rawValue   }
-                else if scan.isUploaded { state = ScanQueueState.staged.rawValue   }
-                else                    { state = ScanQueueState.pending.rawValue  }
+                if scan.isDeleted {
+                    state = ScanQueueState.failed.rawValue
+                } else if scan.isUploaded {
+                    state = ScanQueueState.staged.rawValue
+                } else {
+                    state = ScanQueueState.pending.rawValue
+                }
                 return (scan.id, state)
             })
         },
