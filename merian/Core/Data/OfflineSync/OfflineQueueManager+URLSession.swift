@@ -292,13 +292,20 @@ extension OfflineQueueManager {
             MerianLog.data.debug("⏱️ Inference: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
             await MainActor.run { SyncStateManager.shared.beginFinalizing() }
-            // Reuse the long-lived actor instead of allocating a fresh one per completion.
-            // The actor serializes concurrent completions automatically via its executor,
-            // so rapid-burst scenarios queue safely without racing.
-            // runInferencePipeline is @MainActor-isolated, so resolvedInferenceDbActor can
-            // be called directly — no MainActor.run hop needed.
-            let dbActor = resolvedInferenceDbActor(container: extracted.container)
-            let processingResult = await dbActor.processAndCleanupOfflineScan(
+            // Use a dedicated fresh actor for cleanup, not the long-lived shared actor.
+            // The shared actor is reserved for state-machine transitions (markScanAsStaged,
+            // tryClaimForInference) that must be serialized to prevent double-claiming races.
+            // processAndCleanupOfflineScan performs an INSERT + DELETE in one atomic save.
+            // If that save fails, the pending changes (insert + delete) stay in the context.
+            // Reusing the shared actor would leave those stale pending changes in place:
+            // subsequent resetOrphanedInferencingScans calls would miss the scan (pending-
+            // deleted objects are excluded from fetch results), and a second
+            // processAndCleanupOfflineScan attempt would stack a duplicate INSERT, guaranteeing
+            // a unique-constraint failure on every future retry. A fresh actor gives each
+            // cleanup attempt a clean ModelContext — if the save fails, the fresh actor is
+            // simply discarded and the shared actor's context remains uncorrupted.
+            let cleanupActor = BackgroundDatabaseActor(modelContainer: extracted.container)
+            let processingResult = await cleanupActor.processAndCleanupOfflineScan(
                 resultData: resultData,
                 originalImagePaths: extracted.localImagePaths,
                 scanId: scanId,

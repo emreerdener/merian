@@ -157,3 +157,85 @@ try modelContext.save()
 The guard is checked inside the actor's serial executor. If a concurrent MainActor tombstone wins the race and saves first, the background actor reads the updated state (`.failed`) on its next fetch and the guard rejects the transition, leaving the tombstone intact.
 
 This principle mirrors the existing guards on `markScanAsStaged` (`.uploading`-only) and `markScansAsUploading` (`.pending`-only): every state transition function is responsible for asserting the valid source state, not the caller.
+
+---
+
+## 6. Stale Core Data Fault: Cross-Context Saves Are Not Immediately Visible in Memory
+
+When a fresh `BackgroundDatabaseActor` saves changes to the persistent store, a **separate, long-lived** `BackgroundDatabaseActor` does not automatically see the updated values in its in-memory object cache. Core Data returns cached fault objects for identities it has already loaded — it does not re-query the persistent store unless the object is explicitly refreshed or the context processes a merge notification.
+
+### The Vulnerability
+
+`replayInferenceForUploadedScans` previously created a fresh actor to call `resetOrphanedInferencingScans`:
+
+```swift
+// ❌ Fresh actor resets .inferencing → .staged in the persistent store
+let freshActor = BackgroundDatabaseActor(modelContainer: container)
+await freshActor.resetOrphanedInferencingScans()
+
+// But the shared actor's in-memory copy still shows .inferencing
+// tryClaimForInference checks: scan.scanStateRaw == stagedRaw → FAILS every time
+guard await sharedActor.tryClaimForInference(scanId: scanId) else { return }
+```
+
+The `tryClaimForInference` guard always returned `false` because the shared actor fetched its already-loaded in-memory fault object (which showed `.inferencing`) rather than re-querying the store.
+
+### ✅ The Pattern: Run Reset and Claim on the Same Actor
+
+State machine transitions that must see each other's effects must run on the **same actor instance**, so all reads and writes share the same in-memory object graph:
+
+```swift
+// ✅ Shared actor resets AND claims — both see the same in-memory state
+let sharedActor = resolvedInferenceDbActor(container: container)
+await sharedActor.resetOrphanedInferencingScans()  // .inferencing → .staged in shared context
+// tryClaimForInference now sees .staged because it reads from the same context
+guard await sharedActor.tryClaimForInference(scanId: scanId) else { return }
+```
+
+The shared inference actor (`_inferenceDbActor`) is specifically reserved for state-machine operations that must be serialized. One-shot actors (e.g., reconciliation at startup) are fine as long as they do not need to share in-memory state with the long-lived actor.
+
+---
+
+## 7. Failed `modelContext.save()` Does NOT Roll Back Pending Changes
+
+In SwiftData (built on Core Data), a failed `save()` call leaves all pending changes — inserts, deletes, property mutations — **in the context's pending state**. They are not automatically rolled back. Subsequent operations on the same context accumulate on top of the corrupted pending state.
+
+### The Vulnerability
+
+`processAndCleanupOfflineScan` performs an atomic `INSERT LocalScanRecord + DELETE OfflineQueuedScan` in a single `save()`. If the save fails (e.g., unique-constraint violation on `LocalScanRecord.id`), both the pending INSERT and pending DELETE remain on the context. On the next retry:
+
+1. `resetOrphanedInferencingScans` on the same context **cannot find the scan** — Core Data excludes pending-deleted objects from fetch results, even though the deletion was never committed to the store.
+2. A second `processAndCleanupOfflineScan` call stacks a second pending INSERT with the same `id` on top of the first → guaranteed unique-constraint failure on every subsequent attempt.
+
+```swift
+// ❌ Reusing the shared actor for cleanup: a failed save corrupts the shared context
+let sharedActor = resolvedInferenceDbActor(container: container)
+await sharedActor.processAndCleanupOfflineScan(...)  // save() fails
+// Now sharedActor.modelContext has a pending DELETE + pending INSERT stuck in it
+await sharedActor.resetOrphanedInferencingScans()    // scan is invisible (pending-deleted)
+await sharedActor.tryClaimForInference(...)           // scan not found → returns false forever
+```
+
+### ✅ The Pattern: Fresh Actor for Each Atomic Cleanup Attempt
+
+Use a **fresh** `BackgroundDatabaseActor` for each `processAndCleanupOfflineScan` call. A failed save is contained to that fresh actor — it is simply discarded. The shared actor's context remains uncorrupted and can continue to serve state-machine transitions correctly:
+
+```swift
+// ✅ Fresh actor per cleanup attempt: failure is contained and discarded
+let cleanupActor = BackgroundDatabaseActor(modelContainer: container)
+await cleanupActor.processAndCleanupOfflineScan(...)  // save() fails → cleanupActor discarded
+// sharedActor.modelContext is unaffected; resetOrphanedInferencingScans works normally
+```
+
+Additionally, `processAndCleanupOfflineScan` itself should be **idempotent**: check whether a `LocalScanRecord` with the target `id` already exists before inserting, to prevent unique-constraint failures when a previous attempt partially committed:
+
+```swift
+var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
+    predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
+)
+existingIdDescriptor.fetchLimit = 1
+let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
+if !alreadyExists {
+    modelContext.insert(record)
+}
+```

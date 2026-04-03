@@ -295,57 +295,69 @@ actor BackgroundDatabaseActor {
                     finalIsNewDiscovery = true
                 }
 
-                let record = LocalScanRecord(
-                    id: mappedData.scanId ?? scanId,
-                    speciesId: activeSpeciesId,
-                    scientificName: mappedData.scientificName,
-                    commonName: mappedData.commonName,
-                    timestamp: Date(),
-                    captureDate: originalTimestamp,
-                    localImagePath: originalImagePaths.first,
-                    semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
-                    hazardType: mappedData.insightData.hazardType,
-                    isBiological: mappedData.isBiological,
-                    isLiveCapture: mappedData.isLiveCapture,
-                    isInvasive: mappedData.isInvasive,
-                    ecologyType: mappedData.ecologyType,
-                    wikipediaUrl: mappedData.wikipediaUrl,
-                    referenceImageUrl: mappedData.referenceImageUrl,
-                    additionalImagePaths: originalImagePaths.count > 1 ? Array(originalImagePaths.dropFirst()) : nil,
-                    confidenceScore: mappedData.confidenceScore,
-                    taxonomyKingdom: mappedData.taxonomy?.kingdom,
-                    taxonomyPhylum: mappedData.taxonomy?.phylum,
-                    taxonomyClass: mappedData.taxonomy?.className,
-                    taxonomyOrder: mappedData.taxonomy?.order,
-                    taxonomyFamily: mappedData.taxonomy?.family,
-                    taxonomyGenus: mappedData.taxonomy?.genus,
-                    locationName: mappedData.locationName,
-                    weatherCondition: mappedData.weatherCondition,
-                    weatherTemperatureF: mappedData.weatherTemperatureF,
-                    similarSpecies: mappedData.similarSpecies?.lookalikes,
-                    candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
-                    iucnRedListStatus: mappedData.iucnRedListStatus,
-                    gpsLatitude: mappedData.gpsLatitude,
-                    gpsLongitude: mappedData.gpsLongitude,
-                    gpsElevation: mappedData.gpsElevation,
-                    zoomFactor: mappedData.zoomFactor,
-                    aiReasoning: mappedData.aiReasoning,
-                    habitatDescription: mappedData.habitatDescription,
-                    gbifTaxonKey: mappedData.gbifTaxonKey,
-                    estimatedSizeCm: mappedData.estimatedSizeCm,
-                    lifeStage: mappedData.lifeStage,
-                    reproductiveCondition: mappedData.reproductiveCondition,
-                    individualCount: mappedData.individualCount,
-                    ecologicalInteractions: mappedData.ecologicalInteractions,
-                    inferenceTier: mappedData.inferenceTier,
-                    imageQualityScore: mappedData.imageQualityScore
+                let recordId = mappedData.scanId ?? scanId
+                // Idempotency guard: if a LocalScanRecord with this id was already
+                // committed by a previous attempt (e.g. a retry after context rollback),
+                // skip the insert to avoid a unique-constraint failure on the atomic save.
+                var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
+                    predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
                 )
-                modelContext.insert(record)
+                existingIdDescriptor.fetchLimit = 1
+                let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
+
+                if !alreadyExists {
+                    let record = LocalScanRecord(
+                        id: recordId,
+                        speciesId: activeSpeciesId,
+                        scientificName: mappedData.scientificName,
+                        commonName: mappedData.commonName,
+                        timestamp: Date(),
+                        captureDate: originalTimestamp,
+                        localImagePath: originalImagePaths.first,
+                        semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
+                        hazardType: mappedData.insightData.hazardType,
+                        isBiological: mappedData.isBiological,
+                        isLiveCapture: mappedData.isLiveCapture,
+                        isInvasive: mappedData.isInvasive,
+                        ecologyType: mappedData.ecologyType,
+                        wikipediaUrl: mappedData.wikipediaUrl,
+                        referenceImageUrl: mappedData.referenceImageUrl,
+                        additionalImagePaths: originalImagePaths.count > 1 ? Array(originalImagePaths.dropFirst()) : nil,
+                        confidenceScore: mappedData.confidenceScore,
+                        taxonomyKingdom: mappedData.taxonomy?.kingdom,
+                        taxonomyPhylum: mappedData.taxonomy?.phylum,
+                        taxonomyClass: mappedData.taxonomy?.className,
+                        taxonomyOrder: mappedData.taxonomy?.order,
+                        taxonomyFamily: mappedData.taxonomy?.family,
+                        taxonomyGenus: mappedData.taxonomy?.genus,
+                        locationName: mappedData.locationName,
+                        weatherCondition: mappedData.weatherCondition,
+                        weatherTemperatureF: mappedData.weatherTemperatureF,
+                        similarSpecies: mappedData.similarSpecies?.lookalikes,
+                        candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
+                        iucnRedListStatus: mappedData.iucnRedListStatus,
+                        gpsLatitude: mappedData.gpsLatitude,
+                        gpsLongitude: mappedData.gpsLongitude,
+                        gpsElevation: mappedData.gpsElevation,
+                        zoomFactor: mappedData.zoomFactor,
+                        aiReasoning: mappedData.aiReasoning,
+                        habitatDescription: mappedData.habitatDescription,
+                        gbifTaxonKey: mappedData.gbifTaxonKey,
+                        estimatedSizeCm: mappedData.estimatedSizeCm,
+                        lifeStage: mappedData.lifeStage,
+                        reproductiveCondition: mappedData.reproductiveCondition,
+                        individualCount: mappedData.individualCount,
+                        ecologicalInteractions: mappedData.ecologicalInteractions,
+                        inferenceTier: mappedData.inferenceTier,
+                        imageQualityScore: mappedData.imageQualityScore
+                    )
+                    modelContext.insert(record)
+                }
                 // resultingScanId is set here; the actual save is deferred to the
                 // combined commit below so the insert and OfflineQueuedScan deletion
                 // land in one atomic transaction, closing the ghost-record window
                 // where both records coexist in the composite library grid.
-                resultingScanId = record.id
+                resultingScanId = recordId
             }
         }
 

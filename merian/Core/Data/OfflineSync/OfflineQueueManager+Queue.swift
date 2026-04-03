@@ -155,11 +155,19 @@ extension OfflineQueueManager {
         // (deleting the scan) or call transitionScanToStaged on failure — no reset needed.
         // Always call replayInferenceStagedScans regardless, so other .staged scans
         // (unrelated to the active pipeline) are not starved.
+        //
+        // CRITICAL: use the shared actor (not a fresh one) for the reset. If a fresh actor
+        // saves .inferencing → .staged to the persistent store, the shared actor's in-memory
+        // copy of the object may still show .inferencing (Core Data returns cached faults
+        // rather than hitting the store). tryClaimForInference — which runs on the shared
+        // actor — would then fail its state guard and return false on every cycle, leaving
+        // the scan stuck indefinitely. Running the reset on the same actor guarantees the
+        // in-memory object is updated before tryClaimForInference reads it.
         let needsReset = activeInferencePipelineCount == 0
+        let sharedActor = resolvedInferenceDbActor(container: container)
         Task {
             if needsReset {
-                let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.resetOrphanedInferencingScans()
+                await sharedActor.resetOrphanedInferencingScans()
             }
             await MainActor.run { self.replayInferenceStagedScans() }
         }
