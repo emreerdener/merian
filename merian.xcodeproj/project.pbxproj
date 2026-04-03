@@ -258,6 +258,7 @@
 		D45AC7C9A7478DBE357998BC /* ImageFileWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 566EC2AE78CCD4E4FE08A16B /* ImageFileWrapper.swift */; };
 		D469A292DF5DCC6A25E03CFD /* FlagIdentificationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A7AA16C7C0EA9C53B8966E9 /* FlagIdentificationViewModelTests.swift */; };
 		D58D13D5345CB92A4561E569 /* FocusTapGestureModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFCA5B7DBE8EB4211FF915B7 /* FocusTapGestureModifier.swift */; };
+		D61A5D3CBD2AE59B054518A0 /* ScanQueueState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A46A82CE53DBDA65D792F1 /* ScanQueueState.swift */; };
 		D696B7AC823300E35B824591 /* AnalyzingContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BCD91B24D5D1DF5B542FB0 /* AnalyzingContentView.swift */; };
 		D73DBC6608F0313E6A12C87E /* CollectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF4E6E4D2EF9069B637A10B /* CollectionsView.swift */; };
 		D807DFD08F636AA1C1BC7850 /* ZoomSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45382833C3607B1E9EAC4CE7 /* ZoomSliderView.swift */; };
@@ -273,6 +274,7 @@
 		E61A539CAD20BF22E686EF2A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B828D3025E18EE78E68D2C /* LibraryView.swift */; };
 		E63E6ACB0BC12DE3ED8081BB /* Card.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B8B867598417442574E4FE /* Card.swift */; };
 		E6C0405FEE1B0463744CB544 /* ScansSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86D6A051B5FE3A78E597BDC /* ScansSheetView.swift */; };
+		E78A065A348643AF00D86FE2 /* SchemaV33.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB2836CF9971A158163E293 /* SchemaV33.swift */; };
 		E8616C32E532306B75DB2BB6 /* SchemaV26.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B928112D44DE81D10CF1AD /* SchemaV26.swift */; };
 		E8C3697BDE8BF44A272739F7 /* PhotoLibraryManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F185F0F653451ECA9FA3BD /* PhotoLibraryManagerTests.swift */; };
 		E8E1B556B197BD2E5E138066 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A10BFC565A6DAC1C222423A /* Preferences.swift */; };
@@ -343,6 +345,7 @@
 		00D2D4D5A3C8173ACDDA5812 /* OfflineQueueManager+URLSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineQueueManager+URLSession.swift"; sourceTree = "<group>"; };
 		02A76B279B5F5138D6E8DF9B /* CollectionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionDetailView.swift; sourceTree = "<group>"; };
 		02D2278D0C906C62399498C2 /* schema_update.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = schema_update.md; sourceTree = "<group>"; };
+		03A46A82CE53DBDA65D792F1 /* ScanQueueState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanQueueState.swift; sourceTree = "<group>"; };
 		0481771C41C383D2737DDEC7 /* MerianWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MerianWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		04F4FE8477A785E8AA5645C7 /* SchemaV18.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV18.swift; sourceTree = "<group>"; };
 		06402643CAF539C27848A378 /* BackgroundDatabaseActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundDatabaseActor.swift; sourceTree = "<group>"; };
@@ -433,7 +436,7 @@
 		581A8B2E85811233A30DDF85 /* OverviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewCard.swift; sourceTree = "<group>"; };
 		582CBFFF8AA1E0281FA9008B /* AddCollectionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCollectionButton.swift; sourceTree = "<group>"; };
 		58507F2BA73789441DA21050 /* FileIOActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIOActor.swift; sourceTree = "<group>"; };
-		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		59BCD91B24D5D1DF5B542FB0 /* AnalyzingContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyzingContentView.swift; sourceTree = "<group>"; };
 		59DF526286C247EAD0760E55 /* ArchivedVisualsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchivedVisualsView.swift; sourceTree = "<group>"; };
 		5A92AF34FCF40952AE6314B6 /* HeatmapCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapCellView.swift; sourceTree = "<group>"; };
@@ -522,6 +525,7 @@
 		AA401B34F87B7B4B66AD1FD5 /* FadingScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FadingScrollView.swift; sourceTree = "<group>"; };
 		AA81CA82AF3ADA2BFFE69D86 /* ShareButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareButton.swift; sourceTree = "<group>"; };
 		AA84514C31109B593D6A89DB /* OfflineSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineSyncTests.swift; sourceTree = "<group>"; };
+		AAB2836CF9971A158163E293 /* SchemaV33.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV33.swift; sourceTree = "<group>"; };
 		AB739F74712284C3C00F625A /* ScansGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansGrid.swift; sourceTree = "<group>"; };
 		ABA58DFF88DFB969570C8ABB /* LocalImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalImageLoader.swift; sourceTree = "<group>"; };
 		ACD1CD4175445A49F1FC0C0E /* MerianAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianAppIntents.swift; sourceTree = "<group>"; };
@@ -1349,6 +1353,7 @@
 			isa = PBXGroup;
 			children = (
 				FE003E7C60B8D9CA8F55C02E /* Aliases.swift */,
+				03A46A82CE53DBDA65D792F1 /* ScanQueueState.swift */,
 				2BDE7C1E0144DC475CB8DDF5 /* SchemaVersions.swift */,
 				5C776ECF75438F0BFF28C60D /* SpeciesData.swift */,
 				883652BF7477209FB5E549F8 /* ActiveSchema */,
@@ -1392,6 +1397,7 @@
 				4BA180C4D8B313439212A4F6 /* SchemaV30.swift */,
 				ADD73940B23E4DE6F8296CF6 /* SchemaV31.swift */,
 				325AC5EFFEB91AE3018D3696 /* SchemaV32.swift */,
+				AAB2836CF9971A158163E293 /* SchemaV33.swift */,
 			);
 			path = Schema;
 			sourceTree = "<group>";
@@ -1774,9 +1780,11 @@
 						ProvisioningStyle = Automatic;
 					};
 					D06FD3E9CDCF533A0C2D2843 = {
+						DevelopmentTeam = LDL96V2WT5;
 						ProvisioningStyle = Automatic;
 					};
 					E59BC2C6A28D64E9B810676B = {
+						DevelopmentTeam = LDL96V2WT5;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -2086,6 +2094,7 @@
 				FBD552F932F331C0D412DEE4 /* ScanCollection.swift in Sources */,
 				BCB8D65F3297E85504EF22D9 /* ScanDeletionDialogModifier.swift in Sources */,
 				E1E450689D1C1DDF6B143C76 /* ScanInformationCard.swift in Sources */,
+				D61A5D3CBD2AE59B054518A0 /* ScanQueueState.swift in Sources */,
 				49B8FB1EE3616CF89ADD1730 /* ScanRepository.swift in Sources */,
 				5284FBE14B0897A280791128 /* ScanThumbnail.swift in Sources */,
 				625D91B7ACE60D58D25ADE8A /* ScansGrid.swift in Sources */,
@@ -2120,6 +2129,7 @@
 				82F9EA459C4780AC2B6A5977 /* SchemaV30.swift in Sources */,
 				CCE496E6C94AF6BC7D6C664A /* SchemaV31.swift in Sources */,
 				A7A106CFE4B7BCC73FEAF0A4 /* SchemaV32.swift in Sources */,
+				E78A065A348643AF00D86FE2 /* SchemaV33.swift in Sources */,
 				DBEC14E91B45B06AE2C45789 /* SchemaV4.swift in Sources */,
 				28545C97D3BF46054B53AD0E /* SchemaV5.swift in Sources */,
 				024F90EBA06870D780AE8A7E /* SchemaV6.swift in Sources */,
@@ -2191,7 +2201,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -2214,7 +2224,7 @@
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;
@@ -2362,7 +2372,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -2467,7 +2477,7 @@
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;

@@ -95,7 +95,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             })
         },
         didMigrate: { context in
-            let scans = try context.fetch(FetchDescriptor<MerianSchemaV33.OfflineQueuedScan>())
+            let scans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
             for scan in scans {
                 if let state = _scanStateBackfill[scan.id] {
                     scan.scanStateRaw = state

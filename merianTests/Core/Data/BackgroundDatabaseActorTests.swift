@@ -178,4 +178,392 @@ struct BackgroundDatabaseActorTests {
         let fetched = try context.fetch(descriptor).first
         #expect(fetched?.isFlagged == false, "updateScanAsUnflagged must persist isFlagged=false")
     }
+
+    // MARK: - tryClaimForInference: distributed lock (V33)
+
+    @Test func testTryClaimForInferenceSucceedsOnStagedScan() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["claim.webp"], scanState: .staged)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let claimed = await actor.tryClaimForInference(scanId: scanId)
+
+        #expect(claimed == true, "tryClaimForInference must return true when scan is .staged")
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.inferencing.rawValue,
+                "scan must be .inferencing after a successful claim")
+    }
+
+    @Test func testTryClaimForInferenceFailsWhenAlreadyInferencing() async throws {
+        // Guards the double-pipeline race: if replayInferenceForUploadedScans and
+        // processUploadCompletion both see the scan in .staged and race to claim it,
+        // only one can win. The second call must return false.
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["already.webp"], scanState: .inferencing)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let claimed = await actor.tryClaimForInference(scanId: scanId)
+
+        #expect(claimed == false, "tryClaimForInference must return false when scan is already .inferencing")
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.inferencing.rawValue,
+                "state must remain .inferencing — not regressed by a failed claim")
+    }
+
+    @Test func testTryClaimForInferenceFailsWhenPending() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["pending.webp"], scanState: .pending)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let claimed = await actor.tryClaimForInference(scanId: scanId)
+
+        #expect(claimed == false, "tryClaimForInference must return false for non-.staged scans")
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.pending.rawValue,
+                "state must remain .pending after a failed claim")
+    }
+
+    @Test func testTryClaimForInferenceDoesNotResurrectTombstone() async throws {
+        // A .failed tombstone must never enter the inference pipeline.
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["dead.webp"], scanState: .failed)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let claimed = await actor.tryClaimForInference(scanId: scanId)
+
+        #expect(claimed == false, "tryClaimForInference must not resurrect a tombstoned scan")
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.failed.rawValue,
+                "tombstoned scan must remain .failed after a claim attempt")
+    }
+
+    @Test func testTryClaimForInferenceSecondCallReturnsFalse() async throws {
+        // Simulate processUploadCompletion winning the claim, then replayInference trying again.
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["race.webp"], scanState: .staged)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let firstClaim  = await actor.tryClaimForInference(scanId: scanId)
+        let secondClaim = await actor.tryClaimForInference(scanId: scanId)
+
+        #expect(firstClaim == true,  "First claim on a .staged scan must succeed")
+        #expect(secondClaim == false, "Second claim on the same scan must fail — pipeline already in progress")
+    }
+
+    // MARK: - transitionScanToStaged: tombstone resurrection guard (V33)
+
+    @Test func testTransitionScanToStagedSucceedsFromInferencing() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["retry.webp"], scanState: .inferencing)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.transitionScanToStaged(id: scanId)
+
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.staged.rawValue,
+                "transitionScanToStaged must retreat .inferencing → .staged on transient failure")
+    }
+
+    @Test func testTransitionScanToStagedDoesNotResurrectTombstone() async throws {
+        // The critical guard: a MainActor softDeleteQueuedScan wins the race and sets .failed.
+        // The background actor must not overwrite it when its transitionScanToStaged runs later.
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["tombstoned.webp"], scanState: .failed)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.transitionScanToStaged(id: scanId)
+
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.failed.rawValue,
+                "transitionScanToStaged must not overwrite a .failed tombstone — last-writer-wins guard")
+    }
+
+    @Test func testTransitionScanToStagedIsNoOpFromPending() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["pending.webp"], scanState: .pending)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.transitionScanToStaged(id: scanId)
+
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.pending.rawValue,
+                "transitionScanToStaged must be a no-op for non-.inferencing scans")
+    }
+
+    // MARK: - markScanAsStaged: source-state guard and R2 key persistence (V33)
+
+    @Test func testMarkScanAsStagedPersistsR2Keys() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["img.webp"], scanState: .uploading)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let r2Keys = ["staging/user123/\(scanId)_img.webp"]
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.staged.rawValue,
+                "markScanAsStaged must transition .uploading → .staged")
+        #expect(fetched?.stagedR2Keys == r2Keys,
+                "markScanAsStaged must persist R2 keys so inference can use them without auth reconstruction")
+    }
+
+    @Test func testMarkScanAsStagedDoesNotResurrectTombstone() async throws {
+        // Prevents a late-arriving HTTP 200 for a partially-uploaded scan from
+        // resurrecting it into the inference pipeline after it was tombstoned.
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["dead.webp"], scanState: .failed)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.markScanAsStaged(scanId: scanId, r2Keys: ["staging/user/\(scanId)_dead.webp"])
+
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.failed.rawValue,
+                "markScanAsStaged must not resurrect .failed tombstones")
+        #expect(fetched?.stagedR2Keys == nil,
+                "R2 keys must not be written to a tombstoned scan")
+    }
+
+    @Test func testMarkScanAsStagedIsNoOpFromPending() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["pending.webp"], scanState: .pending)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.markScanAsStaged(scanId: scanId, r2Keys: ["staging/user/\(scanId)_pending.webp"])
+
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        let fetched = try context.fetch(descriptor).first
+        #expect(fetched?.scanStateRaw == ScanQueueState.pending.rawValue,
+                "markScanAsStaged must be a no-op for non-.uploading scans — prevents skipping the upload state")
+        #expect(fetched?.stagedR2Keys == nil)
+    }
+
+    // MARK: - markScansAsUploading: source-state guard (V33)
+
+    @Test func testMarkScansAsUploadingOnlyTransitionsPendingScans() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let pending    = OfflineQueuedScan(localImagePaths: ["p.webp"], scanState: .pending)
+        let uploading  = OfflineQueuedScan(localImagePaths: ["u.webp"], scanState: .uploading)
+        let staged     = OfflineQueuedScan(localImagePaths: ["s.webp"], scanState: .staged)
+        let failed     = OfflineQueuedScan(localImagePaths: ["f.webp"], scanState: .failed)
+
+        for scan in [pending, uploading, staged, failed] { context.insert(scan) }
+        try context.save()
+
+        // Pass all four IDs — only the .pending one must advance.
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.markScansAsUploading(scanIds: [pending.id, uploading.id, staged.id, failed.id])
+
+        let allDescriptor = FetchDescriptor<OfflineQueuedScan>()
+        let all = try context.fetch(allDescriptor)
+        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.scanStateRaw) })
+
+        #expect(byId[pending.id]   == ScanQueueState.uploading.rawValue, ".pending must advance to .uploading")
+        #expect(byId[uploading.id] == ScanQueueState.uploading.rawValue, "already-.uploading must stay .uploading")
+        #expect(byId[staged.id]    == ScanQueueState.staged.rawValue,    ".staged must not be regressed")
+        #expect(byId[failed.id]    == ScanQueueState.failed.rawValue,    ".failed tombstone must not be touched")
+    }
+
+    // MARK: - reconcileOrphanedUploadingScans: startup recovery (V33)
+
+    @Test func testReconcileOrphanedUploadingScansResetsOrphansKeepsActive() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let orphan = OfflineQueuedScan(localImagePaths: ["orphan.webp"], scanState: .uploading)
+        let active = OfflineQueuedScan(localImagePaths: ["active.webp"], scanState: .uploading)
+        let pending = OfflineQueuedScan(localImagePaths: ["pending.webp"], scanState: .pending)
+
+        for scan in [orphan, active, pending] { context.insert(scan) }
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        // Only `active` has a live URLSession task.
+        await actor.reconcileOrphanedUploadingScans(activeScanIds: Set([active.id]))
+
+        let allDescriptor = FetchDescriptor<OfflineQueuedScan>()
+        let all = try context.fetch(allDescriptor)
+        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.scanStateRaw) })
+
+        #expect(byId[orphan.id]  == ScanQueueState.pending.rawValue,   "orphaned .uploading scan must reset to .pending")
+        #expect(byId[active.id]  == ScanQueueState.uploading.rawValue, ".uploading scan with active task must stay .uploading")
+        #expect(byId[pending.id] == ScanQueueState.pending.rawValue,   ".pending scan must be unaffected")
+    }
+
+    @Test func testReconcileOrphanedUploadingScansWithEmptyActiveSet() async throws {
+        // Process died mid-dispatch — no URLSession tasks survived. All .uploading → .pending.
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan1 = OfflineQueuedScan(localImagePaths: ["a.webp"], scanState: .uploading)
+        let scan2 = OfflineQueuedScan(localImagePaths: ["b.webp"], scanState: .uploading)
+
+        context.insert(scan1)
+        context.insert(scan2)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.reconcileOrphanedUploadingScans(activeScanIds: Set())
+
+        let allDescriptor = FetchDescriptor<OfflineQueuedScan>()
+        let all = try context.fetch(allDescriptor)
+        for scan in all {
+            #expect(scan.scanStateRaw == ScanQueueState.pending.rawValue,
+                    "all .uploading scans must be reset when no active tasks exist")
+        }
+    }
+
+    // MARK: - resetOrphanedInferencingScans: startup recovery (V33)
+
+    @Test func testResetOrphanedInferencingScansResetsAllToStaged() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let inf1   = OfflineQueuedScan(localImagePaths: ["i1.webp"], scanState: .inferencing)
+        let inf2   = OfflineQueuedScan(localImagePaths: ["i2.webp"], scanState: .inferencing)
+        let staged = OfflineQueuedScan(localImagePaths: ["s.webp"],  scanState: .staged)
+        let failed = OfflineQueuedScan(localImagePaths: ["f.webp"],  scanState: .failed)
+
+        for scan in [inf1, inf2, staged, failed] { context.insert(scan) }
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.resetOrphanedInferencingScans()
+
+        let allDescriptor = FetchDescriptor<OfflineQueuedScan>()
+        let all = try context.fetch(allDescriptor)
+        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.scanStateRaw) })
+
+        #expect(byId[inf1.id]   == ScanQueueState.staged.rawValue,     ".inferencing must reset to .staged")
+        #expect(byId[inf2.id]   == ScanQueueState.staged.rawValue,     "all .inferencing scans must reset")
+        #expect(byId[staged.id] == ScanQueueState.staged.rawValue,     ".staged must be unaffected")
+        #expect(byId[failed.id] == ScanQueueState.failed.rawValue,     ".failed tombstone must be unaffected")
+    }
+
+    // MARK: - Full state machine lifecycle (V33)
+
+    @Test func testFullStateMachineLifecycle() async throws {
+        // Walks a single scan through every forward state transition, then validates
+        // the transient-retry path, then re-claims and verifies the second claim is blocked.
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+
+        let scan = OfflineQueuedScan(localImagePaths: ["lifecycle.webp"], scanState: .pending)
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+
+        func fetchState() throws -> Int {
+            var d = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            d.fetchLimit = 1
+            return (try context.fetch(d).first?.scanStateRaw) ?? -1
+        }
+
+        // .pending → .uploading
+        await actor.markScansAsUploading(scanIds: [scanId])
+        #expect(try fetchState() == ScanQueueState.uploading.rawValue, ".pending must advance to .uploading")
+
+        // .uploading → .staged (with R2 keys persisted)
+        let r2Keys = ["staging/user/\(scanId)_lifecycle.webp"]
+        await actor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+        #expect(try fetchState() == ScanQueueState.staged.rawValue, ".uploading must advance to .staged")
+        var d = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        d.fetchLimit = 1
+        #expect(try context.fetch(d).first?.stagedR2Keys == r2Keys, "R2 keys must be persisted at staging")
+
+        // .staged → .inferencing (claim)
+        let firstClaim = await actor.tryClaimForInference(scanId: scanId)
+        #expect(firstClaim == true, ".staged scan must be claimable for inference")
+        #expect(try fetchState() == ScanQueueState.inferencing.rawValue, "claimed scan must be .inferencing")
+
+        // Concurrent second claim is blocked
+        let secondClaim = await actor.tryClaimForInference(scanId: scanId)
+        #expect(secondClaim == false, "second claim on .inferencing scan must fail")
+
+        // Transient failure → retreat to .staged
+        await actor.transitionScanToStaged(id: scanId)
+        #expect(try fetchState() == ScanQueueState.staged.rawValue, "transient failure must retreat to .staged")
+
+        // Re-claim after retry
+        let retryClaim = await actor.tryClaimForInference(scanId: scanId)
+        #expect(retryClaim == true, "re-claim on .staged scan must succeed after retry")
+        #expect(try fetchState() == ScanQueueState.inferencing.rawValue, "retried scan must be .inferencing again")
+    }
 }

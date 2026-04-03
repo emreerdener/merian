@@ -10,7 +10,7 @@ import Foundation
 /// **Never reorder or reassign existing raw values** — they are persisted in SQLite
 /// and used in `#Predicate` integer comparisons across the codebase.
 /// The gap at raw value 4 is intentional (reserved).
-enum ScanQueueState: Int, Sendable {
+public enum ScanQueueState: Int, Sendable {
     /// Files written to the Documents directory; upload not yet dispatched.
     case pending     = 0
     /// Background URLSession upload task dispatched; waiting for R2 confirmation.

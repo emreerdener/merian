@@ -100,7 +100,7 @@ struct CompositeLibraryTests {
         // Set up ScansManager with the local scan visible
         let manager = ScansManager()
         manager.allScans = [localScan]
-        manager.performSearch(query: "")
+        manager.filteredScans = manager.allScans  // performSearch is async (debounced); set directly for synchronous test
 
         // Enter selection mode and inject an OfflineQueuedScan ID directly into selectedScans —
         // simulating the adversarial case where an offline scan ID somehow leaks into the set.
