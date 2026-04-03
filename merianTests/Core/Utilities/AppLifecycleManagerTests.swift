@@ -6,8 +6,8 @@ import SwiftData
 @MainActor
 struct AppLifecycleManagerTests {
 
-    @Test("handleActivePhase recovers isUploaded scans stuck before inference on foreground with stable connectivity")
-    func testHandleActivePhasePlaysBackUploadedScans() async throws {
+    @Test("handleActivePhase recovers .staged scans stuck before inference on foreground with stable connectivity")
+    func testHandleActivePhasePlaysBackStagedScans() async throws {
         let diContainer = AppDIContainer.preview
         let manager = AppLifecycleManager(container: diContainer)
         let offlineManager = diContainer.offlineQueueManager
@@ -17,38 +17,46 @@ struct AppLifecycleManagerTests {
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = ModelContext(container)
 
-        let stuck = OfflineQueuedScan(localImagePaths: ["stuck.webp"], isDeleted: false, isUploaded: true)
+        // Scan fully uploaded to R2 but inference was interrupted before completion.
+        let stuck = OfflineQueuedScan(
+            localImagePaths: ["stuck.webp"],
+            scanState: .staged,
+            stagedR2Keys: ["staging/test-user/stuck.webp"]
+        )
         context.insert(stuck)
         try context.save()
 
-        let originalContext = offlineManager.modelContext
-        let originalOnline  = offlineManager.isOnline
-        let originalActive  = offlineManager.activeScanUploadIds
+        let originalContext    = offlineManager.modelContext
+        let originalOnline     = offlineManager.isOnline
+        let originalReconciled = offlineManager.hasReconciledStartupState
         let originalOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         defer {
-            offlineManager.modelContext        = originalContext
-            offlineManager.isOnline            = originalOnline
-            offlineManager.activeScanUploadIds = originalActive
+            offlineManager.modelContext              = originalContext
+            offlineManager.isOnline                  = originalOnline
+            offlineManager.hasReconciledStartupState = originalReconciled
+            offlineManager.uploadRetryCount.removeValue(forKey: stuck.id)
             UserDefaults.standard.set(originalOnboarding, forKey: "hasCompletedOnboarding")
         }
 
-        offlineManager.modelContext        = context
-        offlineManager.isOnline            = true
-        offlineManager.activeScanUploadIds = []
+        offlineManager.modelContext              = context
+        offlineManager.isOnline                  = true
+        // Bypass startup reconciliation so replayInferenceForUploadedScans queries .staged scans immediately.
+        offlineManager.hasReconciledStartupState = true
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
 
         manager.handleActivePhase()
 
-        // replayInferenceForUploadedScans() is called inside the async Task in handleActivePhase(),
-        // after initializeGhostSession() completes. Poll up to 5 s to avoid a fixed sleep racing that await.
+        // In the test environment the network call fails immediately and increments
+        // uploadRetryCount — a reliable, network-free observable that the pipeline was triggered.
+        // Poll up to 5s to avoid a fixed sleep racing the async Task in handleActivePhase().
         let deadline = Date().addingTimeInterval(5)
-        while !offlineManager.activeScanUploadIds.contains(stuck.id), Date() < deadline {
+        while (offlineManager.uploadRetryCount[stuck.id] ?? 0) == 0, Date() < deadline {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
 
         #expect(
-            offlineManager.activeScanUploadIds.contains(stuck.id),
-            "handleActivePhase must call replayInferenceForUploadedScans() so scans stuck mid-inference are recovered on foreground, not just on connectivity change"
+            (offlineManager.uploadRetryCount[stuck.id] ?? 0) > 0,
+            "handleActivePhase must call replayInferenceForUploadedScans() so .staged scans stuck mid-inference are recovered on foreground, not just on connectivity change"
         )
     }
 

@@ -34,11 +34,11 @@ struct CompositeLibraryTests {
         #expect(uniqueIds.count == ids.count, "Each OfflineQueuedScan must have a distinct id")
     }
 
-    // MARK: - Test 2: isUploaded defaults to false
+    // MARK: - Test 2: new scans default to .pending state
 
-    @Test func testIsUploadedDefaultsFalse() {
+    @Test func testQueueStateDefaultsPending() {
         let scan = OfflineQueuedScan()
-        #expect(scan.isUploaded == false, "isUploaded must default to false so existing records are not treated as already staged in R2")
+        #expect(scan.queueState == .pending, "New scans must default to .pending so they are picked up by the next syncPendingScans pass")
     }
 
     // MARK: - Test 3: localImagePaths defaults to empty array
@@ -48,26 +48,27 @@ struct CompositeLibraryTests {
         #expect(scan.localImagePaths.isEmpty, "localImagePaths must default to [] so ScanThumbnail receives nil gracefully")
     }
 
-    // MARK: - Test 3: isDeleted predicate excludes soft-deleted scans
+    // MARK: - Test 3: scanStateRaw < 5 predicate excludes tombstoned (.failed) scans
 
-    @Test func testDeletedScansExcludedByPredicate() throws {
+    @Test func testFailedScansExcludedByPredicate() throws {
         let context = try makeContext()
 
-        let active = OfflineQueuedScan(isDeleted: false)
-        let deleted = OfflineQueuedScan(isDeleted: true)
+        // Mirror the exact predicate used in ScansSheetView's @Query (scanStateRaw < 5)
+        let active  = OfflineQueuedScan(scanState: .pending)
+        let failed  = OfflineQueuedScan(scanState: .failed)
 
         context.insert(active)
-        context.insert(deleted)
+        context.insert(failed)
         try context.save()
 
-        // Mirror the exact predicate used in ScansSheetView's @Query
+        let failedRaw = ScanQueueState.failed.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { !$0.isDeleted }
+            predicate: #Predicate { $0.scanStateRaw < failedRaw }
         )
         descriptor.sortBy = [SortDescriptor(\.timestamp, order: .reverse)]
         let results = try context.fetch(descriptor)
 
-        #expect(results.count == 1, "Predicate must exclude isDeleted=true records")
+        #expect(results.count == 1, "Predicate must exclude .failed (tombstoned) records")
         #expect(results.first?.id == active.id, "Only the active scan should be returned")
     }
 

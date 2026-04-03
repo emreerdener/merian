@@ -108,26 +108,29 @@ struct BackgroundDatabaseActorTests {
 
     // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence
 
-    // MARK: - fetchPendingScans: isUploaded exclusion (V32)
+    // MARK: - fetchPendingScans: non-pending exclusion (V33)
 
-    @Test func testFetchPendingScansExcludesUploadedScans() async throws {
+    @Test func testFetchPendingScansExcludesNonPendingScans() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        // One scan not yet uploaded — should appear in results.
-        let pending = OfflineQueuedScan(localImagePaths: ["pending.webp"], isUploaded: false)
-        // One scan already staged in R2 — should be excluded so it isn't re-uploaded.
-        let uploaded = OfflineQueuedScan(localImagePaths: ["uploaded.webp"], isUploaded: true)
+        // Only .pending scans should be fetched for upload dispatch.
+        let pending    = OfflineQueuedScan(localImagePaths: ["pending.webp"],    scanState: .pending)
+        let uploading  = OfflineQueuedScan(localImagePaths: ["uploading.webp"],  scanState: .uploading)
+        let staged     = OfflineQueuedScan(localImagePaths: ["staged.webp"],     scanState: .staged)
+        let inferencing = OfflineQueuedScan(localImagePaths: ["inferencing.webp"], scanState: .inferencing)
+        let failed     = OfflineQueuedScan(localImagePaths: ["failed.webp"],     scanState: .failed)
 
-        context.insert(pending)
-        context.insert(uploaded)
+        for scan in [pending, uploading, staged, inferencing, failed] {
+            context.insert(scan)
+        }
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
         let payloads = await actor.fetchPendingScans(limit: 10)
 
-        #expect(payloads.count == 1, "fetchPendingScans must exclude isUploaded=true records")
-        #expect(payloads.first?.id == pending.id, "Only the non-uploaded scan must be returned")
+        #expect(payloads.count == 1, "fetchPendingScans must return only .pending scans")
+        #expect(payloads.first?.id == pending.id, "Only the .pending scan must be returned")
     }
 
     // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence

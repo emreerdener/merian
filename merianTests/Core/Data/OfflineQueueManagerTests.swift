@@ -21,57 +21,83 @@ struct OfflineQueueManagerTests {
 
     @Test func testEradicateScanQueuesLocalAndCloudTasks() async throws { return }
 
-    // MARK: - replayInferenceForUploadedScans (V32)
+    // MARK: - replayInferenceForUploadedScans (V33)
 
-    @Test func testReplayInferencePicksUpUploadedScans() throws {
+    @Test func testReplayInferencePicksUpStagedScans() async throws {
         let manager = OfflineQueueManager.shared
         let context = try createInMemoryContext()
-        let originalContext = manager.modelContext
-        let originalOnline = manager.isOnline
-        let originalActive = manager.activeScanUploadIds
+
+        // Staged scan: images confirmed in R2 but inference was interrupted.
+        let scan = OfflineQueuedScan(
+            localImagePaths: ["replay.webp"],
+            scanState: .staged,
+            stagedR2Keys: ["staging/test-user/replay.webp"]
+        )
+        let originalContext    = manager.modelContext
+        let originalOnline     = manager.isOnline
+        let originalReconciled = manager.hasReconciledStartupState
         defer {
-            manager.modelContext = originalContext
-            manager.isOnline = originalOnline
-            manager.activeScanUploadIds = originalActive
+            manager.modelContext             = originalContext
+            manager.isOnline                 = originalOnline
+            manager.hasReconciledStartupState = originalReconciled
+            manager.uploadRetryCount.removeValue(forKey: scan.id)
         }
 
-        let scan = OfflineQueuedScan(localImagePaths: ["replay.webp"], isDeleted: false, isUploaded: true)
         context.insert(scan)
         try context.save()
 
-        manager.modelContext = context
-        manager.isOnline = true
-        manager.activeScanUploadIds = []
+        manager.modelContext             = context
+        manager.isOnline                 = true
+        // Bypass startup reconciliation so the function queries .staged scans immediately.
+        manager.hasReconciledStartupState = true
 
         manager.replayInferenceForUploadedScans()
 
-        #expect(manager.activeScanUploadIds.contains(scan.id), "replayInferenceForUploadedScans must insert the uploaded scan ID into activeScanUploadIds")
+        // In the test environment the network call fails immediately and increments
+        // uploadRetryCount — a reliable, network-free observable that the pipeline was triggered.
+        let deadline = Date().addingTimeInterval(5)
+        while (manager.uploadRetryCount[scan.id] ?? 0) == 0, Date() < deadline {
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(
+            (manager.uploadRetryCount[scan.id] ?? 0) > 0,
+            "replayInferenceForUploadedScans must claim and attempt inference for .staged scans"
+        )
     }
 
-    @Test func testReplayInferenceSkipsActiveScanIds() throws {
+    @Test func testReplayInferenceSkipsAlreadyClaimedScans() async throws {
         let manager = OfflineQueueManager.shared
         let context = try createInMemoryContext()
-        let originalContext = manager.modelContext
-        let originalOnline = manager.isOnline
-        let originalActive = manager.activeScanUploadIds
+
+        // Scan already claimed by another pipeline — state is .inferencing, not .staged.
+        let scan = OfflineQueuedScan(localImagePaths: ["active.webp"], scanState: .inferencing)
+        let originalContext    = manager.modelContext
+        let originalOnline     = manager.isOnline
+        let originalReconciled = manager.hasReconciledStartupState
         defer {
-            manager.modelContext = originalContext
-            manager.isOnline = originalOnline
-            manager.activeScanUploadIds = originalActive
+            manager.modelContext             = originalContext
+            manager.isOnline                 = originalOnline
+            manager.hasReconciledStartupState = originalReconciled
         }
 
-        let scan = OfflineQueuedScan(localImagePaths: ["active.webp"], isDeleted: false, isUploaded: true)
         context.insert(scan)
         try context.save()
 
-        manager.modelContext = context
-        manager.isOnline = true
-        // Pre-seed the ID so the guard `!activeScanUploadIds.contains(scan.id)` fires.
-        manager.activeScanUploadIds = [scan.id]
+        manager.modelContext             = context
+        manager.isOnline                 = true
+        manager.hasReconciledStartupState = true
 
         manager.replayInferenceForUploadedScans()
 
-        #expect(manager.activeScanUploadIds.count == 1, "replayInferenceForUploadedScans must not insert a duplicate ID for an already-active scan")
+        // replayInferenceForUploadedScans only queries .staged scans; .inferencing scans are
+        // invisible to it. If uploadRetryCount is never incremented, no pipeline was dispatched.
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        #expect(
+            (manager.uploadRetryCount[scan.id] ?? 0) == 0,
+            "replayInferenceForUploadedScans must not dispatch a pipeline for scans already in .inferencing state"
+        )
     }
 
     // MARK: - Exponential backoff

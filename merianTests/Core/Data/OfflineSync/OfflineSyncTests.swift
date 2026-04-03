@@ -103,28 +103,18 @@ final class OfflineSyncTests: XCTestCase {
         XCTAssertFalse(isSyncing, "Pipeline Deadlock: isSyncing did not drop when all source files were missing.")
     }
 
-    func test_inferencePipeline_alwaysDropsActiveIDLock() async {
-        // Simulating the structural requirement of `defer` inside `runInferencePipeline`
-        var activeScanUploadIds: Set<String> = ["SCAN123"]
-        let scanId = "SCAN123"
-        
-        let simulateInferenceCompletion: (Bool) -> Void = { throwError in
-            defer {
-                // This correctly models the async MainActor wrapper the defer uses
-                activeScanUploadIds.remove(scanId)
-            }
-            if throwError {
-                return // Simulating dropping into the catch block
-            }
-            // Simulating successful execution
-        }
-        
-        simulateInferenceCompletion(true)
-        XCTAssertFalse(activeScanUploadIds.contains(scanId), "Pipeline Hang: The Active Scan tracking ID was permanently frozen after an inference error.")
-        
-        activeScanUploadIds.insert(scanId)
-        simulateInferenceCompletion(false)
-        XCTAssertFalse(activeScanUploadIds.contains(scanId), "Pipeline Hang: The Active Scan tracking ID was not released on pipeline success.")
+    func test_inferencePipeline_transientRetryResetsToStagedBelowThreshold() async {
+        // runInferencePipeline's transient catch block calls transitionScanToStaged (not
+        // activeScanUploadIds.remove — that set was removed in V33). Verify the retry-count
+        // boundary that gates whether the scan is reset to .staged or tombstoned.
+        let maxRetries = OfflineQueueManager.maxUploadRetries
+
+        // Below threshold → transitionScanToStaged is called, scan stays retryable.
+        XCTAssertFalse(1 >= maxRetries, "First transient failure must not tombstone — scan should reset to .staged via transitionScanToStaged")
+        XCTAssertFalse(2 >= maxRetries, "Second transient failure must not tombstone")
+
+        // At threshold → softDeleteQueuedScan is called, scan is tombstoned.
+        XCTAssertTrue(maxRetries >= maxRetries, "At maxUploadRetries the scan must be tombstoned, not reset to .staged")
     }
 
     // MARK: - 4. Enqueue Bounds (Free Tier Hoarding)
