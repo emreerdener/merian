@@ -170,12 +170,16 @@ extension OfflineQueueManager {
             // that path (e.g. the Swift Task being killed before the catch runs).
             // Cross-referencing allTasks ensures scans with live URLSession tasks are
             // not reset — only true orphans (no task, stuck in .uploading) are affected.
+            // Safety-net: run upload reconcile on sharedActor (not a fresh one) so that
+            // the in-memory object graph is coherent when tryClaimForInference runs below.
+            // A fresh actor's save() can invalidate sharedActor's cached fault objects
+            // (§6 of swiftdata-and-api-gotchas), causing tryClaimForInference to miss a
+            // scan it just transitioned if it still shows the stale pre-save state.
             let activeUploadScanIds = Set(allTasks.compactMap { task -> String? in
                 guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
                 return desc.components(separatedBy: "_").first
             })
-            let uploadReconcileActor = BackgroundDatabaseActor(modelContainer: container)
-            await uploadReconcileActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadScanIds)
+            await sharedActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadScanIds)
 
             let activeInferenceScanIds = Set(allTasks.compactMap { task -> String? in
                 guard let desc = task.taskDescription, desc.hasPrefix("inference_") else { return nil }
