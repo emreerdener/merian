@@ -82,6 +82,8 @@ private struct PendingView: View {
     let onReviewAlternatives: () -> Void
     var onFlagIssue: (() -> Void)?
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         if candidates.isEmpty {
             VStack(spacing: 32) {
@@ -125,7 +127,13 @@ private struct PendingView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .card()
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(Color(uiColor: .systemBackground))
+                    .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
+            )
+            .environment(\.colorScheme, colorScheme == .dark ? .light : .dark)
         } else {
             VStack(spacing: candidates.count > 1 ? 48 : 24) {
                 // Visual Graphic stack
@@ -200,7 +208,13 @@ private struct PendingView: View {
                     }
                 }
             }
-            .card()
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(Color(uiColor: .systemBackground))
+                    .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
+            )
+            .environment(\.colorScheme, colorScheme == .dark ? .light : .dark)
         }
     }
 }
