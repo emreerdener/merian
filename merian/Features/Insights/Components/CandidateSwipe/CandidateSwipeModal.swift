@@ -73,7 +73,7 @@ struct CandidateSwipeModal: View {
             }
         }
         .onDisappear {
-            if stack.isEmpty {
+            if stack.isEmpty && !isDismissing {
                 Task { await inferenceEngine.flagAIIdentification(modelContext: modelContext) }
             }
         }

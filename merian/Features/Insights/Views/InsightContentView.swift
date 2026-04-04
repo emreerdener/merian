@@ -24,8 +24,10 @@ struct InsightContentView: View {
                     // This creates a physical pixel bridge seamlessly masking `TabView` vertical pan-gesture framework synchronization tearing.
                     let bleedBuffer: CGFloat = 50 
                     
+                    let persistentScanId = viewModel.activeLocalRecord?.id ?? inferenceEngine.speciesData?.scanId
+                    
                     ImagesCarousel(
-                        scanId: inferenceEngine.speciesData?.scanId,
+                        scanId: persistentScanId,
                         refUrls: viewModel.refUrls,
                         validHistoricImagePaths: viewModel.validHistoricImagePaths,
                         hasLive: viewModel.hasLive,
@@ -91,28 +93,34 @@ private extension InsightContentView {
     var contentCards: some View {
         VStack(alignment: .leading, spacing: 16) {
 
-            if inferenceEngine.isProcessing && inferenceEngine.speciesData == nil {
-
-                AnalyzingContentView()
+            ZStack(alignment: .top) {
+                if inferenceEngine.isProcessing {
+                    AnalyzingContentView()
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .background(Color(uiColor: .systemBackground))
+                        .transition(.opacity)
+                } else if let speciesData = inferenceEngine.speciesData,
+                   !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
+                    
+                    NonBiologicalView(
+                        species: speciesData,
+                        commonName: speciesData.commonName.capitalized,
+                        timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
+                    )
                     .transition(.opacity)
-
-            } else if let speciesData = inferenceEngine.speciesData,
-               !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
-                
-                NonBiologicalView(
-                    species: speciesData,
-                    commonName: speciesData.commonName.capitalized,
-                    timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
-                )
-            } else {
-                
-                BiologicalView(
-                    viewModel: viewModel,
-                    isSafariPresented: $viewModel.isSafariPresented, 
-                    selectedWikiURL: $viewModel.selectedWikiURL,
-                    timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
-                )
+                } else {
+                    
+                    BiologicalView(
+                        viewModel: viewModel,
+                        isSafariPresented: $viewModel.isSafariPresented, 
+                        selectedWikiURL: $viewModel.selectedWikiURL,
+                        timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
+                    )
+                    .transition(.opacity)
+                }
             }
+            
             Spacer(minLength: 40)
         }
         .animation(.easeInOut(duration: 0.35), value: inferenceEngine.isProcessing)

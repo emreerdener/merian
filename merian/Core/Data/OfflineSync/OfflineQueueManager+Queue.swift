@@ -55,10 +55,11 @@ extension OfflineQueueManager {
     /// Explicitly deletes an offline queued scan immediately.
     /// Cancels any in-flight background uploads and purges the item from disk.
     func deleteQueuedScan(scanId: String) async {
-        // 1. Cancel in-flight URLSession tasks
+        // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
         let allTasks = await backgroundSession.allTasks
         for task in allTasks {
-            if let desc = task.taskDescription, desc.starts(with: "\(scanId)_") {
+            if let desc = task.taskDescription,
+               desc.starts(with: "\(scanId)_") || desc == "inference_\(scanId)" {
                 task.cancel()
             }
         }
@@ -144,17 +145,10 @@ extension OfflineQueueManager {
             return
         }
 
-        // Reset any .inferencing orphans on every call — not just at cold start.
-        // Backgrounding suspends the OS background task without killing the process,
-        // so hasReconciledStartupState stays true across foreground/background cycles.
-        // Without this, a scan interrupted mid-inference stays stuck in .inferencing
-        // and is invisible to the .staged replay query below.
-        //
-        // Guard: skip the reset when a live pipeline holds .inferencing legitimately.
-        // If activeInferencePipelineCount > 0 the in-flight pipeline will either complete
-        // (deleting the scan) or call transitionScanToStaged on failure — no reset needed.
-        // Always call replayInferenceStagedScans regardless, so other .staged scans
-        // (unrelated to the active pipeline) are not starved.
+        // Reconcile .inferencing orphans on every call by cross-referencing live background
+        // URLSession inference tasks. Background download tasks survive app suspension, so a
+        // simple in-process counter (activeInferencePipelineCount) can no longer tell us whether
+        // an .inferencing scan is legitimately owned by a live OS task — we must ask the session.
         //
         // CRITICAL: use the shared actor (not a fresh one) for the reset. If a fresh actor
         // saves .inferencing → .staged to the persistent store, the shared actor's in-memory
@@ -163,21 +157,23 @@ extension OfflineQueueManager {
         // actor — would then fail its state guard and return false on every cycle, leaving
         // the scan stuck indefinitely. Running the reset on the same actor guarantees the
         // in-memory object is updated before tryClaimForInference reads it.
-        let needsReset = activeInferencePipelineCount == 0
         let sharedActor = resolvedInferenceDbActor(container: container)
         Task {
-            if needsReset {
-                await sharedActor.resetOrphanedInferencingScans()
-            }
+            let allTasks = await backgroundSession.allTasks
+            let activeInferenceScanIds = Set(allTasks.compactMap { task -> String? in
+                guard let desc = task.taskDescription, desc.hasPrefix("inference_") else { return nil }
+                return String(desc.dropFirst("inference_".count))
+            })
+            await sharedActor.reconcileOrphanedInferencingScans(activeInferenceScanIds: activeInferenceScanIds)
             await MainActor.run { self.replayInferenceStagedScans() }
         }
     }
 
-    /// Fetches all `.staged` scans and dispatches inference for each one.
+    /// Fetches all `.staged` scans and dispatches a background inference download task for each one.
     ///
-    /// Called by `replayInferenceForUploadedScans` after `resetOrphanedInferencingScans`
-    /// completes, ensuring any previously-stuck `.inferencing` scans are visible as `.staged`
-    /// before the query runs.
+    /// Called by `replayInferenceForUploadedScans` after `reconcileOrphanedInferencingScans`
+    /// completes, ensuring any orphaned `.inferencing` scans (not owned by a live URLSession task)
+    /// are visible as `.staged` before the query runs.
     private func replayInferenceStagedScans() {
         guard isOnline else { return }
         guard let context = modelContext else { return }
@@ -217,11 +213,6 @@ extension OfflineQueueManager {
                 // If another path already claimed it, this returns false and we skip.
                 guard await dbActor.tryClaimForInference(scanId: scanId) else { return }
 
-                // Track the live pipeline so replayInferenceForUploadedScans skips
-                // resetOrphanedInferencingScans while this scan is legitimately .inferencing.
-                await MainActor.run { self.activeInferencePipelineCount += 1 }
-                defer { Task { @MainActor in self.activeInferencePipelineCount -= 1 } }
-
                 // Migration fallback: scans promoted from V32's isUploaded=true have no
                 // stagedR2Keys (the field didn't exist). Reconstruct from the current auth
                 // session — same approach as the pre-V33 code, safe because the userId
@@ -243,7 +234,7 @@ extension OfflineQueueManager {
                     finalExtracted = extracted
                 }
 
-                await self.runInferencePipeline(scanId: scanId, extracted: finalExtracted)
+                await self.dispatchInferenceDownloadTask(scanId: scanId, extracted: finalExtracted)
             }
         }
     }

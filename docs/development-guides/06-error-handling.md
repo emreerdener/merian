@@ -48,7 +48,7 @@ public enum MerianError: LocalizedError, Equatable {
 When a network call fails in `OfflineQueueManager`, the error classification determines queue behavior:
 
 ```
-Upload (background URLSession task)
+Upload (background URLSession upload task)
     ├── File missing (NSURLErrorFileDoesNotExist / CannotOpenFile)
     │   └── tombstone via softDeleteQueuedScan (terminal)
     ├── Transient connectivity error (TimedOut / NetworkConnectionLost /
@@ -56,17 +56,23 @@ Upload (background URLSession task)
     │   ├── retries < maxUploadRetries (3) → retain in queue, increment uploadRetryCount
     │   └── retries ≥ 3 → tombstone (terminal)
     ├── Other transport error → log, retain in queue
-    ├── HTTP 200 → clear retry counter; proceed to inference pipeline
+    ├── HTTP 200 → dispatch background inference download task ("inference_{scanId}")
     ├── HTTP 429 / 5xx → retain in queue (recoverable)
     ├── HTTP 401 / 403 → tombstone (auth failure, terminal)
     └── HTTP 4xx (other) → tombstone (terminal)
+
+Inference (background URLSession download task)
+    ├── Transport error → handleInferenceRetry: reset to .staged (< maxUploadRetries) or tombstone
+    ├── HTTP 200 → processInferenceDownloadResult → persist LocalScanRecord, delete OfflineQueuedScan
+    ├── HTTP 4xx → tombstone (permanent failure, terminal)
+    └── HTTP 5xx / 429 → handleInferenceRetry: reset to .staged (< maxUploadRetries) or tombstone
 
 Cloud deletion (PendingCloudDeletionTask)
     ├── MerianError.invalidResponse → tombstone (resource already gone, no point retrying)
     └── All other errors → retain in queue
 ```
 
-Uploads use a background `URLSession` (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`, so iOS can re-attach in-flight tasks on app relaunch. Task descriptions are set to `"\(scanId)_\(imageIndex)"` to allow deduplication against already-running tasks when `syncPendingScans` is called after a relaunch.
+Both uploads and inference use the same background `URLSession` (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`, so iOS can re-attach in-flight tasks on app relaunch and deliver inference results while the app is completely suspended. Upload task descriptions are `"\(scanId)_\(imageIndex)"` and inference task descriptions are `"inference_\(scanId)"` — both are used for deduplication against already-running tasks after a relaunch.
 
 ---
 

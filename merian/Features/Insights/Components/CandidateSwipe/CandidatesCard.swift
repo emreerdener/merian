@@ -150,10 +150,10 @@ private struct PendingView: View {
                 VStack(spacing: 24) {
                     // Content Heading
                     VStack(spacing: 8) {
-                        Text("Verify identification")
+                        Text("It could be...")
                             .font(.system(.title2).weight(.bold))
                             .foregroundColor(.primary)
-                        Text("The model found \(candidates.count) close \(candidates.count == 1 ? "match" : "matches")")
+                        Text("\(candidates.count) other close \(candidates.count == 1 ? "match" : "matches")")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }

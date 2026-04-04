@@ -17,40 +17,37 @@ struct ImagesCarousel: View {
 
     // MARK: - Body
     var body: some View {
-        if totalImages > 0 {
-            NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
-                // scanId only — totalImages changes async when validHistoricImagePaths resolves.
-                // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
-                .id(scanId ?? "null")
-                .ignoresSafeArea(.all, edges: .top)
-                .overlay {
-                    if inferenceEngine.isProcessing {
-                        AIBreathingOverlay()
-                            .transition(.opacity.animation(.easeInOut(duration: 0.8)))
+        Group {
+            if totalImages > 0 {
+                NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
+                    // scanId only — totalImages changes async when validHistoricImagePaths resolves.
+                    // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
+                    .id(scanId ?? "null")
+                    .ignoresSafeArea(.all, edges: .top)
+                    .overlay {
+                        if inferenceEngine.isProcessing {
+                            AnalyzingVisualEffectsView()
+                                .transition(.opacity)
+                        }
                     }
-                }
-                .overlay(alignment: .bottom) { paginationDots }
-                .overlay(alignment: .top) {
-                    LinearGradient(
-                        colors: [.black.opacity(0.4), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 120)
-                    .allowsHitTesting(false)
-                }
-        } else {
-            ZStack {
+                    .animation(.easeInOut(duration: 1.2), value: inferenceEngine.isProcessing)
+                    .overlay(alignment: .bottom) { paginationDots }
+                    .overlay(alignment: .top) {
+                        LinearGradient(
+                            colors: [.black.opacity(0.4), .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 120)
+                        .allowsHitTesting(false)
+                    }
+            } else {
                 Color.black
-                Image(systemName: "globe.americas.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 140, height: 140)
-                    .foregroundStyle(.white.opacity(0.15))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea(.all, edges: .top)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(.all, edges: .top)
         }
+        .animation(.easeInOut(duration: 0.4), value: totalImages > 0)
     }
 
     // MARK: - Page Construction
@@ -63,15 +60,16 @@ struct ImagesCarousel: View {
             for data in inferenceEngine.activeDisplayDatas {
                 pages.append(AnyView(LiveCapturePageView(data: data)))
             }
-        }
-        for path in validHistoricImagePaths {
-            pages.append(AnyView(
+        } else {
+            for path in validHistoricImagePaths {
+                pages.append(AnyView(
                 AsyncLocalImageView(
                     path: path,
                     fallbackImageUrl: nil,
                     onImageLoadFailed: { handleImageFailure(identifier: path) }
                 )
             ))
+        }
         }
         for urlString in refUrls {
             pages.append(AnyView(
@@ -243,15 +241,37 @@ private struct NativePageCarousel: UIViewControllerRepresentable {
 }
 
 // MARK: - Live Capture Page
-/// Decodes raw Data → UIImage in a detached task so the main thread is never blocked
-/// during render, preventing frame drops when the carousel first opens.
+private let liveCaptureCache = NSCache<NSNumber, UIImage>()
+
+/// Executes downsampling directly on layout evaluation. Modern A-Series silicon resolves 
+/// the ImageIO downsample significantly fast enough to guarantee the Carousel
+/// launches synchronously pre-mounted with the photo, completely eradicating transient black frames.
 private struct LiveCapturePageView: View {
     let data: Data
-    @State private var decoded: UIImage?
+    
+    private var instantImage: UIImage? {
+        let key = NSNumber(value: data.hashValue)
+        if let cached = liveCaptureCache.object(forKey: key) {
+            return cached
+        }
+        
+        // Force synchronous decode natively
+        let img = autoreleasepool { () -> UIImage? in
+            if let cgImage = ImageDownsampler.shared.downsample(data: data, maxSize: 2048) {
+                return UIImage(cgImage: cgImage)
+            }
+            return nil
+        }
+        
+        if let img {
+            liveCaptureCache.setObject(img, forKey: key)
+        }
+        return img
+    }
 
     var body: some View {
         Group {
-            if let img = decoded {
+            if let img = instantImage {
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFill()
@@ -261,19 +281,6 @@ private struct LiveCapturePageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .task {
-            // UIImage(data:) is synchronous — decode it off the main actor to avoid stalling
-            // the 120Hz render loop for large captures on carousel open.
-            let img = await Task.detached(priority: .userInitiated) {
-                autoreleasepool { () -> UIImage? in
-                    if let cgImage = ImageDownsampler.shared.downsample(data: data, maxSize: 2048) {
-                        return UIImage(cgImage: cgImage)
-                    }
-                    return nil
-                }
-            }.value
-            decoded = img
-        }
     }
 }
 
@@ -309,39 +316,22 @@ private extension ImagesCarousel {
     }
 }
 
-// MARK: - AI Breathing Overlay
-private struct AIBreathingOverlay: View {
-    @State private var textHuePhase: Double = 0.0
-    @State private var pulseOpacity: Double = 0.15
-    
-    // Mirrors the exact AI brand palette from ConfidenceBadge
-    private var aiGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.25, green: 0.55, blue: 1.0),
-                Color(red: 0.55, green: 0.25, blue: 1.0),
-                Color(red: 0.95, green: 0.35, blue: 0.65)
-            ],
-            startPoint: .bottomLeading,
-            endPoint: .topTrailing
-        )
-    }
+
+// MARK: - Analyzing Visual Effects
+private struct AnalyzingVisualEffectsView: View {
+    @State private var pulseOpacity: Double = 0.0
 
     var body: some View {
-        Rectangle()
-            .fill(aiGradient)
-            .hueRotation(.degrees(textHuePhase))
-            .opacity(pulseOpacity)
-            .allowsHitTesting(false)
-            .onAppear {
-                // Same 4.0s endless color shift loop
-                withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
-                    textHuePhase = 360.0
-                }
-                // Gentle opacity pulse from 15% -> 40%
-                withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
-                    pulseOpacity = 0.40
-                }
+        ZStack(alignment: .top) {
+            Rectangle()
+                .fill(Color.black)
+                .opacity(pulseOpacity)
+                .allowsHitTesting(false)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true).delay(1)) {
+                pulseOpacity = 0.4
             }
+        }
     }
 }

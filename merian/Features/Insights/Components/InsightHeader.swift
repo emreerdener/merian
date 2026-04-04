@@ -26,14 +26,19 @@ struct InsightHeader: View {
 
             // MARK: - Subtitle and Title
             VStack(alignment: .center, spacing: 8) {
+                
+                // MARK: - Scientific Name
                 if !subtitle.isEmpty && subtitle.lowercased() != title.lowercased() {
-                    Text(subtitle)
+                    Text(subtitle.replacingOccurrences(of: "\n", with: " "))
                         .font(.system(.title3))
                         .italic()
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
 
+                // MARK: - Common Name
                 Text(title)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
@@ -62,7 +67,8 @@ struct InsightHeader: View {
                     .padding(.top, 8)
                     .transition(.opacity)
                 }
-             }
+            }
+            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
         .onAppear {

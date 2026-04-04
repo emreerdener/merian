@@ -244,13 +244,9 @@ private struct WikiSummaryResponse: Decodable {
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     HapticManager.shared.triggerSuccessPulse()
-                    // Populate on-disk paths before speciesData so the carousel has the user's
-                    // image ready the moment the insight sheet renders. Clear live in-memory
-                    // data afterwards — validHistoricImagePaths takes over as the image source.
+                    // Retain in-memory activeDisplayDatas so the Carousel doesn't structurally tear down the LiveCapturePageView component.
                     self.validHistoricImagePaths = savedImagePaths
                     self.speciesData = mappedData
-                    self.activeImageData = nil
-                    self.activeDisplayDatas.removeAll()
 
                     // Live inference succeeded — cancel the parallel background upload.
                     // deleteQueuedScan cancels any in-flight URLSession tasks and removes

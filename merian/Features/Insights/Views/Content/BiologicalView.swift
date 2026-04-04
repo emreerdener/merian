@@ -46,9 +46,10 @@ struct BiologicalView: View {
                 // When the user has rejected all swipe-deck alternatives, hide the card here —
                 // a condensed summary is surfaced inside ConfidenceExplanationSheet instead.
                 let allCandidatesRejected = (inferenceEngine.speciesData?.isFlagged == true) && candidates.count >= 2
+                let isUnknownSubject = inferenceEngine.speciesData?.scientificName == "Taxonomy Unavailable"
 
                 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-                   !allCandidatesRejected && (candidates.count >= 2 || hasReviewState || hasLowConfidence) {
+                   !isUnknownSubject && !allCandidatesRejected && (candidates.count >= 2 || hasReviewState || hasLowConfidence) {
                     CandidatesCard(
                         candidates: candidates,
                         aiScientificName: primaryAIName,

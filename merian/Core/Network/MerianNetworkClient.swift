@@ -176,6 +176,68 @@ final class MerianNetworkClient {
 
     // MARK: - Inference
 
+    /// Builds a fully-authenticated POST URLRequest for the /identify edge function.
+    ///
+    /// Returns the request without executing it so the caller can dispatch it as a
+    /// background URLSession download task — enabling result delivery while backgrounded.
+    func buildIdentifyRequest(
+        r2ObjectKeys: [String],
+        telemetry: CaptureTelemetry,
+        clientScanId: String
+    ) async throws -> URLRequest {
+        let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
+
+        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let userId = (authUserId ?? deviceId).lowercased()
+        let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
+        let currentMonth = Calendar.current.component(.month, from: Date())
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let timeOfDay = formatter.string(from: Date())
+
+        let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
+        let capturedScanId = clientScanId
+        let capturedTelemetry = telemetry
+        let bodyData = try await Task.detached(priority: .userInitiated) {
+            let isolatedPayload: [String: Any?] = [
+                "r2ObjectKeys": r2ObjectKeys,
+                "imageBase64s": nil,
+                "user_id": userId,
+                "mimeType": "image/webp",
+                "depthScaleText": depthScaleText,
+                "zoomFactor": capturedTelemetry.zoomFactor.map { Double($0) },
+                "gpsLatitude": capturedTelemetry.gpsLatitude,
+                "gpsLongitude": capturedTelemetry.gpsLongitude,
+                "gpsElevation": capturedTelemetry.gpsElevation,
+                "semanticLocation": capturedTelemetry.locationName,
+                "weatherCondition": capturedTelemetry.weatherCondition,
+                "weatherTemperatureF": capturedTelemetry.weatherTemperatureF,
+                "deviceLocale": deviceLocale,
+                "currentMonth": currentMonth,
+                "timeOfDay": timeOfDay,
+                "timestamp": capturedTelemetry.timestamp,
+                "estimated_size_cm": capturedTelemetry.estimatedSizeCm,
+                "client_scan_id": capturedScanId
+            ]
+            return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+        }.value
+
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90.0)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
+        for (key, val) in authHeaders {
+            request.setValue(val, forHTTPHeaderField: key)
+        }
+
+        return request
+    }
+
     func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry, clientScanId: String? = nil) async throws -> Data {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/identify")!
 

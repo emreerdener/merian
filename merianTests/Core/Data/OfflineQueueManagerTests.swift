@@ -104,7 +104,6 @@ struct OfflineQueueManagerTests {
             manager.modelContext             = originalContext
             manager.isOnline                 = originalOnline
             manager.hasReconciledStartupState = originalReconciled
-            manager.uploadRetryCount.removeValue(forKey: scan.id)
         }
 
         context.insert(scan)
@@ -117,15 +116,32 @@ struct OfflineQueueManagerTests {
 
         manager.replayInferenceForUploadedScans()
 
-        // In the test environment the network call fails immediately and increments
-        // uploadRetryCount — a reliable, network-free observable that the pipeline was triggered.
-        let deadline = Date().addingTimeInterval(5)
-        while (manager.uploadRetryCount[scan.id] ?? 0) == 0, Date() < deadline {
+        // The pipeline claims the scan via tryClaimForInference (.staged → .inferencing)
+        // before dispatching the background download task. This DB state transition is a
+        // reliable, network-free observable that the pipeline was triggered.
+        //
+        // Poll a fresh context on each iteration: tryClaimForInference writes to the
+        // BackgroundDatabaseActor's own context, and the test's main context may cache
+        // the old .staged state until a fresh fetch hits the persistent store.
+        let scanId = scan.id
+        let container = context.container
+        let deadline = Date().addingTimeInterval(8)
+        var claimed = false
+        while !claimed, Date() < deadline {
+            let freshContext = ModelContext(container)
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            if let record = (try? freshContext.fetch(descriptor))?.first,
+               record.queueState == .inferencing {
+                claimed = true
+                break
+            }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
 
         #expect(
-            (manager.uploadRetryCount[scan.id] ?? 0) > 0,
+            claimed,
             "replayInferenceForUploadedScans must claim and attempt inference for .staged scans"
         )
     }

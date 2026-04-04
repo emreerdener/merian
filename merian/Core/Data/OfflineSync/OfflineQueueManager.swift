@@ -76,11 +76,6 @@ import SwiftData
     /// Runs exactly once per process life on the first connectivity restore.
     @ObservationIgnored var hasReconciledStartupState = false
 
-    /// Counts inference pipelines currently in flight.
-    /// Used by `replayInferenceForUploadedScans` to skip `resetOrphanedInferencingScans`
-    /// when a live pipeline holds `.inferencing` legitimately, preventing a double-pipeline race.
-    @ObservationIgnored var activeInferencePipelineCount: Int = 0
-
     /// Maximum consecutive transient errors before a scan is tombstoned.
     static let maxUploadRetries = 3
     /// Maximum delay between `generateUploadURLs` failure retries (seconds).

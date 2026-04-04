@@ -8,8 +8,8 @@ import SwiftData
 
 /// Sendable snapshot of `OfflineQueuedScan` metadata captured on the main actor.
 ///
-/// Passed across the actor boundary into `runInferencePipeline` so that background
-/// inference can proceed without touching the main-actor-bound `ModelContext`.
+/// Passed across the actor boundary into `dispatchInferenceDownloadTask` so that
+/// background inference can proceed without touching the main-actor-bound `ModelContext`.
 struct ExtractedScanData {
     /// Environmental and capture telemetry for the scan, used as Gemini inference context.
     let telemetry: CaptureTelemetry
@@ -99,7 +99,7 @@ actor BackgroundDatabaseActor {
 
     /// Transitions a scan back to `.staged` from `.inferencing` and persists.
     ///
-    /// **Only valid for the transient-error retry path** (`runInferencePipeline` transient catch).
+    /// **Only valid for the transient-error retry path** (`handleInferenceRetry` transient catch).
     /// Guarded to `.inferencing` as source state so a concurrent `softDeleteQueuedScan` on
     /// the MainActor that already tombstoned the scan to `.failed` cannot be overwritten —
     /// the last-writer-wins nature of two separate `ModelContext`s would otherwise resurrect
@@ -173,6 +173,64 @@ actor BackgroundDatabaseActor {
             } catch {
                 MerianLog.data.error("reconcileOrphanedUploadingScans: save failed: \(error, privacy: .private)")
             }
+        }
+    }
+
+    /// Resets `.inferencing` scans that have no active background URLSession inference task
+    /// back to `.staged` so `replayInferenceForUploadedScans` can re-claim them.
+    ///
+    /// Replaces `resetOrphanedInferencingScans` with a cross-reference against the live
+    /// URLSession task list so that background download tasks still owned by the OS are
+    /// not blindly reset — which would cause a duplicate inference dispatch on relaunch.
+    func reconcileOrphanedInferencingScans(activeInferenceScanIds: Set<String>) {
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        let stagedRaw      = ScanQueueState.staged.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.scanStateRaw == inferencingRaw }
+        )
+        let scans: [OfflineQueuedScan]
+        do {
+            scans = try modelContext.fetch(descriptor)
+        } catch {
+            MerianLog.data.debug("reconcileOrphanedInferencingScans: fetch failed: \(error, privacy: .private)")
+            return
+        }
+        var changed = false
+        for scan in scans where !activeInferenceScanIds.contains(scan.id) {
+            scan.scanStateRaw = stagedRaw
+            changed = true
+        }
+        if changed {
+            do {
+                try modelContext.save()
+                MerianLog.data.debug("reconcileOrphanedInferencingScans: reset orphaned .inferencing scans to .staged")
+            } catch {
+                MerianLog.data.error("reconcileOrphanedInferencingScans: save failed: \(error, privacy: .private)")
+            }
+        }
+    }
+
+    /// Persists weather backfill data onto the queued scan record before the inference
+    /// request is dispatched as a background download task.
+    ///
+    /// Called after WeatherKit resolves so the delegate can read hydrated telemetry from
+    /// SwiftData on result delivery — even if the app was suspended between dispatch and receipt.
+    func updateScanTelemetry(
+        scanId: String,
+        weatherCondition: String?,
+        weatherTemperatureF: Double?,
+        locationName: String?
+    ) {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
+        if let wc = weatherCondition { scan.weatherCondition = wc }
+        if let wt = weatherTemperatureF { scan.weatherTemperatureF = wt }
+        if scan.locationName == nil, let ln = locationName { scan.locationName = ln }
+        do {
+            try modelContext.save()
+        } catch {
+            MerianLog.data.error("updateScanTelemetry: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
     }
 

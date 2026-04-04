@@ -7,20 +7,65 @@ import UIKit
 
 // MARK: - URLSession Delegate
 
-extension OfflineQueueManager: URLSessionTaskDelegate {
+extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegate {
 
-    /// Fires when the background URLSession completes transmission of a file to R2 staging.
+    /// Fires when an inference background download task delivers its response body to a temp file.
+    ///
+    /// The temp file is only valid for the duration of this callback — copy it immediately.
+    /// All result processing happens in `processInferenceDownloadResult` via a BackgroundTaskWrapper
+    /// so iOS grants extended execution time to complete the SwiftData write and push notification.
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        guard let taskDescription = downloadTask.taskDescription,
+              taskDescription.hasPrefix("inference_") else { return }
+
+        let scanId = String(taskDescription.dropFirst("inference_".count))
+        let statusCode = (downloadTask.response as? HTTPURLResponse)?.statusCode
+
+        // Copy the temp file before the system deletes it at callback return.
+        let tempDestination = URL.temporaryDirectory.appendingPathComponent("\(scanId)_inference.json")
+        try? FileManager.default.removeItem(at: tempDestination)
+        do {
+            try FileManager.default.copyItem(at: location, to: tempDestination)
+        } catch {
+            MerianLog.data.error("Background inference download: failed to preserve temp file for \(scanId, privacy: .private): \(error, privacy: .private)")
+            BackgroundTaskWrapper.execute(name: "OfflineInferenceError") { _ in
+                await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(scanId: scanId, error: error)
+            }
+            return
+        }
+
+        BackgroundTaskWrapper.execute(name: "OfflineInferenceResult") { _ in
+            await OfflineQueueManager.shared.processInferenceDownloadResult(
+                scanId: scanId,
+                resultFileURL: tempDestination,
+                statusCode: statusCode
+            )
+        }
+    }
+
+    /// Fires when the background URLSession completes transmission of a task (upload or download).
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         // Capture non-Sendable properties before crossing isolation boundaries.
         let taskDescription = task.taskDescription
         let originalRequestUrlPath = task.originalRequest?.url?.path
         let responseStatusCode = (task.response as? HTTPURLResponse)?.statusCode
-        let taskIdentifier = task.taskIdentifier // Capture ID natively before passing to background
+        let taskIdentifier = task.taskIdentifier
 
         BackgroundTaskWrapper.execute(
             name: "OfflineInference",
             expirationHandler: { MerianLog.data.debug("OfflineInference background task expired") }
         ) { _ in
+            // Route inference download task failures.
+            // On success, didFinishDownloadingTo already handled the result — skip here.
+            if let taskDesc = taskDescription, taskDesc.hasPrefix("inference_") {
+                if let error {
+                    let scanId = String(taskDesc.dropFirst("inference_".count))
+                    await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(scanId: scanId, error: error)
+                }
+                // Inference tasks are not counted in the upload isSyncing state machine.
+                return
+            }
+
             // handleResult is a local async closure so that early returns from upload
             // processing don't bypass the activeTasks completion check that follows it.
             let handleResult: @Sendable () async -> Void = {
@@ -37,9 +82,13 @@ extension OfflineQueueManager: URLSessionTaskDelegate {
             await handleResult()
 
             // Signal sync completion once all background upload tasks have settled.
+            // Exclude inference download tasks — they have their own lifecycle.
             let remaining = await session.allTasks
-            let activeTasks = remaining.filter { $0.taskIdentifier != taskIdentifier }
-            if activeTasks.isEmpty {
+            let activeUploadTasks = remaining.filter {
+                $0.taskIdentifier != taskIdentifier &&
+                !($0.taskDescription?.hasPrefix("inference_") ?? false)
+            }
+            if activeUploadTasks.isEmpty {
                 await MainActor.run {
                     OfflineQueueManager.shared.isSyncing = false
                     if OfflineQueueManager.shared.unsyncedItemsCount > 0 {
@@ -205,19 +254,16 @@ extension OfflineQueueManager {
         // Use the same shared actor as replayInferenceForUploadedScans so that
         // markScanAsStaged and tryClaimForInference are serialized on a single executor.
         // This closes the race where processUploadCompletion and replayInferenceForUploadedScans
-        // could both see the scan in .staged and both call runInferencePipeline concurrently.
+        // could both see the scan in .staged and both dispatch concurrent inference tasks.
         let inferenceActor = resolvedInferenceDbActor(container: extracted.container)
         await inferenceActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
 
         // Atomically claim the scan for inference. If replayInferenceForUploadedScans already
         // claimed it between markScanAsStaged and here (same actor, so serialized), skip —
-        // the replay path is already running the pipeline.
+        // the replay path already dispatched the background download task.
         guard await inferenceActor.tryClaimForInference(scanId: scanId) else { return }
 
-        await MainActor.run { OfflineQueueManager.shared.activeInferencePipelineCount += 1 }
-        defer { Task { @MainActor in OfflineQueueManager.shared.activeInferencePipelineCount -= 1 } }
-
-        // Rebuild extracted with the confirmed R2 keys so runInferencePipeline uses them directly.
+        // Rebuild extracted with the confirmed R2 keys before dispatching.
         let extractedWithKeys = ExtractedScanData(
             telemetry: extracted.telemetry,
             localImagePaths: extracted.localImagePaths,
@@ -225,156 +271,230 @@ extension OfflineQueueManager {
             container: extracted.container,
             originalTimestamp: extracted.originalTimestamp
         )
-        await runInferencePipeline(scanId: scanId, extracted: extractedWithKeys)
+        await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
 
-    // MARK: - Inference Pipeline
+    // MARK: - Background Inference Dispatch
 
-    /// Runs the full post-upload inference pipeline for a scan.
+    /// Fetches WeatherKit backfill, builds an authenticated request, and dispatches it as a
+    /// background URLSession download task so inference results arrive while the app is suspended.
     ///
-    /// 1. Backfills historical weather via `EnvironmentContextManager` if the scan was captured offline.
-    /// 2. Calls the `analyzeSubject` Edge function with the R2 staging object keys.
-    /// 3. Persists the `LocalScanRecord` and removes the `OfflineQueuedScan` via `BackgroundDatabaseActor`.
-    /// 4. If a new species was discovered, recalculates awards and sends a push notification
-    ///    if the app is backgrounded and the user has enabled push notifications.
-    func runInferencePipeline(scanId: String, extracted: ExtractedScanData) async {
+    /// Weather backfill is persisted to SwiftData before dispatch so the delegate can read the
+    /// hydrated telemetry from the store when the OS delivers the result — even after a relaunch.
+    ///
+    /// Task description: `"inference_{scanId}"` — used by the delegate to route completion.
+    func dispatchInferenceDownloadTask(scanId: String, extracted: ExtractedScanData) async {
         let baseTelemetry = extracted.telemetry
 
+        // Run WeatherKit backfill before building the request. Weather data must be embedded
+        // in the request payload at task-creation time, since there is no async opportunity
+        // to fetch it after the OS takes ownership of the suspended background task.
+        let needsWeather = baseTelemetry.weatherCondition == nil
+            && baseTelemetry.gpsLatitude != nil
+            && baseTelemetry.gpsLongitude != nil
+
+        var finalTelemetry = baseTelemetry
+        if needsWeather {
+            let ctx = await EnvironmentContextManager.shared.fetchHistoricalContext(
+                location: CLLocation(latitude: baseTelemetry.gpsLatitude!, longitude: baseTelemetry.gpsLongitude!),
+                date: extracted.originalTimestamp
+            )
+            MerianLog.data.debug("Hydrated offline scan with historical weather: \(ctx.weatherCondition ?? "none", privacy: .public)")
+            finalTelemetry = CaptureTelemetry(
+                subjectDistanceInMeters: baseTelemetry.subjectDistanceInMeters,
+                gpsLatitude: baseTelemetry.gpsLatitude,
+                gpsLongitude: baseTelemetry.gpsLongitude,
+                gpsElevation: baseTelemetry.gpsElevation,
+                locationName: baseTelemetry.locationName ?? ctx.locationName,
+                weatherCondition: ctx.weatherCondition,
+                weatherTemperatureF: ctx.weatherTemperature,
+                timeOfDay: baseTelemetry.timeOfDay,
+                timestamp: baseTelemetry.timestamp
+            )
+            // Persist weather backfill so the delegate can read it on result delivery,
+            // even if the app was suspended between task dispatch and receipt.
+            let dbActor = resolvedInferenceDbActor(container: extracted.container)
+            await dbActor.updateScanTelemetry(
+                scanId: scanId,
+                weatherCondition: ctx.weatherCondition,
+                weatherTemperatureF: ctx.weatherTemperature,
+                locationName: ctx.locationName
+            )
+        }
+
+        // Build the authenticated request. On failure (e.g., Keychain read failure while
+        // backgrounded), reset to .staged so the next sync cycle can retry.
+        let request: URLRequest
         do {
-            let pipelineStart = CFAbsoluteTimeGetCurrent()
-            // R2 keys were persisted at upload-completion time via markScanAsStaged.
-            // Using stored keys eliminates auth-dependent reconstruction and the 403 edge case.
-            let resolvedKeys = extracted.r2Keys
-
-            // Run WeatherKit backfill and AI inference concurrently — weather is optional
-            // metadata and must not gate the scan result. Sequential awaiting previously added
-            // 200–800 ms of WeatherKit latency before the Gemini call even began.
-            let needsWeather = baseTelemetry.weatherCondition == nil
-                && baseTelemetry.gpsLatitude != nil
-                && baseTelemetry.gpsLongitude != nil
-
-            await MainActor.run { SyncStateManager.shared.beginInferencing() }
-
-            async let weatherContext = needsWeather
-                ? EnvironmentContextManager.shared.fetchHistoricalContext(
-                    location: CLLocation(latitude: baseTelemetry.gpsLatitude!, longitude: baseTelemetry.gpsLongitude!),
-                    date: extracted.originalTimestamp)
-                : nil
-
-            async let inferenceResult = MerianNetworkClient.shared.analyzeSubject(
-                r2ObjectKeys: resolvedKeys,
-                base64ImageDatas: nil,
-                telemetry: baseTelemetry,
+            request = try await MerianNetworkClient.shared.buildIdentifyRequest(
+                r2ObjectKeys: extracted.r2Keys,
+                telemetry: finalTelemetry,
                 clientScanId: scanId
             )
-
-            let (historicalContext, resultData) = try await (weatherContext, inferenceResult)
-
-            // Merge weather into telemetry only if backfill succeeded.
-            let finalTelemetry: CaptureTelemetry
-            if let ctx = historicalContext {
-                MerianLog.data.debug("Hydrated offline scan with historical weather: \(ctx.weatherCondition ?? "none", privacy: .public)")
-                finalTelemetry = CaptureTelemetry(
-                    subjectDistanceInMeters: baseTelemetry.subjectDistanceInMeters,
-                    gpsLatitude: baseTelemetry.gpsLatitude,
-                    gpsLongitude: baseTelemetry.gpsLongitude,
-                    gpsElevation: baseTelemetry.gpsElevation,
-                    locationName: baseTelemetry.locationName ?? ctx.locationName,
-                    weatherCondition: ctx.weatherCondition,
-                    weatherTemperatureF: ctx.weatherTemperature,
-                    timeOfDay: baseTelemetry.timeOfDay,
-                    timestamp: baseTelemetry.timestamp
-                )
-            } else {
-                finalTelemetry = baseTelemetry
-            }
-
-            MerianLog.data.debug("⏱️ Inference: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
-
-            await MainActor.run { SyncStateManager.shared.beginFinalizing() }
-            // Use a dedicated fresh actor for cleanup, not the long-lived shared actor.
-            // The shared actor is reserved for state-machine transitions (markScanAsStaged,
-            // tryClaimForInference) that must be serialized to prevent double-claiming races.
-            // processAndCleanupOfflineScan performs an INSERT + DELETE in one atomic save.
-            // If that save fails, the pending changes (insert + delete) stay in the context.
-            // Reusing the shared actor would leave those stale pending changes in place:
-            // subsequent resetOrphanedInferencingScans calls would miss the scan (pending-
-            // deleted objects are excluded from fetch results), and a second
-            // processAndCleanupOfflineScan attempt would stack a duplicate INSERT, guaranteeing
-            // a unique-constraint failure on every future retry. A fresh actor gives each
-            // cleanup attempt a clean ModelContext — if the save fails, the fresh actor is
-            // simply discarded and the shared actor's context remains uncorrupted.
-            let cleanupActor = BackgroundDatabaseActor(modelContainer: extracted.container)
-            let processingResult = await cleanupActor.processAndCleanupOfflineScan(
-                resultData: resultData,
-                originalImagePaths: extracted.localImagePaths,
-                scanId: scanId,
-                originalTimestamp: extracted.originalTimestamp,
-                telemetry: finalTelemetry
-            )
-
-            if let speciesName = processingResult.resolvedSpeciesName, let dbScanId = processingResult.finalScanId {
-                let capturedContainer = extracted.container
-                await MainActor.run {
-                    UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
-                    PushNotificationManager.shared.setBadgeCount(1)
-                    if processingResult.isNewDiscovery {
-                        GamificationManager.shared.recordNewSpeciesDiscovered()
-                    }
-                    if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
-                        #if canImport(UIKit)
-                        if UIApplication.shared.applicationState != .active {
-                            PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
-                        }
-                        #endif
-                    }
-                    // Debounce award recalculation so a 5-scan burst fires one calculateAwards()
-                    // pass instead of five. Per-completion side-effects (notification, discovery
-                    // tracking) fire immediately above; only the heavier DB read is coalesced.
-                    awardsDebounceTask?.cancel()
-                    awardsDebounceTask = Task { [weak self] in
-                        guard let self else { return }
-                        try? await Task.sleep(for: .seconds(0.5))
-                        guard !Task.isCancelled else { return }
-                        // Task inherits @MainActor isolation (created inside MainActor.run),
-                        // so resolvedProfileDbActor and evaluateAchievementsForNotifications
-                        // can be called directly — no MainActor.run hops needed.
-                        let profileActor = self.resolvedProfileDbActor(container: capturedContainer)
-                        let updatedAwards = await profileActor.calculateAwards()
-                        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
-                    }
-                }
-            }
-
-            MerianLog.data.debug("⏱️ Pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
-            await MainActor.run {
-                OfflineQueueManager.shared.updateUnsyncedItemCount()
-                CircuitBreakerManager.shared.recordSuccess()
-                _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
-            }
-        } catch let MerianError.httpError(code, message) where (400...499).contains(code) {
-            MerianLog.data.debug("Inference failed permanently for \(scanId, privacy: .private) [\(code)]: \(message, privacy: .private) — tombstoning scan")
-            await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
         } catch {
-            let retries = await MainActor.run { () -> Int in
-                let next = (OfflineQueueManager.shared.uploadRetryCount[scanId] ?? 0) + 1
-                OfflineQueueManager.shared.uploadRetryCount[scanId] = next
-                return next
-            }
-            if retries >= OfflineQueueManager.maxUploadRetries {
-                MerianLog.data.debug("Inference retry limit reached for \(scanId, privacy: .private) — tombstoning scan")
-                await MainActor.run {
-                    OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
-                    OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
-                }
+            MerianLog.data.error("dispatchInferenceDownloadTask: failed to build request for \(scanId, privacy: .private): \(error, privacy: .private)")
+            let retryActor = resolvedInferenceDbActor(container: extracted.container)
+            await retryActor.transitionScanToStaged(id: scanId)
+            return
+        }
+
+        // Dispatch the background download task. The OS serializes the URLRequest (including
+        // httpBody) at resume() time — safe to use inline httpBody on background sessions.
+        let task = backgroundSession.downloadTask(with: request)
+        task.taskDescription = "inference_\(scanId)"
+        await MainActor.run { SyncStateManager.shared.beginInferencing() }
+        task.resume()
+
+        MerianLog.data.debug("Dispatched background inference download task for \(scanId, privacy: .private)")
+    }
+
+    // MARK: - Inference Result Processing
+
+    /// Processes the JSON file delivered by a completed background inference download task.
+    ///
+    /// Mirrors the success/failure routing of the former `runInferencePipeline`:
+    /// - HTTP 4xx → tombstone (permanent failure)
+    /// - HTTP 5xx / missing data → retry via `.staged` reset (up to `maxUploadRetries`)
+    /// - HTTP 200 → persist `LocalScanRecord`, delete `OfflineQueuedScan`, fire notifications
+    func processInferenceDownloadResult(scanId: String, resultFileURL: URL, statusCode: Int?) async {
+        defer { try? FileManager.default.removeItem(at: resultFileURL) }
+
+        guard let statusCode, statusCode == 200 else {
+            let code = statusCode ?? 0
+            if (400...499).contains(code) {
+                MerianLog.data.debug("Inference failed permanently for \(scanId, privacy: .private) [\(code)] — tombstoning scan")
+                await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
             } else {
-                // Reset to .staged so replayInferenceForUploadedScans can reclaim it on the
-                // next connectivity restore. Without this the scan stays in .inferencing,
-                // invisible to replay (which only queries .staged scans).
-                let retryActor = resolvedInferenceDbActor(container: extracted.container)
-                await retryActor.transitionScanToStaged(id: scanId)
-                MerianLog.data.debug("Inference failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+                MerianLog.data.debug("Inference download non-200 [\(code)] for \(scanId, privacy: .private) — retry")
+                await handleInferenceRetry(scanId: scanId)
             }
+            return
+        }
+
+        guard let resultData = try? Data(contentsOf: resultFileURL), !resultData.isEmpty else {
+            MerianLog.data.error("Background inference download: result file unreadable for \(scanId, privacy: .private)")
+            await handleInferenceRetry(scanId: scanId)
+            return
+        }
+
+        // Fetch the scan from SwiftData to read its current telemetry (may include weather
+        // backfill persisted by dispatchInferenceDownloadTask before app suspension).
+        let extracted: ExtractedScanData? = await MainActor.run {
+            guard let context = OfflineQueueManager.shared.modelContext else { return nil }
+            let container = context.container
+            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            descriptor.fetchLimit = 1
+            guard let scan = (try? context.fetch(descriptor))?.first else { return nil }
+            var telemetry = CaptureTelemetry(
+                subjectDistanceInMeters: scan.subjectDistanceInMeters,
+                gpsLatitude: scan.gpsLatitude,
+                gpsLongitude: scan.gpsLongitude,
+                gpsElevation: scan.gpsElevation,
+                locationName: scan.locationName,
+                weatherCondition: scan.weatherCondition,
+                weatherTemperatureF: scan.weatherTemperatureF,
+                timeOfDay: nil,
+                timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
+            )
+            telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
+            return ExtractedScanData(
+                telemetry: telemetry,
+                localImagePaths: scan.localImagePaths,
+                r2Keys: scan.stagedR2Keys ?? [],
+                container: container,
+                originalTimestamp: scan.timestamp
+            )
+        }
+
+        guard let extracted else {
+            // Scan was already cleaned up (e.g., live path completed first). Nothing to do.
+            MerianLog.data.debug("Background inference: scan \(scanId, privacy: .private) already removed — skipping cleanup")
+            return
+        }
+
+        let pipelineStart = CFAbsoluteTimeGetCurrent()
+        await MainActor.run { SyncStateManager.shared.beginFinalizing() }
+
+        // Use a fresh actor so a failed atomic save doesn't corrupt the shared actor's context.
+        let cleanupActor = BackgroundDatabaseActor(modelContainer: extracted.container)
+        let processingResult = await cleanupActor.processAndCleanupOfflineScan(
+            resultData: resultData,
+            originalImagePaths: extracted.localImagePaths,
+            scanId: scanId,
+            originalTimestamp: extracted.originalTimestamp,
+            telemetry: extracted.telemetry
+        )
+
+        if let speciesName = processingResult.resolvedSpeciesName, let dbScanId = processingResult.finalScanId {
+            let capturedContainer = extracted.container
+            await MainActor.run {
+                UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
+                PushNotificationManager.shared.setBadgeCount(1)
+                if processingResult.isNewDiscovery {
+                    GamificationManager.shared.recordNewSpeciesDiscovered()
+                }
+                if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
+                    #if canImport(UIKit)
+                    if UIApplication.shared.applicationState != .active {
+                        PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
+                    }
+                    #endif
+                }
+                // Debounce award recalculation so a burst of completions fires one pass.
+                awardsDebounceTask?.cancel()
+                awardsDebounceTask = Task { [weak self] in
+                    guard let self else { return }
+                    try? await Task.sleep(for: .seconds(0.5))
+                    guard !Task.isCancelled else { return }
+                    let profileActor = self.resolvedProfileDbActor(container: capturedContainer)
+                    let updatedAwards = await profileActor.calculateAwards()
+                    GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
+                }
+            }
+        }
+
+        MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
+        await MainActor.run {
+            OfflineQueueManager.shared.updateUnsyncedItemCount()
+            CircuitBreakerManager.shared.recordSuccess()
+            _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
+            SyncStateManager.shared.completeSync()
+        }
+    }
+
+    // MARK: - Inference Failure Handling
+
+    /// Handles a background inference download task network-level failure.
+    ///
+    /// Called from `urlSession(_:task:didCompleteWithError:)` when the download task fails
+    /// with a transport error (the server never responded). Resets the scan to `.staged` below
+    /// the retry threshold, or tombstones it once `maxUploadRetries` is exhausted.
+    func handleInferenceTaskNetworkFailure(scanId: String, error: Error) async {
+        MerianLog.data.debug("Background inference download failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+        await handleInferenceRetry(scanId: scanId)
+    }
+
+    /// Increments the retry counter for a scan and either resets it to `.staged` for the
+    /// next sync cycle or tombstones it once `maxUploadRetries` is exhausted.
+    private func handleInferenceRetry(scanId: String) async {
+        guard let container = modelContext?.container else { return }
+
+        let retries = await MainActor.run { () -> Int in
+            let next = (uploadRetryCount[scanId] ?? 0) + 1
+            uploadRetryCount[scanId] = next
+            return next
+        }
+
+        if retries >= OfflineQueueManager.maxUploadRetries {
+            MerianLog.data.debug("Inference retry limit reached for \(scanId, privacy: .private) — tombstoning scan")
+            await MainActor.run {
+                uploadRetryCount.removeValue(forKey: scanId)
+                softDeleteQueuedScan(scanId: scanId)
+            }
+        } else {
+            let retryActor = resolvedInferenceDbActor(container: container)
+            await retryActor.transitionScanToStaged(id: scanId)
+            MerianLog.data.debug("Inference failed for \(scanId, privacy: .private) — reset to .staged for retry (\(retries)/\(OfflineQueueManager.maxUploadRetries))")
         }
     }
 }
