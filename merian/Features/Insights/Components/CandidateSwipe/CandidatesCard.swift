@@ -135,6 +135,7 @@ private struct PendingView: View {
             )
             .environment(\.colorScheme, colorScheme == .dark ? .light : .dark)
         } else {
+            
             VStack(spacing: candidates.count > 1 ? 48 : 24) {
                 // Visual Graphic stack
                 ZStack {
@@ -150,6 +151,16 @@ private struct PendingView: View {
                             .rotationEffect(.degrees(rotation))
                             .offset(x: offsetX, y: offsetY)
                             .zIndex(-Double(index))
+                            .visualEffect { content, proxy in
+                                let scrollOffset = proxy.frame(in: .global).minY
+                                let wave = sin(scrollOffset / 200.0)
+                                
+                                // Subtle fan out effect from the bottom center
+                                let rotationWiggle = Double(wave) * (index == 0 ? -3.0 : 3.0)
+                                
+                                return content
+                                    .rotationEffect(.degrees(rotationWiggle), anchor: .bottom)
+                            }
                     }
                 }
                 .padding(.top, 8)
@@ -220,7 +231,6 @@ private struct PendingView: View {
 }
 
 // MARK: - Flayed Thumbnail
-
 private struct FlayedCandidateThumbnail: View {
     let candidate: IdentificationCandidate
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
