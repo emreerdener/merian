@@ -120,9 +120,12 @@ extension OfflineQueueManager {
     /// On every call: resets `.inferencing` orphans to `.staged` before querying, so scans
     /// interrupted mid-inference (e.g. by backgrounding) are immediately visible to replay.
     ///
-    /// On first call per process only: also reconciles `.uploading` orphans (URLSession tasks
-    /// that were never dispatched) back to `.pending`. Gated because it cross-references live
-    /// URLSession tasks, which is only meaningful before any uploads are dispatched.
+    /// On first call per process only: runs a cold-start upload reconcile gated to that window
+    /// because it must run before any new upload tasks are dispatched (ensures the live-task
+    /// cross-reference captures only pre-existing tasks from the previous process).
+    /// On every subsequent call: also reconciles `.uploading` orphans via a live-task
+    /// cross-reference to catch scans stuck in `.uploading` when `generateUploadURLs` failed
+    /// or the `syncPendingScans` Task was killed before its catch block could run.
     func replayInferenceForUploadedScans() {
         guard isOnline else { return }
         guard let context = modelContext else { return }
@@ -160,6 +163,20 @@ extension OfflineQueueManager {
         let sharedActor = resolvedInferenceDbActor(container: container)
         Task {
             let allTasks = await backgroundSession.allTasks
+
+            // Safety-net: reconcile orphaned .uploading scans on every replay.
+            // The primary reset happens in syncPendingScans's catch block when
+            // generateUploadURLs fails, but this covers any interruption that bypasses
+            // that path (e.g. the Swift Task being killed before the catch runs).
+            // Cross-referencing allTasks ensures scans with live URLSession tasks are
+            // not reset — only true orphans (no task, stuck in .uploading) are affected.
+            let activeUploadScanIds = Set(allTasks.compactMap { task -> String? in
+                guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
+                return desc.components(separatedBy: "_").first
+            })
+            let uploadReconcileActor = BackgroundDatabaseActor(modelContainer: container)
+            await uploadReconcileActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadScanIds)
+
             let activeInferenceScanIds = Set(allTasks.compactMap { task -> String? in
                 guard let desc = task.taskDescription, desc.hasPrefix("inference_") else { return nil }
                 return String(desc.dropFirst("inference_".count))

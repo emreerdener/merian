@@ -249,6 +249,16 @@ extension OfflineQueueManager {
                 }
             } catch {
                 MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
+                // Reset scans we marked .uploading back to .pending.
+                // generateUploadURLs failed before any URLSession tasks were dispatched, so every
+                // .uploading scan without a live task is an orphan. Without this reset,
+                // syncPendingScans only fetches .pending and the scan is never retried.
+                let liveTasks = await session.allTasks
+                let activeUploadIds = Set(liveTasks.compactMap { task -> String? in
+                    guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
+                    return desc.components(separatedBy: "_").first
+                })
+                await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadIds)
                 // Exponential backoff.
                 let delay: TimeInterval = await MainActor.run {
                     let current = self.uploadRetryDelay
