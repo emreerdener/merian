@@ -7,10 +7,22 @@ Merian's core differentiator is treating off-grid nature encounters as a first-c
 ### 1. Realtime Inference Mapper (`saveLiveScanRecord`)
 When a user scans a subject with an active network connection, the Gemini response cascades back from the Edge node. To persist this inference against iOS RAM loss, `BackgroundDatabaseActor.saveLiveScanRecord(mappedData:localImagePaths:)` is invoked on its isolated `@ModelActor` thread. It accepts an array of local image filenames (relative paths in `URL.documentsDirectory`), inserts a `LocalScanRecord`, and calls `modelContext.save()`.
 
-### 2. Inference Failure & Queueing (`enqueueCapture`)
-When a hiker captures a photo off-grid, the telemetry (GPS, weather, elevation, subject distance, location name) is wrapped in a `CaptureTelemetry` struct and passed to `OfflineQueueManager.shared.enqueueCapture(imageDatas:telemetry:)`.
+### 2. Scan Submission & Immediate Durability (`submitActiveScan` → `enqueueCapture`)
 
-The queue engine spawns a `BackgroundTaskWrapper.execute` window so iOS grants extended time even when the app is backgrounded. All disk I/O runs off the main thread via `FileIOActor`. Once image bytes land in `URL.documentsDirectory`, a new `OfflineQueuedScan` SwiftData record is inserted with the full telemetry payload attached. On a successful `context.save()`, `AppTelemetry.trackOfflineQueued()` fires a `OfflineQueuedScan` TelemetryDeck signal to measure offline usage rate.
+Every scan — regardless of network state or what the user does after pressing the shutter — is made durable **at the moment of submission**, not on a best-effort rescue later.
+
+When `CameraViewModel.submitActiveScan(modelContext:)` fires:
+
+1. A stable `scanId` UUID is generated. This UUID is shared by both the offline queue record and the concurrent live inference request.
+2. `enqueueCapture(imageDatas:telemetry:blurScore:scanId:)` is called **synchronously on the main actor**, before any `async` boundary is crossed. It wraps its work in a `.userInitiated` priority `BackgroundTaskWrapper`, ensuring the disk write, SwiftData insert, and `urlSession.uploadTask(...).resume()` dispatch all complete before the cooperative thread pool can be preempted by an app suspension. GPS is sourced from `EnvironmentContextManager.lastKnownLocation` — which returns the most recent accurate fix (≤30m) or falls back to the most recent inaccurate reading — so even scans captured during a GPS satellite acquisition carry a macro-region coordinate. Weather and `locationName` are absent from the queue record but are backfilled by `runInferencePipeline` via `EnvironmentContextManager.fetchHistoricalContext(location:date:)` when the offline path processes the scan.
+3. Concurrently, a `Task {}` awaits the pre-fetched `EnvironmentContext` (GPS + WeatherKit, started at shutter press) and fires `InferenceEngine.analyze(scanId:imageDatas:...)` with the full telemetry once it resolves. This is the **live inference path** — it delivers results faster than the background upload + Gemini round-trip, directly to the open insight sheet.
+
+The live inference path and the background upload path race. Whichever completes first wins:
+- **Live wins**: `analyze()` calls `OfflineQueueManager.shared.deleteQueuedScan(scanId:)` on success, which cancels any in-flight URLSession tasks and removes the SwiftData record.
+- **Background wins** (user backgrounded or dismissed): the upload completes via the OS-managed background URLSession, `runInferencePipeline` processes the result, and a push notification is delivered. `deleteQueuedScan` from the live path is a no-op if the record is already gone.
+- **Double-hit prevention**: both paths transmit the same `scanId` as `client_scan_id` to the Edge function. `insertScan` uses `.upsert(row, { onConflict: "id", ignoreDuplicates: true })`, so a second successful request for the same scan is silently discarded at the database layer.
+
+Once image bytes land in `URL.documentsDirectory`, a new `OfflineQueuedScan` SwiftData record is inserted with the available telemetry payload attached. On a successful `context.save()`, `AppTelemetry.trackOfflineQueued()` fires a `OfflineQueuedScan` TelemetryDeck signal to measure offline usage rate.
 
 **UI Surface**: While a scan awaits network transit, its `OfflineQueuedScan` record is rendered at the **top** of the Scans Library grid (`ScansGrid`) with a dark overlay and `cloud.arrow.up.fill` icon. Tapping a queued tile shows a contextual toast — `"Scan is uploading..."` if the device is online, `"Analysis pending network connection"` if offline — rather than opening `InsightSheet`. Queued scans are excluded from batch-selection mode; their IDs cannot enter the `Share` / `Download` / `Delete` pipeline. The grid query filters out tombstoned (`scanStateRaw == .failed`, raw value 5) records at the SwiftData layer so cancelled uploads never resurface: `#Predicate<OfflineQueuedScan> { $0.scanStateRaw < 5 }`.
 

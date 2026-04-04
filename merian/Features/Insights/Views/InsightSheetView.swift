@@ -31,9 +31,6 @@ struct InsightSheetView: View {
                 .onAppear {
                     viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
                 }
-                .onDisappear {
-                    viewModel.dismissAnalysisToBackground(inferenceEngine: inferenceEngine)
-                }
                 .task {
                     try? await Task.sleep(nanoseconds: 350_000_000)
                     withAnimation(.easeIn(duration: 0.2)) {

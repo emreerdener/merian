@@ -46,6 +46,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     @discardableResult
     public static func execute(
         name: String,
+        priority: TaskPriority = .background,
         expirationHandler: (@Sendable () -> Void)? = nil,
         operation: @escaping @Sendable (BackgroundTaskWrapper) async -> Void
     ) -> Task<Void, Never> {
@@ -57,7 +58,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
         }
         task.id = taskId
         #endif
-        return Task(priority: .background) {
+        return Task(priority: priority) {
             await operation(task)
             task.safeEnd()
         }

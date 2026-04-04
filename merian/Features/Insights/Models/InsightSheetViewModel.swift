@@ -157,19 +157,6 @@ final class InsightSheetViewModel {
         }
     }
     
-    // MARK: - Analysis Dismissal
-    
-    func dismissAnalysisToBackground(inferenceEngine: InferenceEngine) {
-        if inferenceEngine.isProcessing, !inferenceEngine.activeLiveCaptureDatas.isEmpty {
-            OfflineQueueManager.shared.enqueueCapture(
-                imageDatas: inferenceEngine.activeLiveCaptureDatas,
-                telemetry: CaptureTelemetry(from: inferenceEngine),
-                blurScore: nil
-            )
-            inferenceEngine.cancelActiveRequest(isUserInitiated: false)
-        }
-    }
-    
     // MARK: - Media & Share Exports
     
     func saveUserPhotos(inferenceEngine: InferenceEngine) {

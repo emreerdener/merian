@@ -28,7 +28,12 @@ import WeatherKit
     private var activeContinuations: [UUID: CheckedContinuation<CLLocation?, Never>] = [:]
     private var timeoutTask: Task<Void, Never>?
     private(set) var cachedLocation: CLLocation?
-    private var fallbackInaccurateLocation: CLLocation?
+    private(set) var fallbackInaccurateLocation: CLLocation?
+
+    /// Best available location at this instant: accurate lock preferred, inaccurate fallback
+    /// if GPS hasn't locked yet, nil only when the device has no fix at all.
+    /// Safe to call synchronously from the main actor with no async overhead.
+    var lastKnownLocation: CLLocation? { cachedLocation ?? fallbackInaccurateLocation }
 
     private var geocodeCache: [String: String] = [:]
     private var geocodeKeys: [String] = []

@@ -31,7 +31,6 @@ private struct WikiSummaryResponse: Decodable {
     var scanningPhaseText: String = "Analyzing subject..."
     @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
     var activeImageData: Data?
-    var activeLiveCaptureDatas: [Data] = []
     var activeDisplayDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData?
@@ -55,9 +54,6 @@ private struct WikiSummaryResponse: Decodable {
     var isLookalikesLoading: Bool = false
 
     // MARK: - Background Rescue State
-    /// Set to `true` by `cancelActiveRequest()` before cancelling the task, so the task's
-    /// cancellation handler knows the scan was intentionally backgrounded and should not refund.
-    private(set) var isBackgroundRescued = false
     @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
     /// Shared cap for all session-scoped deduplication sets. Matches `wikiFetchAttemptedIds` so
     /// all three sets evict at the same threshold — ~100 bytes × 500 entries ≈ 50 KB per set.
@@ -113,7 +109,6 @@ private struct WikiSummaryResponse: Decodable {
         self.speciesData = nil
         self.validHistoricImagePaths = []
         self.activeImageData = nil
-        self.activeLiveCaptureDatas = []
         self.activeDisplayDatas = []
         self.activeLatitude = nil
         self.activeLongitude = nil
@@ -121,7 +116,6 @@ private struct WikiSummaryResponse: Decodable {
         self.activeLocationName = nil
         self.activeWeatherCondition = nil
         self.activeTemperatureF = nil
-        self.isBackgroundRescued = false
     }
 
     /// - Parameters:
@@ -130,7 +124,7 @@ private struct WikiSummaryResponse: Decodable {
     ///   - displayDatas: 2048 px display-quality images. Written to disk so the insight
     ///     sheet and scan library render without JPEG blocking artifacts. Never sent to AI.
     ///     Falls back to `imageDatas` when empty (e.g. offline-queue reprocessing path).
-    func analyze(imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
+    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -151,11 +145,9 @@ private struct WikiSummaryResponse: Decodable {
 
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
-        self.activeLiveCaptureDatas = imageDatas
         self.activeDisplayDatas = displayDatas.isEmpty ? imageDatas : displayDatas
         self.validHistoricImagePaths = []
         self.speciesData = nil
-        self.isBackgroundRescued = false
 
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
@@ -219,7 +211,8 @@ private struct WikiSummaryResponse: Decodable {
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
-                    telemetry: telemetry
+                    telemetry: telemetry,
+                    clientScanId: scanId
                 )
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
@@ -257,8 +250,17 @@ private struct WikiSummaryResponse: Decodable {
                     self.validHistoricImagePaths = savedImagePaths
                     self.speciesData = mappedData
                     self.activeImageData = nil
-                    self.activeLiveCaptureDatas.removeAll()
                     self.activeDisplayDatas.removeAll()
+
+                    // Live inference succeeded — cancel the parallel background upload.
+                    // deleteQueuedScan cancels any in-flight URLSession tasks and removes
+                    // the SwiftData record. If the upload already staged and
+                    // processUploadCompletion claimed the scan first, deleteQueuedScan
+                    // is a no-op (record not found). The idempotency guard in
+                    // processAndCleanupOfflineScan prevents a duplicate LocalScanRecord.
+                    if let scanId {
+                        Task { await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId) }
+                    }
 
                     // Send a local notification for inference complete.
                     // The Offline queue path sends its own notification; this covers live inference.
@@ -329,21 +331,18 @@ private struct WikiSummaryResponse: Decodable {
                     }
                 }
             } catch {
-                // Cancellation: the task was intentionally cancelled (e.g., app backgrounded).
-                // Only refund if this was NOT a background rescue — isBackgroundRescued is reset
-                // here so cancelActiveRequest() doesn't need to race against this block.
+                // Cancellation: the task was cancelled (e.g., user started a new scan via
+                // prepareForNewScan). The scan is already durably in the offline queue, so
+                // the background upload path will complete it — no credit refund needed.
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
-                    let wasRescued = self.isBackgroundRescued
-                    self.isBackgroundRescued = false
-                    if !wasRescued {
-                        UsageManager.shared.refundScan()
-                    }
                     return
                 }
 
                 if let apiError = error as? MerianError, apiError == .decodingFailed {
                     AppTelemetry.trackError("APIDecodingFailure")
-                    UsageManager.shared.refundScan()
+                    // No refund: the scan is already durably in the offline queue and will be
+                    // retried by the background upload path. Refunding here would give the user
+                    // a free extra scan against a quota that was already consumed.
                     HapticManager.shared.triggerErrorThump()
                     self.speciesData = SpeciesData(
                         scanId: nil,
@@ -375,19 +374,11 @@ private struct WikiSummaryResponse: Decodable {
                     return
                 }
 
-                // Network failure — refund the scan since the user never got a result.
+                // Network failure — the scan is already in the offline queue and will be
+                // retried by the background upload path. No refund or re-enqueue needed.
                 AppTelemetry.trackError("InferenceNetworkFailure")
-                UsageManager.shared.refundScan()
+                CircuitBreakerManager.shared.recordFailure()
                 HapticManager.shared.triggerErrorThump()
-
-                if RevenueCatManager.shared.isProActive {
-                    CircuitBreakerManager.shared.recordFailure()
-                    OfflineQueueManager.shared.enqueueCapture(
-                        imageDatas: compressedDatas,
-                        telemetry: telemetry,
-                        blurScore: nil
-                    )
-                }
                 MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
                 self.speciesData = SpeciesData(
                     scanId: nil,
@@ -1006,9 +997,6 @@ private struct WikiSummaryResponse: Decodable {
     func cancelActiveRequest(isUserInitiated: Bool = false) {
         MerianLog.general.debug("Cancelled active inference request.")
         self.isProcessing = false
-        if !isUserInitiated {
-            isBackgroundRescued = true
-        }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.historicHydrationTask?.cancel()
@@ -1025,11 +1013,8 @@ private struct WikiSummaryResponse: Decodable {
         self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
-        // isBackgroundRescued is reset by the task's cancellation catch block.
-        // If the task was already finished, analyze() resets it at the start of the next scan.
         self.speciesData = nil
         activeImageData = nil
-        activeLiveCaptureDatas.removeAll()
         activeDisplayDatas.removeAll()
         validHistoricImagePaths.removeAll()
         activeLatitude = nil
@@ -1071,7 +1056,6 @@ private struct WikiSummaryResponse: Decodable {
         historicHydrationTask?.cancel()
 
         self.activeImageData = nil
-        self.activeLiveCaptureDatas = []
         self.activeDisplayDatas = []
         self.validHistoricImagePaths = []
 

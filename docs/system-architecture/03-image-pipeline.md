@@ -19,7 +19,7 @@ Every capture produces **two independent downsampled images** from the same raw 
 
 | Path | Constant | Size | Destination |
 |---|---|---|---|
-| **Inference** | `MerianConfig.inferenceImageMaxSize(isProActive:)` | **768 px** (Flash/free) or **1024 px** (Pro) longest edge | Base64-encoded and sent to Gemini; retained in `activeLiveCaptureDatas` for background-rescue re-queuing |
+| **Inference** | `MerianConfig.inferenceImageMaxSize(isProActive:)` | **768 px** (Flash/free) or **1024 px** (Pro) longest edge | Base64-encoded and sent to Gemini; discarded after encoding (scan durability is owned by the offline queue) |
 | **Display** | `MerianConfig.displayImageMaxSize` | 2048 px longest edge | Written to disk by `FileIOActor`; read by the insight sheet carousel and scan library |
 
 ```swift
@@ -48,7 +48,7 @@ Three staging buffers are populated in `CameraViewModel` after each capture or g
 
 Using the `CGImage` directly for `activeScanImages` eliminates a WebP round-trip decode step (encode to `Data` → decode back to `UIImage`). The `activeScanImages.count` change is what the `onChange(of: activeScanImages.count)` observer in `CameraRootView` watches to auto-trigger `submitActiveScan`.
 
-`Analysis.submitActiveScan()` passes both `Data` arrays to `InferenceEngine.analyze(imageDatas:displayDatas:)`. Inside the engine, `imageDatas` is base64-encoded for the AI call and synchronously retained in `activeLiveCaptureDatas` for offline-queue background rescue. `displayDatas` is retained synchronously in `activeDisplayDatas` to feed the insight sheet's live carousel with 2048px display images, while simultaneously being forwarded to `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via `FileIOActor.writeTemporaryImages`. The AI never receives the larger payload.
+`Analysis.submitActiveScan()` first calls `enqueueCapture` synchronously — before any `async` boundary — writing images to disk and dispatching the background URLSession upload while the app is in the foreground (see [Offline Sync Pipeline → Scan Submission & Immediate Durability](../backend-and-data/01-offline-sync-pipeline.md)). It then passes both `Data` arrays to `InferenceEngine.analyze(imageDatas:displayDatas:)`. Inside the engine, `imageDatas` is base64-encoded for the AI call and discarded after encoding — there is no `activeLiveCaptureDatas` buffer; durability is fully owned by the offline queue. `displayDatas` is retained in `activeDisplayDatas` to feed the insight sheet's live carousel with 2048 px display images, while simultaneously being forwarded to `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via `FileIOActor.writeTemporaryImages`. The AI never receives the larger payload.
 
 **Empty-payload guard (both paths)**: Both the camera shutter path (`Capture.swift`) and the gallery picker path (`CameraViewModel.handlePhotoPickerSelection`) check `guard !finalSafeData.isEmpty` before appending to `activeScannedDatas`. If WebP encoding fails for any reason (e.g., low-memory `CGImageDestinationCreateWithData` failure), the item is skipped entirely rather than appending `Data()`. Sending an empty base64 string (`Data().base64EncodedString() == ""`) causes Gemini to reject the request with an opaque AI processing error; the guard prevents this at the source.
 

@@ -252,13 +252,10 @@ struct CameraRootView: View {
 
         .onChange(of: viewModel.activeSheet) { _, newSheet in
             viewModel.updateNotificationSuppression()
-            
+
             if newSheet != nil {
                 cameraManager.stopSession()
             } else if captureMode == .visual && scenePhase == .active {
-                if inferenceEngine.isProcessing {
-                    viewModel.dismissAnalysisToBackground()
-                }
                 // Strictly guard the un-pause with `scenePhase == .active`, ensuring the
                 // startSession() hardware call can never fire indiscriminately during
                 // backgrounding transitions when the UI naturally dismisses sheets.

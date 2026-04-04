@@ -15,11 +15,75 @@ struct OfflineQueueManagerTests {
         return ModelContext(container)
     }
 
-    @Test func testEnqueueCaptureCreatesOfflineRecord() async throws { return }
+    @Test func testEnqueueCaptureUsesCallerSuppliedScanId() async throws {
+        let manager = OfflineQueueManager.shared
+        let context = try createInMemoryContext()
+
+        let originalContext = manager.modelContext
+        let originalOnline  = manager.isOnline
+        defer {
+            manager.modelContext = originalContext
+            manager.isOnline     = originalOnline
+        }
+
+        manager.modelContext = context
+        manager.isOnline     = false // prevent real upload attempt
+
+        let scanId = UUID().uuidString.lowercased()
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil, gpsLatitude: nil, gpsLongitude: nil,
+            gpsElevation: nil, locationName: nil, weatherCondition: nil,
+            weatherTemperatureF: nil, timeOfDay: nil,
+            timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
+            zoomFactor: nil, estimatedSizeCm: nil
+        )
+
+        manager.enqueueCapture(
+            imageDatas: [Data(repeating: 0xFF, count: 16)],
+            telemetry: telemetry,
+            scanId: scanId
+        )
+
+        // enqueueCapture writes to disk and inserts into SwiftData inside a
+        // BackgroundTaskWrapper (.userInitiated) — poll until the record appears.
+        let deadline = Date().addingTimeInterval(3)
+        var found = false
+        while Date() < deadline {
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            if (try? context.fetchCount(descriptor)) ?? 0 > 0 {
+                found = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(found, "enqueueCapture must create an OfflineQueuedScan whose id matches the caller-supplied scanId")
+    }
     
     @Test func testPurgeSoftDeletedRecords() async throws { return }
 
-    @Test func testEradicateScanQueuesLocalAndCloudTasks() async throws { return }
+    @Test func testDeleteQueuedScanRemovesSwiftDataRecord() async throws {
+        let manager = OfflineQueueManager.shared
+        let context = try createInMemoryContext()
+
+        let originalContext = manager.modelContext
+        defer { manager.modelContext = originalContext }
+        manager.modelContext = context
+
+        let scanId = UUID().uuidString.lowercased()
+        context.insert(OfflineQueuedScan(id: scanId, scanState: .pending))
+        try context.save()
+
+        await manager.deleteQueuedScan(scanId: scanId)
+
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let remaining = try context.fetchCount(descriptor)
+        #expect(remaining == 0, "deleteQueuedScan must remove the OfflineQueuedScan record from SwiftData")
+    }
 
     // MARK: - replayInferenceForUploadedScans (V33)
 

@@ -37,10 +37,9 @@ public enum MerianError: LocalizedError, Equatable {
 
 `InferenceEngine.analyze` handles errors in this priority order:
 
-1. **`CancellationError`** (or `URLError.cancelled`) — inference was cancelled (user navigated away, background rescue). Refund scan token via `UsageManager.shared.refundScan()`. Set `isProcessing = false`. Do not surface any UI. If `isBackgroundRescued` is `true`, do not refund (the token was already consumed by the background rescue path).
-2. **`MerianError.decodingFailed`** — Gemini hallucination. Refund token. Set `speciesData` to an "Analysis Failed" placeholder (`commonName: "Analysis Failed"`, `scientificName: "Data Unreadable"`). Set `isProcessing = false`. Show InsightSheet with degraded result.
-3. **Free user + any other error** — Refund token. Post `TriggerPaywall` notification via `NotificationCenter`. Set `isProcessing = false`. Do not enqueue offline.
-4. **Pro user + any other error** — Record circuit failure via `CircuitBreakerManager.shared.recordFailure()`. Enqueue to offline queue via `OfflineQueueManager.shared.enqueueCapture`. Set `speciesData` to a "Network Timeout / Offline Mode" placeholder. `isProcessing` is cleared by the unconditional block after the catch.
+1. **`CancellationError`** (or `URLError.cancelled`) — inference was cancelled (user navigated away or backgrounded). Do not refund the scan token. Do not surface any UI. The scan is already durably enqueued in the offline queue (written to disk synchronously in `submitActiveScan` before `analyze()` was called) and will complete via the background URLSession path.
+2. **`MerianError.decodingFailed`** — Gemini returned a malformed or unreadable response. Do **not** refund the token — the scan is already in the offline queue and will be retried by the background upload path. Refunding here would give the user a free extra scan against a quota already consumed. Set `speciesData` to an "Analysis Failed" placeholder (`commonName: "Analysis Failed"`, `scientificName: "Data Unreadable"`). Show InsightSheet with degraded result.
+3. **All other errors (network failure, timeout, etc.)** — Record circuit failure via `CircuitBreakerManager.shared.recordFailure()`. Set `speciesData` to a "Network Timeout / Offline Mode" placeholder. Do not refund and do not re-enqueue — the scan is already in the offline queue and will be retried by the background upload path.
 
 ---
 

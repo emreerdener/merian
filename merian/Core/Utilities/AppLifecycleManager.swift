@@ -75,16 +75,8 @@ final class AppLifecycleManager {
 
     /// Handles application transition to background.
     func handleBackgroundPhase() {
-        // If a live capture is in progress, re-queue it for background URLSession delivery
-        // and cancel the active request. Free users are capped at maxFreeScansPerDay items;
-        // Pro users queue without limit.
-        if container.inferenceEngine.isProcessing, !container.inferenceEngine.activeLiveCaptureDatas.isEmpty {
-            container.offlineQueueManager.enqueueCapture(
-                imageDatas: container.inferenceEngine.activeLiveCaptureDatas,
-                telemetry: CaptureTelemetry(from: container.inferenceEngine),
-                blurScore: nil
-            )
-            container.inferenceEngine.cancelActiveRequest()
-        }
+        // No-op: scans are enqueued to the offline queue immediately at submission time
+        // (in CameraViewModel.submitActiveScan), so no rescue is needed here. The background
+        // URLSession upload was already dispatched while the app was in the foreground.
     }
 }

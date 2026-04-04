@@ -60,29 +60,21 @@ struct AppLifecycleManagerTests {
         )
     }
 
-    @Test("AppLifecycleManager intercepts active UI inference and pushes it to OfflineQueue on backgrounding")
-    func testHandleBackgroundPhaseRescuesActiveLiveCapture() async {
+    @Test("handleBackgroundPhase is a no-op on the inference engine — scan durability is handled at submission time")
+    func testHandleBackgroundPhaseDoesNotMutateEngine() async {
         // Arrange
         let diContainer = AppDIContainer.preview
         let manager = AppLifecycleManager(container: diContainer)
         let engine = diContainer.inferenceEngine
-        
-        // Setup initial state: An active live capture is still processing when the user backgrounds the app
+
+        // Simulate an active inference (scan was submitted and enqueued before the user backgrounded)
         engine.isProcessing = true
-        let dummyImageData = Data("dummy test pixels".utf8)
-        engine.activeLiveCaptureDatas = [dummyImageData]
-        
-        // Assert preconditions
-        #expect(engine.isBackgroundRescued == false)
-        
+
         // Act
         manager.handleBackgroundPhase()
-        
-        // Assert
-        // The engine's cancelActiveRequest() should have been called, setting isBackgroundRescued to true
-        // and signaling that the in-flight inference was deliberately interrupted by the OS backgrounding
-        #expect(engine.isBackgroundRescued == true, "Engine should mark the request as background rescued so it isn't automatically refunded")
-        // isProcessing is cleared asynchronously by the task's cancellation catch block —
-        // not synchronously inside cancelActiveRequest() — so it cannot be checked here.
+
+        // Assert: engine state is untouched — the scan is already durable in the offline queue.
+        // handleBackgroundPhase no longer performs any rescue or cancellation.
+        #expect(engine.isProcessing == true, "handleBackgroundPhase must not cancel or modify an in-flight inference — the offline queue already holds the scan")
     }
 }

@@ -252,12 +252,19 @@ extension OfflineQueueManager {
 
     /// Writes image data to the Documents directory and inserts a new `OfflineQueuedScan` record.
     ///
-    /// All disk I/O runs inside a `BackgroundTaskWrapper` so iOS grants extended time even if
-    /// the user backgrounds the app immediately after capture. On success, `syncPendingScans()`
-    /// is called immediately to start uploading while the background window is still active.
+    /// All disk I/O runs inside a `.userInitiated` `BackgroundTaskWrapper` so iOS grants extended
+    /// time and the cooperative scheduler cannot starve the write on rapid app suspension.
+    /// On success, `syncPendingScans()` is called immediately to dispatch the background upload
+    /// while the background execution window is still active.
     ///
     /// On any failure — disk write or context save — partial image files are cleaned up atomically.
-    func enqueueCapture(imageDatas: [Data], telemetry: CaptureTelemetry, blurScore: Double? = nil) {
+    ///
+    /// - Parameter scanId: A caller-supplied identifier that ties this queued record to a
+    ///   concurrent live inference request. Pass the same UUID to `analyze()` so the live
+    ///   path can cancel the upload if inference succeeds first. When `nil` a new UUID is
+    ///   generated (used by callers that do not run a parallel live inference).
+    func enqueueCapture(imageDatas: [Data], telemetry: CaptureTelemetry, blurScore: Double? = nil, scanId: String? = nil) {
+        let resolvedScanId = scanId ?? UUID().uuidString
         let documentsDirectory = URL.documentsDirectory
         let pairs = imageDatas.map { _ -> (name: String, url: URL) in
             let name = "\(UUID().uuidString).webp"
@@ -266,7 +273,10 @@ extension OfflineQueueManager {
         let fileNames = pairs.map(\.name)
         let fileURLs = pairs.map(\.url)
 
-        BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite") { _ in
+        // .userInitiated ensures the disk write and URLSession upload dispatch complete
+        // before the cooperative scheduler can be frozen by an app suspension. .background
+        // priority can be starved if the user swipes away within milliseconds of capture.
+        BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { _ in
             do {
                 for (index, data) in imageDatas.enumerated() {
                     try data.write(to: fileURLs[index])
@@ -290,7 +300,7 @@ extension OfflineQueueManager {
                     }
 
                     let scan = OfflineQueuedScan(
-                        id: UUID().uuidString,
+                        id: resolvedScanId,
                         timestamp: Date(),
                         localImagePaths: fileNames,
                         gpsLatitude: telemetry.gpsLatitude,

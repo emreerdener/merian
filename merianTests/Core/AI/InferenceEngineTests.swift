@@ -841,4 +841,128 @@ struct InferenceEngineTests {
         #expect(legacyBands.strong == 0.96)
         #expect(legacyBands.diagnosticTrigger == 0.96)
     }
+
+    // MARK: - Enqueue-at-submission durability (win condition + cancellation)
+
+    @MainActor
+    private func createInMemoryContext() throws -> ModelContext {
+        let schema = Schema(CurrentSchema.models)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        return ModelContext(container)
+    }
+
+    private func makeTelemetry() -> CaptureTelemetry {
+        CaptureTelemetry(
+            subjectDistanceInMeters: nil, gpsLatitude: nil, gpsLongitude: nil,
+            gpsElevation: nil, locationName: nil, weatherCondition: nil,
+            weatherTemperatureF: nil, timeOfDay: nil,
+            timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
+            zoomFactor: nil, estimatedSizeCm: nil
+        )
+    }
+
+    /// Win condition: live inference success calls `deleteQueuedScan`, removing the queue
+    /// record so the background upload path does not produce a duplicate.
+    @Test func testLiveInferenceSuccessDeletesQueueRecord() async throws {
+        let context = try createInMemoryContext()
+
+        let originalSession = MerianNetworkClient.shared.overridingSession
+        let originalContext = OfflineQueueManager.shared.modelContext
+        defer {
+            MerianNetworkClient.shared.overridingSession = originalSession
+            OfflineQueueManager.shared.modelContext = originalContext
+            MockURLProtocol.requestHandler = nil
+        }
+
+        let scanId = UUID().uuidString.lowercased()
+        context.insert(OfflineQueuedScan(id: scanId, scanState: .pending))
+        try context.save()
+        OfflineQueueManager.shared.modelContext = context
+
+        let successJSON = """
+        {
+            "success": true,
+            "data": {
+                "scan_id": "\(scanId)",
+                "is_biological_subject": true, "is_live_capture": true,
+                "ecology_type": "wild", "is_invasive": false,
+                "scientific_name": "Procyon lotor", "common_name": "Raccoon",
+                "confidence_score": 0.95,
+                "insight_data": { "ai_reasoning": "A mammal.", "hazard_type": "none" }
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        MockURLProtocol.requestHandler = { _ in (mockResponse, successJSON) }
+
+        let sessionConfig = URLSessionConfiguration.ephemeral
+        sessionConfig.protocolClasses = [MockURLProtocol.self]
+        MerianNetworkClient.shared.overridingSession = URLSession(configuration: sessionConfig)
+
+        let engine = InferenceEngine()
+        engine.analyze(
+            scanId: scanId,
+            imageDatas: [Data(repeating: 0xAB, count: 16)],
+            displayDatas: [],
+            telemetry: makeTelemetry(),
+            modelContext: context
+        )
+
+        // deleteQueuedScan is dispatched in a Task after speciesData is set.
+        // Poll until the record is gone, not just until isProcessing flips.
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let deadline = Date().addingTimeInterval(5)
+        var recordGone = false
+        while Date() < deadline {
+            if (try? context.fetchCount(descriptor)) ?? 1 == 0 {
+                recordGone = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(recordGone, "Live inference success must trigger deleteQueuedScan — queue record should be removed")
+    }
+
+    /// Durability contract: inference cancellation (user backgrounds mid-analysis) must leave
+    /// the queue record intact so the background URLSession path owns delivery.
+    @Test func testInferenceCancellationPreservesQueueRecord() async throws {
+        let context = try createInMemoryContext()
+
+        let originalContext = OfflineQueueManager.shared.modelContext
+        defer { OfflineQueueManager.shared.modelContext = originalContext }
+        OfflineQueueManager.shared.modelContext = context
+
+        let scanId = UUID().uuidString.lowercased()
+        context.insert(OfflineQueuedScan(id: scanId, scanState: .pending))
+        try context.save()
+
+        let engine = InferenceEngine()
+        engine.analyze(
+            scanId: scanId,
+            imageDatas: [Data(repeating: 0xAB, count: 16)],
+            displayDatas: [],
+            telemetry: makeTelemetry(),
+            modelContext: context
+        )
+        // Cancel immediately — fires before any network call succeeds.
+        // prepareForNewScan cancels inferenceTask; the catch block handles
+        // CancellationError with a plain return — no deleteQueuedScan call.
+        engine.prepareForNewScan()
+
+        // Wait for the cancelled task's defer to set isProcessing = false.
+        let deadline = Date().addingTimeInterval(2)
+        while engine.isProcessing, Date() < deadline {
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let remaining = try context.fetchCount(descriptor)
+        #expect(remaining == 1, "Inference cancellation must not delete the queue record — background upload path owns delivery")
+    }
 }

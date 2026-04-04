@@ -196,6 +196,43 @@ The shared inference actor (`_inferenceDbActor`) is specifically reserved for st
 
 ---
 
+## 8. Offline Queue Durability: Enqueue at Submission, Not at Rescue
+
+The previous architecture attempted to rescue in-flight live inference captures by calling `enqueueCapture()` from background-phase or sheet-dismiss handlers. This pattern is structurally broken for three compounding reasons:
+
+1. **`Task(priority: .background)` starvation** — rescue tasks created after the app enters the background are queued at the lowest cooperative priority. iOS may suspend the process before the task scheduler gives them CPU time.
+2. **`isSyncing` guard deadlock** — `syncPendingScans()` guards with `guard !isSyncing`. If a prior sync cycle is still in-flight (pending network response), the rescue's sync call is silently dropped. The scan enters SwiftData as `.pending` and stalls indefinitely until the next foreground.
+3. **In-memory timing window** — `prepareForNewScan()` clears `activeLiveCaptureDatas` synchronously. `analyze()` repopulates it, but only after `capturedPreFetchTask?.value` resolves (GPS/weather fetch, 1–3 s). If rescue fires during this window, the image data is gone.
+
+### ✅ The Pattern: Enqueue Immediately at Submission
+
+Call `enqueueCapture()` synchronously **before any async work begins** in `submitActiveScan`. Use the already-cached GPS (`EnvironmentContextManager.cachedLocation` — live location tracking runs while the camera is active). Pass a caller-generated `scanId` to tie the queued record to the concurrent live inference.
+
+```swift
+// In submitActiveScan — BEFORE the Task {} block:
+let scanId = UUID().uuidString.lowercased()
+diContainer.offlineQueueManager.enqueueCapture(
+    imageDatas: datasToAnalyze,
+    telemetry: immediateTelemetry,   // GPS from cachedLocation, weather nil (backfilled by runInferencePipeline)
+    blurScore: nil,
+    scanId: scanId
+)
+
+// In the Task — fire live inference concurrently:
+await MainActor.run {
+    guard self.diContainer.inferenceEngine.isProcessing else { return }
+    self.diContainer.inferenceEngine.analyze(scanId: scanId, ...)
+}
+```
+
+**On live inference success**: `analyze()` calls `OfflineQueueManager.shared.deleteQueuedScan(scanId:)`, which cancels any in-flight URLSession tasks and removes the SwiftData record. If the upload already completed and `processUploadCompletion` claimed the scan first, `deleteQueuedScan` is a no-op (record not found). The idempotency guard in `processAndCleanupOfflineScan` prevents a duplicate `LocalScanRecord`.
+
+**On live inference cancellation or network failure**: the background upload path continues uninterrupted and delivers the result via push notification.
+
+All rescue handlers (`dismissAnalysisToBackground`, `handleBackgroundPhase` inference block, `InsightSheetView.onDisappear` rescue) are deleted. `activeLiveCaptureDatas` and `isBackgroundRescued` are removed from `InferenceEngine` entirely — they had no purpose outside the now-deleted rescue pattern.
+
+---
+
 ## 7. Failed `modelContext.save()` Does NOT Roll Back Pending Changes
 
 In SwiftData (built on Core Data), a failed `save()` call leaves all pending changes — inserts, deletes, property mutations — **in the context's pending state**. They are not automatically rolled back. Subsequent operations on the same context accumulate on top of the corrupted pending state.

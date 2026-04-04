@@ -102,12 +102,12 @@ Historically, attempting to manually map `UIDevice.orientation` against `videoOr
 ### Hanging Continuations (`CameraManager`)
 Apple's ISP (Image Signal Processor) can stall during extreme thermal saturation, failing to return an image frame via `AVCapturePhotoCaptureDelegate`. Rather than silently hanging the `isShutterActive` UI state, Merian wraps `withCheckedThrowingContinuation` patterns inside a `withTaskCancellationHandler`. To handle multiple overlapping captures on a single UI state, Merian associates an array tracking queue (`activeCaptureRequests`), isolating concurrent `timeoutTask?.cancel()` closures via unique UUID identifiers. This clears specific stalling entries from RAM and resolves dropped continuations via `CancellationError` without blocking subsequent captures.
 
-### Post-Inference Image Buffer Leak (`InferenceEngine`)
-After a successful inference round-trip, `activeImageData` and `activeLiveCaptureDatas` were left populated until the *next* scan started. For multi-shot captures, these arrays hold several MB of compressed JPEG bytes with no cleanup path on the success branch. The `cancelActiveRequest()` path already cleared them, but the success path did not.
+### Post-Inference Image Buffer Cleanup (`InferenceEngine`)
+Prior to the enqueue-at-submission refactor, `InferenceEngine` retained `activeImageData`, `activeLiveCaptureDatas`, and `activeCompressedImageData` as `@MainActor` properties to support background-rescue re-queuing. For multi-shot captures, these arrays held several MB of compressed JPEG bytes with no cleanup path on the success branch.
 
-`InferenceEngine.analyze` now clears both properties immediately after `speciesData` is assigned on success, releasing the buffers before the Wikipedia hydration task fires. The `defer { self.isProcessing = false }` block at the top of the task continues to cover the failure and cancellation paths.
+All three buffers have been removed entirely. Scan durability is now provided at submission time — `CameraViewModel.submitActiveScan` calls `enqueueCapture` synchronously before any `async` boundary, writing images to disk and dispatching the background URLSession upload while the app is still in the foreground (see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`). `analyze()` receives images as `imageDatas` parameters, uses them for base64 encoding, and does not retain them as instance state — Swift ARC reclaims the memory after the call.
 
-A formerly-present third buffer, `activeCompressedImageData`, was an exact duplicate of `activeLiveCaptureDatas[0]` / `activeImageData` with zero external consumers. It has been removed entirely, eliminating a second copy of the compressed JPEG on the `@MainActor` heap.
+`activeDisplayDatas` is the only image buffer retained in `InferenceEngine`. It holds the 2048 px display-quality WebP images that feed the insight sheet carousel during active inference, and is cleared after `speciesData` is assigned on success.
 
 ### Historical Scan Hydration Task Proliferation (`InferenceEngine.load(from:)`)
 
@@ -126,7 +126,7 @@ When opening a historical scan, `load(from:)` previously spawned up to 4 indepen
 - Nil-s the task handles for `historicHydrationTask`, `gbifHydrationTask`, and `enrichmentWriteTask`.
 - Resets all loading flags (`isEnrichmentLoading`, `isLookalikesLoading`) and `scanningPhaseText`.
 - Sets `isProcessing = true` and `speciesData = nil` atomically, so the router sees the correct `AnalyzingContentView` condition from the very first SwiftUI frame.
-- Clears all image and telemetry state (`validHistoricImagePaths`, `activeDisplayDatas`, `activeLiveCaptureDatas`, `activeImageData`, all environmental telemetry fields).
+- Clears all image and telemetry state (`validHistoricImagePaths`, `activeDisplayDatas`, all environmental telemetry fields).
 
 `analyze()` subsequently overwrites the image and telemetry fields with the new scan's data once the async Task resolves. `analyze()` also cancels `historicHydrationTask` internally so the offline-queue reprocessing path (which calls `analyze()` directly without going through `submitActiveScan()`) gets the same protection.
 
