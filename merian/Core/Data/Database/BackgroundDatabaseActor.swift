@@ -27,6 +27,10 @@ struct OfflineScanProcessingResult {
     let resolvedSpeciesName: String?
     let isNewDiscovery: Bool
     let finalScanId: String?
+    /// The fully-parsed result, present when inference succeeded (confidenceScore > 0).
+    /// Passed back to the main actor so the live InferenceEngine can be hydrated directly
+    /// when the background path races ahead of the suspended live inference task.
+    let speciesData: SpeciesData?
 }
 
 // MARK: - Background Database Actor
@@ -313,6 +317,7 @@ actor BackgroundDatabaseActor {
         var resolvedSpeciesName: String?
         var finalIsNewDiscovery = false
         var resultingScanId: String?
+        var resultSpeciesData: SpeciesData?
 
         let parsedWrapper: EdgeResponseWrapper?
         do {
@@ -358,6 +363,10 @@ actor BackgroundDatabaseActor {
                     mappedData.isNewDiscovery = true
                     finalIsNewDiscovery = true
                 }
+
+                // Capture mappedData (with isNewDiscovery set) so the caller can hydrate the
+                // live InferenceEngine if the background path completes before the live path.
+                resultSpeciesData = mappedData
 
                 let recordId = mappedData.scanId ?? scanId
                 // Idempotency guard: if a LocalScanRecord with this id was already
@@ -445,12 +454,14 @@ actor BackgroundDatabaseActor {
             // badge count for a scan that was never persisted to the library.
             resolvedSpeciesName = nil
             resultingScanId = nil
+            resultSpeciesData = nil
         }
 
         return OfflineScanProcessingResult(
             resolvedSpeciesName: resolvedSpeciesName,
             isNewDiscovery: finalIsNewDiscovery,
-            finalScanId: resultingScanId
+            finalScanId: resultingScanId,
+            speciesData: resultSpeciesData
         )
     }
 

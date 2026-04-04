@@ -27,6 +27,10 @@ private struct WikiSummaryResponse: Decodable {
 
     // MARK: - Pipeline State
     @ObservationIgnored var inferenceTask: Task<Void, Error>?
+    /// The client scan ID passed to `analyze()` — matches the `OfflineQueuedScan.id` for the
+    /// same capture. Used by the background offline path to detect when it completes the same
+    /// scan and should hydrate the engine instead of leaving `isProcessing = true` forever.
+    @ObservationIgnored var activeScanId: String?
     var isProcessing: Bool = false
     var scanningPhaseText: String = "Analyzing subject..."
     @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
@@ -102,6 +106,7 @@ private struct WikiSummaryResponse: Decodable {
         self.enrichmentWriteTask?.cancel()
         self.enrichmentWriteTask = nil
         self.phaseRotationTask?.cancel()
+        self.activeScanId = nil
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         self.scanningPhaseText = "Analyzing subject..."
@@ -143,6 +148,7 @@ private struct WikiSummaryResponse: Decodable {
         self.isLookalikesLoading = false
         self.scanningPhaseText = "Analyzing subject..."
 
+        self.activeScanId = scanId
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
         self.activeDisplayDatas = displayDatas.isEmpty ? imageDatas : displayDatas

@@ -6,7 +6,7 @@ Merian's inference engine uses `gemini-2.5-flash` (free tier) and `gemini-2.5-pr
 
 The AI inference layer is split across three files under `merian/Core/AI/`:
 
-- **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation, triggers the Edge function, and delivers results to `CameraViewModel`.
+- **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation, triggers the Edge function, and delivers results to `CameraViewModel`. Key `@ObservationIgnored` properties that track in-flight state: `inferenceTask: Task<Void, Never>?` (the live `analyze` task), `activeScanId: String?` (set to the `scanId` at the start of `analyze(scanId:...)` and cleared to `nil` in `prepareForNewScan()`). `activeScanId` is read by `OfflineQueueManager.processInferenceDownloadResult` to detect when the background URLSession path has completed for the same scan the live engine is still processing — see the [offline pipeline InferenceEngine hydration note](../backend-and-data/01-offline-sync-pipeline.md).
 - **`InferenceProcessingActor.swift`**: An off-main-thread actor responsible for base64 encoding image data and parsing Edge responses.
 - **`InferenceEdgeDTOs.swift`**: Codable DTOs used for Edge communication: `APIError`, `EdgeResponseWrapper`, and `EdgeResponse`.
 - **`InferenceEdgeDTOs.swift`** also declares `EnrichScanResponse` — the `Codable` DTO for the `enrich-scan` Edge Function response, with nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps `scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`) structs.

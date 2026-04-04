@@ -450,6 +450,27 @@ extension OfflineQueueManager {
                     let updatedAwards = await profileActor.calculateAwards()
                     GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
                 }
+
+                // If the background path completed the same scan the live InferenceEngine is
+                // currently processing, hydrate the engine directly. This fixes the case where
+                // the user backgrounds the app immediately after capture: the live inference Task
+                // is suspended (no BackgroundTaskWrapper protects it), the background URLSession
+                // path races ahead and wins, but isProcessing stays true — leaving the insight
+                // sheet in "Analyzing..." until the live task eventually times out and shows
+                // "Network Timeout" even though the scan completed successfully.
+                //
+                // Cancelling inferenceTask causes its defer { isProcessing = false } to run
+                // cooperatively (URLError.cancelled → catch → return). Setting isProcessing and
+                // speciesData here is safe because we are on the main actor; the deferred set is
+                // a later no-op on the same actor, and the cancel path never writes speciesData.
+                if let speciesData = processingResult.speciesData {
+                    let engine = AppDIContainer.shared.inferenceEngine
+                    if engine.isProcessing, engine.activeScanId == scanId {
+                        engine.inferenceTask?.cancel()
+                        engine.isProcessing = false
+                        engine.speciesData = speciesData
+                    }
+                }
             }
         }
 
