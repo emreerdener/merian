@@ -316,7 +316,6 @@ private extension ImagesCarousel {
     }
 }
 
-
 // MARK: - Analyzing Visual Effects
 private struct AnalyzingVisualEffectsView: View {
     @State private var pulseOpacity: Double = 0.0

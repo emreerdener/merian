@@ -62,6 +62,7 @@ struct HabitatAndDistributionCard: View {
                     Text(styledHabitat(text: habitat, name: scientificName))
                         .font(.body)
                         .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
 
                 } else if inferenceEngine.isEnrichmentLoading {
                     // MARK: - LOADING STATE

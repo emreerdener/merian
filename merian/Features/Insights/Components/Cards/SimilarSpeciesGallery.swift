@@ -11,28 +11,26 @@ struct SimilarSpeciesGallery: View {
     var body: some View {
         if !validEntries.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
-                // MARK: - Lookalike Target Carousel
-                VStack(alignment: .leading, spacing: 16) {
-                    // Header
-                    HStack(spacing: 8) {
-                        Image(systemName: "camera.filters")
-                            .foregroundColor(.secondary)
-                        Text("Similar species")
-                            .font(.system(.headline))
-                            .foregroundColor(.primary)
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 16) {
-                            ForEach(validEntries, id: \.scientificName) { entry in
-                                SimilarSpeciesCard(entry: entry)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 16) // Content inset matches title
-                    }
-                    .padding(.horizontal, -16) // Bleed parent padding
+                // Header
+                HStack(spacing: 8) {
+                    Image(systemName: "camera.filters")
+                        .foregroundColor(.secondary)
+                    Text("Similar species")
+                        .font(.system(.headline))
+                        .foregroundColor(.primary)
                 }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 16) {
+                        ForEach(validEntries, id: \.scientificName) { entry in
+                            SimilarSpeciesCard(entry: entry)
+                        }
+                    }
+                    .padding(.bottom, 8) // Shadow clearance
+                    .padding(.horizontal, 16) // Content inset matches title
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, -16) // Bleed parent padding
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -136,30 +134,28 @@ extension SimilarSpeciesGallery {
         @State private var isPulsing = false
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Header
-                    HStack(spacing: 8) {
-                        Image(systemName: "camera.filters")
-                            .foregroundColor(.secondary)
-                        Text("Similar species")
-                            .font(.system(.headline))
-                            .foregroundColor(.primary)
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
-                            ForEach(0..<3, id: \.self) { _ in
-                                SkeletonCard()
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 16) // Content inset matches title
-                    }
-                    .padding(.horizontal, -16) // Bleed parent padding
-                    .disabled(true)
+            VStack(alignment: .leading, spacing: 12) {
+                // Header
+                HStack(spacing: 8) {
+                    Image(systemName: "camera.filters")
+                        .foregroundColor(.secondary)
+                    Text("Similar species")
+                        .font(.system(.headline))
+                        .foregroundColor(.primary)
                 }
-                .padding(.top, 4)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 16) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            SkeletonCard()
+                        }
+                    }
+                    .padding(.bottom, 12) // Shadow clearance
+                    .padding(.horizontal, 16) // Content inset matches title
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, -16) // Bleed parent padding
+                .disabled(true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .redacted(reason: .placeholder)
