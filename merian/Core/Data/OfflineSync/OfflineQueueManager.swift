@@ -99,14 +99,22 @@ import SwiftData
     /// Avoids the per-call actor allocation + ModelContext setup overhead when scans
     /// complete in rapid succession. Initialized lazily on first use after `modelContext` is set.
     @ObservationIgnored private var _inferenceDbActor: BackgroundDatabaseActor?
+    /// Container that owns `_inferenceDbActor`. Tracked to detect container swaps (e.g. in
+    /// tests) so a stale actor bound to a dead container is not returned to callers.
+    @ObservationIgnored private var _inferenceDbActorContainer: ModelContainer?
     /// Persistent `ProfileDatabaseActor` reused for award recalculation.
     @ObservationIgnored private var _profileDbActor: ProfileDatabaseActor?
 
-    /// Returns the shared inference actor, creating it once from the provided container.
+    /// Returns the shared inference actor, creating it if the container changed or the actor
+    /// has not yet been created. In production the container is a process-lifetime singleton,
+    /// so this is effectively a one-time allocation. In tests each test suite creates an
+    /// in-memory container, and the identity check prevents returning a stale actor backed
+    /// by a previous test's already-deallocated store.
     func resolvedInferenceDbActor(container: ModelContainer) -> BackgroundDatabaseActor {
-        if let existing = _inferenceDbActor { return existing }
+        if let existing = _inferenceDbActor, _inferenceDbActorContainer === container { return existing }
         let actor = BackgroundDatabaseActor(modelContainer: container)
         _inferenceDbActor = actor
+        _inferenceDbActorContainer = container
         return actor
     }
 

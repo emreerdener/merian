@@ -3,6 +3,9 @@ import Testing
 import SwiftData
 import Foundation
 
+// Tests share OfflineQueueManager.shared — serialize to prevent concurrent mutations
+// from racing on modelContext, isSyncing, and hasReconciledStartupState.
+@Suite(.serialized)
 @MainActor
 struct OfflineQueueManagerTests {
 
@@ -177,6 +180,67 @@ struct OfflineQueueManagerTests {
         #expect(
             (manager.uploadRetryCount[scan.id] ?? 0) == 0,
             "replayInferenceForUploadedScans must not dispatch a pipeline for scans already in .inferencing state"
+        )
+    }
+
+    // MARK: - Cold-start orphan recovery
+
+    /// Verifies the cold-start reconcile + syncPendingScans chain.
+    ///
+    /// If the app is killed while a scan is in `.uploading` state (before any URLSession task
+    /// is dispatched), the cold-start reconcile must:
+    ///   1. Reset `.uploading` → `.pending` (reconcileOrphanedUploadingScans)
+    ///   2. Immediately call syncPendingScans so the scan is picked up for upload in this process.
+    ///
+    /// Without step 2, `syncPendingScans` already ran (and found nothing) before the async
+    /// reconcile completed, leaving the scan stuck in `.pending` until the next connectivity event.
+    @Test func testColdStartReconcileTriggersUploadForOrphanedUploadingScan() async throws {
+        let manager = OfflineQueueManager.shared
+        let context = try createInMemoryContext()
+
+        let originalContext    = manager.modelContext
+        let originalOnline     = manager.isOnline
+        let originalReconciled = manager.hasReconciledStartupState
+        let originalIsSyncing  = manager.isSyncing
+        defer {
+            manager.modelContext              = originalContext
+            manager.isOnline                  = originalOnline
+            manager.hasReconciledStartupState = originalReconciled
+            manager.isSyncing                 = originalIsSyncing
+        }
+
+        // Orphaned .uploading scan — no active URLSession task, simulates a process kill
+        // between markScansAsUploading and URLSession task dispatch.
+        let scanId = UUID().uuidString
+        context.insert(OfflineQueuedScan(id: scanId, localImagePaths: ["orphan.webp"], scanState: .uploading))
+        try context.save()
+
+        manager.modelContext              = context
+        manager.isOnline                  = true
+        manager.hasReconciledStartupState = false  // cold-start
+        manager.isSyncing                 = false
+
+        manager.replayInferenceForUploadedScans()
+
+        // The cold-start Task:
+        //   - Queries backgroundSession.allTasks → empty (no live tasks)
+        //   - reconcileOrphanedUploadingScans → .uploading → .pending
+        //   - calls syncPendingScans() (the fix) → sets isSyncing = true
+        //
+        // Poll for isSyncing == true. generateUploadURLs makes a real (failing) network call
+        // so isSyncing stays true long enough to be reliably observed.
+        let deadline = Date().addingTimeInterval(8)
+        var syncTriggered = false
+        while !syncTriggered, Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            if manager.isSyncing {
+                syncTriggered = true
+            }
+        }
+
+        #expect(
+            syncTriggered,
+            "After cold-start reconcile resets orphaned .uploading → .pending, syncPendingScans must be triggered immediately"
         )
     }
 

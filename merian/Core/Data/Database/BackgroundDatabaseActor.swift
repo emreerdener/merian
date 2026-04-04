@@ -147,9 +147,14 @@ actor BackgroundDatabaseActor {
     /// Marks scans in `.uploading` state that have no active URLSession task as `.pending`,
     /// so `syncPendingScans` re-dispatches them on the next sync cycle.
     ///
+    /// Returns `true` if at least one orphan was reset, `false` if nothing changed.
+    /// Callers that need to react to an actual state change (e.g. triggering a new sync)
+    /// can use the return value; all other call sites may discard it.
+    ///
     /// Called once per process lifetime on first connectivity restore. Safe because no
     /// URLSession tasks are dispatched during the window between process start and this call.
-    func reconcileOrphanedUploadingScans(activeScanIds: Set<String>) {
+    @discardableResult
+    func reconcileOrphanedUploadingScans(activeScanIds: Set<String>) -> Bool {
         let uploadingRaw = ScanQueueState.uploading.rawValue
         let pendingRaw   = ScanQueueState.pending.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
@@ -160,7 +165,7 @@ actor BackgroundDatabaseActor {
             scans = try modelContext.fetch(descriptor)
         } catch {
             MerianLog.data.debug("reconcileOrphanedUploadingScans: fetch failed: \(error, privacy: .private)")
-            return
+            return false
         }
         var changed = false
         for scan in scans where !activeScanIds.contains(scan.id) {
@@ -174,6 +179,7 @@ actor BackgroundDatabaseActor {
                 MerianLog.data.error("reconcileOrphanedUploadingScans: save failed: \(error, privacy: .private)")
             }
         }
+        return changed
     }
 
     /// Resets `.inferencing` scans that have no active background URLSession inference task

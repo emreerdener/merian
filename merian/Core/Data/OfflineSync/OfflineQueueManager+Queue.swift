@@ -142,8 +142,18 @@ extension OfflineQueueManager {
                     $0.taskDescription?.components(separatedBy: "_").first
                 })
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeIds)
-                await MainActor.run { self.replayInferenceForUploadedScans() }
+                let hadOrphans = await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeIds)
+                // Only call syncPendingScans if the reconcile actually reset scans from
+                // .uploading → .pending. Without this, the initial syncPendingScans call
+                // (from handleActivePhase) already ran and found nothing — .uploading scans
+                // are invisible to its .pending-only fetch — so the reconciled scan would
+                // sit in .pending permanently until the next connectivity event or foreground.
+                // Guarding on hadOrphans avoids a spurious second sync when the common case
+                // (no orphaned uploads) does not require one.
+                await MainActor.run {
+                    if hadOrphans { self.syncPendingScans() }
+                    self.replayInferenceForUploadedScans()
+                }
             }
             return
         }

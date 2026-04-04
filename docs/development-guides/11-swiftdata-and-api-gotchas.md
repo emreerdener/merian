@@ -308,3 +308,41 @@ In the `generateUploadURLs` catch block, cross-reference live URLSession tasks a
 ```
 
 **Safety-net layer**: `replayInferenceForUploadedScans` also calls `reconcileOrphanedUploadingScans` on every invocation (foreground return + connectivity restore) using the same live-task cross-reference. This catches the case where the `syncPendingScans` Swift Task is killed before its catch block runs — a scenario the primary fix cannot handle.
+
+---
+
+## 10. Cold-Start Timing Gap: Reconcile Completes After `syncPendingScans` Already Ran
+
+**Scenario**: The app is killed while a scan is in `.uploading` state — e.g. the user launches a scan and exits the app within ~1 second before `generateUploadURLs` returns and URLSession upload tasks are dispatched. On cold-start, the scan is `.uploading` with no active URLSession task.
+
+**The gap**: `handleActivePhase` calls `syncPendingScans()` and `replayInferenceForUploadedScans()` in separate async Tasks. `syncPendingScans` internally calls `replayInferenceForUploadedScans()` first (line 131). On cold-start, `replayInferenceForUploadedScans` sets `hasReconciledStartupState = true`, fires an async Task (the cold-start reconcile), and **returns immediately**. `syncPendingScans` then fetches `.pending` scans — finds **none** (the scan is `.uploading`) — and returns early with `isSyncing = false`. The cold-start reconcile Task eventually completes, resets `.uploading` → `.pending`, and calls `replayInferenceForUploadedScans()` again. But the second `replayInferenceForUploadedScans()` only handles `.staged` scans — it does not call `syncPendingScans()`. The `.pending` scan sits permanently until the next connectivity change or foreground event.
+
+```
+handleActivePhase fires:
+  syncPendingScans()
+    → replayInferenceForUploadedScans()     // cold-start: fires Task A, returns immediately
+    → fetchPendingScans()                   // finds nothing (.uploading excluded)
+    → isSyncing = false, returns
+  replayInferenceForUploadedScans()         // hasReconciledStartupState=true now → fires Task B
+
+Task A (cold-start):
+  reconcileOrphanedUploadingScans → .uploading → .pending  ✓
+  callback: replayInferenceForUploadedScans() → replayInferenceStagedScans()
+  // ← .pending scan NEVER picked up, no syncPendingScans called  ✗
+```
+
+### ✅ Fix: Call `syncPendingScans()` Conditionally in the Cold-Start Callback
+
+`reconcileOrphanedUploadingScans` now returns `Bool` (`true` if any scans were reset). The cold-start callback calls `syncPendingScans()` only when `hadOrphans == true`:
+
+```swift
+let hadOrphans = await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeIds)
+await MainActor.run {
+    if hadOrphans { self.syncPendingScans() }  // pick up newly-reset .pending scans immediately
+    self.replayInferenceForUploadedScans()
+}
+```
+
+Guarding on `hadOrphans` is essential. An unconditional `syncPendingScans()` call fires even when the reconcile found nothing — in the common case (no orphaned uploads) this triggers a spurious second sync on every cold-start, interfering with the backoff timer and causing test instability via the `isSyncing` latch.
+
+**Note**: Do NOT add `syncPendingScans()` to the normal-path callback in `replayInferenceForUploadedScans`. The normal path is called from within `syncPendingScans` itself (line 131). Adding `syncPendingScans()` there creates a recursive chain: `syncPendingScans` → `replayInferenceForUploadedScans` → normal Task → `syncPendingScans` → `replayInferenceForUploadedScans` → another Task → `reconcileOrphanedInferencingScans` → resets legitimately-claimed `.inferencing` scans → `replayInferenceStagedScans` → claims them again → infinite oscillation.
