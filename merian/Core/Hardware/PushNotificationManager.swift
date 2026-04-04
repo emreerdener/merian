@@ -82,8 +82,8 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
     ///   - imageURL: An optional local file URL pointing to the scan's captured image for the lock screen thumbnail.
     func sendInferenceCompleteNotification(speciesName: String, scanId: String, imageURL: URL? = nil) {
         let content = UNMutableNotificationContent()
-        content.title = "Analysis complete"
-        content.body = "New discovery: \(speciesName)!"
+        content.title = speciesName
+        content.body = "Analysis complete. Tap to view full insights."
         content.sound = .default
         content.userInfo = ["scanId": scanId]
         content.categoryIdentifier = "INFERENCE_COMPLETE"

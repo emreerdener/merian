@@ -276,3 +276,35 @@ if !alreadyExists {
     modelContext.insert(record)
 }
 ```
+
+---
+
+## 9. Orphaned `.uploading` Scans When `generateUploadURLs` Fails Mid-Session
+
+`syncPendingScans` calls `markScansAsUploading` to transition selected scans from `.pending` to `.uploading` **before** dispatching the URLSession upload tasks (see §4 — state must be persisted before the task dispatch boundary). This is intentional and correct for the crash-recovery case. However it introduces a trap when the next step fails:
+
+If `generateUploadURLs` throws — e.g. because `syncTask` was cancelled when `NWPathMonitor` fires offline as the user backgrounds — the catch block schedules a retry via `syncPendingScans()`. But `syncPendingScans` only fetches `scanStateRaw == 0` (`.pending`) records. The scans are now in `.uploading` and are **permanently invisible to the retry** within that process session.
+
+`reconcileOrphanedUploadingScans` cannot help here: it is gated to run once at cold-start (before any upload tasks are dispatched), after which `hasReconciledStartupState = true` permanently. The scans stay stuck in `.uploading` and show an infinite spinner in the scans library until the app is killed and relaunched.
+
+### ✅ Fix: Reset Orphans Before Scheduling the Retry
+
+In the `generateUploadURLs` catch block, cross-reference live URLSession tasks and call `reconcileOrphanedUploadingScans` before the retry is scheduled. Scans with a live upload task in-flight are left in `.uploading`; only true orphans (no task, `generateUploadURLs` never reached `uploadTask.resume()`) are reset to `.pending`.
+
+```swift
+} catch {
+    // Reset scans we marked .uploading back to .pending.
+    // generateUploadURLs failed before any URLSession tasks were dispatched, so every
+    // .uploading scan without a live task is an orphan. Without this reset,
+    // syncPendingScans only fetches .pending and the scan is never retried.
+    let liveTasks = await session.allTasks
+    let activeUploadIds = Set(liveTasks.compactMap { task -> String? in
+        guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
+        return desc.components(separatedBy: "_").first
+    })
+    await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadIds)
+    // ... schedule backoff retry
+}
+```
+
+**Safety-net layer**: `replayInferenceForUploadedScans` also calls `reconcileOrphanedUploadingScans` on every invocation (foreground return + connectivity restore) using the same live-task cross-reference. This catches the case where the `syncPendingScans` Swift Task is killed before its catch block runs — a scenario the primary fix cannot handle.
