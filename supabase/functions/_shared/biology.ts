@@ -171,11 +171,11 @@ export async function fetchSimilarSpecies(
     .join(", ");
 
   const taxonomyLine = taxonomicContext
-    ? ` The species belongs to: ${taxonomicContext}. ALL lookalikes MUST belong to the same kingdom and, where possible, the same class or order.`
+    ? ` The species belongs to: ${taxonomicContext}. ALL lookalikes MUST belong to the same kingdom AND the same order or family as the primary species. If no suitable lookalikes exist at that rank, return fewer entries rather than suggesting unrelated species.`
     : "";
 
   const model = createFlashModel(
-    `You are a world-class biologist. Given a species scientific name, identify the top 3 most commonly confused lookalike species that a field observer might misidentify it as.${taxonomyLine} For each lookalike, provide the exact scientific name and the most widely recognised English common name. CRITICAL: Every lookalike must be from the same taxonomic kingdom as the primary species. Never suggest species from a different kingdom (e.g., never suggest plants as lookalikes for animals).`,
+    `You are a world-class biologist. Given a species scientific name, identify the top 3 most commonly confused lookalike species that a field observer might misidentify it as.${taxonomyLine} For each lookalike, provide the exact scientific name and the most widely recognised English common name. CRITICAL: Every lookalike must be from the same taxonomic kingdom AND order as the primary species. Never suggest species from a different kingdom or a distantly related order (e.g., never suggest a pine cone as a lookalike for a rose, never suggest plants as lookalikes for animals).`,
     300,
   );
 

@@ -130,10 +130,14 @@ export async function resolveLookalikesToJoinTable(
     return [];
   }
 
-  const inserts = validated.flatMap((m) => [
-    { species_id: speciesId, lookalike_id: m.id },
-    { species_id: m.id, lookalike_id: speciesId },
-  ]);
+  // One-directional insert only: "when observing speciesId, you might confuse it for m".
+  // The reverse relationship (m → speciesId) is not guaranteed to hold — a pine cone is
+  // not a lookalike for a rose just because Flash once suggested the reverse. Bidirectional
+  // writes caused cross-family contamination that bypassed the kingdom-only validation guard.
+  const inserts = validated.map((m) => ({
+    species_id: speciesId,
+    lookalike_id: m.id,
+  }));
 
   const { error: upsertError } = await supabaseAdmin
     .from("species_lookalikes")
