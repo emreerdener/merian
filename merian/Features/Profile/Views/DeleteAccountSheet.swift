@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct DeleteAccountSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -8,7 +8,7 @@ struct DeleteAccountSheet: View {
     
     @State private var confirmationText: String = ""
     @State private var isDeleting: Bool = false
-    @State private var errorMessage: String? = nil
+    @State private var errorMessage: String?
     
     var isDeleteEnabled: Bool {
         confirmationText == "DELETE"

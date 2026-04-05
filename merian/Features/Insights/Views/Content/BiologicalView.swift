@@ -14,6 +14,7 @@ struct BiologicalView: View {
     var body: some View {
         VStack(spacing: 32) {
 
+            // MARK: - Header
             InsightHeader(
                 title: viewModel.headerTitle,
                 subtitle: viewModel.headerSubtitle,
