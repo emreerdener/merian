@@ -45,8 +45,11 @@ final class AppLifecycleManager {
                 // Throttled to once per 15 minutes to avoid redundant network syncs on every foreground.
                 let lastSyncDate = UserDefaults.standard.object(forKey: "lastHistoricalSyncDate") as? Date ?? Date.distantPast
                 if now.timeIntervalSince(lastSyncDate) >= 900 {
-                    await container.scanRepository.syncHistoricalScansDown(modelContext: context)
+                    // Stamp before starting the sync, not after. Without this, two concurrent
+                    // callers (auth listener + foreground handler) both check the timestamp
+                    // before either writes it and both proceed — doubling the network load.
                     UserDefaults.standard.set(now, forKey: "lastHistoricalSyncDate")
+                    await container.scanRepository.syncHistoricalScansDown(modelContext: context)
                 }
             }
 

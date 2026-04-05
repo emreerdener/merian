@@ -31,6 +31,13 @@ import Supabase
     private var currentNonce: String?
     private var activeAppleAuth: ASAuthorizationController?
 
+    // MARK: - Session Deduplication
+    /// Tracks the last user ID for which external telemetry (RevenueCat, PostHog) was linked.
+    /// Guards against the Supabase SDK emitting two auth events on cold start — one for the
+    /// locally cached token and one when the server validates/refreshes it. Without this guard
+    /// both events call linkWithSupabase and PostHog identify for the same user.
+    private var lastLinkedUserId: String?
+
     // MARK: - Initialization
 
     private override init() {
@@ -59,15 +66,25 @@ import Supabase
                 self.currentUser = session.user
                 self.isAuthenticated = true
 
-                await self.linkExternalTelemetry(user: session.user)
+                let userId = session.user.id.uuidString
+                if userId != lastLinkedUserId {
+                    // Only link telemetry and trigger historical sync when the active user
+                    // identity actually changes. The Supabase SDK fires two auth events on
+                    // cold start (local cache + server validation), both with the same user —
+                    // skipping the duplicate avoids a redundant RevenueCat logIn round-trip,
+                    // a duplicate PostHog identify, and a second concurrent historical sync.
+                    lastLinkedUserId = userId
+                    await self.linkExternalTelemetry(user: session.user)
 
-                // Sync historical scans on session restore to capture re-installs.
-                if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
-                    Task { await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context) }
+                    // Sync historical scans on session restore to capture re-installs.
+                    if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
+                        Task { await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context) }
+                    }
                 }
             } else {
                 self.currentUser = nil
                 self.isAuthenticated = false
+                lastLinkedUserId = nil
             }
 
             MerianLog.auth.debug("Auth event: \(String(describing: state.event), privacy: .public) | authenticated: \(self.isAuthenticated, privacy: .private)")
