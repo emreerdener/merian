@@ -92,14 +92,6 @@ extension OfflineQueueManager {
 
     // MARK: - Uploads
 
-    /// Fetches `.pending` scans and schedules background `PUT` uploads to Cloudflare R2 staging.
-    ///
-    /// Upload tasks are tracked by `taskDescription` (`"\(scanId)_\(imageIndex)"`).
-    /// Scans are atomically transitioned to `.uploading` state before tasks are dispatched,
-    /// so `syncPendingScans` never re-dispatches in-flight uploads after an app restart.
-    /// Confirmed R2 keys are persisted on the record at upload completion (in URLSession delegate).
-    ///
-    /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
     // Flatten scan → image-file pairs into a typed array.
     struct ScanUploadItem {
         let scanId: String
@@ -108,13 +100,20 @@ extension OfflineQueueManager {
         let fileURL: URL
     }
 
+    /// Fetches `.pending` scans and schedules background `PUT` uploads to Cloudflare R2 staging.
+    ///
+    /// Upload tasks are tracked by `taskDescription` (`"\(scanId)_\(imageIndex)"`).
+    /// Scans are atomically transitioned to `.uploading` state before tasks are dispatched,
+    /// so `syncPendingScans` never re-dispatches in-flight uploads after an app restart.
+    /// Confirmed R2 keys are persisted on the record at upload completion (in URLSession delegate).
+    ///
+    /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
+
     func syncPendingScans() {
         guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }
         guard !isSyncing else { return }
         guard let container = modelContext?.container else { return }
-
-        let isProActive = RevenueCatManager.shared.isProActive
 
         isSyncing = true
 
@@ -129,8 +128,6 @@ extension OfflineQueueManager {
             }
         ) { [weak self] _ in
             guard let self else { return }
-
-            await MainActor.run { self.replayInferenceForUploadedScans() }
 
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)

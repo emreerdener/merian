@@ -11,6 +11,11 @@ import UIKit
 final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = PushNotificationManager()
 
+    /// Scan IDs for which an inference notification has already been scheduled this session.
+    /// Prevents duplicate notifications when both the live and background paths complete
+    /// for the same scan in close succession (e.g. simulator re-attach or fast network).
+    @ObservationIgnored private var notifiedScanIds: Set<String> = []
+
     private override init() {
         super.init()
     }
@@ -81,6 +86,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
     ///   - scanId: The unique identifier for the scan, used for internal routing when the notification is tapped.
     ///   - imageURL: An optional local file URL pointing to the scan's captured image for the lock screen thumbnail.
     func sendInferenceCompleteNotification(speciesName: String, scanId: String, imageURL: URL? = nil) {
+        guard !notifiedScanIds.contains(scanId) else { return }
+        notifiedScanIds.insert(scanId)
+
         let content = UNMutableNotificationContent()
         content.title = speciesName
         content.body = "Analysis complete. Tap to view full insights."
@@ -102,7 +110,7 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
             }
         }
 
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        let request = UNNotificationRequest(identifier: "inference_\(scanId)", content: content, trigger: nil)
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
