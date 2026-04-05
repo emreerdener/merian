@@ -36,7 +36,7 @@ struct ExportScans: View {
                             await MainActor.run { isExporting = true }
                             do {
                                 // Maps request completely off timeout logic!
-                                try await MerianNetworkClient.shared.requestDwcAExport(scope: "user")
+                                try await MerianNetworkClient.shared.requestDwcAExport(scope: "personal")
                                 await MainActor.run {
                                     self.isExporting = false
                                     withAnimation { self.hasRequestedExport = true }

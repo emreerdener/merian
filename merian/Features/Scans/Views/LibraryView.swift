@@ -82,6 +82,9 @@ struct LibraryView: View {
                                 }
                             }
                         )
+                    } else if searchManager.isFiltering {
+                        Color.clear
+                            .frame(maxWidth: .infinity, idealHeight: 400)
                     } else {
                         EmptyStateView(
                             iconName: "viewfinder",

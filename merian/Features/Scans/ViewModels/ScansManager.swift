@@ -16,6 +16,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     // MARK: - UI Published State
     var searchQuery: String = ""
     var filteredScans: [LocalScanRecord] = []
+    var isFiltering: Bool = true
     var activeCategoryFilter: String = "All"
     var isSelectionMode: Bool = false
     var selectedScans: Set<String> = []
@@ -180,8 +181,12 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         let text = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let catMatch = currentCategory.lowercased()
         
+        self.isFiltering = true
+        
         searchTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 150_000_000) // Debounce typing
+            if !text.isEmpty {
+                try? await Task.sleep(nanoseconds: 150_000_000) // Debounce typing
+            }
             if Task.isCancelled { return }
 
             guard let self = self else { return }
@@ -198,7 +203,10 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 
                 let transientMap = Dictionary(uniqueKeysWithValues: self.allScans.map { ($0.id, $0) })
                 let finalSorted = sortedIds.compactMap { transientMap[$0] }
-                withAnimation { self.filteredScans = finalSorted }
+                withAnimation { 
+                    self.filteredScans = finalSorted 
+                    self.isFiltering = false
+                }
                 return
             }
             
@@ -206,6 +214,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             if searchData.isEmpty {
                 withAnimation {
                     self.filteredScans = []
+                    self.isFiltering = false
                 }
                 return
             }
@@ -230,6 +239,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             
             withAnimation {
                 self.filteredScans = finalSorted
+                self.isFiltering = false
             }
         }
     }

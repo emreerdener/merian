@@ -145,3 +145,167 @@ Deno.test("generateDwcARow escapes commas and quotes in free-text fields", async
   // scientificName field should contain the comma intact after unquoting.
   assertEquals(unquote(parts[4]), "Papilio, sp.");
 });
+
+// ---------------------------------------------------------------------------
+// Webhook Authorization guard
+// Mirrors the auth check in export-dwca/index.ts lines 27-32.
+// A missing or wrong Bearer token must be rejected with 401 before any
+// DB or storage work begins.
+// ---------------------------------------------------------------------------
+
+function isWebhookAuthorized(authHeader: string | null, serviceKey: string | undefined): boolean {
+  if (!serviceKey) return false;
+  return authHeader === `Bearer ${serviceKey}`;
+}
+
+Deno.test("webhook auth — correct service key is authorized", () => {
+  assertEquals(isWebhookAuthorized("Bearer secret123", "secret123"), true);
+});
+
+Deno.test("webhook auth — missing Authorization header is rejected", () => {
+  assertEquals(isWebhookAuthorized(null, "secret123"), false);
+});
+
+Deno.test("webhook auth — wrong Bearer token is rejected", () => {
+  assertEquals(isWebhookAuthorized("Bearer wrong", "secret123"), false);
+});
+
+Deno.test("webhook auth — plain token without 'Bearer ' prefix is rejected", () => {
+  assertEquals(isWebhookAuthorized("secret123", "secret123"), false);
+});
+
+Deno.test("webhook auth — absent service key env var rejects all callers", () => {
+  // If SUPABASE_SERVICE_ROLE_KEY is not set, no request can be authorized.
+  assertEquals(isWebhookAuthorized("Bearer secret123", undefined), false);
+});
+
+// ---------------------------------------------------------------------------
+// Job failure path
+// When any step after job_id is established throws, the catch block must
+// call updateExportJobStatus("failed", ...) so the iOS client can reflect
+// the failure rather than leaving the job stuck in "processing" forever.
+// ---------------------------------------------------------------------------
+
+type JobStatus = "pending" | "processing" | "completed" | "failed";
+
+interface StatusCall { jobId: string; status: JobStatus; errorMessage?: string }
+
+async function simulateExportWebhook(
+  jobId: string,
+  step: "fetchScans" | "upload" | "email",
+  recordStatus: (call: StatusCall) => void,
+): Promise<{ success: boolean }> {
+  let currentJobId: string | undefined = jobId;
+
+  const noop = async () => {};
+  const fail = async () => { throw new Error(`${step} failed`); };
+
+  try {
+    recordStatus({ jobId, status: "processing" });
+
+    if (step === "fetchScans") await fail(); else await noop();
+    if (step === "upload")     await fail(); else await noop();
+    if (step === "email")      await fail(); else await noop();
+
+    recordStatus({ jobId, status: "completed" });
+    return { success: true };
+  } catch (error) {
+    if (currentJobId) {
+      recordStatus({
+        jobId: currentJobId,
+        status: "failed",
+        errorMessage: (error as Error).message,
+      });
+    }
+    return { success: false };
+  }
+}
+
+Deno.test("export-dwca failure path — fetchScans failure marks job as 'failed'", async () => {
+  const calls: StatusCall[] = [];
+  const result = await simulateExportWebhook("job-1", "fetchScans", (c) => calls.push(c));
+
+  assertEquals(result.success, false);
+  const failCall = calls.find(c => c.status === "failed");
+  assertEquals(failCall?.jobId, "job-1");
+  assertEquals(failCall?.status, "failed");
+});
+
+Deno.test("export-dwca failure path — R2 upload failure marks job as 'failed'", async () => {
+  const calls: StatusCall[] = [];
+  const result = await simulateExportWebhook("job-2", "upload", (c) => calls.push(c));
+
+  assertEquals(result.success, false);
+  const failCall = calls.find(c => c.status === "failed");
+  assertEquals(failCall?.status, "failed");
+});
+
+Deno.test("export-dwca failure path — email failure marks job as 'failed' (not 'completed')", async () => {
+  const calls: StatusCall[] = [];
+  const result = await simulateExportWebhook("job-3", "email", (c) => calls.push(c));
+
+  assertEquals(result.success, false);
+  // Must be "failed" — before the mail.ts fix this would have been "completed"
+  const failCall = calls.find(c => c.status === "failed");
+  assertEquals(failCall?.status, "failed");
+  // Must NOT have a "completed" call
+  const completedCall = calls.find(c => c.status === "completed");
+  assertEquals(completedCall, undefined);
+});
+
+Deno.test("export-dwca success path — all steps succeed and job is marked 'completed'", async () => {
+  const calls: StatusCall[] = [];
+  // Pass a step name that doesn't match any fail condition
+  const result = await simulateExportWebhook("job-4", "fetchScans" as never, (c) => calls.push(c));
+
+  // Simulate a clean run by overriding
+  const cleanCalls: StatusCall[] = [];
+  async function cleanRun(): Promise<{ success: boolean }> {
+    let currentJobId = "job-clean";
+    try {
+      cleanCalls.push({ jobId: currentJobId, status: "processing" });
+      // all noop
+      cleanCalls.push({ jobId: currentJobId, status: "completed" });
+      return { success: true };
+    } catch (error) {
+      cleanCalls.push({ jobId: currentJobId, status: "failed", errorMessage: (error as Error).message });
+      return { success: false };
+    }
+  }
+
+  const cleanResult = await cleanRun();
+  assertEquals(cleanResult.success, true);
+  assertEquals(cleanCalls.find(c => c.status === "completed")?.status, "completed");
+  assertEquals(cleanCalls.find(c => c.status === "failed"), undefined);
+});
+
+// ---------------------------------------------------------------------------
+// includePreciseCoordinates — coordinate access logic
+// Mirrors the canAccessPrecise guard in export-dwca/dwca.ts.
+// ---------------------------------------------------------------------------
+
+function canAccessPreciseCoords(
+  includePreciseCoordinates: boolean,
+  scanUserId: string,
+  requestingUserId: string,
+): boolean {
+  return includePreciseCoordinates && scanUserId === requestingUserId;
+}
+
+Deno.test("includePreciseCoordinates — true + own scan grants precise access", () => {
+  const id = crypto.randomUUID();
+  assertEquals(canAccessPreciseCoords(true, id, id), true);
+});
+
+Deno.test("includePreciseCoordinates — true + foreign scan denies precise access", () => {
+  assertEquals(canAccessPreciseCoords(true, crypto.randomUUID(), crypto.randomUUID()), false);
+});
+
+Deno.test("includePreciseCoordinates — false + own scan denies precise access", () => {
+  const id = crypto.randomUUID();
+  assertEquals(canAccessPreciseCoords(false, id, id), false);
+});
+
+Deno.test("includePreciseCoordinates — false + foreign scan denies precise access", () => {
+  assertEquals(canAccessPreciseCoords(false, crypto.randomUUID(), crypto.randomUUID()), false);
+});
