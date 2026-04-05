@@ -39,6 +39,11 @@ struct CandidatesCard: View {
         }
     }
 
+    private var displayCommonName: String {
+        let name = inferenceEngine.speciesData?.commonName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return name.isEmpty ? aiScientificName : name.capitalized
+    }
+
     var body: some View {
         Group {
             switch reviewState {
@@ -54,6 +59,7 @@ struct CandidatesCard: View {
             case .pending:
                 PendingView(
                     candidates: candidates,
+                    aiCommonName: displayCommonName,
                     onConfirm: {
                         HapticManager.shared.triggerSuccessPulse()
                         onMatchConfirmed?()
@@ -78,6 +84,7 @@ struct CandidatesCard: View {
 
 private struct PendingView: View {
     let candidates: [IdentificationCandidate]
+    let aiCommonName: String
     let onConfirm: () -> Void
     let onReviewAlternatives: () -> Void
     var onFlagIssue: (() -> Void)?
@@ -130,10 +137,13 @@ private struct PendingView: View {
             .padding(20)
             .background(
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(Color(uiColor: .systemBackground))
+                    .fill(colorScheme == .dark ? Color.black.opacity(0.5) : Color(uiColor: .systemBackground))
                     .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
             )
-            .environment(\.colorScheme, colorScheme == .dark ? .light : .dark)
+            .overlay(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .stroke(Color(UIColor.separator), lineWidth: 0.5)
+            )
         } else {
             
             VStack(spacing: candidates.count > 1 ? 48 : 24) {
@@ -169,10 +179,10 @@ private struct PendingView: View {
                 VStack(spacing: 24) {
                     // Content Heading
                     VStack(spacing: 8) {
-                        Text("It could be...")
+                        Text("\(candidates.count) close \(candidates.count == 1 ? "match" : "matches") found")
                             .font(.system(.title2).weight(.bold))
                             .foregroundColor(.primary)
-                        Text("\(candidates.count) other close \(candidates.count == 1 ? "match" : "matches")")
+                        Text("Other species the model also considered")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -201,31 +211,19 @@ private struct PendingView: View {
                                 )
                         }
                         .buttonStyle(.plain)
-
-                        Button(action: onConfirm) {
-                            Text("Confirm initial match")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color(.systemBackground).opacity(0.01))
-                                .foregroundColor(.green)
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .strokeBorder(Color.green.opacity(0.3), lineWidth: 1)
-                                )
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
             }
             .padding(20)
             .background(
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(Color(uiColor: .systemBackground))
+                    .fill(colorScheme == .dark ? Color.black.opacity(0.5) : Color(uiColor: .systemBackground))
                     .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
             )
-            .environment(\.colorScheme, colorScheme == .dark ? .light : .dark)
+            .overlay(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .stroke(Color(UIColor.separator), lineWidth: 0.5)
+            )
         }
     }
 }
