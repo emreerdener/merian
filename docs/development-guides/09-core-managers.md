@@ -171,6 +171,8 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 ### `SupabaseManager`
 - Wraps GoTrue bindings and exports a unified `getValidAuthHeaders() async throws -> [String: String]` method that consolidates OAuth conditional checks (`Merian_HasAuthenticatedOAuth`) and Ghost Session regeneration (via `.identifierForVendor`).
+- **`authListenerTask` handle**: `@ObservationIgnored private var authListenerTask: Task<Void, Never>?` — the auth state listener task is stored rather than fire-and-forget, consistent with the task handle pattern used across the engine layer. This allows the task to be cancelled on deinit and prevents duplicate listener registration.
+- **`lastLinkedUserId` dedup guard**: `private var lastLinkedUserId: String?` — prevents double RevenueCat login and double PostHog identify on cold start. The Supabase SDK emits two auth events per session restore (local cache read + server validation); this guard skips the second event for the same user ID so external identity systems are only notified once per session.
 - **DRY OAuth Abstraction**: Apple Sign In and Google Sign In share a single `private func finalizeOAuthLogin` path, removing the duplicate `.linkIdentityWithIdToken` / `.signInWithIdToken` logic that previously existed in both flows.
 - **`keyWindowAnchor()` helper**: A private `keyWindowAnchor() -> ASPresentationAnchor` method was extracted to remove the identical implementation that was previously copy-pasted into two separate `presentationAnchor` methods.
 - **Deduplicated anonymous sign-in**: The two identical anonymous sign-in code paths were collapsed into a single `isSessionMissing` check, removing the duplicate `signInAnonymously()` block.

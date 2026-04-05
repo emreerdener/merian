@@ -106,9 +106,9 @@ This prevents orphaned public objects when the database write fails after media 
 | `PROMOTED` | Media safe, promoted to public storage | Yes |
 | `DELETED_WARNING` | Unsafe (strike 1–2), staging deleted | No |
 | `SHADOWBANNED` | Unsafe (strike 3+), user shadowbanned | No |
-| `ERROR` | Internal exception in moderation pipeline | Yes (scan inserted with empty `image_storage_urls`) |
+| `ERROR` | Internal exception in moderation pipeline | No (scan is NOT inserted — ingestion halts) |
 
-The `ERROR` fallthrough is intentional — a technical failure in the moderation module does not cause the scan to be silently lost. The scan is persisted without images, and the error is logged for investigation.
+The `ERROR` status now halts ingestion in `identify/index.ts` — when `modResult.status === "ERROR"`, the scan insert is skipped entirely. Without this guard, a moderation pipeline failure (e.g. abuse strike DB write failed) would create a permanent DB record with `image_storage_urls: null`. The outer catch in `moderation.ts` now uses `logStructuredError` instead of bare `console.error` for alertable observability. Abuse strike fetch/write failures now throw rather than log-and-continue — returning `SHADOWBANNED` or `DELETED_WARNING` when the DB write silently failed would falsely indicate the penalty was recorded.
 
 ## Flagged Reviews (User-Reported)
 

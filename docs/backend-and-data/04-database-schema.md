@@ -234,6 +234,8 @@ A top-level album type associated with `LocalScanRecord` nodes, added in `Merian
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than encoded objects, reducing memory pressure.)
 - `isDeleted`: Bool (Added in `MerianSchemaV14`. Soft-delete flag explicitly passed to the Edge function for safe cloud erasure instead of destructive state-diffs.)
 
+**`pending_storage_deletions` — cleanup index** (`20260405000002`): Added composite index `idx_pending_storage_deletions_status_user` on `(status, target_user_id, created_at)`. The table had no index at creation — any background cleanup sweep filtering by `status = 'pending'` was performing a full sequential scan.
+
 ### `PendingCloudDeletionTask`
 
 Queues offline cloud deletions, added in `MerianSchemaV7`.
