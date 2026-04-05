@@ -4,7 +4,7 @@ struct ConfidenceHeader: View {
     var body: some View {
         VStack(spacing: 16) {
             VStack(spacing: 8) {
-                Text("AI Analysis")
+                Text("Analysis")
                     .font(.system(.title, design: .serif).weight(.bold))
                     .foregroundStyle(.primary)
                 

@@ -33,8 +33,14 @@ serve(async (req: Request) => {
     const eventType = event.type;
     const userId = event.app_user_id;
 
-    if (!userId) {
-      return jsonResponse({ error: "No app_user_id found." }, 400);
+    // Validate that app_user_id is a UUID string. A falsy check alone is insufficient:
+    // RevenueCat can send anonymous IDs like "$RCAnonymousID:xxx" for un-linked purchases,
+    // which would pass a !userId check but fail UUID constraints in the DB layer, causing
+    // confusing 500 errors instead of an early, descriptive 400.
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof userId !== "string" || !UUID_REGEX.test(userId)) {
+      console.warn(`[revenuecat-webhook] Skipping non-UUID app_user_id: ${typeof userId === "string" ? userId.slice(0, 40) : typeof userId}`);
+      return jsonResponse({ error: "Invalid or missing app_user_id — expected a UUID." }, 400);
     }
 
     console.log(`Webhook received: ${eventType} for user ${userId}`);

@@ -516,7 +516,10 @@ actor HistoricalDatabaseActor {
                 return DateUtilities.iso8601Formatter.date(from: ts)
                     ?? DateUtilities.iso8601FractionalFormatter.date(from: ts)
             }
-            let parsedDate = exifDate ?? Date()
+            guard let parsedDate = exifDate else {
+                MerianLog.data.error("ingestScans: unparseable timestamp '\(scan.timestamp ?? "nil")' for scan \(scan.id) — skipping")
+                continue
+            }
 
             let dict = scan.species_dictionary
             let sciName = dict?.scientific_name ?? "Unknown Subject"

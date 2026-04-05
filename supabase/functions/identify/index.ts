@@ -1,7 +1,7 @@
 import { SafetyRating, Part } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
-import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHandler.ts";
+import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
@@ -503,17 +503,32 @@ serve((req: Request) =>
             keysToPurge.map((key: string) => deleteR2Object(key, r2Config)),
           );
         }
-        // Log structured context so failed ingestions are visible and retryable.
-        // A future dead-letter table / replay job can match on user_id + scan_id.
-        console.error(
-          JSON.stringify({
-            event: "background_ingestion_failed",
-            user_id: user.id,
-            scan_id: generatedScanId,
-            error: e instanceof Error ? e.message : String(e),
-            ts: new Date().toISOString(),
-          }),
-        );
+
+        const errorMsg = e instanceof Error ? e.message : String(e);
+
+        logStructuredError("background_ingestion_failed", {
+          user_id: user.id,
+          scan_id: generatedScanId,
+          error: errorMsg,
+        });
+
+        // Write to dead-letter table so failed ingestions are durable and retryable.
+        // The iOS client already received a 200 and holds the scan in local SwiftData,
+        // but without this record the server-side row is permanently missing (multi-device
+        // sync gap, absent from DwC-A exports). Ops can query failed_scan_ingestions to
+        // identify and manually trigger recovery for affected users.
+        // Best-effort: if this insert also fails (e.g. DB is down), the structured log
+        // above is still the recovery signal.
+        await supabaseAdmin
+          .from("failed_scan_ingestions")
+          .insert({ scan_id: generatedScanId, user_id: user.id, error_message: errorMsg })
+          .then(() => {})
+          .catch((dlErr: unknown) => {
+            logStructuredError("dead_letter_write_failed", {
+              scan_id: generatedScanId,
+              error: dlErr instanceof Error ? dlErr.message : String(dlErr),
+            });
+          });
       }
     };
 

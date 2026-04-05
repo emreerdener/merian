@@ -346,3 +346,31 @@ await MainActor.run {
 Guarding on `hadOrphans` is essential. An unconditional `syncPendingScans()` call fires even when the reconcile found nothing — in the common case (no orphaned uploads) this triggers a spurious second sync on every cold-start, interfering with the backoff timer and causing test instability via the `isSyncing` latch.
 
 **Note**: Do NOT add `syncPendingScans()` to the normal-path callback in `replayInferenceForUploadedScans`. The normal path is called from within `syncPendingScans` itself (line 131). Adding `syncPendingScans()` there creates a recursive chain: `syncPendingScans` → `replayInferenceForUploadedScans` → normal Task → `syncPendingScans` → `replayInferenceForUploadedScans` → another Task → `reconcileOrphanedInferencingScans` → resets legitimately-claimed `.inferencing` scans → `replayInferenceStagedScans` → claims them again → infinite oscillation.
+
+---
+
+## 16. `activeScanId` Stale Hydration Window
+
+`InferenceEngine.activeScanId` is set at the start of `analyze()` to the caller's scan ID. The background offline path (`OfflineQueueManager+URLSession`) uses this to detect when a background inference result for the same scan should hydrate the live engine instead of discarding:
+
+```swift
+if engine.activeScanId == scanId,
+   engine.isProcessing || engine.speciesData?.scanId == nil {
+    engine.isProcessing = false
+    engine.speciesData = speciesData
+}
+```
+
+**The bug (fixed)**: `activeScanId` was never cleared when the pipeline exited. If live inference failed (producing an error `SpeciesData` with `scanId: nil`), the engine remained with `activeScanId != nil` and `isProcessing = false`. A background inference arriving minutes later would see `engine.speciesData?.scanId == nil` (true for error placeholders) and overwrite the stale error state — even though the user had long since dismissed the insight sheet.
+
+**The fix**: `activeScanId` is cleared in the inference task's `defer` block alongside `isProcessing`:
+
+```swift
+defer {
+    self.isProcessing = false
+    self.activeScanId = nil  // bounds hydration window to isProcessing == true
+    self.phaseRotationTask?.cancel()
+}
+```
+
+For the success path this is a no-op: background correctly skips because `speciesData.scanId != nil`. For the failure path it ensures the background path only hydrates the engine while the live pipeline is actually running.

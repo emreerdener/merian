@@ -91,7 +91,10 @@ export async function upsertCollectionsAndFetchMemberships(
   ]);
 
   if (upsertResult.error) {
-    console.error("Batch upsert error:", upsertResult.error);
+    // Throw so the controller returns 500 rather than a silent success — the iOS client
+    // must know when collections failed to persist so it can retry rather than treating
+    // the sync as confirmed.
+    throw new Error(`Batch collection upsert failed: ${upsertResult.error.message}`);
   }
 
   return existingMembershipsResult.data ?? [];

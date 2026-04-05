@@ -5,6 +5,32 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 // changes without holding stale data across a full user session.
 const _tierCache = new Map<string, { tier: string; ts: number }>();
 const _TIER_CACHE_TTL_MS = 5 * 60_000;
+// Hard cap: on a warm isolate serving many distinct users, the map would otherwise grow
+// unboundedly. When the cap is reached, expired entries are swept first; if the map is
+// still at or above 75% of the cap after the sweep, the oldest 25% of remaining entries
+// are evicted to make room without discarding recently-fetched tiers.
+const _TIER_CACHE_MAX_ENTRIES = 1000;
+
+function _cacheSet(userId: string, tier: string): void {
+  if (_tierCache.size >= _TIER_CACHE_MAX_ENTRIES && !_tierCache.has(userId)) {
+    // Pass 1: sweep expired entries (cheapest eviction — no valid data lost).
+    const now = Date.now();
+    for (const [key, value] of _tierCache) {
+      if (now - value.ts >= _TIER_CACHE_TTL_MS) _tierCache.delete(key);
+    }
+    // Pass 2: if still at or above 75%, evict the oldest 25% of remaining entries.
+    if (_tierCache.size >= Math.ceil(_TIER_CACHE_MAX_ENTRIES * 0.75)) {
+      const evictCount = Math.ceil(_tierCache.size * 0.25);
+      let evicted = 0;
+      for (const key of _tierCache.keys()) {
+        if (evicted >= evictCount) break;
+        _tierCache.delete(key);
+        evicted++;
+      }
+    }
+  }
+  _tierCache.set(userId, { tier, ts: Date.now() });
+}
 
 /**
  * Returns the subscription tier for the given user ID, using a worker-level
@@ -31,7 +57,7 @@ export async function getTierForUser(
 
   if (data) {
     const tier = data.subscription_tier as string;
-    _tierCache.set(userId, { tier, ts: Date.now() });
+    _cacheSet(userId, tier);
     return tier;
   }
 
@@ -59,5 +85,5 @@ export function hasTierCached(userId: string): boolean {
  * the `users` table, so subsequent warm-isolate requests skip the DB round-trip.
  */
 export function setTierCache(userId: string, tier: string): void {
-  _tierCache.set(userId, { tier, ts: Date.now() });
+  _cacheSet(userId, tier);
 }

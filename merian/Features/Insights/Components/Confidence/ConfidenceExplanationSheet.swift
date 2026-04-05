@@ -11,6 +11,8 @@ struct ConfidenceExplanationSheet: View {
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
+    @State private var isReportPresented = false
+    @State private var showPaywall = false
 
     private var showLocationPrompt: Bool {
         let status = environmentContext.locationAuthorizationStatus
@@ -59,13 +61,37 @@ struct ConfidenceExplanationSheet: View {
                         }
                     )
                     .padding(.horizontal, 16)
+                } else {
+                    CandidatesCard(
+                        candidates: candidates,
+                        aiScientificName: aiScientificName ?? "Unknown Subject",
+                        inferenceTier: inferenceTier,
+                        onFlagIssue: {
+                            isReportPresented = true
+                        },
+                        onMatchConfirmed: nil,
+                        showDismissButton: false
+                    )
+                    .padding(.horizontal, 16)
                 }
 
                 ConfidenceSpectrum(inferenceTier: inferenceTier)
+                
+                PlanCard(showPaywall: $showPaywall)
+                    .padding(.horizontal, 16)
+                    
                 ProTips(showLocationPrompt: showLocationPrompt)
             }
             .padding(.top, 32)
             .padding(.bottom, 48)
+        }
+        .sheet(isPresented: $isReportPresented) {
+            if let scanId = inferenceEngine.speciesData?.scanId {
+                ReportInsightView(scanId: scanId)
+            }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
 }

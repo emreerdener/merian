@@ -30,14 +30,14 @@ struct TopToolbar: ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             if !isAnalyzing {
                 Menu {
-                    Button(action: { isFlagIssuePresented = true }) {
-                        Label("Report", systemImage: "exclamationmark.shield")
+                    Button(action: { onSavePhotos() }) {
+                        Label("Download my photos", systemImage: "arrow.down.circle")
                     }
                     Button(action: { isIdentificationFlagPresented = true }) {
                         Label("Flag identification", systemImage: "flag")
                     }
-                    Button(action: { onSavePhotos() }) {
-                        Label("Download my photos", systemImage: "arrow.down.circle")
+                    Button(action: { isFlagIssuePresented = true }) {
+                        Label("Report", systemImage: "exclamationmark.shield")
                     }
                     .disabled(isSavingPhotos)
                     Button(role: .destructive, action: { showDeleteConfirmation = true }) {

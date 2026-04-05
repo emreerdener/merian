@@ -55,7 +55,7 @@ export async function fetchDiscoveryFeed(
     .eq("geoprivacy", "open")
     .eq("is_live_capture", true)
     .eq("users.is_shadowbanned", false)
-    .not("user_id", "in", `(${excludedIds.join(",")})`)
+    .not("user_id", "in", excludedIds)
     .not("image_storage_urls", "eq", "{}")
     .order("timestamp", { ascending: false })
     .limit(limit);

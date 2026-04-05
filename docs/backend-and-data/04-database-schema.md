@@ -60,8 +60,9 @@ The transaction log for every successful identification.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0. Bounded explicitly within the Gemini schema description ruleset.
 - `blur_score` (Float): 0.0 to 1.0. Mathematically derived natively in the Edge orchestrator from Gemini's `image_quality.sharpness` score to reduce generation latency.
-- `gps_lat_exact` / `gps_long_exact` (Float)
-- `gps_elevation` (Float): Altitude at capture.
+- `gps_lat_exact` / `gps_long_exact` (Float): **CHECK constraints** (`20260405000005`): `gps_lat_exact` bounded `[-90, 90]`, `gps_long_exact` bounded `[-180, 180]`. Added `NOT VALID` — future inserts/updates validated; existing rows not retroactively checked.
+- `gps_lat_public` / `gps_long_public` (Float): Same CHECK constraints as exact columns.
+- `gps_elevation` (Float): Altitude at capture. CHECK constraint bounds `[-500, 9500]` (below Dead Sea floor to above Everest).
 - `is_live_capture` (Boolean): AI flags whether this was a real photo vs a screen/book capture.
 - `ecology_type` (ENUM): `'wild'` | `'urban'` | `'domesticated'` | `'unknown'`
 - `colors` (Text Array): 1–3 dominant biological colors extracted by Gemini for semantic searchability.
@@ -110,6 +111,24 @@ Stateful queueing table for asynchronous Darwin Core Archive (DwC-A) exports.
 - `created_at`, `completed_at` (TIMESTAMPTZ): Lifecycle tracking metrics.
 
 *Note: A `pg_net` Postgres Trigger listens to `INSERT` on this table to invoke the background `export-dwca` Server-to-Server edge function webhook.*
+
+**Export jobs watchdog cron** (`20260405000004`): A `pg_cron` job (`expire-stuck-export-jobs`) runs every 5 minutes and tombstones any job stuck in `'processing'` for more than 30 minutes by setting `status = 'failed'` with a descriptive `error_message`. Without this watchdog, a killed Edge function (OOM, cold-start restart, or edge timeout) leaves the job in `'processing'` permanently and the iOS client shows an infinite loading state. The watchdog is a plain SQL function (`public.expire_stuck_export_jobs()`) run by the cron schedule — no additional Edge Function is required.
+
+### `failed_scan_ingestions`
+
+Dead-letter table for background scan ingestion failures. Added in migration `20260405000003`.
+
+- `id` (UUID): Primary key.
+- `scan_id` (TEXT): The `client_scan_id` that was being inserted when the failure occurred. TEXT (not UUID FK) because the scan row may not exist if the failure was a FK violation.
+- `user_id` (UUID, NOT NULL): The user who submitted the scan. Enables per-user failure queries.
+- `error_message` (TEXT, nullable): The error thrown by `insertScan()`.
+- `failed_at` (TIMESTAMPTZ, DEFAULT NOW()): When the ingestion failed.
+
+**Context**: When `identify/index.ts` fires `runBackgroundIngestion()` and `insertScan()` fails (FK violation, DB timeout, network partition), the iOS client has already received a `200` with the AI result. Without this table the failure is only visible in edge function logs — the scan is permanently missing from the server DB, breaking multi-device sync and DwC-A exports for that user.
+
+**Ops workflow**: Query by `user_id` and `failed_at` to identify affected users; replay by re-invoking the `identify` function with the same `client_scan_id`. The `ignoreDuplicates: true` guard in `insertScan` makes replay safe. Row Level Security is enabled; the table is never read by the client SDK — only the edge function (service role) writes to it and ops queries it via the Supabase dashboard.
+
+**Indexes**: `idx_failed_scan_ingestions_user_id` on `(user_id, failed_at DESC)` for per-user lookups; `idx_failed_scan_ingestions_failed_at` on `(failed_at DESC)` for chronological monitoring sweeps.
 
 ### `user_blocks`
 

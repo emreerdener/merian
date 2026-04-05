@@ -63,7 +63,7 @@ export async function generateDwcARow(
   requestingUserId: string,
   secretHashSalt: string,
 ): Promise<{ occurrenceRow: string; mRows: string[] }> {
-  const species = scan.species_dictionary || {};
+  const species = scan.species_dictionary;
   const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
   const isTombstoned = scan.user_id === "00000000-0000-0000-0000-000000000000";
   let recordedBy = "Merian Citizen Scientist";
@@ -83,7 +83,7 @@ export async function generateDwcARow(
     "endangered",
     "critically_endangered",
     "near_threatened",
-  ].includes(species.iucn_red_list_status || "");
+  ].includes(species?.iucn_red_list_status || "");
   const canAccessPrecise = include_precise_coordinates && (scan.user_id === requestingUserId);
 
   let lat: number | string | undefined | null =
@@ -122,13 +122,13 @@ export async function generateDwcARow(
     csvField("HumanObservation"),
     csvField(recordedBy),
     csvField(date),
-    csvField(species.scientific_name),
-    csvField(species.kingdom),
-    csvField(species.phylum),
-    csvField(species.class),
-    csvField(species.order),
-    csvField(species.family),
-    csvField(species.genus),
+    csvField(species?.scientific_name),
+    csvField(species?.kingdom),
+    csvField(species?.phylum),
+    csvField(species?.class),
+    csvField(species?.order),
+    csvField(species?.family),
+    csvField(species?.genus),
     csvField(lat),
     csvField(lon),
     csvField(uncertainty),

@@ -104,6 +104,22 @@ private struct GBIFMedia: Decodable {
     /// cancelled if the user fires a new scan before Wikipedia/enrichment/GBIF finish.
     @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
 
+    // MARK: - External API Session
+
+    /// Dedicated URLSession for public third-party APIs (Wikipedia, GBIF).
+    /// Uses a separate session from MerianNetworkClient so:
+    /// - TLS pinning for *.supabase.co is not applied to public endpoints.
+    /// - Cookie storage is isolated (public APIs must not share cookie state with auth sessions).
+    /// - Connection pool is independent from the Supabase pool.
+    private static let externalAPISession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 5
+        config.timeoutIntervalForResource = 10
+        config.httpShouldSetCookies = false
+        config.urlCache = nil
+        return URLSession(configuration: config)
+    }()
+
     // MARK: - Live Inference Pipeline
 
     /// Synchronously resets all display state so the content router sees
@@ -212,8 +228,13 @@ private struct GBIFMedia: Decodable {
             guard let self = self else { return }
 
             // Single exit point for isProcessing — covers all success, error, and cancellation paths.
+            // activeScanId is also cleared here so a late background inference delivery cannot
+            // hydrate the engine after the live path has exited. For the success path this is
+            // a safe no-op (background skips because speciesData.scanId != nil). For the
+            // failure path it bounds the hydration window to when isProcessing == true.
             defer {
                 self.isProcessing = false
+                self.activeScanId = nil
                 self.phaseRotationTask?.cancel()
             }
 
@@ -487,7 +508,7 @@ private struct GBIFMedia: Decodable {
         request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await InferenceEngine.externalAPISession.data(for: request)
             guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return }
 
             let decoded = try JSONDecoder().decode(WikiSummaryResponse.self, from: data)
@@ -530,7 +551,7 @@ private struct GBIFMedia: Decodable {
         request.timeoutInterval = 4.0
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await InferenceEngine.externalAPISession.data(for: request)
             guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return }
 
             // Decode off @MainActor — GBIF occurrence responses can be 50–200 KB and
