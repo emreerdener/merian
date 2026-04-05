@@ -48,6 +48,13 @@ struct AnalyzingContentView: View {
                 analyzingPhrase: inferenceEngine.scanningPhaseText
             )
 
+            // MARK: - Title
+                Text("Analyzing subject")
+                    .font(.system(.largeTitle, design: .serif).weight(.bold))
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
+
             // Fun-fact carousel — gives users something to read while Gemini processes
             DidYouKnowCard()
                 .transition(.opacity.combined(with: .move(edge: .bottom)))

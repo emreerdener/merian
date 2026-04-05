@@ -222,6 +222,7 @@
 		BA29DD18B10689C6317D266A /* AppDIContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FD2D0B0B8D49842926B1FC /* AppDIContainer.swift */; };
 		BA5F42E28A2CCE151E666D42 /* BackgroundTaskWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E8C444C1F1F812B77872FD /* BackgroundTaskWrapper.swift */; };
 		BA78C2C67BF6607B3B020F2B /* PostHogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490F6B0A61D227C143DAF028 /* PostHogManager.swift */; };
+		BA8C21F6E83F561AAB37FDCE /* ToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34568E46112C7C5B4A23E55F /* ToastBanner.swift */; };
 		BCB8D65F3297E85504EF22D9 /* ScanDeletionDialogModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8725C15EA2D38C3661ED9B0 /* ScanDeletionDialogModifier.swift */; };
 		BEBFB4315EC9C6F2FC1F9F09 /* ScansManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31EF2AEBAC55EB3C7E7AC29A /* ScansManager.swift */; };
 		BFD2F8712DCA56C1D3D4881E /* OfflineQueueManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982525C62BD28E842B2F5D11 /* OfflineQueueManager.swift */; };
@@ -400,6 +401,7 @@
 		32C16B1B5FCFC75007ADBD99 /* InsightMediaExportManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightMediaExportManagerTests.swift; sourceTree = "<group>"; };
 		32F31F1296ED7CCA1F086905 /* PostHogManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostHogManagerTests.swift; sourceTree = "<group>"; };
 		33FD2D0B0B8D49842926B1FC /* AppDIContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDIContainer.swift; sourceTree = "<group>"; };
+		34568E46112C7C5B4A23E55F /* ToastBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastBanner.swift; sourceTree = "<group>"; };
 		34856C34F2EF3A759D27C2AB /* NonBiologicalScansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonBiologicalScansView.swift; sourceTree = "<group>"; };
 		38245B0CCF277CE255CF331D /* SchemaV22.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV22.swift; sourceTree = "<group>"; };
 		3859639FA7CD70EDAE8CC617 /* AudioRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecordingView.swift; sourceTree = "<group>"; };
@@ -1419,6 +1421,7 @@
 			children = (
 				215B78224B555E2EA538C476 /* CelebrationBanner.swift */,
 				AEAD18C5C37A28E00DE6D1ED /* Toast.swift */,
+				34568E46112C7C5B4A23E55F /* ToastBanner.swift */,
 				41947F78DC1E5E6A116B92D4 /* ToxicityBanner.swift */,
 			);
 			path = Banners;
@@ -2164,6 +2167,7 @@
 				4B9474AFA2CBECB2D16067D1 /* ThermalWarningView.swift in Sources */,
 				E1A322CFE4342A75D54513FC /* TipRow.swift in Sources */,
 				644AC7482721DF32D38384AE /* Toast.swift in Sources */,
+				BA8C21F6E83F561AAB37FDCE /* ToastBanner.swift in Sources */,
 				52A9BB490DFF172ACF0B255C /* TopToolbar.swift in Sources */,
 				CE729AADBD321FE56F911F07 /* ToxicityBanner.swift in Sources */,
 				842E825C495021C3FA1D0511 /* UsageManager.swift in Sources */,

@@ -100,11 +100,11 @@ private extension InsightSheetView {
     var mainContentStack: some View {
         ZStack(alignment: .top) {
             InsightContentView(viewModel: viewModel)
-            
+
             if let message = viewModel.toastMessage {
                 Toast(message: message)
             }
-            
+
             CelebrationBanner(
                 commonName: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject...",
                 showCelebration: $viewModel.showCelebration
@@ -127,7 +127,7 @@ private extension InsightSheetView {
         )
         
         InsightBottomToolbar(
-            showBottomBarTools: viewModel.showBottomBarTools && !(inferenceEngine.isProcessing && inferenceEngine.speciesData == nil),
+            showBottomBarTools: viewModel.showBottomBarTools && !inferenceEngine.isProcessing,
             collections: collections,
             activeLocalRecord: viewModel.activeLocalRecord,
             toggleScanInCollection: { collection in 
