@@ -84,69 +84,16 @@ extension CameraViewModel {
 
         // 7. Concurrently resolve the full telemetry and fire live inference.
         Task {
-            let capturedZoom: CGFloat? = diContainer.cameraManager.zoomFactor > 1.0
-                ? diContainer.cameraManager.zoomFactor
-                : nil
             let resolvedContext = await capturedPreFetchTask?.value
-
-            let telemetry: CaptureTelemetry
-            if let context = resolvedContext {
-                let distance = diContainer.cameraManager.subjectDistanceInMeters
-                var estimatedSizeCm: Double?
-
-                if let dist = distance, let firstData = datasToAnalyze.first {
-                    estimatedSizeCm = await SizeEstimator.estimateSize(imageData: firstData, distanceMeters: dist)
-                }
-
-                telemetry = CaptureTelemetry(
-                    from: context,
-                    distance: distance,
-                    zoom: capturedZoom,
-                    estimatedSizeCm: estimatedSizeCm
-                )
-            } else if let historicalContext = capturedOriginals.first?.environmentContext {
-                // Library photo — zoom at original capture time is unknown; omit.
-                telemetry = CaptureTelemetry(
-                    from: historicalContext,
-                    distance: nil
-                )
-            } else if capturedOriginals.first?.isFromGallery == true {
-                // Library photo with absolutely no EXIF (no location, no date).
-                telemetry = CaptureTelemetry(
-                    subjectDistanceInMeters: nil,
-                    gpsLatitude: nil,
-                    gpsLongitude: nil,
-                    gpsElevation: nil,
-                    locationName: nil,
-                    weatherCondition: nil,
-                    weatherTemperatureF: nil,
-                    timeOfDay: nil,
-                    timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
-                    zoomFactor: nil,
-                    estimatedSizeCm: nil
-                )
-            } else {
-                let distance = diContainer.cameraManager.subjectDistanceInMeters
-                var estimatedSizeCm: Double?
-
-                if let dist = distance, let firstData = datasToAnalyze.first {
-                    estimatedSizeCm = await SizeEstimator.estimateSize(imageData: firstData, distanceMeters: dist)
-                }
-
-                telemetry = CaptureTelemetry(
-                    subjectDistanceInMeters: distance,
-                    gpsLatitude: nil,
-                    gpsLongitude: nil,
-                    gpsElevation: nil,
-                    locationName: nil,
-                    weatherCondition: nil,
-                    weatherTemperatureF: nil,
-                    timeOfDay: nil,
-                    timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
-                    zoomFactor: capturedZoom,
-                    estimatedSizeCm: estimatedSizeCm
-                )
-            }
+            
+            let telemetry = await CaptureTelemetry.resolveForActiveScan(
+                resolvedContext: resolvedContext,
+                historicalContext: capturedOriginals.first?.environmentContext,
+                isGalleryPhoto: capturedOriginals.first?.isFromGallery == true,
+                firstImageData: datasToAnalyze.first,
+                distanceMeters: diContainer.cameraManager.subjectDistanceInMeters,
+                zoomFactor: diContainer.cameraManager.zoomFactor
+            )
 
             // Guard: if the user backgrounded or dismissed during the preFetchTask await,
             // `isProcessing` may still be true (no rescue cancels it anymore — the scan
@@ -179,6 +126,49 @@ extension CameraViewModel {
         if diContainer.inferenceEngine.speciesData?.scanId != nil, activeSheet != .insight {
             UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
             PushNotificationManager.shared.setBadgeCount(1)
+        }
+    }
+}
+
+// MARK: - CaptureTelemetry Extension
+
+extension CaptureTelemetry {
+    static func resolveForActiveScan(
+        resolvedContext: EnvironmentContext?,
+        historicalContext: EnvironmentContext?,
+        isGalleryPhoto: Bool,
+        firstImageData: Data?,
+        distanceMeters: Float?,
+        zoomFactor: CGFloat?
+    ) async -> CaptureTelemetry {
+        let zoomToUse: CGFloat? = (zoomFactor ?? 0) > 1.0 ? zoomFactor : nil
+
+        if let context = resolvedContext {
+            var estimatedSizeCm: Double?
+            if let d = distanceMeters, let fd = firstImageData {
+                estimatedSizeCm = await SizeEstimator.estimateSize(imageData: fd, distanceMeters: d)
+            }
+            return CaptureTelemetry(from: context, distance: distanceMeters, zoom: zoomToUse, estimatedSizeCm: estimatedSizeCm)
+        } else if let hc = historicalContext {
+            // Library photo — zoom at original capture time is unknown; omit.
+            return CaptureTelemetry(from: hc, distance: nil)
+        } else if isGalleryPhoto {
+            // Library photo with absolutely no EXIF
+            return CaptureTelemetry(
+                subjectDistanceInMeters: nil, gpsLatitude: nil, gpsLongitude: nil, gpsElevation: nil,
+                locationName: nil, weatherCondition: nil, weatherTemperatureF: nil, timeOfDay: nil,
+                timestamp: DateUtilities.iso8601Formatter.string(from: Date()), zoomFactor: nil, estimatedSizeCm: nil
+            )
+        } else {
+            var estimatedSizeCm: Double?
+            if let d = distanceMeters, let fd = firstImageData {
+                estimatedSizeCm = await SizeEstimator.estimateSize(imageData: fd, distanceMeters: d)
+            }
+            return CaptureTelemetry(
+                subjectDistanceInMeters: distanceMeters, gpsLatitude: nil, gpsLongitude: nil, gpsElevation: nil,
+                locationName: nil, weatherCondition: nil, weatherTemperatureF: nil, timeOfDay: nil,
+                timestamp: DateUtilities.iso8601Formatter.string(from: Date()), zoomFactor: zoomToUse, estimatedSizeCm: estimatedSizeCm
+            )
         }
     }
 }

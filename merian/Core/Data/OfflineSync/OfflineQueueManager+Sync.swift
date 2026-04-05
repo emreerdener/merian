@@ -27,36 +27,9 @@ extension OfflineQueueManager {
 
         guard !pendingTasks.isEmpty else { return }
 
-        // Fan out deletions in batches of 10 to prevent unbounded concurrent network requests.
-        // Without a cap, a user returning from a week offline could fire 200+ simultaneous
-        // deleteScan calls, saturating the URLSession pool and triggering server-side rate limits
-        // (5xx responses are retried, making the problem self-amplifying).
-        // Only the scanId (String, Sendable) crosses the task-group boundary —
-        // @Model objects are not Sendable and must stay on this actor.
+        // Fetch O(n) results using the batch dispatcher
         let scanIds = pendingTasks.map(\.scanId)
-        let batchSize = 10
-        var allResults: [(String, Error?)] = []
-        allResults.reserveCapacity(scanIds.count)
-
-        for batchStart in stride(from: 0, to: scanIds.count, by: batchSize) {
-            let batch = Array(scanIds[batchStart..<min(batchStart + batchSize, scanIds.count)])
-            let batchResults: [(String, Error?)] = await withTaskGroup(of: (String, Error?).self) { group in
-                for scanId in batch {
-                    group.addTask {
-                        do {
-                            try await MerianNetworkClient.shared.deleteScan(scanId: scanId)
-                            return (scanId, nil)
-                        } catch {
-                            return (scanId, error)
-                        }
-                    }
-                }
-                var collected: [(String, Error?)] = []
-                for await result in group { collected.append(result) }
-                return collected
-            }
-            allResults.append(contentsOf: batchResults)
-        }
+        let allResults = await dispatchDeleteBatches(scanIds: scanIds)
 
         // Build an O(1) lookup so the per-result loop below doesn't scan the full
         // pendingTasks array for each result (was O(n²) when the batch was large).
@@ -88,6 +61,35 @@ extension OfflineQueueManager {
         }
     }
 
+    /// Fans out deletions in batches of 10 to prevent unbounded concurrent network requests.
+    /// Without a cap, a user returning from a week offline could saturate the pool and trigger rate limits.
+    private func dispatchDeleteBatches(scanIds: [String]) async -> [(String, Error?)] {
+        let batchSize = 10
+        var allResults: [(String, Error?)] = []
+        allResults.reserveCapacity(scanIds.count)
+
+        for batchStart in stride(from: 0, to: scanIds.count, by: batchSize) {
+            let batch = Array(scanIds[batchStart..<min(batchStart + batchSize, scanIds.count)])
+            let batchResults: [(String, Error?)] = await withTaskGroup(of: (String, Error?).self) { group in
+                for scanId in batch {
+                    group.addTask {
+                        do {
+                            try await MerianNetworkClient.shared.deleteScan(scanId: scanId)
+                            return (scanId, nil)
+                        } catch {
+                            return (scanId, error)
+                        }
+                    }
+                }
+                var collected: [(String, Error?)] = []
+                for await result in group { collected.append(result) }
+                return collected
+            }
+            allResults.append(contentsOf: batchResults)
+        }
+        return allResults
+    }
+
     // MARK: - Uploads
 
     /// Fetches `.pending` scans and schedules background `PUT` uploads to Cloudflare R2 staging.
@@ -98,7 +100,14 @@ extension OfflineQueueManager {
     /// Confirmed R2 keys are persisted on the record at upload completion (in URLSession delegate).
     ///
     /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
-    /// Free users are additionally gated by their daily scan quota.
+    // Flatten scan → image-file pairs into a typed array.
+    struct ScanUploadItem {
+        let scanId: String
+        let imageIndex: Int   // per-scan slot (0…N-1), NOT the flat batch index
+        let fileName: String
+        let fileURL: URL
+    }
+
     func syncPendingScans() {
         guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }
@@ -107,11 +116,6 @@ extension OfflineQueueManager {
 
         let isProActive = RevenueCatManager.shared.isProActive
 
-        // Free users must have remaining daily quota before the queue processes anything.
-        if !isProActive {
-            guard UsageManager.shared.canPerformScan(isProActive: false) else { return }
-        }
-
         isSyncing = true
 
         syncTask = BackgroundTaskWrapper.execute(
@@ -119,7 +123,6 @@ extension OfflineQueueManager {
             expirationHandler: {
                 MerianLog.data.debug("OfflineQueueSync background task expired")
                 Task { @MainActor in
-                    // Reset the latch so the next connectivity event can start a fresh sync.
                     OfflineQueueManager.shared.isSyncing = false
                     SyncStateManager.shared.completeSync()
                 }
@@ -127,20 +130,13 @@ extension OfflineQueueManager {
         ) { [weak self] _ in
             guard let self else { return }
 
-            // Periodically retry staged scans whose inference failed transiently.
             await MainActor.run { self.replayInferenceForUploadedScans() }
 
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            // fetchPendingScans only returns scanStateRaw == .pending — .uploading/.staged scans
-            // are excluded by the state machine, eliminating the need for activeScanUploadIds.
             let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
             let session  = await MainActor.run { self.backgroundSession }
 
-            // For free users, cap the batch to however many scans they can still run today.
-            let batchLimit = await MainActor.run {
-                isProActive ? MerianConfig.uploadBatchSize : UsageManager.shared.freeScansRemaining
-            }
-            let filteredScans = Array(scanData.prefix(batchLimit))
+            let filteredScans = Array(scanData.prefix(MerianConfig.uploadBatchSize))
 
             guard !filteredScans.isEmpty else {
                 await MainActor.run {
@@ -152,37 +148,11 @@ extension OfflineQueueManager {
 
             await MainActor.run {
                 SyncStateManager.shared.beginSync(itemCount: filteredScans.count)
-                // Consume one scan quota slot per item being uploaded.
-                if !isProActive {
-                    for _ in filteredScans { UsageManager.shared.consumeScan() }
-                }
             }
 
-            // Transition scans to .uploading BEFORE dispatching URLSession tasks.
-            // This ensures that if the app restarts between here and task dispatch,
-            // syncPendingScans won't re-dispatch (it only fetches .pending scans).
             await dbActor.markScansAsUploading(scanIds: filteredScans.map(\.id))
 
-            // Flatten scan → image-file pairs into a typed array.
-            struct ScanUploadItem {
-                let scanId: String
-                let imageIndex: Int   // per-scan slot (0…N-1), NOT the flat batch index
-                let fileName: String
-                let fileURL: URL
-            }
-
-            let documentsDirectory = URL.documentsDirectory
-            var uploadItems: [ScanUploadItem] = []
-            for scan in filteredScans {
-                for (imageIndex, path) in scan.localImagePaths.enumerated() {
-                    uploadItems.append(ScanUploadItem(
-                        scanId: scan.id,
-                        imageIndex: imageIndex,
-                        fileName: "\(scan.id)_\(path)",
-                        fileURL: documentsDirectory.appendingPathComponent(path)
-                    ))
-                }
-            }
+            let uploadItems = self.prepareUploadItems(from: filteredScans)
 
             guard !uploadItems.isEmpty else {
                 await MainActor.run {
@@ -196,47 +166,13 @@ extension OfflineQueueManager {
                 let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(
                     fileNames: uploadItems.map(\.fileName)
                 )
-                // Reset exponential backoff — this request succeeded.
                 await MainActor.run { self.uploadRetryDelay = 0 }
 
-                let dispatchedScanIDs: Set<String> = await withTaskGroup(of: String?.self) { group in
-                    for (index, presignedURL) in presignedUrls.enumerated() {
-                        guard !Task.isCancelled else { break }
-                        guard index < uploadItems.count else {
-                            MerianLog.data.debug("syncPendingScans: index \(index) out of bounds — skipping")
-                            continue
-                        }
-                        guard let remoteUrl = URL(string: presignedURL.signedUrl) else {
-                            MerianLog.data.debug("syncPendingScans: invalid signed URL at index \(index) — skipping")
-                            continue
-                        }
-
-                        let item = uploadItems[index]
-
-                        guard FileManager.default.fileExists(atPath: item.fileURL.path) else {
-                            MerianLog.data.debug("syncPendingScans: source file missing for \(item.fileURL.lastPathComponent, privacy: .private) — tombstoning")
-                            let capturedSelf = self
-                            Task { @MainActor in capturedSelf.softDeleteQueuedScan(scanId: item.scanId) }
-                            continue
-                        }
-
-                        group.addTask { () -> String? in
-                            var request = URLRequest(url: remoteUrl)
-                            request.httpMethod = "PUT"
-                            request.setValue("image/webp", forHTTPHeaderField: "Content-Type")
-                            let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
-                            uploadTask.taskDescription = "\(item.scanId)_\(item.imageIndex)"
-                            uploadTask.resume()
-                            return item.scanId
-                        }
-                    }
-
-                    var dispatchedIds = Set<String>()
-                    for await successfulScanId in group {
-                        if let id = successfulScanId { dispatchedIds.insert(id) }
-                    }
-                    return dispatchedIds
-                }
+                let dispatchedScanIDs = await self.dispatchUploadTasks(
+                    session: session,
+                    uploadItems: uploadItems,
+                    presignedUrls: presignedUrls
+                )
 
                 if dispatchedScanIDs.isEmpty {
                     let taskCount = await session.allTasks.count
@@ -248,35 +184,7 @@ extension OfflineQueueManager {
                     }
                 }
             } catch {
-                MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
-                // Reset scans we marked .uploading back to .pending.
-                // generateUploadURLs failed before any URLSession tasks were dispatched, so every
-                // .uploading scan without a live task is an orphan. Without this reset,
-                // syncPendingScans only fetches .pending and the scan is never retried.
-                let liveTasks = await session.allTasks
-                let activeUploadIds = Set(liveTasks.compactMap { task -> String? in
-                    guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
-                    return desc.components(separatedBy: "_").first
-                })
-                await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadIds)
-                // Exponential backoff.
-                let delay: TimeInterval = await MainActor.run {
-                    let current = self.uploadRetryDelay
-                    let next = current == 0 ? 1.0 : min(current * 2.0, OfflineQueueManager.maxUploadRetryDelay)
-                    self.uploadRetryDelay = next
-                    return next
-                }
-                await MainActor.run {
-                    self.isSyncing = false
-                    SyncStateManager.shared.completeSync()
-                    self.retryBackoffTask?.cancel()
-                    self.retryBackoffTask = Task { [weak self] in
-                        guard let self else { return }
-                        try? await Task.sleep(for: .seconds(delay))
-                        guard !Task.isCancelled else { return }
-                        self.syncPendingScans()
-                    }
-                }
+                await self.handleSyncNetworkFailure(error: error, session: session, dbActor: dbActor)
                 return
             }
 
@@ -287,6 +195,101 @@ extension OfflineQueueManager {
                     self.isSyncing = false
                     SyncStateManager.shared.completeSync()
                 }
+            }
+        }
+    }
+
+    // MARK: - Upload Helpers
+
+    nonisolated private func prepareUploadItems(from scans: [BackgroundDatabaseActor.PendingScanPayload]) -> [ScanUploadItem] {
+        let documentsDirectory = URL.documentsDirectory
+        var uploadItems: [ScanUploadItem] = []
+        for scan in scans {
+            for (imageIndex, path) in scan.localImagePaths.enumerated() {
+                uploadItems.append(ScanUploadItem(
+                    scanId: scan.id,
+                    imageIndex: imageIndex,
+                    fileName: "\(scan.id)_\(path)",
+                    fileURL: documentsDirectory.appendingPathComponent(path)
+                ))
+            }
+        }
+        return uploadItems
+    }
+
+    private func dispatchUploadTasks(
+        session: URLSession,
+        uploadItems: [ScanUploadItem],
+        presignedUrls: [PreSignedURL]
+    ) async -> Set<String> {
+        return await withTaskGroup(of: String?.self) { group in
+            for (index, presignedURL) in presignedUrls.enumerated() {
+                guard !Task.isCancelled else { break }
+                guard index < uploadItems.count else {
+                    MerianLog.data.debug("dispatchUploadTasks: index \(index) out of bounds — skipping")
+                    continue
+                }
+                guard let remoteUrl = URL(string: presignedURL.signedUrl) else {
+                    MerianLog.data.debug("dispatchUploadTasks: invalid signed URL at index \(index) — skipping")
+                    continue
+                }
+
+                let item = uploadItems[index]
+
+                guard FileManager.default.fileExists(atPath: item.fileURL.path) else {
+                    MerianLog.data.debug("dispatchUploadTasks: source missing for \(item.fileURL.lastPathComponent, privacy: .private)")
+                    Task { @MainActor in self.softDeleteQueuedScan(scanId: item.scanId) }
+                    continue
+                }
+
+                group.addTask { () -> String? in
+                    var request = URLRequest(url: remoteUrl)
+                    request.httpMethod = "PUT"
+                    request.setValue("image/webp", forHTTPHeaderField: "Content-Type")
+                    let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
+                    uploadTask.taskDescription = "\(item.scanId)_\(item.imageIndex)"
+                    uploadTask.resume()
+                    MerianLog.data.debug("🚀 BACKGROUND UPLOAD: Dispatched upload task for \(item.scanId, privacy: .public)")
+                    return item.scanId
+                }
+            }
+
+            var dispatchedIds = Set<String>()
+            for await successfulScanId in group {
+                if let id = successfulScanId { dispatchedIds.insert(id) }
+            }
+            return dispatchedIds
+        }
+    }
+
+    private func handleSyncNetworkFailure(error: Error, session: URLSession, dbActor: BackgroundDatabaseActor) async {
+        MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
+        
+        // Reset orphaned uploads
+        let liveTasks = await session.allTasks
+        let activeUploadIds = Set(liveTasks.compactMap { task -> String? in
+            guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
+            return desc.components(separatedBy: "_").first
+        })
+        await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadIds)
+        
+        // Exponential backoff
+        let delay: TimeInterval = await MainActor.run {
+            let current = self.uploadRetryDelay
+            let next = current == 0 ? 1.0 : min(current * 2.0, OfflineQueueManager.maxUploadRetryDelay)
+            self.uploadRetryDelay = next
+            return next
+        }
+        
+        await MainActor.run {
+            self.isSyncing = false
+            SyncStateManager.shared.completeSync()
+            self.retryBackoffTask?.cancel()
+            self.retryBackoffTask = Task { [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { return }
+                self.syncPendingScans()
             }
         }
     }

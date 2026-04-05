@@ -182,6 +182,8 @@ private struct WikiSummaryResponse: Decodable {
             let compressedDatas = imageDatas  // 1024 px — only these are base64-encoded for Gemini
 
             do {
+                // --- Step 1: Pre-flight Checks & Data Preparation ---
+                
                 if CircuitBreakerManager.shared.isCircuitTripped {
                     throw URLError(.notConnectedToInternet)
                 }
@@ -211,6 +213,8 @@ private struct WikiSummaryResponse: Decodable {
 
                 try Task.checkCancellation()
 
+                // --- Step 2: Edge Inference Generation (Gemini 1.5 Flash) ---
+                
                 MerianLog.general.debug("[⏱ BENCH] Pre-flight (encode+auth): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
                 let inferenceStart = CFAbsoluteTimeGetCurrent()
                 let resultData = try await client.analyzeSubject(
@@ -222,6 +226,8 @@ private struct WikiSummaryResponse: Decodable {
                 )
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
+                // --- Step 3: Response Parsing & Local Persistence ---
+                
                 let postFlightStart = CFAbsoluteTimeGetCurrent()
                 let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
@@ -234,6 +240,8 @@ private struct WikiSummaryResponse: Decodable {
                 let isNewDisc = parseResult.isNewDiscovery
                 let savedImagePaths = parseResult.savedPaths
 
+                // --- Step 4: UI State Updates & Gamification ---
+                
                 if var mappedData = finalMappedData {
                     if isNewDisc {
                         mappedData.isNewDiscovery = true
@@ -279,6 +287,8 @@ private struct WikiSummaryResponse: Decodable {
                     MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
                     MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
+                    // --- Step 5: Post-Inference Background Hydration ---
+                    
                     if mappedData.isBiological {
                         // Capture value types before crossing into the task boundary.
                         let capturedScientificName = mappedData.scientificName
@@ -333,6 +343,8 @@ private struct WikiSummaryResponse: Decodable {
                     }
                 }
             } catch {
+                // --- Step 6: Failure Handling & Error State ---
+                
                 // Cancellation: the task was cancelled (e.g., user started a new scan via
                 // prepareForNewScan). The scan is already durably in the offline queue, so
                 // the background upload path will complete it — no credit refund needed.

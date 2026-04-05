@@ -295,77 +295,95 @@ extension OfflineQueueManager {
         let fileNames = pairs.map(\.name)
         let fileURLs = pairs.map(\.url)
 
-        // .userInitiated ensures the disk write and URLSession upload dispatch complete
-        // before the cooperative scheduler can be frozen by an app suspension. .background
-        // priority can be starved if the user swipes away within milliseconds of capture.
-        BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { _ in
+        BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { [weak self] _ in
+            guard let self else { return }
             do {
-                for (index, data) in imageDatas.enumerated() {
-                    try data.write(to: fileURLs[index])
-                }
-
+                try self.writeImagesToDisk(imageDatas, urls: fileURLs)
                 await MainActor.run {
-                    // Free users are capped at their daily scan limit to prevent scan hoarding.
-                    // If the cap is already hit, clean up the files we just wrote and bail.
-                    if !RevenueCatManager.shared.isProActive,
-                       let modelContext = OfflineQueueManager.shared.modelContext {
-                        let failedRaw = ScanQueueState.failed.rawValue
-                        let capDescriptor = FetchDescriptor<OfflineQueuedScan>(
-                            predicate: #Predicate { $0.scanStateRaw != failedRaw }
-                        )
-                        let currentCount = (try? modelContext.fetchCount(capDescriptor)) ?? 0
-                        if currentCount >= UsageManager.shared.maxFreeScansPerDay {
-                            MerianLog.data.debug("enqueueCapture: free user queue cap reached — scan not enqueued")
-                            for url in fileURLs { try? FileManager.default.removeItem(at: url) }
-                            return
-                        }
-                    }
-
-                    let scan = OfflineQueuedScan(
-                        id: resolvedScanId,
-                        timestamp: Date(),
-                        localImagePaths: fileNames,
-                        gpsLatitude: telemetry.gpsLatitude,
-                        gpsLongitude: telemetry.gpsLongitude,
-                        gpsElevation: telemetry.gpsElevation,
-                        weatherCondition: telemetry.weatherCondition,
-                        weatherTemperatureF: telemetry.weatherTemperatureF,
-                        blurScore: blurScore,
-                        subjectDistanceInMeters: telemetry.subjectDistanceInMeters,
-                        locationName: telemetry.locationName,
-                        isFlashFired: nil,
-                        cameraPitchDegrees: nil,
-                        compassHeading: nil,
-                        relativeHumidity: nil,
-                        uvIndex: nil,
-                        zoomFactor: telemetry.zoomFactor.map { Double($0) },
-                        scanState: .pending
+                    self.insertAndPersistRecord(
+                        scanId: resolvedScanId,
+                        fileNames: fileNames,
+                        fileURLs: fileURLs,
+                        telemetry: telemetry,
+                        blurScore: blurScore
                     )
-                    guard let modelContext = OfflineQueueManager.shared.modelContext else { return }
-                    modelContext.insert(scan)
-                    do {
-                        try modelContext.save()
-                        OfflineQueueManager.shared.updateUnsyncedItemCount()
-                        AppTelemetry.trackOfflineQueued()
-                        // Kick off sync immediately while iOS has an active background window.
-                        OfflineQueueManager.shared.syncPendingScans()
-                    } catch {
-                        MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
-                        for url in fileURLs {
-                            do { try FileManager.default.removeItem(at: url) } catch {
-                                MerianLog.data.debug("enqueueCapture: cleanup removeItem failed: \(error, privacy: .private)")
-                            }
-                        }
-                    }
                 }
             } catch {
                 MerianLog.data.error("enqueueCapture: image write to disk failed — scan will not be queued: \(error, privacy: .private)")
-                for url in fileURLs {
-                    do { try FileManager.default.removeItem(at: url) } catch {
-                        MerianLog.data.debug("enqueueCapture: cleanup removeItem failed: \(error, privacy: .private)")
-                    }
-                }
+                self.cleanupImages(at: fileURLs)
             }
+        }
+    }
+
+    // MARK: - Enqueue Helpers
+
+    nonisolated private func writeImagesToDisk(_ imageDatas: [Data], urls: [URL]) throws {
+        for (index, data) in imageDatas.enumerated() {
+            try data.write(to: urls[index])
+        }
+    }
+
+    nonisolated private func cleanupImages(at urls: [URL]) {
+        for url in urls {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @MainActor
+    private func insertAndPersistRecord(
+        scanId: String,
+        fileNames: [String],
+        fileURLs: [URL],
+        telemetry: CaptureTelemetry,
+        blurScore: Double?
+    ) {
+        // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
+        // Consuming here (not at upload time) prevents silent stalls when syncPendingScans fires
+        // after the experience was already granted to the user.
+        if !RevenueCatManager.shared.isProActive {
+            guard UsageManager.shared.canPerformScan(isProActive: false) else {
+                MerianLog.data.debug("enqueueCapture: free user scan quota exhausted — scan not enqueued")
+                cleanupImages(at: fileURLs)
+                return
+            }
+            UsageManager.shared.consumeScan()
+        }
+
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            localImagePaths: fileNames,
+            gpsLatitude: telemetry.gpsLatitude,
+            gpsLongitude: telemetry.gpsLongitude,
+            gpsElevation: telemetry.gpsElevation,
+            weatherCondition: telemetry.weatherCondition,
+            weatherTemperatureF: telemetry.weatherTemperatureF,
+            blurScore: blurScore,
+            subjectDistanceInMeters: telemetry.subjectDistanceInMeters,
+            locationName: telemetry.locationName,
+            isFlashFired: nil,
+            cameraPitchDegrees: nil,
+            compassHeading: nil,
+            relativeHumidity: nil,
+            uvIndex: nil,
+            zoomFactor: telemetry.zoomFactor.map { Double($0) },
+            scanState: .pending
+        )
+        
+        guard let modelContext = OfflineQueueManager.shared.modelContext else {
+            cleanupImages(at: fileURLs)
+            return
+        }
+        modelContext.insert(scan)
+        
+        do {
+            try modelContext.save()
+            OfflineQueueManager.shared.updateUnsyncedItemCount()
+            AppTelemetry.trackOfflineQueued()
+            OfflineQueueManager.shared.syncPendingScans()
+        } catch {
+            MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
+            cleanupImages(at: fileURLs)
         }
     }
 }

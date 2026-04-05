@@ -244,34 +244,6 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    /// Resets any `.inferencing` scans back to `.staged` so `replayInferenceForUploadedScans`
-    /// can re-claim them on the next cycle.
-    ///
-    /// Called once per process lifetime before the first inference replay. Safe because
-    /// no inference pipelines are running when a fresh process starts.
-    func resetOrphanedInferencingScans() {
-        let inferencingRaw = ScanQueueState.inferencing.rawValue
-        let stagedRaw      = ScanQueueState.staged.rawValue
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw == inferencingRaw }
-        )
-        let scans: [OfflineQueuedScan]
-        do {
-            scans = try modelContext.fetch(descriptor)
-        } catch {
-            MerianLog.data.debug("resetOrphanedInferencingScans: fetch failed: \(error, privacy: .private)")
-            return
-        }
-        guard !scans.isEmpty else { return }
-        for scan in scans { scan.scanStateRaw = stagedRaw }
-        do {
-            try modelContext.save()
-            MerianLog.data.debug("resetOrphanedInferencingScans: reset \(scans.count, privacy: .public) orphaned scans to .staged")
-        } catch {
-            MerianLog.data.error("resetOrphanedInferencingScans: save failed: \(error, privacy: .private)")
-        }
-    }
-
     /// Transitions scans to `.uploading` state and persists, preventing `syncPendingScans`
     /// from re-dispatching upload tasks for these scans after an app restart.
     func markScansAsUploading(scanIds: [String]) {
@@ -319,6 +291,8 @@ actor BackgroundDatabaseActor {
         var resultingScanId: String?
         var resultSpeciesData: SpeciesData?
 
+        // --- Step 1: Decode Edge Response ---
+        
         let parsedWrapper: EdgeResponseWrapper?
         do {
             parsedWrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: resultData)
@@ -327,6 +301,8 @@ actor BackgroundDatabaseActor {
             parsedWrapper = nil
         }
 
+        // --- Step 2: Map Data and Resolve Identifiers ---
+        
         if let parsedWrapper {
             var mappedData = SpeciesData(
                 fromEdgeResponse: parsedWrapper.data,
@@ -343,118 +319,45 @@ actor BackgroundDatabaseActor {
                 inferenceFailed = false
                 resolvedSpeciesName = mappedData.commonName
 
-                let targetName = mappedData.scientificName
-                var fetchDescriptor = FetchDescriptor<LocalScanRecord>(
-                    predicate: #Predicate<LocalScanRecord> { $0.scientificName == targetName }
-                )
-                fetchDescriptor.fetchLimit = 1
-                fetchDescriptor.propertiesToFetch = [\.speciesId]
-                let existingRecords: [LocalScanRecord]
-                do {
-                    existingRecords = try modelContext.fetch(fetchDescriptor)
-                } catch {
-                    MerianLog.data.debug("processAndCleanupOfflineScan: species lookup failed: \(error, privacy: .private)")
-                    existingRecords = []
-                }
-
-                let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
-
-                if existingRecords.isEmpty {
+                let (activeSpeciesId, isNew) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
+                
+                if isNew {
                     mappedData.isNewDiscovery = true
                     finalIsNewDiscovery = true
                 }
 
-                // Capture mappedData (with isNewDiscovery set) so the caller can hydrate the
-                // live InferenceEngine if the background path completes before the live path.
+                // Capture mappedData (with isNewDiscovery set) to hydrate the live InferenceEngine.
                 resultSpeciesData = mappedData
 
                 let recordId = mappedData.scanId ?? scanId
-                // Idempotency guard: if a LocalScanRecord with this id was already
-                // committed by a previous attempt (e.g. a retry after context rollback),
-                // skip the insert to avoid a unique-constraint failure on the atomic save.
-                var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
-                    predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
+                
+                // --- Step 3: Atomic Record Insertion ---
+                insertLocalScanRecordIfMissing(
+                    mappedData: mappedData,
+                    recordId: recordId,
+                    activeSpeciesId: activeSpeciesId,
+                    originalTimestamp: originalTimestamp,
+                    originalImagePaths: originalImagePaths
                 )
-                existingIdDescriptor.fetchLimit = 1
-                let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
-
-                if !alreadyExists {
-                    let record = LocalScanRecord(
-                        id: recordId,
-                        speciesId: activeSpeciesId,
-                        scientificName: mappedData.scientificName,
-                        commonName: mappedData.commonName,
-                        timestamp: Date(),
-                        captureDate: originalTimestamp,
-                        localImagePath: originalImagePaths.first,
-                        semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
-                        hazardType: mappedData.insightData.hazardType,
-                        isBiological: mappedData.isBiological,
-                        isLiveCapture: mappedData.isLiveCapture,
-                        isInvasive: mappedData.isInvasive,
-                        ecologyType: mappedData.ecologyType,
-                        wikipediaUrl: mappedData.wikipediaUrl,
-                        referenceImageUrl: mappedData.referenceImageUrl,
-                        additionalImagePaths: originalImagePaths.count > 1 ? Array(originalImagePaths.dropFirst()) : nil,
-                        confidenceScore: mappedData.confidenceScore,
-                        taxonomyKingdom: mappedData.taxonomy?.kingdom,
-                        taxonomyPhylum: mappedData.taxonomy?.phylum,
-                        taxonomyClass: mappedData.taxonomy?.className,
-                        taxonomyOrder: mappedData.taxonomy?.order,
-                        taxonomyFamily: mappedData.taxonomy?.family,
-                        taxonomyGenus: mappedData.taxonomy?.genus,
-                        locationName: mappedData.locationName,
-                        weatherCondition: mappedData.weatherCondition,
-                        weatherTemperatureF: mappedData.weatherTemperatureF,
-                        similarSpecies: mappedData.similarSpecies?.lookalikes,
-                        candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
-                        iucnRedListStatus: mappedData.iucnRedListStatus,
-                        gpsLatitude: mappedData.gpsLatitude,
-                        gpsLongitude: mappedData.gpsLongitude,
-                        gpsElevation: mappedData.gpsElevation,
-                        zoomFactor: mappedData.zoomFactor,
-                        aiReasoning: mappedData.aiReasoning,
-                        habitatDescription: mappedData.habitatDescription,
-                        gbifTaxonKey: mappedData.gbifTaxonKey,
-                        estimatedSizeCm: mappedData.estimatedSizeCm,
-                        lifeStage: mappedData.lifeStage,
-                        reproductiveCondition: mappedData.reproductiveCondition,
-                        individualCount: mappedData.individualCount,
-                        ecologicalInteractions: mappedData.ecologicalInteractions,
-                        inferenceTier: mappedData.inferenceTier,
-                        imageQualityScore: mappedData.imageQualityScore
-                    )
-                    modelContext.insert(record)
-                }
-                // resultingScanId is set here; the actual save is deferred to the
-                // combined commit below so the insert and OfflineQueuedScan deletion
-                // land in one atomic transaction, closing the ghost-record window
-                // where both records coexist in the composite library grid.
+                
                 resultingScanId = recordId
             }
         }
 
-        // Fetch and delete instantiates the object ensuring SwiftData propagates deletes to the main context.
-        do {
-            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            descriptor.fetchLimit = 1
-            if let scanToDelete = try modelContext.fetch(descriptor).first {
-                modelContext.delete(scanToDelete)
-            }
-            try modelContext.save()
-
-            if inferenceFailed {
-                Task { await FileIOActor.shared.deleteImages(at: originalImagePaths) }
-            }
-        } catch {
-            MerianLog.data.error("processAndCleanupOfflineScan: dequeue failed — scan may be reprocessed on next sync: \(error, privacy: .private)")
-            // The atomic save failed: neither the LocalScanRecord insert nor the
-            // OfflineQueuedScan deletion was committed. Clear the result fields so the
-            // caller does not fire push notifications, record discoveries, or set the
-            // badge count for a scan that was never persisted to the library.
+        // --- Step 4: Purge Queue Record & Commit ---
+        
+        let commitSuccess = removeQueuedScanAndPersist(scanId: scanId)
+        
+        if !commitSuccess {
+            MerianLog.data.error("processAndCleanupOfflineScan: dequeue atomic save failed — resetting results.")
+            // The atomic save failed: neither insertion nor deletion committed.
+            modelContext.rollback()
             resolvedSpeciesName = nil
             resultingScanId = nil
             resultSpeciesData = nil
+        } else if inferenceFailed {
+            // Delete source files async if inference failed cleanly out and the record was purged
+            Task { await FileIOActor.shared.deleteImages(at: originalImagePaths) }
         }
 
         return OfflineScanProcessingResult(
@@ -463,6 +366,109 @@ actor BackgroundDatabaseActor {
             finalScanId: resultingScanId,
             speciesData: resultSpeciesData
         )
+    }
+
+    // MARK: Offline Queue Processing Helpers
+
+    /// Determines the correct speciesId and whether this is a new discovery for the user.
+    private func resolveSpeciesIdAndDiscoveryStatus(for targetName: String) -> (speciesId: String, isNewDiscovery: Bool) {
+        var fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate<LocalScanRecord> { $0.scientificName == targetName }
+        )
+        fetchDescriptor.fetchLimit = 1
+        fetchDescriptor.propertiesToFetch = [\.speciesId]
+        
+        let existingRecords: [LocalScanRecord]
+        do {
+            existingRecords = try modelContext.fetch(fetchDescriptor)
+        } catch {
+            MerianLog.data.debug("resolveSpeciesIdAndDiscoveryStatus: lookup failed: \(error, privacy: .private)")
+            existingRecords = []
+        }
+
+        let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
+        let isNewDiscovery = existingRecords.isEmpty
+        return (activeSpeciesId, isNewDiscovery)
+    }
+
+    /// Idempotently inserts a new LocalScanRecord.
+    private func insertLocalScanRecordIfMissing(
+        mappedData: SpeciesData,
+        recordId: String,
+        activeSpeciesId: String,
+        originalTimestamp: Date,
+        originalImagePaths: [String]
+    ) {
+        var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
+        )
+        existingIdDescriptor.fetchLimit = 1
+        let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
+
+        if !alreadyExists {
+            let record = LocalScanRecord(
+                id: recordId,
+                speciesId: activeSpeciesId,
+                scientificName: mappedData.scientificName,
+                commonName: mappedData.commonName,
+                timestamp: Date(),
+                captureDate: originalTimestamp,
+                localImagePath: originalImagePaths.first,
+                semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
+                hazardType: mappedData.insightData.hazardType,
+                isBiological: mappedData.isBiological,
+                isLiveCapture: mappedData.isLiveCapture,
+                isInvasive: mappedData.isInvasive,
+                ecologyType: mappedData.ecologyType,
+                wikipediaUrl: mappedData.wikipediaUrl,
+                referenceImageUrl: mappedData.referenceImageUrl,
+                additionalImagePaths: originalImagePaths.count > 1 ? Array(originalImagePaths.dropFirst()) : nil,
+                confidenceScore: mappedData.confidenceScore,
+                taxonomyKingdom: mappedData.taxonomy?.kingdom,
+                taxonomyPhylum: mappedData.taxonomy?.phylum,
+                taxonomyClass: mappedData.taxonomy?.className,
+                taxonomyOrder: mappedData.taxonomy?.order,
+                taxonomyFamily: mappedData.taxonomy?.family,
+                taxonomyGenus: mappedData.taxonomy?.genus,
+                locationName: mappedData.locationName,
+                weatherCondition: mappedData.weatherCondition,
+                weatherTemperatureF: mappedData.weatherTemperatureF,
+                similarSpecies: mappedData.similarSpecies?.lookalikes,
+                candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
+                iucnRedListStatus: mappedData.iucnRedListStatus,
+                gpsLatitude: mappedData.gpsLatitude,
+                gpsLongitude: mappedData.gpsLongitude,
+                gpsElevation: mappedData.gpsElevation,
+                zoomFactor: mappedData.zoomFactor,
+                aiReasoning: mappedData.aiReasoning,
+                habitatDescription: mappedData.habitatDescription,
+                gbifTaxonKey: mappedData.gbifTaxonKey,
+                estimatedSizeCm: mappedData.estimatedSizeCm,
+                lifeStage: mappedData.lifeStage,
+                reproductiveCondition: mappedData.reproductiveCondition,
+                individualCount: mappedData.individualCount,
+                ecologicalInteractions: mappedData.ecologicalInteractions,
+                inferenceTier: mappedData.inferenceTier,
+                imageQualityScore: mappedData.imageQualityScore
+            )
+            modelContext.insert(record)
+        }
+    }
+
+    /// Deletes the old queued scan and runs a main context save to persist insertions and deletions atomically.
+    private func removeQueuedScanAndPersist(scanId: String) -> Bool {
+        do {
+            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            descriptor.fetchLimit = 1
+            if let scanToDelete = try modelContext.fetch(descriptor).first {
+                modelContext.delete(scanToDelete)
+            }
+            try modelContext.save()
+            return true
+        } catch {
+            MerianLog.data.error("removeQueuedScanAndPersist: atomic dequeue failed: \(error, privacy: .private)")
+            return false
+        }
     }
 
     // MARK: - Live Scan Recording

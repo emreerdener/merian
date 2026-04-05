@@ -503,7 +503,7 @@ struct BackgroundDatabaseActorTests {
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.resetOrphanedInferencingScans()
+        await actor.reconcileOrphanedInferencingScans(activeInferenceScanIds: [])
 
         let allDescriptor = FetchDescriptor<OfflineQueuedScan>()
         let all = try context.fetch(allDescriptor)

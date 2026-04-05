@@ -138,28 +138,72 @@ extension OfflineQueueManager {
             ($0.taskDescription?.starts(with: "\(scanId)_") ?? false)
         }
 
-        // Handle transport-level errors.
+        let didFail = await handleUploadFallback(scanId: scanId, uploadError: uploadError, responseStatusCode: responseStatusCode)
+        guard !didFail else { return }
+
+        // Only trigger inference for files that landed in the staging bucket.
+        guard let urlPath = originalRequestUrlPath, urlPath.contains("staging/") else { return }
+
+        // Ensure no other upload tasks for this specific scan ID are still in flight.
+        // If they are, allow them to finish (the last one handles the inference triggering).
+        // Guard here — before the main-actor metadata fetch and auth session lookup — so that
+        // multi-image scans don't pay those costs on every intermediate completion (only the last).
+        guard !hasActiveTasksForScan else { return }
+
+        // Fetch scan metadata on the main actor before handing off to background inference.
+        let extracted = await fetchScanMetadata(for: scanId)
+        guard let extracted else { return }
+
+        // Compute the R2 object keys using the auth session active at upload time and persist
+        // them atomically with the .staged transition. Storing keys now eliminates the
+        // auth-expiry 403 edge case that occurred when keys were reconstructed at inference time.
+        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let userId = (authUserId ?? deviceId).lowercased()
+        let r2Keys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
+
+        // Use the same shared actor as replayInferenceForUploadedScans so that
+        // markScanAsStaged and tryClaimForInference are serialized on a single executor.
+        // This closes the race where processUploadCompletion and replayInferenceForUploadedScans
+        // could both see the scan in .staged and both dispatch concurrent inference tasks.
+        let inferenceActor = resolvedInferenceDbActor(container: extracted.container)
+        await inferenceActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
+
+        // Atomically claim the scan for inference. If replayInferenceForUploadedScans already
+        // claimed it between markScanAsStaged and here (same actor, so serialized), skip —
+        // the replay path already dispatched the background download task.
+        guard await inferenceActor.tryClaimForInference(scanId: scanId) else { return }
+
+        // Rebuild extracted with the confirmed R2 keys before dispatching.
+        let extractedWithKeys = ExtractedScanData(
+            telemetry: extracted.telemetry,
+            localImagePaths: extracted.localImagePaths,
+            r2Keys: r2Keys,
+            container: extracted.container,
+            originalTimestamp: extracted.originalTimestamp
+        )
+        await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
+    }
+
+    // MARK: - Post-Upload Helpers
+
+    /// Handles transport-level and HTTP-level upload errors.
+    /// Returns `true` if an error was found and handled (caller should abort), `false` on success.
+    private func handleUploadFallback(scanId: String, uploadError: Error?, responseStatusCode: Int?) async -> Bool {
         if let uploadError {
             let nsError = uploadError as NSError
-
-            // File-missing errors are terminal — the source data is unrecoverable.
             let isFileMissing = nsError.domain == NSURLErrorDomain
                 && (nsError.code == NSURLErrorFileDoesNotExist || nsError.code == NSURLErrorCannotOpenFile)
+            
             if isFileMissing {
                 MerianLog.data.debug("Terminal file corruption — tombstoning \(scanId, privacy: .private)")
                 await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
-                return
+                return true
             }
 
-            // Transient connectivity errors (timeout, handoff, no signal) are retriable.
-            // Track attempts in-memory and only tombstone after maxUploadRetries failures
-            // so a brief WiFi handoff doesn't permanently discard a scan.
             let transientCodes: Set<Int> = [
-                NSURLErrorTimedOut,
-                NSURLErrorNetworkConnectionLost,
-                NSURLErrorNotConnectedToInternet,
-                NSURLErrorDataNotAllowed,
-                NSURLErrorInternationalRoamingOff
+                NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost, NSURLErrorNotConnectedToInternet,
+                NSURLErrorDataNotAllowed, NSURLErrorInternationalRoamingOff
             ]
             if nsError.domain == NSURLErrorDomain && transientCodes.contains(nsError.code) {
                 let retries = await MainActor.run { () -> Int in
@@ -180,14 +224,11 @@ extension OfflineQueueManager {
             } else {
                 MerianLog.data.debug("Background upload failed: \(uploadError, privacy: .private)")
             }
-            return
+            return true
         }
 
-        // Handle HTTP-level errors.
         guard let statusCode = responseStatusCode, statusCode == 200 else {
             let code = responseStatusCode ?? 0
-            // 403/401 are auth failures — permanent, not worth retrying.
-            // 429 and 5xx are server/rate-limit errors that may resolve on the next sync cycle.
             let recoverableCodes: Set<Int> = [429, 500, 502, 503, 504]
             if recoverableCodes.contains(code) {
                 MerianLog.data.debug("Background upload recoverable (\(code, privacy: .public)) — retaining in queue")
@@ -195,20 +236,15 @@ extension OfflineQueueManager {
                 MerianLog.data.debug("Background upload rejected (\(code, privacy: .public)) — tombstoning scan")
                 await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
             }
-            return
+            return true
         }
 
-        // Only trigger inference for files that landed in the staging bucket.
-        guard let urlPath = originalRequestUrlPath, urlPath.contains("staging/") else { return }
+        return false
+    }
 
-        // Ensure no other upload tasks for this specific scan ID are still in flight.
-        // If they are, allow them to finish (the last one handles the inference triggering).
-        // Guard here — before the main-actor metadata fetch and auth session lookup — so that
-        // multi-image scans don't pay those costs on every intermediate completion (only the last).
-        guard !hasActiveTasksForScan else { return }
-
-        // Fetch scan metadata on the main actor before handing off to background inference.
-        let extracted = await MainActor.run { () -> ExtractedScanData? in
+    /// Fetches the queued scan's snapshot and maps it to ExtractedScanData on the main actor.
+    private func fetchScanMetadata(for scanId: String) async -> ExtractedScanData? {
+        return await MainActor.run { () -> ExtractedScanData? in
             guard let context = OfflineQueueManager.shared.modelContext else { return nil }
             let container = context.container
             let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
@@ -241,37 +277,6 @@ extension OfflineQueueManager {
                 originalTimestamp: scan.timestamp
             )
         }
-        guard let extracted else { return }
-
-        // Compute the R2 object keys using the auth session active at upload time and persist
-        // them atomically with the .staged transition. Storing keys now eliminates the
-        // auth-expiry 403 edge case that occurred when keys were reconstructed at inference time.
-        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-        let userId = (authUserId ?? deviceId).lowercased()
-        let r2Keys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
-
-        // Use the same shared actor as replayInferenceForUploadedScans so that
-        // markScanAsStaged and tryClaimForInference are serialized on a single executor.
-        // This closes the race where processUploadCompletion and replayInferenceForUploadedScans
-        // could both see the scan in .staged and both dispatch concurrent inference tasks.
-        let inferenceActor = resolvedInferenceDbActor(container: extracted.container)
-        await inferenceActor.markScanAsStaged(scanId: scanId, r2Keys: r2Keys)
-
-        // Atomically claim the scan for inference. If replayInferenceForUploadedScans already
-        // claimed it between markScanAsStaged and here (same actor, so serialized), skip —
-        // the replay path already dispatched the background download task.
-        guard await inferenceActor.tryClaimForInference(scanId: scanId) else { return }
-
-        // Rebuild extracted with the confirmed R2 keys before dispatching.
-        let extractedWithKeys = ExtractedScanData(
-            telemetry: extracted.telemetry,
-            localImagePaths: extracted.localImagePaths,
-            r2Keys: r2Keys,
-            container: extracted.container,
-            originalTimestamp: extracted.originalTimestamp
-        )
-        await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
 
     // MARK: - Background Inference Dispatch
@@ -345,7 +350,7 @@ extension OfflineQueueManager {
         await MainActor.run { SyncStateManager.shared.beginInferencing() }
         task.resume()
 
-        MerianLog.data.debug("Dispatched background inference download task for \(scanId, privacy: .private)")
+        MerianLog.data.debug("🚀 BACKGROUND INFERENCE: Dispatched download task for \(scanId, privacy: .public)")
     }
 
     // MARK: - Inference Result Processing
