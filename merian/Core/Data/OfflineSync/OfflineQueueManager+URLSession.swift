@@ -465,7 +465,13 @@ extension OfflineQueueManager {
                 // a later no-op on the same actor, and the cancel path never writes speciesData.
                 if let speciesData = processingResult.speciesData {
                     let engine = AppDIContainer.shared.inferenceEngine
-                    if engine.isProcessing, engine.activeScanId == scanId {
+                    // Hydrate when the engine is still waiting for a result for this exact scan.
+                    // `isProcessing` covers the case where the live path is still in flight.
+                    // `engine.speciesData?.scanId == nil` covers the case where the live path
+                    // already failed (timeout/network error) — those placeholders have scanId = nil.
+                    // We must NOT overwrite a successful live result (speciesData.scanId != nil).
+                    if engine.activeScanId == scanId,
+                       engine.isProcessing || engine.speciesData?.scanId == nil {
                         engine.inferenceTask?.cancel()
                         engine.isProcessing = false
                         engine.speciesData = speciesData
