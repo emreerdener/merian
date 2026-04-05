@@ -6,7 +6,9 @@ import os
 @MainActor
 @Observable final class RevenueCatManager {
     static let shared = RevenueCatManager()
-    private init() {}
+    private init() {
+        configure()
+    }
 
     // MARK: - State
 
