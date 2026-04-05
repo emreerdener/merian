@@ -49,7 +49,7 @@ struct AnalyzingContentView: View {
             )
 
             // MARK: - Title
-                Text("Analyzing subject")
+                Text("Analyzing")
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)

@@ -45,7 +45,7 @@ private struct GBIFMedia: Decodable {
     /// scan and should hydrate the engine instead of leaving `isProcessing = true` forever.
     @ObservationIgnored var activeScanId: String?
     var isProcessing: Bool = false
-    var scanningPhaseText: String = "Analyzing..."
+    var scanningPhaseText: String = "Analyzing subject..."
     @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
     var activeImageData: Data?
     var activeDisplayDatas: [Data] = []
@@ -126,7 +126,7 @@ private struct GBIFMedia: Decodable {
         // Reset scan identity and processing flags.
         self.activeScanId = nil
         self.isProcessing = true
-        self.scanningPhaseText = "Analyzing..."
+        self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
 
@@ -180,7 +180,7 @@ private struct GBIFMedia: Decodable {
         // pipeline has already set these flags to true, prematurely clearing the skeletons.
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
-        self.scanningPhaseText = "Analyzing..."
+        self.scanningPhaseText = "Analyzing subject..."
 
         self.activeScanId = scanId
         self.isProcessing = true
@@ -1048,7 +1048,7 @@ private struct GBIFMedia: Decodable {
         self.enrichmentWriteTask?.cancel()
         self.enrichmentWriteTask = nil
         // Reset loading flags synchronously so stale defer blocks from cancelled task group
-        self.scanningPhaseText = "Analyzing..."
+        self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         self.speciesData = nil
