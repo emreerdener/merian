@@ -19,12 +19,18 @@ export async function hasRecentExportJob(
   return recentJobs !== null && recentJobs.length > 0;
 }
 
+/// Returns false when a concurrent request already inserted a pending job
+/// (race condition TOCTOU), true when the job was successfully queued.
+/// A partial unique index on export_jobs(user_id) WHERE status NOT IN
+/// ('completed','failed') hardens this at the DB level; the 23505 error
+/// code is the reliable fallback for when two requests slip through the
+/// application-level check simultaneously.
 export async function queueExportJob(
   userId: string,
   exportScope: string,
   includePreciseCoordinates: boolean,
   supabaseAdmin: SupabaseClient,
-) {
+): Promise<boolean> {
   const { error } = await supabaseAdmin.from("export_jobs").insert({
     user_id: userId,
     export_scope: exportScope,
@@ -33,6 +39,11 @@ export async function queueExportJob(
   });
 
   if (error) {
+    // Unique constraint violation — a concurrent request already queued a job.
+    // Treat this as "already queued" (idempotent) rather than an internal error.
+    if (error.code === "23505") return false;
     throw new Error(`Failed to queue export job: ${error.message}`);
   }
+
+  return true;
 }

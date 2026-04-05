@@ -8,9 +8,9 @@ struct FlagIdentificationModal: View {
     
     // MARK: - State
     let scanId: String
+    var onSubmitted: (() -> Void)?
     @State private var viewModel = FlagIdentificationViewModel()
     @State private var playFlagAnimation = false
-    @State private var shouldDismissAfterAlert = false
     
     // MARK: - Body
     var body: some View {
@@ -89,21 +89,11 @@ struct FlagIdentificationModal: View {
                     .disabled(viewModel.isSubmitting)
                 }
             }
-            // Alert on success
-            .alert("Flag submitted", isPresented: $viewModel.showAlert) {
-                Button("Got it", role: .cancel) {
-                    Task { await inferenceEngine.flagAIIdentification(modelContext: modelContext) }
-                    shouldDismissAfterAlert = true
-                }
-            } message: {
-                Text(viewModel.alertMessage)
-            }
-            // dismiss() called here — outside the alert closure — because calling it
-            // inside the alert action resolves to the NavigationStack pop (a no-op at
-            // the root) rather than dismissing the enclosing sheet.
+            // Validation dismiss
             .onChange(of: viewModel.showAlert) { _, isShowing in
-                if !isShowing && shouldDismissAfterAlert {
+                if isShowing {
                     dismiss()
+                    onSubmitted?()
                 }
             }
         }

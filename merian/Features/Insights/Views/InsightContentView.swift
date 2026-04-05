@@ -73,13 +73,17 @@ struct InsightContentView: View {
         }
         .sheet(isPresented: $viewModel.isFlagIssuePresented) {
             if let scanId = inferenceEngine.speciesData?.scanId {
-                ReportInsightView(scanId: scanId)
+                ReportInsightView(scanId: scanId) {
+                    withAnimation { viewModel.toastMessage = "Report submitted. Thanks!" }
+                }
             }
         }
         .sheet(isPresented: $viewModel.isIdentificationFlagPresented) {
             if let scanId = inferenceEngine.speciesData?.scanId {
-                FlagIdentificationModal(scanId: scanId)
-                    .presentationDetents([.height(400)])
+                FlagIdentificationModal(scanId: scanId) {
+                    withAnimation { viewModel.toastMessage = "Report submitted. Thanks!" }
+                }
+                .presentationDetents([.height(400)])
             }
         }
     }

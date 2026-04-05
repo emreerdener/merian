@@ -15,8 +15,13 @@ serve((req: Request) =>
 
     const paramErr = requireParams(body, ["blocked_id"]);
     if (paramErr) return paramErr;
-    
+
     const { blocked_id } = body;
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof blocked_id !== "string" || !UUID_RE.test(blocked_id)) {
+      return jsonResponse({ error: "blocked_id must be a valid UUID." }, 400);
+    }
 
     // Defend against self-blocking
     if (blocked_id === user.id) {

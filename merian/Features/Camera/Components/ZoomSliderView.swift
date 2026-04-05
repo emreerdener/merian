@@ -260,22 +260,22 @@ private struct TickRulerCanvas: View, Animatable {
             guard maxZoom > 1.0 else { return }
             let spacing = trackHeight / CGFloat(tickCount - 1)
 
+            // Draw normal ticks
             for i in 0..<tickCount {
                 let y = 4.0 + CGFloat(i) * spacing
                 let t = CGFloat(i) / CGFloat(tickCount - 1)
-                // Log-spaced to match the indicator position and drag gesture (both use log scale).
-                // Default: top = max zoom (logMax), bottom = 1× (0). Inverted: reversed.
                 let tickLog = invertZoomDirection ? t * logMax : (1.0 - t) * logMax
-                // Fraction in 0–1 zoom space for this tick, matching currentFraction's scale.
                 let tickFraction: CGFloat = invertZoomDirection ? t : (1.0 - t)
-                let isOpticalStop = stops.contains { abs(log(max($0, 1.0)) - tickLog) < halfTickLog }
-                // Max zoom tick: i=0 in default (top), i=tickCount-1 in inverted (bottom)
+
                 let isMaxZoom = invertZoomDirection ? i == tickCount - 1 : i == 0
                 let isMinZoom = invertZoomDirection ? i == 0 : i == tickCount - 1
+                
+                // If this is too close to an exact optical stop, suppress this generic tick entirely
+                let isNearOpticalStop = stops.contains { abs(log(max($0, 1.0)) - tickLog) < halfTickLog * 1.5 }
 
-                // Gaussian falloff centred on the current zoom fraction.
-                // σ = 0.18 covers ~5–6 ticks either side; peak extension = 8 pt (leftward).
-                // activityStrength gates the whole effect so it fades cleanly in/out.
+                if isNearOpticalStop && !isMaxZoom && !isMinZoom { continue }
+
+                // Gaussian falloff centered on the current zoom fraction
                 let d = tickFraction - currentFraction
                 let influence = exp(-d * d / (2 * 0.18 * 0.18)) * activityStrength
                 let extraLength: CGFloat = influence * 8
@@ -285,10 +285,10 @@ private struct TickRulerCanvas: View, Animatable {
                 line.move(to: CGPoint(x: x0, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
 
-                let tickColor: Color = isOpticalStop || isMaxZoom || isMinZoom ? .white.opacity(0.8) : .white.opacity(0.45)
+                let tickColor: Color = isMaxZoom || isMinZoom ? .white.opacity(0.8) : .white.opacity(0.45)
                 ctx.stroke(line, with: .color(tickColor), lineWidth: 0.5)
 
-                if isMaxZoom || isMinZoom || isOpticalStop {
+                if isMaxZoom || isMinZoom {
                     let dotSize: CGFloat = 4
                     let dotX = size.width - dotRightOffset - dotSize / 2
                     ctx.fill(
@@ -296,6 +296,35 @@ private struct TickRulerCanvas: View, Animatable {
                         with: .color(.white.opacity(0.9))
                     )
                 }
+            }
+
+            // Draw exact optical stops (white dots) at their precise continuous coordinate
+            for stop in stops {
+                let stopLog = log(max(stop, 1.0))
+                // Skip if it's the bounding min or max since they're already drawn
+                if stopLog <= 0.001 || abs(stopLog - logMax) < 0.001 { continue }
+                
+                let stopFraction = stopLog / logMax
+                let exactT = invertZoomDirection ? stopFraction : (1.0 - stopFraction)
+                let y = 4.0 + exactT * trackHeight
+
+                let d = stopFraction - currentFraction
+                let influence = exp(-d * d / (2 * 0.18 * 0.18)) * activityStrength
+                let extraLength: CGFloat = influence * 8
+
+                var line = Path()
+                let x0 = size.width - shortTickWidth + opticalTickInset - extraLength
+                line.move(to: CGPoint(x: x0, y: y))
+                line.addLine(to: CGPoint(x: size.width, y: y))
+
+                ctx.stroke(line, with: .color(.white.opacity(0.8)), lineWidth: 0.5)
+
+                let dotSize: CGFloat = 4
+                let dotX = size.width - dotRightOffset - dotSize / 2
+                ctx.fill(
+                    Path(ellipseIn: CGRect(x: dotX, y: y - dotSize / 2, width: dotSize, height: dotSize)),
+                    with: .color(.white.opacity(0.9))
+                )
             }
         }
         .frame(width: componentWidth, height: trackHeight + 8)

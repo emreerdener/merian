@@ -22,18 +22,8 @@ struct ToastBanner<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        HStack(alignment: .center, spacing: 16) {
             content()
-                .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .stroke(Color(UIColor.separator), lineWidth: 0.5)
-                )
 
             if let onDismiss {
                 Button(action: onDismiss) {
@@ -45,9 +35,20 @@ struct ToastBanner<Content: View>: View {
                         .overlay(Circle().stroke(Color(UIColor.separator), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
-                .padding([.top, .trailing], 16)
             }
         }
+        .padding(.vertical, 16)
+        .padding(.leading, 20)
+        .padding(.trailing, onDismiss != nil ? 16 : 20)
+        .background(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .stroke(Color(UIColor.separator), lineWidth: 0.5)
+        )
         .padding(.horizontal, 16)
     }
 }

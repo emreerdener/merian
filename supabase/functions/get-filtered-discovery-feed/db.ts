@@ -8,7 +8,8 @@ export async function fetchBlockedUserIds(
   const { data: blocksData, error: blocksError } = await supabaseAdmin
     .from("user_blocks")
     .select("blocked_id")
-    .eq("blocker_id", userId);
+    .eq("blocker_id", userId)
+    .limit(10000);
 
   if (blocksError) {
     throw new Error(`Failed to fetch block list: ${blocksError.message}`);

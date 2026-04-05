@@ -8,6 +8,7 @@ struct ReportInsightView: View {
     
     // MARK: - State
     let scanId: String
+    var onSubmitted: (() -> Void)?
     @State private var viewModel = ReportInsightViewModel()
 
     // MARK: - View
@@ -41,10 +42,11 @@ struct ReportInsightView: View {
                     .disabled(viewModel.isSubmitting)
                 }
             }
-            .alert("Report status", isPresented: $viewModel.showAlert) {
-                Button("OK") { dismiss() }
-            } message: {
-                Text(viewModel.alertMessage)
+            .onChange(of: viewModel.showAlert) { _, isShowing in
+                if isShowing {
+                    dismiss()
+                    onSubmitted?()
+                }
             }
         }
     }

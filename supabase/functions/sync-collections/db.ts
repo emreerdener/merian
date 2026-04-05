@@ -1,35 +1,74 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { SyncCollectionPayload, MembershipRow } from "./types.ts";
 
+/// Queries the collections table for any incoming IDs that are already owned by a
+/// different user. Returns a filtered copy of `collections` that contains only rows
+/// safe to upsert/delete — ones that either don't exist yet (new) or are owned by
+/// `userId` (legitimate update). Logs a warning when IDOR attempts are detected.
+export async function filterOwnedCollections(
+  userId: string,
+  collections: SyncCollectionPayload[],
+  supabaseAdmin: SupabaseClient,
+): Promise<{ ownedCollections: SyncCollectionPayload[]; ownedIds: string[] }> {
+  if (collections.length === 0) {
+    return { ownedCollections: [], ownedIds: [] };
+  }
+
+  const { data: existing } = await supabaseAdmin
+    .from("collections")
+    .select("id, user_id")
+    .in("id", collections.map((c) => c.id));
+
+  const foreignIds = new Set(
+    (existing ?? [])
+      .filter((row: { id: string; user_id: string }) => row.user_id !== userId)
+      .map((row: { id: string; user_id: string }) => row.id),
+  );
+
+  if (foreignIds.size > 0) {
+    console.warn(
+      `[sync-collections] IDOR blocked: ${foreignIds.size} collection ID(s) belong to a different user (user: ${userId}). Skipping.`,
+    );
+  }
+
+  const ownedCollections = collections.filter((c) => !foreignIds.has(c.id));
+  return { ownedCollections, ownedIds: ownedCollections.map((c) => c.id) };
+}
+
 export async function deleteCollections(
   deletedCollections: SyncCollectionPayload[],
+  userId: string,
   supabaseAdmin: SupabaseClient,
 ) {
   if (deletedCollections.length === 0) return;
 
+  // IDOR guard: scope deletion to the requesting user so a crafted payload cannot
+  // delete collections owned by another user.
   const { error: explicitDeleteError } = await supabaseAdmin
     .from("collections")
     .delete()
-    .in(
-      "id",
-      deletedCollections.map((c) => c.id),
-    );
+    .in("id", deletedCollections.map((c) => c.id))
+    .eq("user_id", userId);
 
   if (explicitDeleteError) {
-    console.error("Explicit collection deletion error:", explicitDeleteError);
+    // Throw so the caller gets a 500 rather than a silent success — collections the
+    // user intended to delete must not silently remain in the DB.
+    throw new Error(`Collection deletion failed: ${explicitDeleteError.message}`);
   }
 }
 
 export async function upsertCollectionsAndFetchMemberships(
   userId: string,
-  validCollections: SyncCollectionPayload[],
-  activeIds: string[],
+  ownedCollections: SyncCollectionPayload[],
+  ownedIds: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<MembershipRow[]> {
+  // Both ownedCollections and ownedIds are pre-filtered by filterOwnedCollections in
+  // the controller — no additional IDOR check needed here.
   const [upsertResult, existingMembershipsResult] = await Promise.all([
-    validCollections.length > 0
+    ownedCollections.length > 0
       ? supabaseAdmin.from("collections").upsert(
-          validCollections.map((c) => ({
+          ownedCollections.map((c) => ({
             id: c.id,
             user_id: userId,
             name: c.name,
@@ -38,11 +77,11 @@ export async function upsertCollectionsAndFetchMemberships(
           { onConflict: "id" },
         )
       : Promise.resolve({ error: null }),
-    activeIds.length > 0
+    ownedIds.length > 0
       ? supabaseAdmin
           .from("collection_scans")
           .select("collection_id, scan_id")
-          .in("collection_id", activeIds)
+          .in("collection_id", ownedIds)
           .returns<MembershipRow[]>()
       : Promise.resolve({ data: [], error: null }),
   ]);
@@ -55,15 +94,15 @@ export async function upsertCollectionsAndFetchMemberships(
 }
 
 export async function syncMembershipDelta(
-  validCollections: SyncCollectionPayload[],
+  ownedCollections: SyncCollectionPayload[],
   existingMemberships: MembershipRow[],
-  activeIds: string[],
+  ownedIds: string[],
   supabaseAdmin: SupabaseClient,
 ) {
-  if (activeIds.length === 0) return;
+  if (ownedIds.length === 0) return;
 
   const desiredMappings: MembershipRow[] = [];
-  for (const collection of validCollections) {
+  for (const collection of ownedCollections) {
     if (collection.scan_ids && collection.scan_ids.length > 0) {
       for (const scanId of collection.scan_ids) {
         desiredMappings.push({

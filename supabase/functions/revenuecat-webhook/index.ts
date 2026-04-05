@@ -5,6 +5,7 @@ import { timingSafeCompare } from "../_shared/http.ts";
 
 import { ensureUserExists, updateUserTier } from "./db.ts";
 import { migrateUserStorage } from "./storage.ts";
+import { setTierCache } from "../_shared/tierCache.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -45,9 +46,13 @@ serve(async (req: Request) => {
       ["INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION", "NON_RENEWING_PURCHASE"].includes(eventType)
     ) {
       await updateUserTier(userId, "pro", supabaseAdmin);
+      // Immediately update the in-process tier cache so the next enrich-scan or identify
+      // call on this isolate uses gemini-2.5-pro without waiting for the 5-minute TTL to expire.
+      setTierCache(userId, "pro");
       runBackground(migrateUserStorage(userId, "free", "pro", supabaseAdmin));
     } else if (["EXPIRATION"].includes(eventType)) {
       await updateUserTier(userId, "free", supabaseAdmin);
+      setTierCache(userId, "free");
       runBackground(migrateUserStorage(userId, "pro", "free", supabaseAdmin));
     }
 

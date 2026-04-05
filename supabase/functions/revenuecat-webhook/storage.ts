@@ -45,6 +45,13 @@ export async function migrateUserStorage(
 
             const urlPromises = scan.image_storage_urls.map(
               async (urlStr: string) => {
+                // Idempotency guard: URL is already at the target path.
+                // This handles concurrent webhook retries where the first run
+                // completed the copy+delete before the second run reads the URL.
+                if (urlStr.includes(`public_uploads/${targetPrefix}/`)) {
+                  return urlStr;
+                }
+
                 if (urlStr.includes(`public_uploads/${sourcePrefix}/`)) {
                   const parsedUrl = new URL(urlStr);
                   const pathParts = parsedUrl.pathname.split("/");

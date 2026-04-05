@@ -102,7 +102,20 @@ private extension InsightSheetView {
             InsightContentView(viewModel: viewModel)
 
             if let message = viewModel.toastMessage {
-                Toast(message: message)
+                ToastBanner(onDismiss: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.toastMessage = nil
+                    }
+                }) {
+                    Text(message)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 60)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(100)
             }
 
             CelebrationBanner(

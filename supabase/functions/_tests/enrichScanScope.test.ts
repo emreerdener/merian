@@ -102,9 +102,13 @@ function hasLookalikes(
   return lookalikes.some((l) => l.common_name !== null) || flashAttempted;
 }
 
-// Mirrors the lookalikes_flash_attempted write guard: only set when lookalikes.length > 0
-function shouldSetFlashAttempted(lookalikes: LookalikeSummary[]): boolean {
-  return lookalikes.length > 0;
+// Mirrors the lookalikes_flash_attempted write guard in index.ts:
+//   if (resolveResult.persisted && lookalikes.length > 0) { ... }
+// Both conditions must be true: the join table must have been written (persisted)
+// AND lookalikes must be non-empty. A null-kingdom early-exit sets persisted=false,
+// which must NOT lock the flag even when Flash returned non-empty lookalikes.
+function shouldSetFlashAttempted(persisted: boolean, lookalikes: LookalikeSummary[]): boolean {
+  return persisted && lookalikes.length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -240,17 +244,21 @@ Deno.test("enrichment cache miss — fires when cachedSpecies is null (species n
 // lookalikes_flash_attempted EMPTY-ARRAY GUARD (the Dahlia bug fix)
 // ---------------------------------------------------------------------------
 
-Deno.test("flash_attempted guard — NOT set when Flash returns empty array", () => {
+Deno.test("flash_attempted guard — NOT set when Flash returns empty array (persisted=true)", () => {
   // This is the exact scenario that caused Dahlia's lookalikes to never appear:
   // Flash returned [] (JS truthy), the flag was set, permanently blocking retries.
-  assertEquals(shouldSetFlashAttempted([]), false);
+  assertEquals(shouldSetFlashAttempted(true, []), false);
 });
 
-Deno.test("flash_attempted guard — set when lookalikes were actually resolved", () => {
+Deno.test("flash_attempted guard — NOT set when Flash returns empty array (persisted=false)", () => {
+  assertEquals(shouldSetFlashAttempted(false, []), false);
+});
+
+Deno.test("flash_attempted guard — set when join table was written and lookalikes are non-empty", () => {
   const lookalikes: LookalikeSummary[] = [
     { scientific_name: "Dahlia coccinea", common_name: "Scarlet Dahlia", reference_image_url: null, iucn_red_list_status: null },
   ];
-  assertEquals(shouldSetFlashAttempted(lookalikes), true);
+  assertEquals(shouldSetFlashAttempted(true, lookalikes), true);
 });
 
 Deno.test("flash_attempted guard — set when lookalikes resolved but all common_names are null (obscure species)", () => {
@@ -260,7 +268,17 @@ Deno.test("flash_attempted guard — set when lookalikes resolved but all common
     { scientific_name: "Rare taxon A", common_name: null, reference_image_url: null, iucn_red_list_status: null },
     { scientific_name: "Rare taxon B", common_name: null, reference_image_url: null, iucn_red_list_status: null },
   ];
-  assertEquals(shouldSetFlashAttempted(lookalikes), true);
+  assertEquals(shouldSetFlashAttempted(true, lookalikes), true);
+});
+
+Deno.test("flash_attempted guard — NOT set when persisted=false even with non-empty lookalikes (null-kingdom early-exit)", () => {
+  // resolveLookalikesToJoinTable returns persisted=false when primaryKingdom is null —
+  // the join table write is skipped entirely. The flag must NOT lock in this state
+  // or the species can never be enriched once kingdom propagates via replication.
+  const lookalikes: LookalikeSummary[] = [
+    { scientific_name: "Some species", common_name: "Some Name", reference_image_url: null, iucn_red_list_status: null },
+  ];
+  assertEquals(shouldSetFlashAttempted(false, lookalikes), false);
 });
 
 // ---------------------------------------------------------------------------

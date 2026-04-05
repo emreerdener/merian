@@ -5,12 +5,15 @@ export async function insertUserBlock(
   blockedId: string,
   supabaseAdmin: SupabaseClient,
 ) {
+  // ignoreDuplicates: true makes repeated block requests idempotent — tapping
+  // "Block" twice or retrying after a network failure will not throw a unique
+  // constraint violation (23505) for the (blocker_id, blocked_id) pair.
   const { error } = await supabaseAdmin
     .from("user_blocks")
-    .insert({
-      blocker_id: blockerId,
-      blocked_id: blockedId,
-    });
+    .upsert(
+      { blocker_id: blockerId, blocked_id: blockedId },
+      { onConflict: "blocker_id,blocked_id", ignoreDuplicates: true },
+    );
 
   if (error) {
     throw new Error(`Failed to block user: ${error.message}`);

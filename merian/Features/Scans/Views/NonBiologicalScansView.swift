@@ -15,6 +15,7 @@ struct NonBiologicalScansView: View {
     @State private var showDeleteConfirmation = false
     @State private var showClearAllConfirmation = false
     @State private var isClearingAll = false
+    @State private var toastMessage: String?
     
     // MARK: - View Layout
     
@@ -67,6 +68,30 @@ struct NonBiologicalScansView: View {
                     .cornerRadius(12)
             }
         }
+        .overlay(alignment: .bottom) {
+            if let message = toastMessage {
+                ToastBanner(onDismiss: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        toastMessage = nil
+                    }
+                }) {
+                    Text(message)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                }
+                .padding(.bottom, 60)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(100)
+            }
+        }
+        .task(id: toastMessage) {
+            guard toastMessage != nil else { return }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            withAnimation(.easeInOut(duration: 0.2)) {
+                toastMessage = nil
+            }
+        }
         
         // MARK: - View Modifiers
         .navigationTitle("Non-biological")
@@ -107,6 +132,7 @@ struct NonBiologicalScansView: View {
             modelContext: modelContext
         ) {
             scanToDelete = nil
+            withAnimation { toastMessage = "Scan deleted" }
         }
         .alert(
             "Delete \(nonBioRecords.count) non-biological scans?",
@@ -137,6 +163,7 @@ struct NonBiologicalScansView: View {
             await MainActor.run {
                 isClearingAll = false
                 HapticManager.shared.triggerSuccessPulse()
+                withAnimation { toastMessage = "Vault cleared" }
                 Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
             }
         }
@@ -183,6 +210,7 @@ struct NonBiologicalScansView: View {
         }
         
         HapticManager.shared.triggerSelectionPulse()
+        withAnimation { toastMessage = "Restored to library" }
     }
 }
 

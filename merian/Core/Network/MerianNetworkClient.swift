@@ -361,8 +361,12 @@ final class MerianNetworkClient {
     /// Queues a DwC-A export job. This endpoint inserts a job into the Postgres
     /// export_jobs queue, which triggers a background webhook to process the zip
     /// and email the user the final download link via Resend.
-    func requestDwcAExport(scope: String = "user") async throws {
+    func requestDwcAExport(scope: String = "personal") async throws {
         let functionUrl = URL(string: "\(supabaseUrl)/functions/v1/request-export-dwca")!
+        // includePreciseCoordinates: true — intentional for personal exports. The requesting
+        // user is downloading their own data, so full-resolution GPS coordinates are appropriate.
+        // For "global" scope exports, the server scrubs coordinates for all rows except the
+        // requesting user's own records, regardless of this flag.
         let payload: [String: Any] = ["exportScope": scope, "includePreciseCoordinates": true]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         

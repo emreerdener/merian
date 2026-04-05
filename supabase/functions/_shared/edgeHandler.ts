@@ -9,6 +9,23 @@ import { corsHeaders, jsonResponse } from "./http.ts";
 export { jsonResponse };
 
 /**
+ * Emits a structured JSON error log for alertable operational events.
+ * Use this (not bare console.error) for any failure that requires human
+ * attention — partial deletes, inconsistent state, IDOR attempts, etc.
+ * The consistent shape makes log-aggregation queries deterministic.
+ */
+export function logStructuredError(
+  event: string,
+  details: Record<string, unknown>,
+): void {
+  console.error(JSON.stringify({
+    event,
+    ts: new Date().toISOString(),
+    ...details,
+  }));
+}
+
+/**
  * Schedules a background task using EdgeRuntime.waitUntil when available,
  * falling back gracefully for local development.
  */

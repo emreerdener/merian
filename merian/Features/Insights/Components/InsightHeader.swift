@@ -29,7 +29,7 @@ struct InsightHeader: View {
                 
                 // MARK: - Scientific Name
                 if !subtitle.isEmpty && subtitle.lowercased() != title.lowercased() {
-                    Text(subtitle.replacingOccurrences(of: "\n", with: " "))
+                    Text(subtitle.strippingCultivarNotation().replacingOccurrences(of: "\n", with: " "))
                         .font(.system(.title3))
                         .italic()
                         .foregroundColor(.secondary)
@@ -94,5 +94,24 @@ struct InsightHeader: View {
         }
         
         return result
+    }
+}
+
+// MARK: - Scientific Name Display Helpers
+
+private extension String {
+    /// Strips cultivar notation for display purposes.
+    ///
+    /// Per ICNCP, cultivar epithets are enclosed in single quotes (e.g. `Rosa 'Radrazz'`).
+    /// This is technically correct but looks unusual to general users. The underlying stored
+    /// value is unchanged — this is display-only so DB lookups remain exact-match compatible.
+    ///
+    /// Handles:
+    /// - `Rosa 'Radrazz'`  → `Rosa Radrazz`
+    /// - `Malus 'Fuji'`    → `Malus Fuji`
+    /// - `Rosa canina`     → `Rosa canina` (unchanged)
+    func strippingCultivarNotation() -> String {
+        replacingOccurrences(of: "'", with: "")
+            .trimmingCharacters(in: .whitespaces)
     }
 }

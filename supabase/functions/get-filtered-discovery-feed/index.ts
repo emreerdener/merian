@@ -35,11 +35,12 @@ function sanitizeFeedData(feedData: FeedScan[]): FeedScan[] {
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const MAX_FEED_LIMIT = 100;
     let limit = 20;
     try {
       const body = await req.json();
       if (body.limit && typeof body.limit === "number") {
-        limit = body.limit;
+        limit = Math.min(Math.floor(body.limit), MAX_FEED_LIMIT);
       }
     } catch {
       // Body is optional, defaults to 20

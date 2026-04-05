@@ -45,13 +45,21 @@ After a successful biological scan, `InferenceEngine` automatically fires `fetch
    - **Tier 2 (Flash + back-fill):** If the `"en"` key is absent (species in dictionary but `common_names` is `NULL`, `{}`, or only has non-English keys), `resolveLookalikesToJoinTable` calls the `merge_common_name_en` Postgres RPC to merge the Flash-generated name as `{"en": "..."}` without overwriting existing locale keys. Implemented via a JSONB `||` merge operator: `COALESCE(common_names, '{}') || jsonb_build_object('en', p_en_name)` with a `NOT (common_names ? 'en')` guard so it is always a safe no-op for species that already have English.
    - **Tier 3 (Flash stub):** If the lookalike species is not yet in `species_dictionary` at all, `resolveLookalikesToJoinTable` returns the Flash-generated `common_name` directly as a `LookalikeSummary` stub with `reference_image_url: null`. The `SimilarSpeciesCard` falls back to `SimilarSpeciesImageFetcher` (Wikipedia / iNaturalist REST) for thumbnail images when `referenceImageUrl` is nil.
 
-   **`lookalikes_flash_attempted` flag** (`species_dictionary.lookalikes_flash_attempted BOOLEAN NOT NULL DEFAULT false`, migration `20260330160000`): Set to `true` in `enrich-scan/index.ts` after any Flash-sourced `resolveLookalikesToJoinTable` call completes, regardless of how many common names were resolved. The `hasLookalikes` gate in `index.ts` ORs this flag:
+   **`lookalikes_flash_attempted` flag** (`species_dictionary.lookalikes_flash_attempted BOOLEAN NOT NULL DEFAULT false`, migration `20260330160000`): Set to `true` in `enrich-scan/index.ts` after a Flash-sourced `resolveLookalikesToJoinTable` call completes — **only when `resolveResult.persisted === true`** (i.e. rows were actually written to the `species_lookalikes` join table). The flag is NOT set when the function returned early without writing (e.g. null-kingdom early-exit, all-failed kingdom validation). This is a critical guard: locking the flag when the join table was skipped would permanently prevent future enrichment retries for species whose `kingdom` had not yet replicated to the read replica at enrichment time. The `hasLookalikes` gate in `index.ts` ORs this flag:
    ```typescript
    const hasLookalikes =
      lookalikes.some((l) => l.common_name !== null) ||
      cachedSpecies?.lookalikes_flash_attempted === true;
    ```
    Without the flag, species whose lookalikes are all legitimately obscure (no widely-recognised English common name) would cause Flash to re-run on every `enrich-scan` invocation indefinitely, since `.some(l => l.common_name !== null)` would never become true. The flag is **not** set by the legacy TEXT[] migration path so those species still trigger Flash once.
+
+   **Recovery query for species incorrectly flagged before this guard was added** (covers both the empty-array case and the null-kingdom early-exit):
+   ```sql
+   UPDATE species_dictionary
+   SET lookalikes_flash_attempted = false
+   WHERE lookalikes_flash_attempted = true
+     AND id NOT IN (SELECT DISTINCT species_id FROM species_lookalikes);
+   ```
 5. JSON-encodes `speciesData.similarSpecies?.entries` via `JSONEncoder` into a `Data` blob. Encode failures are logged via `MerianLog.general.debug` and result in `nil` — the field is never written with corrupt data. Persists all fields to `LocalScanRecord` via `BackgroundDatabaseActor.updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:)` on a background `Task` whose handle is stored in `enrichmentWriteTask` (`@ObservationIgnored private var enrichmentWriteTask: Task<Void, Never>?`). The handle is cancelled in `prepareForNewScan()`, `analyze()` (reset block), and `cancelActiveRequest()`, preventing a stale enrichment write from landing on the wrong `LocalScanRecord` when the user rapidly navigates between scans. The blob lands in `LocalScanRecord.lookalikesData` (`MerianSchemaV27`).
 6. Sets `isEnrichmentLoading = false` (via `defer`).
 

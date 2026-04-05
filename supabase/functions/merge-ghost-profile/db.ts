@@ -36,13 +36,47 @@ export async function transferScans(
   }
 }
 
+/// Re-parents all collections owned by the ghost user to the target authenticated user.
+/// Must be called BEFORE purgeGhostUser — the ON DELETE CASCADE on auth.users would
+/// otherwise silently drop these rows when the ghost is deleted.
+/// collection_scans rows need no update: they reference collection_id (unchanged) and
+/// scan_id (scan IDs are unchanged by transferScans — only their user_id moved).
+export async function transferCollections(
+  ghostId: string,
+  targetUserId: string,
+  supabaseAdmin: SupabaseClient,
+) {
+  const { error } = await supabaseAdmin
+    .from("collections")
+    .update({ user_id: targetUserId })
+    .eq("user_id", ghostId);
+
+  if (error) {
+    throw new Error(`Collections migration failed: ${error.message}`);
+  }
+}
+
 export async function purgeGhostUser(
   ghostId: string,
   supabaseAdmin: SupabaseClient
 ) {
+  // Delete auth.users first — cascades to collections and export_jobs (both reference auth.users).
   const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(ghostId);
 
   if (deleteError) {
     console.warn(`Failed to delete ghost user ${ghostId}: ${deleteError.message}`);
+  }
+
+  // public.users has no FK to auth.users, so it must be deleted explicitly.
+  // This cascades to flagged_reviews and user_blocks referencing the ghost user,
+  // which is the correct outcome — ghost-user reports and blocks have no value
+  // after the identity has been merged into the authenticated account.
+  const { error: publicUserDeleteError } = await supabaseAdmin
+    .from("users")
+    .delete()
+    .eq("id", ghostId);
+
+  if (publicUserDeleteError) {
+    console.warn(`Failed to delete public.users for ghost ${ghostId}: ${publicUserDeleteError.message}`);
   }
 }

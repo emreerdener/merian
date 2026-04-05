@@ -53,6 +53,8 @@ export function diagnosticTriggerForTier(tier: "pro" | "flash"): number
 For exceptionally heavy or bespoke routing streams that violate the 10-second Deno isolate timeout window, operations must be cordoned off into domain-specific streams explicitly executed via `runBackground`.
 
 - **`storage.ts`**: Handles heavy `AWS` bindings via native `aws4fetch`. When streaming multimegabyte binaries directly into Cloudflare R2, implementations like `JSZip` must pipe their outputs efficiently into a `ReadableStream` natively chunked into S3 without overloading memory buffers.
+
+**Structured error logging (`_shared/edgeHandler.ts`)**: In addition to `withEdgeHandler` and `runBackground`, `edgeHandler.ts` exports `logStructuredError(event, details)`. This emits `JSON.stringify({ event, ts, ...details })` to `console.error`. All Edge Functions must use `logStructuredError` for alertable operational failures (e.g. post-auth partial deletion, DB write failures that produce false-success responses) rather than plain `console.error` strings. Structured log lines are machine-parseable and can trigger alerting pipelines on the ops side.
 - **`mail.ts`**: Aggregates 3rd-party SaaS integrations like the `Resend` Node SDK for transactional email delivery.
 - **`media.ts`** (`identify/` only): Resolves the image payload for the Gemini vision call. Handles two paths — R2 key fetch (downloads staging objects serially to avoid heap spikes) and `imageBase64s` direct pass-through (validates size limits). Extracted from `index.ts` to keep the HTTP orchestrator lean and to isolate the heap-safety logic for independent testing.
 - **`moderation.ts`** (`identify/` only): Evaluates Gemini safety ratings, manages abuse strikes, and promotes safe media from `staging/` to `public_uploads/` in Cloudflare R2. Always runs inside `runBackground` — never on the critical HTTP path. See [Safety & Moderation](../development-guides/10-safety-and-moderation.md) for the full pipeline specification.
@@ -107,6 +109,8 @@ The `species_lookalikes` table (`species_id` and `lookalike_id`, both referencin
 ```
 The `SimilarSpeciesGallery` renders these entries immediately (scientific + common names visible); `SimilarSpeciesImageFetcher` fills in card images via the Wikipedia/GBIF waterfall. On the next `enrich-scan` call for the same species (once the row is visible on the replica), `speciesId` resolves normally and the join table is populated with full data.
 
+**`resolveLookalikesToJoinTable` Null Kingdom Early-Exit:** If `primaryKingdom` is `null` or `undefined` when `resolveLookalikesToJoinTable` is called, the function returns the Flash-generated entries as stubs immediately without writing anything to the `species_lookalikes` join table. Previously, all lookalike entries passed through unvalidated when no kingdom was available, risking cross-kingdom contamination in the join table. This early-exit ensures that kingdom-less enrichment paths (e.g., a very recently inserted species row not yet replicated) produce a safe, read-only response.
+
 **TEXT[] Fallback Rule — Always Return Scientific Names When Join Table Resolution Fails:** `resolveLookalikesToJoinTable` may return entries for species already in `species_dictionary`, plus Flash-generated stubs for species not yet in the dictionary. However, `formatEnrichmentPayload` applies a secondary TEXT[] fallback in case the resolution returns completely empty (e.g. speciesId is null, or the function threw and was caught upstream):
 ```typescript
 const resolvedLookalikes: LookalikeSummary[] =
@@ -130,6 +134,8 @@ This guarantees that clients always receive at least the scientific names rather
 
 The migration path in `index.ts` converts legacy `TEXT[]` entries to `SimilarSpeciesEntry[]` with `common_name: null` before calling `resolveLookalikesToJoinTable` — the back-fill step will still fire for any matched dictionary rows whose column is null, even without a Flash-generated name in the entry.
 
+**`resolveLookalikesToJoinTable` Return Type (`enrich-scan/db.ts`)**: The function returns `{ lookalikes: LookalikeSummary[]; persisted: boolean }` (exported interface: `ResolveResult`) rather than a bare `LookalikeSummary[]`. `persisted` is `true` only when rows were successfully written to the `species_lookalikes` join table. Early-exit paths — null kingdom, empty dictionary match, all-failed kingdom validation — return `persisted: false`. Both call sites in `enrich-scan/index.ts` destructure `{ lookalikes, persisted }`.
+
 **`hasLookalikes` Gate — Common Name Presence + Flash Attempt Flag:** The `hasLookalikes` guard in `enrich-scan/index.ts` is:
 ```typescript
 const hasLookalikes =
@@ -140,9 +146,9 @@ Two conditions, either of which skips Flash:
 1. **`lookalikes.some(...)`**: at least one entry has a known common name — the species is enriched.
 2. **`lookalikes_flash_attempted`**: Flash was previously attempted for this species and returned all-null common names. This covers legitimately obscure lookalike species (e.g. rare subspecies, newly described taxa) that have no widely-recognised English common name. Without this flag, `.some()` would never become true and Flash would re-run on every `enrich-scan` call indefinitely, wasting tokens without ever resolving a name.
 
-`lookalikes_flash_attempted` (`BOOLEAN NOT NULL DEFAULT false` on `species_dictionary`) is set to `true` in `index.ts` after a Flash-sourced `resolveLookalikesToJoinTable` call completes — **only when `lookalikes.length > 0`**. This is a critical guard: Flash can return `similar_species: []` (an empty array) for species it does not recognise (e.g. hybrid cultivars, newly described taxa with no well-known confusables). In JavaScript, `[]` is truthy, so the outer `if (similarResult?.similar_species && speciesId)` block fires regardless. Without the `lookalikes.length > 0` check the flag would be written after every empty-array response, permanently locking out future Flash retries for that species and causing similar-species cards to never appear. It is **not** set by the legacy TEXT[] migration path (which passes `common_name: null` for all entries) so that species with legacy-only data still trigger Flash at least once.
+`lookalikes_flash_attempted` (`BOOLEAN NOT NULL DEFAULT false` on `species_dictionary`) is set to `true` in `index.ts` after a Flash-sourced `resolveLookalikesToJoinTable` call completes — **only when `persisted === true`**. This is a critical guard: the flag must not be written when the join-table write was skipped (e.g., the null-kingdom early-exit). Previously the flag was written unconditionally after the function returned, permanently locking out future Flash retries for species whose enrichment was skipped due to replication lag. Setting the flag only on a confirmed join-table write ensures those species are retried on the next `enrich-scan` call. The flag is also **not** set by the legacy TEXT[] migration path (which passes `common_name: null` for all entries) so that species with legacy-only data still trigger Flash at least once.
 
-**Recovery query for species incorrectly flagged before this guard was added:**
+**Recovery query for species incorrectly flagged before this guard was added** (covers both the empty-array case and the null-kingdom early-exit case — both result in the flag being set without any join-table rows):
 ```sql
 UPDATE species_dictionary
 SET lookalikes_flash_attempted = false
@@ -188,6 +194,8 @@ await fetchAndApplyEnrichment(modelContext:, needsMetadata:, needsLookalikes:)
 ```
 
 **`EdgeRuntime.waitUntil` for Post-Response Writes (`enrich-scan/index.ts`):** Each scope defers its `updateSpeciesEnrichment` / `lookalikes_flash_attempted` write via `EdgeRuntime.waitUntil(...)`. The response payload is fully formed before either write begins; the client does not need to wait for them. Deferring these writes removes ~40–60 ms of cumulative Postgres round-trip time from the cold-path response latency.
+
+**`updateSpeciesEnrichment` Error Visibility:** `updateSpeciesEnrichment` issues multiple persist operations via `Promise.allSettled`. It inspects every settled result and calls `console.error` for any rejected promise, making individual field-write failures visible in Deno edge logs without aborting the other persist operations. This follows the `Promise.allSettled` pattern mandated for background writes — a single rejected upsert (e.g., a transient Postgres timeout) no longer silently swallows the error.
 
 Rule: Any `db.ts` write that is not required to build the response payload **must** be deferred with `EdgeRuntime.waitUntil`. The `lookalikes_flash_attempted` flag update and the `updateSpeciesEnrichment` call are the canonical examples.
 

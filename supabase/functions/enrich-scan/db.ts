@@ -61,8 +61,20 @@ export async function fetchLookalikesFromJoinTable(
     }));
 }
 
-/// Resolves a list of SimilarSpeciesEntry values to species_dictionary rows, inserts bidirectional
-/// rows into species_lookalikes, and returns the resolved entries as LookalikeSummary[].
+/// Result shape for resolveLookalikesToJoinTable.
+/// `lookalikes` — the summaries to serve to the client (may come from Flash directly
+///   when the join table write was skipped).
+/// `persisted` — true only when rows were actually written to species_lookalikes.
+///   Callers MUST check this before setting lookalikes_flash_attempted, so the flag
+///   is only locked once the join table contains validated data.
+export interface ResolveResult {
+  lookalikes: LookalikeSummary[];
+  persisted: boolean;
+}
+
+/// Resolves a list of SimilarSpeciesEntry values to species_dictionary rows, inserts one-directional
+/// rows into species_lookalikes (speciesId → lookalike only), and returns the resolved entries as
+/// LookalikeSummary[] together with a `persisted` flag indicating whether the join table was written.
 /// Silently skips entries whose scientific name is not yet in the dictionary.
 /// For dictionary rows whose common_names column is NULL, back-fills the Flash-generated
 /// common_name so future fetchLookalikesFromJoinTable calls return a populated common name.
@@ -77,8 +89,27 @@ export async function resolveLookalikesToJoinTable(
   entries: SimilarSpeciesEntry[],
   supabaseAdmin: SupabaseClient,
   primaryKingdom?: string | null,
-): Promise<LookalikeSummary[]> {
-  if (entries.length === 0) return [];
+): Promise<ResolveResult> {
+  if (entries.length === 0) return { lookalikes: [], persisted: false };
+
+  // When primaryKingdom is absent we have no kingdom baseline to validate against.
+  // Skip the join table write to prevent cross-kingdom entries from persisting in
+  // cache — an unvalidated write here is exactly how pine cones end up as lookalikes
+  // for roses. Return Flash-generated entries directly; the next call after the
+  // enrichment scope populates the species' kingdom will perform the validated write.
+  // persisted: false ensures lookalikes_flash_attempted is NOT set yet — the flag
+  // must only lock once the join table contains validated, kingdom-checked data.
+  if (!primaryKingdom) {
+    return {
+      lookalikes: entries.map((e) => ({
+        scientific_name: e.scientific_name,
+        common_name: e.common_name,
+        reference_image_url: null,
+        iucn_red_list_status: null,
+      })),
+      persisted: false,
+    };
+  }
 
   const names = entries.map((e) => e.scientific_name);
   const entryByName = new Map(entries.map((e) => [e.scientific_name, e]));
@@ -105,29 +136,31 @@ export async function resolveLookalikesToJoinTable(
   // common names are not discarded. The client falls back to Wikipedia/iNaturalist
   // for thumbnail images when referenceImageUrl is null.
   if (typed.length === 0) {
-    return entries.map((e) => ({
-      scientific_name: e.scientific_name,
-      common_name: e.common_name,
-      reference_image_url: null,
-      iucn_red_list_status: null,
-    }));
+    return {
+      lookalikes: entries.map((e) => ({
+        scientific_name: e.scientific_name,
+        common_name: e.common_name,
+        reference_image_url: null,
+        iucn_red_list_status: null,
+      })),
+      persisted: false,
+    };
   }
 
   // Reject any resolved species whose kingdom differs from the primary species' kingdom.
-  // This is a hard guard against cross-kingdom hallucinations persisting in the join table
-  // (e.g. plants being stored as lookalikes for insects/birds).
-  const validated = primaryKingdom
-    ? typed.filter((m) => {
-        if (!m.kingdom) return true; // No kingdom on record — allow through, can't verify.
-        return m.kingdom.toLowerCase() === primaryKingdom.toLowerCase();
-      })
-    : typed;
+  // primaryKingdom is guaranteed non-null here — the early-exit above handles the null case.
+  // Lookalikes with no kingdom on record are allowed through (can't verify, but not
+  // actively contradicting).
+  const validated = typed.filter((m) => {
+    if (!m.kingdom) return true;
+    return m.kingdom.toLowerCase() === primaryKingdom.toLowerCase();
+  });
 
   if (validated.length === 0) {
     console.warn(
       `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed kingdom validation (expected: ${primaryKingdom}). Returning empty.`,
     );
-    return [];
+    return { lookalikes: [], persisted: false };
   }
 
   // One-directional insert only: "when observing speciesId, you might confuse it for m".
@@ -183,16 +216,19 @@ export async function resolveLookalikesToJoinTable(
       iucn_red_list_status: null,
     }));
 
-  return [
-    ...validated.map((m) => ({
-      scientific_name: m.scientific_name,
-      // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
-      common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
-      reference_image_url: m.reference_image_url,
-      iucn_red_list_status: m.iucn_red_list_status,
-    })),
-    ...unmatched,
-  ];
+  return {
+    lookalikes: [
+      ...validated.map((m) => ({
+        scientific_name: m.scientific_name,
+        // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
+        common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
+        reference_image_url: m.reference_image_url,
+        iucn_red_list_status: m.iucn_red_list_status,
+      })),
+      ...unmatched,
+    ],
+    persisted: true,
+  };
 }
 
 export async function updateSpeciesEnrichment(
@@ -233,6 +269,11 @@ export async function updateSpeciesEnrichment(
   }
 
   if (persistOps.length > 0) {
-    await Promise.allSettled(persistOps);
+    const results = await Promise.allSettled(persistOps);
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error("[updateSpeciesEnrichment] Persist operation failed:", result.reason);
+      }
+    }
   }
 }

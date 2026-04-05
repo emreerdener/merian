@@ -1,5 +1,5 @@
 // supabase/functions/sync-collections/index.test.ts
-import { assert } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assert, assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
 /**
  * Mocks the Supabase environment and Edge Function handler inputs
@@ -79,4 +79,91 @@ Deno.test("Edge Function Payload Mapping & Upsert Validation", async () => {
     } else {
         console.warn("Skipping live database test: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env variables missing. Please run with --env.");
     }
+});
+
+// ---------------------------------------------------------------------------
+// filterOwnedCollections — IDOR guard logic
+// Inline stub of the ownership-filter logic from db.ts. Tests the rule:
+//   - Collections not yet in the DB (no existing row) are always allowed through
+//   - Collections whose DB row.user_id === requestingUserId are allowed through
+//   - Collections whose DB row.user_id !== requestingUserId are silently dropped
+// ---------------------------------------------------------------------------
+
+interface CollectionPayload { id: string; name: string }
+interface ExistingRow { id: string; user_id: string }
+
+function filterOwned(
+    userId: string,
+    collections: CollectionPayload[],
+    existingRows: ExistingRow[],
+): { ownedCollections: CollectionPayload[]; ownedIds: string[] } {
+    const foreignIds = new Set(
+        existingRows
+            .filter((r) => r.user_id !== userId)
+            .map((r) => r.id),
+    );
+    const ownedCollections = collections.filter((c) => !foreignIds.has(c.id));
+    return { ownedCollections, ownedIds: ownedCollections.map((c) => c.id) };
+}
+
+Deno.test("filterOwnedCollections — new collection (no DB row) is allowed through", () => {
+    const newId = crypto.randomUUID();
+    const { ownedCollections } = filterOwned(
+        "user-A",
+        [{ id: newId, name: "New" }],
+        [], // no existing rows
+    );
+    assertEquals(ownedCollections.length, 1);
+    assertEquals(ownedCollections[0].id, newId);
+});
+
+Deno.test("filterOwnedCollections — collection owned by requesting user is allowed through", () => {
+    const id = crypto.randomUUID();
+    const { ownedCollections } = filterOwned(
+        "user-A",
+        [{ id, name: "Mine" }],
+        [{ id, user_id: "user-A" }],
+    );
+    assertEquals(ownedCollections.length, 1);
+});
+
+Deno.test("filterOwnedCollections — collection owned by different user is silently dropped (IDOR)", () => {
+    const foreignId = crypto.randomUUID();
+    const { ownedCollections, ownedIds } = filterOwned(
+        "user-A",
+        [{ id: foreignId, name: "Not mine" }],
+        [{ id: foreignId, user_id: "user-B" }], // belongs to user-B
+    );
+    assertEquals(ownedCollections.length, 0, "Foreign collection must be filtered out");
+    assertEquals(ownedIds.length, 0);
+});
+
+Deno.test("filterOwnedCollections — mixed payload: owned and foreign collections separated correctly", () => {
+    const ownedId = crypto.randomUUID();
+    const foreignId = crypto.randomUUID();
+    const newId = crypto.randomUUID();
+
+    const { ownedCollections, ownedIds } = filterOwned(
+        "user-A",
+        [
+            { id: ownedId, name: "Mine" },
+            { id: foreignId, name: "Not mine" },
+            { id: newId, name: "New" },
+        ],
+        [
+            { id: ownedId, user_id: "user-A" },
+            { id: foreignId, user_id: "user-B" },
+            // newId has no existing row — passes through
+        ],
+    );
+    assertEquals(ownedCollections.length, 2, "Only owned and new collections pass through");
+    assert(ownedIds.includes(ownedId));
+    assert(ownedIds.includes(newId));
+    assert(!ownedIds.includes(foreignId), "Foreign ID must be excluded");
+});
+
+Deno.test("filterOwnedCollections — empty input returns empty output", () => {
+    const { ownedCollections, ownedIds } = filterOwned("user-A", [], []);
+    assertEquals(ownedCollections.length, 0);
+    assertEquals(ownedIds.length, 0);
 });

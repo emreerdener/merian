@@ -24,6 +24,6 @@ export async function sendExportEmail(email: string, signedUrl: string) {
   });
 
   if (error) {
-    console.error("Failed to send Resend email:", error);
+    throw new Error(`Failed to send export email via Resend: ${error.message}`);
   }
 }

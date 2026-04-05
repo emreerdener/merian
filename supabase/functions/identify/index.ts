@@ -64,6 +64,18 @@ serve((req: Request) =>
       client_scan_id,
     } = body;
 
+    // Range-validate GPS coordinates — out-of-bounds values from a corrupted or
+    // tampered payload are sanitised to null rather than rejecting the scan.
+    // Location is supplementary context; a bad coord should not kill identification.
+    const safeGpsLat: number | null =
+      gpsLatitude != null && Number.isFinite(gpsLatitude) &&
+      gpsLatitude >= -90 && gpsLatitude <= 90
+        ? gpsLatitude : null;
+    const safeGpsLon: number | null =
+      gpsLongitude != null && Number.isFinite(gpsLongitude) &&
+      gpsLongitude >= -180 && gpsLongitude <= 180
+        ? gpsLongitude : null;
+
     if (
       (!r2ObjectKeys || r2ObjectKeys.length === 0) &&
       (!imageBase64s || imageBase64s.length === 0)
@@ -121,7 +133,7 @@ serve((req: Request) =>
     const model = userTier === "pro" ? modelCache.pro : modelCache.flash;
 
     const telemetryItems = [
-      gpsLatitude != null && gpsLongitude != null ? `GPS:${gpsLatitude},${gpsLongitude}` : null,
+      safeGpsLat != null && safeGpsLon != null ? `GPS:${safeGpsLat},${safeGpsLon}` : null,
       gpsElevation != null ? `Elev:${gpsElevation}m` : null,
       depthScaleText ? `Depth:${depthScaleText}` : null,
       zoomFactor != null && zoomFactor > 1 ? `Zoom:${zoomFactor.toFixed(1)}x` : null,
@@ -186,6 +198,46 @@ serve((req: Request) =>
     } catch (parseError) {
       console.error("Failed to parse AI response:", parseError);
       return jsonResponse({ error: "Processing Error: Malformed AI response." }, 422);
+    }
+
+    // Sanitize scientific names at write time so the database is scientific-grade
+    // and interoperable with GBIF, iNaturalist, and partner taxonomy systems.
+    if (parsedData.scientific_name) {
+      parsedData.scientific_name = sanitizeScientificName(parsedData.scientific_name);
+    }
+    if (Array.isArray(parsedData.candidates)) {
+      parsedData.candidates = parsedData.candidates.map((c) => ({
+        ...c,
+        scientific_name: sanitizeScientificName(c.scientific_name),
+      }));
+    }
+
+    // Cap the candidates list — the LLM schema enforces this but extractJson is an
+    // unvalidated cast. Five alternatives is more than enough for the UI swipe modal.
+    if (Array.isArray(parsedData.candidates)) {
+      parsedData.candidates = parsedData.candidates.slice(0, 5);
+    }
+
+    // Cap unbounded LLM-generated array fields to protect V8 Isolate memory and
+    // prevent oversized DB rows. Limits are generous — they exceed realistic model
+    // output and exist purely as a hard safety boundary against malformed responses.
+    if (Array.isArray(parsedData.extracted_visual_traits)) {
+      parsedData.extracted_visual_traits = parsedData.extracted_visual_traits.slice(0, 10);
+    }
+    if (Array.isArray(parsedData.ecological_interactions)) {
+      parsedData.ecological_interactions = parsedData.ecological_interactions.slice(0, 10);
+    }
+    if (typeof parsedData.ai_reasoning === "string" && parsedData.ai_reasoning.length > 2000) {
+      parsedData.ai_reasoning = parsedData.ai_reasoning.slice(0, 2000);
+    }
+    // individual_count: must be a positive integer; reject negatives and impossibly large values.
+    // Uses undefined (not null) to match the ?: number optional type; the insertScan call
+    // converts undefined → null via ?? for the nullable DB column.
+    if (parsedData.individual_count != null) {
+      parsedData.individual_count =
+        Number.isFinite(parsedData.individual_count) && parsedData.individual_count > 0
+          ? Math.min(Math.round(parsedData.individual_count), 99999)
+          : undefined;
     }
 
     // Derive blur_score from sharpness (1-10) for latency savings
@@ -354,8 +406,8 @@ serve((req: Request) =>
             user_id: user.id,
             species_id: speciesId,
             timestamp: timestamp ?? undefined,
-            gps_lat_exact: gpsLatitude,
-            gps_long_exact: gpsLongitude,
+            gps_lat_exact: safeGpsLat,
+            gps_long_exact: safeGpsLon,
             gps_elevation: gpsElevation,
             ai_confidence_score: payloadReadyForClient.confidence_score,
             blur_score: payloadReadyForClient.blur_score,
@@ -379,7 +431,9 @@ serve((req: Request) =>
             reproductive_condition: parsedData.reproductive_condition ?? "not_applicable",
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: parsedData.ecological_interactions ?? [],
-            estimated_size_cm: estimated_size_cm ?? null,
+            estimated_size_cm: (estimated_size_cm != null && Number.isFinite(estimated_size_cm) && estimated_size_cm > 0)
+              ? Math.min(estimated_size_cm, 50000)
+              : null,
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: payloadReadyForClient.candidates ?? null,
             image_quality_score: parsedData.image_quality?.overall_score ?? null,
@@ -462,3 +516,100 @@ serve((req: Request) =>
     return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Scientific Name Sanitization
+// ---------------------------------------------------------------------------
+//
+// Applied to every scientific_name before it touches species_dictionary or
+// the candidates JSONB payload. Ensures the database is interoperable with
+// GBIF, iNaturalist, and partner taxonomy systems.
+//
+// Rules applied (in order):
+//   1. Trim leading/trailing whitespace and collapse internal runs of spaces.
+//   2. Strip author citations — e.g. "Rosa canina L." → "Rosa canina".
+//      Author strings follow the specific epithet and begin with an uppercase
+//      letter or parenthesis: "(L.)", "Karst.", "DC.", "Thunb. ex Murray".
+//      Cultivar epithets in single quotes are NOT author citations and are kept.
+//   3. Strip uncertainty qualifiers — "cf.", "aff.", "sp." — that indicate
+//      the identification is tentative. These should be surfaced in a separate
+//      confidence field, not embedded in the name key used for DB lookups.
+//   4. Normalise capitalisation: genus capitalised, specific epithet and
+//      infraspecific rank markers ("var.", "subsp.", "f.") lowercase.
+//      Cultivar names in single quotes are preserved in their original case
+//      per ICNCP convention (Title Case inside the quotes is standard).
+//   5. Preserve hybrid markers (×) — "× Heucherella" is correct notation.
+//
+// Examples:
+//   "rosa 'Radrazz'"              → "Rosa 'Radrazz'"
+//   "Rosa canina L."              → "Rosa canina"
+//   "Quercus robur (L.) Karst."   → "Quercus robur"
+//   "cf. Pinus ponderosa"         → "Pinus ponderosa"
+//   "Acer Palmatum"               → "Acer palmatum"
+//   "Boletus edulis var. Edulis"  → "Boletus edulis var. edulis"
+// ---------------------------------------------------------------------------
+
+function sanitizeScientificName(name: string): string {
+  if (!name) return name;
+
+  // 1. Collapse whitespace
+  let s = name.trim().replace(/\s+/g, " ");
+
+  // 2. Strip uncertainty qualifiers at the start
+  s = s.replace(/^(cf\.|aff\.|sp\.)\s+/i, "");
+
+  // 3. Strip author citations
+  //    Strategy: split on the first single-quoted cultivar block (if present)
+  //    and only process the binomial prefix — authors never appear inside quotes.
+  const cultivarMatch = s.match(/^(.*?)\s*('[^']*')\s*$/);
+  if (cultivarMatch) {
+    const binomial = stripAuthors(cultivarMatch[1].trim());
+    const cultivar = cultivarMatch[2]; // preserve case per ICNCP
+    s = `${binomial} ${cultivar}`;
+  } else {
+    s = stripAuthors(s);
+  }
+
+  // 4. Normalise capitalisation on the binomial portion
+  s = normaliseBinomialCase(s);
+
+  return s.trim();
+}
+
+// Removes trailing author citations from a name string that contains no cultivar.
+// Author strings start after the specific epithet with an uppercase letter or "(".
+// Rank markers (var., subsp., f.) and hybrid markers (×) are not author strings.
+function stripAuthors(name: string): string {
+  // Split into tokens and find where the author citation begins.
+  // Tokens that are NOT part of the name: uppercase word or "(" not preceded by a rank marker.
+  const rankMarkers = new Set(["var.", "subsp.", "f.", "ssp.", "cv.", "×", "x"]);
+  const tokens = name.split(" ");
+  let cutAt = tokens.length;
+
+  for (let i = 2; i < tokens.length; i++) { // genus + epithet always kept
+    const token = tokens[i];
+    const prev = tokens[i - 1]?.toLowerCase();
+    if (rankMarkers.has(prev)) continue; // next token after rank marker is a name, not author
+    if (/^[A-Z(]/.test(token) && !rankMarkers.has(token.toLowerCase())) {
+      cutAt = i;
+      break;
+    }
+  }
+
+  return tokens.slice(0, cutAt).join(" ");
+}
+
+// Genus capitalised, everything else lowercase except cultivar quotes and × marker.
+function normaliseBinomialCase(name: string): string {
+  const rankMarkers = new Set(["var.", "subsp.", "f.", "ssp.", "cv."]);
+  const tokens = name.split(" ");
+  return tokens
+    .map((token, i) => {
+      if (token.startsWith("'") && token.endsWith("'")) return token; // cultivar — keep as-is
+      if (token === "×") return token; // hybrid marker
+      if (i === 0) return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase(); // genus
+      if (rankMarkers.has(token.toLowerCase())) return token.toLowerCase(); // rank marker
+      return token.toLowerCase(); // specific epithet and infraspecific names
+    })
+    .join(" ");
+}

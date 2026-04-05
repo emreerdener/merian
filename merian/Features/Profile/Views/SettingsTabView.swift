@@ -20,55 +20,90 @@ struct SettingsTabView: View {
     @State private var managePlanActive = false
     @State private var notificationSettingsActive = false
     @State private var cameraSettingsActive = false
+    @State private var toastMessage: String?
 
     var body: some View {
-        List {
-            Preferences(
-                isHapticsEnabled: $isHapticsEnabled,
-                defaultGeoprivacy: $viewModel.defaultGeoprivacy,
-                managePlanActive: $managePlanActive,
-                notificationSettingsActive: $notificationSettingsActive,
-                cameraSettingsActive: $cameraSettingsActive
-            )
+        ZStack {
+            List {
+                Preferences(
+                    isHapticsEnabled: $isHapticsEnabled,
+                    defaultGeoprivacy: $viewModel.defaultGeoprivacy,
+                    managePlanActive: $managePlanActive,
+                    notificationSettingsActive: $notificationSettingsActive,
+                    cameraSettingsActive: $cameraSettingsActive
+                )
 
-            ExportScans(
-                supabase: supabase,
-                isExporting: $isExporting,
-                exportUrl: $exportUrl
-            )
+                ExportScans(
+                    supabase: supabase,
+                    isExporting: $isExporting,
+                    exportUrl: $exportUrl,
+                    onExportRequested: {
+                        withAnimation { toastMessage = "Export requested. Check your email shortly." }
+                    }
+                )
 
-            Community(
-                safariUrl: $safariUrl,
-                showSafari: $showSafari
-            )
+                Community(
+                    safariUrl: $safariUrl,
+                    showSafari: $showSafari
+                )
 
-            DangerZone(
-                supabase: supabase,
-                showDeleteConfirmation: $showDeleteConfirmation
-            )
-        }
-        .navigationDestination(isPresented: $notificationSettingsActive) {
-            NotificationSettingsView()
-        }
-        .navigationDestination(isPresented: $cameraSettingsActive) {
-            CameraSettingsView()
-        }
-        .navigationDestination(isPresented: $managePlanActive) {
-            ManagePlanView()
-                .environment(RevenueCatManager.shared)
-        }
-        .listStyle(InsetGroupedListStyle())
-        .containerRelativeFrame(.horizontal)
-        .onAppear {
-            isExpeditionModeActive = HardwareOrchestrator.shared.isExpeditionModeActive
-        }
-        .sheet(isPresented: $showSafari) {
-            if let url = safariUrl {
-                SafariView(url: url)
+                DangerZone(
+                    supabase: supabase,
+                    showDeleteConfirmation: $showDeleteConfirmation,
+                    onCacheCleared: { success in
+                        if success {
+                            toastMessage = "Local cache cleared"
+                        } else {
+                            toastMessage = "Error clearing some files"
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                            withAnimation {
+                                toastMessage = nil
+                            }
+                        }
+                    }
+                )
             }
-        }
-        .sheet(isPresented: $showDeleteConfirmation) {
-            DeleteAccountSheet(supabase: supabase)
+            .navigationDestination(isPresented: $notificationSettingsActive) {
+                NotificationSettingsView()
+            }
+            .navigationDestination(isPresented: $cameraSettingsActive) {
+                CameraSettingsView()
+            }
+            .navigationDestination(isPresented: $managePlanActive) {
+                ManagePlanView()
+                    .environment(RevenueCatManager.shared)
+            }
+            .listStyle(InsetGroupedListStyle())
+            .containerRelativeFrame(.horizontal)
+            .onAppear {
+                isExpeditionModeActive = HardwareOrchestrator.shared.isExpeditionModeActive
+            }
+            .sheet(isPresented: $showSafari) {
+                if let url = safariUrl {
+                    SafariView(url: url)
+                }
+            }
+            .sheet(isPresented: $showDeleteConfirmation) {
+                DeleteAccountSheet(supabase: supabase)
+            }
+
+            if let message = toastMessage {
+                ToastBanner(onDismiss: {
+                    withAnimation {
+                        toastMessage = nil
+                    }
+                }) {
+                    Text(message)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 60)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(100)
+            }
         }
     }
 

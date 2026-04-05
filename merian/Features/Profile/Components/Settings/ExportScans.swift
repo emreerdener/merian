@@ -6,6 +6,8 @@ struct ExportScans: View {
     let supabase: SupabaseManager
     @Binding var isExporting: Bool
     @Binding var exportUrl: URL?
+    var onExportRequested: (() -> Void)?
+    
     @State private var hasRequestedExport = false
     @State private var errorMessage: String?
     
@@ -38,6 +40,7 @@ struct ExportScans: View {
                                 await MainActor.run {
                                     self.isExporting = false
                                     withAnimation { self.hasRequestedExport = true }
+                                    self.onExportRequested?()
                                 }
                             } catch let error as MerianError {
                                 await MainActor.run { 

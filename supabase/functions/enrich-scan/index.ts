@@ -3,6 +3,7 @@ import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHan
 import { fetchSimilarSpecies, fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/biology.ts";
 import { requireParams } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
+import { getTierForUser } from "../_shared/tierCache.ts";
 import {
   getCachedSpecies,
   updateSpeciesEnrichment,
@@ -60,12 +61,13 @@ function formatLookalikesOnlyPayload(
   };
 }
 
-// TODO(rate-limiting): _user is authenticated but there is no per-user server-side throttle on
-// LLM-triggering enrichment calls. Any authenticated user can invoke this endpoint an unbounded
-// number of times, each triggering a Gemini generation round-trip. Add a per-user daily quota
-// check against `usage_limits` (or a dedicated `enrichment_calls_today` counter) that returns
-// HTTP 429 before reaching `fetchStaticEncyclopedicData` / `fetchSimilarSpecies`. The client-side
-// `InferenceEngine` already gates via `enrichedSpeciesNames`, but the server must not trust it.
+// Daily enrichment quota for free-tier users.
+// Uses today's scan count as a lightweight proxy for LLM budget consumed.
+// Each new scan can trigger at most two enrich-scan calls (enrichment + lookalikes),
+// so 50 scans ≈ 100 potential Gemini round-trips — a conservative free-tier ceiling.
+// Pro users are exempt. Replace this proxy with a dedicated atomic counter once the
+// usage_limits migration is deployed.
+const FREE_ENRICHMENT_SCAN_LIMIT = 50;
 
 serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
@@ -86,6 +88,28 @@ serve((req: Request) =>
 
     if (scope !== "enrichment" && scope !== "lookalikes") {
       return jsonResponse({ error: "scope must be \"enrichment\" or \"lookalikes\"" }, 400);
+    }
+
+    // Resolve tier and enforce per-user rate limit before any LLM call.
+    // Cache hit is near-instant (in-process Map with 5-min TTL).
+    const userTier = await getTierForUser(_user.id, supabaseAdmin);
+
+    if (userTier !== "pro") {
+      const { count: scansToday, error: countError } = await supabaseAdmin
+        .from("scans")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", _user.id)
+        .gte("timestamp", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+      if (!countError && (scansToday ?? 0) >= FREE_ENRICHMENT_SCAN_LIMIT) {
+        return jsonResponse(
+          {
+            error: "Daily enrichment quota exceeded.",
+            message: "Upgrade to Pro for unlimited enrichment, or try again tomorrow.",
+          },
+          429,
+        );
+      }
     }
 
     const cachedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
@@ -146,12 +170,16 @@ serve((req: Request) =>
         cachedSpecies?.similar_species &&
         cachedSpecies.similar_species.length > 0
       ) {
-        lookalikes = await resolveLookalikesToJoinTable(
+        const migrationResult = await resolveLookalikesToJoinTable(
           speciesId,
           cachedSpecies.similar_species.map((name) => ({ scientific_name: name, common_name: null })),
           supabaseAdmin,
           cachedSpecies?.kingdom,
         );
+        lookalikes = migrationResult.lookalikes;
+        // migrationResult.persisted is intentionally not used here: the migration path
+        // runs against TEXT[] names stored by a prior Flash call, not a new Flash call.
+        // lookalikes_flash_attempted was already set during the original Flash run.
       }
     }
 
@@ -182,17 +210,18 @@ serve((req: Request) =>
 
       if (similarResult?.similar_species) {
         if (speciesId) {
-          lookalikes = await resolveLookalikesToJoinTable(
+          const resolveResult = await resolveLookalikesToJoinTable(
             speciesId,
             similarResult.similar_species,
             supabaseAdmin,
             cachedSpecies?.kingdom,
           );
-          // Guard: only set the flag when lookalikes were actually resolved. Flash can return
-          // similar_species: [] (empty array) for species it doesn't recognise; [] is truthy
-          // in JS so the outer `if` fires, but we must not permanently lock out future Flash
-          // retries when no lookalike data was produced.
-          if (lookalikes.length > 0) {
+          lookalikes = resolveResult.lookalikes;
+          // Only set lookalikes_flash_attempted when the join table was actually written
+          // (resolveResult.persisted = true). If primaryKingdom was null, the function
+          // returned early without touching the join table — locking the flag in that
+          // state would permanently prevent a future validated write once kingdom is known.
+          if (resolveResult.persisted && lookalikes.length > 0) {
             runBackground(
               Promise.resolve(
                 supabaseAdmin

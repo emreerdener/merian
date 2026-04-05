@@ -16,8 +16,27 @@ serve((req: Request) =>
 
     const paramErr = requireParams(body, ["scanId", "flagReason"]);
     if (paramErr) return paramErr;
-    
+
     const { scanId, flagReason, userSuggestion } = body;
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof scanId !== "string" || !UUID_RE.test(scanId)) {
+      return jsonResponse({ error: "scanId must be a valid UUID." }, 400);
+    }
+
+    const VALID_FLAG_REASONS = new Set([
+      "Incorrect species",
+      "Inappropriate content",
+      "Bad image quality",
+      "Other",
+    ]);
+
+    if (!VALID_FLAG_REASONS.has(flagReason)) {
+      return jsonResponse(
+        { error: `Invalid flagReason. Must be one of: ${[...VALID_FLAG_REASONS].join(", ")}.` },
+        400,
+      );
+    }
 
     // 1. Insert a moderation queue record
     await insertFlagRecord(

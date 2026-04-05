@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
-import { verifyGhostUser, transferScans, purgeGhostUser } from "./db.ts";
+import { verifyGhostUser, transferScans, transferCollections, purgeGhostUser } from "./db.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -14,8 +14,13 @@ serve((req: Request) =>
 
     const paramErr = requireParams(body, ["ghost_id"]);
     if (paramErr) return paramErr;
-    
+
     const { ghost_id } = body;
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof ghost_id !== "string" || !UUID_RE.test(ghost_id)) {
+      return jsonResponse({ error: "ghost_id must be a valid UUID." }, 400);
+    }
 
     // Redundant client-side fire trap
     if (ghost_id === user.id) {
@@ -35,6 +40,7 @@ serve((req: Request) =>
 
     // 2. Safely Execute Transfer
     await transferScans(ghost_id, user.id, supabaseAdmin);
+    await transferCollections(ghost_id, user.id, supabaseAdmin);
 
     // 3. Purge Empty Ghost Profile
     await purgeGhostUser(ghost_id, supabaseAdmin);

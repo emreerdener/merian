@@ -83,6 +83,11 @@ private struct GBIFMedia: Decodable {
     /// live-inference path within this session. Skips the Edge round-trip for repeat observations
     /// of the same species — habitat, lookalikes, and taxonomy data is identical across scans.
     @ObservationIgnored private var enrichedSpeciesNames: Set<String> = []
+    /// Set to true the first time `enrich-scan` returns HTTP 429. All subsequent
+    /// `fetchAndApplyEnrichment` calls bail out immediately for the remainder of the session —
+    /// the daily quota is shared across scopes, so once one call is rate-limited all further
+    /// calls would be too. Resets on app relaunch (session-scoped).
+    @ObservationIgnored private var isEnrichmentRateLimited = false
     /// Tracks the GBIF image hydration task spawned by `fetchAndApplyEnrichment` so it can be
     /// cancelled immediately when the user navigates away or fires a new scan. Without this handle
     /// the task survives `liveHydrationTask` cancellation and can write stale image URLs back to
@@ -603,6 +608,7 @@ private struct GBIFMedia: Decodable {
               data.scientificName.lowercased() != "taxonomy unavailable" else { return }
 
         guard needsMetadata || needsLookalikes else { return }
+        guard !isEnrichmentRateLimited else { return }
 
         if needsMetadata { isEnrichmentLoading = true }
         if needsLookalikes { isLookalikesLoading = true }
@@ -668,6 +674,10 @@ private struct GBIFMedia: Decodable {
                         }
                     } catch let error as MerianError {
                         if case .httpError(let code, _) = error, code == 403 { return }
+                        if case .httpError(let code, _) = error, code == 429 {
+                            self.isEnrichmentRateLimited = true
+                            return
+                        }
                         MerianLog.general.debug("Enrichment scope failed: \(error, privacy: .private)")
                     } catch {
                         MerianLog.general.debug("Enrichment scope failed: \(error, privacy: .private)")
@@ -721,6 +731,10 @@ private struct GBIFMedia: Decodable {
                         }
                     } catch let error as MerianError {
                         if case .httpError(let code, _) = error, code == 403 { return }
+                        if case .httpError(let code, _) = error, code == 429 {
+                            self.isEnrichmentRateLimited = true
+                            return
+                        }
                         MerianLog.general.debug("Lookalikes scope failed: \(error, privacy: .private)")
                     } catch {
                         MerianLog.general.debug("Lookalikes scope failed: \(error, privacy: .private)")

@@ -4,6 +4,7 @@ struct LibraryView: View {
     // MARK: - State Dependencies
     @Bindable var searchManager: ScansManager
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
+    @Environment(\.dismiss) private var dismiss
 
     // MARK: - App State Context
     let filterCategories: [String]
@@ -75,6 +76,9 @@ struct LibraryView: View {
                             onQueuedScanDelete: { queuedScan in
                                 Task {
                                     await offlineQueueManager.deleteQueuedScan(scanId: queuedScan.id)
+                                    await MainActor.run {
+                                        withAnimation { toastMessage = "Scan cancelled & deleted" }
+                                    }
                                 }
                             }
                         )
@@ -91,12 +95,37 @@ struct LibraryView: View {
                                     return "Start exploring and capture your first scan!"
                                 }
                             }()
-                        )
+                        ) {
+                            if searchManager.searchQuery.isEmpty {
+                                Button {
+                                    dismiss()
+                                } label: {
+                                    Text("Start scanning")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.regular)
+                            }
+                        }
                     }
                 }
 
                 if let message = toastMessage {
-                    Toast(message: message)
+                    ToastBanner(onDismiss: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            toastMessage = nil
+                        }
+                    }) {
+                        Text(message)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 60)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(100)
                 }
             }
             .sheet(item: $scanToManage) { queuedScan in
@@ -120,6 +149,9 @@ struct LibraryView: View {
                         Button(role: .destructive) {
                             Task {
                                 await offlineQueueManager.deleteQueuedScan(scanId: queuedScan.id)
+                                await MainActor.run {
+                                    withAnimation { toastMessage = "Scan cancelled & deleted" }
+                                }
                             }
                             scanToManage = nil
                         } label: {
@@ -154,6 +186,11 @@ struct LibraryView: View {
                 try? await Task.sleep(nanoseconds: 2_500_000_000)
                 withAnimation(.easeInOut(duration: 0.2)) {
                     toastMessage = nil
+                }
+            }
+            .onChange(of: offlineQueueManager.isOnline) { _, isOnline in
+                if isOnline && !queuedScans.isEmpty {
+                    withAnimation { toastMessage = "Back online, uploading scans..." }
                 }
             }
         }

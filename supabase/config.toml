@@ -422,6 +422,10 @@ verify_jwt = false
 
 [functions.merge-ghost-profile]
 enabled = true
+# INTENTIONAL: verify_jwt = true — unlike other functions that use withEdgeHandler's
+# manual JWT verification, this function requires a fully authenticated user session
+# (not anonymous). Merging a ghost account into an unauthenticated session is nonsensical
+# and would be a security risk. The Supabase gateway enforces auth before the function runs.
 verify_jwt = true
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
@@ -434,6 +438,10 @@ entrypoint = "./functions/merge-ghost-profile/index.ts"
 
 [functions.request-export-dwca]
 enabled = true
+# INTENTIONAL: verify_jwt = true — DwC-A export is a personal data download that requires
+# a verified authenticated user session. Anonymous users cannot export their data because
+# they have no stable identity to bind the export to. This is the only other function
+# (alongside merge-ghost-profile) where gateway-level JWT enforcement is appropriate.
 verify_jwt = true
 import_map = "./functions/request-export-dwca/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
