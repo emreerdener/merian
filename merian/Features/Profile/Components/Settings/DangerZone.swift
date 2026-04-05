@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DangerZone: View {
     let supabase: SupabaseManager
-    @Binding var isDeleting: Bool
     @Binding var showDeleteConfirmation: Bool
 
     @State private var showSignOutConfirmation = false
@@ -31,19 +30,10 @@ struct DangerZone: View {
                 }
             }
 
-            Button {
+            Button("Delete account & data") {
                 showDeleteConfirmation = true
-            } label: {
-                HStack {
-                    if isDeleting {
-                        ProgressView().tint(.red)
-                    } else {
-                        Text("Delete account & data")
-                    }
-                }
-                .foregroundColor(.red)
             }
-            .disabled(isDeleting)
+            .foregroundColor(.red)
         }
     }
 

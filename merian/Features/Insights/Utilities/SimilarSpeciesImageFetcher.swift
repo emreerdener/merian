@@ -41,42 +41,39 @@ final class SimilarSpeciesImageFetcher {
         
         let normalized = scientificName.replacingOccurrences(of: " ", with: "_")
         
-        // 1. Resolve remote URLs off-thread securely protecting the RAM ceiling
+        // 1. Resolve remote URLs concurrently off the main thread.
+        //    Wikipedia and GBIF run in parallel — previously sequential, which meant
+        //    an 11s worst-case wait (5s wiki + 6s GBIF) before the placeholder appeared.
         let resolvedUrls = await Task.detached(priority: .utility) { () -> [String] in
-            var validUrls: [String] = []
-            
-            // Wikipedia Pass
-            if let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-               let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") {
+            async let wikiUrl: String? = {
+                guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                      let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
+                else { return nil }
                 var request = URLRequest(url: url)
                 request.timeoutInterval = 5.0
                 request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
-                
-                if let (data, response) = try? await URLSession.shared.data(for: request),
-                   let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
-                   let decoded = try? JSONDecoder().decode(WikiSummaryResponse.self, from: data),
-                   let imageUrlString = decoded.thumbnail?.source ?? decoded.originalimage?.source {
-                    validUrls.append(imageUrlString)
-                }
-            }
-            
-            // GBIF Pass
-            if let gbifEncoded = scientificName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-               let gbifUrl = URL(string: "https://api.gbif.org/v1/occurrence/search?scientificName=\(gbifEncoded)&mediaType=StillImage&limit=1") {
-                var gbifRequest = URLRequest(url: gbifUrl)
-                gbifRequest.timeoutInterval = 6.0
-                
-                if let (data, response) = try? await URLSession.shared.data(for: gbifRequest),
-                   let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
-                   let decoded = try? JSONDecoder().decode(FetcherGBIFMediaResponse.self, from: data),
-                   let firstResult = decoded.results?.first,
-                   let firstMedia = firstResult.media?.first(where: { $0.type == "StillImage" }),
-                   let imageUrlString = firstMedia.identifier {
-                    validUrls.append(imageUrlString)
-                }
-            }
-            
-            return validUrls
+                guard let (data, response) = try? await URLSession.shared.data(for: request),
+                      let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
+                      let decoded = try? JSONDecoder().decode(WikiSummaryResponse.self, from: data)
+                else { return nil }
+                return decoded.thumbnail?.source ?? decoded.originalimage?.source
+            }()
+
+            async let gbifUrl: String? = {
+                guard let encoded = scientificName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                      let url = URL(string: "https://api.gbif.org/v1/occurrence/search?scientificName=\(encoded)&mediaType=StillImage&limit=1")
+                else { return nil }
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 5.0
+                guard let (data, response) = try? await URLSession.shared.data(for: request),
+                      let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
+                      let decoded = try? JSONDecoder().decode(FetcherGBIFMediaResponse.self, from: data),
+                      let firstMedia = decoded.results?.first?.media?.first(where: { $0.type == "StillImage" })
+                else { return nil }
+                return firstMedia.identifier
+            }()
+
+            return await [wikiUrl, gbifUrl].compactMap { $0 }
         }.value
         
         if resolvedUrls.isEmpty { return false }

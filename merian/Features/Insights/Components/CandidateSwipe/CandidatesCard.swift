@@ -246,9 +246,10 @@ private struct FlayedCandidateThumbnail: View {
                     .scaledToFill()
             } else if imageFetcher.isLoading {
                 ProgressView()
+                    .tint(.secondary)
             } else {
                 Image(systemName: "leaf.fill")
-                    .foregroundStyle(.quaternary)
+                    .foregroundStyle(.tertiary)
                     .font(.system(size: 32))
             }
         }

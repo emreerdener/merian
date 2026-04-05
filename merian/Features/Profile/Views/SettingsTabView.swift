@@ -17,7 +17,6 @@ struct SettingsTabView: View {
     @State private var showSafari = false
     @State private var safariUrl: URL?
     @State private var showDeleteConfirmation = false
-    @State private var isDeleting = false
     @State private var managePlanActive = false
     @State private var notificationSettingsActive = false
     @State private var cameraSettingsActive = false
@@ -45,7 +44,6 @@ struct SettingsTabView: View {
 
             DangerZone(
                 supabase: supabase,
-                isDeleting: $isDeleting,
                 showDeleteConfirmation: $showDeleteConfirmation
             )
         }
@@ -69,30 +67,9 @@ struct SettingsTabView: View {
                 SafariView(url: url)
             }
         }
-        .confirmationDialog(
-            "Are you sure you want to permanently delete your account and all associated data?",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete account", role: .destructive) {
-                Task { await deleteAccount() }
-            }
-            Button("Cancel", role: .cancel) {}
+        .sheet(isPresented: $showDeleteConfirmation) {
+            DeleteAccountSheet(supabase: supabase)
         }
     }
 
-    // MARK: - Actions
-
-    private func deleteAccount() async {
-        isDeleting = true
-        do {
-            try await MerianNetworkClient.shared.safeDeleteAccount()
-            await supabase.signOut()
-            ScanRepository.shared.purgeAllData(modelContext: modelContext)
-            dismiss()
-        } catch {
-            MerianLog.general.error("Account deletion failed: \(error.localizedDescription, privacy: .public)")
-        }
-        isDeleting = false
-    }
 }
