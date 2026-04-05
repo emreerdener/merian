@@ -3,7 +3,6 @@ import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHan
 import { fetchSimilarSpecies, fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/biology.ts";
 import { requireParams } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
-import { getTierForUser } from "../_shared/tierCache.ts";
 import {
   getCachedSpecies,
   updateSpeciesEnrichment,
@@ -61,13 +60,12 @@ function formatLookalikesOnlyPayload(
   };
 }
 
-// Daily enrichment quota for free-tier users.
-// Uses today's scan count as a lightweight proxy for LLM budget consumed.
-// Each new scan can trigger at most two enrich-scan calls (enrichment + lookalikes),
-// so 50 scans ≈ 100 potential Gemini round-trips — a conservative free-tier ceiling.
-// Pro users are exempt. Replace this proxy with a dedicated atomic counter once the
-// usage_limits migration is deployed.
-const FREE_ENRICHMENT_SCAN_LIMIT = 50;
+// In-flight deduplication (singleflight pattern) — prevents concurrent requests on the
+// same warm Deno isolate from each firing a Gemini call for the same species on a cache
+// miss (thundering herd on popular species at launch). Late arrivals await the in-flight
+// Promise, then re-read the species_dictionary, which will be a cache hit by then.
+const _enrichmentInFlight = new Map<string, Promise<void>>();
+const _lookalikesInFlight = new Map<string, Promise<void>>();
 
 serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
@@ -94,28 +92,6 @@ serve((req: Request) =>
       return jsonResponse({ error: "scope must be \"enrichment\" or \"lookalikes\"" }, 400);
     }
 
-    // Resolve tier and enforce per-user rate limit before any LLM call.
-    // Cache hit is near-instant (in-process Map with 5-min TTL).
-    const userTier = await getTierForUser(_user.id, supabaseAdmin);
-
-    if (userTier !== "pro") {
-      const { count: scansToday, error: countError } = await supabaseAdmin
-        .from("scans")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", _user.id)
-        .gte("timestamp", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-      if (!countError && (scansToday ?? 0) >= FREE_ENRICHMENT_SCAN_LIMIT) {
-        return jsonResponse(
-          {
-            error: "Daily enrichment quota exceeded.",
-            message: "Upgrade to Pro for unlimited enrichment, or try again tomorrow.",
-          },
-          429,
-        );
-      }
-    }
-
     const cachedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
     const speciesId = cachedSpecies?.id ?? null;
 
@@ -132,6 +108,24 @@ serve((req: Request) =>
           200,
         );
       }
+
+      // Singleflight guard — if another request is already enriching this species on this
+      // isolate, wait for it to finish and return the now-cached result without a second call.
+      const inFlightEnrichment = _enrichmentInFlight.get(scientific_name);
+      if (inFlightEnrichment) {
+        await inFlightEnrichment.catch(() => {});
+        const refreshed = await getCachedSpecies(scientific_name, supabaseAdmin);
+        return jsonResponse(
+          { success: true, data: formatEnrichmentOnlyPayload(refreshed, null) },
+          200,
+        );
+      }
+
+      let resolveEnrichmentInFlight!: () => void;
+      _enrichmentInFlight.set(
+        scientific_name,
+        new Promise<void>((resolve) => { resolveEnrichmentInFlight = resolve; }),
+      );
 
       try {
         const enrichmentResult = await fetchStaticEncyclopedicData(_user, scientific_name);
@@ -158,6 +152,9 @@ serve((req: Request) =>
         console.error("[enrich-scan:enrichment] LLM error:", e);
         const message = e instanceof Error ? e.message : "Failed to process enrichment.";
         return jsonResponse({ success: false, error: message }, 500);
+      } finally {
+        resolveEnrichmentInFlight();
+        _enrichmentInFlight.delete(scientific_name);
       }
     }
 
@@ -203,6 +200,28 @@ serve((req: Request) =>
         200,
       );
     }
+
+    // Singleflight guard — wait for any in-flight lookalikes Flash call on this isolate
+    // and return the persisted result rather than firing a duplicate Gemini call.
+    const inFlightLookalikes = _lookalikesInFlight.get(scientific_name);
+    if (inFlightLookalikes) {
+      await inFlightLookalikes.catch(() => {});
+      const refreshedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
+      const refreshedId = refreshedSpecies?.id ?? speciesId;
+      const refreshedLookalikes = refreshedId
+        ? await fetchLookalikesFromJoinTable(refreshedId, supabaseAdmin)
+        : [];
+      return jsonResponse(
+        { success: true, data: formatLookalikesOnlyPayload(refreshedSpecies, refreshedLookalikes) },
+        200,
+      );
+    }
+
+    let resolveLookalikesInFlight!: () => void;
+    _lookalikesInFlight.set(
+      scientific_name,
+      new Promise<void>((resolve) => { resolveLookalikesInFlight = resolve; }),
+    );
 
     try {
       const similarResult = await fetchSimilarSpecies(_user, scientific_name, {
@@ -272,6 +291,9 @@ serve((req: Request) =>
       console.error("[enrich-scan:lookalikes] LLM error:", e);
       const message = e instanceof Error ? e.message : "Failed to process lookalikes.";
       return jsonResponse({ success: false, error: message }, 500);
+    } finally {
+      resolveLookalikesInFlight();
+      _lookalikesInFlight.delete(scientific_name);
     }
   }),
 );
