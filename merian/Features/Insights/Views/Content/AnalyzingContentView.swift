@@ -69,5 +69,3 @@ struct AnalyzingContentView: View {
         .padding(.horizontal)
     }
 }
-
-// MARK: - Subcomponents

@@ -96,7 +96,6 @@ private extension InsightContentView {
             ZStack(alignment: .top) {
                 if inferenceEngine.isProcessing {
                     AnalyzingContentView()
-                        .padding(.vertical, 8)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .background(Color(uiColor: .systemBackground))
                         .transition(.opacity)

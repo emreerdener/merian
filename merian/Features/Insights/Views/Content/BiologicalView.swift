@@ -79,7 +79,6 @@ struct BiologicalView: View {
                         scientificName: data.scientificName,
                         scanId: data.scanId
                     )
-                    .padding(.top, 8)
                     .cardEntrance(index: 6)
                 }
     
