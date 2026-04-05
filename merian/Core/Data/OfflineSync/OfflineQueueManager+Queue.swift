@@ -64,7 +64,7 @@ extension OfflineQueueManager {
             }
         }
 
-        // 2. Eradicate from SwiftData and Disk
+        // 2. Delete from SwiftData and disk.
         guard let context = modelContext else { return }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         guard let scan = (try? context.fetch(descriptor))?.first else { return }
@@ -218,26 +218,7 @@ extension OfflineQueueManager {
 
         for scan in staged {
             let scanId = scan.id
-            let r2Keys = scan.stagedR2Keys ?? []
-            var telemetry = CaptureTelemetry(
-                subjectDistanceInMeters: scan.subjectDistanceInMeters,
-                gpsLatitude: scan.gpsLatitude,
-                gpsLongitude: scan.gpsLongitude,
-                gpsElevation: scan.gpsElevation,
-                locationName: scan.locationName,
-                weatherCondition: scan.weatherCondition,
-                weatherTemperatureF: scan.weatherTemperatureF,
-                timeOfDay: nil,
-                timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
-            )
-            telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
-            let extracted = ExtractedScanData(
-                telemetry: telemetry,
-                localImagePaths: scan.localImagePaths,
-                r2Keys: r2Keys,
-                container: container,
-                originalTimestamp: scan.timestamp
-            )
+            let extracted = buildExtractedScanData(from: scan, container: container)
             Task {
                 let dbActor = resolvedInferenceDbActor(container: container)
                 // Atomic claim: transitions .staged → .inferencing.

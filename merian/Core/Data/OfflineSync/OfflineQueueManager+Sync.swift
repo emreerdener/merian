@@ -92,10 +92,11 @@ extension OfflineQueueManager {
 
     // MARK: - Uploads
 
-    // Flatten scan → image-file pairs into a typed array.
+    /// Flat representation of a single image file ready for a presigned R2 PUT.
     struct ScanUploadItem {
         let scanId: String
-        let imageIndex: Int   // per-scan slot (0…N-1), NOT the flat batch index
+        /// Per-scan slot index (0…N-1). Distinct from the flat batch position across all scans.
+        let imageIndex: Int
         let fileName: String
         let fileURL: URL
     }
@@ -108,7 +109,6 @@ extension OfflineQueueManager {
     /// Confirmed R2 keys are persisted on the record at upload completion (in URLSession delegate).
     ///
     /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
-
     func syncPendingScans() {
         guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
         guard isOnline else { return }

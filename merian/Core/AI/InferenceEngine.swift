@@ -7,7 +7,7 @@ import SwiftData
 import SwiftUI
 import Vision
 
-// MARK: - Wikipedia Response (private)
+// MARK: - Private Response Types
 
 private struct WikiSummaryResponse: Decodable {
     let extract: String?
@@ -17,6 +17,19 @@ private struct WikiSummaryResponse: Decodable {
     struct ContentURLs: Decodable { let desktop: Desktop? }
     struct Desktop: Decodable { let page: String? }
     struct OriginalImage: Decodable { let source: String? }
+}
+
+private struct GBIFMediaResponse: Decodable {
+    let results: [GBIFResult]?
+}
+
+private struct GBIFResult: Decodable {
+    let media: [GBIFMedia]?
+}
+
+private struct GBIFMedia: Decodable {
+    let type: String?
+    let identifier: String?
 }
 
 // MARK: - Inference Engine
@@ -96,7 +109,10 @@ private struct WikiSummaryResponse: Decodable {
     /// Called by `CameraViewModel.submitActiveScan()` before `activeSheet = .insight`.
     /// `analyze()` will subsequently overwrite image and telemetry fields with the
     /// new scan's data once the async telemetry Task resolves.
+    ///
+    /// Contrast with `cancelActiveRequest()`, which resets to idle with no upcoming scan.
     func prepareForNewScan() {
+        // Cancel all in-flight async work before the new scan claims the engine.
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.historicHydrationTask?.cancel()
@@ -106,15 +122,21 @@ private struct WikiSummaryResponse: Decodable {
         self.enrichmentWriteTask?.cancel()
         self.enrichmentWriteTask = nil
         self.phaseRotationTask?.cancel()
+
+        // Reset scan identity and processing flags.
         self.activeScanId = nil
+        self.isProcessing = true
+        self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
-        self.scanningPhaseText = "Analyzing subject..."
-        self.isProcessing = true
+
+        // Clear the previous scan's result and image data.
         self.speciesData = nil
         self.validHistoricImagePaths = []
         self.activeImageData = nil
         self.activeDisplayDatas = []
+
+        // Clear telemetry so stale GPS/weather cannot bleed into the new scan's display.
         self.activeLatitude = nil
         self.activeLongitude = nil
         self.activeElevation = nil
@@ -123,12 +145,24 @@ private struct WikiSummaryResponse: Decodable {
         self.activeTemperatureF = nil
     }
 
+    /// Runs the live AI taxonomy pipeline for a new scan submission.
+    ///
+    /// Dispatches the Gemini inference request, parses and persists the result, updates all
+    /// observable state for the insight sheet, and spawns post-inference background hydration
+    /// tasks (Wikipedia, enrichment, GBIF images).
+    ///
+    /// The method is idempotent with respect to in-flight work — calling it cancels any
+    /// existing `inferenceTask` and `liveHydrationTask` before starting the new pipeline.
+    ///
     /// - Parameters:
-    ///   - imageDatas: 1024 px inference-quality images. Sent to Gemini as base64 and
-    ///     retained in `activeLiveCaptureDatas` for background rescue re-queuing.
+    ///   - scanId: The `OfflineQueuedScan.id` for this capture. Passed to the Edge function
+    ///     so the backend can correlate the live response with the queued upload.
+    ///   - imageDatas: 1024 px inference-quality images. Sent to Gemini as base64.
     ///   - displayDatas: 2048 px display-quality images. Written to disk so the insight
-    ///     sheet and scan library render without JPEG blocking artifacts. Never sent to AI.
+    ///     sheet renders without JPEG blocking artifacts. Never sent to AI.
     ///     Falls back to `imageDatas` when empty (e.g. offline-queue reprocessing path).
+    ///   - telemetry: GPS, weather, and device context bundled at capture time.
+    ///   - modelContext: The SwiftData context for persisting the parsed scan record locally.
     func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
@@ -358,32 +392,11 @@ private struct WikiSummaryResponse: Decodable {
                     // retried by the background upload path. Refunding here would give the user
                     // a free extra scan against a quota that was already consumed.
                     HapticManager.shared.triggerErrorThump()
-                    self.speciesData = SpeciesData(
-                        scanId: nil,
-                        commonName: "Analysis Failed",
-                        scientificName: "Data Unreadable",
-                        insightData: InsightData(aiReasoning: "The AI failed to understand the image or produced an unreadable schema.", hazardType: "none"),
-                        confidenceScore: 0,
-                        blurScore: nil,
-                        similarSpecies: nil,
-                        wikipediaUrl: nil,
-                        wikipediaOverview: nil,
-                        referenceImageUrl: nil,
-                        isBiological: true,
-                        isLiveCapture: true,
-                        isInvasive: false,
-                        ecologyType: "unknown",
-                        taxonomy: nil,
-                        locationName: telemetry.locationName,
-                        weatherCondition: telemetry.weatherCondition,
-                        weatherTemperatureF: telemetry.weatherTemperatureF,
-                        gpsElevation: telemetry.gpsElevation,
-                        gpsLatitude: telemetry.gpsLatitude,
-                        gpsLongitude: telemetry.gpsLongitude,
-                        colors: nil,
-                        groupTags: nil,
-                        iucnRedListStatus: nil,
-                        zoomFactor: telemetry.zoomFactor.map { Double($0) }
+                    self.speciesData = makeErrorSpeciesData(
+                        title: "Analysis Failed",
+                        subtitle: "Data Unreadable",
+                        reasoning: "The AI failed to understand the image or produced an unreadable schema.",
+                        telemetry: telemetry
                     )
                     return
                 }
@@ -394,35 +407,53 @@ private struct WikiSummaryResponse: Decodable {
                 CircuitBreakerManager.shared.recordFailure()
                 HapticManager.shared.triggerErrorThump()
                 MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
-                self.speciesData = SpeciesData(
-                    scanId: nil,
-                    commonName: "Network Timeout",
-                    scientificName: "Offline Mode",
-                    insightData: InsightData(aiReasoning: "Please check your network connection and try again.", hazardType: "none"),
-                    confidenceScore: 0,
-                    blurScore: nil,
-                    similarSpecies: nil,
-                    wikipediaUrl: nil,
-                    wikipediaOverview: nil,
-                    referenceImageUrl: nil,
-                    isBiological: true,
-                    isLiveCapture: true,
-                    isInvasive: false,
-                    ecologyType: "unknown",
-                    taxonomy: nil,
-                    locationName: telemetry.locationName,
-                    weatherCondition: telemetry.weatherCondition,
-                    weatherTemperatureF: telemetry.weatherTemperatureF,
-                    gpsElevation: telemetry.gpsElevation,
-                    gpsLatitude: telemetry.gpsLatitude,
-                    gpsLongitude: telemetry.gpsLongitude,
-                    colors: nil,
-                    groupTags: nil,
-                    iucnRedListStatus: nil,
-                    zoomFactor: telemetry.zoomFactor.map { Double($0) }
+                self.speciesData = makeErrorSpeciesData(
+                    title: "Network Timeout",
+                    subtitle: "Offline Mode",
+                    reasoning: "Please check your network connection and try again.",
+                    telemetry: telemetry
                 )
             }
         }
+    }
+
+    // MARK: - Error State Factory
+
+    /// Builds an error-placeholder `SpeciesData` for the two failure paths in `analyze()`.
+    /// Both branches share identical field layout — only the title, subtitle, and reasoning differ.
+    private func makeErrorSpeciesData(
+        title: String,
+        subtitle: String,
+        reasoning: String,
+        telemetry: CaptureTelemetry
+    ) -> SpeciesData {
+        SpeciesData(
+            scanId: nil,
+            commonName: title,
+            scientificName: subtitle,
+            insightData: InsightData(aiReasoning: reasoning, hazardType: "none"),
+            confidenceScore: 0,
+            blurScore: nil,
+            similarSpecies: nil,
+            wikipediaUrl: nil,
+            wikipediaOverview: nil,
+            referenceImageUrl: nil,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown",
+            taxonomy: nil,
+            locationName: telemetry.locationName,
+            weatherCondition: telemetry.weatherCondition,
+            weatherTemperatureF: telemetry.weatherTemperatureF,
+            gpsElevation: telemetry.gpsElevation,
+            gpsLatitude: telemetry.gpsLatitude,
+            gpsLongitude: telemetry.gpsLongitude,
+            colors: nil,
+            groupTags: nil,
+            iucnRedListStatus: nil,
+            zoomFactor: telemetry.zoomFactor.map { Double($0) }
+        )
     }
 
     // MARK: - Wikipedia Background Hydration
@@ -484,19 +515,6 @@ private struct WikiSummaryResponse: Decodable {
     }
 
     // MARK: - GBIF Background Hydration
-
-    private struct GBIFMediaResponse: Decodable {
-        let results: [GBIFResult]?
-    }
-    
-    private struct GBIFResult: Decodable {
-        let media: [GBIFMedia]?
-    }
-    
-    private struct GBIFMedia: Decodable {
-        let type: String?
-        let identifier: String?
-    }
 
     /// Fetches high-quality field observations from GBIF (e.g. iNaturalist) once the Taxon Key is known.
     /// This acts as a robust supplement/fallback to Wikipedia imagery.
@@ -1008,6 +1026,12 @@ private struct WikiSummaryResponse: Decodable {
 
     // MARK: - Pipeline Modifiers
 
+    /// Cancels all in-flight work and resets the engine to idle.
+    ///
+    /// Contrast with `prepareForNewScan()`, which also cancels in-flight work but leaves
+    /// `isProcessing = true` in anticipation of an *upcoming* scan. `cancelActiveRequest`
+    /// resets to `isProcessing = false, speciesData = nil` — appropriate when the user
+    /// dismisses the insight sheet with no new scan queued.
     func cancelActiveRequest(isUserInitiated: Bool = false) {
         MerianLog.general.debug("Cancelled active inference request.")
         self.isProcessing = false

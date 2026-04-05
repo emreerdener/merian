@@ -488,9 +488,9 @@ struct BackgroundDatabaseActorTests {
         }
     }
 
-    // MARK: - resetOrphanedInferencingScans: startup recovery (V33)
+    // MARK: - reconcileOrphanedInferencingScans
 
-    @Test func testResetOrphanedInferencingScansResetsAllToStaged() async throws {
+    @Test func testReconcileOrphanedInferencingScansResetsAllToStaged() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 

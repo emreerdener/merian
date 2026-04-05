@@ -9,17 +9,16 @@ extension CameraViewModel {
     /// Kicks off the inference pipeline for the accumulated `activeScanImages`.
     ///
     /// Call order:
-    /// 1. Snapshot images into the analysis overlay and show fullscreen scanning UI.
-    /// 2. **Immediately enqueue to disk + SwiftData** with GPS from the already-cached
-    ///    location, so the scan is durable before any async work begins. This guarantees
-    ///    the background URLSession upload is dispatched while the app is still in the
-    ///    foreground — no rescue logic needed.
-    /// 3. Clear the staging buffers so the user cannot double-submit.
-    /// 4. Await the pre-fetched `EnvironmentContext` (started at shutter press) to build
-    ///    full telemetry, then fire `InferenceEngine.analyze`. The live inference path and
-    ///    the background upload race: whichever completes first wins. On live success,
-    ///    `analyze` cancels the queued upload; on live failure/cancellation the background
-    ///    upload continues uninterrupted.
+    /// 1. Reset `InferenceEngine` display state and open the insight sheet immediately.
+    /// 2. Snapshot the staging buffers, then clear them to prevent double-submit.
+    /// 3. Generate a stable `scanId` shared by the queue record and live inference task.
+    /// 4. **Enqueue immediately** (still in foreground) with cached GPS. The background
+    ///    URLSession upload is dispatched inside the same `UIBackgroundTask` window, so it
+    ///    survives an immediate app suspension. No rescue logic is needed.
+    /// 5. Await the pre-fetched `EnvironmentContext`, build full telemetry, and fire
+    ///    `InferenceEngine.analyze`. The live path and background upload race — whichever
+    ///    completes first wins. On live success, `analyze` cancels the upload; on failure
+    ///    or cancellation the background path continues uninterrupted.
     func submitActiveScan(modelContext: ModelContext) {
         guard !activeScannedDatas.isEmpty else { return }
 

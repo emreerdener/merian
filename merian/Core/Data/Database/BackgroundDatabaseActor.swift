@@ -368,7 +368,7 @@ actor BackgroundDatabaseActor {
         )
     }
 
-    // MARK: Offline Queue Processing Helpers
+    // MARK: - Offline Queue Processing Helpers
 
     /// Determines the correct speciesId and whether this is a new discovery for the user.
     private func resolveSpeciesIdAndDiscoveryStatus(for targetName: String) -> (speciesId: String, isNewDiscovery: Bool) {
@@ -455,7 +455,8 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    /// Deletes the old queued scan and runs a main context save to persist insertions and deletions atomically.
+    /// Deletes the queued scan record and saves, committing both the insertion from Step 3
+    /// and this deletion atomically. Returns `false` if the save throws.
     private func removeQueuedScanAndPersist(scanId: String) -> Bool {
         do {
             var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
@@ -579,9 +580,10 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    // MARK: - Core Mutation Core
+    // MARK: - Record Mutation
 
-    /// Safe, generic SwiftData mutation block capturing the exact fetching pattern.
+    /// Fetches a single `LocalScanRecord` by ID, applies `mutation`, and saves.
+    /// All point-update methods below delegate here to keep fetch-mutate-save DRY.
     private func mutateScan(id: String, mutation: (LocalScanRecord) -> Void) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
@@ -594,6 +596,8 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Species Enrichment
 
+    /// Patches a scan record with post-inference enrichment data from the `enrich-scan` Edge function.
+    /// Each parameter is optional — callers pass only the fields their scope resolved, nil fields are skipped.
     func updateScanWithEnrichment(
         scanId: String,
         habitatDescription: String?,
@@ -721,9 +725,7 @@ actor BackgroundDatabaseActor {
                 options: .init(body: SyncRequestPayload(collections: payloadList))
             )
             
-            // --- STRICT LOCAL CLEANUP ---
-            // Now that the cloud sync was unequivocally successful, purge tombstones from SwiftData
-            // to prevent these ghost collections from persisting or resurging on subsequent re-installs.
+            // Cloud sync confirmed — purge soft-deleted tombstones so they cannot resurface on reinstall.
             let tombstones = collections.filter { $0.isDeleted }
             for tombstone in tombstones {
                 modelContext.delete(tombstone)

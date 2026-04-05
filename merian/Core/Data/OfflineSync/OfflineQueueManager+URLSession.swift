@@ -247,7 +247,8 @@ extension OfflineQueueManager {
         return await MainActor.run { () -> ExtractedScanData? in
             guard let context = OfflineQueueManager.shared.modelContext else { return nil }
             let container = context.container
-            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            descriptor.fetchLimit = 1
             let scan: OfflineQueuedScan?
             do {
                 scan = try context.fetch(descriptor).first
@@ -256,27 +257,34 @@ extension OfflineQueueManager {
                 return nil
             }
             guard let scan else { return nil }
-
-            var telemetry = CaptureTelemetry(
-                subjectDistanceInMeters: scan.subjectDistanceInMeters,
-                gpsLatitude: scan.gpsLatitude,
-                gpsLongitude: scan.gpsLongitude,
-                gpsElevation: scan.gpsElevation,
-                locationName: scan.locationName,
-                weatherCondition: scan.weatherCondition,
-                weatherTemperatureF: scan.weatherTemperatureF,
-                timeOfDay: nil,
-                timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
-            )
-            telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
-            return ExtractedScanData(
-                telemetry: telemetry,
-                localImagePaths: scan.localImagePaths,
-                r2Keys: scan.stagedR2Keys ?? [],
-                container: container,
-                originalTimestamp: scan.timestamp
-            )
+            return OfflineQueueManager.shared.buildExtractedScanData(from: scan, container: container)
         }
+    }
+
+    // MARK: - Scan Data Extraction
+
+    /// Maps a queued scan record to a Sendable `ExtractedScanData` snapshot.
+    /// Must be called while `scan` is accessible on the main actor.
+    func buildExtractedScanData(from scan: OfflineQueuedScan, container: ModelContainer) -> ExtractedScanData {
+        var telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: scan.subjectDistanceInMeters,
+            gpsLatitude: scan.gpsLatitude,
+            gpsLongitude: scan.gpsLongitude,
+            gpsElevation: scan.gpsElevation,
+            locationName: scan.locationName,
+            weatherCondition: scan.weatherCondition,
+            weatherTemperatureF: scan.weatherTemperatureF,
+            timeOfDay: nil,
+            timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
+        )
+        telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
+        return ExtractedScanData(
+            telemetry: telemetry,
+            localImagePaths: scan.localImagePaths,
+            r2Keys: scan.stagedR2Keys ?? [],
+            container: container,
+            originalTimestamp: scan.timestamp
+        )
     }
 
     // MARK: - Background Inference Dispatch
@@ -390,25 +398,7 @@ extension OfflineQueueManager {
             var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
             descriptor.fetchLimit = 1
             guard let scan = (try? context.fetch(descriptor))?.first else { return nil }
-            var telemetry = CaptureTelemetry(
-                subjectDistanceInMeters: scan.subjectDistanceInMeters,
-                gpsLatitude: scan.gpsLatitude,
-                gpsLongitude: scan.gpsLongitude,
-                gpsElevation: scan.gpsElevation,
-                locationName: scan.locationName,
-                weatherCondition: scan.weatherCondition,
-                weatherTemperatureF: scan.weatherTemperatureF,
-                timeOfDay: nil,
-                timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
-            )
-            telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
-            return ExtractedScanData(
-                telemetry: telemetry,
-                localImagePaths: scan.localImagePaths,
-                r2Keys: scan.stagedR2Keys ?? [],
-                container: container,
-                originalTimestamp: scan.timestamp
-            )
+            return OfflineQueueManager.shared.buildExtractedScanData(from: scan, container: container)
         }
 
         guard let extracted else {
