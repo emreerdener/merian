@@ -130,7 +130,13 @@ final class ScanRepository {
             }
 
             // --- Paginated collections fetch ---
+            // Collections must be fully accumulated before calling syncCollectionsDown because
+            // syncCollections deletes local collections absent from the remote set — streaming
+            // per page would incorrectly delete collections that exist on future pages.
+            // Memory exposure is bounded: sync-collections enforces MAX_COLLECTIONS = 200 on
+            // write, so the remote DB cannot hold more than 200 rows for this user.
             var allCollections: [CloudCollectionResponse] = []
+            allCollections.reserveCapacity(MerianConfig.collectionsSyncPageSize)
             var colOffset = 0
             let colPageSize = MerianConfig.collectionsSyncPageSize
             while true {

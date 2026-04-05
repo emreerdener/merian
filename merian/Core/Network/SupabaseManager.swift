@@ -38,6 +38,12 @@ import Supabase
     /// both events call linkWithSupabase and PostHog identify for the same user.
     private var lastLinkedUserId: String?
 
+    /// Retained handle for the auth state listener task. Stored so the task can be cancelled
+    /// on teardown and is consistent with the @ObservationIgnored task handle pattern used
+    /// throughout the engine layer. Fire-and-forget tasks with no handle cannot be inspected,
+    /// restarted, or cleanly shut down.
+    @ObservationIgnored private var authListenerTask: Task<Void, Never>?
+
     // MARK: - Initialization
 
     private override init() {
@@ -55,7 +61,7 @@ import Supabase
 
         super.init()
 
-        Task { await self.setupAuthStateListener() }
+        self.authListenerTask = Task { await self.setupAuthStateListener() }
     }
 
     // MARK: - Auth State

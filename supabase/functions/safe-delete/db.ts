@@ -1,4 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { logStructuredError } from "../_shared/edgeHandler.ts";
 
 export async function queueStorageDeletion(
   userId: string,
@@ -9,9 +10,13 @@ export async function queueStorageDeletion(
     .insert({ target_user_id: userId, status: "pending" });
 
   if (deletionError) {
-    console.warn(
-      `Could not insert pending deletion record, continuing: ${deletionError.message}`,
-    );
+    // Do not throw — failing to queue the cleanup record must not block account deletion,
+    // which has already revoked JWT and tombstoned the user. Log as a structured alert so
+    // the orphaned R2 files surface in monitoring for manual cleanup.
+    logStructuredError("safe_delete/queue_storage_deletion_failed", {
+      userId,
+      error: deletionError.message,
+    });
   }
 }
 

@@ -82,6 +82,10 @@ export async function upsertCollectionsAndFetchMemberships(
           .from("collection_scans")
           .select("collection_id, scan_id")
           .in("collection_id", ownedIds)
+          // MAX_COLLECTIONS=200 × MAX_SCAN_IDS_PER_COLLECTION=5000 = 1M worst-case rows.
+          // Cap conservatively — the delta computation below only needs existing DB state,
+          // not all rows, and a per-collection streaming refactor is the right long-term fix.
+          .limit(10000)
           .returns<MembershipRow[]>()
       : Promise.resolve({ data: [], error: null }),
   ]);

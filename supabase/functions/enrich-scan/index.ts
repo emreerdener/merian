@@ -86,6 +86,10 @@ serve((req: Request) =>
       scope: "enrichment" | "lookalikes";
     };
 
+    if (typeof scientific_name !== "string" || scientific_name.length === 0 || scientific_name.length > 500) {
+      return jsonResponse({ error: "scientific_name must be a non-empty string under 500 characters." }, 400);
+    }
+
     if (scope !== "enrichment" && scope !== "lookalikes") {
       return jsonResponse({ error: "scope must be \"enrichment\" or \"lookalikes\"" }, 400);
     }

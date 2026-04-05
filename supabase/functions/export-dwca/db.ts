@@ -139,8 +139,7 @@ export async function fetchAndFormatScans(
       if (res.mRows.length > 0) multimediaRows.push(res.mRows.join("\n"));
     }
 
-    // @ts-ignore: Deno garbage collection is manually invoked here
-    globalThis.gc?.();
+    (globalThis as unknown as { gc?: () => void }).gc?.();
 
     if (data.length < PAGE_SIZE || occurrenceRows.length >= 10000) {
       hasMore = false;

@@ -76,7 +76,7 @@ export async function fetchExternalEnrichment(scientificName: string) {
       combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
     }
   } catch (e) {
-    console.log("Data enrichment failed silently: ", e);
+    console.error("[external.ts] Unexpected enrichment error:", e instanceof Error ? e.message : String(e));
   }
 
   return {

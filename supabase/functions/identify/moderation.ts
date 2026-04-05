@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getR2Config, copyR2Object, deleteR2Object } from "../_shared/aws.ts";
 import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { SafetyRating } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { logStructuredError } from "../_shared/edgeHandler.ts";
 
 export async function evaluateAndProcessPayload(
   userId: string,
@@ -49,7 +50,11 @@ export async function evaluateAndProcessPayload(
         .single();
 
       if (fetchError && fetchError.code !== "PGRST116") {
-        console.error("Failed to fetch user for safety escalation:", fetchError);
+        // Non-PGRST116 errors indicate a real DB failure (network, permissions, etc.).
+        // Throw so the outer catch records a structured error and returns { status: "ERROR" }
+        // rather than silently proceeding with a stale/default strike count.
+        logStructuredError("moderation/strike_fetch_failed", { userId, error: fetchError.message });
+        throw new Error(`Abuse strike fetch failed: ${fetchError.message}`);
       }
 
       const currentStrikes = userData?.abuse_strikes ?? 0;
@@ -62,7 +67,10 @@ export async function evaluateAndProcessPayload(
         .eq("id", userId);
 
       if (updateError) {
-        console.error("Failed to update abuse strikes:", updateError);
+        // Throw — returning SHADOWBANNED/DELETED_WARNING when the DB write silently failed
+        // would tell the iOS caller the penalty was recorded when it was not.
+        logStructuredError("moderation/strike_write_failed", { userId, error: updateError.message });
+        throw new Error(`Abuse strike write failed: ${updateError.message}`);
       }
 
       return { status: isShadowbanned ? "SHADOWBANNED" : "DELETED_WARNING" };
@@ -115,7 +123,10 @@ export async function evaluateAndProcessPayload(
 
     return { status: "PROMOTED", publicUrls };
   } catch (error) {
-    console.error("Moderation pipeline error:", error);
+    logStructuredError("moderation/pipeline_error", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return { status: "ERROR" };
   }
 }

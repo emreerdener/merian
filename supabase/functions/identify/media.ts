@@ -48,9 +48,13 @@ export async function resolveImagePayloads(
 
     // Process images serially: consume one body at a time so each ArrayBuffer is GC-eligible
     // before the next is loaded, preventing a peak spike of N × (raw + copy + base64) in heap.
-    // Size is checked against ACTUAL bytes after consumption — Content-Length headers are
-    // unreliable (absent on chunked transfer encoding) and must never be trusted as a
-    // heap-exhaustion guard.
+    //
+    // Per-image pre-check via Content-Length header: where R2 provides the header (non-chunked
+    // transfers), we can reject oversized images before allocating the V8 buffer entirely.
+    // Content-Length is intentionally not trusted as the ONLY guard (chunked transfers omit it),
+    // so the post-allocation cumulative check below remains the authoritative enforcement.
+    const PER_IMAGE_LIMIT = 5 * 1024 * 1024;
+    const TOTAL_LIMIT = 5 * 1024 * 1024;
     let totalBytes = 0;
     while (r2Responses.length > 0) {
       const result = r2Responses.shift()!;
@@ -63,9 +67,22 @@ export async function resolveImagePayloads(
           `Failed to fetch an image from R2: ${r2Response.statusText}`,
         );
       }
+      // Pre-check: if Content-Length is present and already exceeds limit, abort before
+      // allocating the full buffer in V8 heap.
+      const contentLength = r2Response.headers.get("content-length");
+      if (contentLength !== null) {
+        const declaredBytes = parseInt(contentLength, 10);
+        if (!isNaN(declaredBytes) && declaredBytes > PER_IMAGE_LIMIT) {
+          return { errorResponse: jsonResponse(
+            { error: "Payload Too Large: A single image exceeds the 5MB limit." },
+            413,
+          ) };
+        }
+      }
       const arrayBuffer = await r2Response.arrayBuffer();
+      // Post-allocation cumulative guard — authoritative check regardless of Content-Length.
       totalBytes += arrayBuffer.byteLength;
-      if (totalBytes > 5 * 1024 * 1024) {
+      if (totalBytes > TOTAL_LIMIT) {
         return { errorResponse: jsonResponse(
           { error: "Payload Too Large: Combined images exceed 5MB limit." },
           413,

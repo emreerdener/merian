@@ -347,6 +347,13 @@ serve((req: Request) =>
           safetyRatings,
           userTier,
         );
+        if (modResult.status === "ERROR") {
+          // Moderation pipeline failed (e.g. abuse strike write, R2 upload error).
+          // Do not insert the scan — image_storage_urls would be null and the DB row
+          // would be permanently orphaned with no media.
+          console.error("Moderation pipeline returned ERROR. Halting background data ingestion.");
+          return;
+        }
         if (
           modResult.status === "SHADOWBANNED" ||
           modResult.status === "DELETED_WARNING"
