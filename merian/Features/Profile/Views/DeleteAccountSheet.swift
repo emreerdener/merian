@@ -57,7 +57,7 @@ struct DeleteAccountSheet: View {
                             Spacer()
                             if isDeleting {
                                 ProgressView()
-                                    .tint(.red)
+                                    .tint(.white)
                             } else {
                                 Text("Permanently Delete Account")
                                     .bold()
@@ -66,7 +66,8 @@ struct DeleteAccountSheet: View {
                         }
                     }
                     .disabled(!isDeleteEnabled || isDeleting)
-                    .foregroundColor(isDeleteEnabled ? .red : .gray)
+                    .foregroundColor(isDeleteEnabled ? .white : .gray)
+                    .listRowBackground(isDeleteEnabled ? Color.red : nil)
                 }
             }
             .navigationTitle("Delete Account")

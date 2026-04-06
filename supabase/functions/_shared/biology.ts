@@ -175,7 +175,7 @@ export async function fetchSimilarSpecies(
     : "";
 
   const model = createFlashModel(
-    `You are a world-class biologist. Given a species scientific name, identify the top 3 most commonly confused lookalike species that a field observer might misidentify it as.${taxonomyLine} For each lookalike, provide the exact scientific name and the most widely recognised English common name. CRITICAL: Every lookalike must be from the same taxonomic kingdom AND order as the primary species. Never suggest species from a different kingdom or a distantly related order (e.g., never suggest a pine cone as a lookalike for a rose, never suggest plants as lookalikes for animals).`,
+    `You are a world-class biologist. Given a species scientific name, identify up to 3 most commonly confused lookalike species that a field observer might misidentify it as.${taxonomyLine} For each lookalike, provide the exact, formally recognized scientific name and widely recognised English common name. CRITICAL RULES: 1) Never hallucinate scientific names; every lookalike must be a verified, real species. 2) Every lookalike must be from the same taxonomic order or family as the primary species. 3) Lookalikes must be genuinely visually similar. 4) If fewer than 3 genuine lookalikes exist, return only the valid ones. Do not invent species to fill the array.`,
     300,
   );
 
@@ -193,15 +193,15 @@ export async function fetchSimilarSpecies(
           required: ["scientific_name", "common_name"],
         },
         description:
-          `Top 3 closely related but distinct lookalike species from the same kingdom${taxonomy?.class ? ` and class (${taxonomy.class})` : ""}, each with exact scientific name and English common name.`,
+          `Up to 3 closely related but genuinely visually similar lookalike species from the same kingdom${taxonomy?.class ? ` and class (${taxonomy.class})` : ""}, each with a real, formally recognized scientific name and English common name.`,
       },
     },
     required: ["similar_species"],
   };
 
   const userPrompt = taxonomicContext
-    ? `Identify the top 3 lookalike species for: ${scientificName} (${taxonomicContext})`
-    : `Identify lookalikes for: ${scientificName}`;
+    ? `Identify up to 3 genuine lookalike species for: ${scientificName} (${taxonomicContext})`
+    : `Identify up to 3 genuine lookalike species for: ${scientificName}`;
 
   try {
     const result = await model.generateContent({
