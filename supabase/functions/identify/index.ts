@@ -265,22 +265,31 @@ serve((req: Request) =>
       );
     } catch (genError) {
       console.error("AI generation failed:", genError);
-      return jsonResponse({ error: "AI processing error. Please try again." }, 400);
+      // Return 503 (not 400) so the iOS offline queue treats this as a transient failure
+      // and retries up to maxUploadRetries times rather than tombstoning the scan permanently.
+      // 400 is reserved for genuine client errors (bad params, IDOR). Gemini API errors
+      // (rate limits, timeouts, internal errors) are all transient and should be retried.
+      return jsonResponse({ error: "AI processing error. Please try again." }, 503);
     }
 
     // Guard non-STOP finish reasons before attempting JSON extraction.
     // When finishReason is SAFETY/RECITATION/OTHER, result.text is "" and
     // extractJson throws "no JSON object found" — producing a confusing 422.
-    // Returning 400 here lets the iOS client show a clean retry prompt instead.
-    // SAFETY content will also be caught by moderation in the background task,
-    // but we need to exit the critical path cleanly first.
+    // SAFETY / PROHIBITED_CONTENT = permanent content policy failure → 400 (tombstone on iOS).
+    // All other non-STOP reasons (MAX_TOKENS, RECITATION, OTHER) are transient → 503 (retry).
     if (finishReason && finishReason !== "STOP" && finishReason !== "FINISH_REASON_UNSPECIFIED") {
+      const isPermanentContentFailure =
+        finishReason === "SAFETY" || finishReason === "PROHIBITED_CONTENT";
       logStructuredError("identify/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
         response_length: responseText.length,
+        permanent: isPermanentContentFailure,
       });
-      return jsonResponse({ error: "AI processing error. Please try again." }, 400);
+      return jsonResponse(
+        { error: "AI processing error. Please try again." },
+        isPermanentContentFailure ? 400 : 503,
+      );
     }
 
     let parsedData: MerianIdentification;

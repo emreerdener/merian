@@ -224,17 +224,23 @@ private struct GBIFMedia: Decodable {
             classifySubjectLocally(from: firstData)
         }
 
+        // Capture before the Task so the defer can compare against the ID this Task owns.
+        let ownedScanId = scanId
+
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
 
             // Single exit point for isProcessing — covers all success, error, and cancellation paths.
-            // activeScanId is also cleared here so a late background inference delivery cannot
-            // hydrate the engine after the live path has exited. For the success path this is
-            // a safe no-op (background skips because speciesData.scanId != nil). For the
-            // failure path it bounds the hydration window to when isProcessing == true.
+            // Guard on ownedScanId: if a new scan called prepareForNewScan() + analyze() before this
+            // Task's defer runs, activeScanId has already been updated to the new scan's ID. Writing
+            // isProcessing=false or activeScanId=nil in that window would corrupt the new scan's state
+            // (leaving the insight sheet stuck in a done-but-empty state). Only reset when this Task
+            // still owns the active slot.
             defer {
-                self.isProcessing = false
-                self.activeScanId = nil
+                if self.activeScanId == ownedScanId {
+                    self.isProcessing = false
+                    self.activeScanId = nil
+                }
                 self.phaseRotationTask?.cancel()
             }
 
