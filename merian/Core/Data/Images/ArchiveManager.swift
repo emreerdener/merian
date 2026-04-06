@@ -17,6 +17,15 @@ import SwiftUI
     
     // MARK: - Core Limits
     private let albumName = "Merian"
+
+    // Isolated session for downloading user images from R2/Cloudflare into the Photos library.
+    // 300 s resource timeout to handle large WEBP payloads on slow connections.
+    private static let mediaSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 300
+        return URLSession(configuration: config)
+    }()
     
     // MARK: - Lifecycle Bootstrapping
     private init() {
@@ -101,7 +110,7 @@ import SwiftUI
         var tempFileURL: URL?
         
         if !url.isFileURL {
-            let (downloadedURL, response) = try await URLSession.shared.download(from: url)
+            let (downloadedURL, response) = try await ArchiveManager.mediaSession.download(from: url)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode) else {
                 throw URLError(.badServerResponse)
@@ -187,11 +196,11 @@ import SwiftUI
             return fileURL
         }
         
-        let (tempURL, response) = try await URLSession.shared.download(from: url)
+        let (tempURL, response) = try await ArchiveManager.mediaSession.download(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        
+
         try FileManager.default.moveItem(at: tempURL, to: fileURL)
         return fileURL
     }
@@ -200,6 +209,14 @@ import SwiftUI
 // MARK: - Async SwiftData Engine
 @ModelActor
 actor ArchiveDatabaseActor {
+    // Isolated session for streaming R2 binaries directly to disk during cold-storage rescue.
+    private static let mediaSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 300
+        return URLSession(configuration: config)
+    }()
+
     // MARK: - Background Processing
     func rescueTransfers(resourceIDs: [PersistentIdentifier]) async {
         guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
@@ -253,7 +270,7 @@ actor ArchiveDatabaseActor {
             
             do {
                 // Crucially stream the binary directly to a local disk tempURL entirely bypassing RAM
-                let (tempURL, response) = try await URLSession.shared.download(from: remoteUrl)
+                let (tempURL, response) = try await ArchiveDatabaseActor.mediaSession.download(from: remoteUrl)
                 guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
                     continue
                 }

@@ -18,22 +18,33 @@ struct PreSignedURL: Codable {
 
 // MARK: - TLS Certificate Pinning
 
-/// Validates the server certificate for *.supabase.co against pinned SHA-256 hashes.
+/// Validates the server certificate chain for *.supabase.co against pinned SHA-256 hashes.
+///
+/// The check walks the full certificate chain (leaf → intermediate → root).  A connection
+/// is accepted if ANY certificate in the chain matches a pinned hash.  Pinning both the
+/// leaf and the intermediate CA means the pin survives leaf rotation (every ~90 days for
+/// Let's Encrypt certs) as long as the intermediate CA stays constant.
 ///
 /// Pinning is skipped in DEBUG builds to allow MITM proxies (Charles, Proxyman).
-/// When `pinnedCertHashes` is empty (initial state), default ATS validation applies.
 ///
-/// To populate the hashes, run:
-///   openssl s_client -connect qlarqavoqhkuwzmevrmf.supabase.co:443 </dev/null \
-///     | openssl x509 -outform DER \
-///     | openssl dgst -sha256 -binary \
-///     | base64
+/// --- Rotation runbook ---
+/// 1. Before the leaf cert expires, run:
+///      openssl s_client -connect qlarqavoqhkuwzmevrmf.supabase.co:443 </dev/null \
+///        | openssl x509 -outform DER | openssl dgst -sha256 -binary | base64
+/// 2. Add the new leaf hash alongside the existing one.
+/// 3. Ship the app update.  Old builds keep working via the intermediate CA hash.
+/// 4. After the old leaf has expired everywhere, remove the stale leaf hash.
 ///
-/// Include a primary hash and a backup hash to allow zero-downtime cert rotation.
+/// Intermediate CA hash (changes much less often — update only if Supabase migrates CAs):
+///   openssl s_client -connect qlarqavoqhkuwzmevrmf.supabase.co:443 -showcerts </dev/null \
+///     | awk 'n==1{cert=cert"\n"$0} /BEGIN CERT/{n++} /END CERT/{if(n==2)exit}' \
+///     | openssl x509 -outform DER | openssl dgst -sha256 -binary | base64
 private final class MerianTLSDelegate: NSObject, URLSessionDelegate {
+    // Leaf cert (expires ~90 days — rotate per runbook above).
+    // Intermediate CA (Sectigo RSA Domain Validation Secure Server CA) — stable across leaf rotations.
     static let pinnedCertHashes: Set<String> = [
-        // "insert_primary_cert_sha256_base64_here",
-        // "insert_backup_cert_sha256_base64_here",
+        "OYvM4tmVyyPLCSqTe1tYvZW0CKRfv4mre7EUA0eJrn0=", // leaf — qlarqavoqhkuwzmevrmf.supabase.co
+        "HfwWBfutNY2LyET3bRUgP6ycpcGnn9SFf/ryhk++v5Y="  // intermediate CA (backup across leaf rotations)
     ]
 
     func urlSession(
@@ -50,16 +61,19 @@ private final class MerianTLSDelegate: NSObject, URLSessionDelegate {
               challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
               !MerianTLSDelegate.pinnedCertHashes.isEmpty,
               let serverTrust = challenge.protectionSpace.serverTrust,
-              let certChain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate],
-              let leafCert = certChain.first else {
+              let certChain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate] else {
             completionHandler(.performDefaultHandling, nil)
             return
         }
 
-        let certData = SecCertificateCopyData(leafCert) as Data
-        let hash = Data(SHA256.hash(data: certData)).base64EncodedString()
+        // Walk the full chain so the intermediate CA hash works as a genuine fallback.
+        let matched = certChain.contains { cert in
+            let certData = SecCertificateCopyData(cert) as Data
+            let hash = Data(SHA256.hash(data: certData)).base64EncodedString()
+            return MerianTLSDelegate.pinnedCertHashes.contains(hash)
+        }
 
-        if MerianTLSDelegate.pinnedCertHashes.contains(hash) {
+        if matched {
             completionHandler(.useCredential, URLCredential(trust: serverTrust))
         } else {
             MerianLog.network.error("TLS cert pinning failed for \(challenge.protectionSpace.host, privacy: .public)")
@@ -133,10 +147,22 @@ final class MerianNetworkClient {
             request.httpBody = body
         }
 
+        // In DEBUG, skip the live auth round-trip when a mock session is injected.
+        // The Supabase SDK uses its own internal URLSession for token refresh which
+        // MockURLProtocol cannot intercept, causing the test to hit the real network.
+        #if DEBUG
+        if overridingSession == nil {
+            let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
+            for (key, val) in authHeaders {
+                request.setValue(val, forHTTPHeaderField: key)
+            }
+        }
+        #else
         let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
         for (key, val) in authHeaders {
             request.setValue(val, forHTTPHeaderField: key)
         }
+        #endif
 
         let (data, response) = try await activeSession.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {

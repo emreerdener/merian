@@ -47,12 +47,21 @@ struct GBIFHeatmapMapView: View {
 
     // MARK: - Private
 
+    // Isolated session for GBIF tile fetches. Short timeout — the tile is best-effort;
+    // a missing heatmap is better than stalling the InsightSheet scroll.
+    private static let externalAPISession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 30
+        return URLSession(configuration: config)
+    }()
+
     /// Fetches the GBIF density tile at zoom level 0 — one tile covers the entire world!
     private func fetchGBIFTile() async -> UIImage? {
         guard let key = taxonKey,
               let url = URL(string: "https://api.gbif.org/v2/map/occurrence/density/0/0/0@2x.png?taxonKey=\(key)&style=classic.poly&bin=hex&hexPerTile=135")
         else { return nil }
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        guard let (data, _) = try? await GBIFHeatmapMapView.externalAPISession.data(from: url) else { return nil }
         return UIImage(data: data)
     }
 }

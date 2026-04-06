@@ -5,6 +5,14 @@ import SwiftUI
 final class InsightMediaExportManager {
     // MARK: - Singleton
     static let shared = InsightMediaExportManager()
+
+    // Isolated session for downloading R2/Cloudflare media payloads during share/export operations.
+    private static let mediaSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 300
+        return URLSession(configuration: config)
+    }()
     
     // MARK: - Single Item Export
     func saveUserPhotos(liveData: Data?, validPaths: [String], referenceImageUrl: String?, completion: @escaping (Int) -> Void) {
@@ -36,7 +44,7 @@ final class InsightMediaExportManager {
                 items.insert(image, at: 0)
                 await MainActor.run { presentShareSheet(items) }
             } else if let urlStr = safeCloudUrl, let url = URL(string: urlStr) {
-                if let (data, _) = try? await URLSession.shared.data(from: url), 
+                if let (data, _) = try? await InsightMediaExportManager.mediaSession.data(from: url),
                    let cgImage = autoreleasepool(invoking: { ImageDownsampler.shared.downsample(data: data, maxSize: 2048) }) {
                     items.insert(UIImage(cgImage: cgImage), at: 0)
                 }
@@ -105,7 +113,7 @@ final class InsightMediaExportManager {
                     let refUrls = payload.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
                     if let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") })?.trimmingCharacters(in: .whitespacesAndNewlines), let url = URL(string: safeCloudUrl) {
                         // Limit batch RAM footprint by streaming and downsampling if it was massive, but here we fall back to generic data mapping since these are small cloud thumbnails
-                        if let (data, _) = try? await URLSession.shared.data(from: url),
+                        if let (data, _) = try? await InsightMediaExportManager.mediaSession.data(from: url),
                            let cgImage = autoreleasepool(invoking: { ImageDownsampler.shared.downsample(data: data, maxSize: 2048) }) {
                             items.append(UIImage(cgImage: cgImage))
                         }
@@ -121,6 +129,14 @@ final class InsightMediaExportManager {
 // MARK: - Dedicated Processing Actor
 actor ExportProcessingActor {
     static let shared = ExportProcessingActor()
+
+    // Isolated session for downloading R2 media for photo-library saves and batch exports.
+    private static let mediaSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 300
+        return URLSession(configuration: config)
+    }()
     
     func saveUserPhotos(liveData: Data?, validPaths: [String], refUrls: [String]) async -> Int {
         var photosSaved = 0
@@ -140,7 +156,7 @@ actor ExportProcessingActor {
             let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
             if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
                 do {
-                    let (fileURL, _) = try await URLSession.shared.download(from: url)
+                    let (fileURL, _) = try await ExportProcessingActor.mediaSession.download(from: url)
                     let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: fileURL)
                     if success { photosSaved += 1 }
                     try? FileManager.default.removeItem(at: fileURL)
@@ -174,7 +190,7 @@ actor ExportProcessingActor {
                 let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
                 if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
                     do {
-                        let (data, _) = try await URLSession.shared.data(from: url)
+                        let (data, _) = try await ExportProcessingActor.mediaSession.data(from: url)
                         let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
                         if success { photosSaved += 1 }
                     } catch {

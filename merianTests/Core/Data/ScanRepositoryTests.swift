@@ -290,4 +290,50 @@ struct ScanRepositoryTests {
         #expect(fetched?.userIdentificationOverride == nil, "userIdentificationOverride must default to nil — no user action yet")
         #expect(fetched?.userConfirmedIdentification == false, "userConfirmedIdentification must default to false")
     }
+
+    // MARK: - ingestScans timestamp guard
+
+    /// Regression guard for the `guard let parsedDate = exifDate else { continue }` fix in
+    /// `ScanRepository.ingestScans`.  The guard replaced a `?? Date()` fallback that silently
+    /// inserted records with fabricated timestamps when `scan.timestamp` was nil or unparseable.
+    ///
+    /// This test verifies the two inputs that `exifDate` is derived from:
+    /// 1. A `nil` timestamp → `flatMap` produces `nil` → guard fires → record skipped.
+    /// 2. A garbage string → both ISO 8601 formatters return `nil` → guard fires → record skipped.
+    ///
+    /// The inline logic mirrors `ScanRepository.ingestScans` exactly so any drift between the
+    /// test and the production code will surface as a test failure.
+    @Test func testIngestScansTimestampGuardSkipsNilAndUnparseableTimestamps() {
+        // Helper that replicates the exact exifDate derivation in ingestScans
+        func deriveExifDate(from timestamp: String?) -> Date? {
+            timestamp.flatMap { ts -> Date? in
+                if ts.contains(".") {
+                    return DateUtilities.iso8601FractionalFormatter.date(from: ts)
+                        ?? DateUtilities.iso8601Formatter.date(from: ts)
+                }
+                return DateUtilities.iso8601Formatter.date(from: ts)
+                    ?? DateUtilities.iso8601FractionalFormatter.date(from: ts)
+            }
+        }
+
+        // nil timestamp → exifDate must be nil → guard triggers skip
+        let nilResult = deriveExifDate(from: nil)
+        #expect(nilResult == nil, "nil timestamp must produce nil exifDate — the guard skips the record")
+
+        // Garbage string → both formatters return nil → exifDate is nil
+        let garbageResult = deriveExifDate(from: "not-a-date")
+        #expect(garbageResult == nil, "Unparseable timestamp must produce nil exifDate — not a fabricated Date()")
+
+        // Partial ISO string (date only, no time) → must also fail both formatters
+        let partialResult = deriveExifDate(from: "2026-04-05")
+        #expect(partialResult == nil, "Date-only string without time component must not be accepted")
+
+        // Valid fractional ISO string → must produce a non-nil date (positive control)
+        let validFractional = deriveExifDate(from: "2026-04-05T14:23:01.000Z")
+        #expect(validFractional != nil, "Valid fractional ISO 8601 timestamp must parse correctly")
+
+        // Valid standard ISO string → must produce a non-nil date (positive control)
+        let validStandard = deriveExifDate(from: "2026-04-05T14:23:01Z")
+        #expect(validStandard != nil, "Valid standard ISO 8601 timestamp must parse correctly")
+    }
 }

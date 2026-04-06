@@ -75,7 +75,7 @@ struct ProTips: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Use a more advanced AI model to improve accuracy")
+                                Text("Use a more advanced AI model")
                                     .font(.system(.subheadline, weight: .bold))
                                     .foregroundColor(.primary)
                                 
@@ -100,7 +100,6 @@ struct ProTips: View {
                     .buttonStyle(.plain)
                     
                     Divider()
-                        .opacity(0.5)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 4)
                 }

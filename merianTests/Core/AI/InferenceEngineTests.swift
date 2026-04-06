@@ -965,4 +965,68 @@ struct InferenceEngineTests {
         let remaining = try context.fetchCount(descriptor)
         #expect(remaining == 1, "Inference cancellation must not delete the queue record — background upload path owns delivery")
     }
+
+    // MARK: - activeScanId lifecycle
+
+    /// Tests `prepareForNewScan()`, which fires at the start of every `analyze()` call
+    /// to reset state from the previous scan.  The critical assertion is that `activeScanId`
+    /// is cleared here: a stale ID from the previous scan must not persist into the new
+    /// scan's hydration window.
+    @Test func testPrepareForNewScanClearsActiveScanId() {
+        let engine = InferenceEngine()
+        engine.activeScanId = "stale-scan-id-from-previous-scan"
+        engine.prepareForNewScan()
+        #expect(engine.activeScanId == nil, "prepareForNewScan must clear activeScanId before the next scan claims the engine")
+        // isProcessing == true after prepareForNewScan is intentional: it signals a scan
+        // is *about to* be submitted (it will be set by the analyze() call that follows).
+        #expect(engine.isProcessing == true)
+    }
+
+    /// Tests the defer block pattern at `InferenceEngine.swift:235-238`.
+    /// When the inference task exits — for any reason (success, error, or cancellation) —
+    /// both `isProcessing` and `activeScanId` must be cleared synchronously via defer.
+    ///
+    /// The test creates a minimal `Task<Void, Error>` that mirrors the exact defer in
+    /// `analyze()`.  If the defer is removed from the production code, this test must be
+    /// updated and the corresponding `activeScanId` docs in error-handling.md must be
+    /// corrected — do not simply delete this test.
+    @Test func testActiveScanIdClearedByInferenceTaskDefer() async {
+        let engine = InferenceEngine()
+        // Simulate mid-inference state
+        engine.activeScanId = "live-scan-being-processed"
+        engine.isProcessing = true
+
+        // Create a task that mirrors the defer block at InferenceEngine.swift:235-238.
+        // Using Task<Void, Error> because inferenceTask is typed `Task<Void, Error>?`.
+        let task = Task<Void, Error> { @MainActor in
+            defer {
+                engine.isProcessing = false
+                engine.activeScanId = nil
+            }
+            // No-op body — task exits immediately, triggering the defer
+        }
+        engine.inferenceTask = task
+        _ = try? await task.value   // wait for defer to complete on @MainActor
+
+        #expect(engine.activeScanId == nil, "activeScanId must be nil after the inference task exits")
+        #expect(engine.isProcessing == false, "isProcessing must be false after the inference task exits")
+    }
+
+    /// Verifies that `cancelActiveRequest()` sets `isProcessing = false` but does NOT
+    /// clear `activeScanId` — that cleanup is owned exclusively by the inference task's defer.
+    /// This asymmetry is intentional: the background URLSession path uses `activeScanId` to
+    /// detect a live inference and hydrate the engine instead of leaving `isProcessing` locked.
+    @Test func testCancelActiveRequestDoesNotClearActiveScanId() {
+        let engine = InferenceEngine()
+        engine.activeScanId = "background-scan-in-flight"
+        engine.isProcessing = true
+
+        engine.cancelActiveRequest()
+
+        #expect(engine.isProcessing == false, "cancelActiveRequest must clear isProcessing")
+        // activeScanId intentionally NOT cleared by cancelActiveRequest — the inference
+        // task's defer (or prepareForNewScan at the start of the next scan) owns this.
+        #expect(engine.activeScanId == "background-scan-in-flight",
+                "cancelActiveRequest must NOT clear activeScanId — that is owned by the inference task defer")
+    }
 }

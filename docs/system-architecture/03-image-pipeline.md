@@ -131,7 +131,7 @@ LocalImageLoader.shared.loadImage(
 |---|---|---|
 | 1 | RAM cache hit (`ImageCache`) | Return immediately |
 | 2 | Duplicate in-flight request | Coalesce — await the existing `Task` |
-| 3 | `imagePath` starts with `http://` | Download via `URLSession`, downsample, cache |
+| 3 | `imagePath` starts with `http://` | Download via `LocalImageLoader.mediaSession`, downsample, cache |
 | 4 | `imagePath` is a local filename | Resolve to `documentsDirectory`, downsample, cache |
 | 5 | Local file missing | Try `fallbackUrl` (supports comma-separated list) |
 
@@ -188,4 +188,4 @@ For captures that go into the offline queue, images are written to disk by `File
 | `FileIOActor` | `Core/Data/Database/` | Disk reads/writes; isolated from Main and SwiftData actors |
 | `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; RAM cache hits; request coalescing; local/remote routing |
 | `ImageCache` | `Core/Data/Images/` | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap |
-| `ArchiveManager` | `Core/Data/Images/` | Streams aging Free-tier images from R2 to disk via `URLSession.download(from:)`; avoids `.data(from:)` OOM |
+| `ArchiveManager` | `Core/Data/Images/` | Streams aging Free-tier images from R2 to disk via `ArchiveManager.mediaSession.download(from:)` (isolated session, 30 s request / 300 s resource timeout); avoids `.data(from:)` OOM |

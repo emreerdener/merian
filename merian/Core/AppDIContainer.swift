@@ -62,7 +62,7 @@ import SwiftUI
 
 /// View modifier to easily inject all dependent EnvironmentObjects
 struct DIContainerModifier: ViewModifier {
-    var container: AppDIContainer
+    let container: AppDIContainer
     
     func body(content: Content) -> some View {
         content

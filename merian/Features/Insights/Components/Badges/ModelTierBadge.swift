@@ -3,6 +3,7 @@ import SwiftUI
 struct ModelTierBadge: View {
     let confidenceScore: Double?
     let inferenceTier: String?
+    var label: String = "Upgrade for advanced analysis"
     
     @State private var showPaywall: Bool = false
     
@@ -17,7 +18,7 @@ struct ModelTierBadge: View {
                      Image(systemName: "sparkle")
                         .font(.footnote.weight(.bold))
 
-                    Text("Upgrade for advanced analysis")
+                    Text(label)
                         .font(.subheadline.weight(.semibold))
                         
                     Image(systemName: "chevron.right")

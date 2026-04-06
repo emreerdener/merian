@@ -12,6 +12,8 @@ struct ConfidenceExplanationSheet: View {
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
     @State private var isReportPresented = false
     @State private var showPaywall = false
 
@@ -20,16 +22,20 @@ struct ConfidenceExplanationSheet: View {
         return status == .notDetermined || status == .restricted || status == .denied
     }
 
+    private var headerTitle: String {
+        if isFlagged { return "Under review" }
+        if userIdentificationOverride != nil { return "Manual ID" }
+        if userConfirmedIdentification { return "Confirmed match" }
+        guard let score = confidenceScore else { return "Analysis" }
+        let pct = Int(round(score * 100))
+        return "\(pct)% confident"
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
-                ConfidenceHeader()
+                ConfidenceHeader(title: headerTitle)
 
-                ModelTierBadge(
-                    confidenceScore: confidenceScore,
-                    inferenceTier: inferenceTier
-                )
-                
                 let candidates = inferenceEngine.speciesData?.candidates ?? []
                 if isFlagged && candidates.count >= 2 {
                     AllCandidatesReviewedView(
@@ -81,15 +87,41 @@ struct ConfidenceExplanationSheet: View {
                     .padding(.horizontal, 16)
                 }
 
+                if !userConfirmedIdentification && userIdentificationOverride == nil && !isFlagged {
+                    ConfidenceSpectrum(inferenceTier: inferenceTier)
+                }
+
                 PlanCard(showPaywall: $showPaywall)
                     .padding(.horizontal, 16)
 
-                ConfidenceSpectrum(inferenceTier: inferenceTier)
-                
                 ProTips(showLocationPrompt: showLocationPrompt)
             }
             .padding(.top, 32)
             .padding(.bottom, 48)
+        }
+        .onChange(of: userConfirmedIdentification) { _, isConfirmed in
+            if isConfirmed {
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    await MainActor.run { dismiss() }
+                }
+            }
+        }
+        .onChange(of: userIdentificationOverride) { _, override in
+            if override != nil {
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    await MainActor.run { dismiss() }
+                }
+            }
+        }
+        .onChange(of: isFlagged) { _, flagged in
+            if flagged {
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    await MainActor.run { dismiss() }
+                }
+            }
         }
         .sheet(isPresented: $isReportPresented) {
             if let scanId = inferenceEngine.speciesData?.scanId {

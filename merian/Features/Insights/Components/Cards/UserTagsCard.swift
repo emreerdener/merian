@@ -43,9 +43,30 @@ struct UserTagsCard: View {
                 }
                 
                 if record.customTags.isEmpty {
-                    Text("No custom tags added. Add tags to easily find this scan later.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("No custom tags added. Add tags to easily find this scan later.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        Button {
+                            newTagText = ""
+                            showingAddTagAlert = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus")
+                                Text("Add tag")
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {

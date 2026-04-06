@@ -170,10 +170,10 @@ export async function syncMembershipDelta(
       .returns<{ id: string }[]>();
 
     if (validateError) {
-      console.error("Scan validation DB error:", validateError);
+      throw new Error(`Scan validation DB error: ${validateError.message}`);
     }
 
-    const validScanIds = new Set(validScans?.map((s) => s.id) || []);
+    const validScanIds = new Set(validScans?.map((s) => s.id) ?? []);
     const safeToAdd = toAdd.filter((m) => validScanIds.has(m.scan_id));
 
     if (safeToAdd.length > 0) {
@@ -194,15 +194,17 @@ export async function syncMembershipDelta(
 
   if (membershipOps.length > 0) {
     const membershipResults = await Promise.allSettled(membershipOps);
+    const errors: string[] = [];
     for (const r of membershipResults) {
       if (r.status === "rejected") {
-        console.error("Membership delta promise rejected:", r.reason);
+        errors.push(`promise rejected: ${r.reason}`);
       } else if (r.value && (r.value as { error: unknown }).error) {
-        console.error(
-          "Membership delta DB error:",
-          (r.value as { error: unknown }).error,
-        );
+        const dbErr = (r.value as { error: { message?: string } }).error;
+        errors.push(`DB error: ${dbErr.message ?? JSON.stringify(dbErr)}`);
       }
+    }
+    if (errors.length > 0) {
+      throw new Error(`Membership delta failed: ${errors.join("; ")}`);
     }
   }
 }

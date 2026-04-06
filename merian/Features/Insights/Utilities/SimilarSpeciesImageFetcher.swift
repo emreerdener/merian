@@ -30,7 +30,17 @@ private struct FetcherGBIFMediaResponse: Decodable {
 final class SimilarSpeciesImageFetcher {
     var image: UIImage?
     var isLoading: Bool = false
-    
+
+    // Isolated session for Wikipedia and GBIF external API metadata calls.
+    // Timeout is deliberately short (10 s) — these are best-effort enrichment fetches
+    // and should never stall the InsightSheet layout.
+    private static let externalAPISession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 30
+        return URLSession(configuration: config)
+    }()
+
     // Explicit network fallback strings that cache aggressively under OOM limits
     func fetchImage(for scientificName: String) async -> Bool {
         guard !scientificName.isEmpty else { return false }
@@ -52,7 +62,7 @@ final class SimilarSpeciesImageFetcher {
                 var request = URLRequest(url: url)
                 request.timeoutInterval = 5.0
                 request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
-                guard let (data, response) = try? await URLSession.shared.data(for: request),
+                guard let (data, response) = try? await SimilarSpeciesImageFetcher.externalAPISession.data(for: request),
                       let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
                       let decoded = try? JSONDecoder().decode(WikiSummaryResponse.self, from: data)
                 else { return nil }
@@ -65,7 +75,7 @@ final class SimilarSpeciesImageFetcher {
                 else { return nil }
                 var request = URLRequest(url: url)
                 request.timeoutInterval = 5.0
-                guard let (data, response) = try? await URLSession.shared.data(for: request),
+                guard let (data, response) = try? await SimilarSpeciesImageFetcher.externalAPISession.data(for: request),
                       let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
                       let decoded = try? JSONDecoder().decode(FetcherGBIFMediaResponse.self, from: data),
                       let firstMedia = decoded.results?.first?.media?.first(where: { $0.type == "StillImage" })

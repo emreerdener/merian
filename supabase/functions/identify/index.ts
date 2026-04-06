@@ -519,6 +519,14 @@ serve((req: Request) =>
         // identify and manually trigger recovery for affected users.
         // Best-effort: if this insert also fails (e.g. DB is down), the structured log
         // above is still the recovery signal.
+        //
+        // TODO(transactional-outbox): Replace this reactive dead-letter pattern with a
+        // proactive transactional outbox. Before returning 200 to the iOS client, write a
+        // "pending" outbox record. The background task marks it "done" on success; a
+        // separate worker retries "pending" records older than N minutes automatically.
+        // This eliminates the window where the iOS client has the scan locally but the
+        // server row is permanently missing (current gap: failure between 200 response and
+        // DB insert). Tracked: search codebase for "transactional-outbox".
         await supabaseAdmin
           .from("failed_scan_ingestions")
           .insert({ scan_id: generatedScanId, user_id: user.id, error_message: errorMsg })

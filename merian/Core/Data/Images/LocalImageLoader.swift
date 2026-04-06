@@ -10,9 +10,19 @@ actor LocalImageLoader {
     
     // MARK: - Thread-Safe Task Queues
     private var activeTasks: [String: Task<UIImage?, Never>] = [:]
-    
+
     // Limits concurrent ImageIO decodes to prevent JetSam OOM on large grid layouts.
     private static let decodeSemaphore = DispatchSemaphore(value: 4)
+
+    // Isolated session for media downloads (R2, Wikipedia thumbnails, GBIF images).
+    // Separate from URLSession.shared to avoid inheriting the system-wide pool and to
+    // enforce explicit timeouts without cross-contaminating auth sessions.
+    private static let mediaSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 300
+        return URLSession(configuration: config)
+    }()
     
     // MARK: - Asset Orchestration
     func loadImage(fromPath imagePath: String?, fallbackUrl: String? = nil, maxDimension: Int = 1024) async -> UIImage? {
@@ -133,7 +143,7 @@ actor LocalImageLoader {
     static nonisolated func fetchRemote(url: URL, cacheKey: String, maxSize: CGFloat = 500) async -> UIImage? {
         if Task.isCancelled { return nil }
         do {
-            let (tempURL, response) = try await URLSession.shared.download(from: url)
+            let (tempURL, response) = try await LocalImageLoader.mediaSession.download(from: url)
             defer { try? FileManager.default.removeItem(at: tempURL) }
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
             if Task.isCancelled { return nil }

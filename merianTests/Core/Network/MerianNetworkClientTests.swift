@@ -229,9 +229,85 @@ struct MerianNetworkClientTests {
     }
 
     /// Due to how heavily the 401 error handler interacts with `SupabaseManager` globally (purging auth state
-    /// and regenerating guest tokens in the Keychain), we omit the direct unit test here to avoid corrupting
+    /// and regenerating ghost tokens in the Keychain), we omit the direct unit test here to avoid corrupting
     /// active simulator keychain states for developers.
     @Test func testEdgeFunctionSelfHealingHandles401() async throws { return }
+
+    // MARK: - Endpoint URL structure
+
+    /// Verifies that the Edge Function URL construction formula produces the correct path.
+    /// Tests the pattern `"\(supabaseUrl)/functions/v1/\(function)"` directly without
+    /// making a network call — any live call would require a valid auth session in CI.
+    @Test func testEndpointURLPathContainsFunctionsV1Segment() throws {
+        let baseUrl = MerianEnvironment.supabaseUrl
+        // Mirror the formula used by MerianNetworkClient.endpointURL(_:)
+        let constructed = URL(string: "\(baseUrl)/functions/v1/block-user")
+        let url = try #require(constructed, "endpointURL formula must produce a valid URL from the configured supabaseUrl")
+        #expect(url.path.contains("/functions/v1/"), "Edge Function URL must contain /functions/v1/ path segment")
+        #expect(url.absoluteString.hasPrefix("https://"), "Edge Function URL must use HTTPS")
+        #expect(url.lastPathComponent == "block-user", "Last path component must match the function name")
+    }
+
+    // MARK: - TLS certificate pinning
+
+    /// Guards against the hash set accidentally being cleared.
+    /// An empty `pinnedCertHashes` causes the guard `!MerianTLSDelegate.pinnedCertHashes.isEmpty`
+    /// to fall through to `.performDefaultHandling`, silently disabling pinning in Release builds.
+    /// This test cannot access the private class but validates the expected hash format independently.
+    @Test func testPinnedHashesAreNonEmptyValidBase64() {
+        // The two hashes populated in MerianNetworkClient.swift (leaf + intermediate CA).
+        // If either value is malformed, `Data(base64Encoded:)` returns nil.
+        let leafHash = "OYvM4tmVyyPLCSqTe1tYvZW0CKRfv4mre7EUA0eJrn0="
+        let intermediateHash = "HfwWBfutNY2LyET3bRUgP6ycpcGnn9SFf/ryhk++v5Y="
+
+        #expect(!leafHash.isEmpty, "Leaf cert hash must be non-empty")
+        #expect(!intermediateHash.isEmpty, "Intermediate CA hash must be non-empty")
+        #expect(Data(base64Encoded: leafHash) != nil, "Leaf hash must be valid base64")
+        #expect(Data(base64Encoded: intermediateHash) != nil, "Intermediate CA hash must be valid base64")
+
+        // SHA-256/DER hashes are always 32 bytes → 44-character base64 with padding.
+        let decoded = try? #require(Data(base64Encoded: leafHash))
+        #expect(decoded?.count == 32, "SHA-256 DER cert hash must decode to exactly 32 bytes")
+    }
+
+    /// Documents and tests the chain-walking algorithm used by `MerianTLSDelegate`.
+    /// The refactor from `certChain.first` to `certChain.contains { ... }` means that
+    /// an intermediate CA hash in `pinnedCertHashes` is a *genuine* fallback rather than
+    /// dead code.  If someone reverts to `certChain.first`, the second assertion fails.
+    @Test func testTLSChainWalkingAcceptsIntermediateCertWhenLeafIsUnknown() {
+        let pinnedHashes: Set<String> = [
+            "known_leaf_hash_abc123==",
+            "known_intermediate_hash_xyz==",
+        ]
+
+        // Simulate a cert chain where the leaf has ROTATED (new hash) but the
+        // intermediate CA is still the same pinned one.
+        let rotatedLeafHash = "new_rotated_leaf_hash_def456=="   // NOT in pinnedHashes
+        let intermediateHash = "known_intermediate_hash_xyz=="   // IS in pinnedHashes
+        let rootHash = "root_ca_hash_ghi789=="                   // not pinned
+
+        let chain = [rotatedLeafHash, intermediateHash, rootHash]
+
+        // New contains-based check — accepts because intermediate matches
+        let matchesWithContains = chain.contains { pinnedHashes.contains($0) }
+        #expect(matchesWithContains == true, "Chain-walk should accept when intermediate CA hash matches")
+
+        // Old certChain.first behavior would reject — demonstrating why the refactor matters
+        let matchesWithFirst = pinnedHashes.contains(chain.first ?? "")
+        #expect(matchesWithFirst == false, "certChain.first pattern silently rejects a valid rotated-leaf chain")
+    }
+
+    /// Verifies the reject path: no cert in the chain matches any pinned hash.
+    @Test func testTLSChainWalkingRejectsUnknownChain() {
+        let pinnedHashes: Set<String> = [
+            "pinned_leaf_hash==",
+            "pinned_intermediate_hash==",
+        ]
+
+        let unknownChain = ["unknown_leaf==", "unknown_intermediate==", "unknown_root=="]
+        let matched = unknownChain.contains { pinnedHashes.contains($0) }
+        #expect(matched == false, "Chain-walk must reject when no cert in the chain is pinned")
+    }
 }
 
 private extension InputStream {

@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { generateDwcARow } from "./dwca.ts";
 
 const mockSalt = "testSalt123";
@@ -308,4 +308,60 @@ Deno.test("includePreciseCoordinates — false + own scan denies precise access"
 
 Deno.test("includePreciseCoordinates — false + foreign scan denies precise access", () => {
   assertEquals(canAccessPreciseCoords(false, crypto.randomUUID(), crypto.randomUUID()), false);
+});
+
+// ---------------------------------------------------------------------------
+// Null species_dictionary handling
+//
+// Context: `export-dwca/dwca.ts` previously used `|| {}` as a fallback when
+// `scan.species_dictionary` was null (e.g. scans ingested before the species
+// enrichment pipeline ran).  The `|| {}` pattern caused `deno check` type
+// errors because `{}` does not match the `CloudSpeciesDictionary` shape.
+// The fix replaced it with optional chaining (`species?.scientific_name`).
+//
+// These tests verify that `generateDwcARow` handles a null `species_dictionary`
+// gracefully — it must NOT throw and must produce a valid CSV row.
+// ---------------------------------------------------------------------------
+
+Deno.test("generateDwcARow handles null species_dictionary without throwing", async () => {
+  const scan = {
+    id: "scan_null_dict_001",
+    user_id: "emre_uuid_0001",
+    timestamp: "2026-04-05T10:00:00Z",
+    gps_lat_public: 40.7,
+    gps_long_public: -74.0,
+    species_dictionary: null,
+  };
+
+  // Must not throw — prior to the fix this would crash because `|| {}` still
+  // caused downstream property accesses on an incompatible type.
+  const result = await generateDwcARow(
+    // @ts-ignore: mock test object cast
+    scan, "personal", false, "emre_uuid_0001", mockSalt
+  );
+
+  assert(typeof result.occurrenceRow === "string", "occurrenceRow must be a string even when species_dictionary is null");
+  assert(result.occurrenceRow.length > 0, "occurrenceRow must be non-empty even when species_dictionary is null");
+});
+
+Deno.test("generateDwcARow produces an empty scientific_name field when species_dictionary is null", async () => {
+  const scan = {
+    id: "scan_null_dict_002",
+    user_id: "emre_uuid_0001",
+    species_dictionary: null,
+  };
+
+  const result = await generateDwcARow(
+    // @ts-ignore: mock test object cast
+    scan, "personal", false, "emre_uuid_0001", mockSalt
+  );
+
+  const parts = splitCsvRow(result.occurrenceRow).map(unquote);
+  // Scientific name column (index 3 in the DwC-A row) must be empty/blank,
+  // not an error string or a crash.
+  const scientificName = parts[3] ?? "";
+  // csvField(undefined) → '""' → unquotes to "" — so the field must be exactly empty.
+  assertEquals(scientificName, "", "Scientific name must be an empty string when species_dictionary is null");
+  assert(!scientificName.toLowerCase().includes("undefined"), "Scientific name must not contain 'undefined'");
+  assert(!scientificName.toLowerCase().includes("[object"), "Scientific name must not contain '[object'");
 });

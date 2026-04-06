@@ -1,10 +1,12 @@
 import SwiftUI
 
 struct ConfidenceHeader: View {
+    let title: String
+    
     var body: some View {
         VStack(spacing: 16) {
             VStack(spacing: 8) {
-                Text("Analysis")
+                Text(title)
                     .font(.system(.title, design: .serif).weight(.bold))
                     .foregroundStyle(.primary)
                 

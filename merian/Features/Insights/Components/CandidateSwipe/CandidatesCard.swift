@@ -46,6 +46,12 @@ struct CandidatesCard: View {
         return name.isEmpty ? aiScientificName : name.capitalized
     }
 
+    private var isWeakMatch: Bool {
+        let score = inferenceEngine.speciesData?.confidenceScore ?? 0.0
+        let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
+        return score < bands.possible
+    }
+
     var body: some View {
         Group {
             switch reviewState {
@@ -65,6 +71,7 @@ struct CandidatesCard: View {
                     PendingView(
                         candidates: candidates,
                         aiCommonName: displayCommonName,
+                        isWeakMatch: isWeakMatch,
                         onConfirm: {
                             HapticManager.shared.triggerSuccessPulse()
                             onMatchConfirmed?()
@@ -93,6 +100,7 @@ struct CandidatesCard: View {
 private struct PendingView: View {
     let candidates: [IdentificationCandidate]
     let aiCommonName: String
+    let isWeakMatch: Bool
     let onConfirm: () -> Void
     let onReviewAlternatives: () -> Void
     var onFlagIssue: (() -> Void)?
@@ -203,7 +211,7 @@ private struct PendingView: View {
                 VStack(spacing: 24) {
                     // Content Heading
                     VStack(spacing: 8) {
-                        Text("\(candidates.count) close \(candidates.count == 1 ? "match" : "matches") found")
+                        Text("\(candidates.count) \(isWeakMatch ? "possible" : "close") \(candidates.count == 1 ? "match" : "matches") found")
                             .font(.system(.title2).weight(.bold))
                             .foregroundColor(.primary)
                         Text("Other species the model also considered")
@@ -213,7 +221,7 @@ private struct PendingView: View {
                     .multilineTextAlignment(.center)
 
                     // Action Buttons
-                    VStack(spacing: 12) {
+                    VStack(spacing: 16) {
                         Button(action: onReviewAlternatives) {
                             Text("Review alternatives")
                                 .font(.headline.weight(.semibold))
@@ -235,6 +243,20 @@ private struct PendingView: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        
+                        // Surface the quick-confirm when contained inside the confidence sheet
+                        if !showDismissButton {
+                            Button(action: onConfirm) {
+                                Text(aiCommonName.lowercased() == "unknown subject" ? "Confirm initial match" : "Confirm \(aiCommonName)")
+                                    .font(.headline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(Color.green.opacity(0.15))
+                                    .foregroundColor(.green)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             } // Close VStack(spacing: candidates.count > 1 ? 48 : 24)

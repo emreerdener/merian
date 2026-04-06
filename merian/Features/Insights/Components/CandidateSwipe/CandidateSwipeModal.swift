@@ -16,6 +16,7 @@ struct CandidateSwipeModal: View {
     @State private var topCardOffset: CGSize = .zero
     @State private var topCardIsDragging = false
     @State private var isDismissing = false
+    @State private var confirmedCandidate: IdentificationCandidate?
 
     private let swipeThreshold: CGFloat = 200
 
@@ -38,7 +39,9 @@ struct CandidateSwipeModal: View {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
 
-                if stack.isEmpty && !isDismissing {
+                if let confirmed = confirmedCandidate {
+                    confirmedStateContent(candidate: confirmed)
+                } else if stack.isEmpty && !isDismissing {
                     exhaustedStateContent
                 } else if isGridMode {
                     gridContent
@@ -46,7 +49,7 @@ struct CandidateSwipeModal: View {
                     cardStackContent
                 }
             }
-            .navigationTitle(stack.isEmpty ? "Review alternatives" : "\(stack.count) alternative\(stack.count == 1 ? "" : "s")")
+            .navigationTitle(confirmedCandidate != nil ? "Success" : (stack.isEmpty ? "Review alternatives" : "\(stack.count) alternative\(stack.count == 1 ? "" : "s")"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -73,7 +76,7 @@ struct CandidateSwipeModal: View {
             }
         }
         .onDisappear {
-            if stack.isEmpty && !isDismissing {
+            if stack.isEmpty && !isDismissing && confirmedCandidate == nil {
                 Task { await inferenceEngine.flagAIIdentification(modelContext: modelContext) }
             }
         }
@@ -159,13 +162,25 @@ extension CandidateSwipeModal {
                 GridSwipeableCell(
                     candidate: candidate,
                     onConfirm: {
-                        isDismissing = true
+                        withAnimation(.spring(response: 0.3)) {
+                            confirmedCandidate = candidate
+                        }
                         Task {
+                            // 1. Pause to show the success state natively
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            
+                            // 2. Trigger native dismissal
+                            await MainActor.run {
+                                isDismissing = true
+                                dismiss()
+                            }
+                            
+                            // 3. Defer structural data mutation to prevent SwiftUI destroying the host sheet anchor
+                            try? await Task.sleep(nanoseconds: 300_000_000)
                             await inferenceEngine.applyIdentificationOverride(
                                 scientificName: candidate.scientificName,
                                 modelContext: modelContext
                             )
-                            dismiss()
                         }
                     },
                     onReject: {
@@ -234,6 +249,30 @@ extension CandidateSwipeModal {
             .padding(.horizontal, 24)
         }
     }
+
+    private func confirmedStateContent(candidate: IdentificationCandidate) -> some View {
+        let commonStr = candidate.commonName ?? ""
+        let isCommonEmpty = commonStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let displayName = isCommonEmpty ? candidate.scientificName : commonStr.capitalized
+
+        return VStack(spacing: 32) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 80))
+                .foregroundStyle(.green)
+            
+            VStack(spacing: 8) {
+                Text("Match confirmed")
+                    .font(.title2.weight(.bold))
+                    .foregroundColor(.primary)
+                Text("You've successfully updated the identification to \(displayName).")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 32)
+        }
+        .transition(.scale.combined(with: .opacity))
+    }
 }
 
 // MARK: - Gesture & Action Extensions
@@ -275,18 +314,28 @@ extension CandidateSwipeModal {
     private func confirmTopCard() {
         guard let top = stack.first else { return }
         let name = top.scientificName
-        isDismissing = true
-        withAnimation(.spring(response: 0.25)) {
+        withAnimation(.spring(response: 0.3)) {
+            confirmedCandidate = top
             stack.removeFirst()
             topCardOffset = .zero
             topCardIsDragging = false
         }
         Task {
+            // 1. Pause to show the success state natively
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            
+            // 2. Trigger native dismissal
+            await MainActor.run {
+                isDismissing = true
+                dismiss()
+            }
+            
+            // 3. Defer structural data mutation to prevent SwiftUI destroying the host sheet anchor
+            try? await Task.sleep(nanoseconds: 300_000_000)
             await inferenceEngine.applyIdentificationOverride(
                 scientificName: name,
                 modelContext: modelContext
             )
-            dismiss()
         }
     }
 
