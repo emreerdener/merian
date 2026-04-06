@@ -11,6 +11,10 @@ struct HabitatAndDistributionCard: View {
 
     @State private var isRetrying = false
     @State private var isPulsing = false
+    /// Tracks whether the single automatic retry attempt has already fired for this card instance.
+    /// Prevents an infinite loop: auto-retry fires once on first entry to the empty state, then
+    /// the manual Retry button is the only remaining escape hatch.
+    @State private var hasAutoRetried = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -88,7 +92,10 @@ struct HabitatAndDistributionCard: View {
                     }
 
                 } else {
-                    // RETRY STATE
+                    // RETRY STATE — enrichment either failed or never completed.
+                    // Auto-retry fires once with a short delay so transient network errors
+                    // resolve without requiring user interaction. The manual button remains
+                    // as the escape hatch if the auto-retry also fails.
                     VStack(spacing: 12) {
                         Text("Habitat and distribution data couldn't be loaded.")
                             .font(.subheadline)
@@ -113,6 +120,14 @@ struct HabitatAndDistributionCard: View {
                             .clipShape(Capsule())
                         }
                         .disabled(isRetrying)
+                    }
+                    .task {
+                        guard !hasAutoRetried else { return }
+                        hasAutoRetried = true
+                        // 2-second delay: lets any still-in-flight initial enrichment call
+                        // settle before firing a redundant second request.
+                        try? await Task.sleep(for: .seconds(2))
+                        await triggerEnrichment()
                     }
                 }
             }

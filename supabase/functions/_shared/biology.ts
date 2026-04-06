@@ -186,7 +186,7 @@ export async function fetchSimilarSpecies(
     : "";
 
   const model = createFlashModel(
-    `You are a world-class biologist. Given a species scientific name, identify up to 3 most commonly confused lookalike species that a field observer might misidentify it as.${taxonomyLine} For each lookalike, provide the exact, formally recognized scientific name and widely recognised English common name. CRITICAL RULES: 1) Never hallucinate scientific names; every lookalike must be a verified, real species. 2) Every lookalike must be from the same taxonomic order or family as the primary species. 3) Lookalikes must be genuinely visually similar. 4) If fewer than 3 genuine lookalikes exist, return only the valid ones. Do not invent species to fill the array.`,
+    `You are a world-class field biologist. Given a species scientific name, identify up to 3 species that a non-expert field observer could plausibly misidentify it as based purely on visual appearance.${taxonomyLine} For each lookalike, provide the exact, formally recognized scientific name and the widely recognised English common name. CRITICAL RULES: 1) Every lookalike MUST be from the same taxonomic order or family as the primary species — never suggest species from a different order. 2) Lookalikes must be genuinely visually similar in the field (similar flower shape, leaf morphology, growth habit, etc.) — not merely distantly related. 3) Never hallucinate scientific names; every entry must be a verified, extant species. 4) If fewer than 3 genuine same-order lookalikes exist, return only the valid ones — do not pad with unrelated species. 5) Do not return the primary species itself as a lookalike.`,
     300,
   );
 

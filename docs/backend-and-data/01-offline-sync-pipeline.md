@@ -81,8 +81,8 @@ All this payload work runs inside a `BackgroundTaskWrapper.execute` block so iOS
   - **Transport errors — transient connectivity** (`NSURLErrorTimedOut`, `NSURLErrorNetworkConnectionLost`, `NSURLErrorNotConnectedToInternet`, `NSURLErrorDataNotAllowed`, `NSURLErrorInternationalRoamingOff`): retain in queue, increment in-memory `uploadRetryCount[scanId]`. After `OfflineQueueManager.maxUploadRetries` (3) consecutive failures the scan is tombstoned. The counter resets to zero on the next successful upload or on app restart.
   - **Transport errors — other**: logged, retained in queue.
   - **HTTP 403 / 401**: Terminal — auth failure, tombstone.
-  - **HTTP 429 / 5xx**: Recoverable — retain in queue for next connectivity cycle.
-  - **HTTP 4xx (non-403/401/429)**: Terminal — tombstone.
+  - **HTTP 429 / 5xx**: Recoverable — retain in queue for next connectivity cycle. **HTTP 503** returned by the `identify` Edge function for transient Gemini errors (including non-STOP finish reasons) falls into this category — the scan is retained for retry rather than tombstoned.
+  - **HTTP 4xx (non-403/401/429)**: Terminal — tombstone. The `identify` Edge function returns 400 only for permanent content policy failures (`SAFETY` / `PROHIBITED_CONTENT` finish reasons), so 400 correctly triggers tombstoning in those cases.
   - **HTTP 200**: Evaluates the image against `session.allTasks` to ensure it is the *final* chunk completing, then calls `dispatchInferenceDownloadTask()`.
 
   > **Retry Deadlocks**: The physical R2 upload completion historically wiped `uploadRetryCount` back to 0. Since `analyzeSubject` (the inference edge call) internally bumped and validated this same retry quota up to 3 errors, wiping it repeatedly on transport validation meant edge mappings threw 500s cyclically forever, exhausting the user's free tier quota silently. The `uploadRetryCount` is now ONLY cleared inside `processInferenceDownloadResult()` exactly when the entire structural process yields a terminal Database UUID.

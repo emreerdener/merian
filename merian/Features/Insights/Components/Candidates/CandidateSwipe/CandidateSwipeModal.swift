@@ -350,15 +350,15 @@ extension CandidateSwipeModal {
                 )
             } else {
                 Image(systemName: "photo.fill")
-                    .font(.system(size: 64))
+                    .font(.system(size: 96))
                     .foregroundStyle(.tertiary)
             }
         }
-        .frame(width: 160, height: 160)
+        .frame(width: 240, height: 240)
         .clipShape(Circle())
         .overlay(Circle().strokeBorder(Color(.separator), lineWidth: 0.5))
         .overlay(Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
-        .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
+        .shadow(color: .black.opacity(0.15), radius: 24, y: 12)
     }
 }
 

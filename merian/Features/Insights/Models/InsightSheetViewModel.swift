@@ -55,7 +55,12 @@ final class InsightSheetViewModel {
     }
     
     var totalImages: Int {
-        liveCount + validHistoricImagePaths.count + refUrls.count
+        // carouselPages uses hasLive as an exclusive branch: when live data is present it
+        // shows activeDisplayDatas and skips validHistoricImagePaths (they are the same image
+        // written to disk — showing both would duplicate the capture). Must mirror that logic
+        // here or totalImages overcounts and produces unreachable pagination dots.
+        let captureCount = hasLive ? liveCount : validHistoricImagePaths.count
+        return captureCount + refUrls.count
     }
     
     // MARK: - Header Computed Properties

@@ -19,20 +19,29 @@ export async function getCachedSpecies(
   return cachedSpecies as CachedSpeciesData | null;
 }
 
+/// Internal shape returned by fetchLookalikesFromJoinTable.
+/// `_order` is used only for stale-data detection in index.ts and is stripped before
+/// the array is serialised into the client response.
+export interface LookalikeSummaryInternal extends LookalikeSummary {
+  _order: string | null;
+}
+
 /// Fetches rich lookalike entries from the species_lookalikes join table using a single
 /// embedded join — resolves both the join row and the species details in one PostgREST round-trip.
 /// Returns an empty array if no entries exist.
+/// `_order` on each entry is the lookalike species' taxonomic order, used by the caller
+/// to detect and discard stale cross-order contamination before serving to the client.
 export async function fetchLookalikesFromJoinTable(
   speciesId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<LookalikeSummary[]> {
+): Promise<LookalikeSummaryInternal[]> {
   // Use explicit table!column hint to disambiguate the two FKs (species_id and lookalike_id)
   // that both point to species_dictionary. Without the hint PostgREST cannot determine which
   // FK to follow and returns an ambiguous-relationship error.
   const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
     .select(
-      "lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)",
+      "lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status, order)",
     )
     .eq("species_id", speciesId)
     .limit(10);
@@ -49,6 +58,7 @@ export async function fetchLookalikesFromJoinTable(
         common_names: Record<string, string> | null;
         reference_image_url: string | null;
         iucn_red_list_status: string | null;
+        order: string | null;
       } | null;
     }[]
   )
@@ -58,7 +68,22 @@ export async function fetchLookalikesFromJoinTable(
       common_name: row.lookalike!.common_names?.en ?? null,
       reference_image_url: row.lookalike!.reference_image_url,
       iucn_red_list_status: row.lookalike!.iucn_red_list_status,
+      _order: row.lookalike!.order,
     }));
+}
+
+/// Deletes all species_lookalikes rows for a given primary species.
+/// Called when stale cross-order contamination is detected so the Flash call can
+/// produce a clean replacement without conflicting with existing join table rows.
+export async function clearLookalikesForSpecies(
+  speciesId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("species_lookalikes")
+    .delete()
+    .eq("species_id", speciesId);
+  if (error) throw error;
 }
 
 /// Result shape for resolveLookalikesToJoinTable.
@@ -89,6 +114,7 @@ export async function resolveLookalikesToJoinTable(
   entries: SimilarSpeciesEntry[],
   supabaseAdmin: SupabaseClient,
   primaryKingdom?: string | null,
+  primaryOrder?: string | null,
 ): Promise<ResolveResult> {
   if (entries.length === 0) return { lookalikes: [], persisted: false };
 
@@ -116,7 +142,7 @@ export async function resolveLookalikesToJoinTable(
 
   const { data: matches, error } = await supabaseAdmin
     .from("species_dictionary")
-    .select("id, scientific_name, common_names, reference_image_url, iucn_red_list_status, kingdom")
+    .select("id, scientific_name, common_names, reference_image_url, iucn_red_list_status, kingdom, order")
     .in("scientific_name", names)
     .limit(10);
 
@@ -129,6 +155,7 @@ export async function resolveLookalikesToJoinTable(
     reference_image_url: string | null;
     iucn_red_list_status: string | null;
     kingdom: string | null;
+    order: string | null;
   }[];
 
   // If none of the lookalike species are in species_dictionary yet, return the
@@ -148,17 +175,19 @@ export async function resolveLookalikesToJoinTable(
   }
 
   // Reject any resolved species whose kingdom differs from the primary species' kingdom.
-  // primaryKingdom is guaranteed non-null here — the early-exit above handles the null case.
-  // Lookalikes with no kingdom on record are allowed through (can't verify, but not
-  // actively contradicting).
+  // Also reject cross-order entries when the primary species' order is known — this is the
+  // main guard against Flash generating plausible-but-wrong same-kingdom lookalikes (e.g.
+  // grass as a lookalike for Narcissus: both Plantae, but Poales ≠ Asparagales).
+  // Species with no kingdom/order on record are allowed through (can't verify, not contradicting).
   const validated = typed.filter((m) => {
-    if (!m.kingdom) return true;
-    return m.kingdom.toLowerCase() === primaryKingdom.toLowerCase();
+    if (m.kingdom && m.kingdom.toLowerCase() !== primaryKingdom!.toLowerCase()) return false;
+    if (primaryOrder && m.order && m.order.toLowerCase() !== primaryOrder.toLowerCase()) return false;
+    return true;
   });
 
   if (validated.length === 0) {
     console.warn(
-      `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed kingdom validation (expected: ${primaryKingdom}). Returning empty.`,
+      `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed taxonomy validation (kingdom: ${primaryKingdom}, order: ${primaryOrder ?? "any"}). Returning empty.`,
     );
     return { lookalikes: [], persisted: false };
   }

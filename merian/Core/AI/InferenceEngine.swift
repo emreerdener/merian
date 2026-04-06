@@ -398,7 +398,13 @@ private struct GBIFMedia: Decodable {
                                     }
                                 }
                             }
-                            if !capturedIsEnriched && !Task.isCancelled {
+                            // Only mark the species as enriched when the call actually succeeded.
+                            // If the network call failed silently, habitatDescription stays nil.
+                            // Inserting on failure would permanently skip enrichment for this
+                            // species in the current session — causing the retry state on every
+                            // subsequent scan of the same species with no auto path out.
+                            if !capturedIsEnriched && !Task.isCancelled,
+                               self.speciesData?.habitatDescription != nil {
                                 // Evict 10% on cap hit — same policy as wikiFetchAttemptedIds.
                                 if self.enrichedSpeciesNames.count >= self.sessionSetCap {
                                     self.enrichedSpeciesNames.subtract(self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10))

@@ -8,6 +8,7 @@ import {
   updateSpeciesEnrichment,
   fetchLookalikesFromJoinTable,
   resolveLookalikesToJoinTable,
+  clearLookalikesForSpecies,
 } from "./db.ts";
 import { CachedSpeciesData, LookalikeSummary } from "./types.ts";
 
@@ -162,7 +163,36 @@ serve((req: Request) =>
     let lookalikes: LookalikeSummary[] = [];
 
     if (speciesId) {
-      lookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
+      const rawLookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
+
+      // Stale contamination detection: if the primary species' order is known and EVERY
+      // join-table entry has a different known order, the entire cached set was written
+      // without taxonomy context (common when the lookalikes Flash call raced ahead of the
+      // enrichment scope that populates species_dictionary taxonomy). Clear the stale rows,
+      // reset the flash-attempted flag, and fall through to a fresh Flash call.
+      const primaryOrder = cachedSpecies?.order?.toLowerCase() ?? null;
+      if (primaryOrder && rawLookalikes.length > 0) {
+        const stale = rawLookalikes.filter(
+          (l) => l._order != null && l._order.toLowerCase() !== primaryOrder,
+        );
+        if (stale.length === rawLookalikes.length) {
+          console.warn(
+            `[enrich-scan:lookalikes] Stale cross-order contamination for ${scientific_name} ` +
+            `(primary order: ${primaryOrder}). Clearing ${rawLookalikes.length} entries and re-running Flash.`,
+          );
+          await clearLookalikesForSpecies(speciesId, supabaseAdmin);
+          await supabaseAdmin
+            .from("species_dictionary")
+            .update({ lookalikes_flash_attempted: false, similar_species: null })
+            .eq("id", speciesId);
+          lookalikes = [];
+        } else {
+          // Strip the internal _order field before serving to client.
+          lookalikes = rawLookalikes.map(({ _order: _o, ...rest }) => rest);
+        }
+      } else {
+        lookalikes = rawLookalikes.map(({ _order: _o, ...rest }) => rest);
+      }
 
       // Migration path: join table is empty but TEXT[] has names from the old pipeline —
       // resolve them into the join table once at zero Gemini token cost.
@@ -176,6 +206,7 @@ serve((req: Request) =>
           cachedSpecies.similar_species.map((name) => ({ scientific_name: name, common_name: null })),
           supabaseAdmin,
           cachedSpecies?.kingdom,
+          cachedSpecies?.order,
         );
         lookalikes = migrationResult.lookalikes;
         // migrationResult.persisted is intentionally not used here: the migration path
@@ -238,6 +269,7 @@ serve((req: Request) =>
             similarResult.similar_species,
             supabaseAdmin,
             cachedSpecies?.kingdom,
+            cachedSpecies?.order,
           );
           lookalikes = resolveResult.lookalikes;
           // Only set lookalikes_flash_attempted when the join table was actually written
