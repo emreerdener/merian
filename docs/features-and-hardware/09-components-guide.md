@@ -130,7 +130,20 @@ An informational card rendered inside `ConfidenceExplanationSheet`, positioned b
 - **Branding rationale**: All user-facing copy uses "Merian AI" rather than "Gemini" to maintain product consistency with `ConfidenceHeader` ("Merian's AI") and to decouple the UI from any specific underlying model version. The "Powered by Gemini" attribution is surfaced only on the Pro tier where model provenance is a meaningful quality signal.
 - **Visual style**: Matches the full-section glass card aesthetic of the sheet — `Color(uiColor: .secondarySystemFill).opacity(0.5)` fill, `RoundedRectangle(cornerRadius: 32, style: .continuous)`, `.white.opacity(0.1)` border stroke, and 24 pt inner padding — identical to `ConfidenceSpectrum` and `ProTips`.
 
-## 15. Analyzing Content View: `AnalyzingContentView`
+## 15. Image Carousel: `ImagesCarousel`
+**Location**: `Features/Insights/Components/ImagesCarousel.swift`
+
+The full-width image carousel at the top of the Insight Sheet, combining live captures, on-disk paths, and reference images into a horizontally scrolling full-screen strip with per-page pinch-to-zoom and pan.
+
+- **`NativePageCarousel`**: A private `UIViewControllerRepresentable` wrapping `UIPageViewController`. `Coordinator.controllers: [ZoomPageViewController]` is populated eagerly so `AsyncLocalImageView.task` fires for all pages immediately — images load in the background before the user swipes to them. `UIPageViewController`'s internal `UIScrollView` defers to the sheet's pan gesture without manual workarounds (unlike `TabView(.page)`).
+- **`ZoomPageViewController`**: Each page controller. Embeds its SwiftUI content (`AsyncLocalImageView` or `LiveCapturePageView`) inside a `ZoomScrollView`. Exposes `rootView: AnyView` as a computed property proxying into the inner `UIHostingController`, so `updateUIViewController`'s existing `controller.rootView = pages[i]` state-push pattern works without modification.
+- **`ZoomScrollView`**: A `UIScrollView` subclass (`minimumZoomScale: 1.0`, `maximumZoomScale: 4.0`) that overrides `gestureRecognizerShouldBegin(_:)` to suppress its `panGestureRecognizer` when `zoomScale ≤ minimumZoomScale + 0.01`. This is the **only safe interception point** — replacing `panGestureRecognizer.delegate` directly throws `NSInvalidArgumentException` at runtime because UIKit requires the scroll view to remain its own pan delegate. At 1× UIPageViewController's swipe wins; above 1× the inner scroll view handles panning.
+- **Snap-back**: `scrollViewDidEndZooming` (pinch release) and `scrollViewDidEndDragging` (drag release while zoomed) both call `snapBackToIdentity`: pending deceleration is cancelled first, then `UIView.animate(usingSpringWithDamping: 0.72)` restores `zoomScale → 1.0` and `contentOffset → .zero` simultaneously.
+- **Async page growth**: `updateUIViewController` handles `validHistoricImagePaths` resolving asynchronously after `makeCoordinator`. New `ZoomPageViewController` instances are appended and `UIPageViewController.dataSource` is nil-reset to force neighbor re-queries.
+- **Image failure handling**: `handleImageFailure(identifier:)` calls `InferenceEngine.dropInvalidCarouselImage(_:)` and adjusts `selectedIndex`. `updateUIViewController` trims the controller pool and navigates away with `.reverse` if the displayed page was removed.
+- **`LiveCapturePageView`**: Synchronously downsamples live capture `Data` via `ImageDownsampler` on layout evaluation, backed by `NSCache<NSNumber, UIImage>` keyed by `data.hashValue` to avoid re-decoding identical captures across re-renders.
+
+## 16. Analyzing Content View: `AnalyzingContentView`
 **Location**: `Features/Insights/Views/Content/AnalyzingContentView.swift`
 
 The analyzing state rendered inside `InsightSheetView` while `InferenceEngine.isProcessing == true` and `speciesData == nil`. The insight sheet opens immediately on scan submission — no fullscreen overlay is used. When `isProcessing` becomes `false`, the view cross-fades out via `.easeInOut(duration: 0.35)` and `BiologicalView` or `NonBiologicalView` fades in.
