@@ -18,10 +18,12 @@ SELECT
     / NULLIF(COUNT(*) FILTER (WHERE llm_cached_tokens IS NOT NULL), 0),
     1
   )                                                   AS cache_hit_rate_pct,
-  -- Thinking as % of total output (candidate + thinking)
+  -- Thinking as % of total output (candidate + thinking).
+  -- Uses AVG of each column separately so both sides divide by the same null-ignoring
+  -- denominator — avoids inflated results when only some rows in a week have thinking data.
   ROUND(
     100.0 * AVG(llm_thinking_tokens)
-    / NULLIF(AVG(COALESCE(llm_candidate_tokens, 0) + COALESCE(llm_thinking_tokens, 0)), 0),
+    / NULLIF(AVG(llm_candidate_tokens) + AVG(llm_thinking_tokens), 0),
     1
   )                                                   AS thinking_pct_of_output
 FROM public.scans
