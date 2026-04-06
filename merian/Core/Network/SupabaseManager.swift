@@ -83,7 +83,11 @@ import Supabase
                     await self.linkExternalTelemetry(user: session.user)
 
                     // Sync historical scans on session restore to capture re-installs.
+                    // Stamp lastHistoricalSyncDate here so AppLifecycleManager's 15-minute
+                    // throttle gate sees this sync and skips its own redundant call — without
+                    // this write both callers fire concurrently on every cold launch.
                     if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
+                        UserDefaults.standard.set(Date(), forKey: "lastHistoricalSyncDate")
                         Task { await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context) }
                     }
                 }
