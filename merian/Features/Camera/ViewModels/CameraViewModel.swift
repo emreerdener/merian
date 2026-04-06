@@ -52,7 +52,7 @@ final class CameraViewModel {
     /// Task in `submitActiveScan` to detect when a newer scan has superseded this one and
     /// skip calling `analyze()` — prevents a stale Task from re-triggering live inference
     /// after the engine has already moved on to a subsequent capture.
-    @ObservationIgnored private var pendingAnalyzeScanId: String?
+    @ObservationIgnored var pendingAnalyzeScanId: String?
     
     // MARK: - Lifecycle
     init() {
