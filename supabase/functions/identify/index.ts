@@ -61,6 +61,20 @@ const modelConfigs = {
   },
 };
 
+// Canonical sets of valid Postgres enum values for life_stage and
+// reproductive_condition. Any value Gemini returns that is not in these sets
+// is clamped to the safe default before insertScan, so a future Gemini schema
+// expansion never causes a 22P02 enum error that silently drops the scan row.
+// Keep in sync with life_stage_enum and reproductive_condition_enum in the DB.
+const VALID_LIFE_STAGES = new Set([
+  "egg", "larva", "pupa", "nymph", "juvenile", "subadult",
+  "adult", "seedling", "sapling", "unknown",
+]);
+const VALID_REPRODUCTIVE_CONDITIONS = new Set([
+  "flowering", "fruiting", "budding", "vegetative", "sporing",
+  "pregnant", "gravid", "mating", "spawning", "nesting", "dormant", "not_applicable",
+]);
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
@@ -305,6 +319,27 @@ serve((req: Request) =>
         Number.isFinite(parsedData.individual_count) && parsedData.individual_count > 0
           ? Math.min(Math.round(parsedData.individual_count), 99999)
           : undefined;
+    }
+
+    // Clamp enum fields to known-valid Postgres values. Gemini may return a
+    // biologically correct term not yet in the DB enum — without this guard the
+    // insertScan call throws 22P02 and silently drops the entire scan row.
+    if (parsedData.life_stage != null && !VALID_LIFE_STAGES.has(parsedData.life_stage)) {
+      logStructuredError("identify/unknown_life_stage", {
+        user_id: user.id,
+        value: parsedData.life_stage,
+      });
+      parsedData.life_stage = "unknown";
+    }
+    if (
+      parsedData.reproductive_condition != null &&
+      !VALID_REPRODUCTIVE_CONDITIONS.has(parsedData.reproductive_condition)
+    ) {
+      logStructuredError("identify/unknown_reproductive_condition", {
+        user_id: user.id,
+        value: parsedData.reproductive_condition,
+      });
+      parsedData.reproductive_condition = "not_applicable";
     }
 
     // Derive blur_score from sharpness (1-10) for latency savings

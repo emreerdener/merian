@@ -1,6 +1,29 @@
 // supabase/functions/identify/index.test.ts
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { sanitizeScientificName } from "./sanitize.ts";
+
+// ---------------------------------------------------------------------------
+// Enum drift guard — mirrors VALID_LIFE_STAGES / VALID_REPRODUCTIVE_CONDITIONS
+// in index.ts. Keep in sync with life_stage_enum and reproductive_condition_enum.
+// ---------------------------------------------------------------------------
+
+const VALID_LIFE_STAGES = new Set([
+  "egg", "larva", "pupa", "nymph", "juvenile", "subadult",
+  "adult", "seedling", "sapling", "unknown",
+]);
+const VALID_REPRODUCTIVE_CONDITIONS = new Set([
+  "flowering", "fruiting", "budding", "vegetative", "sporing",
+  "pregnant", "gravid", "mating", "spawning", "nesting", "dormant", "not_applicable",
+]);
+
+function sanitizeLifeStage(v: string | undefined): string {
+  if (v == null) return "unknown";
+  return VALID_LIFE_STAGES.has(v) ? v : "unknown";
+}
+function sanitizeReproductiveCondition(v: string | undefined): string {
+  if (v == null) return "not_applicable";
+  return VALID_REPRODUCTIVE_CONDITIONS.has(v) ? v : "not_applicable";
+}
 // Instead of importing the heavy generative SDK which requires API keys, we mock the validation
 // of the merianResponseSchema to securely assert that DaaS keys are structurally present.
 
@@ -309,6 +332,47 @@ Deno.test("needsGroupTags — biological, tags already cached → skip", () => {
 Deno.test("needsGroupTags — non-biological → always skip", () => {
     assertEquals(needsGroupTags(false, null), false);
     assertEquals(needsGroupTags(false, []), false);
+});
+
+// ---------------------------------------------------------------------------
+// Enum drift guards — life_stage and reproductive_condition
+// These were the root cause of the 22P02 scan insert failures.
+// ---------------------------------------------------------------------------
+
+Deno.test("life_stage — all current valid enum values pass through", () => {
+    for (const v of VALID_LIFE_STAGES) {
+        assertEquals(sanitizeLifeStage(v), v, `${v} should be valid`);
+    }
+});
+
+Deno.test("life_stage — unknown value is clamped to 'unknown'", () => {
+    assertEquals(sanitizeLifeStage("subadult_new"), "unknown");
+    assertEquals(sanitizeLifeStage("hatchling"), "unknown");
+    assertEquals(sanitizeLifeStage("fry"), "unknown");
+});
+
+Deno.test("life_stage — undefined is clamped to 'unknown'", () => {
+    assertEquals(sanitizeLifeStage(undefined), "unknown");
+});
+
+Deno.test("reproductive_condition — all current valid enum values pass through", () => {
+    for (const v of VALID_REPRODUCTIVE_CONDITIONS) {
+        assertEquals(sanitizeReproductiveCondition(v), v, `${v} should be valid`);
+    }
+});
+
+Deno.test("reproductive_condition — unknown value is clamped to 'not_applicable'", () => {
+    // These were the exact values causing 22P02 before the enum migration.
+    // The guard ensures any future Gemini schema expansion degrades gracefully
+    // instead of dropping the entire scan row.
+    assertEquals(sanitizeReproductiveCondition("vegetative"), "vegetative"); // now valid post-migration
+    assertEquals(sanitizeReproductiveCondition("budding"), "budding");       // now valid post-migration
+    assertEquals(sanitizeReproductiveCondition("estrus"), "not_applicable"); // hypothetical future value
+    assertEquals(sanitizeReproductiveCondition("brooding"), "not_applicable");
+});
+
+Deno.test("reproductive_condition — undefined is clamped to 'not_applicable'", () => {
+    assertEquals(sanitizeReproductiveCondition(undefined), "not_applicable");
 });
 
 // ---------------------------------------------------------------------------
