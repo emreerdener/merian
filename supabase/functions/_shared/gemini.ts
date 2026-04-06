@@ -9,17 +9,16 @@ export const _genAI = new GoogleGenAI({ apiKey: Deno.env.get("GEMINI_API_KEY")! 
  * for these calls — they are schema-constrained fact lookups with no visual
  * ambiguity, and the new @google/genai SDK now correctly honours the budget.
  *
- * The returned wrapper preserves the legacy .generateContent() call signature
- * used by biology.ts callers (result.response.text(), result.response.usageMetadata)
- * so those files require no API-surface changes.
+ * Returns the native @google/genai GenerateContentResponse directly.
+ * Callers access result.text and result.usageMetadata (not result.response.text()).
  */
 export function createFlashModel(systemInstruction: string, maxOutputTokens: number) {
   return {
-    generateContent: async (params: {
+    generateContent: (params: {
       contents: Content[];
-      generationConfig?: Record<string, unknown>;
-    }) => {
-      const result = await _genAI.models.generateContent({
+      config?: Record<string, unknown>;
+    }) =>
+      _genAI.models.generateContent({
         model: "gemini-2.5-flash",
         contents: params.contents,
         config: {
@@ -27,19 +26,9 @@ export function createFlashModel(systemInstruction: string, maxOutputTokens: num
           temperature: 0.1,
           maxOutputTokens,
           thinkingConfig: { thinkingBudget: 0 },
-          ...(params.generationConfig ?? {}),
+          ...(params.config ?? {}),
         },
-      });
-      // Normalize to the old @google/generative-ai response shape that biology.ts callers
-      // expect: result.response.text() (method) and result.response.usageMetadata (object).
-      return {
-        response: {
-          text: () => result.text ?? "",
-          usageMetadata: result.usageMetadata,
-          candidates: result.candidates,
-        },
-      };
-    },
+      }),
   };
 }
 

@@ -107,13 +107,13 @@ export async function fetchStaticEncyclopedicData(
           ],
         },
       ],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         responseSchema: cacheSchema as unknown as ResponseSchema,
       },
     });
 
-    const usage = result.response.usageMetadata;
+    const usage = result.usageMetadata;
     if (usage) {
       console.log(
         `Token Usage [Encyclopedic | ${scientificName}]: Sent: ${usage.promptTokenCount} | Received: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
@@ -127,7 +127,7 @@ export async function fetchStaticEncyclopedicData(
       }).catch((e) => console.error("PostHog EncyclopedicLLMCompleted failed:", e));
     }
 
-    const extracted = extractJson<EncyclopedicData>(result.response.text());
+    const extracted = extractJson<EncyclopedicData>(result.text ?? "");
     if (usage) {
       extracted.usage = usage;
     }
@@ -222,12 +222,12 @@ export async function fetchSimilarSpecies(
           parts: [{ text: userPrompt }],
         },
       ],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         responseSchema: schema as unknown as ResponseSchema,
       },
     });
-    const usage = result.response.usageMetadata;
+    const usage = result.usageMetadata;
     if (usage) {
       console.log(
         `Token Usage [SimilarSpecies | ${scientificName}]: Sent: ${usage.promptTokenCount} | Received: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
@@ -242,7 +242,7 @@ export async function fetchSimilarSpecies(
     }
     const raw = extractJson<{
       similar_species: Array<{ scientific_name: string; common_name?: string }>;
-    }>(result.response.text());
+    }>(result.text ?? "");
     const normalized: { similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } = {
       similar_species: (raw.similar_species ?? []).map((e) => ({
         scientific_name: e.scientific_name,
@@ -288,13 +288,13 @@ export async function fetchGroupTags(
           parts: [{ text: `Group tags for: ${scientificName}` }],
         },
       ],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         responseSchema: schema as unknown as ResponseSchema,
       },
     });
 
-    const usage = result.response.usageMetadata;
+    const usage = result.usageMetadata;
     if (usage) {
       console.log(
         `Token Usage [GroupTags | ${scientificName}]: Sent: ${usage.promptTokenCount} | Received: ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
@@ -309,7 +309,7 @@ export async function fetchGroupTags(
     }
 
     const parsed = extractJson<{ group_tags: string[] }>(
-      result.response.text(),
+      result.text ?? "",
     );
     return { group_tags: parsed.group_tags ?? null, usage };
   } catch (e) {

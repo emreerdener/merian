@@ -1,4 +1,4 @@
-import { SafetyRating, Part } from "https://esm.sh/@google/genai@1.0.0";
+import { SafetyRating, Part, HarmCategory, HarmBlockThreshold } from "https://esm.sh/@google/genai@1.0.0";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
@@ -24,6 +24,18 @@ import {
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
+// Safety settings shared by all vision model tiers.
+// Biological photography legitimately triggers Gemini's medium-sensitivity defaults:
+//   - DANGEROUS_CONTENT: venomous animals, dead specimens, parasites, wounds
+//   - SEXUALLY_EXPLICIT: mating behaviour, reproductive organs, fruiting bodies
+// BLOCK_ONLY_HIGH passes all genuine field-biology content while still blocking
+// unambiguously harmful material. HARASSMENT and HATE_SPEECH remain at defaults —
+// they are not relevant to biological photography.
+const BIOLOGICAL_SAFETY_SETTINGS = [
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+];
+
 // Vision model config objects — pre-built at module scope for warm isolate re-use.
 // @google/genai has no getGenerativeModel() — config is passed per-call to
 // _genAI.models.generateContent(). Pre-defining them here keeps the call site clean.
@@ -47,6 +59,7 @@ const modelConfigs = {
       temperature: 0.1,
       maxOutputTokens: 2000,
       thinkingConfig: { thinkingBudget: 2048 },
+      safetySettings: BIOLOGICAL_SAFETY_SETTINGS,
     },
   },
   pro: {
@@ -56,6 +69,7 @@ const modelConfigs = {
       temperature: 0.1,
       maxOutputTokens: 2000,
       thinkingConfig: { thinkingBudget: 5000 },
+      safetySettings: BIOLOGICAL_SAFETY_SETTINGS,
     },
   },
 };
@@ -200,6 +214,7 @@ serve((req: Request) =>
     let llmCandidateTokens: number | null = null;
     let llmTotalTokens: number | null = null;
     let llmThinkingTokens: number | null = null;
+    let llmCachedTokens: number | null = null;
 
     try {
       const result = await _genAI.models.generateContent({
@@ -236,8 +251,13 @@ serve((req: Request) =>
         // thoughtsTokenCount is properly typed in @google/genai's UsageMetadata —
         // this is what previously appeared as the unexplained gap in totalTokenCount.
         llmThinkingTokens = usage.thoughtsTokenCount ?? null;
+        // cachedContentTokenCount is non-zero when Gemini's implicit caching
+        // triggered on this request (system instruction prefix matched a cached
+        // context). Non-null only after the system instruction exceeds the 1,024
+        // token minimum for gemini-2.5-flash. Used to verify caching is active.
+        llmCachedTokens = usage.cachedContentTokenCount ?? null;
         console.log(
-          `Token Usage [${user.id}]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Total: ${llmTotalTokens}`,
+          `Token Usage [${user.id}]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Cached: ${llmCachedTokens} | Total: ${llmTotalTokens}`,
         );
       }
       console.log(
@@ -567,6 +587,7 @@ serve((req: Request) =>
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_thinking_tokens: llmThinkingTokens,
+          llm_cached_tokens: llmCachedTokens,
           llm_total_tokens: llmTotalTokens,
           encyclopedic_tokens: 0,
           similar_species_tokens: 0,
