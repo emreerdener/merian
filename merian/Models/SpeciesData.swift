@@ -133,6 +133,9 @@ struct SpeciesData {
 
     /// True when the user flagged the AI's identification for manual review.
     var isFlagged: Bool
+
+    /// True when the user swiped through all alternative candidates without making a selection.
+    var alternativesExhausted: Bool = false
 }
 
 // MARK: - Edge Response Init
@@ -204,6 +207,7 @@ extension SpeciesData {
         self.userIdentificationOverride = nil
         self.userConfirmedIdentification = false
         self.isFlagged = false
+        self.alternativesExhausted = false
     }
 }
 
@@ -251,7 +255,8 @@ extension SpeciesData {
         aiScientificName: String = "",
         userIdentificationOverride: String? = nil,
         userConfirmedIdentification: Bool = false,
-        isFlagged: Bool = false
+        isFlagged: Bool = false,
+        alternativesExhausted: Bool = false
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -293,6 +298,7 @@ extension SpeciesData {
         self.userIdentificationOverride = userIdentificationOverride
         self.userConfirmedIdentification = userConfirmedIdentification
         self.isFlagged = isFlagged
+        self.alternativesExhausted = alternativesExhausted
     }
 }
 

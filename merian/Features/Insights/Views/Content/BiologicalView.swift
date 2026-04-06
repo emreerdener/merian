@@ -40,17 +40,16 @@ struct BiologicalView: View {
             if !isErrorState && isBiological {
                 // MARK: - Identification Candidates
                 let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil ||
-                                     inferenceEngine.speciesData?.userConfirmedIdentification == true
+                                     inferenceEngine.speciesData?.userConfirmedIdentification == true ||
+                                     inferenceEngine.speciesData?.isFlagged == true ||
+                                     inferenceEngine.speciesData?.alternativesExhausted == true
                 let candidates = inferenceEngine.speciesData?.candidates ?? []
                 let confidenceBands = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier)
                 let hasLowConfidence = (inferenceEngine.speciesData?.confidenceScore ?? 1.0) < confidenceBands.diagnosticTrigger
-                // When the user has rejected all swipe-deck alternatives, hide the card here —
-                // a condensed summary is surfaced inside ConfidenceExplanationSheet instead.
-                let allCandidatesRejected = (inferenceEngine.speciesData?.isFlagged == true) && candidates.count >= 2
                 let isUnknownSubject = inferenceEngine.speciesData?.scientificName == "Taxonomy Unavailable"
 
                 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-                   !isUnknownSubject && !allCandidatesRejected && (candidates.count >= 2 || hasReviewState || hasLowConfidence) {
+                   !isUnknownSubject && !hasReviewState && (candidates.count >= 2 || hasLowConfidence) {
                     CandidatesCard(
                         candidates: candidates,
                         aiScientificName: primaryAIName,

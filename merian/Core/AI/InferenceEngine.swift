@@ -787,9 +787,8 @@ private struct GBIFMedia: Decodable {
         speciesData?.gbifTaxonKey = nil
         speciesData?.similarSpecies = nil
         speciesData?.userConfirmedIdentification = false
-        // Clear the swipe-rejection flag so ConfidenceExplanationSheet transitions
-        // from AllCandidatesReviewedView → OverriddenView correctly.
         speciesData?.isFlagged = false
+        speciesData?.alternativesExhausted = false
 
         // 2. Persist to SwiftData.
         if let context = modelContext {
@@ -837,6 +836,7 @@ private struct GBIFMedia: Decodable {
         guard let scanId = speciesData?.scanId else { return }
 
         speciesData?.isFlagged = true
+        speciesData?.alternativesExhausted = false
 
         if let context = modelContext {
             let container = context.container
@@ -875,6 +875,7 @@ private struct GBIFMedia: Decodable {
         speciesData?.userIdentificationOverride = nil
         speciesData?.userConfirmedIdentification = false
         speciesData?.isFlagged = false
+        speciesData?.alternativesExhausted = false
         speciesData?.scientificName = aiName
 
         // 2. Persist all reset fields locally.
@@ -1434,5 +1435,9 @@ private struct GBIFMedia: Decodable {
             return ["Mammalian detected", "Analyzing body proportions", "Analyzing pelage detail", "Checking behavioural markers", "Checking geographic range", "Checking habitat indicators", "Checking population range", "Confirming species..."]
         }
         return nil
+    }
+
+    func markAlternativesExhausted() {
+        speciesData?.alternativesExhausted = true
     }
 }

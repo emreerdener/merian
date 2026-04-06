@@ -14,7 +14,8 @@ struct ConfidenceExplanationSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isReportPresented = false
+    @State private var isFlagPresented = false
+    @State private var isSwipeModalPresented = false
     @State private var showPaywall = false
 
     private var showLocationPrompt: Bool {
@@ -31,17 +32,37 @@ struct ConfidenceExplanationSheet: View {
         return "\(pct)% confident"
     }
 
+    private var confirmButtonTitle: String {
+        let cName = inferenceEngine.speciesData?.commonName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let isCommonNameValid = !cName.isEmpty && cName.lowercased() != "unknown subject"
+        let aiSciName = aiScientificName ?? "Unknown"
+        let isScientificNameValid = !aiSciName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && aiSciName.lowercased() != "unknown subject"
+        
+        if isCommonNameValid {
+            return "Confirm \(cName.capitalized)"
+        } else if isScientificNameValid {
+            return "Confirm \(aiSciName)"
+        } else {
+            return "Confirm initial match"
+        }
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
                 ConfidenceHeader(title: headerTitle)
 
                 let candidates = inferenceEngine.speciesData?.candidates ?? []
-                if isFlagged && candidates.count >= 2 {
+                let isExhausted = inferenceEngine.speciesData?.alternativesExhausted == true
+
+                if isExhausted {
                     AllCandidatesReviewedView(
-                        candidates: candidates,
-                        aiScientificName: aiScientificName ?? "Unknown",
+                        candidatesCount: candidates.count,
+                        onReviewAgain: {
+                            isSwipeModalPresented = true
+                        },
                         onReset: {
+                            HapticManager.shared.triggerLightImpact()
                             Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
                         }
                     )
@@ -49,15 +70,20 @@ struct ConfidenceExplanationSheet: View {
                 } else if isFlagged {
                     UnderReviewView(
                         onUndo: {
+                            HapticManager.shared.triggerLightImpact()
                             Task { await inferenceEngine.unflagAIIdentification(modelContext: modelContext) }
                         }
                     )
                     .padding(.horizontal, 16)
                 } else if let override = userIdentificationOverride {
+                    let newCommon = inferenceEngine.speciesData?.commonName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    let displayOverride = (newCommon.isEmpty || newCommon.lowercased() == "unknown subject") ? override : "\(newCommon.capitalized) (\(override))"
+
                     OverriddenView(
-                        overrideName: override,
+                        overrideName: displayOverride,
                         aiScientificName: aiScientificName ?? "Unknown",
                         onUndo: {
+                            HapticManager.shared.triggerLightImpact()
                             Task {
                                 await inferenceEngine.resetIdentificationReview(modelContext: modelContext)
                             }
@@ -67,6 +93,7 @@ struct ConfidenceExplanationSheet: View {
                 } else if userConfirmedIdentification {
                     ConfirmedView(
                         onReset: {
+                            HapticManager.shared.triggerLightImpact()
                             Task {
                                 await inferenceEngine.resetIdentificationReview(modelContext: modelContext)
                             }
@@ -79,7 +106,7 @@ struct ConfidenceExplanationSheet: View {
                         aiScientificName: aiScientificName ?? "Unknown subject",
                         inferenceTier: inferenceTier,
                         onFlagIssue: {
-                            isReportPresented = true
+                            isFlagPresented = true
                         },
                         onMatchConfirmed: nil,
                         showDismissButton: false
@@ -99,184 +126,26 @@ struct ConfidenceExplanationSheet: View {
             .padding(.top, 32)
             .padding(.bottom, 48)
         }
-        .onChange(of: userConfirmedIdentification) { _, isConfirmed in
-            if isConfirmed {
-                Task {
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    await MainActor.run { dismiss() }
-                }
-            }
-        }
-        .onChange(of: userIdentificationOverride) { _, override in
-            if override != nil {
-                Task {
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    await MainActor.run { dismiss() }
-                }
-            }
-        }
-        .onChange(of: isFlagged) { _, flagged in
-            if flagged {
-                Task {
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    await MainActor.run { dismiss() }
-                }
-            }
-        }
-        .sheet(isPresented: $isReportPresented) {
+        .sheet(isPresented: $isFlagPresented) {
             if let scanId = inferenceEngine.speciesData?.scanId {
-                ReportInsightView(scanId: scanId)
+                FlagIdentificationModal(scanId: scanId)
             }
+        }
+        .sheet(isPresented: $isSwipeModalPresented) {
+            CandidateSwipeModal(
+                candidates: inferenceEngine.speciesData?.candidates ?? [],
+                aiScientificName: aiScientificName ?? "Unknown",
+                confirmButtonTitle: confirmButtonTitle,
+                onConfirmOriginal: {
+                    Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
+                },
+                onFlagIssue: {
+                    isFlagPresented = true
+                }
+            )
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
         }
-    }
-}
-
-// MARK: - Confirmed View (State 3)
-
-private struct ConfirmedView: View {
-    let onReset: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-            Text("You confirmed this identification")
-                .font(.subheadline)
-                .foregroundColor(.primary)
-            Spacer()
-            Button("Undo", action: onReset)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .buttonStyle(.plain)
-        }
-        .card()
-    }
-}
-
-// MARK: - Overridden View (State 4)
-
-private struct OverriddenView: View {
-    let overrideName: String
-    let aiScientificName: String
-    let onUndo: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "person.fill.checkmark")
-                    .foregroundColor(.indigo)
-                Text("Your identification")
-                    .font(.system(.headline))
-                    .foregroundColor(.primary)
-                Spacer()
-                Button("Undo", action: onUndo)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .buttonStyle(.plain)
-            }
-
-            Text(overrideName)
-                .font(.system(.subheadline, design: .serif).italic())
-                .foregroundColor(.primary)
-
-            Text("AI originally suggested *\(aiScientificName)*")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-        }
-        .card()
-    }
-}
-
-// MARK: - All Candidates Reviewed View (State 5a — swipe path)
-
-/// Shown in ConfidenceExplanationSheet when the user reviewed all swipe-deck alternatives
-/// and rejected each one. Replaces CandidatesCard in BiologicalView for this state.
-private struct AllCandidatesReviewedView: View {
-    let candidates: [IdentificationCandidate]
-    let aiScientificName: String
-    let onReset: () -> Void
-    @State private var isSwipeModalPresented = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "rectangle.stack.badge.minus")
-                    .foregroundColor(.secondary)
-                Text("Alternatives reviewed")
-                    .font(.system(.headline))
-                    .foregroundColor(.primary)
-                Spacer()
-                Button("Reset", action: onReset)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .buttonStyle(.plain)
-            }
-
-            Text("You reviewed all \(candidates.count) alternative\(candidates.count == 1 ? "" : "s") and none matched.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button {
-                isSwipeModalPresented = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.2.circlepath")
-                    Text("Review again")
-                }
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color.secondary.opacity(0.1))
-                .foregroundColor(.primary)
-                .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-        }
-        .card()
-        .sheet(isPresented: $isSwipeModalPresented) {
-            CandidateSwipeModal(
-                candidates: candidates,
-                aiScientificName: aiScientificName,
-                onFlagIssue: nil
-            )
-        }
-    }
-}
-
-// MARK: - Under Review View (State 5b — no-candidates flag path)
-
-private struct UnderReviewView: View {
-    let onUndo: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "flag.fill")
-                    .foregroundColor(.orange)
-                Text("Flagged for review")
-                    .font(.system(.headline))
-                    .foregroundColor(.primary)
-                Spacer()
-                Button("Undo", action: onUndo)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .buttonStyle(.plain)
-            }
-
-            Text("This identification has been flagged because it was incorrect. It will be verified by a moderator soon.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .padding(20)
-        .background(Color.orange.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.2), lineWidth: 0.5)
-        )
     }
 }

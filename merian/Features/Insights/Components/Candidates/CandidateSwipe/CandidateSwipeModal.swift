@@ -3,14 +3,23 @@ import SwiftUI
 // MARK: - Candidate Swipe Modal
 
 struct CandidateSwipeModal: View {
+    
+    // MARK: - Properties
+    
     let originalCandidates: [IdentificationCandidate]
     let aiScientificName: String
+    let confirmButtonTitle: String
+    let onConfirmOriginal: () -> Void
     var onFlagIssue: (() -> Void)?
 
+    // MARK: - Environment
+    
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    // MARK: - State
+    
     @State private var stack: [IdentificationCandidate]
     @State private var isGridMode = false
     @State private var topCardOffset: CGSize = .zero
@@ -18,15 +27,24 @@ struct CandidateSwipeModal: View {
     @State private var isDismissing = false
     @State private var confirmedCandidate: IdentificationCandidate?
 
+    // MARK: - Constants
+    
     private let swipeThreshold: CGFloat = 200
 
-    init(candidates: [IdentificationCandidate], aiScientificName: String, onFlagIssue: (() -> Void)?) {
+    // MARK: - Initialization
+    
+    init(candidates: [IdentificationCandidate], aiScientificName: String, confirmButtonTitle: String, onConfirmOriginal: @escaping () -> Void, onFlagIssue: (() -> Void)?) {
         self.originalCandidates = candidates
         self.aiScientificName = aiScientificName
+        self.confirmButtonTitle = confirmButtonTitle
+        self.onConfirmOriginal = onConfirmOriginal
         self.onFlagIssue = onFlagIssue
         self._stack = State(initialValue: candidates)
     }
 
+    // MARK: - Computed Properties
+    
+    /// The normalized drag percentage (0.0 to 1.0) based on the swipe threshold.
     private var dragPercentage: Double {
         min(abs(topCardOffset.width) / swipeThreshold, 1.0)
     }
@@ -34,6 +52,8 @@ struct CandidateSwipeModal: View {
     private var isSwipingRight: Bool { topCardIsDragging && topCardOffset.width > 10 }
     private var isSwipingLeft: Bool { topCardIsDragging && topCardOffset.width < -10 }
 
+    // MARK: - Body
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -53,7 +73,9 @@ struct CandidateSwipeModal: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                   Button(action: { dismiss() }) {
+                   Button {
+                        dismiss()
+                    } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
                     }
@@ -77,15 +99,19 @@ struct CandidateSwipeModal: View {
         }
         .onDisappear {
             if stack.isEmpty && !isDismissing && confirmedCandidate == nil {
-                Task { await inferenceEngine.flagAIIdentification(modelContext: modelContext) }
+                inferenceEngine.markAlternativesExhausted()
             }
         }
     }
 }
 
-// MARK: - Layout Extensions
+// MARK: - View Components
 
 extension CandidateSwipeModal {
+    
+    // MARK: Card Stack Content
+    
+    /// Displays the tinder-like stack of SwipeableCandidateCards.
     private var cardStackContent: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -156,12 +182,16 @@ extension CandidateSwipeModal {
         }
     }
 
+    // MARK: Grid Content
+    
+    /// Displays all remaining candidates in a vertical grid layout for quick assessment.
     private var gridContent: some View {
         VStack(spacing: 20) {
             ForEach(stack, id: \.scientificName) { candidate in
                 GridSwipeableCell(
                     candidate: candidate,
                     onConfirm: {
+                        HapticManager.shared.triggerSuccessPulse()
                         withAnimation(.spring(response: 0.3)) {
                             confirmedCandidate = candidate
                         }
@@ -184,6 +214,7 @@ extension CandidateSwipeModal {
                         }
                     },
                     onReject: {
+                        HapticManager.shared.triggerLightImpact()
                         withAnimation(.spring(response: 0.25)) {
                             stack.removeAll { $0.scientificName == candidate.scientificName }
                         }
@@ -194,17 +225,19 @@ extension CandidateSwipeModal {
         .padding(20)
     }
 
+    // MARK: Post-Review States
+    
+    /// Displayed when the user has rejected all alternatives in the stack or grid.
+    /// Acts as an escape hatch to either confirm the original match, flag for review, or start over.
     private var exhaustedStateContent: some View {
         VStack(spacing: 32) {
-            Image(systemName: "sparkle.2")
-                .font(.system(size: 64))
-                .foregroundStyle(.secondary.opacity(0.5))
+            originalScanThumbnail
             
             VStack(spacing: 8) {
                 Text("No other alternatives")
                     .font(.title2.weight(.bold))
                     .foregroundColor(.primary)
-                Text("You've reviewed all available alternative species, but none of them matched your observation.")
+                Text("You've reviewed all available alternative species.")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -213,10 +246,32 @@ extension CandidateSwipeModal {
             
             VStack(spacing: 12) {
                 Button {
-                    HapticManager.shared.triggerErrorThump()
-                    Task { await inferenceEngine.flagAIIdentification(modelContext: modelContext) }
+                    HapticManager.shared.triggerSuccessPulse()
+                    isDismissing = true
+                    onConfirmOriginal()
                     dismiss()
-                    onFlagIssue?()
+                } label: {
+                    Text(confirmButtonTitle)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.green.opacity(0.15))
+                        .foregroundColor(.green)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    HapticManager.shared.triggerErrorThump()
+                    isDismissing = true
+                    dismiss()
+                    
+                    // Delay triggering the sheet presentation to allow the dismiss
+                    // animation to detach safely without SwiftUI presentation collisions.
+                    Task {
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                        await MainActor.run { onFlagIssue?() }
+                    }
                 } label: {
                     Text("Flag for review")
                         .font(.headline)
@@ -250,6 +305,7 @@ extension CandidateSwipeModal {
         }
     }
 
+    /// The inline success state shown for 1.5 seconds immediately after a candidate is confirmed.
     private func confirmedStateContent(candidate: IdentificationCandidate) -> some View {
         let commonStr = candidate.commonName ?? ""
         let isCommonEmpty = commonStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -273,11 +329,45 @@ extension CandidateSwipeModal {
         }
         .transition(.scale.combined(with: .opacity))
     }
+
+    /// Attempts to render the primary image of the current scan (live or historical)
+    /// into a circular thumbnail, falling back to a placeholder if unavailable.
+    @ViewBuilder
+    private var originalScanThumbnail: some View {
+        ZStack {
+            Color(.secondarySystemBackground)
+            
+            if let data = inferenceEngine.activeDisplayDatas.first ?? inferenceEngine.activeImageData,
+               let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+            } else if let path = inferenceEngine.validHistoricImagePaths.first {
+                AsyncLocalImageView(
+                    path: path,
+                    fallbackImageUrl: nil,
+                    onImageLoadFailed: {}
+                )
+            } else {
+                Image(systemName: "photo.fill")
+                    .font(.system(size: 64))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(width: 160, height: 160)
+        .clipShape(Circle())
+        .overlay(Circle().strokeBorder(Color(.separator), lineWidth: 0.5))
+        .overlay(Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
+        .shadow(color: .black.opacity(0.15), radius: 16, y: 8)
+    }
 }
 
-// MARK: - Gesture & Action Extensions
+// MARK: - Gestures & Actions
 
 extension CandidateSwipeModal {
+    
+    // MARK: Gestures
+    
     private var mainDragGesture: some Gesture {
         DragGesture()
             .onChanged { value in
@@ -297,6 +387,9 @@ extension CandidateSwipeModal {
             }
     }
 
+    // MARK: Action Handlers
+    
+    /// Triggers a programmatic swipe animation off-screen to the given direction.
     private func animateSwipe(_ direction: CandidateSwipeDirection) {
         let targetX: CGFloat = direction == .right ? 700 : -700
         HapticManager.shared.triggerMediumPulse()
