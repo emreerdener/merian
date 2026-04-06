@@ -75,7 +75,7 @@ struct ProTips: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Upgrade your model")
+                                Text("Use a more advanced AI model to improve accuracy")
                                     .font(.system(.subheadline, weight: .bold))
                                     .foregroundColor(.primary)
                                 

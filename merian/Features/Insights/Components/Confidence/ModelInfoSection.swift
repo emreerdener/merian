@@ -21,7 +21,7 @@ struct ModelInfoSection: View {
                         Text("Merian AI")
                             .font(.system(.title3, weight: .bold))
                             .foregroundStyle(.primary)
-                        Text(isPro ? "Pro model" : "Flash model")
+                        Text(isPro ? "Pro" : "Flash")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(isPro ? Color.indigo : Color.secondary)
                             .padding(.horizontal, 7)
@@ -34,7 +34,7 @@ struct ModelInfoSection: View {
 
                     Text(isPro
                          ? "This scan used an enhanced reasoning model for deeper accuracy."
-                         : "This scan used the standard model optimized for speed.")
+                         : "This scan used the standard model optimized for speed. Upgrade to Pro for advanced analysis.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -47,6 +47,16 @@ struct ModelInfoSection: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isPro ? Color.indigo.opacity(0.1) : Color.secondary.opacity(0.1))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(isPro ? Color.indigo.opacity(0.2) : Color.secondary.opacity(0.2), lineWidth: 1)
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

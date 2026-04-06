@@ -2,6 +2,7 @@ import CoreLocation
 import SwiftUI
 
 struct ConfidenceExplanationSheet: View {
+    let confidenceScore: Double?
     let inferenceTier: String?
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
@@ -23,6 +24,11 @@ struct ConfidenceExplanationSheet: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
                 ConfidenceHeader()
+
+                ModelTierBadge(
+                    confidenceScore: confidenceScore,
+                    inferenceTier: inferenceTier
+                )
                 
                 let candidates = inferenceEngine.speciesData?.candidates ?? []
                 if isFlagged && candidates.count >= 2 {
@@ -64,7 +70,7 @@ struct ConfidenceExplanationSheet: View {
                 } else {
                     CandidatesCard(
                         candidates: candidates,
-                        aiScientificName: aiScientificName ?? "Unknown Subject",
+                        aiScientificName: aiScientificName ?? "Unknown subject",
                         inferenceTier: inferenceTier,
                         onFlagIssue: {
                             isReportPresented = true
@@ -75,11 +81,11 @@ struct ConfidenceExplanationSheet: View {
                     .padding(.horizontal, 16)
                 }
 
-                ConfidenceSpectrum(inferenceTier: inferenceTier)
-                
                 PlanCard(showPaywall: $showPaywall)
                     .padding(.horizontal, 16)
-                    
+
+                ConfidenceSpectrum(inferenceTier: inferenceTier)
+                
                 ProTips(showLocationPrompt: showLocationPrompt)
             }
             .padding(.top, 32)

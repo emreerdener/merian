@@ -200,6 +200,7 @@ struct ConfidenceBadge: View {
             }
             .sheet(isPresented: $isShowingExplanation) {
                 ConfidenceExplanationSheet(
+                    confidenceScore: confidenceScore,
                     inferenceTier: inferenceTier,
                     userIdentificationOverride: userIdentificationOverride,
                     userConfirmedIdentification: userConfirmedIdentification,

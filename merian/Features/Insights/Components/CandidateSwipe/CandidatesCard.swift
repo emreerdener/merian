@@ -27,7 +27,7 @@ struct CandidatesCard: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     @State private var isSwipeModalPresented = false
-    @State private var dismissedScanId: String? = nil
+    @State private var dismissedScanId: String?
 
     private var reviewState: ReviewState {
         if inferenceEngine.speciesData?.isFlagged == true {
