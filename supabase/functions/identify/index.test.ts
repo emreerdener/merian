@@ -1,5 +1,6 @@
 // supabase/functions/identify/index.test.ts
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { sanitizeScientificName } from "./sanitize.ts";
 // Instead of importing the heavy generative SDK which requires API keys, we mock the validation
 // of the merianResponseSchema to securely assert that DaaS keys are structurally present.
 
@@ -202,4 +203,183 @@ Deno.test("LLM caps — estimated_size_cm: non-positive and non-finite → null"
     assertEquals(sanitizeSizeCm(-5), null);
     assertEquals(sanitizeSizeCm(Infinity), null);
     assertEquals(sanitizeSizeCm(null), null);
+});
+
+// ---------------------------------------------------------------------------
+// Candidates strip gate
+// Mirrors the confidence_score >= diagnosticTrigger guard in index.ts.
+// ---------------------------------------------------------------------------
+
+function applyDiagnosticStrip(
+    confidenceScore: number | null | undefined,
+    diagnosticTrigger: number,
+    candidates: unknown[],
+): unknown[] | null {
+    if ((confidenceScore ?? 0.0) >= diagnosticTrigger) return null;
+    return candidates;
+}
+
+Deno.test("candidates strip — strong match (score == trigger) strips candidates", () => {
+    assertEquals(applyDiagnosticStrip(0.95, 0.95, [{ scientific_name: "Foo" }]), null);
+});
+
+Deno.test("candidates strip — score above trigger strips candidates", () => {
+    assertEquals(applyDiagnosticStrip(0.99, 0.95, [{ scientific_name: "Foo" }]), null);
+});
+
+Deno.test("candidates strip — score below trigger preserves candidates", () => {
+    const candidates = [{ scientific_name: "Foo" }, { scientific_name: "Bar" }];
+    assertEquals(applyDiagnosticStrip(0.72, 0.95, candidates), candidates);
+});
+
+Deno.test("candidates strip — null confidence_score falls back to 0.0, preserving candidates", () => {
+    // Malformed Gemini response with missing confidence — must NOT strip candidates,
+    // because that is exactly the scan where alternatives are most needed.
+    const candidates = [{ scientific_name: "Foo" }];
+    assertEquals(applyDiagnosticStrip(null, 0.95, candidates), candidates);
+});
+
+Deno.test("candidates strip — undefined confidence_score falls back to 0.0, preserving candidates", () => {
+    const candidates = [{ scientific_name: "Foo" }];
+    assertEquals(applyDiagnosticStrip(undefined, 0.95, candidates), candidates);
+});
+
+Deno.test("candidates strip — Pro tier threshold (0.85) strips at exactly 0.85", () => {
+    assertEquals(applyDiagnosticStrip(0.85, 0.85, [{ scientific_name: "Foo" }]), null);
+});
+
+Deno.test("candidates strip — Pro tier threshold (0.85) preserves below 0.85", () => {
+    const candidates = [{ scientific_name: "Foo" }];
+    assertEquals(applyDiagnosticStrip(0.84, 0.85, candidates), candidates);
+});
+
+// ---------------------------------------------------------------------------
+// blur_score derivation
+// Mirrors Math.max(0, (10 - (sharpness ?? 10)) / 10) in index.ts.
+// ---------------------------------------------------------------------------
+
+function deriveBlurScore(sharpness: number | undefined): number {
+    return Math.max(0, (10 - (sharpness ?? 10)) / 10);
+}
+
+Deno.test("blur_score — sharpness 10 (perfectly sharp) → 0.0", () => {
+    assertEquals(deriveBlurScore(10), 0.0);
+});
+
+Deno.test("blur_score — sharpness 1 (very blurry) → 0.9", () => {
+    assertEquals(deriveBlurScore(1), 0.9);
+});
+
+Deno.test("blur_score — sharpness 5 (mid) → 0.5", () => {
+    assertEquals(deriveBlurScore(5), 0.5);
+});
+
+Deno.test("blur_score — missing sharpness defaults to 10 → 0.0 (no false blur advisory)", () => {
+    // A missing image_quality object must not trigger the blur advisory UI.
+    assertEquals(deriveBlurScore(undefined), 0.0);
+});
+
+Deno.test("blur_score — clamps to 0, never negative", () => {
+    // Sharpness above 10 is out-of-spec but must not produce a negative score.
+    assert(deriveBlurScore(11) >= 0);
+});
+
+// ---------------------------------------------------------------------------
+// needsGroupTags gate
+// Mirrors isIdentifiedBio && !cachedSpecies?.group_tags?.length in index.ts.
+// ---------------------------------------------------------------------------
+
+function needsGroupTags(
+    isIdentifiedBio: boolean,
+    groupTags: string[] | null | undefined,
+): boolean {
+    return isIdentifiedBio && !groupTags?.length;
+}
+
+Deno.test("needsGroupTags — biological, no tags → fetch", () => {
+    assertEquals(needsGroupTags(true, null), true);
+    assertEquals(needsGroupTags(true, []), true);
+    assertEquals(needsGroupTags(true, undefined), true);
+});
+
+Deno.test("needsGroupTags — biological, tags already cached → skip", () => {
+    assertEquals(needsGroupTags(true, ["animal", "insect"]), false);
+});
+
+Deno.test("needsGroupTags — non-biological → always skip", () => {
+    assertEquals(needsGroupTags(false, null), false);
+    assertEquals(needsGroupTags(false, []), false);
+});
+
+// ---------------------------------------------------------------------------
+// sanitizeScientificName
+// All documented examples from sanitize.ts plus edge cases.
+// ---------------------------------------------------------------------------
+
+// --- Documented examples ---
+
+Deno.test("sanitize — lowercase genus is capitalised", () => {
+    assertEquals(sanitizeScientificName("rosa 'Radrazz'"), "Rosa 'Radrazz'");
+});
+
+Deno.test("sanitize — trailing author citation stripped", () => {
+    assertEquals(sanitizeScientificName("Rosa canina L."), "Rosa canina");
+});
+
+Deno.test("sanitize — parenthetical + secondary author both stripped", () => {
+    assertEquals(sanitizeScientificName("Quercus robur (L.) Karst."), "Quercus robur");
+});
+
+Deno.test("sanitize — cf. qualifier stripped", () => {
+    assertEquals(sanitizeScientificName("cf. Pinus ponderosa"), "Pinus ponderosa");
+});
+
+Deno.test("sanitize — uppercase specific epithet lowercased", () => {
+    assertEquals(sanitizeScientificName("Acer Palmatum"), "Acer palmatum");
+});
+
+Deno.test("sanitize — infraspecific epithet after var. lowercased", () => {
+    assertEquals(sanitizeScientificName("Boletus edulis var. Edulis"), "Boletus edulis var. edulis");
+});
+
+// --- Additional edge cases ---
+
+Deno.test("sanitize — already clean binomial is unchanged", () => {
+    assertEquals(sanitizeScientificName("Danaus plexippus"), "Danaus plexippus");
+});
+
+Deno.test("sanitize — empty string returns empty string", () => {
+    assertEquals(sanitizeScientificName(""), "");
+});
+
+Deno.test("sanitize — aff. qualifier stripped", () => {
+    assertEquals(sanitizeScientificName("aff. Quercus robur"), "Quercus robur");
+});
+
+Deno.test("sanitize — sp. qualifier stripped", () => {
+    assertEquals(sanitizeScientificName("sp. Lactarius"), "Lactarius");
+});
+
+Deno.test("sanitize — hybrid marker preserved", () => {
+    assertEquals(sanitizeScientificName("× Heucherella"), "× Heucherella");
+});
+
+Deno.test("sanitize — hybrid binomial: marker and genus capitalised correctly", () => {
+    assertEquals(sanitizeScientificName("× heucherella tiarelloides"), "× Heucherella tiarelloides");
+});
+
+Deno.test("sanitize — cultivar with author: author stripped, cultivar case preserved", () => {
+    assertEquals(sanitizeScientificName("Rosa 'Peace' L."), "Rosa 'Peace'");
+});
+
+Deno.test("sanitize — subsp. rank marker and infraspecific epithet handled", () => {
+    assertEquals(sanitizeScientificName("Pinus sylvestris subsp. Scotica"), "Pinus sylvestris subsp. scotica");
+});
+
+Deno.test("sanitize — multi-word author with 'ex' fully stripped", () => {
+    assertEquals(sanitizeScientificName("Salix alba Thunb. ex Murray"), "Salix alba");
+});
+
+Deno.test("sanitize — leading and trailing whitespace collapsed", () => {
+    assertEquals(sanitizeScientificName("  Quercus  robur  "), "Quercus robur");
 });

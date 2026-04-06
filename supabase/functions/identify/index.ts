@@ -1,4 +1,4 @@
-import { SafetyRating, Part, GenerationConfig } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { SafetyRating, Part } from "https://esm.sh/@google/genai@1.0.0";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
@@ -13,6 +13,7 @@ import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesDat
 import { getSystemInstruction, getMerianResponseSchema } from "./schema.ts";
 import { FLASH_DIAGNOSTIC_TRIGGER, PRO_DIAGNOSTIC_TRIGGER, diagnosticTriggerForTier } from "./thresholds.ts";
 import { resolveImagePayloads } from "./media.ts";
+import { sanitizeScientificName } from "./sanitize.ts";
 import {
   upsertGhostUserIfMissing,
   fetchCachedSpecies,
@@ -23,20 +24,41 @@ import {
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-// thinkingBudget is intentionally not set until we can confirm from full usageMetadata logs
-// whether the token gap (totalTokenCount - promptTokenCount - candidatesTokenCount) is
-// actually thinking tokens or schema/other overhead. See the JSON.stringify(usage) log below.
-const modelCache = {
-  flash: _genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    systemInstruction: getSystemInstruction(FLASH_DIAGNOSTIC_TRIGGER),
-    generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
-  }),
-  pro: _genAI.getGenerativeModel({
-    model: "gemini-2.5-pro",
-    systemInstruction: getSystemInstruction(PRO_DIAGNOSTIC_TRIGGER),
-    generationConfig: { temperature: 0.1, maxOutputTokens: 1000 },
-  }),
+// Vision model config objects — pre-built at module scope for warm isolate re-use.
+// @google/genai has no getGenerativeModel() — config is passed per-call to
+// _genAI.models.generateContent(). Pre-defining them here keeps the call site clean.
+//
+// Thinking budget strategy:
+//   Flash (free tier): 1,024 tokens. Observed average gap ~1,200 tokens uncapped; 1,024
+//   covers the majority of scans while trimming the long tail. Vision ambiguity (angle,
+//   lighting, occlusion) benefits from some internal reasoning that the schema CoT alone
+//   (extracted_visual_traits) cannot fully substitute for.
+//
+//   Pro: 5,000 tokens. Covers the hardest observed case (~3,200 tokens for an ambiguous
+//   subject) with headroom for fossils, rare cultivars, and subspecies discrimination —
+//   the exact use cases Pro users pay for.
+//
+//   Text-only Flash calls (encyclopedic, similar species, group tags) use thinkingBudget: 0
+//   via createFlashModel() in _shared/gemini.ts — no visual ambiguity, no benefit.
+const modelConfigs = {
+  flash: {
+    model: "gemini-2.5-flash" as const,
+    config: {
+      systemInstruction: getSystemInstruction(FLASH_DIAGNOSTIC_TRIGGER),
+      temperature: 0.1,
+      maxOutputTokens: 1000,
+      thinkingConfig: { thinkingBudget: 1024 },
+    },
+  },
+  pro: {
+    model: "gemini-2.5-pro" as const,
+    config: {
+      systemInstruction: getSystemInstruction(PRO_DIAGNOSTIC_TRIGGER),
+      temperature: 0.1,
+      maxOutputTokens: 1000,
+      thinkingConfig: { thinkingBudget: 5000 },
+    },
+  },
 };
 
 serve((req: Request) =>
@@ -133,7 +155,7 @@ serve((req: Request) =>
     const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
     const diagnosticTrigger = diagnosticTriggerForTier(userTier === "pro" ? "pro" : "flash");
 
-    const model = userTier === "pro" ? modelCache.pro : modelCache.flash;
+    const modelCfg = userTier === "pro" ? modelConfigs.pro : modelConfigs.flash;
 
     const telemetryItems = [
       safeGpsLat != null && safeGpsLon != null ? `GPS:${safeGpsLat},${safeGpsLon}` : null,
@@ -164,29 +186,34 @@ serve((req: Request) =>
     let llmPromptTokens: number | null = null;
     let llmCandidateTokens: number | null = null;
     let llmTotalTokens: number | null = null;
+    let llmThinkingTokens: number | null = null;
 
     try {
-      const result = await model.generateContent({
+      const result = await _genAI.models.generateContent({
+        model: modelCfg.model,
         contents: [{ role: "user", parts }],
-        generationConfig: {
+        config: {
+          ...modelCfg.config,
           responseMimeType: "application/json",
           responseSchema: getMerianResponseSchema(diagnosticTrigger),
         },
       });
-      const candidate = result.response.candidates?.[0];
+      const candidate = result.candidates?.[0];
       finishReason = candidate?.finishReason;
       safetyRatings = candidate?.safetyRatings;
-      responseText = result.response.text();
+      responseText = result.text ?? "";
 
-      const usage = result.response.usageMetadata;
+      const usage = result.usageMetadata;
       if (usage) {
-        // Log the full object so we can see all fields the SDK exposes for this model
-        // (e.g. thoughtsTokenCount, cachedContentTokenCount) and verify what is driving
-        // the gap between totalTokenCount and (promptTokenCount + candidatesTokenCount).
-        console.log(`Token Usage [${user.id}] full:`, JSON.stringify(usage));
-        llmPromptTokens = usage.promptTokenCount;
-        llmCandidateTokens = usage.candidatesTokenCount;
-        llmTotalTokens = usage.totalTokenCount;
+        llmPromptTokens = usage.promptTokenCount ?? null;
+        llmCandidateTokens = usage.candidatesTokenCount ?? null;
+        llmTotalTokens = usage.totalTokenCount ?? null;
+        // thoughtsTokenCount is properly typed in @google/genai's UsageMetadata —
+        // this is what previously appeared as the unexplained gap in totalTokenCount.
+        llmThinkingTokens = usage.thoughtsTokenCount ?? null;
+        console.log(
+          `Token Usage [${user.id}]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Total: ${llmTotalTokens}`,
+        );
       }
       console.log(
         `[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${Date.now() - geminiStart}ms inference`,
@@ -261,7 +288,7 @@ serve((req: Request) =>
     };
 
     // Strip candidates when confidence is above the tier's diagnosticTrigger threshold.
-    // These values mirror MerianConfig.flashConfidence.diagnosticTrigger (0.96) and
+    // These values mirror MerianConfig.flashConfidence.diagnosticTrigger (0.95) and
     // MerianConfig.proConfidence.diagnosticTrigger (0.85) in the iOS client.
     // Fallback to 0.0 (not 1.0) on a null score: a missing confidence_score means the
     // LLM returned a malformed response — preserve candidates rather than silently strip them.
@@ -468,6 +495,7 @@ serve((req: Request) =>
           llm_model: targetModel,
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
+          llm_thinking_tokens: llmThinkingTokens,
           llm_total_tokens: llmTotalTokens,
           encyclopedic_tokens: 0,
           similar_species_tokens: 0,
@@ -559,99 +587,3 @@ serve((req: Request) =>
   }),
 );
 
-// ---------------------------------------------------------------------------
-// Scientific Name Sanitization
-// ---------------------------------------------------------------------------
-//
-// Applied to every scientific_name before it touches species_dictionary or
-// the candidates JSONB payload. Ensures the database is interoperable with
-// GBIF, iNaturalist, and partner taxonomy systems.
-//
-// Rules applied (in order):
-//   1. Trim leading/trailing whitespace and collapse internal runs of spaces.
-//   2. Strip author citations — e.g. "Rosa canina L." → "Rosa canina".
-//      Author strings follow the specific epithet and begin with an uppercase
-//      letter or parenthesis: "(L.)", "Karst.", "DC.", "Thunb. ex Murray".
-//      Cultivar epithets in single quotes are NOT author citations and are kept.
-//   3. Strip uncertainty qualifiers — "cf.", "aff.", "sp." — that indicate
-//      the identification is tentative. These should be surfaced in a separate
-//      confidence field, not embedded in the name key used for DB lookups.
-//   4. Normalise capitalisation: genus capitalised, specific epithet and
-//      infraspecific rank markers ("var.", "subsp.", "f.") lowercase.
-//      Cultivar names in single quotes are preserved in their original case
-//      per ICNCP convention (Title Case inside the quotes is standard).
-//   5. Preserve hybrid markers (×) — "× Heucherella" is correct notation.
-//
-// Examples:
-//   "rosa 'Radrazz'"              → "Rosa 'Radrazz'"
-//   "Rosa canina L."              → "Rosa canina"
-//   "Quercus robur (L.) Karst."   → "Quercus robur"
-//   "cf. Pinus ponderosa"         → "Pinus ponderosa"
-//   "Acer Palmatum"               → "Acer palmatum"
-//   "Boletus edulis var. Edulis"  → "Boletus edulis var. edulis"
-// ---------------------------------------------------------------------------
-
-function sanitizeScientificName(name: string): string {
-  if (!name) return name;
-
-  // 1. Collapse whitespace
-  let s = name.trim().replace(/\s+/g, " ");
-
-  // 2. Strip uncertainty qualifiers at the start
-  s = s.replace(/^(cf\.|aff\.|sp\.)\s+/i, "");
-
-  // 3. Strip author citations
-  //    Strategy: split on the first single-quoted cultivar block (if present)
-  //    and only process the binomial prefix — authors never appear inside quotes.
-  const cultivarMatch = s.match(/^(.*?)\s*('[^']*')\s*$/);
-  if (cultivarMatch) {
-    const binomial = stripAuthors(cultivarMatch[1].trim());
-    const cultivar = cultivarMatch[2]; // preserve case per ICNCP
-    s = `${binomial} ${cultivar}`;
-  } else {
-    s = stripAuthors(s);
-  }
-
-  // 4. Normalise capitalisation on the binomial portion
-  s = normaliseBinomialCase(s);
-
-  return s.trim();
-}
-
-// Removes trailing author citations from a name string that contains no cultivar.
-// Author strings start after the specific epithet with an uppercase letter or "(".
-// Rank markers (var., subsp., f.) and hybrid markers (×) are not author strings.
-function stripAuthors(name: string): string {
-  // Split into tokens and find where the author citation begins.
-  // Tokens that are NOT part of the name: uppercase word or "(" not preceded by a rank marker.
-  const rankMarkers = new Set(["var.", "subsp.", "f.", "ssp.", "cv.", "×", "x"]);
-  const tokens = name.split(" ");
-  let cutAt = tokens.length;
-
-  for (let i = 2; i < tokens.length; i++) { // genus + epithet always kept
-    const token = tokens[i];
-    const prev = tokens[i - 1]?.toLowerCase();
-    if (rankMarkers.has(prev)) continue; // next token after rank marker is a name, not author
-    if (/^[A-Z(]/.test(token) && !rankMarkers.has(token.toLowerCase())) {
-      cutAt = i;
-      break;
-    }
-  }
-
-  return tokens.slice(0, cutAt).join(" ");
-}
-
-// Genus capitalised, everything else lowercase except cultivar quotes and × marker.
-function normaliseBinomialCase(name: string): string {
-  const rankMarkers = new Set(["var.", "subsp.", "f.", "ssp.", "cv."]);
-  const tokens = name.split(" ");
-  return tokens
-    .map((token, i) => {
-      if (token.startsWith("'") && token.endsWith("'")) return token; // cultivar — keep as-is
-      if (token === "×") return token; // hybrid marker
-      if (i === 0) return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase(); // genus
-      if (rankMarkers.has(token.toLowerCase())) return token.toLowerCase(); // rank marker
-      return token.toLowerCase(); // specific epithet and infraspecific names
-    })
-    .join(" ");
-}

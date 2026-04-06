@@ -1,7 +1,11 @@
 import {
-  ResponseSchema,
-  SchemaType,
-} from "https://esm.sh/@google/generative-ai@0.24.1";
+  Schema,
+  Type,
+} from "https://esm.sh/@google/genai@1.0.0";
+
+// Alias for backward compat within this file
+type ResponseSchema = Schema;
+const SchemaType = Type;
 
 export const getSystemInstruction = (_diagnosticTrigger: number) =>
   `You are an expert encyclopedic field-guide biologist and taxonomist. Identify biology precisely. 1) Liveness: fossils, pressed/preserved/dried specimens are is_biological_subject=true with is_live_capture=false — identify to species level. Non-biological objects (rocks, buildings, food, debris, shadows, cracks) is_biological_subject=false. 2) Evaluate is_invasive based on GPS. 3) common_name must be maximally specific in Title Case. 4) CRITICAL: Evaluate all provided images together. 5) Multiple species → identify ONE primary. 6) is_biological_subject=false → OMIT is_invasive, ecology_type, life_stage, reproductive_condition, individual_count, ecological_interactions. You MUST provide common_name and scientific_name for geological subjects (e.g. rocks, minerals) if identifiable, but omit them for generic debris or non-natural objects. 7) Micro-CoT & Pareidolia Avoidance: You MUST extract 3 structural observations in extracted_visual_traits BEFORE determining is_biological_subject or scientific_name. Actively reject optical illusions, pareidolia, and inanimate objects mimicking biology (e.g., cracks looking like snakes). Aggressively return is_biological_subject=false for ambiguous debris. 8) If the primary subject is actively interacting with another biological organism, describe the interaction and name the secondary organism in ecological_interactions. 9) Estimate the number of distinct individuals of the primary species visible in the frame for individual_count. 10) Score the image as a potential encyclopedic field-guide reference photo in image_quality: sharpness (1–10, focus and absence of motion blur), framing (1–10, subject fully in frame and isolated from chaotic background), diagnostic_utility (1–10, taxonomic identification features clearly displayed — e.g. leaf venation, plumage, bark texture), and overall_score (0–100, holistic reference quality synthesizing all three dimensions). 11) Candidates: You MUST always populate the candidates array with exactly 2 alternative species that could plausibly match the image. These must be genuinely distinct alternatives — different species, not subspecies variants of your primary identification.`;

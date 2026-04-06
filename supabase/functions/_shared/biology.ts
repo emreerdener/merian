@@ -1,11 +1,22 @@
 import {
-  ResponseSchema,
-  SchemaType,
-  UsageMetadata,
-} from "https://esm.sh/@google/generative-ai@0.24.1";
+  Schema,
+  Type,
+} from "https://esm.sh/@google/genai@1.0.0";
 import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
 import { trackPostHogEvent } from "./posthog.ts";
+
+// Alias for backward compat within this file
+type ResponseSchema = Schema;
+const SchemaType = Type;
+// Local usage metadata shape — avoids coupling return types to the SDK's internal type name.
+// thoughtsTokenCount is the new field exposed by @google/genai for thinking token accounting.
+type UsageMetadata = {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  totalTokenCount?: number;
+  thoughtsTokenCount?: number;
+};
 
 // --- ENCYCLOPEDIC DATA LOGIC --- //
 

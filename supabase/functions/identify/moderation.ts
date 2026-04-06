@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getR2Config, copyR2Object, deleteR2Object } from "../_shared/aws.ts";
 import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
-import { SafetyRating } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { SafetyRating } from "https://esm.sh/@google/genai@1.0.0";
 import { logStructuredError } from "../_shared/edgeHandler.ts";
 
 export async function evaluateAndProcessPayload(

@@ -39,8 +39,8 @@ The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
 `supabase/functions/identify/thresholds.ts` is the **canonical source of truth** for confidence threshold values used across the `identify` pipeline:
 
 ```typescript
-export const FLASH_STRONG = 0.96;              // == FLASH_DIAGNOSTIC_TRIGGER
-export const FLASH_DIAGNOSTIC_TRIGGER = 0.96;
+export const FLASH_STRONG = 0.95;              // == FLASH_DIAGNOSTIC_TRIGGER
+export const FLASH_DIAGNOSTIC_TRIGGER = 0.95;
 export const PRO_STRONG = 0.85;                // == PRO_DIAGNOSTIC_TRIGGER
 export const PRO_DIAGNOSTIC_TRIGGER = 0.85;
 export function diagnosticTriggerForTier(tier: "pro" | "flash"): number
@@ -199,14 +199,18 @@ await fetchAndApplyEnrichment(modelContext:, needsMetadata:, needsLookalikes:)
 
 Rule: Any `db.ts` write that is not required to build the response payload **must** be deferred with `EdgeRuntime.waitUntil`. The `lookalikes_flash_attempted` flag update and the `updateSpeciesEnrichment` call are the canonical examples.
 
-**Gemini Flash `thinkingBudget: 0` Rule — Disable Thinking Tokens on Structured-Output Tasks:** All calls to `createFlashModel` (in `_shared/gemini.ts`) pass `thinkingConfig: { thinkingBudget: 0 }`. Gemini 2.5 Flash thinking tokens add ~2–4 s of latency with no accuracy benefit for deterministic, schema-constrained JSON generation tasks (enrichment extraction, lookalike resolution, etc.). Because `thinkingConfig` is not yet a typed field in the SDK version pinned in `_shared/gemini.ts`, it is cast via `as unknown as GenerationConfig`. Do not remove this cast — it is intentional.
+**Strategic Thinking Budget Rule — `@google/genai@1.0.0`:** `thinkingConfig` is a first-class typed field in `@google/genai@1.0.0` (the SDK pinned in `deno.json`). No cast is needed and `thinkingBudget` is reliably honoured at runtime. Budgets are set strategically per call type:
 
-```typescript
-generationConfig: {
-  temperature: 0.1,
-  maxOutputTokens,
-  thinkingConfig: { thinkingBudget: 0 },
-} as unknown as GenerationConfig,
+| Call site | `thinkingBudget` | Rationale |
+|---|---|---|
+| `createFlashModel` (encyclopedic, lookalikes, group tags) | `0` | Deterministic schema-constrained JSON lookups — no visual ambiguity, thinking tokens add latency with no accuracy benefit |
+| `identify` Flash vision (`gemini-2.5-flash`) | `1,024` | Preserves reasoning on visually ambiguous subjects (subspecies, hybrids, angle-sensitive taxa) |
+| `identify` Pro vision (`gemini-2.5-pro`) | `5,000` | Covers the hardest observed cases (fossil discrimination, rare cultivars, look-alike subspecies) where extended reasoning directly improves accuracy |
+
+The `@google/genai@1.0.0` SDK exposes `thoughtsTokenCount` in `UsageMetadata`, making thinking token consumption observable in Edge Function logs. The `identify` function logs all four counters on every scan:
+
+```
+Token Usage [identify | <tier>]: Prompt: X | Candidates: Y | Thinking: Z | Total: W
 ```
 
-This rule applies only to `createFlashModel`. The vision model in `identify/index.ts` (which uses `_genAI.getGenerativeModel` directly) is **not** affected — multi-modal reasoning may benefit from thinking tokens on ambiguous species images.
+`llm_thinking_tokens` is also forwarded in the `ScanCompleted` PostHog event for cost analytics. The vision model call uses `_genAI.models.generateContent()` (not the deprecated `getGenerativeModel` pattern), with `thinkingConfig` passed inside the `config` object alongside `systemInstruction`, `temperature`, and `maxOutputTokens`.
