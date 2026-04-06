@@ -38,7 +38,7 @@ scan_costs AS (
     END)                                            AS output_cost_usd
   FROM public.scans s
   CROSS JOIN pricing p
-  WHERE s.created_at >= NOW() - INTERVAL '30 days'   -- adjust window here
+  WHERE s.timestamp >= NOW() - INTERVAL '30 days'   -- adjust window here
     AND s.llm_prompt_tokens IS NOT NULL
   GROUP BY s.inference_tier
 )

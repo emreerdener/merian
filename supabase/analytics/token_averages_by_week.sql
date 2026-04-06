@@ -4,7 +4,7 @@
 -- The week a new instruction deploys will show a step-change in avg_prompt_tokens.
 
 SELECT
-  DATE_TRUNC('week', created_at)                      AS week_start,
+  DATE_TRUNC('week', timestamp)                      AS week_start,
   inference_tier,
   COUNT(*)                                            AS scans,
   ROUND(AVG(llm_prompt_tokens))                       AS avg_prompt_tokens,
@@ -26,6 +26,6 @@ SELECT
   )                                                   AS thinking_pct_of_output
 FROM public.scans
 WHERE llm_prompt_tokens IS NOT NULL
-  AND created_at >= NOW() - INTERVAL '90 days'
-GROUP BY DATE_TRUNC('week', created_at), inference_tier
+  AND timestamp >= NOW() - INTERVAL '90 days'
+GROUP BY DATE_TRUNC('week', timestamp), inference_tier
 ORDER BY week_start DESC, inference_tier;

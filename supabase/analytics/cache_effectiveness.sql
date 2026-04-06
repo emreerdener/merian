@@ -5,7 +5,7 @@
 -- NULL llm_cached_tokens = scan predates the column or caching was not triggered.
 
 SELECT
-  DATE_TRUNC('day', created_at)                       AS day,
+  DATE_TRUNC('day', timestamp)                       AS day,
   COUNT(*)                                            AS flash_scans,
   COUNT(*) FILTER (WHERE llm_cached_tokens > 0)       AS cache_hits,
   ROUND(
@@ -24,6 +24,6 @@ SELECT
   )                                                   AS cache_savings_cents
 FROM public.scans
 WHERE inference_tier = 'flash'
-  AND created_at >= NOW() - INTERVAL '30 days'
-GROUP BY DATE_TRUNC('day', created_at)
+  AND timestamp >= NOW() - INTERVAL '30 days'
+GROUP BY DATE_TRUNC('day', timestamp)
 ORDER BY day DESC;

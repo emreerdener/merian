@@ -31,6 +31,6 @@ SELECT
   END), 4)                                                        AS thinking_cost_cents
 FROM public.scans
 WHERE llm_thinking_tokens IS NOT NULL
-  AND created_at >= NOW() - INTERVAL '30 days'
+  AND timestamp >= NOW() - INTERVAL '30 days'
 GROUP BY inference_tier
 ORDER BY inference_tier;

@@ -12,7 +12,7 @@ WITH pricing AS (
     10.00   / 1000000.0 AS pro_output
 )
 SELECT
-  DATE_TRUNC('day', s.created_at)                     AS day,
+  DATE_TRUNC('day', s.timestamp)                     AS day,
   s.inference_tier,
   COUNT(*)                                            AS scans,
   SUM(CASE
@@ -27,7 +27,7 @@ SELECT
   END) * 100                                          AS cost_cents
 FROM public.scans s
 CROSS JOIN pricing p
-WHERE s.created_at >= NOW() - INTERVAL '30 days'
+WHERE s.timestamp >= NOW() - INTERVAL '30 days'
   AND s.llm_prompt_tokens IS NOT NULL
-GROUP BY DATE_TRUNC('day', s.created_at), s.inference_tier
+GROUP BY DATE_TRUNC('day', s.timestamp), s.inference_tier
 ORDER BY day DESC, s.inference_tier;
