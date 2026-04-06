@@ -554,6 +554,7 @@ serve((req: Request) =>
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_thinking_tokens: llmThinkingTokens,
+            llm_cached_tokens: llmCachedTokens,
             llm_total_tokens: llmTotalTokens,
             image_storage_urls: modResult.publicUrls ?? [],
             life_stage: parsedData.life_stage ?? "unknown",

@@ -112,6 +112,7 @@ export interface ScanInsertRow {
   llm_prompt_tokens?: number | null;
   llm_candidate_tokens?: number | null;
   llm_thinking_tokens?: number | null;
+  llm_cached_tokens?: number | null;
   llm_total_tokens?: number | null;
   image_storage_urls: string[];
   life_stage?: string;
