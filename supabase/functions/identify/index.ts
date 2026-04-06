@@ -46,7 +46,7 @@ const modelConfigs = {
     config: {
       systemInstruction: getSystemInstruction(FLASH_DIAGNOSTIC_TRIGGER),
       temperature: 0.1,
-      maxOutputTokens: 1000,
+      maxOutputTokens: 2000,
       thinkingConfig: { thinkingBudget: 1024 },
     },
   },
@@ -55,7 +55,7 @@ const modelConfigs = {
     config: {
       systemInstruction: getSystemInstruction(PRO_DIAGNOSTIC_TRIGGER),
       temperature: 0.1,
-      maxOutputTokens: 1000,
+      maxOutputTokens: 2000,
       thinkingConfig: { thinkingBudget: 5000 },
     },
   },
@@ -203,6 +203,18 @@ serve((req: Request) =>
       safetyRatings = candidate?.safetyRatings;
       responseText = result.text ?? "";
 
+      // Defensive fallback: result.text returns "" when the @google/genai@1.0.0
+      // text getter finds no non-thought text parts — observed when candidatesTokenCount > 0
+      // but all parts are typed differently under schema-constrained JSON output.
+      // Directly reading parts[0].text recovers the response in that case.
+      if (!responseText) {
+        const firstPart = result.candidates?.[0]?.content?.parts?.[0];
+        if (firstPart && "text" in firstPart && typeof firstPart.text === "string") {
+          responseText = firstPart.text;
+          console.log(`[identify] result.text was empty; recovered ${responseText.length} chars from parts[0].text`);
+        }
+      }
+
       const usage = result.usageMetadata;
       if (usage) {
         llmPromptTokens = usage.promptTokenCount ?? null;
@@ -223,11 +235,35 @@ serve((req: Request) =>
       return jsonResponse({ error: "AI processing error. Please try again." }, 400);
     }
 
+    // Guard non-STOP finish reasons before attempting JSON extraction.
+    // When finishReason is SAFETY/RECITATION/OTHER, result.text is "" and
+    // extractJson throws "no JSON object found" — producing a confusing 422.
+    // Returning 400 here lets the iOS client show a clean retry prompt instead.
+    // SAFETY content will also be caught by moderation in the background task,
+    // but we need to exit the critical path cleanly first.
+    if (finishReason && finishReason !== "STOP" && finishReason !== "FINISH_REASON_UNSPECIFIED") {
+      logStructuredError("identify/non_stop_finish", {
+        user_id: user.id,
+        finish_reason: finishReason,
+        response_length: responseText.length,
+      });
+      return jsonResponse({ error: "AI processing error. Please try again." }, 400);
+    }
+
     let parsedData: MerianIdentification;
     try {
       parsedData = extractJson<MerianIdentification>(responseText);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", parseError);
+      // Log enough context to diagnose the root cause without re-reading the code.
+      // finish_reason, response_length, and the first 500 chars of responseText cover
+      // the two main failure modes: truncated JSON (MAX_TOKENS) and empty response.
+      logStructuredError("identify/parse_failed", {
+        user_id: user.id,
+        finish_reason: finishReason ?? "unknown",
+        response_length: responseText.length,
+        response_preview: responseText.slice(0, 500),
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      });
       return jsonResponse({ error: "Processing Error: Malformed AI response." }, 422);
     }
 
@@ -463,6 +499,7 @@ serve((req: Request) =>
             colors: [],
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
+            llm_thinking_tokens: llmThinkingTokens,
             llm_total_tokens: llmTotalTokens,
             image_storage_urls: modResult.publicUrls ?? [],
             life_stage: parsedData.life_stage ?? "unknown",
