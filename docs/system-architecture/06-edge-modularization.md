@@ -204,7 +204,7 @@ Rule: Any `db.ts` write that is not required to build the response payload **mus
 | Call site | `thinkingBudget` | Rationale |
 |---|---|---|
 | `createFlashModel` (encyclopedic, lookalikes, group tags) | `0` | Deterministic schema-constrained JSON lookups — no visual ambiguity, thinking tokens add latency with no accuracy benefit |
-| `identify` Flash vision (`gemini-2.5-flash`) | `1,024` | Preserves reasoning on visually ambiguous subjects (subspecies, hybrids, angle-sensitive taxa) |
+| `identify` Flash vision (`gemini-2.5-flash`) | `2,048` | Raised from 1,024 after production data showed complex/invasive species hitting 99% utilisation; 2,048 covers observed worst-case with headroom |
 | `identify` Pro vision (`gemini-2.5-pro`) | `5,000` | Covers the hardest observed cases (fossil discrimination, rare cultivars, look-alike subspecies) where extended reasoning directly improves accuracy |
 
 The `@google/genai@1.0.0` SDK exposes `thoughtsTokenCount` in `UsageMetadata`, making thinking token consumption observable in Edge Function logs. The `identify` function logs all four counters on every scan:

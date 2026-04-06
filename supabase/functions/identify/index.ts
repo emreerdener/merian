@@ -29,10 +29,9 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 // _genAI.models.generateContent(). Pre-defining them here keeps the call site clean.
 //
 // Thinking budget strategy:
-//   Flash (free tier): 1,024 tokens. Observed average gap ~1,200 tokens uncapped; 1,024
-//   covers the majority of scans while trimming the long tail. Vision ambiguity (angle,
-//   lighting, occlusion) benefits from some internal reasoning that the schema CoT alone
-//   (extracted_visual_traits) cannot fully substitute for.
+//   Flash (free tier): 2,048 tokens. Raised from 1,024 after production data showed
+//   invasive/complex species (e.g. Carpobrotus edulis) hitting 1,016/1,024 — effectively
+//   capped. 2,048 provides headroom for the observed worst-case while keeping cost low.
 //
 //   Pro: 5,000 tokens. Covers the hardest observed case (~3,200 tokens for an ambiguous
 //   subject) with headroom for fossils, rare cultivars, and subspecies discrimination —
@@ -47,7 +46,7 @@ const modelConfigs = {
       systemInstruction: getSystemInstruction(FLASH_DIAGNOSTIC_TRIGGER),
       temperature: 0.1,
       maxOutputTokens: 2000,
-      thinkingConfig: { thinkingBudget: 1024 },
+      thinkingConfig: { thinkingBudget: 2048 },
     },
   },
   pro: {

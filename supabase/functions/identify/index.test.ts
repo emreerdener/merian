@@ -243,7 +243,7 @@ function applyDiagnosticStrip(
 }
 
 Deno.test("candidates strip — strong match (score == trigger) strips candidates", () => {
-    assertEquals(applyDiagnosticStrip(0.95, 0.95, [{ scientific_name: "Foo" }]), null);
+  assertEquals(applyDiagnosticStrip(0.95, 0.95, [{ scientific_name: "Foo" }]), null);
 });
 
 Deno.test("candidates strip — score above trigger strips candidates", () => {
