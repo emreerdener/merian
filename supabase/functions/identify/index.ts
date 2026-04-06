@@ -1,4 +1,4 @@
-import { SafetyRating, Part } from "https://esm.sh/@google/generative-ai@0.24.1";
+import { SafetyRating, Part, GenerationConfig } from "https://esm.sh/@google/generative-ai@0.24.1";
 import { evaluateAndProcessPayload } from "./moderation.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
@@ -23,6 +23,9 @@ import {
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
+// thinkingBudget is intentionally not set until we can confirm from full usageMetadata logs
+// whether the token gap (totalTokenCount - promptTokenCount - candidatesTokenCount) is
+// actually thinking tokens or schema/other overhead. See the JSON.stringify(usage) log below.
 const modelCache = {
   flash: _genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
@@ -177,9 +180,10 @@ serve((req: Request) =>
 
       const usage = result.response.usageMetadata;
       if (usage) {
-        console.log(
-          `Token Usage [${user.id}]: Sent (Prompt): ${usage.promptTokenCount} | Received (Candidates): ${usage.candidatesTokenCount} | Total: ${usage.totalTokenCount}`,
-        );
+        // Log the full object so we can see all fields the SDK exposes for this model
+        // (e.g. thoughtsTokenCount, cachedContentTokenCount) and verify what is driving
+        // the gap between totalTokenCount and (promptTokenCount + candidatesTokenCount).
+        console.log(`Token Usage [${user.id}] full:`, JSON.stringify(usage));
         llmPromptTokens = usage.promptTokenCount;
         llmCandidateTokens = usage.candidatesTokenCount;
         llmTotalTokens = usage.totalTokenCount;
