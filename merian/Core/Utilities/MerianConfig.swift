@@ -95,9 +95,9 @@ enum MerianConfig {
     /// — FLASH_STRONG, FLASH_POSSIBLE, FLASH_DIAGNOSTIC_TRIGGER.
     /// Any change here must be mirrored there, and vice versa.
     static let flashConfidence = ConfidenceBands(
-        strong: 0.96,
+        strong: 0.95,
         possible: 0.75,
-        diagnosticTrigger: 0.96   // == strong: candidates on every non-strong-match scan
+        diagnosticTrigger: 0.95   // == strong: candidates on every non-strong-match scan
     )
 
     /// Gemini 2.5 Pro (Premium Tier)

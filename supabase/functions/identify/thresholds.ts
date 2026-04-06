@@ -10,10 +10,10 @@
  * list for the verification UX.
  */
 
-export const FLASH_STRONG = 0.96;
+export const FLASH_STRONG = 0.95;
 export const FLASH_POSSIBLE = 0.75;
 /** Server strips candidates at or above this score (== FLASH_STRONG). */
-export const FLASH_DIAGNOSTIC_TRIGGER = 0.96;
+export const FLASH_DIAGNOSTIC_TRIGGER = 0.95;
 
 export const PRO_STRONG = 0.85;
 export const PRO_POSSIBLE = 0.65;
