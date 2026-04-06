@@ -491,7 +491,16 @@ extension OfflineQueueManager {
     /// Called from `urlSession(_:task:didCompleteWithError:)` when the download task fails
     /// with a transport error (the server never responded). Resets the scan to `.staged` below
     /// the retry threshold, or tombstones it once `maxUploadRetries` is exhausted.
+    ///
+    /// Code=-999 (NSURLErrorCancelled) is special-cased: it means `deleteQueuedScan` explicitly
+    /// cancelled the task because the parallel live inference path already succeeded. The scan
+    /// record has already been removed; no retry is needed.
     func handleInferenceTaskNetworkFailure(scanId: String, error: Error) async {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+            MerianLog.data.debug("Background inference cancelled for \(scanId, privacy: .private) — live path completed first, skipping retry")
+            return
+        }
         MerianLog.data.debug("Background inference download failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         await handleInferenceRetry(scanId: scanId)
     }

@@ -46,6 +46,7 @@ extension CameraViewModel {
         //    This ties the two paths so that whichever completes first, the other can
         //    be idempotently skipped or cancelled.
         let scanId = UUID().uuidString.lowercased()
+        pendingAnalyzeScanId = scanId
 
         // 6. Enqueue immediately — in-foreground — so the scan reaches disk and SwiftData
         //    before any async boundary is crossed. `enqueueCapture` wraps its work in a
@@ -94,14 +95,13 @@ extension CameraViewModel {
                 zoomFactor: diContainer.cameraManager.zoomFactor
             )
 
-            // Guard: if the user backgrounded or dismissed during the preFetchTask await,
-            // `isProcessing` may still be true (no rescue cancels it anymore — the scan
-            // is already safely in the offline queue). We still fire analyze() so the live
-            // inference path can deliver a result faster than the background upload path.
-            // Only skip if isProcessing was reset by a subsequent `prepareForNewScan` call
-            // (user fired a second scan), which means this scan's images are stale.
+            // Guard: skip if a newer scan has been submitted while the preFetchTask was
+            // awaiting. `pendingAnalyzeScanId` is set to this scan's ID at submission time
+            // and overwritten by the next `submitActiveScan` call, so an inequality here
+            // means this Task is stale and the engine has already moved on.
+            // The offline queue already holds this scan — the background path will complete it.
             await MainActor.run {
-                guard self.diContainer.inferenceEngine.isProcessing else { return }
+                guard self.pendingAnalyzeScanId == scanId else { return }
                 self.diContainer.inferenceEngine.analyze(
                     scanId: scanId,
                     imageDatas: datasToAnalyze,

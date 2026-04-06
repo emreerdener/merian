@@ -48,6 +48,11 @@ final class CameraViewModel {
     // MARK: - Asynchronous Jobs
     @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>?
     @ObservationIgnored private var focusTask: Task<Void, Never>?
+    /// Tracks the scanId of the most recently submitted scan. Used by the async telemetry
+    /// Task in `submitActiveScan` to detect when a newer scan has superseded this one and
+    /// skip calling `analyze()` — prevents a stale Task from re-triggering live inference
+    /// after the engine has already moved on to a subsequent capture.
+    @ObservationIgnored private var pendingAnalyzeScanId: String?
     
     // MARK: - Lifecycle
     init() {
