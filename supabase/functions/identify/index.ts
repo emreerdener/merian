@@ -433,7 +433,7 @@ serve((req: Request) =>
             llm_prompt_tokens: llmPromptTokens,
             llm_candidate_tokens: llmCandidateTokens,
             llm_total_tokens: llmTotalTokens,
-            image_storage_urls: modResult.publicUrls?.length ? modResult.publicUrls : null,
+            image_storage_urls: modResult.publicUrls ?? [],
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ?? "not_applicable",
             individual_count: parsedData.individual_count ?? null,
@@ -527,16 +527,24 @@ serve((req: Request) =>
         // This eliminates the window where the iOS client has the scan locally but the
         // server row is permanently missing (current gap: failure between 200 response and
         // DB insert). Tracked: search codebase for "transactional-outbox".
-        await supabaseAdmin
-          .from("failed_scan_ingestions")
-          .insert({ scan_id: generatedScanId, user_id: user.id, error_message: errorMsg })
-          .then(() => {})
-          .catch((dlErr: unknown) => {
+        try {
+          const { error: dlErr } = await supabaseAdmin
+            .from("failed_scan_ingestions")
+            .insert({ scan_id: generatedScanId, user_id: user.id, error_message: errorMsg });
+          // PostgREST surfaces DB-level failures in { error }, not as thrown exceptions.
+          if (dlErr) {
             logStructuredError("dead_letter_write_failed", {
               scan_id: generatedScanId,
-              error: dlErr instanceof Error ? dlErr.message : String(dlErr),
+              error: dlErr.message,
             });
+          }
+        } catch (dlErr) {
+          // Network / client-level exception (e.g. DB unreachable).
+          logStructuredError("dead_letter_write_failed", {
+            scan_id: generatedScanId,
+            error: dlErr instanceof Error ? dlErr.message : String(dlErr),
           });
+        }
       }
     };
 
