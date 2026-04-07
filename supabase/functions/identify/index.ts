@@ -57,6 +57,15 @@ const modelConfigs = {
     config: {
       systemInstruction: getSystemInstruction(FLASH_DIAGNOSTIC_TRIGGER),
       temperature: 0.1,
+      // seed pins the random sampler to a fixed starting state. For identical
+      // inputs (same image bytes + same context parts), this produces the same
+      // token sequence, making repeated scans of the same subject converge on
+      // the same identification rather than drifting across runs.
+      seed: 42,
+      // topK=40 explicitly caps the candidate-token pool, complementing the
+      // already-low temperature. The combination narrows the distribution enough
+      // that borderline identifications consistently resolve to the same species.
+      topK: 40,
       maxOutputTokens: 2000,
       thinkingConfig: { thinkingBudget: 2048 },
       safetySettings: BIOLOGICAL_SAFETY_SETTINGS,
@@ -67,6 +76,8 @@ const modelConfigs = {
     config: {
       systemInstruction: getSystemInstruction(PRO_DIAGNOSTIC_TRIGGER),
       temperature: 0.1,
+      seed: 42,
+      topK: 40,
       maxOutputTokens: 2000,
       thinkingConfig: { thinkingBudget: 5000 },
       safetySettings: BIOLOGICAL_SAFETY_SETTINGS,
@@ -108,6 +119,8 @@ serve((req: Request) =>
       weatherCondition,
       weatherTemperatureF,
       deviceLocale,
+      deviceTimeZone,
+      deviceRegion,
       currentMonth,
       semanticLocation,
       timeOfDay,
@@ -193,6 +206,11 @@ serve((req: Request) =>
       weatherCondition ? `Wx:${weatherCondition}` : null,
       weatherTemperatureF != null ? `Temp:${weatherTemperatureF}F` : null,
       deviceLocale ? `Locale:${deviceLocale}` : null,
+      // Fallback geographic context when GPS is not authorised.
+      // TZ (e.g. "America/Los_Angeles") narrows the plausible species pool by region;
+      // Region (e.g. "US") adds country-level signal. Both require zero permissions.
+      deviceTimeZone ? `TZ:${deviceTimeZone}` : null,
+      deviceRegion ? `Region:${deviceRegion}` : null,
       currentMonth ? `Month:${currentMonth}` : null,
       timeOfDay ? `Time:${timeOfDay}` : null,
     ].filter(Boolean);

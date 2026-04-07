@@ -229,6 +229,11 @@ final class MerianNetworkClient {
         let userId = (authUserId ?? deviceId).lowercased()
         let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
         let currentMonth = Calendar.current.component(.month, from: Date())
+        // IANA timezone identifier (e.g. "America/Los_Angeles") — permission-free geographic
+        // signal. Narrows the plausible species universe even when GPS is not authorized.
+        let deviceTimeZone = TimeZone.current.identifier
+        // ISO 3166-1 region code (e.g. "US", "DE") — complements the language-only locale.
+        let deviceRegion = Locale.current.region?.identifier
 
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
@@ -253,6 +258,8 @@ final class MerianNetworkClient {
                 "weatherCondition": capturedTelemetry.weatherCondition,
                 "weatherTemperatureF": capturedTelemetry.weatherTemperatureF,
                 "deviceLocale": deviceLocale,
+                "deviceTimeZone": deviceTimeZone,
+                "deviceRegion": deviceRegion,
                 "currentMonth": currentMonth,
                 "timeOfDay": timeOfDay,
                 "timestamp": capturedTelemetry.timestamp,
@@ -283,6 +290,8 @@ final class MerianNetworkClient {
         let userId = (authUserId ?? deviceId).lowercased()
         let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
         let currentMonth = Calendar.current.component(.month, from: Date())
+        let deviceTimeZone = TimeZone.current.identifier
+        let deviceRegion = Locale.current.region?.identifier
 
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
@@ -306,6 +315,8 @@ final class MerianNetworkClient {
                 "weatherCondition": telemetry.weatherCondition,
                 "weatherTemperatureF": telemetry.weatherTemperatureF,
                 "deviceLocale": deviceLocale,
+                "deviceTimeZone": deviceTimeZone,
+                "deviceRegion": deviceRegion,
                 "currentMonth": currentMonth,
                 "timeOfDay": timeOfDay,
                 "timestamp": telemetry.timestamp,
