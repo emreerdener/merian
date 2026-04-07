@@ -86,16 +86,7 @@ struct CandidateAlternativesView: View {
                         
                         // Surface the quick-confirm when contained inside the confidence sheet
                         if !showDismissButton {
-                            Button(action: onConfirm) {
-                                Text(confirmButtonTitle)
-                                    .font(.headline.weight(.semibold))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(Color.green.opacity(0.15))
-                                    .foregroundColor(.green)
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
+                            SlideToConfirm(label: "Confirm identification", onConfirm: onConfirm)
                         }
                     }
                 }

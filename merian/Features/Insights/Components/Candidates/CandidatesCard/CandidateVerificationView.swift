@@ -27,18 +27,7 @@ struct CandidateVerificationView: View {
                 
                 // Action Buttons
                 VStack(spacing: 12) {
-                     Button {
-                        onConfirm()
-                    } label: {
-                        Text(confirmButtonTitle)
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.green.opacity(0.15))
-                            .foregroundColor(.green)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
+                    SlideToConfirm(label: "Confirm identification", onConfirm: onConfirm)
 
                      Button {
                         HapticManager.shared.triggerMediumPulse()

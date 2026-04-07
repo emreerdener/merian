@@ -19,6 +19,7 @@
 		061A72EB800E7043ED523479 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA59FF99FD6F0D97EAD199F9 /* KeychainManager.swift */; };
 		06D8791CC91B7B330F68DACF /* CollectionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A76B279B5F5138D6E8DF9B /* CollectionDetailView.swift */; };
 		08AF7D781FC1FEC3302B1725 /* UsageManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161EAAB217364EB7BA813812 /* UsageManagerTests.swift */; };
+		08D6889DA193D489A21B97F8 /* SlideToConfirm.swift in Sources */ = {isa = PBXBuildFile; fileRef = C24A585887EBF6CE3C55D80C /* SlideToConfirm.swift */; };
 		0C420791D4BD272ADDD3FB17 /* ImageDownsampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE397C54CDB94A4EFBF5FC92 /* ImageDownsampler.swift */; };
 		11FDF15A120F27FD55304F12 /* ScanRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB63682C61190F71EFFC9C18 /* ScanRepositoryTests.swift */; };
 		12AA0FAE9C4B36B2EBD02ED0 /* ArchiveManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B6122F2DCEB5D8D727A05E /* ArchiveManagerTests.swift */; };
@@ -447,7 +448,7 @@
 		581A8B2E85811233A30DDF85 /* OverviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewCard.swift; sourceTree = "<group>"; };
 		582CBFFF8AA1E0281FA9008B /* AddCollectionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCollectionButton.swift; sourceTree = "<group>"; };
 		58507F2BA73789441DA21050 /* FileIOActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIOActor.swift; sourceTree = "<group>"; };
-		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		59BCD91B24D5D1DF5B542FB0 /* AnalyzingContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyzingContentView.swift; sourceTree = "<group>"; };
 		59DF526286C247EAD0760E55 /* ArchivedVisualsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchivedVisualsView.swift; sourceTree = "<group>"; };
 		5A92AF34FCF40952AE6314B6 /* HeatmapCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapCellView.swift; sourceTree = "<group>"; };
@@ -579,6 +580,7 @@
 		C0A6B0D6136BA0646E02B74E /* MerianLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianLog.swift; sourceTree = "<group>"; };
 		C0AB6C819E0FA1B40CEAF169 /* SchemaV17.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV17.swift; sourceTree = "<group>"; };
 		C158DF6827E2B00607B458CD /* CameraViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewModelTests.swift; sourceTree = "<group>"; };
+		C24A585887EBF6CE3C55D80C /* SlideToConfirm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlideToConfirm.swift; sourceTree = "<group>"; };
 		C2937FDB359FEC0F1F7688A6 /* ConfidenceHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceHeader.swift; sourceTree = "<group>"; };
 		C45A4A13D898657D8E4EBF3C /* ViewfinderIntelligenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligenceTests.swift; sourceTree = "<group>"; };
 		C4F8CF8494EA412A83EC42E3 /* EnvironmentContextManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContextManager.swift; sourceTree = "<group>"; };
@@ -597,7 +599,7 @@
 		D637402A4E4E76C6C9D0735E /* deploy_testflight.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = deploy_testflight.md; sourceTree = "<group>"; };
 		D86D6A051B5FE3A78E597BDC /* ScansSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansSheetView.swift; sourceTree = "<group>"; };
 		D8976BAB1482D318D41CCD32 /* UserTagsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTagsCard.swift; sourceTree = "<group>"; };
-		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBA0D6C5C8620CE1B113B597 /* CandidateSwipeModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSwipeModal.swift; sourceTree = "<group>"; };
 		DC435DD629FF43539F7B60D6 /* EnvironmentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContext.swift; sourceTree = "<group>"; };
 		DC4BA5174670296C98053C13 /* DateUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtilities.swift; sourceTree = "<group>"; };
@@ -637,7 +639,7 @@
 		F3E3FDD98BDC87AA7E828EAD /* AwardCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AwardCard.swift; sourceTree = "<group>"; };
 		F42B367C0EDB61254AF5188E /* SimilarSpeciesGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimilarSpeciesGallery.swift; sourceTree = "<group>"; };
 		F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
-		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5FE76D21F2C394346DB6F6B /* SchemaV15.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV15.swift; sourceTree = "<group>"; };
 		F60B6B87B52B4507F4A13C07 /* GamificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationModels.swift; sourceTree = "<group>"; };
 		F615780D12416A23B56634BD /* FlashButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashButton.swift; sourceTree = "<group>"; };
@@ -1074,6 +1076,7 @@
 				AA401B34F87B7B4B66AD1FD5 /* FadingScrollView.swift */,
 				F6963D372E7F7B17BB7B0DB3 /* MainTabBar.swift */,
 				29970E8D61AA5E64E0B76148 /* SafariView.swift */,
+				C24A585887EBF6CE3C55D80C /* SlideToConfirm.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -1816,7 +1819,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0B94C342D2F7F49D11202598 = {
 						DevelopmentTeam = LDL96V2WT5;
@@ -1828,9 +1831,11 @@
 						ProvisioningStyle = Automatic;
 					};
 					D06FD3E9CDCF533A0C2D2843 = {
+						DevelopmentTeam = LDL96V2WT5;
 						ProvisioningStyle = Automatic;
 					};
 					E59BC2C6A28D64E9B810676B = {
+						DevelopmentTeam = LDL96V2WT5;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -2200,6 +2205,7 @@
 				D8F2F5F7A6259C067242492F /* SimilarSpeciesGallery.swift in Sources */,
 				FE8573B389BB72BF76C5BA6E /* SimilarSpeciesImageFetcher.swift in Sources */,
 				D34573CA483266FB1518A249 /* SizeEstimator.swift in Sources */,
+				08D6889DA193D489A21B97F8 /* SlideToConfirm.swift in Sources */,
 				89143DCFA1EF1A9D5B72F894 /* SocialGuardManager.swift in Sources */,
 				448656F1135935AE41FD651A /* SpeciesData.swift in Sources */,
 				410AAB9C92051C201D002936 /* SpectrumNode.swift in Sources */,
@@ -2255,7 +2261,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -2278,7 +2284,7 @@
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;
@@ -2389,7 +2395,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 199;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -2415,7 +2420,6 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -2428,7 +2432,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -2500,7 +2504,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 199;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -2519,7 +2522,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -2535,7 +2537,7 @@
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;

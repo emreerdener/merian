@@ -152,3 +152,15 @@ The analyzing state rendered inside `InsightSheetView` while `InferenceEngine.is
 - **`DidYouKnowCard`**: A rotating biology fact card inserted between the badge and the telemetry card. Backed by `FactManager`, which loads a shuffled deck of 70+ facts from `FactLibrary` upon initialization and stores the user's `currentPosition` in `AppStorage` to prevent repeats across app sessions. Re-initialization overhead is mitigated by deferring parsing logic out of the main constructor via an asynchronous `prepareIfNeeded` background invocation inside `.task()`. Auto-advances every 8.5 seconds using a strict iOS 16 `Clock` `.task(id: factManager.currentIndex)` binding—which elegantly cancels and restarts the active countdown upon any horizontal tapped or drag gestures for manual left/right navigation (`advance()` / `retreat()`). The card body uses an invisible `Text` pre-seeded with the longest fact (`FactLibrary.longestFact`) as a height anchor. Footer layout features an 8x8 dot pagination strip matched to a monospaced `#CATEGORY` string.
 - **Eager telemetry via `ScanInformationCard`**: The scan's map, timestamp, weather, and altitude are rendered immediately — the card reads directly from `InferenceEngine` state, so the user sees their spatial context long before Gemini finishes.
 - **No internal spacer**: `AnalyzingContentView` intentionally omits a trailing `Spacer` — `InsightContentView.contentCards` provides the universal `Spacer(minLength: 40)` outside the routing block, preventing double-spacing.
+
+## 17. Drag-to-Confirm Pill: `SlideToConfirm`
+**Location**: `Core/UI/Components/SlideToConfirm.swift`
+
+A pill-shaped drag-to-confirm control that replicates the iPhone unlock gesture, used in `CandidateVerificationView` and `CandidateAlternativesView` to gate identification confirmations behind intentional gesture input.
+
+- **Drag mechanics**: A circle thumb slides from the left edge to the right within a capsule-shaped track. At ≥88% travel, `onConfirm` fires automatically. The track fills progressively behind the thumb as drag progresses. The label fades out as the thumb advances (opacity multiplier `1.0 - progress * 2.5`).
+- **Snap-back**: Releasing before the 88% threshold springs the thumb back via `.spring(response: 0.45, dampingFraction: 0.72)` with a `triggerLightImpact()` haptic.
+- **Completion state**: On trigger, the thumb snaps to full width with `.spring(response: 0.28, dampingFraction: 0.82)`, chevrons are replaced by a checkmark, and `onConfirm` is called after a 380 ms delay so the user sees the completed state before the view transitions.
+- **Haptics**: `triggerSuccessPulse()` on threshold reached; `triggerLightImpact()` on snap-back.
+- **Label**: Fixed to `"Confirm identification"` at all call sites — not a dynamic species name — to prevent text overflow on long species names. The species name is always prominent in the card heading directly above.
+- **Disabled**: Once `isCompleted = true`, the component ignores further drag input.

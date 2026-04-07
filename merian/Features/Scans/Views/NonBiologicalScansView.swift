@@ -62,7 +62,7 @@ struct NonBiologicalScansView: View {
         }
         .overlay {
             if isClearingAll {
-                ProgressView("Clearing vault...")
+                ProgressView("Clearing scans...")
                     .padding()
                     .background(.ultraThinMaterial)
                     .cornerRadius(12)
@@ -163,7 +163,7 @@ struct NonBiologicalScansView: View {
             await MainActor.run {
                 isClearingAll = false
                 HapticManager.shared.triggerSuccessPulse()
-                withAnimation { toastMessage = "Vault cleared" }
+                withAnimation { toastMessage = "Scans cleared" }
                 Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
             }
         }
@@ -181,9 +181,9 @@ struct NonBiologicalScansView: View {
         activeRecord.aiReasoning = nil
         
         // Crucially mutates the semantic bounds to escape the `commonName == "Unknown Subject"` queries
-        // which inherently routes it completely out of the Non-Bio vault and straight into the Main Scans Library!
-        if activeRecord.commonName == "Unknown Subject" {
-            activeRecord.commonName = "Unidentified Specimen"
+        // which inherently routes it completely out of the Non-Bio collection and straight into the Main Scans Library!
+        if activeRecord.commonName == "Unknown subject" {
+            activeRecord.commonName = "Unidentified specimen"
         }
         
         do {
