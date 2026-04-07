@@ -59,12 +59,18 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server 
   "weatherCondition": "Sunny",
   "weatherTemperatureF": 72.5,
   "deviceLocale": "en",
+  "deviceTimeZone": "America/Los_Angeles",
+  "deviceRegion": "US",
   "currentMonth": 3,
   "timeOfDay": "2:00 PM",
   "timestamp": "2026-03-21T09:46:03.000Z",
   "estimated_size_cm": 15.2
 }
 ```
+
+`currentMonth` and `timeOfDay` are derived from the image's own capture date (`telemetry.timestamp`) when available — not always from the current wall clock. For gallery photos with a valid EXIF date, this ensures Gemini receives the correct season and light context for the original photo (e.g., an October photo scanned in April sends `Month: 10`, not `Month: 4`). Falls back to current date/time for live captures and gallery photos with no EXIF.
+
+`timestamp` is omitted (null) for gallery photos with no EXIF date rather than sending the current submission time. The server defaults `scans.timestamp` to `now()` in that case, which honestly represents when the scan was submitted. `deviceTimeZone` (IANA identifier, e.g. `"America/Los_Angeles"`) and `deviceRegion` (ISO 3166-1, e.g. `"US"`) are permission-free geographic signals sent as fallback context when GPS is not authorised. The Edge function injects them into the Gemini context string as `TZ:` and `Region:` tokens alongside `Locale:`, `Month:`, and `Time:` — grounding the model's regional species priors without requiring location permission. Neither field is stored in the `scans` table; they are inference-context only.
 
 ### The JSON Response Schema (From Gemini Back to Swift)
 
@@ -158,14 +164,15 @@ After the HTTP `200 OK` response is returned to the client, `runBackground` sche
 
 | Status | Body | Meaning |
 |---|---|---|
-| `400` | `{ "error": "AI processing error. Please try again." }` | Gemini generation failure |
 | `400` | `{ "error": "Bad Request: Path traversal detected." }` | `r2ObjectKeys` contains a `../` traversal attempt |
 | `400` | `{ "error": "Forbidden: r2ObjectKey does not belong to the requesting user." }` | IDOR — key does not belong to the authenticated user |
+| `400` | `{ "error": "AI processing error. Please try again." }` | Permanent content policy failure (`finishReason` is `SAFETY` or `PROHIBITED_CONTENT`) |
 | `413` | `{ "error": "Payload Too Large: Combined images exceed 5MB limit." }` | Combined image payload exceeds 5 MB |
 | `422` | `{ "error": "Processing Error: Malformed AI response." }` | Gemini returned output that could not be parsed |
 | `422` | `{ "error": "Processing Error: Invalid AI response format." }` | Gemini returned output in an unexpected format |
+| `503` | `{ "error": "AI processing error. Please try again." }` | Transient Gemini failure (API error, rate limit, timeout, non-SAFETY non-STOP finish reason) |
 
-`422` is excluded from the iOS `OfflineQueueManager`'s list of recoverable error codes. The client drops the queue entry rather than retrying indefinitely.
+`400` on a content policy failure is intentional — the iOS `OfflineQueueManager` treats `400` as a permanent tombstone and removes the queue entry rather than retrying. All other Gemini errors return `503` so the offline queue retries up to `maxUploadRetries` times before giving up. `422` is also excluded from recoverable codes and drops the entry immediately.
 
 ## The Standardized JSON Return Payload (From Supabase to Swift)
 
@@ -231,18 +238,20 @@ Only `scientific_name` is strictly required by the Edge function. `scan_id`, `co
 
 **Two-Layer Lookalike Strategy**:
 - **Layer 1 — Taxonomy trigger (zero token cost)**: A Postgres `AFTER INSERT` trigger (`trg_link_taxonomy_lookalikes`) auto-populates `species_lookalikes` with bidirectional same-genus links whenever a new species row is inserted. Same-genus species are almost always visually similar; this alone covers the majority of cases without any Gemini call.
-- **Layer 2 — Gemini Flash for cross-family visual mimics**: `fetchSimilarSpecies` is only invoked when the `species_lookalikes` join table is empty AND `similar_species TEXT[]` has no legacy names. Flash receives the species' full taxonomy (kingdom, class, order, family) from `cachedSpecies` and is explicitly constrained to return lookalikes from the same kingdom. After Gemini returns entries, `resolveLookalikesToJoinTable` looks them up in `species_dictionary`, validates kingdom match, and inserts bidirectional join table rows.
+- **Layer 2 — Gemini Flash for cross-family visual mimics**: `fetchSimilarSpecies` is only invoked when the `species_lookalikes` join table is empty AND `similar_species TEXT[]` has no legacy names. Flash receives the species' full taxonomy (kingdom, class, order, family) from `cachedSpecies` and is constrained by the system instruction to return lookalikes from the **same taxonomic order** — not merely the same kingdom. After Gemini returns entries, `resolveLookalikesToJoinTable` validates both kingdom and order match before writing to the join table.
 
-**Taxonomy Grounding (`fetchSimilarSpecies` + `resolveLookalikesToJoinTable`)**: Flash is passed `kingdom`, `class`, `order`, and `family` from `species_dictionary` as context. The system instruction explicitly forbids cross-kingdom results (e.g. plants as lookalikes for insects). As a second line of defence, `resolveLookalikesToJoinTable` accepts `primaryKingdom` and silently rejects any resolved species whose `kingdom` column in `species_dictionary` doesn't match — preventing hallucinated cross-kingdom entries from ever being written to the join table or served from cache. **Early-exit on null kingdom**: If `primaryKingdom` is `null` or `undefined`, `resolveLookalikesToJoinTable` skips all join-table writes and returns the Flash-generated entries as stubs directly. This prevents cross-kingdom contamination in the rare case where `cachedSpecies` has no kingdom value yet (e.g., replication lag on a very recently inserted species row).
+**Taxonomy Grounding (`fetchSimilarSpecies` + `resolveLookalikesToJoinTable`)**: Flash is passed `kingdom`, `class`, `order`, and `family` from `species_dictionary` as context. The system instruction explicitly forbids cross-order results (e.g. grasses as lookalikes for Narcissus — both Plantae but different orders). `resolveLookalikesToJoinTable` accepts both `primaryKingdom` and `primaryOrder` and rejects any resolved species that contradicts either. Species with no kingdom/order recorded in `species_dictionary` are allowed through (cannot contradict what is unknown). **Early-exit on null kingdom**: If `primaryKingdom` is `null`, all join-table writes are skipped and Flash-generated entries are returned as stubs directly — preventing contamination when the primary species' kingdom is not yet populated (e.g., replication lag). `lookalikes_flash_attempted` is **only** set to `true` when `resolveLookalikesToJoinTable` returns `persisted: true`, ensuring the flag never locks before validated data is in the join table.
 
-**Cache Invalidation for Bad Data**: If cross-kingdom lookalikes were previously cached (before this fix), clear them with:
+**Automatic Stale Contamination Detection**: On each `lookalikes` scope request, `index.ts` compares the primary species' `order` against every cached join-table entry's `order`. If the primary species' order is known and **every** cached entry has a different known order (100% cross-order contamination — the characteristic signature of a lookalikes Flash call that raced ahead of the enrichment scope that writes taxonomy), the stale rows are automatically cleared via `clearLookalikesForSpecies`, `lookalikes_flash_attempted` is reset to `false`, and a fresh Flash call fires. This is self-healing: no manual SQL intervention is required for contaminated species.
+
+**Manual Cache Invalidation**: For one-off fixes, cross-order (or cross-kingdom) lookalikes cached before the automatic detection was introduced can still be cleared manually:
 ```sql
 DELETE FROM species_lookalikes
 WHERE species_id = (SELECT id FROM species_dictionary WHERE scientific_name = '<scientific_name>');
 UPDATE species_dictionary SET similar_species = NULL, lookalikes_flash_attempted = FALSE
 WHERE scientific_name = '<scientific_name>';
 ```
-The next `enrich-scan` call will re-run Flash with the taxonomy-grounded prompt.
+The next `enrich-scan` call will re-run Flash with the order-grounded prompt.
 
 **Migration Path**: If the join table is empty but `similar_species TEXT[]` has legacy name strings (populated by older pipeline versions), they are resolved to the join table at zero token cost before returning.
 

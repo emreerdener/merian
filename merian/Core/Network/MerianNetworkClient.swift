@@ -228,17 +228,25 @@ final class MerianNetworkClient {
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
         let userId = (authUserId ?? deviceId).lowercased()
         let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
-        let currentMonth = Calendar.current.component(.month, from: Date())
         // IANA timezone identifier (e.g. "America/Los_Angeles") — permission-free geographic
         // signal. Narrows the plausible species universe even when GPS is not authorized.
         let deviceTimeZone = TimeZone.current.identifier
         // ISO 3166-1 region code (e.g. "US", "DE") — complements the language-only locale.
         let deviceRegion = Locale.current.region?.identifier
 
+        // For gallery photos, derive month and time-of-day from the image's own capture date
+        // (populated from EXIF via PHAsset.creationDate) so Gemini receives the correct
+        // season and light context for the photo rather than the current wall-clock values.
+        // Falls back to now() for live captures and gallery photos with no EXIF date.
+        let captureDate: Date = telemetry.timestamp.flatMap {
+            DateUtilities.iso8601Formatter.date(from: $0)
+        } ?? Date()
+        let currentMonth = Calendar.current.component(.month, from: captureDate)
+
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        let timeOfDay = formatter.string(from: Date())
+        let timeOfDay = formatter.string(from: captureDate)
 
         let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
         let capturedScanId = clientScanId
@@ -289,14 +297,18 @@ final class MerianNetworkClient {
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
         let userId = (authUserId ?? deviceId).lowercased()
         let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
-        let currentMonth = Calendar.current.component(.month, from: Date())
         let deviceTimeZone = TimeZone.current.identifier
         let deviceRegion = Locale.current.region?.identifier
+
+        let captureDate: Date = telemetry.timestamp.flatMap {
+            DateUtilities.iso8601Formatter.date(from: $0)
+        } ?? Date()
+        let currentMonth = Calendar.current.component(.month, from: captureDate)
 
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        let timeOfDay = formatter.string(from: Date())
+        let timeOfDay = formatter.string(from: captureDate)
 
         let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
         let capturedClientScanId = clientScanId

@@ -152,11 +152,13 @@ extension CaptureTelemetry {
             // Library photo — zoom at original capture time is unknown; omit.
             return CaptureTelemetry(from: hc, distance: nil)
         } else if isGalleryPhoto {
-            // Library photo with absolutely no EXIF
+            // No EXIF available — omit timestamp rather than fabricating the current date.
+            // The server defaults scans.timestamp to now(), which honestly represents when
+            // the scan was submitted rather than a false original capture time.
             return CaptureTelemetry(
                 subjectDistanceInMeters: nil, gpsLatitude: nil, gpsLongitude: nil, gpsElevation: nil,
                 locationName: nil, weatherCondition: nil, weatherTemperatureF: nil, timeOfDay: nil,
-                timestamp: DateUtilities.iso8601Formatter.string(from: Date()), zoomFactor: nil, estimatedSizeCm: nil
+                timestamp: nil, zoomFactor: nil, estimatedSizeCm: nil
             )
         } else {
             var estimatedSizeCm: Double?
