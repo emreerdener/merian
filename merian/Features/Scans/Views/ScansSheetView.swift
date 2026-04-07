@@ -1,7 +1,6 @@
 import SwiftData
 import SwiftUI
 
-// 3. Scans Semantic View Interface
 enum ScansTab {
     case library
     case collections
@@ -10,15 +9,28 @@ enum ScansTab {
 struct ScansSheetView: View {
     // MARK: - App State Engines
     @State private var searchManager = ScansManager()
-    
+
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var rawRecords: [LocalScanRecord]
     private var allRecords: [LocalScanRecord] {
         rawRecords.filter { $0.isBiological == true && $0.commonName != "Unknown Subject" }
     }
     @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
-    @Query(filter: #Predicate<OfflineQueuedScan> { $0.scanStateRaw < 5 }, sort: \OfflineQueuedScan.timestamp, order: .reverse) private var queuedScans: [OfflineQueuedScan]
-    
+
+    /// Manually-managed queue list, bypassing `@Query` for live updates while the sheet is open.
+    ///
+    /// SwiftData's `@Query` in a presented `.sheet` does not reliably re-evaluate when
+    /// `ModelContext.save()` fires while the app is backgrounded — the sheet's render cycle
+    /// is paused and the save notification may be dropped before the view processes it.
+    /// On foreground return the pending overlay would remain stuck until the user closes and
+    /// reopens the sheet.
+    ///
+    /// Driving this array from `OfflineQueueManager.unsyncedItemsCount` (an `@Observable`
+    /// property) guarantees delivery: `@Observable` change notifications are queued and
+    /// processed on the next active render pass regardless of when the mutation happened.
+    @State private var queuedScans: [OfflineQueuedScan] = []
+
     @Environment(\.modelContext) private var modelContext
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(\.dismiss) var dismiss
     @Binding var isInsightSheetOpen: Bool
@@ -100,6 +112,7 @@ struct ScansSheetView: View {
         }
         .onAppear {
             syncStateLocally()
+            refreshQueuedScans()
             prefetchLeadingThumbnails(from: searchManager.allScans)
         }
         .onChange(of: rawRecords) { _, _ in
@@ -109,10 +122,17 @@ struct ScansSheetView: View {
             searchManager.collections = collections
             searchManager.performSearch(query: searchManager.searchQuery)
         }
+        .onChange(of: offlineQueueManager.unsyncedItemsCount) { _, _ in
+            // `@Observable` change notifications are queued and delivered on the next active
+            // render pass — reliable even when the app was backgrounded when the scan
+            // completed and the @Query save notification was never processed by the sheet.
+            refreshQueuedScans()
+            syncStateFromStore()
+        }
     }
     
-    // MARK: - Action Handlers & Logic Blocks
-    
+    // MARK: - Data Refresh
+
     /// Synchronizes native SwiftData reactive arrays with the offline search manager engine.
     private func syncStateLocally() {
         searchManager.allScans = allRecords
@@ -128,6 +148,38 @@ struct ScansSheetView: View {
         }
         LocalImageLoader.shared.prefetch(records: Array(slice), maxDimension: prefetchThumbnailSize)
     }
+
+    /// Fetches the current `OfflineQueuedScan` list directly from the model context.
+    ///
+    /// Called on `onAppear` and whenever `offlineQueueManager.unsyncedItemsCount` changes.
+    /// By fetching directly rather than relying on `@Query` auto-refresh, this bypasses the
+    /// SwiftData sheet `@Query` notification drop that occurs when saves happen while the
+    /// app is backgrounded.
+    private func refreshQueuedScans() {
+        let nonFailedMax = ScanQueueState.failed.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate<OfflineQueuedScan> { $0.scanStateRaw < nonFailedMax },
+            sortBy: [SortDescriptor(\OfflineQueuedScan.timestamp, order: .reverse)]
+        )
+        queuedScans = (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    /// Forces `searchManager` to reflect the latest `LocalScanRecord` state by fetching
+    /// directly from the model context, bypassing any stale `@Query rawRecords` cache.
+    ///
+    /// Called alongside `refreshQueuedScans()` when `unsyncedItemsCount` changes so the
+    /// completed scan tile appears at the same time the pending overlay disappears.
+    private func syncStateFromStore() {
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate<LocalScanRecord> { $0.isBiological == true && $0.commonName != "Unknown Subject" },
+            sortBy: [SortDescriptor(\LocalScanRecord.timestamp, order: .reverse)]
+        )
+        searchManager.allScans = (try? modelContext.fetch(descriptor)) ?? []
+        searchManager.collections = collections
+        searchManager.performSearch(query: searchManager.searchQuery)
+    }
+
+    // MARK: - Action Handlers
 
     private func handleBatchDelete() {
         let itemsToDelete = searchManager.getSelectedLocalRecords()

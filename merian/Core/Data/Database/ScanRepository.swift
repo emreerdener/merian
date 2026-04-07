@@ -94,11 +94,11 @@ final class ScanRepository {
             // the cloud first, those unsynced collections will be deleted during the sync pass.
             // Pushing here ensures every local collection reaches Supabase before we treat
             // the cloud as the source of truth for the delete pass.
-            if UserDefaults.standard.bool(forKey: "needsCollectionSync") {
+            if UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync) {
                 let pushActor = BackgroundDatabaseActor(modelContainer: container)
                 let success = await pushActor.pushCollectionsToEdge()
                 if success {
-                    UserDefaults.standard.set(false, forKey: "needsCollectionSync")
+                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
                 }
             }
 

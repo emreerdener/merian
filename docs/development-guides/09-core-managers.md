@@ -145,6 +145,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 | `invertZoomDirection` | `"invertZoomDirection"` | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView` |
 | `zoomSideLeft` | `"zoomSideLeft"` | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView` |
 | `zoomSliderVisible` | `"zoomSliderVisible"` | `ZoomSliderView`, `CameraSettingsView` |
+| `needsCollectionSync` | `"needsCollectionSync"` | `OfflineQueueManager+Sync` (write on enqueue, clear on success), `ScanRepository` (read/clear during historical sync) |
 
 ## Media & Image Processing
 

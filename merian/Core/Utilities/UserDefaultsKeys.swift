@@ -17,4 +17,6 @@ enum UserDefaultsKeys {
     static let zoomSideLeft = "zoomSideLeft"
     /// Whether the zoom slider overlay is visible on the camera viewfinder.
     static let zoomSliderVisible = "zoomSliderVisible"
+    /// Whether local `ScanCollection` changes are pending a push to the `sync-collections` Edge function.
+    static let needsCollectionSync = "needsCollectionSync"
 }

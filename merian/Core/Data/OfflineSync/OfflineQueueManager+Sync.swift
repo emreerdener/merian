@@ -92,15 +92,6 @@ extension OfflineQueueManager {
 
     // MARK: - Uploads
 
-    /// Flat representation of a single image file ready for a presigned R2 PUT.
-    struct ScanUploadItem {
-        let scanId: String
-        /// Per-scan slot index (0…N-1). Distinct from the flat batch position across all scans.
-        let imageIndex: Int
-        let fileName: String
-        let fileURL: URL
-    }
-
     /// Fetches `.pending` scans and schedules background `PUT` uploads to Cloudflare R2 staging.
     ///
     /// Upload tasks are tracked by `taskDescription` (`"\(scanId)_\(imageIndex)"`).
@@ -198,7 +189,7 @@ extension OfflineQueueManager {
 
     // MARK: - Upload Helpers
 
-    nonisolated private func prepareUploadItems(from scans: [BackgroundDatabaseActor.PendingScanPayload]) -> [ScanUploadItem] {
+    nonisolated private func prepareUploadItems(from scans: [PendingScanPayload]) -> [ScanUploadItem] {
         let documentsDirectory = URL.documentsDirectory
         var uploadItems: [ScanUploadItem] = []
         for scan in scans {
@@ -297,14 +288,14 @@ extension OfflineQueueManager {
     /// The "Favorites" collection is excluded — it is managed locally only.
     func enqueueCollectionSync() {
         // ALWAYS set the flag when enqueued (so offline edits are remembered)
-        UserDefaults.standard.set(true, forKey: "needsCollectionSync")
+        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
         syncCollectionsIfPending()
     }
 
     /// Pushes local `ScanCollection` records to the `sync-collections` Edge function if changes are pending.
     /// No-ops when offline or unauthenticated.
     func syncCollectionsIfPending() {
-        guard UserDefaults.standard.bool(forKey: "needsCollectionSync") else { return }
+        guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync) else { return }
         guard isOnline, SupabaseManager.shared.isAuthenticated else { return }
         guard !isCollectionSyncing else { return }
         guard let container = modelContext?.container else { return }
@@ -319,7 +310,7 @@ extension OfflineQueueManager {
             await MainActor.run {
                 self.isCollectionSyncing = false
                 if success {
-                    UserDefaults.standard.set(false, forKey: "needsCollectionSync")
+                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
                 }
             }
         }

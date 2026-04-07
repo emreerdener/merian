@@ -53,7 +53,7 @@ struct CompositeLibraryTests {
     @Test func testFailedScansExcludedByPredicate() throws {
         let context = try makeContext()
 
-        // Mirror the exact predicate used in ScansSheetView's @Query (scanStateRaw < 5)
+        // Mirror the exact predicate used in ScansSheetView's refreshQueuedScans() (scanStateRaw < 5)
         let active  = OfflineQueuedScan(scanState: .pending)
         let failed  = OfflineQueuedScan(scanState: .failed)
 

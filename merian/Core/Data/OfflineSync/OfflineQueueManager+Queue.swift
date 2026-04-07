@@ -382,17 +382,17 @@ extension OfflineQueueManager {
             scanState: .pending
         )
         
-        guard let modelContext = OfflineQueueManager.shared.modelContext else {
+        guard let modelContext else {
             cleanupImages(at: fileURLs)
             return
         }
         modelContext.insert(scan)
-        
+
         do {
             try modelContext.save()
-            OfflineQueueManager.shared.updateUnsyncedItemCount()
+            updateUnsyncedItemCount()
             AppTelemetry.trackOfflineQueued()
-            OfflineQueueManager.shared.syncPendingScans()
+            syncPendingScans()
         } catch {
             MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
             cleanupImages(at: fileURLs)

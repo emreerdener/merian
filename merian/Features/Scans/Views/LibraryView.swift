@@ -1,161 +1,5 @@
 import SwiftUI
 
-// MARK: - Queued Scan Management Sheet
-
-private struct QueuedScanManagementSheet: View {
-    let queuedScan: OfflineQueuedScan
-    let isOnline: Bool
-    let onDelete: () -> Void
-    let onClose: () -> Void
-
-    @State private var thumbnail: UIImage?
-
-    private var statusIcon: String {
-        guard isOnline else { return "wifi.slash" }
-        switch queuedScan.queueState {
-        case .pending:   return "arrow.up.circle"
-        case .uploading: return "arrow.up.circle.fill"
-        case .staged:    return "cpu"
-        case .inferencing: return "sparkles"
-        case .failed:    return "exclamationmark.circle"
-        }
-    }
-
-    private var statusText: String {
-        guard isOnline else { return "Waiting for network connection" }
-        switch queuedScan.queueState {
-        case .pending:     return "Queued for upload"
-        case .uploading:   return "Uploading image..."
-        case .staged:      return "Preparing analysis..."
-        case .inferencing: return "AI identifying subject..."
-        case .failed:      return "Upload failed"
-        }
-    }
-
-    private var isActivelyProcessing: Bool {
-        isOnline && (queuedScan.queueState == .uploading || queuedScan.queueState == .inferencing)
-    }
-
-    private var relativeTimestamp: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: queuedScan.timestamp, relativeTo: Date())
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-
-            // MARK: Thumbnail Header
-            ZStack(alignment: .bottom) {
-                Group {
-                    if let img = thumbnail {
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        Rectangle()
-                            .fill(Color(.systemGray5))
-                            .overlay {
-                                Image(systemName: "photo")
-                                    .font(.largeTitle)
-                                    .foregroundStyle(.tertiary)
-                            }
-                    }
-                }
-                .frame(height: 200)
-                .clipped()
-
-                // Bottom gradient so status badge is always legible
-                LinearGradient(
-                    colors: [.black.opacity(0.55), .clear],
-                    startPoint: .bottom,
-                    endPoint: .center
-                )
-
-                // Status badge
-                HStack(spacing: 6) {
-                    if isActivelyProcessing {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .tint(.white)
-                            .scaleEffect(0.75)
-                    } else {
-                        Image(systemName: statusIcon)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.9))
-                    }
-                    Text(statusText)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(.bottom, 14)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-
-            // MARK: Metadata
-            VStack(spacing: 4) {
-                Text("Pending analysis")
-                    .font(.title3)
-                    .fontWeight(.bold)
-
-                HStack(spacing: 14) {
-                    Label(relativeTimestamp, systemImage: "clock")
-                    if let location = queuedScan.locationName {
-                        Label(location, systemImage: "location")
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            .padding(.top, 20)
-            .padding(.horizontal, 20)
-
-            Spacer(minLength: 24)
-
-            // MARK: Actions
-            VStack(spacing: 10) {
-                Button(role: .destructive, action: onDelete) {
-                    Text("Cancel analysis & delete")
-                        .font(.headline)
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-
-                Button(action: onClose) {
-                    Text("Close")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.systemGray5))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 28)
-        }
-        .presentationDetents([.height(460)])
-        .presentationDragIndicator(.visible)
-        .task {
-            guard let fileName = queuedScan.localImagePaths.first else { return }
-            let url = URL.documentsDirectory.appendingPathComponent(fileName)
-            guard let cgImage = ImageDownsampler.shared.downsample(url: url, maxSize: 400) else { return }
-            thumbnail = UIImage(cgImage: cgImage)
-        }
-    }
-}
-
 // MARK: - Library View
 
 struct LibraryView: View {
@@ -304,6 +148,17 @@ struct LibraryView: View {
                     },
                     onClose: { scanToManage = nil }
                 )
+            }
+            .onChange(of: queuedScans.map(\.id)) { _, newIds in
+                // Auto-dismiss the management sheet when its scan completes (leaves the queue).
+                // Holding a live OfflineQueuedScan reference after flushOfflineQueuedScan
+                // deletes the object causes SwiftUI to render against a zombie @Model — nil
+                // out scanToManage as soon as the scan ID disappears from the queue.
+                // Comparing [String] ids is cheaper than PersistentModel equality on the full array.
+                guard let managed = scanToManage else { return }
+                if !newIds.contains(managed.id) {
+                    scanToManage = nil
+                }
             }
             .task(id: toastMessage) {
                 guard toastMessage != nil else { return }

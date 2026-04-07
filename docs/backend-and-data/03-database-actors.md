@@ -10,6 +10,19 @@ The main thread owns the SwiftUI view hierarchy and the primary `ModelContext`. 
 
 ---
 
+## Shared Data Transfer Objects (`Core/Data/OfflineSync/OfflineSyncTypes.swift`)
+
+All `Sendable` value types shared across the offline sync pipeline live in a single file so they are visible to any reader without hunting through actor or extension files:
+
+| Type | Purpose |
+|---|---|
+| `PendingScanPayload` | Minimal snapshot of a queued scan returned by `fetchPendingScans(limit:)`. Safe to pass across actor boundaries. |
+| `ScanUploadItem` | One image file ready for a presigned R2 PUT — `scanId`, `imageIndex`, `fileName`, `fileURL`. |
+| `ExtractedScanData` | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. |
+| `OfflineScanProcessingResult` | Result of `processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, and `wasCleaned` flag controlling main-actor queue flush. |
+
+---
+
 ## Actor Inventory
 
 ### `BackgroundDatabaseActor` (`Core/Data/Database/BackgroundDatabaseActor.swift`)
@@ -25,7 +38,7 @@ The main thread owns the SwiftUI view hierarchy and the primary `ModelContext`. 
 - `tryClaimForInference(scanId:)` — atomic distributed lock for inference. Transitions `.staged → .inferencing`; returns `false` if the scan is already `.inferencing` or not found. Because `BackgroundDatabaseActor` serializes all calls on its executor, only one pipeline can win this claim per scan — the race between `processUploadCompletion` and `replayInferenceForUploadedScans` is closed here.
 - `transitionScanToStaged(id:)` — retreats `.inferencing → .staged` on transient inference failure so `replayInferenceForUploadedScans` can reclaim the scan on the next connectivity restore. Source-state guard: only retreats from `.inferencing` — will not overwrite a concurrent `softDeleteQueuedScan` tombstone (`.failed`) written by the MainActor.
 - `reconcileOrphanedUploadingScans(activeScanIds:)` — called once per process life on first connectivity restore. Resets `.uploading → .pending` for scans with no active URLSession task. Safe because no upload tasks are dispatched during the startup window.
-- `resetOrphanedInferencingScans()` — called once per process life before the first inference replay. Resets all `.inferencing → .staged` scans so `replayInferenceForUploadedScans` can re-claim them. Safe because no inference pipelines are running when a fresh process starts.
+- `reconcileOrphanedInferencingScans(activeInferenceScanIds:)` — cross-references live `"inference_*"` URLSession tasks before resetting `.inferencing → .staged`. Only scans with no live OS task are reset, preventing duplicate inference dispatch against tasks still owned by the system after a relaunch.
 
 *Offline scan processing:*
 - `processAndCleanupOfflineScan(...)` — the top-level orchestration boundary. Decodes an edge inference result, orchestrates two inner helpers, then saves the `LocalScanRecord` to the background context. **The `OfflineQueuedScan` is intentionally NOT deleted here** — that is always delegated to the main actor's `flushOfflineQueuedScan` so the main `ModelContext` always has a real pending deletion when it saves (the only reliable `@Query` re-evaluation trigger in a presented sheet — SwiftData platform limitation: background-context saves do not reliably propagate to `@Query` in open sheets):
