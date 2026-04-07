@@ -587,8 +587,8 @@ private struct GBIFMedia: Decodable {
 
             // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
             var persistUrls: String?
-            if self.speciesData?.gbifTaxonKey == taxonKey {
-                var currentUrls = self.speciesData?.referenceImageUrl?
+            if self.speciesData?.gbifTaxonKey == taxonKey, var updated = self.speciesData {
+                var currentUrls = updated.referenceImageUrl?
                     .components(separatedBy: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty } ?? []
@@ -599,8 +599,10 @@ private struct GBIFMedia: Decodable {
 
                 // Cap at 5 URLs to prevent unbounded referenceImageUrl string growth across sessions.
                 let capped = Array(currentUrls.prefix(5))
-                self.speciesData?.referenceImageUrl = capped.joined(separator: ",")
-                persistUrls = self.speciesData?.referenceImageUrl
+                updated.referenceImageUrl = capped.joined(separator: ",")
+                persistUrls = updated.referenceImageUrl
+                // Single full-value replacement — see fetchAndApplyEnrichment comment.
+                self.speciesData = updated
             }
 
             if let scanId = scanId, let context = modelContext, let finalUrls = persistUrls {
@@ -666,19 +668,28 @@ private struct GBIFMedia: Decodable {
                         )
                         guard let enrichData = response.data else { return }
 
-                        self.speciesData?.habitatDescription = enrichData.habitat_description
-                        if let tax = enrichData.taxonomy {
-                            self.speciesData?.taxonomy = TaxonomyData(
-                                kingdom: tax.kingdom,
-                                phylum: tax.phylum,
-                                className: tax.`class`,
-                                order: tax.order,
-                                family: tax.family,
-                                genus: tax.genus
-                            )
+                        // Collect all enrichment mutations into a local copy, then assign once.
+                        // Individual optional-chain mutations (self.speciesData?.field = x) do not
+                        // reliably fire @Observable notifications for struct value types; a single
+                        // full-value replacement is the only guaranteed trigger.
+                        if var updated = self.speciesData {
+                            updated.habitatDescription = enrichData.habitat_description
+                            if let tax = enrichData.taxonomy {
+                                updated.taxonomy = TaxonomyData(
+                                    kingdom: tax.kingdom,
+                                    phylum: tax.phylum,
+                                    className: tax.`class`,
+                                    order: tax.order,
+                                    family: tax.family,
+                                    genus: tax.genus
+                                )
+                            }
+                            if let key = enrichData.gbif_taxon_key {
+                                updated.gbifTaxonKey = key
+                            }
+                            self.speciesData = updated  // Single @Observable-triggering assignment
                         }
                         if let key = enrichData.gbif_taxon_key {
-                            self.speciesData?.gbifTaxonKey = key
                             // Store in a tracked handle so cancelActiveRequest() can kill this task
                             // before it writes stale GBIF image URLs to a record no longer active.
                             self.gbifHydrationTask?.cancel()
@@ -733,19 +744,22 @@ private struct GBIFMedia: Decodable {
                         guard let enrichData = response.data else { return }
 
                         if let entries = enrichData.similar_species, !entries.isEmpty {
-                            self.speciesData?.similarSpecies = SimilarSpecies(
-                                entries: entries.map {
-                                    SimilarSpeciesEntry(
-                                        scientificName: $0.scientific_name,
-                                        commonName: $0.common_name,
-                                        referenceImageUrl: $0.reference_image_url,
-                                        iucnRedListStatus: $0.iucn_red_list_status
-                                    )
-                                }
-                            )
+                            let mappedEntries = entries.map {
+                                SimilarSpeciesEntry(
+                                    scientificName: $0.scientific_name,
+                                    commonName: $0.common_name,
+                                    referenceImageUrl: $0.reference_image_url,
+                                    iucnRedListStatus: $0.iucn_red_list_status
+                                )
+                            }
+                            // Single full-value replacement — see enrichment scope comment above.
+                            if var updated = self.speciesData {
+                                updated.similarSpecies = SimilarSpecies(entries: mappedEntries)
+                                self.speciesData = updated
+                            }
                             if let context = modelContext {
                                 let container = context.container
-                                let entriesToEncode = self.speciesData?.similarSpecies?.entries
+                                let entriesToEncode: [SimilarSpeciesEntry]? = mappedEntries
                                 Task {
                                     // Encode off @MainActor — JSONEncoder is CPU-bound.
                                     let encodedLookalikes: Data? = await Task.detached(priority: .utility) {
