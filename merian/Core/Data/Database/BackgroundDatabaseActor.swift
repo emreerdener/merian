@@ -31,11 +31,15 @@ struct OfflineScanProcessingResult {
     /// Passed back to the main actor so the live InferenceEngine can be hydrated directly
     /// when the background path races ahead of the suspended live inference task.
     let speciesData: SpeciesData?
-    /// True when the background context's atomic save committed — the `OfflineQueuedScan`
-    /// was deleted from the persistent store. The caller should mirror this deletion on the
-    /// main context via `flushOfflineQueuedScan` so that `@Query queuedScans` in the open
-    /// scans library updates immediately (background context saves do not reliably propagate
-    /// to `@Query` in presented sheets — a SwiftData platform limitation).
+    /// True when the background context's save committed (inserting the `LocalScanRecord` on
+    /// success, or a no-op save on a confidence==0 failure). When true, the caller must invoke
+    /// `flushOfflineQueuedScan` on the main actor to delete the `OfflineQueuedScan` there.
+    ///
+    /// The background context intentionally does NOT delete the `OfflineQueuedScan`. Delegating
+    /// the deletion to the main actor guarantees the main `ModelContext` always has a real
+    /// pending change when it saves — the only reliable way to trigger `@Query` re-evaluation
+    /// in a presented sheet (SwiftData platform limitation: background context saves do not
+    /// reliably propagate to `@Query` in open sheets via remote change notifications).
     let wasCleaned: Bool
 }
 
@@ -283,7 +287,12 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Offline Scan Processing
 
-    /// Decodes edge inference results, persists a LocalScanRecord, then removes the OfflineQueuedScan.
+    /// Decodes edge inference results and persists a `LocalScanRecord` (when confidence > 0).
+    ///
+    /// The `OfflineQueuedScan` is intentionally **not** deleted here — that is delegated to
+    /// the main actor's `flushOfflineQueuedScan` so the main `ModelContext` always has a real
+    /// pending change on its save, which is the only reliable `@Query` re-evaluation trigger
+    /// in a presented sheet (SwiftData platform limitation).
     func processAndCleanupOfflineScan(
         resultData: Data,
         originalImagePaths: [String],
@@ -350,19 +359,31 @@ actor BackgroundDatabaseActor {
             }
         }
 
-        // --- Step 4: Purge Queue Record & Commit ---
-        
-        let commitSuccess = removeQueuedScanAndPersist(scanId: scanId)
-        
-        if !commitSuccess {
-            MerianLog.data.error("processAndCleanupOfflineScan: dequeue atomic save failed — resetting results.")
-            // The atomic save failed: neither insertion nor deletion committed.
+        // --- Step 4: Commit LocalScanRecord ---
+        //
+        // The `OfflineQueuedScan` is intentionally NOT deleted here. Delegation to the main
+        // actor's `flushOfflineQueuedScan` ensures the main `ModelContext` always has a real
+        // pending deletion when it saves. SwiftData's `@Query` in a presented sheet only
+        // re-evaluates reliably when the *main* context performs a save with actual pending
+        // changes; background-context saves propagate via `NSPersistentStoreRemoteChangeNotification`
+        // but do not reliably trigger `@Query` in open sheets (SwiftData platform limitation).
+        let commitSuccess: Bool
+        do {
+            try modelContext.save()
+            commitSuccess = true
+        } catch {
+            MerianLog.data.error("processAndCleanupOfflineScan: save failed — rolling back.")
             modelContext.rollback()
             resolvedSpeciesName = nil
             resultingScanId = nil
             resultSpeciesData = nil
-        } else if inferenceFailed {
-            // Delete source files async if inference failed cleanly out and the record was purged
+            commitSuccess = false
+        }
+
+        if commitSuccess && inferenceFailed {
+            // HTTP 200 response but confidence == 0: no LocalScanRecord was inserted.
+            // The OfflineQueuedScan cleanup is still delegated to the main actor.
+            // Delete source image files here since they will never be referenced by a record.
             Task { await FileIOActor.shared.deleteImages(at: originalImagePaths) }
         }
 
@@ -459,23 +480,6 @@ actor BackgroundDatabaseActor {
                 imageQualityScore: mappedData.imageQualityScore
             )
             modelContext.insert(record)
-        }
-    }
-
-    /// Deletes the queued scan record and saves, committing both the insertion from Step 3
-    /// and this deletion atomically. Returns `false` if the save throws.
-    private func removeQueuedScanAndPersist(scanId: String) -> Bool {
-        do {
-            var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-            descriptor.fetchLimit = 1
-            if let scanToDelete = try modelContext.fetch(descriptor).first {
-                modelContext.delete(scanToDelete)
-            }
-            try modelContext.save()
-            return true
-        } catch {
-            MerianLog.data.error("removeQueuedScanAndPersist: atomic dequeue failed: \(error, privacy: .private)")
-            return false
         }
     }
 

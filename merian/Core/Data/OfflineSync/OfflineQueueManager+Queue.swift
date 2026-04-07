@@ -8,29 +8,30 @@ import UIKit
 
 extension OfflineQueueManager {
 
-    /// Removes an `OfflineQueuedScan` from the **main context** and saves, guaranteeing that
-    /// `@Query queuedScans` in any open sheet updates immediately.
+    /// Deletes an `OfflineQueuedScan` from the **main context** and saves, reliably triggering
+    /// `@Query queuedScans` (and `@Query rawRecords`) in any open sheet to re-evaluate.
     ///
-    /// Background `BackgroundDatabaseActor` context saves do not reliably propagate to `@Query`
-    /// in presented sheets (SwiftData platform limitation). Calling this from the main actor after
-    /// a background-context deletion ensures the pending overlay disappears without requiring the
-    /// user to close and reopen the scans library. The main-context save also processes any pending
-    /// store notifications (e.g. a newly inserted `LocalScanRecord`), so `@Query rawRecords` updates
-    /// in the same pass — both queries refresh from a single save.
+    /// **Why main-actor deletion is the only reliable trigger**: `BackgroundDatabaseActor` saves
+    /// propagate via `NSPersistentStoreRemoteChangeNotification`, but SwiftData's `@Query` in a
+    /// presented `.sheet` does not reliably respond to those remote notifications. A main-context
+    /// `save()` with actual pending changes (this deletion) is the only guaranteed trigger.
     ///
-    /// `context.save()` is unconditional. When two scans complete concurrently the persistent store
-    /// notification from the background actor can arrive and be merged by the main context BEFORE
-    /// this function runs — making the fetch return nil. Gating the save on finding the record
-    /// (the previous `guard let` pattern) would silently skip the save in that window, leaving
-    /// `@Query` unaware of the new `LocalScanRecord` insertion. The unconditional save ensures
-    /// `@Query` always processes all pending store notifications in a single pass, regardless of
-    /// whether the deletion was already merged.
+    /// **Contract**: `BackgroundDatabaseActor.processAndCleanupOfflineScan` intentionally skips
+    /// deleting the `OfflineQueuedScan` from its own context — that work is always delegated here
+    /// so this function always finds and deletes a live record. If `wasCleaned == false` (save
+    /// failed in the background actor), this function is never called, leaving the record in the
+    /// queue for the next retry cycle.
+    ///
+    /// When `@Query` re-evaluates after this save it fetches fresh data from the persistent store,
+    /// picking up both the deleted `OfflineQueuedScan` and the newly inserted `LocalScanRecord`
+    /// (committed earlier by the background actor) in a single pass.
     func flushOfflineQueuedScan(scanId: String) {
         guard let context = modelContext else { return }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        // Delete if still present; a nil result means the background context's notification
-        // was already merged — we still need to save to trigger @Query.
+        // The background actor intentionally leaves the OfflineQueuedScan alive so this
+        // deletion is always a real pending change on the main context. Guard defensively
+        // in case of an unexpected concurrent deletion (e.g. deleteQueuedScan racing).
         if let scan = (try? context.fetch(descriptor))?.first {
             context.delete(scan)
         }

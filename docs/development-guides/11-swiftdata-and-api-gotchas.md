@@ -239,21 +239,18 @@ In SwiftData (built on Core Data), a failed `save()` call leaves all pending cha
 
 ### The Vulnerability
 
-`processAndCleanupOfflineScan` performs an atomic `INSERT LocalScanRecord + DELETE OfflineQueuedScan` in a single `save()`. If the save fails (e.g., unique-constraint violation on `LocalScanRecord.id`), both the pending INSERT and pending DELETE remain on the context. On the next retry:
-
-1. `resetOrphanedInferencingScans` on the same context **cannot find the scan** — Core Data excludes pending-deleted objects from fetch results, even though the deletion was never committed to the store.
-2. A second `processAndCleanupOfflineScan` call stacks a second pending INSERT with the same `id` on top of the first → guaranteed unique-constraint failure on every subsequent attempt.
+`processAndCleanupOfflineScan` inserts a `LocalScanRecord` into the background context and calls `save()`. If the save fails (e.g., unique-constraint violation on `LocalScanRecord.id`), the pending INSERT remains on the context. On the next retry a second `processAndCleanupOfflineScan` call stacks a second pending INSERT with the same `id` on top of the first → guaranteed unique-constraint failure on every subsequent attempt.
 
 ```swift
 // ❌ Reusing the shared actor for cleanup: a failed save corrupts the shared context
 let sharedActor = resolvedInferenceDbActor(container: container)
 await sharedActor.processAndCleanupOfflineScan(...)  // save() fails
-// Now sharedActor.modelContext has a pending DELETE + pending INSERT stuck in it
-await sharedActor.resetOrphanedInferencingScans()    // scan is invisible (pending-deleted)
-await sharedActor.tryClaimForInference(...)           // scan not found → returns false forever
+// Now sharedActor.modelContext has a stale pending INSERT stuck in it
+await sharedActor.tryClaimForInference(...)           // next attempt stacks a second INSERT →
+                                                      // unique-constraint failure forever
 ```
 
-### ✅ The Pattern: Fresh Actor for Each Atomic Cleanup Attempt
+### ✅ The Pattern: Fresh Actor for Each Cleanup Attempt
 
 Use a **fresh** `BackgroundDatabaseActor` for each `processAndCleanupOfflineScan` call. A failed save is contained to that fresh actor — it is simply discarded. The shared actor's context remains uncorrupted and can continue to serve state-machine transitions correctly:
 
@@ -261,7 +258,7 @@ Use a **fresh** `BackgroundDatabaseActor` for each `processAndCleanupOfflineScan
 // ✅ Fresh actor per cleanup attempt: failure is contained and discarded
 let cleanupActor = BackgroundDatabaseActor(modelContainer: container)
 await cleanupActor.processAndCleanupOfflineScan(...)  // save() fails → cleanupActor discarded
-// sharedActor.modelContext is unaffected; resetOrphanedInferencingScans works normally
+// sharedActor.modelContext is unaffected; reconcileOrphanedInferencingScans works normally
 ```
 
 Additionally, `processAndCleanupOfflineScan` itself should be **idempotent**: check whether a `LocalScanRecord` with the target `id` already exists before inserting, to prevent unique-constraint failures when a previous attempt partially committed:
