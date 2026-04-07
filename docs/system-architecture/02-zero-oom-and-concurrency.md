@@ -399,9 +399,11 @@ enum SyncPhase: Equatable {
 
 `OfflineQueueManager` transitions the phase at each boundary:
 - `beginSync(itemCount:)` → `.uploading(count:)` when the batch is dispatched
-- `beginInferencing()` → `.inferencing` immediately before calling `analyzeSubject`
+- `beginInferencing()` → `.inferencing` immediately before dispatching the background download task; increments an internal `activeInferenceCount`
 - `beginFinalizing()` → `.finalizing` immediately before `processAndCleanupOfflineScan`
-- `completeSync()` → `.idle` when all tasks settle or on connectivity loss
+- `completeSync()` → decrements `activeInferenceCount`; transitions to `.idle` only when count reaches zero — prevents a burst of concurrent scans from prematurely clearing the indicator when the first pipeline finishes while others are still inferencing or finalizing
+- `completeUploadPhase()` → transitions to `.idle` only if `activeInferenceCount == 0`; used by upload-path completions (empty queue, URL generation failure) that never called `beginInferencing()` and must not touch the count
+- `forceIdle()` → hard resets `activeInferenceCount = 0` and `phase = .idle`; used exclusively on connectivity loss where all in-flight tasks are cancelled and will replay when connectivity restores
 
 Computed shims (`isSyncing: Bool { phase.isActive }` and `pendingUploadCount: Int`) preserve backward compatibility for existing UI components.
 

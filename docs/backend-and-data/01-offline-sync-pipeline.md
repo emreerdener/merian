@@ -102,7 +102,7 @@ Weather backfill must happen at task-creation time because there is no async opp
 
 Previously, WeatherKit and `analyzeSubject` ran concurrently via `async let` inside `runInferencePipeline`. That was only viable when inference was a foreground `await` — background URLSession tasks are fire-and-forget, so the weather data must be embedded in the request at dispatch time rather than injected on the fly.
 
-When all background upload tasks settle, `SyncStateManager.shared.completeSync()` transitions to `.idle`. If `unsyncedItemsCount > 0` after a batch, `syncPendingScans()` is called recursively to drain the queue automatically.
+When all background upload tasks settle, `SyncStateManager.shared.completeUploadPhase()` transitions to `.idle` if no inference pipelines are active. If `unsyncedItemsCount > 0` after a batch, `syncPendingScans()` is called recursively to drain the queue automatically.
 
 ## The Sync State Machine (`SyncStateManager`)
 
@@ -118,6 +118,8 @@ enum SyncPhase: Equatable {
 ```
 
 Backward-compatible computed shims (`isSyncing: Bool`, `pendingUploadCount: Int`) are preserved for existing UI components. New UI can branch on `phase` directly for richer progress display. `OfflineQueueManager` is the only writer.
+
+**Concurrent pipeline safety**: `SyncStateManager` tracks an internal `activeInferenceCount`. `beginInferencing()` increments it; `completeSync()` decrements it and only transitions to `.idle` when the count reaches zero. This prevents a burst of concurrent scans from prematurely clearing the sync indicator when the first pipeline completes while others are still in `.inferencing` or `.finalizing`. Upload-path completions use `completeUploadPhase()` (which never touches the count) rather than `completeSync()`. Connectivity-loss resets use `forceIdle()` to immediately zero the count and clear the phase regardless of how many pipelines were in flight.
 
 ## Deletions in Offline Environments
 

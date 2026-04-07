@@ -80,7 +80,11 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
   - `.inferencing` — the Gemini Edge function is running
   - `.finalizing` — writing `LocalScanRecord` and cleaning up queue entries
 - Backward-compatible computed shims (`isSyncing`, `pendingUploadCount`) are preserved for existing consumers.
-- Write API: `beginSync(itemCount:)`, `beginInferencing()`, `beginFinalizing()`, `completeSync()`.
+- **Write API** — three completion methods with distinct semantics:
+  - `beginSync(itemCount:)` / `beginInferencing()` / `beginFinalizing()` — phase transitions
+  - `completeSync()` — inference pipeline completion; decrements `activeInferenceCount`, transitions to `.idle` only when count reaches zero. Use exclusively from `processInferenceDownloadResult`.
+  - `completeUploadPhase()` — upload-path completion (empty queue, URL generation failure, etc.); transitions to `.idle` only if no inference is in flight, without touching the count. Use from all `syncPendingScans` early-exit paths and upload task settlement.
+  - `forceIdle()` — hard reset; zeros `activeInferenceCount` and sets `phase = .idle` immediately. Use on connectivity loss where all in-flight tasks are cancelled.
 
 ### `ScanRepository`
 - `@MainActor` singleton facade over `OfflineQueueManager` and SwiftData, decoupling UI and ViewModels from `ModelContext` and queue internals.

@@ -123,7 +123,7 @@ extension OfflineQueueManager {
                 MerianLog.data.debug("OfflineQueueSync background task expired")
                 Task { @MainActor in
                     OfflineQueueManager.shared.isSyncing = false
-                    SyncStateManager.shared.completeSync()
+                    SyncStateManager.shared.completeUploadPhase()
                 }
             }
         ) { [weak self] _ in
@@ -138,7 +138,7 @@ extension OfflineQueueManager {
             guard !filteredScans.isEmpty else {
                 await MainActor.run {
                     self.isSyncing = false
-                    if scanData.isEmpty { SyncStateManager.shared.completeSync() }
+                    if scanData.isEmpty { SyncStateManager.shared.completeUploadPhase() }
                 }
                 return
             }
@@ -154,7 +154,7 @@ extension OfflineQueueManager {
             guard !uploadItems.isEmpty else {
                 await MainActor.run {
                     self.isSyncing = false
-                    SyncStateManager.shared.completeSync()
+                    SyncStateManager.shared.completeUploadPhase()
                 }
                 return
             }
@@ -176,7 +176,7 @@ extension OfflineQueueManager {
                     if taskCount == 0 {
                         await MainActor.run {
                             self.isSyncing = false
-                            SyncStateManager.shared.completeSync()
+                            SyncStateManager.shared.completeUploadPhase()
                         }
                     }
                 }
@@ -190,7 +190,7 @@ extension OfflineQueueManager {
             if activeTaskCount == 0 {
                 await MainActor.run {
                     self.isSyncing = false
-                    SyncStateManager.shared.completeSync()
+                    SyncStateManager.shared.completeUploadPhase()
                 }
             }
         }
@@ -280,7 +280,7 @@ extension OfflineQueueManager {
         
         await MainActor.run {
             self.isSyncing = false
-            SyncStateManager.shared.completeSync()
+            SyncStateManager.shared.completeUploadPhase()
             self.retryBackoffTask?.cancel()
             self.retryBackoffTask = Task { [weak self] in
                 guard let self else { return }

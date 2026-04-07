@@ -18,14 +18,22 @@ extension OfflineQueueManager {
     /// store notifications (e.g. a newly inserted `LocalScanRecord`), so `@Query rawRecords` updates
     /// in the same pass — both queries refresh from a single save.
     ///
-    /// Idempotent: if the record was already merged into the main context as deleted, the fetch
-    /// returns nil and this is a no-op.
+    /// `context.save()` is unconditional. When two scans complete concurrently the persistent store
+    /// notification from the background actor can arrive and be merged by the main context BEFORE
+    /// this function runs — making the fetch return nil. Gating the save on finding the record
+    /// (the previous `guard let` pattern) would silently skip the save in that window, leaving
+    /// `@Query` unaware of the new `LocalScanRecord` insertion. The unconditional save ensures
+    /// `@Query` always processes all pending store notifications in a single pass, regardless of
+    /// whether the deletion was already merged.
     func flushOfflineQueuedScan(scanId: String) {
         guard let context = modelContext else { return }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else { return }
-        context.delete(scan)
+        // Delete if still present; a nil result means the background context's notification
+        // was already merged — we still need to save to trigger @Query.
+        if let scan = (try? context.fetch(descriptor))?.first {
+            context.delete(scan)
+        }
         try? context.save()
         updateUnsyncedItemCount()
     }

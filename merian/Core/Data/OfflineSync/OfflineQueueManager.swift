@@ -169,7 +169,7 @@ import SwiftData
                     self?.retryBackoffTask?.cancel()
                     self?.isSyncing = false
                     self?.isCollectionSyncing = false
-                    SyncStateManager.shared.completeSync()
+                    SyncStateManager.shared.forceIdle()
                 }
             }
         }

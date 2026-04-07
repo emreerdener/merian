@@ -94,7 +94,7 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
                     if OfflineQueueManager.shared.unsyncedItemsCount > 0 {
                         OfflineQueueManager.shared.syncPendingScans()
                     } else {
-                        SyncStateManager.shared.completeSync()
+                        SyncStateManager.shared.completeUploadPhase()
                     }
                 }
             }
@@ -488,7 +488,11 @@ extension OfflineQueueManager {
 
         MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
         await MainActor.run {
-            OfflineQueueManager.shared.updateUnsyncedItemCount()
+            // updateUnsyncedItemCount() is already called by flushOfflineQueuedScan above;
+            // only call it here for the wasCleaned==false path (save failed) where flush was skipped.
+            if !processingResult.wasCleaned {
+                OfflineQueueManager.shared.updateUnsyncedItemCount()
+            }
             CircuitBreakerManager.shared.recordSuccess()
             _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
             SyncStateManager.shared.completeSync()

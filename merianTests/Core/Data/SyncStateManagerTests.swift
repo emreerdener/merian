@@ -8,11 +8,11 @@ final class SyncStateManagerTests: XCTestCase {
 
     override func setUp() async throws {
         syncManager = SyncStateManager.shared
-        syncManager.completeSync()
+        syncManager.forceIdle()
     }
 
     override func tearDown() async throws {
-        syncManager.completeSync()
+        syncManager.forceIdle()
         syncManager = nil
     }
 
@@ -23,16 +23,42 @@ final class SyncStateManagerTests: XCTestCase {
 
     func testBeginSyncUpdatesState() {
         syncManager.beginSync(itemCount: 5)
-        
         XCTAssertTrue(syncManager.isSyncing)
         XCTAssertEqual(syncManager.pendingUploadCount, 5)
     }
 
-    func testCompleteSyncResetsState() {
+    func testCompleteUploadPhaseResetsWhenNoInferenceActive() {
         syncManager.beginSync(itemCount: 3)
-        syncManager.completeSync()
-        
+        syncManager.completeUploadPhase()
         XCTAssertFalse(syncManager.isSyncing)
         XCTAssertEqual(syncManager.pendingUploadCount, 0)
+    }
+
+    func testCompleteSyncResetsWhenAllInferenceComplete() {
+        syncManager.beginInferencing()
+        syncManager.completeSync()
+        XCTAssertFalse(syncManager.isSyncing)
+    }
+
+    func testCompleteSyncDoesNotGoIdleUntilAllPipelinesFinish() {
+        syncManager.beginInferencing()
+        syncManager.beginInferencing()
+        syncManager.completeSync()
+        XCTAssertTrue(syncManager.isSyncing) // one still in flight
+        syncManager.completeSync()
+        XCTAssertFalse(syncManager.isSyncing) // now both done
+    }
+
+    func testCompleteUploadPhaseDoesNotGoIdleWhenInferenceActive() {
+        syncManager.beginInferencing()
+        syncManager.completeUploadPhase()
+        XCTAssertTrue(syncManager.isSyncing) // inference still in flight
+    }
+
+    func testForceIdleResetsImmediately() {
+        syncManager.beginInferencing()
+        syncManager.beginInferencing()
+        syncManager.forceIdle()
+        XCTAssertFalse(syncManager.isSyncing)
     }
 }
