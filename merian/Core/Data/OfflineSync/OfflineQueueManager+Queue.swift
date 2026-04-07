@@ -8,6 +8,28 @@ import UIKit
 
 extension OfflineQueueManager {
 
+    /// Removes an `OfflineQueuedScan` from the **main context** and saves, guaranteeing that
+    /// `@Query queuedScans` in any open sheet updates immediately.
+    ///
+    /// Background `BackgroundDatabaseActor` context saves do not reliably propagate to `@Query`
+    /// in presented sheets (SwiftData platform limitation). Calling this from the main actor after
+    /// a background-context deletion ensures the pending overlay disappears without requiring the
+    /// user to close and reopen the scans library. The main-context save also processes any pending
+    /// store notifications (e.g. a newly inserted `LocalScanRecord`), so `@Query rawRecords` updates
+    /// in the same pass — both queries refresh from a single save.
+    ///
+    /// Idempotent: if the record was already merged into the main context as deleted, the fetch
+    /// returns nil and this is a no-op.
+    func flushOfflineQueuedScan(scanId: String) {
+        guard let context = modelContext else { return }
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let scan = (try? context.fetch(descriptor))?.first else { return }
+        context.delete(scan)
+        try? context.save()
+        updateUnsyncedItemCount()
+    }
+
     /// Refreshes `unsyncedItemsCount` from the count of active (non-failed) `OfflineQueuedScan` records.
     func updateUnsyncedItemCount() {
         guard let context = modelContext else { return }

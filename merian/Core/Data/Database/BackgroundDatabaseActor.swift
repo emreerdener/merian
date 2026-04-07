@@ -31,6 +31,12 @@ struct OfflineScanProcessingResult {
     /// Passed back to the main actor so the live InferenceEngine can be hydrated directly
     /// when the background path races ahead of the suspended live inference task.
     let speciesData: SpeciesData?
+    /// True when the background context's atomic save committed — the `OfflineQueuedScan`
+    /// was deleted from the persistent store. The caller should mirror this deletion on the
+    /// main context via `flushOfflineQueuedScan` so that `@Query queuedScans` in the open
+    /// scans library updates immediately (background context saves do not reliably propagate
+    /// to `@Query` in presented sheets — a SwiftData platform limitation).
+    let wasCleaned: Bool
 }
 
 // MARK: - Background Database Actor
@@ -364,7 +370,8 @@ actor BackgroundDatabaseActor {
             resolvedSpeciesName: resolvedSpeciesName,
             isNewDiscovery: finalIsNewDiscovery,
             finalScanId: resultingScanId,
-            speciesData: resultSpeciesData
+            speciesData: resultSpeciesData,
+            wasCleaned: commitSuccess
         )
     }
 

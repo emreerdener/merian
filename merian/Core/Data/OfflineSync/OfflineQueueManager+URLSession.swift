@@ -420,6 +420,17 @@ extension OfflineQueueManager {
             telemetry: extracted.telemetry
         )
 
+        // Mirror the background-context deletion on the main context so @Query queuedScans in
+        // the open scans library updates immediately. Background context saves do not reliably
+        // propagate to @Query in presented sheets (SwiftData platform limitation). This main-context
+        // save also causes SwiftData to process any pending store notifications — including the
+        // LocalScanRecord insertion — so @Query rawRecords updates in the same pass.
+        if processingResult.wasCleaned {
+            await MainActor.run {
+                OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
+            }
+        }
+
         if let speciesName = processingResult.resolvedSpeciesName, let dbScanId = processingResult.finalScanId {
             let capturedContainer = extracted.container
             await MainActor.run {
