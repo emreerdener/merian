@@ -268,6 +268,7 @@ The next `enrich-scan` call will re-run Flash with the order-grounded prompt.
   "data": {
     "habitat_description": "Frequently spotted in milkweed patches, meadows, and open plains.",
     "gbif_taxon_key": 5130978,
+    "alternative_common_names": ["Monarch", "Common Tiger"],
     "similar_species": [
       {
         "scientific_name": "Limenitis archippus",
@@ -295,6 +296,8 @@ The next `enrich-scan` call will re-run Flash with the order-grounded prompt.
 ```
 
 `gbif_taxon_key` is `null` when the species has not yet been matched by GBIF. `similar_species` is `null` when no lookalike data is available. Each entry in the `similar_species` array is sourced from the `species_lookalikes` join table joined to `species_dictionary` — providing `common_name` (English), `reference_image_url`, and `iucn_red_list_status` in a single query.
+
+`alternative_common_names` is `string[] | null` — `null` when GBIF has no English vernacular entries for the species. The enrichment scope serves this field from `species_dictionary.alternative_common_names` on a cache hit. When that column is `null` (covering both pre-V34 cached species and the timing race where a first scan's background ingestion has not yet written to the dictionary), the Edge function calls `fetchGBIFVernacularNames` live to retrieve English vernacular names from the GBIF API and populates the field from the result.
 
 **iOS mapping**: The array is decoded as `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in `InferenceEdgeDTOs.swift`) and mapped to the domain `SimilarSpecies` struct (camelCase, in `SpeciesData.swift`). `InferenceEngine.fetchAndApplyEnrichment` then JSON-encodes `[SimilarSpeciesEntry]` via `JSONEncoder` into a `Data` blob and persists it as `LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`) — the primary SwiftData storage for rich lookalike data. The legacy `LocalScanRecord.similarSpecies: [String]?` field is retained as a backwards-compatible fallback for pre-V27 records where `lookalikesData` is nil. `SimilarSpeciesGallery` applies the tier-specific confidence threshold only to decide whether to label the section "POTENTIAL LOOKALIKES" vs "SIMILAR SPECIES" — enrichment data is always persisted regardless of confidence.
 
