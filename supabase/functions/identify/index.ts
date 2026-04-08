@@ -438,7 +438,24 @@ serve((req: Request) =>
           speciesHabitat: cachedSpecies.habitat_description ?? undefined,
         };
         speciesId = cachedSpecies.id;
-        // common_name is always sourced from the vision model — DB value is locale storage only.
+        // On a cache hit, use the stored canonical English name so all scans of the same
+        // species display consistently — Gaillardia pulchella is always "Blanket Flower",
+        // not whichever synonym Gemini happened to prefer on this call. Fall back to the
+        // vision model's name only if no English entry exists yet (first cache miss that
+        // raced a concurrent scan and won the upsert before enrichment completed).
+        if (cachedSpecies.common_names?.en) {
+          payloadReadyForClient.common_name = cachedSpecies.common_names.en;
+        }
+        // Serve the full synonym list so the iOS client can display "Also known as…"
+        // and allow the user to choose their preferred regional name.
+        if (cachedSpecies.alternative_common_names?.length) {
+          // Strip the primary name from the synonym list in case it was written before
+          // deduplication was enforced at the edge — keeps the client list clean.
+          const primaryEn = (payloadReadyForClient.common_name ?? "").toLowerCase();
+          payloadReadyForClient.alternative_common_names = cachedSpecies.alternative_common_names.filter(
+            (n) => n.toLowerCase() !== primaryEn,
+          );
+        }
         payloadReadyForClient.reference_image_url = cachedSpecies.reference_image_url;
         payloadReadyForClient.wikipedia_url = cachedSpecies.wikipedia_url;
         payloadReadyForClient.wikipedia_overview = cachedSpecies.wikipedia_overview;
@@ -528,10 +545,20 @@ serve((req: Request) =>
             ...(parsedData.common_name ? { en: parsedData.common_name } : {}),
           };
 
+          // Build the deduplicated alternative names list. Exclude the primary canonical
+          // name (common_names.en) so the two lists are mutually exclusive on the client.
+          const primaryEn = (newCommonNames.en ?? "").toLowerCase();
+          const newAltNames: string[] | null = externalData.alternativeCommonNames.length > 0
+            ? externalData.alternativeCommonNames.filter(
+                (n) => n.toLowerCase() !== primaryEn,
+              )
+            : null;
+
           const upsertedId = await upsertSpeciesDictionary(
             {
               scientific_name: parsedData.scientific_name!,
               common_names: newCommonNames,
+              alternative_common_names: newAltNames,
               kingdom: cachedSpecies?.kingdom ?? "Unknown",
               phylum: cachedSpecies?.phylum ?? "Unknown",
               class: cachedSpecies?.class ?? "Unknown",

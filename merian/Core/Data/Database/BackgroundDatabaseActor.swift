@@ -433,7 +433,8 @@ actor BackgroundDatabaseActor {
                 individualCount: mappedData.individualCount,
                 ecologicalInteractions: mappedData.ecologicalInteractions,
                 inferenceTier: mappedData.inferenceTier,
-                imageQualityScore: mappedData.imageQualityScore
+                imageQualityScore: mappedData.imageQualityScore,
+                alternativeCommonNames: mappedData.alternativeCommonNames
             )
             modelContext.insert(record)
         }

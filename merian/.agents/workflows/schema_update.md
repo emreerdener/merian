@@ -60,3 +60,34 @@ static let migrateV26toV27 = MigrationStage.lightweight(
 4. Finally, append `migrateV26toV27` to the end of the `stages` array block.
 
 By adhering strictly to this runbook, the main models will *always* live freely in the global namespace under `Models/ActiveSchema/*`, giving `#Predicate` no trouble, while the historical versions remain safely archived inside their respective extensions.
+
+---
+
+## ⚠️ Critical: Only Freeze Models That Actually Changed
+
+When snapshotting `V_CURRENT`, **only create frozen inner classes for the models that changed** in that version. For models that were identical in `V_CURRENT` and `V_NEXT`, reference the global active type directly — do **not** typealias them to an older frozen version.
+
+**Why this matters**: SwiftData generates a per-entity Swift class mapping from the CoreData store. If two consecutive schema versions register *different* Swift types for the same entity (e.g., `MerianSchemaV7.PendingCloudDeletionTask` in V33 vs. `Merian.PendingCloudDeletionTask` in V34), SwiftData cannot reconcile them at runtime and throws:
+
+```
+Fatal error: Failed to cast model Merian.PendingCloudDeletionTask
+  for PersistentIdentifier(...) to PendingCloudDeletionTask.
+```
+
+**The rule**: the unique checksum for `V_CURRENT` comes from whichever model(s) changed in that version. Unchanged models always reference the same global type across both `V_CURRENT` and `V_NEXT`, so SwiftData always sees one Swift class per entity.
+
+**Example** — only `OfflineQueuedScan` changed in V33:
+
+```swift
+enum MerianSchemaV33: VersionedSchema {
+    static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self,                    // global — unchanged
+         MerianSchemaV33.OfflineQueuedScan.self,  // frozen — changed
+         ScanCollection.self,                     // global — unchanged
+         PendingCloudDeletionTask.self]            // global — unchanged
+    }
+
+    @Model final class OfflineQueuedScan { /* V33 fields */ }
+    // No typealiases — unchanged models stay global
+}
+```

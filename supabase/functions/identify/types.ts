@@ -61,12 +61,18 @@ export interface ClientPayload extends MerianIdentification {
     habitat_description: string;
   };
   inference_tier: string;
+  /// All known English vernacular synonyms for this species beyond the primary canonical name.
+  /// Sourced from GBIF vernacular names on first enrichment; served from species_dictionary cache on
+  /// subsequent hits. The primary common_name is always excluded from this array.
+  /// Nil on first-ever scan of a new species (enrichment hasn't completed yet).
+  alternative_common_names?: string[] | null;
 }
 
 /** Row shape returned by fetchCachedSpecies — mirrors the species_dictionary SELECT columns. */
 export interface CachedSpeciesRow {
   id: string;
   common_names: Record<string, string> | null;
+  alternative_common_names: string[] | null;
   kingdom: string | null;
   phylum: string | null;
   class: string | null;

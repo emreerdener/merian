@@ -87,6 +87,11 @@ public final class LocalScanRecord {
     /// Nil for scans captured before V30.
     @Attribute public var imageQualityScore: Int?
 
+    /// All known English vernacular synonyms beyond `commonName`.
+    /// Sourced from GBIF vernacular names during background enrichment.
+    /// Nil for scans captured before V34 or species not yet enriched.
+    @Attribute public var alternativeCommonNames: [String]?
+
     public init(
         id: String = UUID().uuidString,
         speciesId: String,
@@ -139,7 +144,8 @@ public final class LocalScanRecord {
         userIdentificationOverride: String? = nil,
         userConfirmedIdentification: Bool = false,
         isFlagged: Bool = false,
-        imageQualityScore: Int? = nil) {
+        imageQualityScore: Int? = nil,
+        alternativeCommonNames: [String]? = nil) {
 
         self.id = id
         self.speciesId = speciesId
@@ -199,5 +205,6 @@ public final class LocalScanRecord {
         self.userConfirmedIdentification = userConfirmedIdentification
         self.isFlagged = isFlagged
         self.imageQualityScore = imageQualityScore
+        self.alternativeCommonNames = alternativeCommonNames
     }
 }

@@ -111,6 +111,12 @@ struct SpeciesData {
     var gbifTaxonKey: Int?
     var inferenceTier: String?
 
+    /// All known English vernacular synonyms beyond `commonName`.
+    /// Sourced from GBIF vernacular names on first enrichment; served from the
+    /// species_dictionary cache on subsequent cache hits. Nil on the first-ever
+    /// scan of a new species (enrichment hasn't completed yet).
+    var alternativeCommonNames: [String]?
+
     /// Per-scan alternative candidates the model considered when confidence was below the
     /// tier-specific `MerianConfig.diagnosticTrigger` threshold. Nil for confident scans.
     var candidates: [IdentificationCandidate]?
@@ -199,6 +205,7 @@ extension SpeciesData {
         self.habitatDescription = edgeRes.species_insights?.habitat_description
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
         self.inferenceTier = edgeRes.inference_tier
+        self.alternativeCommonNames = edgeRes.alternative_common_names
         self.candidates = edgeRes.candidates.map { entries in
             entries.map { IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score) }
         }
@@ -250,6 +257,7 @@ extension SpeciesData {
         habitatDescription: String? = nil,
         gbifTaxonKey: Int? = nil,
         inferenceTier: String? = nil,
+        alternativeCommonNames: [String]? = nil,
         candidates: [IdentificationCandidate]? = nil,
         imageQualityScore: Int? = nil,
         aiScientificName: String = "",
@@ -292,6 +300,7 @@ extension SpeciesData {
         self.habitatDescription = habitatDescription
         self.gbifTaxonKey = gbifTaxonKey
         self.inferenceTier = inferenceTier
+        self.alternativeCommonNames = alternativeCommonNames
         self.candidates = candidates
         self.imageQualityScore = imageQualityScore
         self.aiScientificName = aiScientificName.isEmpty ? scientificName : aiScientificName

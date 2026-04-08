@@ -1249,6 +1249,7 @@ private struct GBIFMedia: Decodable {
             habitatDescription: record.habitatDescription,
             gbifTaxonKey: record.gbifTaxonKey,
             inferenceTier: record.inferenceTier,
+            alternativeCommonNames: record.alternativeCommonNames,
             candidates: nil,
             imageQualityScore: record.imageQualityScore,
             aiScientificName: recordScientificName,

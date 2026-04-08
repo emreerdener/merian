@@ -16,6 +16,7 @@ export interface CachedSpeciesData {
   family: string | null;
   genus: string | null;
   similar_species: string[] | null;
+  alternative_common_names: string[] | null;
   /// True once the Flash model has been asked to generate lookalikes for this species.
   /// Prevents infinite re-calls for species whose lookalikes are genuinely obscure
   /// (all common names legitimately null). Set in index.ts after a Flash-sourced

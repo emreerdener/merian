@@ -35,6 +35,20 @@ The global source-of-truth for biological models.
 - ~~`diagnostic_primary_rationale`~~: Dropped in `20260329070941_rename_similar_species.sql`. Previously stored the primary identification rationale for low-confidence scans.
 - ~~`diagnostic_differentiators_json`~~: Dropped in `20260329070941_rename_similar_species.sql`. Previously stored a JSON-encoded array of key field marks distinguishing the species from its lookalike.
 - `group_tags` (Text Array): Broad-to-specific categorical labels for the species (e.g. `["animal", "bird", "songbird", "warbler"]`). Generated once by a `gemini-2.5-flash` background call on the first scan of a species; subsequent scans read from this cache. Returned to the client in the `/identify` response as `group_tags` and merged into `LocalScanRecord.semanticTags` for library keyword search. Added in migration `20260327100000_add_group_tags_to_species_dictionary.sql`.
+- `alternative_common_names` (Text Array): All known English vernacular synonyms for the species beyond the primary `common_names.en` value. Populated from the GBIF vernacular names endpoint (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) during the background enrichment pass that fires on the first Cache Miss. English-only filter applied (`language: eng | en`), normalised to Title Case, and deduplicated. The primary `common_names.en` value is excluded from this array (case-insensitive). `NULL` when GBIF returned no additional names or the species has not yet been enriched. Has a GIN index for array containment queries. Added in migration `20260407000000_add_alternative_common_names.sql`. Served to the client as `alternative_common_names` in the `/identify` Cache Hit response; stored in `LocalScanRecord.alternativeCommonNames` (SwiftData V34).
+
+### `user_species_preferences`
+
+Per-user preferred common name overrides. Keyed on `(user_id, scientific_name)`. Added in migration `20260407000000_add_alternative_common_names.sql`.
+
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE): The owning user.
+- `scientific_name` (TEXT): The species this preference applies to.
+- `preferred_common_name` (TEXT): The user's chosen display name — one of the names from `alternative_common_names` or the species primary `common_names.en`.
+- `updated_at` (TIMESTAMPTZ): Auto-updated by trigger on every write.
+- Primary key: `(user_id, scientific_name)`.
+- RLS: users can only read and write their own rows.
+
+> **Current iOS implementation note**: The iOS client does not sync to this table yet. Preferred name selections are stored locally in `UserDefaults` keyed by `"speciesPreferredName_{scientific_name}"` via `InsightSheetViewModel`. This table exists for future cloud-sync support.
 
 ### `species_lookalikes`
 

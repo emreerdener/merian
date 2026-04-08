@@ -14,7 +14,8 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `AnalyzingContentView` | Shown inside `InsightSheetView` while `inferenceEngine.isProcessing == true` and `speciesData == nil`. Renders three layers: (1) `ConfidenceBadge` in analyzing mode — the rotating `scanningPhaseText` phrase appears on a transparent capsule with a left-to-right `RevealText` sweep, `sparkles.2` icon, and `Color.primary` styling; each phrase is appended with `...` automatically; (2) `DidYouKnowCard` — a rotating biology fact card giving users something interesting to read while Gemini processes. Backed by a `FactManager` singleton using `AppStorage` to maintain a shuffled deck of 70+ facts to prevent repeats. Automatically advances every 8.5 seconds relying on a strict SwiftUI `.task(id:)` reactive binding to instantly reset ongoing wait timers on user-swipe interruptions, maintaining frictionless manual navigation via `DragGesture`; (3) `ScanInformationCard` for eager telemetry — map, time, weather, and altitude are visible immediately while Gemini is still in-flight. Transitions out via `.easeInOut(duration: 0.35)` keyed on `isProcessing`. |
 | `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier` (indices 0–9). |
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
-| `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match". Automatically deduplicates its subtitle (scientific name) if it exactly matches the primary title string. Passes `userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, and `aiScientificName` from `speciesData` down to `ConfidenceBadge` (and transitively to `ConfidenceExplanationSheet`). Accepts an optional `visionTransitionText: String?` parameter: when non-nil, the paragraph slot renders the captured Apple Vision analysis text first, then cross-fades to Gemini `aiReasoning` after 700 ms via an `.easeInOut(0.45)` opacity transition. The species title is hidden initially and springs into view (`opacity 0→1`, `y+10→0`) on `.onAppear` with a 150 ms delay; a `triggerLightImpact(intensity: 0.5)` fires at title entrance and a `triggerSelectionPulse()` fires at the paragraph cross-fade moment. |
+| `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match". Automatically deduplicates its subtitle (scientific name) if it exactly matches the primary title string. Passes `userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, and `aiScientificName` from `speciesData` down to `ConfidenceBadge` (and transitively to `ConfidenceExplanationSheet`). Accepts an optional `visionTransitionText: String?` parameter: when non-nil, the paragraph slot renders the captured Apple Vision analysis text first, then cross-fades to Gemini `aiReasoning` after 700 ms via an `.easeInOut(0.45)` opacity transition. The species title is hidden initially and springs into view (`opacity 0→1`, `y+10→0`) on `.onAppear` with a 150 ms delay; a `triggerLightImpact(intensity: 0.5)` fires at title entrance and a `triggerSelectionPulse()` fires at the paragraph cross-fade moment. **Alternative names line**: when `alternativeCommonNames` is non-nil and non-empty, a footnote-sized "Also known as: X · Y · Z" line is rendered below the headline as a tappable `Button`; tapping calls `onAlternativeNamesTap` which sets `InsightSheetViewModel.isNamePickerPresented = true` to present `NamePickerSheet`. |
+| `NamePickerSheet` | Bottom sheet (`.medium` detent) presented when the user taps the "Also known as" line in `InsightHeader`. Renders a `NavigationStack` list of all known common names for the species (primary `commonName` + `alternativeCommonNames`, deduplicated) with a checkmark on the currently active name. Selecting a name calls `InsightSheetViewModel.setPreferredCommonName(_:for:)`, which writes to UserDefaults and fires a `toastMessage`. A "Use default name" row calls `clearPreferredCommonName(for:)` to remove the override. |
 | `ImagesCarousel` | Horizontally scrolling image strip combining live captures + historic paths + reference images. Each page is a `ZoomPageViewController` — a `UIViewController` wrapping its SwiftUI content in a `ZoomScrollView` (`UIScrollView` subclass), enabling pinch-to-zoom up to 4× and free pan while zoomed; releasing all fingers springs scale and offset back to 1×/zero. When `totalImages == 0` (e.g. debug/analyze-only state), renders a `globe.americas.fill` placeholder on a black background. Pagination dots are hidden while `inferenceEngine.isProcessing == true` and slide up from the bottom edge via a combined `.opacity + .move` transition when processing finishes. **`totalImages` source accounting**: `carouselPages` uses `hasLive` as a mutually exclusive branch — when live data is present it shows `activeDisplayDatas` and the `validHistoricImagePaths` are skipped (they represent the same capture written to disk). `totalImages` mirrors this logic: `captureCount = hasLive ? liveCount : validHistoricImagePaths.count`, then adds `refUrls.count`, preventing an overcount when both live and historic sources exist simultaneously. |
 | `ConfidenceBadge` | Tappable liquid-glass capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap. When `isFlagged` is `true`, shows "Under Review" (orange, `flag.fill`). When `userIdentificationOverride` is non-nil, shows "Your ID" (indigo, `person.fill.checkmark`). When `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.seal.fill`). **Analyzing mode** (`analyzingPhrase != nil`): background glass layers collapse to transparent, icon switches to `sparkles.2`, text uses `Color.primary` on a minimal capsule border — tap is suppressed. Each phrase change triggers a left-to-right gradient mask sweep via the internal `RevealText` view and the capsule width springs to fit the new string length. Phrases are auto-suffixed with `...` if not already ending with one. |
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
@@ -40,9 +41,19 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 `InsightSheetViewModel` holds a reference to the `InferenceEngine` and exposes computed properties:
 
 ```swift
-var headerTitle: String { 
-    // Falls back to `scientificName` if `commonName` is empty, avoiding capitalization 
+var resolvedHeaderTitle: String {
+    // User's preferred common name (UserDefaults) → canonical DB commonName.
+    // Falls back to `scientificName` if `commonName` is empty, avoiding capitalization
     // rules that corrupt scientific taxonomy casing, and suppressing subtitle duplication.
+    if let preferred = preferredCommonName, !preferred.isEmpty { return preferred }
+    // ... fallback to species.commonName / scientificName
+}
+var displayAlternativeCommonNames: [String]? {
+    // Alternatives from SpeciesData.alternativeCommonNames, filtered to exclude the
+    // currently resolved headline (case-insensitive). Nil when no alternatives exist.
+}
+var allNamesForPicker: [String] {
+    // Full deduped list: [primaryCommonName] + alternativeCommonNames. Fed into NamePickerSheet.
 }
 var hazardType: String { inferenceEngine?.speciesData?.insightData.hazardType ?? "none" }
 var isHazardous: Bool { hazardType != "none" }
@@ -54,6 +65,11 @@ var totalImages: Int {
     return captureCount + refUrls.count
 }
 ```
+
+**Name preference methods** (all keyed on `UserDefaultsKeys.speciesPreferredNamePrefix + scientificName`):
+- `loadPreferredCommonName(for:)` — reads UserDefaults into `preferredCommonName`; called from `InsightSheetView.task(id: scanId)` when a new species loads.
+- `setPreferredCommonName(_:for:)` — writes to UserDefaults, updates `preferredCommonName` in-memory (triggering `@Observable` recompute of `resolvedHeaderTitle`), and fires a `toastMessage`.
+- `clearPreferredCommonName(for:)` — removes the UserDefaults entry and nils `preferredCommonName`, reverting the headline to the canonical DB name.
 
 `InsightSheetView` also queries SwiftData directly via `@Query` for `[ScanCollection]` (reverse-sorted by `createdAt`) to populate the collection management toolbar.
 

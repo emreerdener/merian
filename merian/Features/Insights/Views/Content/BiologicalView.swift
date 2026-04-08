@@ -16,7 +16,7 @@ struct BiologicalView: View {
 
             // MARK: - Header
             InsightHeader(
-                title: viewModel.headerTitle,
+                title: viewModel.resolvedHeaderTitle,
                 subtitle: viewModel.headerSubtitle,
                 hazardType: viewModel.hazardType,
                 paragraphs: viewModel.headerParagraphs,
@@ -28,9 +28,33 @@ struct BiologicalView: View {
                 aiScientificName: inferenceEngine.speciesData?.aiScientificName,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
+                },
+                alternativeCommonNames: viewModel.displayAlternativeCommonNames,
+                onAlternativeNamesTap: {
+                    viewModel.isNamePickerPresented = true
                 }
             )
             .cardEntrance(index: 0)
+            .sheet(isPresented: $viewModel.isNamePickerPresented) {
+                NamePickerSheet(
+                    allNames: viewModel.allNamesForPicker,
+                    activeName: viewModel.resolvedHeaderTitle,
+                    onSelect: { chosen in
+                        if let scientificName = inferenceEngine.speciesData?.scientificName {
+                            viewModel.setPreferredCommonName(chosen, for: scientificName)
+                        }
+                        viewModel.isNamePickerPresented = false
+                    },
+                    onReset: {
+                        if let scientificName = inferenceEngine.speciesData?.scientificName {
+                            viewModel.clearPreferredCommonName(for: scientificName)
+                        }
+                        viewModel.isNamePickerPresented = false
+                    }
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
 
             // MARK: - Layout Guards
             let isErrorState = inferenceEngine.speciesData?.scientificName == "Offline Mode" ||

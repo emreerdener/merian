@@ -12,6 +12,10 @@ struct InsightHeader: View {
     var isFlagged: Bool = false
     var aiScientificName: String?
     var onScrollOffsetChange: ((CGFloat) -> Void)?
+    /// Alternative English common names for this species, excluding the current headline.
+    var alternativeCommonNames: [String]? = nil
+    /// Called when the user taps the alternative names line to open the name picker.
+    var onAlternativeNamesTap: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
@@ -52,6 +56,26 @@ struct InsightHeader: View {
                                 }
                         }
                     )
+
+                // MARK: - Alternative Names
+                if let alternatives = alternativeCommonNames, !alternatives.isEmpty {
+                    let preview = alternatives.prefix(3).joined(separator: " · ")
+                    Button(action: { onAlternativeNamesTap?() }) {
+                        HStack(spacing: 4) {
+                            Text("Also known as: ")
+                                .foregroundStyle(.tertiary)
+                            + Text(preview)
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.system(.footnote))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.vertical, 2)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Also known as \(preview). Tap to choose preferred name.")
+                    .disabled(onAlternativeNamesTap == nil)
+                }
 
                 // MARK: - Description
                 if !paragraphs.isEmpty {

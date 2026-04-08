@@ -19,4 +19,7 @@ enum UserDefaultsKeys {
     static let zoomSliderVisible = "zoomSliderVisible"
     /// Whether local `ScanCollection` changes are pending a push to the `sync-collections` Edge function.
     static let needsCollectionSync = "needsCollectionSync"
+    /// Prefix for per-species preferred common name. Append the scientific name to form the full key.
+    /// e.g. `"speciesPreferredName_Gaillardia pulchella"` → user's chosen display name.
+    static let speciesPreferredNamePrefix = "speciesPreferredName_"
 }

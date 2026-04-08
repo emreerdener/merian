@@ -32,7 +32,12 @@ The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
 
 **Rules for `types.ts`:**
 - **Exact Field Matching:** Interface keys must perfectly align with the JSON decoder keys evaluated directly inside `InferenceEdgeDTOs.swift`.
-- **Oversharing Defense:** Only declare fields strictly consumed by the frontend; do not dump generic Postgres wildcard `*` objects out locally to the client natively. 
+- **Oversharing Defense:** Only declare fields strictly consumed by the frontend; do not dump generic Postgres wildcard `*` objects out locally to the client natively.
+
+**Current key additions (as of V34):**
+- `identify/types.ts`: `ClientPayload` includes `alternative_common_names?: string[] | null`; `CachedSpeciesRow` includes `alternative_common_names: string[] | null` to mirror `species_dictionary`.
+- `enrich-scan/types.ts`: `CachedSpeciesData` includes `alternative_common_names: string[] | null`; read by `getCachedSpecies` and conditionally written by `updateSpeciesEnrichment`.
+- Both functions' `db.ts` files include `alternative_common_names` in their `SPECIES_SELECT`/select strings and upsert/update payloads. Any new column added to `species_dictionary` that is served to the client must be added to all four of these locations simultaneously. 
 
 ## 4. Threshold Constants (`thresholds.ts`)
 

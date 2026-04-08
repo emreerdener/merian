@@ -36,7 +36,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV30.self,
             MerianSchemaV31.self,
             MerianSchemaV32.self,
-            MerianSchemaV33.self
+            MerianSchemaV33.self,
+            MerianSchemaV34.self
         ]
     }
 
@@ -73,9 +74,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV29toV30,
             migrateV30toV31,
             migrateV31toV32,
-            migrateV32toV33
+            migrateV32toV33,
+            migrateV33toV34
         ]
     }
+
+    static let migrateV33toV34 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV33.self,
+        toVersion: MerianSchemaV34.self
+    )
 
     // Temporary backfill storage for V32→V33 migration.
     // Captures the old Bool state before the column is dropped, then writes scanStateRaw in didMigrate.

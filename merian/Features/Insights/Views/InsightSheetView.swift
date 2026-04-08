@@ -49,6 +49,10 @@ struct InsightSheetView: View {
                             try? await Task.sleep(nanoseconds: 500_000_000)
                         }
                     }
+                    // Load user's preferred display name for this species so resolvedHeaderTitle reflects it.
+                    if let scientificName = inferenceEngine.speciesData?.scientificName {
+                        viewModel.loadPreferredCommonName(for: scientificName)
+                    }
                 }
                 .task(id: viewModel.toastMessage) {
                     if viewModel.toastMessage != nil {
@@ -129,7 +133,7 @@ private extension InsightSheetView {
     @ToolbarContentBuilder
     var sheetToolbar: some ToolbarContent {
         TopToolbar(
-            commonName: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject...",
+            commonName: viewModel.resolvedHeaderTitle,
             isCommonNameScrolledPast: viewModel.isCommonNameScrolledPast,
             isFlagIssuePresented: $viewModel.isFlagIssuePresented,
             isIdentificationFlagPresented: $viewModel.isIdentificationFlagPresented,

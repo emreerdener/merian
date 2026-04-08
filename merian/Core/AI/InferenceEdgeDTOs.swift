@@ -64,6 +64,11 @@ struct EdgeResponse: Codable {
     let reference_image_url: String?
     let iucn_red_list_status: String?
     let inference_tier: String?
+    /// All known English vernacular synonyms beyond the primary canonical common name.
+    /// Sourced from GBIF vernacular names endpoint during background enrichment.
+    /// Present on cache hit only; nil on first-ever scan of a new species.
+    /// The primary common_name value is always excluded from this array.
+    let alternative_common_names: [String]?
 
     /// Per-scan alternative candidates output by the model when it was genuinely uncertain.
     /// Only present when `confidence_score` is below the tier's `diagnosticTrigger` threshold.

@@ -11,7 +11,7 @@ final class InsightSheetViewModel {
     var showCelebration = false
     var showBottomBarTools = false
     var isCommonNameScrolledPast = false
-    
+
     // MARK: - Alert & Modal Flags
     var isFlagIssuePresented = false
     var isIdentificationFlagPresented = false
@@ -20,6 +20,13 @@ final class InsightSheetViewModel {
     var showNewCollectionAlert = false
     var toastMessage: String?
     var newCollectionName = ""
+
+    // MARK: - Name Preference State
+    /// User's chosen display name for the current species, persisted in UserDefaults.
+    /// Nil means no override — the canonical `commonName` from the DB is used.
+    var preferredCommonName: String? = nil
+    /// Controls the name-picker bottom sheet.
+    var isNamePickerPresented: Bool = false
     
     // MARK: - Navigation State
     var isSafariPresented = false
@@ -64,14 +71,18 @@ final class InsightSheetViewModel {
     }
     
     // MARK: - Header Computed Properties
-    var headerTitle: String {
+
+    /// The display name shown as the InsightHeader headline.
+    /// Applies the resolution chain: user preference → canonical DB common name.
+    var resolvedHeaderTitle: String {
         guard let species = inferenceEngine?.speciesData else {
             return "Scanning subject..."
         }
-        
+        if let preferred = preferredCommonName, !preferred.isEmpty {
+            return preferred
+        }
         let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
         let scientific = species.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
-        
         if common.isEmpty {
             return scientific
         } else if common.lowercased() == scientific.lowercased() {
@@ -80,7 +91,27 @@ final class InsightSheetViewModel {
             return common.capitalized
         }
     }
-    
+
+    /// All English synonym names available for user selection, excluding whichever name
+    /// is currently resolved as the headline (to avoid surfacing the active name as an option).
+    var displayAlternativeCommonNames: [String]? {
+        guard let species = inferenceEngine?.speciesData,
+              let alternatives = species.alternativeCommonNames,
+              !alternatives.isEmpty else { return nil }
+        let activeName = resolvedHeaderTitle.lowercased()
+        let filtered = alternatives.filter { $0.lowercased() != activeName }
+        return filtered.isEmpty ? nil : filtered
+    }
+
+    /// All candidate names for the picker sheet: primary common name + alternatives,
+    /// with a checkmark on the currently resolved headline.
+    var allNamesForPicker: [String] {
+        guard let species = inferenceEngine?.speciesData else { return [] }
+        let primary = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines).capitalized
+        let alternatives = species.alternativeCommonNames ?? []
+        return ([primary] + alternatives).removingDuplicates()
+    }
+
     var headerSubtitle: String {
         inferenceEngine?.speciesData?.scientificName ?? "Awaiting taxonomy"
     }
@@ -261,5 +292,36 @@ final class InsightSheetViewModel {
             record.hasBeenViewed = true
             try? modelContext.save()
         }
+    }
+
+    // MARK: - Name Preference
+
+    /// Loads the user's preferred common name for the given scientific name from UserDefaults.
+    /// Call this whenever a new species is presented so `resolvedHeaderTitle` reflects the preference.
+    func loadPreferredCommonName(for scientificName: String) {
+        preferredCommonName = UserDefaults.standard.string(
+            forKey: UserDefaultsKeys.speciesPreferredNamePrefix + scientificName
+        )
+    }
+
+    /// Persists the user's preferred common name and updates the in-memory state immediately
+    /// so `resolvedHeaderTitle` recomputes without requiring a re-fetch.
+    func setPreferredCommonName(_ name: String, for scientificName: String) {
+        UserDefaults.standard.set(name, forKey: UserDefaultsKeys.speciesPreferredNamePrefix + scientificName)
+        preferredCommonName = name
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            toastMessage = "Preferred name set to \"\(name)\""
+        }
+        HapticManager.shared.triggerSelectionPulse()
+    }
+
+    /// Removes the stored preference, reverting the headline to the canonical DB common name.
+    func clearPreferredCommonName(for scientificName: String) {
+        UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.speciesPreferredNamePrefix + scientificName)
+        preferredCommonName = nil
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            toastMessage = "Reverted to default name"
+        }
+        HapticManager.shared.triggerSelectionPulse()
     }
 }

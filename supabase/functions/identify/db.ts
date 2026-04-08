@@ -28,7 +28,7 @@ export async function upsertGhostUserIfMissing(
 }
 
 const SPECIES_SELECT =
-  "id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags";
+  "id, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags";
 
 export async function fetchCachedSpecies(
   scientificName: string,
@@ -46,6 +46,10 @@ export async function fetchCachedSpecies(
 export interface SpeciesUpsertData {
   scientific_name: string;
   common_names: Record<string, string | undefined>;
+  /// All known English vernacular synonyms beyond the primary canonical name.
+  /// Written once during first enrichment from the GBIF vernacular names endpoint.
+  /// The primary common_names.en value is always excluded from this array at write time.
+  alternative_common_names?: string[] | null;
   kingdom?: string;
   phylum?: string;
   class?: string;

@@ -9,7 +9,7 @@ export async function getCachedSpecies(
   const { data: cachedSpecies, error } = await supabaseAdmin
     .from("species_dictionary")
     .select(
-      "id, gbif_taxon_key, habitat_description, kingdom, phylum, class, order, family, genus, similar_species, lookalikes_flash_attempted",
+      "id, gbif_taxon_key, habitat_description, kingdom, phylum, class, order, family, genus, similar_species, alternative_common_names, lookalikes_flash_attempted",
     )
     .eq("scientific_name", scientificName)
     .maybeSingle();
@@ -265,22 +265,29 @@ export async function updateSpeciesEnrichment(
   enrichmentResult: EncyclopedicData | null,
   similarResult: { similar_species: SimilarSpeciesEntry[] } | null,
   supabaseAdmin: SupabaseClient,
+  alternativeCommonNames?: string[] | null,
 ) {
   const persistOps: PromiseLike<unknown>[] = [];
 
   if (enrichmentResult) {
+    const enrichmentUpdate: Record<string, unknown> = {
+      habitat_description: enrichmentResult.habitat_description,
+      kingdom: enrichmentResult.taxonomy.kingdom,
+      phylum: enrichmentResult.taxonomy.phylum,
+      class: enrichmentResult.taxonomy.class,
+      order: enrichmentResult.taxonomy.order,
+      family: enrichmentResult.taxonomy.family,
+      genus: enrichmentResult.taxonomy.genus,
+    };
+    // Only write alternative_common_names when provided — avoids overwriting an
+    // already-populated array with null if GBIF was skipped on this enrichment call.
+    if (alternativeCommonNames != null) {
+      enrichmentUpdate.alternative_common_names = alternativeCommonNames;
+    }
     persistOps.push(
       supabaseAdmin
         .from("species_dictionary")
-        .update({
-          habitat_description: enrichmentResult.habitat_description,
-          kingdom: enrichmentResult.taxonomy.kingdom,
-          phylum: enrichmentResult.taxonomy.phylum,
-          class: enrichmentResult.taxonomy.class,
-          order: enrichmentResult.taxonomy.order,
-          family: enrichmentResult.taxonomy.family,
-          genus: enrichmentResult.taxonomy.genus,
-        })
+        .update(enrichmentUpdate)
         .eq("scientific_name", scientificName),
     );
   }

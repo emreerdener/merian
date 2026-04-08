@@ -3,6 +3,7 @@ export async function fetchExternalEnrichment(scientificName: string) {
   let wikiExtract: string | null = null;
   let gbifKey: number | null = null;
   let combinedImageUrls: string | null = null;
+  let alternativeCommonNames: string[] = [];
 
   try {
     const fetchedUrls: string[] = [];
@@ -11,6 +12,8 @@ export async function fetchExternalEnrichment(scientificName: string) {
       (async () => {
         let key: number | null = null;
         let urls: string[] = [];
+        let vernacularNames: string[] = [];
+
         const gbifRes = await fetch(
           `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`,
           { signal: AbortSignal.timeout(2500) },
@@ -20,12 +23,21 @@ export async function fetchExternalEnrichment(scientificName: string) {
         key = gbifJson.usageKey || null;
 
         if (key) {
-          const mediaRes = await fetch(
-            `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&mediaType=StillImage&limit=4`,
-            { signal: AbortSignal.timeout(2500) },
-          );
-          if (mediaRes.ok) {
-            const mediaJson = await mediaRes.json();
+          // Fetch occurrence images and vernacular names in parallel — both depend on key
+          // but are independent of each other, so concurrent requests halve the wait time.
+          const [mediaOutcome, vernacularOutcome] = await Promise.allSettled([
+            fetch(
+              `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&mediaType=StillImage&limit=4`,
+              { signal: AbortSignal.timeout(2500) },
+            ),
+            fetch(
+              `https://api.gbif.org/v1/species/${key}/vernacularNames?language=eng&limit=30`,
+              { signal: AbortSignal.timeout(2500) },
+            ),
+          ]);
+
+          if (mediaOutcome.status === "fulfilled" && mediaOutcome.value.ok) {
+            const mediaJson = await mediaOutcome.value.json();
             if (mediaJson.results && mediaJson.results.length > 0) {
               const gbifUrls: string[] = [];
               for (const result of mediaJson.results) {
@@ -41,8 +53,28 @@ export async function fetchExternalEnrichment(scientificName: string) {
               urls = gbifUrls.slice(0, 4);
             }
           }
+
+          if (vernacularOutcome.status === "fulfilled" && vernacularOutcome.value.ok) {
+            const vernacularJson = await vernacularOutcome.value.json();
+            // GBIF returns { results: [{ vernacularName, language, ... }] }.
+            // Filter to English, deduplicate, and normalise to Title Case.
+            const seen = new Set<string>();
+            for (const entry of vernacularJson.results ?? []) {
+              if (entry.language !== "eng" && entry.language !== "en") continue;
+              const name: string = (entry.vernacularName ?? "").trim();
+              if (!name) continue;
+              const normalised = name
+                .split(" ")
+                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .join(" ");
+              if (!seen.has(normalised.toLowerCase())) {
+                seen.add(normalised.toLowerCase());
+                vernacularNames.push(normalised);
+              }
+            }
+          }
         }
-        return { key, urls };
+        return { key, urls, vernacularNames };
       })(),
 
       (async () => {
@@ -63,6 +95,7 @@ export async function fetchExternalEnrichment(scientificName: string) {
     if (gbifOutcome.status === "fulfilled") {
       gbifKey = gbifOutcome.value.key;
       fetchedUrls.push(...gbifOutcome.value.urls);
+      alternativeCommonNames = gbifOutcome.value.vernacularNames;
     }
     if (wikiOutcome.status === "fulfilled") {
       wikiUrl = wikiOutcome.value.url;
@@ -84,5 +117,6 @@ export async function fetchExternalEnrichment(scientificName: string) {
     wikiExtract,
     gbifKey,
     referenceImageUrl: combinedImageUrls,
+    alternativeCommonNames,
   };
 }
