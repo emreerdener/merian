@@ -20,6 +20,7 @@ struct SlideToConfirm: View {
 
     @State private var dragOffset: CGFloat = 0
     @State private var isCompleted = false
+    @State private var hasPlayedEdgeHaptic = false
 
     private let thumbSize: CGFloat = 44
     private let trackHeight: CGFloat = 56
@@ -80,6 +81,14 @@ struct SlideToConfirm: View {
                             .onChanged { value in
                                 guard !isCompleted else { return }
                                 dragOffset = min(max(0, value.translation.width), maxOffset)
+                                if dragOffset >= maxOffset {
+                                    if !hasPlayedEdgeHaptic {
+                                        HapticManager.shared.triggerLightImpact()
+                                        hasPlayedEdgeHaptic = true
+                                    }
+                                } else {
+                                    hasPlayedEdgeHaptic = false
+                                }
                             }
                             .onEnded { _ in
                                 guard !isCompleted else { return }
