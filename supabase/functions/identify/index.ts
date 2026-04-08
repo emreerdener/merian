@@ -17,6 +17,7 @@ import { sanitizeScientificName } from "./sanitize.ts";
 import {
   upsertGhostUserIfMissing,
   fetchCachedSpecies,
+  fetchCandidateCommonNames,
   upsertSpeciesDictionary,
   insertScan,
   updateGroupTags,
@@ -415,13 +416,26 @@ serve((req: Request) =>
       inference_tier: userTier === "pro" ? "pro" : "flash",
     };
 
-    // Strip candidates when confidence is above the tier's diagnosticTrigger threshold.
-    // These values mirror MerianConfig.flashConfidence.diagnosticTrigger (0.95) and
-    // MerianConfig.proConfidence.diagnosticTrigger (0.85) in the iOS client.
+    // Strip candidates when confidence is at or above the tier's diagnosticTrigger threshold (0.99 both tiers).
+    // Mirrors MerianConfig.flashConfidence.diagnosticTrigger and MerianConfig.proConfidence.diagnosticTrigger.
     // Fallback to 0.0 (not 1.0) on a null score: a missing confidence_score means the
     // LLM returned a malformed response — preserve candidates rather than silently strip them.
     if ((parsedData.confidence_score ?? 0.0) >= diagnosticTrigger) {
       payloadReadyForClient.candidates = null;
+    }
+
+    // Enrich forwarded candidates with authoritative English common names from species_dictionary.
+    // Single batch query — only runs when candidates are being sent to the client.
+    // Non-fatal: a DB error returns an empty Map and candidates reach the client without common names.
+    if (Array.isArray(payloadReadyForClient.candidates) && payloadReadyForClient.candidates.length > 0) {
+      const candidateNames = payloadReadyForClient.candidates.map((c) => c.scientific_name);
+      const commonNameMap = await fetchCandidateCommonNames(candidateNames, supabaseAdmin);
+      if (commonNameMap.size > 0) {
+        payloadReadyForClient.candidates = payloadReadyForClient.candidates.map((c) => ({
+          ...c,
+          common_name: commonNameMap.get(c.scientific_name),
+        }));
+      }
     }
 
     const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);

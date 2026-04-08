@@ -234,6 +234,87 @@ struct ScanRepositoryTests {
         #expect(decoded[1].scientificName == "Bassariscus astutus")
     }
 
+    @Test func testCandidatesRoundTripWithAllFields() async throws {
+        // Verifies that commonName and distinguishingFeature survive the encode → persist → decode cycle.
+        // This guards the historical sync path: CloudIdentificationCandidate → IdentificationCandidate → candidatesData.
+        let ctx = try createPremiumFieldsContext()
+
+        let candidates: [IdentificationCandidate] = [
+            IdentificationCandidate(
+                scientificName: "Limenitis archippus",
+                commonName: "Viceroy",
+                confidenceScore: 0.71,
+                distinguishingFeature: "Hindwing black postmedian band broader and more irregular"
+            ),
+            IdentificationCandidate(
+                scientificName: "Danaus gilippus",
+                commonName: "Queen",
+                confidenceScore: 0.58,
+                distinguishingFeature: "Forewing lacks white spots in the black apex band"
+            )
+        ]
+        let blob = try JSONEncoder().encode(candidates)
+
+        let record = LocalScanRecord(
+            speciesId: "cand-full-fields",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly",
+            candidatesData: blob
+        )
+        ctx.insert(record)
+        try ctx.save()
+
+        let id = record.id
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+        let fetched = try #require(try ctx.fetch(descriptor).first)
+        let fetchedBlob = try #require(fetched.candidatesData)
+        let decoded = try JSONDecoder().decode([IdentificationCandidate].self, from: fetchedBlob)
+
+        #expect(decoded.count == 2)
+        #expect(decoded[0].scientificName == "Limenitis archippus")
+        #expect(decoded[0].commonName == "Viceroy", "commonName must survive encode → persist → decode")
+        #expect(decoded[0].confidenceScore == 0.71)
+        #expect(decoded[0].distinguishingFeature == "Hindwing black postmedian band broader and more irregular",
+                "distinguishingFeature must survive encode → persist → decode")
+        #expect(decoded[1].commonName == "Queen")
+        #expect(decoded[1].distinguishingFeature == "Forewing lacks white spots in the black apex band")
+    }
+
+    @Test func testCandidatesPreMigrationShapeDecodesGracefully() async throws {
+        // JSONB rows written before distinguishing_feature was added have the two-field shape.
+        // IdentificationCandidate.distinguishingFeature is String? — absent keys must decode as nil, not crash.
+        let ctx = try createPremiumFieldsContext()
+
+        // Encode two-field JSON manually to simulate pre-migration cloud JSONB
+        let preMigrationJSON = """
+        [
+            { "scientificName": "Procyon cancrivorus", "confidenceScore": 0.71 },
+            { "scientificName": "Bassariscus astutus", "confidenceScore": 0.65 }
+        ]
+        """.data(using: .utf8)!
+
+        let record = LocalScanRecord(
+            speciesId: "cand-pre-migration",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            candidatesData: preMigrationJSON
+        )
+        ctx.insert(record)
+        try ctx.save()
+
+        let id = record.id
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+        let fetched = try #require(try ctx.fetch(descriptor).first)
+        let fetchedBlob = try #require(fetched.candidatesData)
+        let decoded = try JSONDecoder().decode([IdentificationCandidate].self, from: fetchedBlob)
+
+        #expect(decoded.count == 2)
+        #expect(decoded[0].distinguishingFeature == nil, "Pre-migration rows missing distinguishing_feature must decode as nil")
+        #expect(decoded[0].commonName == nil, "Pre-migration rows missing common_name must decode as nil")
+        #expect(decoded[0].scientificName == "Procyon cancrivorus")
+        #expect(decoded[0].confidenceScore == 0.71)
+    }
+
     // MARK: - V29 identification review persistence
 
     @Test func testV29UserIdentificationOverrideRoundTrip() async throws {

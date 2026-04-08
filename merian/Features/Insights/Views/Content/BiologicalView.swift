@@ -56,6 +56,10 @@ struct BiologicalView: View {
                 .presentationDragIndicator(.visible)
             }
 
+            // MARK: - Toxicity Banner
+            ToxicityBanner()
+                .cardEntrance(index: 1)
+
             // MARK: - Layout Guards
             let isErrorState = inferenceEngine.speciesData?.scientificName == "Offline Mode" ||
                                inferenceEngine.speciesData?.scientificName == "Data Unreadable"
@@ -84,10 +88,7 @@ struct BiologicalView: View {
                     .cardEntrance(index: 3)
                 }
     
-                // MARK: - Toxicity Banner
-                ToxicityBanner()
-                    .cardEntrance(index: 1)
-    
+
                 // MARK: - Educational Reference
                 OverviewCard(
                     isSafariPresented: $isSafariPresented,

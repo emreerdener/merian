@@ -130,6 +130,29 @@ export interface ScanInsertRow {
   is_live_capture?: boolean;
 }
 
+/**
+ * Batch-fetches English common names from species_dictionary for a list of candidate
+ * scientific names. Returns a Map of scientific_name → common_name (en).
+ * Non-fatal: returns an empty Map on any DB error so candidates still reach the client.
+ */
+export async function fetchCandidateCommonNames(
+  scientificNames: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<Map<string, string>> {
+  if (scientificNames.length === 0) return new Map();
+  const { data, error } = await supabaseAdmin
+    .from("species_dictionary")
+    .select("scientific_name, common_names")
+    .in("scientific_name", scientificNames);
+  if (error) return new Map();
+  const result = new Map<string, string>();
+  for (const row of data ?? []) {
+    const en = (row.common_names as Record<string, string> | null)?.en;
+    if (en) result.set(row.scientific_name as string, en);
+  }
+  return result;
+}
+
 export async function insertScan(
   row: ScanInsertRow,
   supabaseAdmin: SupabaseClient,

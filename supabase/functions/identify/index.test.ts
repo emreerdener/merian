@@ -276,6 +276,93 @@ Deno.test("candidates strip — Pro tier threshold (0.85) preserves below 0.85",
     assertEquals(applyDiagnosticStrip(0.84, 0.85, candidates), candidates);
 });
 
+// Current thresholds: 0.99 for both Flash and Pro (raised from 0.95/0.85).
+// Strong match scans (0.95–0.98) now carry candidates as an escape hatch.
+
+Deno.test("candidates strip — current threshold (0.99): score exactly at trigger strips candidates", () => {
+    assertEquals(applyDiagnosticStrip(0.99, 0.99, [{ scientific_name: "Foo" }]), null);
+});
+
+Deno.test("candidates strip — current threshold (0.99): score above trigger strips candidates", () => {
+    assertEquals(applyDiagnosticStrip(1.0, 0.99, [{ scientific_name: "Foo" }]), null);
+});
+
+Deno.test("candidates strip — current threshold (0.99): Strong match (0.96) preserves candidates", () => {
+    const candidates = [{ scientific_name: "Limenitis archippus" }, { scientific_name: "Danaus gilippus" }];
+    assertEquals(applyDiagnosticStrip(0.96, 0.99, candidates), candidates);
+});
+
+Deno.test("candidates strip — current threshold (0.99): score just below trigger (0.989) preserves candidates", () => {
+    const candidates = [{ scientific_name: "Foo" }];
+    assertEquals(applyDiagnosticStrip(0.989, 0.99, candidates), candidates);
+});
+
+// ---------------------------------------------------------------------------
+// Candidate common_name enrichment
+// Mirrors the fetchCandidateCommonNames + map step in index.ts.
+// ---------------------------------------------------------------------------
+
+type Candidate = { scientific_name: string; confidence_score: number; distinguishing_feature: string; common_name?: string };
+
+function enrichCandidatesWithCommonNames(
+    candidates: Candidate[],
+    commonNameMap: Map<string, string>,
+): Candidate[] {
+    if (commonNameMap.size === 0) return candidates;
+    return candidates.map((c) => ({
+        ...c,
+        common_name: commonNameMap.get(c.scientific_name),
+    }));
+}
+
+Deno.test("candidate enrichment — both species in cache receive common_name", () => {
+    const candidates: Candidate[] = [
+        { scientific_name: "Limenitis archippus", confidence_score: 0.71, distinguishing_feature: "Hindwing band broader" },
+        { scientific_name: "Danaus gilippus", confidence_score: 0.58, distinguishing_feature: "Forewing lacks white spots" },
+    ];
+    const map = new Map([["Limenitis archippus", "Viceroy"], ["Danaus gilippus", "Queen"]]);
+    const enriched = enrichCandidatesWithCommonNames(candidates, map);
+    assertEquals(enriched[0].common_name, "Viceroy");
+    assertEquals(enriched[1].common_name, "Queen");
+});
+
+Deno.test("candidate enrichment — empty map returns candidates unchanged (non-fatal cache miss)", () => {
+    const candidates: Candidate[] = [
+        { scientific_name: "Rare obscura", confidence_score: 0.71, distinguishing_feature: "Some trait" },
+    ];
+    const enriched = enrichCandidatesWithCommonNames(candidates, new Map());
+    assertEquals(enriched.length, 1);
+    assertEquals(enriched[0].common_name, undefined, "common_name must be absent when cache misses — not null or empty string");
+    assertEquals(enriched[0].distinguishing_feature, "Some trait", "distinguishing_feature must be preserved through enrichment");
+});
+
+Deno.test("candidate enrichment — partial cache miss: known species enriched, unknown species gets undefined", () => {
+    const candidates: Candidate[] = [
+        { scientific_name: "Limenitis archippus", confidence_score: 0.71, distinguishing_feature: "Hindwing band" },
+        { scientific_name: "Truly obscura", confidence_score: 0.58, distinguishing_feature: "Some trait" },
+    ];
+    const map = new Map([["Limenitis archippus", "Viceroy"]]);
+    const enriched = enrichCandidatesWithCommonNames(candidates, map);
+    assertEquals(enriched[0].common_name, "Viceroy");
+    assertEquals(enriched[1].common_name, undefined);
+});
+
+Deno.test("candidate enrichment — empty candidates array returns empty array without error", () => {
+    const enriched = enrichCandidatesWithCommonNames([], new Map([["Foo", "Bar"]]));
+    assertEquals(enriched.length, 0);
+});
+
+Deno.test("candidate enrichment — distinguishing_feature and confidence_score preserved after enrichment", () => {
+    const candidates: Candidate[] = [
+        { scientific_name: "Danaus plexippus", confidence_score: 0.82, distinguishing_feature: "Orange wings with black veins" },
+    ];
+    const map = new Map([["Danaus plexippus", "Monarch"]]);
+    const enriched = enrichCandidatesWithCommonNames(candidates, map);
+    assertEquals(enriched[0].confidence_score, 0.82);
+    assertEquals(enriched[0].distinguishing_feature, "Orange wings with black veins");
+    assertEquals(enriched[0].common_name, "Monarch");
+});
+
 // ---------------------------------------------------------------------------
 // blur_score derivation
 // Mirrors Math.max(0, (10 - (sharpness ?? 10)) / 10) in index.ts.

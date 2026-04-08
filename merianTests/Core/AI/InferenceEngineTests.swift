@@ -826,20 +826,21 @@ struct InferenceEngineTests {
     @Test func testInferenceTier_ConfigurationValidation() throws {
         // Assert Flash Free-Tier thresholds are strict
         let flashBands = MerianConfig.confidenceBands(forInferenceTier: "flash")
-        #expect(flashBands.strong == 0.96)
+        #expect(flashBands.strong == 0.95)
         #expect(flashBands.possible == 0.75)
-        #expect(flashBands.diagnosticTrigger == 0.96)
+        // diagnosticTrigger sits above strong (0.99) so Strong-match scans still carry candidates as an escape hatch
+        #expect(flashBands.diagnosticTrigger == 0.99)
 
         // Assert Pro Premium-Tier thresholds are relaxed
         let proBands = MerianConfig.confidenceBands(forInferenceTier: "pro")
         #expect(proBands.strong == 0.85)
         #expect(proBands.possible == 0.65)
-        #expect(proBands.diagnosticTrigger == 0.85)
+        #expect(proBands.diagnosticTrigger == 0.99)
 
         // Assert Legacy/Nil scans resolve to Flash thresholds for safety
         let legacyBands = MerianConfig.confidenceBands(forInferenceTier: nil)
-        #expect(legacyBands.strong == 0.96)
-        #expect(legacyBands.diagnosticTrigger == 0.96)
+        #expect(legacyBands.strong == 0.95)
+        #expect(legacyBands.diagnosticTrigger == 0.99)
     }
 
     // MARK: - Enqueue-at-submission durability (win condition + cancellation)
@@ -1028,5 +1029,116 @@ struct InferenceEngineTests {
         // task's defer (or prepareForNewScan at the start of the next scan) owns this.
         #expect(engine.activeScanId == "background-scan-in-flight",
                 "cancelActiveRequest must NOT clear activeScanId — that is owned by the inference task defer")
+    }
+
+    // MARK: - Identification Candidates: full four-field decoding
+
+    @Test func testEdgeResponseDecodesCandidatesWithAllFields() throws {
+        // Verifies that common_name (server-enriched) and distinguishing_feature (Gemini-generated)
+        // both decode correctly from the identify response payload.
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "scan_id": "cand_full_001",
+                "is_biological_subject": true,
+                "scientific_name": "Danaus plexippus",
+                "common_name": "Monarch Butterfly",
+                "confidence_score": 0.82,
+                "insight_data": { "ai_reasoning": "A milkweed butterfly.", "hazard_type": "none" },
+                "candidates": [
+                    {
+                        "scientific_name": "Limenitis archippus",
+                        "common_name": "Viceroy",
+                        "confidence_score": 0.71,
+                        "distinguishing_feature": "Hindwing black postmedian band broader and more irregular"
+                    },
+                    {
+                        "scientific_name": "Danaus gilippus",
+                        "common_name": "Queen",
+                        "confidence_score": 0.58,
+                        "distinguishing_feature": "Forewing lacks white spots in the black apex band"
+                    }
+                ]
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+        let candidates = try #require(wrapper.data.candidates, "candidates must decode from edge response JSON")
+
+        #expect(candidates.count == 2)
+        #expect(candidates[0].scientific_name == "Limenitis archippus")
+        #expect(candidates[0].common_name == "Viceroy", "common_name must decode from server-enriched payload")
+        #expect(candidates[0].confidence_score == 0.71)
+        #expect(candidates[0].distinguishing_feature == "Hindwing black postmedian band broader and more irregular")
+        #expect(candidates[1].scientific_name == "Danaus gilippus")
+        #expect(candidates[1].common_name == "Queen")
+        #expect(candidates[1].distinguishing_feature == "Forewing lacks white spots in the black apex band")
+    }
+
+    @Test func testEdgeResponseDecodesCandidatesWithoutCommonNameOnCacheMiss() throws {
+        // When a candidate species is not in species_dictionary, common_name is absent from JSON.
+        // The Swift optional must decode as nil — not crash.
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "scan_id": "cand_miss_001",
+                "is_biological_subject": true,
+                "scientific_name": "Procyon lotor",
+                "common_name": "Raccoon",
+                "confidence_score": 0.78,
+                "insight_data": { "ai_reasoning": "A procyonid.", "hazard_type": "none" },
+                "candidates": [
+                    {
+                        "scientific_name": "Rare obscura",
+                        "confidence_score": 0.65,
+                        "distinguishing_feature": "Markings differ in tail pattern"
+                    }
+                ]
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+        let candidates = try #require(wrapper.data.candidates)
+
+        #expect(candidates[0].common_name == nil, "Absent common_name key must decode as nil — cache miss path must not crash")
+        #expect(candidates[0].distinguishing_feature == "Markings differ in tail pattern")
+    }
+
+    @Test func testSpeciesDataMapsAllCandidateFieldsFromEdgeResponse() throws {
+        // Verifies the SpeciesData.init(fromEdgeResponse:) mapping passes all four fields through.
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "scan_id": "cand_map_001",
+                "is_biological_subject": true,
+                "scientific_name": "Danaus plexippus",
+                "common_name": "Monarch Butterfly",
+                "confidence_score": 0.82,
+                "insight_data": { "ai_reasoning": "A migratory butterfly.", "hazard_type": "none" },
+                "candidates": [
+                    {
+                        "scientific_name": "Limenitis archippus",
+                        "common_name": "Viceroy",
+                        "confidence_score": 0.71,
+                        "distinguishing_feature": "Hindwing black postmedian band broader and more irregular"
+                    }
+                ]
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+        let speciesData = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
+        let candidate = try #require(speciesData.candidates?.first)
+
+        #expect(candidate.scientificName == "Limenitis archippus")
+        #expect(candidate.commonName == "Viceroy")
+        #expect(candidate.confidenceScore == 0.71)
+        #expect(candidate.distinguishingFeature == "Hindwing black postmedian band broader and more irregular")
     }
 }

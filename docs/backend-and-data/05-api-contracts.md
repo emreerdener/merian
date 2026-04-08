@@ -139,8 +139,8 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
 
   "// Present when confidence_score < diagnosticTrigger (0.99 both Flash and Pro — intentionally above strong threshold so Strong match scans still show candidates as escape hatch). Server strips to null at or above 0.99. See identify/thresholds.ts.": "",
   "candidates": [
-    { "scientific_name": "Limenitis archippus", "confidence_score": 0.71, "distinguishing_feature": "Hindwing black postmedian band broader and more irregular than Monarch" },
-    { "scientific_name": "Danaus gilippus", "confidence_score": 0.58, "distinguishing_feature": "Forewing lacks white spots in the black apex band" }
+    { "scientific_name": "Limenitis archippus", "common_name": "Viceroy", "confidence_score": 0.71, "distinguishing_feature": "Hindwing black postmedian band broader and more irregular than Monarch" },
+    { "scientific_name": "Danaus gilippus", "common_name": "Queen", "confidence_score": 0.58, "distinguishing_feature": "Forewing lacks white spots in the black apex band" }
   ]
 }
 ```

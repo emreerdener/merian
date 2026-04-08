@@ -33,6 +33,8 @@ export interface MerianIdentification {
 /** A single alternative species the model considered when confidence was below threshold. */
 export interface IdentificationCandidate {
   scientific_name: string;
+  /** Authoritative English common name sourced from species_dictionary. Absent on cache miss. */
+  common_name?: string;
   confidence_score: number;
   /** The single most important observable trait that distinguishes this candidate from the primary identification. */
   distinguishing_feature: string;

@@ -67,7 +67,7 @@ struct InsightSheetViewModelTests {
         )
         viewModel.inferenceEngine = engine
         
-        #expect(viewModel.headerTitle == "Common Name")
+        #expect(viewModel.resolvedHeaderTitle == "Common Name")
         #expect(viewModel.headerSubtitle == "Sci Name")
         #expect(viewModel.hazardType == "venomous")
         #expect(viewModel.isHazardous == true)

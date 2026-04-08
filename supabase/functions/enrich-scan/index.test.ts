@@ -155,3 +155,86 @@ Deno.test("back-fill skips species where Flash returned null common_name", () =>
   const candidates = backfillCandidates(typed, map as Map<string, SimilarSpeciesEntry>);
   assertEquals(candidates.length, 0, "Null Flash common_name must not trigger a back-fill write");
 });
+
+// ---------------------------------------------------------------------------
+// alternative_common_names backfill
+// Mirrors the altNames resolution logic in enrich-scan/index.ts:
+// when alternative_common_names IS NULL and gbif_taxon_key is available,
+// enrich-scan fetches from GBIF rather than returning null.
+// ---------------------------------------------------------------------------
+
+type CachedSpeciesStub = {
+  alternative_common_names: string[] | null;
+  gbif_taxon_key: number | null;
+  common_names: Record<string, string> | null;
+};
+
+function resolveAltNames(
+  cachedSpecies: CachedSpeciesStub,
+  gbifFetchResult: string[] | null,
+): string[] | null {
+  // If already populated in DB, return as-is.
+  if (cachedSpecies.alternative_common_names !== null) {
+    return cachedSpecies.alternative_common_names;
+  }
+  // If gbif_taxon_key is available, use the live fetch result.
+  if (cachedSpecies.gbif_taxon_key !== null) {
+    return gbifFetchResult;
+  }
+  return null;
+}
+
+Deno.test("alt names — already in DB: returned directly, GBIF not needed", () => {
+  const species: CachedSpeciesStub = {
+    alternative_common_names: ["Common Tiger", "Wanderer"],
+    gbif_taxon_key: 5130978,
+    common_names: { en: "Monarch Butterfly" },
+  };
+  const result = resolveAltNames(species, null);
+  assertEquals(result, ["Common Tiger", "Wanderer"]);
+});
+
+Deno.test("alt names — null in DB with gbif_taxon_key: GBIF fetch result is used", () => {
+  const species: CachedSpeciesStub = {
+    alternative_common_names: null,
+    gbif_taxon_key: 5130978,
+    common_names: { en: "Monarch Butterfly" },
+  };
+  const gbifNames = ["Common Tiger", "Wanderer"];
+  const result = resolveAltNames(species, gbifNames);
+  assertEquals(result, ["Common Tiger", "Wanderer"]);
+});
+
+Deno.test("alt names — null in DB, GBIF returns empty array: empty array forwarded (not null)", () => {
+  // Empty array means GBIF was reached but had no additional English names.
+  // This is a valid terminal state — don't re-fetch on every scan.
+  const species: CachedSpeciesStub = {
+    alternative_common_names: null,
+    gbif_taxon_key: 5130978,
+    common_names: { en: "Obscure species" },
+  };
+  const result = resolveAltNames(species, []);
+  assertEquals(result, []);
+});
+
+Deno.test("alt names — null in DB, no gbif_taxon_key: returns null (cannot fetch)", () => {
+  const species: CachedSpeciesStub = {
+    alternative_common_names: null,
+    gbif_taxon_key: null,
+    common_names: { en: "Unknown" },
+  };
+  const result = resolveAltNames(species, null);
+  assertEquals(result, null, "Without gbif_taxon_key there is no fetch path — must remain null");
+});
+
+Deno.test("alt names — already populated as empty array: treated as populated, not re-fetched", () => {
+  // An empty array in DB means GBIF previously returned no additional names.
+  // Must not trigger another GBIF call.
+  const species: CachedSpeciesStub = {
+    alternative_common_names: [],
+    gbif_taxon_key: 5130978,
+    common_names: { en: "Monarch Butterfly" },
+  };
+  const result = resolveAltNames(species, ["Should not appear"]);
+  assertEquals(result, [], "Empty array in DB must be returned as-is — not overwritten by GBIF");
+});
