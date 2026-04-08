@@ -79,6 +79,10 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         ]
     }
 
+    // Lightweight: adds alternativeCommonNames column to LocalScanRecord and the
+    // UserSpeciesPreference table. V33 has 4 entities; V34 has 5 (adds UserSpeciesPreference),
+    // which anchors the checksum difference. All entities use global Swift classes in
+    // both versions, so no cast errors occur during or after migration.
     static let migrateV33toV34 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV33.self,
         toVersion: MerianSchemaV34.self

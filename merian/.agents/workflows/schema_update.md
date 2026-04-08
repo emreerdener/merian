@@ -63,31 +63,67 @@ By adhering strictly to this runbook, the main models will *always* live freely 
 
 ---
 
-## ⚠️ Critical: Only Freeze Models That Actually Changed
+## ⚠️ Critical: Checksums and Cast Errors
 
-When snapshotting `V_CURRENT`, **only create frozen inner classes for the models that changed** in that version. For models that were identical in `V_CURRENT` and `V_NEXT`, reference the global active type directly — do **not** typealias them to an older frozen version.
+### How SwiftData computes schema checksums
 
-**Why this matters**: SwiftData generates a per-entity Swift class mapping from the CoreData store. If two consecutive schema versions register *different* Swift types for the same entity (e.g., `MerianSchemaV7.PendingCloudDeletionTask` in V33 vs. `Merian.PendingCloudDeletionTask` in V34), SwiftData cannot reconcile them at runtime and throws:
+SwiftData computes per-entity version hashes from **stored attribute names and types** (field content). Swift class identity and module qualification have **no effect** — a frozen inner class with the same fields as the global produces **identical** checksums. The only way to create unique checksums between two consecutive schema versions is either:
+
+1. A **real field difference** in at least one existing model, OR
+2. A **new model entity** that exists in V_NEXT but not in V_CURRENT.
+
+### The "Failed to cast model" error
+
+If two schema versions in the migration plan register **different Swift types** for the same entity (a frozen inner class in one version and the global in another), SwiftData's internal entity-class registry becomes inconsistent. Fetches and relationship traversals can fail with:
 
 ```
-Fatal error: Failed to cast model Merian.PendingCloudDeletionTask
-  for PersistentIdentifier(...) to PendingCloudDeletionTask.
+Fatal error: Failed to cast model Merian.LocalScanRecord
+  for PersistentIdentifier(...) to LocalScanRecord.
 ```
 
-**The rule**: the unique checksum for `V_CURRENT` comes from whichever model(s) changed in that version. Unchanged models always reference the same global type across both `V_CURRENT` and `V_NEXT`, so SwiftData always sees one Swift class per entity.
+This error occurs **post-migration** during normal fetch operations — not only during migration itself. Using a custom migration instead of lightweight does **not** avoid it.
 
-**Example** — only `OfflineQueuedScan` changed in V33:
+### The golden rule: all global types, always
+
+**Every entity must use the same global Swift class in every schema version of the migration plan.** Never use frozen inner classes or typealiased older frozen classes for any entity — they create irreversible registry conflicts.
+
+Checksum uniqueness between V_CURRENT and V_NEXT must come from one of the two mechanisms above (field difference or new entity), achieved exclusively through adding/removing/renaming stored attributes on the global class or by adding a new global model exclusively to V_NEXT.
+
+### Example — V33 → V34 (adds alternativeCommonNames + UserSpeciesPreference)
 
 ```swift
+// SchemaV33.swift — all global types; no frozen inner classes
 enum MerianSchemaV33: VersionedSchema {
+    static var versionIdentifier = Schema.Version(33, 0, 0)
     static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self,                    // global — unchanged
-         MerianSchemaV33.OfflineQueuedScan.self,  // frozen — changed
-         ScanCollection.self,                     // global — unchanged
-         PendingCloudDeletionTask.self]            // global — unchanged
+        [LocalScanRecord.self, OfflineQueuedScan.self,
+         ScanCollection.self, PendingCloudDeletionTask.self]
     }
-
-    @Model final class OfflineQueuedScan { /* V33 fields */ }
-    // No typealiases — unchanged models stay global
 }
+
+// SchemaV34.swift — adds UserSpeciesPreference; checksum differs from V33
+// because V34 has one more entity in its model set.
+enum MerianSchemaV34: VersionedSchema {
+    static var versionIdentifier = Schema.Version(34, 0, 0)
+    static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self, OfflineQueuedScan.self,
+         ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self]
+    }
+}
+
+// SchemaVersions.swift — lightweight: adds alternativeCommonNames column +
+// UserSpeciesPreference table. No cast errors because all entities use the
+// same global class in both V33 and V34.
+static let migrateV33toV34 = MigrationStage.lightweight(
+    fromVersion: MerianSchemaV33.self,
+    toVersion: MerianSchemaV34.self
+)
 ```
+
+### What to do when adding a field to an existing model
+
+1. Add the field to the global model class in `Models/ActiveSchema/`.
+2. Create `SchemaVN+1` pointing to all global types.
+3. If the field alone does not differentiate checksums (because V_CURRENT also points to the same global and the global now includes the new field), **add a new companion entity** to `SchemaVN+1` to anchor the checksum difference.
+4. Register a lightweight migration from `SchemaVN` to `SchemaVN+1`.
