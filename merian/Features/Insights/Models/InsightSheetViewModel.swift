@@ -99,8 +99,8 @@ final class InsightSheetViewModel {
     var displayAlternativeCommonNames: [String]? {
         let all = allNamesForPicker
         guard !all.isEmpty else { return nil }
-        let activeName = resolvedHeaderTitle.lowercased()
-        let filtered = all.filter { $0.lowercased() != activeName }
+        let activeKey = resolvedHeaderTitle.commonNameKey
+        let filtered = all.filter { $0.commonNameKey != activeKey }
         return filtered.isEmpty ? nil : filtered
     }
 
@@ -110,7 +110,7 @@ final class InsightSheetViewModel {
         guard let species = inferenceEngine?.speciesData else { return [] }
         let primary = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines).capitalized
         let alternatives = species.alternativeCommonNames ?? []
-        return ([primary] + alternatives).removingDuplicates()
+        return ([primary] + alternatives).removingFuzzyDuplicateNames()
     }
 
     var headerSubtitle: String {

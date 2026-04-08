@@ -50,6 +50,11 @@ import os
 
     /// Logs in to RevenueCat with `userId` and syncs optional profile attributes.
     func linkWithSupabase(userId: String, email: String? = nil, displayName: String? = nil, avatarUrl: String? = nil) async {
+        guard Purchases.isConfigured else {
+            MerianLog.general.warning("RevenueCatManager.linkWithSupabase() skipped: Purchases is not configured.")
+            return
+        }
+
         do {
             let (customerInfo, _) = try await Purchases.shared.logIn(userId)
             updateEntitlements(with: customerInfo)
@@ -75,6 +80,7 @@ import os
 
     /// Fetches the current customer info and updates entitlement state.
     func refreshCustomerInfo() async {
+        guard Purchases.isConfigured else { return }
         do {
             let info = try await Purchases.shared.customerInfo()
             updateEntitlements(with: info)
@@ -92,6 +98,7 @@ import os
 
     /// Fetches available offerings for the paywall.
     func fetchOfferings() async {
+        guard Purchases.isConfigured else { return }
         isFetchingOfferings = true
         defer { isFetchingOfferings = false }
         do {
@@ -105,12 +112,18 @@ import os
 
     /// Initiates the purchase flow for `package`.
     func purchase(_ package: Package) async throws {
+        guard Purchases.isConfigured else {
+            throw NSError(domain: "RevenueCatManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Purchases not configured."])
+        }
         let result = try await Purchases.shared.purchase(package: package)
         updateEntitlements(with: result.customerInfo)
     }
 
     /// Restores previous purchases from Apple.
     func restorePurchases() async throws {
+        guard Purchases.isConfigured else {
+            throw NSError(domain: "RevenueCatManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Purchases not configured."])
+        }
         let info = try await Purchases.shared.restorePurchases()
         updateEntitlements(with: info)
     }

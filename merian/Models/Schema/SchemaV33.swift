@@ -12,19 +12,21 @@ import SwiftData
 //
 // MARK: - Frozen snapshot for MerianSchemaV33
 // Only OfflineQueuedScan changed in V33 — it is frozen here as a namespaced inner class.
-// LocalScanRecord, ScanCollection, and PendingCloudDeletionTask did NOT change between V33
-// and V34, so they reference the global active types. This keeps a single Swift class for
-// each entity and avoids the "Failed to cast model Merian.X to X" SwiftData runtime error
-// that arises when two schema versions register different Swift types for the same entity.
-// The unique checksum for V33 comes from the frozen OfflineQueuedScan alone.
+// LocalScanRecord, ScanCollection, and PendingCloudDeletionTask did NOT change in V33;
+// they are anchored to V31/V30 frozen snapshots so the V33 checksum stays fixed even when
+// later versions add new fields to the global active types (e.g. alternativeCommonNames in V34).
 // DO NOT modify after committing. Checksums must remain stable forever.
 enum MerianSchemaV33: VersionedSchema {
     static var versionIdentifier = Schema.Version(33, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self, MerianSchemaV33.OfflineQueuedScan.self,
-         ScanCollection.self, PendingCloudDeletionTask.self]
+        [MerianSchemaV33.LocalScanRecord.self, MerianSchemaV33.OfflineQueuedScan.self,
+         MerianSchemaV33.ScanCollection.self, MerianSchemaV33.PendingCloudDeletionTask.self]
     }
+
+    typealias LocalScanRecord           = MerianSchemaV31.LocalScanRecord
+    typealias ScanCollection            = MerianSchemaV31.ScanCollection
+    typealias PendingCloudDeletionTask  = MerianSchemaV30.PendingCloudDeletionTask
 
     @Model
     final class OfflineQueuedScan {
