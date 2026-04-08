@@ -8,6 +8,7 @@ export interface LookalikeSummary {
 export interface CachedSpeciesData {
   id: string;
   gbif_taxon_key: number | null;
+  common_names: Record<string, string> | null;
   habitat_description: string | null;
   kingdom: string | null;
   phylum: string | null;

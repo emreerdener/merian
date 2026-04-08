@@ -9,7 +9,7 @@ export async function getCachedSpecies(
   const { data: cachedSpecies, error } = await supabaseAdmin
     .from("species_dictionary")
     .select(
-      "id, gbif_taxon_key, habitat_description, kingdom, phylum, class, order, family, genus, similar_species, alternative_common_names, lookalikes_flash_attempted",
+      "id, gbif_taxon_key, common_names, habitat_description, kingdom, phylum, class, order, family, genus, similar_species, alternative_common_names, lookalikes_flash_attempted",
     )
     .eq("scientific_name", scientificName)
     .maybeSingle();

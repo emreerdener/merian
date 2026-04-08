@@ -571,7 +571,8 @@ actor BackgroundDatabaseActor {
         habitatDescription: String?,
         gbifTaxonKey: Int?,
         similarSpeciesJsonData: Data?,
-        taxonomy: EdgeResponse.Taxonomy?
+        taxonomy: EdgeResponse.Taxonomy?,
+        alternativeCommonNames: [String]? = nil
     ) {
         mutateScan(id: scanId) { record in
             if let habitat = habitatDescription { record.habitatDescription = habitat }
@@ -585,6 +586,7 @@ actor BackgroundDatabaseActor {
                 record.taxonomyFamily = tax.family
                 record.taxonomyGenus = tax.genus
             }
+            if let names = alternativeCommonNames { record.alternativeCommonNames = names }
         }
     }
 

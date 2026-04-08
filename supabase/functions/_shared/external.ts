@@ -1,3 +1,37 @@
+/**
+ * Fetches English vernacular names for a species from GBIF using a known usageKey.
+ * Normalises to Title Case and deduplicates. Returns an empty array on timeout,
+ * non-OK response, or no English entries — never throws.
+ */
+export async function fetchGBIFVernacularNames(gbifKey: number): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://api.gbif.org/v1/species/${gbifKey}/vernacularNames?limit=30`,
+      { signal: AbortSignal.timeout(2500) },
+    );
+    if (!res.ok) return [];
+    const json = await res.json();
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const entry of json.results ?? []) {
+      if (entry.language !== "eng" && entry.language !== "en") continue;
+      const name: string = (entry.vernacularName ?? "").trim();
+      if (!name) continue;
+      const normalised = name
+        .split(" ")
+        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+      if (!seen.has(normalised.toLowerCase())) {
+        seen.add(normalised.toLowerCase());
+        names.push(normalised);
+      }
+    }
+    return names;
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchExternalEnrichment(scientificName: string) {
   let wikiUrl: string | null = null;
   let wikiExtract: string | null = null;

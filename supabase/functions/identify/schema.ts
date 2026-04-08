@@ -70,112 +70,6 @@ const SHARED_REQUIRED = [
   "candidates",
 ] as const;
 
-// Branch 1: biological subject (is_biological_subject = true).
-// All taxonomy-relevant fields are required. individual_count is nullable because
-// it may be impossible to estimate in occluded or crowded scenes.
-const biologicalBranch = (): ResponseSchema => ({
-  type: SchemaType.OBJECT,
-  properties: {
-    ...sharedProperties(),
-    scientific_name: {
-      type: SchemaType.STRING,
-      description: "Formally accepted binomial scientific name.",
-    },
-    common_name: {
-      type: SchemaType.STRING,
-      description:
-        "Most specific, commonly recognized English name in Title Case. Ensure words are spaced correctly (e.g., 'Red-tailed Hawk').",
-    },
-    ecology_type: {
-      type: SchemaType.STRING,
-      format: "enum",
-      enum: ["wild", "urban", "domesticated", "unknown"],
-    },
-    is_invasive: { type: SchemaType.BOOLEAN },
-    life_stage: {
-      type: SchemaType.STRING,
-      format: "enum",
-      enum: [
-        "egg",
-        "larva",
-        "pupa",
-        "nymph",
-        "juvenile",
-        "subadult",
-        "adult",
-        "seedling",
-        "sapling",
-        "unknown",
-      ],
-    },
-    reproductive_condition: {
-      type: SchemaType.STRING,
-      format: "enum",
-      enum: [
-        "flowering",
-        "fruiting",
-        "budding",
-        "vegetative",
-        "sporing",
-        "pregnant",
-        "gravid",
-        "mating",
-        "spawning",
-        "nesting",
-        "dormant",
-        "not_applicable",
-      ],
-    },
-    individual_count: {
-      type: SchemaType.INTEGER,
-      nullable: true,
-      description:
-        "Number of distinct individuals of the primary species visible. Null when impossible to estimate.",
-    },
-    ecological_interactions: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
-      description:
-        "Describe active interactions with other biological organisms visible in the frame.",
-    },
-  },
-  required: [
-    ...SHARED_REQUIRED,
-    "scientific_name",
-    "common_name",
-    "ecology_type",
-    "is_invasive",
-    "life_stage",
-    "reproductive_condition",
-    "ecological_interactions",
-  ],
-});
-
-// Branch 2: non-biological subject (is_biological_subject = false).
-// Biology-specific fields (ecology_type, is_invasive, life_stage, etc.) are absent
-// from the schema entirely — the model does not output them, saving candidate tokens.
-// scientific_name and common_name are nullable: present for identifiable geological
-// subjects (rocks, minerals), absent for generic debris or non-natural objects.
-const nonBiologicalBranch = (): ResponseSchema => ({
-  type: SchemaType.OBJECT,
-  properties: {
-    ...sharedProperties(),
-    scientific_name: {
-      type: SchemaType.STRING,
-      nullable: true,
-      description:
-        "Scientific or mineralogical name for identifiable geological specimens. Null for generic debris or man-made objects.",
-    },
-    common_name: {
-      type: SchemaType.STRING,
-      nullable: true,
-      description:
-        "Recognised English name for identifiable geological or mineralogical subjects. Null for generic debris or man-made objects.",
-    },
-  },
-  required: [...SHARED_REQUIRED],
-});
-
 // Schema cache keyed by diagnosticTrigger so warm isolate re-use avoids repeated
 // object construction across requests. Two entries maximum (flash=0.95, pro=0.85).
 // The trigger value does not currently affect schema shape but the cache is keyed
@@ -189,13 +83,95 @@ export const getMerianResponseSchema = (
     return schemaCache.get(diagnosticTrigger)!;
   }
 
-  // anyOf lets the model pick the correct branch based on is_biological_subject.
-  // The biological branch requires all biology-specific fields; the non-biological
-  // branch omits them entirely. This eliminates the null-padding of ~8 fields on
-  // every non-bio scan (rocks, debris, etc.) and gives the model explicit signal
-  // about which fields are valid in each context, improving structured output fidelity.
+  // Flat schema: all fields in one object, biology-specific ones nullable.
+  // Previously used anyOf [biologicalBranch, nonBiologicalBranch] to let Gemini
+  // pick the right field set, but anyOf at the responseSchema root can cause the
+  // Gemini API to reject the entire request with a structured-output validation
+  // error before inference starts — the root schema must be a plain OBJECT.
+  // The system instruction already tells the model to omit biology fields for
+  // non-biological subjects (is_biological_subject=false), so the flat schema
+  // produces equivalent output quality with universal API compatibility.
   const schema: ResponseSchema = {
-    anyOf: [biologicalBranch(), nonBiologicalBranch()],
+    type: SchemaType.OBJECT,
+    properties: {
+      ...sharedProperties(),
+      scientific_name: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description:
+          "Formally accepted binomial scientific name. Required for biological subjects and identifiable geological specimens. Null for unidentifiable non-natural objects.",
+      },
+      common_name: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description:
+          "Most specific, commonly recognized English name in Title Case. Null for unidentifiable non-natural objects.",
+      },
+      ecology_type: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["wild", "urban", "domesticated", "unknown"],
+        nullable: true,
+        description: "Biological subjects only. Null for non-biological subjects.",
+      },
+      is_invasive: {
+        type: SchemaType.BOOLEAN,
+        nullable: true,
+        description: "Biological subjects only. Null for non-biological subjects.",
+      },
+      life_stage: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: [
+          "egg",
+          "larva",
+          "pupa",
+          "nymph",
+          "juvenile",
+          "subadult",
+          "adult",
+          "seedling",
+          "sapling",
+          "unknown",
+        ],
+        nullable: true,
+        description: "Biological subjects only. Null for non-biological subjects.",
+      },
+      reproductive_condition: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: [
+          "flowering",
+          "fruiting",
+          "budding",
+          "vegetative",
+          "sporing",
+          "pregnant",
+          "gravid",
+          "mating",
+          "spawning",
+          "nesting",
+          "dormant",
+          "not_applicable",
+        ],
+        nullable: true,
+        description: "Biological subjects only. Null for non-biological subjects.",
+      },
+      individual_count: {
+        type: SchemaType.INTEGER,
+        nullable: true,
+        description:
+          "Number of distinct individuals of the primary species visible. Null when impossible to estimate or for non-biological subjects.",
+      },
+      ecological_interactions: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        nullable: true,
+        description:
+          "Active interactions with other biological organisms visible in the frame. Null for non-biological subjects.",
+      },
+    },
+    required: [...SHARED_REQUIRED],
   };
 
   schemaCache.set(diagnosticTrigger, schema);

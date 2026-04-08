@@ -282,7 +282,18 @@ serve((req: Request) =>
         `[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${Date.now() - geminiStart}ms inference`,
       );
     } catch (genError) {
-      console.error("AI generation failed:", genError);
+      // Extract structured details so Supabase function logs surface the exact
+      // Gemini error without needing to decode a stringified Error object.
+      const errMsg = genError instanceof Error ? genError.message : String(genError);
+      const errStatus = (genError as Record<string, unknown>)?.status ??
+        (genError as Record<string, unknown>)?.statusCode ?? null;
+      logStructuredError("identify/gemini_failed", {
+        user_id: user.id,
+        model: modelCfg.model,
+        elapsed_ms: Date.now() - geminiStart,
+        error_message: errMsg,
+        error_status: errStatus,
+      });
       // Return 503 (not 400) so the iOS offline queue treats this as a transient failure
       // and retries up to maxUploadRetries times rather than tombstoning the scan permanently.
       // 400 is reserved for genuine client errors (bad params, IDOR). Gemini API errors

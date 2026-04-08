@@ -687,6 +687,9 @@ private struct GBIFMedia: Decodable {
                             if let key = enrichData.gbif_taxon_key {
                                 updated.gbifTaxonKey = key
                             }
+                            if let names = enrichData.alternative_common_names {
+                                updated.alternativeCommonNames = names
+                            }
                             self.speciesData = updated  // Single @Observable-triggering assignment
                         }
                         if let key = enrichData.gbif_taxon_key {
@@ -703,6 +706,7 @@ private struct GBIFMedia: Decodable {
                             let habitatSnapshot = enrichData.habitat_description
                             let gbifSnapshot = enrichData.gbif_taxon_key
                             let taxonomySnapshot = enrichData.taxonomy
+                            let altNamesSnapshot = enrichData.alternative_common_names
                             self.enrichmentWriteTask?.cancel()
                             self.enrichmentWriteTask = Task {
                                 guard !Task.isCancelled else { return }
@@ -712,7 +716,8 @@ private struct GBIFMedia: Decodable {
                                     habitatDescription: habitatSnapshot,
                                     gbifTaxonKey: gbifSnapshot,
                                     similarSpeciesJsonData: nil,
-                                    taxonomy: taxonomySnapshot
+                                    taxonomy: taxonomySnapshot,
+                                    alternativeCommonNames: altNamesSnapshot
                                 )
                             }
                         }

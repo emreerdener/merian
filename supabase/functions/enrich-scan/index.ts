@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHandler.ts";
 import { fetchSimilarSpecies, fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/biology.ts";
+import { fetchGBIFVernacularNames } from "../_shared/external.ts";
 import { requireParams } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import {
@@ -18,6 +19,7 @@ import { CachedSpeciesData, LookalikeSummary } from "./types.ts";
 function formatEnrichmentOnlyPayload(
   cachedSpecies: CachedSpeciesData | null,
   enrichmentResult: EncyclopedicData | null,
+  altNames: string[] | null,
 ) {
   return {
     scope: "enrichment" as const,
@@ -34,6 +36,9 @@ function formatEnrichmentOnlyPayload(
       family: enrichmentResult?.taxonomy?.family ?? cachedSpecies?.family ?? "Unknown",
       genus: enrichmentResult?.taxonomy?.genus ?? cachedSpecies?.genus ?? "Unknown",
     },
+    // Caller resolves altNames from DB cache or live GBIF fetch so this is always
+    // the freshest available value. Null when GBIF has no English entries.
+    alternative_common_names: altNames,
   };
 }
 
@@ -98,14 +103,46 @@ serve((req: Request) =>
 
     // ── ENRICHMENT SCOPE ──────────────────────────────────────────────────────
     if (scope === "enrichment") {
+      // Resolve alternative common names before branching on hasEnrichment so both
+      // the cache-hit and cache-miss paths serve the freshest available value.
+      //
+      // Priority order:
+      //   1. Already stored in species_dictionary.alternative_common_names — fastest, no I/O.
+      //   2. Live fetch from GBIF vernacular names endpoint using the cached gbif_taxon_key.
+      //      Covers two gaps: (a) old species rows that existed before V34 added the column,
+      //      (b) new species where identify's background GBIF fetch raced ahead of this call
+      //      and hadn't written to DB yet when getCachedSpecies ran above.
+      //
+      // The result is persisted via updateSpeciesEnrichment so subsequent requests are served
+      // from the DB (path 1) without another GBIF round-trip.
+      let altNames: string[] | null = cachedSpecies?.alternative_common_names ?? null;
+      let altNamesFetched = false;
+      if (altNames === null && cachedSpecies?.gbif_taxon_key != null) {
+        const fetched = await fetchGBIFVernacularNames(cachedSpecies.gbif_taxon_key);
+        if (fetched.length > 0) {
+          const primaryEn = (cachedSpecies.common_names?.en ?? "").toLowerCase();
+          altNames = fetched.filter((n) => n.toLowerCase() !== primaryEn);
+          if (altNames.length === 0) altNames = null;
+        }
+        // Mark as freshly fetched even when empty so we persist the result below —
+        // an empty fetch means GBIF has no English entries, not that we skipped the call.
+        altNamesFetched = true;
+      }
+
       const hasEnrichment =
         cachedSpecies?.habitat_description !== null &&
         cachedSpecies?.habitat_description !== undefined;
 
       if (hasEnrichment) {
         console.log(`[enrich-scan:enrichment] CACHE HIT for ${scientific_name}`);
+        // Persist freshly fetched alt names so future requests hit DB path 1.
+        if (altNamesFetched) {
+          runBackground(
+            updateSpeciesEnrichment(scientific_name, null, null, supabaseAdmin, altNames),
+          );
+        }
         return jsonResponse(
-          { success: true, data: formatEnrichmentOnlyPayload(cachedSpecies, null) },
+          { success: true, data: formatEnrichmentOnlyPayload(cachedSpecies, null, altNames) },
           200,
         );
       }
@@ -116,8 +153,10 @@ serve((req: Request) =>
       if (inFlightEnrichment) {
         await inFlightEnrichment.catch(() => {});
         const refreshed = await getCachedSpecies(scientific_name, supabaseAdmin);
+        // Re-resolve altNames from the refreshed row (background write may have landed).
+        const refreshedAltNames = refreshed?.alternative_common_names ?? altNames;
         return jsonResponse(
-          { success: true, data: formatEnrichmentOnlyPayload(refreshed, null) },
+          { success: true, data: formatEnrichmentOnlyPayload(refreshed, null, refreshedAltNames) },
           200,
         );
       }
@@ -141,12 +180,12 @@ serve((req: Request) =>
         }
 
         runBackground(
-          updateSpeciesEnrichment(scientific_name, enrichmentResult, null, supabaseAdmin),
+          updateSpeciesEnrichment(scientific_name, enrichmentResult, null, supabaseAdmin, altNames),
         );
 
         console.log(`[enrich-scan:enrichment] CACHE MISS for ${scientific_name}`);
         return jsonResponse(
-          { success: true, data: formatEnrichmentOnlyPayload(cachedSpecies, enrichmentResult) },
+          { success: true, data: formatEnrichmentOnlyPayload(cachedSpecies, enrichmentResult, altNames) },
           200,
         );
       } catch (e: unknown) {

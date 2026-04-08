@@ -43,11 +43,13 @@ struct InsightHeader: View {
                 }
 
                 // MARK: - Common Name
+                let hasPicker = alternativeCommonNames?.isEmpty == false && onAlternativeNamesTap != nil
                 Text(title)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(hazardType != "none" ? [] : .isHeader)
+                    .accessibilityHint(hasPicker ? "Tap to choose a preferred name" : "")
                     .background(
                         GeometryReader { geo in
                             Color.clear
@@ -56,6 +58,9 @@ struct InsightHeader: View {
                                 }
                         }
                     )
+                    .onTapGesture {
+                        if hasPicker { onAlternativeNamesTap?() }
+                    }
 
                 // MARK: - Alternative Names
                 if let alternatives = alternativeCommonNames, !alternatives.isEmpty {

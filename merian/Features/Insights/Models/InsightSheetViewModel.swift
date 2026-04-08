@@ -94,12 +94,13 @@ final class InsightSheetViewModel {
 
     /// All English synonym names available for user selection, excluding whichever name
     /// is currently resolved as the headline (to avoid surfacing the active name as an option).
+    /// Uses allNamesForPicker as the base so the canonical primary name is included even
+    /// when the user has chosen an alternative as their preferred headline.
     var displayAlternativeCommonNames: [String]? {
-        guard let species = inferenceEngine?.speciesData,
-              let alternatives = species.alternativeCommonNames,
-              !alternatives.isEmpty else { return nil }
+        let all = allNamesForPicker
+        guard !all.isEmpty else { return nil }
         let activeName = resolvedHeaderTitle.lowercased()
-        let filtered = alternatives.filter { $0.lowercased() != activeName }
+        let filtered = all.filter { $0.lowercased() != activeName }
         return filtered.isEmpty ? nil : filtered
     }
 

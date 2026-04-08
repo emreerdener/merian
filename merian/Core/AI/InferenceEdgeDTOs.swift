@@ -108,6 +108,10 @@ struct EnrichScanResponse: Codable {
         let gbif_taxon_key: Int?
         /// Present in "enrichment" scope responses only.
         let taxonomy: EdgeResponse.Taxonomy?
+        /// Present in "enrichment" scope responses only.
+        /// GBIF vernacular name synonyms beyond the primary canonical name.
+        /// Nil when GBIF hasn't enriched this species yet.
+        let alternative_common_names: [String]?
         /// Present in "lookalikes" scope responses only.
         /// Rich lookalike entries sourced from the species_lookalikes join table.
         /// Nil when no lookalike data is available for this species.
