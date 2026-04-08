@@ -13,9 +13,9 @@ struct InsightHeader: View {
     var aiScientificName: String?
     var onScrollOffsetChange: ((CGFloat) -> Void)?
     /// Alternative English common names for this species, excluding the current headline.
-    var alternativeCommonNames: [String]? = nil
+    var alternativeCommonNames: [String]?
     /// Called when the user taps the alternative names line to open the name picker.
-    var onAlternativeNamesTap: (() -> Void)? = nil
+    var onAlternativeNamesTap: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {

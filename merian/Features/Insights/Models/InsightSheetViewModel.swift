@@ -24,7 +24,7 @@ final class InsightSheetViewModel {
     // MARK: - Name Preference State
     /// User's chosen display name for the current species, persisted in UserDefaults.
     /// Nil means no override — the canonical `commonName` from the DB is used.
-    var preferredCommonName: String? = nil
+    var preferredCommonName: String?
     /// Controls the name-picker bottom sheet.
     var isNamePickerPresented: Bool = false
     

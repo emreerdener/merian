@@ -87,7 +87,6 @@ struct BiologicalView: View {
                     )
                     .cardEntrance(index: 3)
                 }
-    
 
                 // MARK: - Educational Reference
                 OverviewCard(
