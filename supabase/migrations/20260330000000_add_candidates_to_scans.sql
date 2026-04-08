@@ -1,7 +1,8 @@
 -- candidates: per-scan JSONB array of alternative species the model considered when confidence
--- fell below the tier-specific diagnosticTrigger threshold (0.88 Flash / 0.80 Pro).
--- NULL for high-confidence scans and all scans captured before this migration.
--- Shape: [{"scientific_name": "...", "confidence_score": 0.71}, ...]
+-- fell below the tier-specific diagnosticTrigger threshold (0.99 for both Flash and Pro).
+-- NULL for high-confidence scans (≥ 0.99) and all scans captured before this migration.
+-- Shape: [{"scientific_name": "...", "confidence_score": 0.71, "distinguishing_feature": "..."}, ...]
+-- distinguishing_feature added in identify schema update (2026-04-07); older rows have the two-field shape.
 
 ALTER TABLE public.scans
     ADD COLUMN IF NOT EXISTS candidates JSONB DEFAULT NULL;

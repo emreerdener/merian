@@ -97,7 +97,10 @@ enum MerianConfig {
     static let flashConfidence = ConfidenceBands(
         strong: 0.95,
         possible: 0.75,
-        diagnosticTrigger: 0.95   // == strong: candidates on every non-strong-match scan
+        // Decoupled from `strong`: candidates are shown for every scan below 0.99,
+        // including "Strong match" scans (0.95–0.99). Flash can be overconfident on
+        // visually similar species; the escape hatch must survive high-confidence calls.
+        diagnosticTrigger: 0.99
     )
 
     /// Gemini 2.5 Pro (Premium Tier)
@@ -111,7 +114,8 @@ enum MerianConfig {
     static let proConfidence = ConfidenceBands(
         strong: 0.85,
         possible: 0.65,
-        diagnosticTrigger: 0.85   // == strong: candidates on every non-strong-match scan
+        // Same rationale as Flash: candidates are suppressed only at ≥ 0.99.
+        diagnosticTrigger: 0.99
     )
     
     /// Helper to grab the correct bands based on the exact inference model tier used.

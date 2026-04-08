@@ -297,6 +297,7 @@ struct CloudIdentificationCandidate: Decodable, Sendable {
     let scientific_name: String
     let common_name: String?
     let confidence_score: Double
+    let distinguishing_feature: String?
 }
 
 struct CloudCollectionResponse: Decodable, Sendable {
@@ -474,7 +475,7 @@ actor HistoricalDatabaseActor {
             }
             if existing.candidatesData == nil, let cloudCandidates = res.candidates, !cloudCandidates.isEmpty {
                 existing.candidatesData = try? JSONEncoder().encode(cloudCandidates.map {
-                    IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score)
+                    IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature)
                 })
                 didUpdate = true
             }
@@ -534,7 +535,7 @@ actor HistoricalDatabaseActor {
             let semanticTags: [String] = [cName, sciName] + (scan.colors ?? []) + (dict?.group_tags ?? [])
             let candidatesData: Data? = scan.candidates.flatMap { entries in
                 try? encoder.encode(entries.map {
-                    IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score)
+                    IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature)
                 })
             }
 

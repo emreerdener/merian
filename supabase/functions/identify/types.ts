@@ -34,6 +34,8 @@ export interface MerianIdentification {
 export interface IdentificationCandidate {
   scientific_name: string;
   confidence_score: number;
+  /** The single most important observable trait that distinguishes this candidate from the primary identification. */
+  distinguishing_feature: string;
 }
 
 /** Photographic quality scores emitted by Gemini for every scan. */

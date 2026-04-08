@@ -13,6 +13,7 @@ struct SwipeableCandidateCard: View {
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
     @State private var isOriginalImageExpanded = false
     @State private var isCandidateImageExpanded = false
+    @State private var isFeatureExpanded = false
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     var body: some View {
@@ -133,6 +134,17 @@ struct SwipeableCandidateCard: View {
                         .foregroundStyle(.white)
                         .lineLimit(2)
                 }
+                // Distinguishing feature — the one observable trait that separates
+                // this candidate from the primary identification.
+                if let feature = candidate.distinguishingFeature, !feature.isEmpty {
+                    let sentenceCased = feature.prefix(1).uppercased() + feature.dropFirst()
+                    Text(sentenceCased)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(2)
+                        .padding(.top, 1)
+                        .onTapGesture { isFeatureExpanded = true }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 28)
@@ -184,6 +196,15 @@ struct SwipeableCandidateCard: View {
                 CandidateImageExpandedView(image: img)
                     .presentationDragIndicator(.visible)
                     .presentationDetents([.fraction(0.85), .large])
+                    .presentationCornerRadius(32)
+            }
+        }
+        .sheet(isPresented: $isFeatureExpanded) {
+            if let feature = candidate.distinguishingFeature, !feature.isEmpty {
+                let sentenceCased = feature.prefix(1).uppercased() + feature.dropFirst()
+                DistinguishingFeatureSheetView(feature: String(sentenceCased))
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.fraction(0.35)])
                     .presentationCornerRadius(32)
             }
         }
@@ -286,6 +307,26 @@ private struct OriginalCaptureExpandedView: View {
                 Spacer()
             }
         }
+    }
+}
+
+// MARK: - Distinguishing Feature Sheet
+private struct DistinguishingFeatureSheetView: View {
+    let feature: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("What to look for")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Text(feature)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

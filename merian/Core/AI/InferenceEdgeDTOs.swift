@@ -76,6 +76,8 @@ struct EdgeResponse: Codable {
         let scientific_name: String
         let common_name: String?
         let confidence_score: Double
+        /// The single most important observable trait separating this candidate from the primary ID.
+        let distinguishing_feature: String?
     }
     let candidates: [IdentificationCandidate]?
 
