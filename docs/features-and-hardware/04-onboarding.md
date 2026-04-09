@@ -86,7 +86,7 @@ Each permission step presents the rationale for the request before triggering th
 - **Location**: Required for GPS telemetry that improves AI accuracy (regional species ranges, invasive tracking) and populates the scan location metadata.
 
 > [!NOTE]
-> **Progressive Disclosure**: Push Notification and Photo Library permissions are deliberately omitted from the initial onboarding flow to reduce drop-off. Notifications are conditionally requested via a half-sheet after the first successful scan resolve. Photo Library permissions are conditionally requested via a half-sheet when the user specifically toggles "Save to camera roll" or taps the gallery import button.
+> **Progressive Disclosure**: Push Notification and Photo Library permissions are deliberately omitted from the initial onboarding flow to reduce drop-off. Notifications are conditionally requested via a half-sheet after the first successful scan resolve, or if the user actively flips the Discovery/Achievement toggles in Settings. Photo Library permissions are conditionally requested via a half-sheet when the user specifically toggles "Save to camera roll" or taps the gallery import button.
 
 ---
 
