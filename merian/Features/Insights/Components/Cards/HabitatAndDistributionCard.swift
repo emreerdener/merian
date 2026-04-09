@@ -2,10 +2,6 @@ import SwiftData
 import SwiftUI
 
 struct HabitatAndDistributionCard: View {
-    let habitatDescription: String?
-    let scientificName: String?
-    let scanId: String?
-
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) private var inferenceEngine
 
@@ -17,6 +13,8 @@ struct HabitatAndDistributionCard: View {
     @State private var hasAutoRetried = false
 
     var body: some View {
+        let habitatDescription = inferenceEngine.speciesData?.habitatDescription
+        let scientificName = inferenceEngine.speciesData?.scientificName
         VStack(alignment: .leading, spacing: 0) {
             // MARK: - Map View
             ZStack(alignment: .bottom) {

@@ -371,3 +371,51 @@ defer {
 ```
 
 For the success path this is a no-op: background correctly skips because `speciesData.scanId != nil`. For the failure path it ensures the background path only hydrates the engine while the live pipeline is actually running.
+
+---
+
+## 17. `@Observable` Struct Properties: Optional-Chain Mutations Do Not Reliably Fire Notifications
+
+`InferenceEngine` holds `var speciesData: SpeciesData?` where `SpeciesData` is a **struct** on an `@Observable` class. SwiftUI's `@Observable` macro synthesizes `get`/`set` accessors (not `_modify`) for stored properties. Because a `_modify` accessor is absent, optional-chain mutations like `self.speciesData?.field = x` go through a copy-on-write cycle at the compiler level rather than through `withMutation(keyPath:)` — and empirically do **not** reliably fire observation notifications to subscribed views.
+
+### ❌ The Anti-Pattern
+
+```swift
+// Any or all of these may silently fail to notify @Observable observers:
+self.speciesData?.habitatDescription = "..."
+self.speciesData?.referenceImageUrl = imgUrl
+self.speciesData?.taxonomy = taxonomy
+```
+
+Views that track `inferenceEngine.speciesData` via `@Observable` (e.g. `HabitatAndDistributionCard`, `ImagesCarousel`) will not re-render when mutations are applied this way, even though the data is correctly written in memory. The card appears stuck or empty until something else forces a re-render (e.g. the user dismisses and reopens the sheet).
+
+### ✅ The Required Pattern: Single Full-Value Replacement
+
+Collect **all** mutations into a local copy, then assign back in a single write. The single setter call goes through `withMutation(keyPath: \.speciesData)` and guarantees exactly one observation notification for the entire batch:
+
+```swift
+if var updated = self.speciesData {
+    updated.habitatDescription = "..."
+    updated.referenceImageUrl = imgUrl
+    updated.taxonomy = taxonomy
+    // ... all mutations on `updated` ...
+    self.speciesData = updated  // single @Observable-triggering assignment
+}
+```
+
+### Affected Sites in `InferenceEngine.swift`
+
+All write paths in `InferenceEngine` that modify `speciesData` follow this pattern:
+
+| Function | Fields written |
+|---|---|
+| `fetchAndApplyEnrichment` | `habitatDescription`, `gbifTaxonKey`, `taxonomy`, `similarSpecies` |
+| `fetchWikipediaAndHydrate` | `wikipediaOverview`, `wikipediaUrl`, `referenceImageUrl` |
+| `fetchAndPatchOverrideData` (cache hit) | `commonName`, `insightData`, `taxonomy`, `iucnRedListStatus`, `habitatDescription`, `gbifTaxonKey`, `referenceImageUrl`, `wikipediaOverview`, `wikipediaUrl` |
+| `applyIdentificationOverride` (wipe) | All contextual fields reset to nil + override identity fields |
+| `dropInvalidCarouselImage` | `referenceImageUrl` (URL removed from comma-separated list) |
+| Historical load path | `similarSpecies`, `candidates` |
+
+### Why This Matters for Live UI
+
+The insight sheet is open while background hydration tasks (`fetchWikipediaAndHydrate`, `fetchAndApplyEnrichment`, `fetchAndPatchOverrideData`) complete asynchronously. If these tasks use optional-chain mutations, the cards (`HabitatAndDistributionCard`, `TaxonomyCard`, `ImagesCarousel`, `SimilarSpeciesGallery`) will not update live — the user sees empty or skeleton states until the sheet is dismissed and reopened. Full-value replacement ensures cards populate in real time without any user interaction.

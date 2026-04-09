@@ -114,14 +114,8 @@ struct BiologicalView: View {
                 .cardEntrance(index: 5)
     
                 // MARK: - Habitat & Distribution
-                if let data = inferenceEngine.speciesData {
-                    HabitatAndDistributionCard(
-                        habitatDescription: data.habitatDescription,
-                        scientificName: data.scientificName,
-                        scanId: data.scanId
-                    )
+                HabitatAndDistributionCard()
                     .cardEntrance(index: 6)
-                }
     
                 // MARK: - Biological Classification
                 TaxonomyCard(

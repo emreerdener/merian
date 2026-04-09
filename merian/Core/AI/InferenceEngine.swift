@@ -563,12 +563,16 @@ private struct GBIFMedia: Decodable {
             wikiFetchAttemptedIds.insert(species)
 
             await MainActor.run {
-                if self.speciesData?.scientificName == species {
-                    self.speciesData?.wikipediaOverview = extract
-                    self.speciesData?.wikipediaUrl = webUrl
+                // Individual optional-chain mutations (self.speciesData?.field = x) do not
+                // reliably fire @Observable notifications for struct value types; a single
+                // full-value replacement is the only guaranteed trigger.
+                if var updated = self.speciesData, updated.scientificName == species {
+                    updated.wikipediaOverview = extract
+                    updated.wikipediaUrl = webUrl
                     if let img = imageUrl, !img.isEmpty {
-                        self.speciesData?.referenceImageUrl = img
+                        updated.referenceImageUrl = img
                     }
+                    self.speciesData = updated
                 }
             }
 
@@ -842,20 +846,24 @@ private struct GBIFMedia: Decodable {
 
         // 1. Immediately update display — scientificName drives InsightHeader subtitle.
         // Wipe stale contextual data to prevent old UI cards from lingering during the fetch.
-        speciesData?.userIdentificationOverride = scientificName
-        speciesData?.scientificName = scientificName
-        speciesData?.commonName = scientificName
-        speciesData?.insightData = InsightData(aiReasoning: "", hazardType: "none")
-        speciesData?.wikipediaOverview = nil
-        speciesData?.wikipediaUrl = nil
-        speciesData?.referenceImageUrl = nil
-        speciesData?.iucnRedListStatus = nil
-        speciesData?.habitatDescription = nil
-        speciesData?.gbifTaxonKey = nil
-        speciesData?.similarSpecies = nil
-        speciesData?.userConfirmedIdentification = false
-        speciesData?.isFlagged = false
-        speciesData?.alternativesExhausted = false
+        // Full-value replacement guarantees a single @Observable notification for the entire wipe.
+        if var updated = speciesData {
+            updated.userIdentificationOverride = scientificName
+            updated.scientificName = scientificName
+            updated.commonName = scientificName
+            updated.insightData = InsightData(aiReasoning: "", hazardType: "none")
+            updated.wikipediaOverview = nil
+            updated.wikipediaUrl = nil
+            updated.referenceImageUrl = nil
+            updated.iucnRedListStatus = nil
+            updated.habitatDescription = nil
+            updated.gbifTaxonKey = nil
+            updated.similarSpecies = nil
+            updated.userConfirmedIdentification = false
+            updated.isFlagged = false
+            updated.alternativesExhausted = false
+            speciesData = updated
+        }
 
         // 2. Persist to SwiftData.
         if let context = modelContext {
@@ -1021,25 +1029,32 @@ private struct GBIFMedia: Decodable {
                 // On override: wipe aiReasoning — the AI's explanation was for the rejected species.
                 // On reset (restoringAiReasoning != nil): restore the original reasoning so the
                 // paragraph reappears under the reverted AI identification.
-                speciesData?.commonName = commonName.capitalized
-                speciesData?.insightData = InsightData(
-                    aiReasoning: restoringAiReasoning ?? "",
-                    hazardType: row.hazard_type ?? "none"
-                )
-                speciesData?.taxonomy = TaxonomyData(
-                    kingdom: row.kingdom,
-                    phylum: row.phylum,
-                    className: row.class,
-                    order: row.order,
-                    family: row.family,
-                    genus: row.genus
-                )
-                speciesData?.iucnRedListStatus = row.iucn_red_list_status
-                speciesData?.habitatDescription = row.habitat_description
-                speciesData?.gbifTaxonKey = row.gbif_taxon_key
-                speciesData?.referenceImageUrl = row.reference_image_url
-                speciesData?.wikipediaOverview = row.wikipedia_overview
-                speciesData?.wikipediaUrl = row.wikipedia_url
+                //
+                // Individual optional-chain mutations (speciesData?.field = x) do not reliably
+                // fire @Observable notifications for struct value types; a single full-value
+                // replacement is the only guaranteed trigger.
+                if var updated = speciesData {
+                    updated.commonName = commonName.capitalized
+                    updated.insightData = InsightData(
+                        aiReasoning: restoringAiReasoning ?? "",
+                        hazardType: row.hazard_type ?? "none"
+                    )
+                    updated.taxonomy = TaxonomyData(
+                        kingdom: row.kingdom,
+                        phylum: row.phylum,
+                        className: row.class,
+                        order: row.order,
+                        family: row.family,
+                        genus: row.genus
+                    )
+                    updated.iucnRedListStatus = row.iucn_red_list_status
+                    updated.habitatDescription = row.habitat_description
+                    updated.gbifTaxonKey = row.gbif_taxon_key
+                    updated.referenceImageUrl = row.reference_image_url
+                    updated.wikipediaOverview = row.wikipedia_overview
+                    updated.wikipediaUrl = row.wikipedia_url
+                    speciesData = updated
+                }
 
                 // Persist updated species fields so they survive sheet dismissal and reopen.
                 // scientificName is intentionally excluded — it is preserved as aiScientificName.
@@ -1174,7 +1189,7 @@ private struct GBIFMedia: Decodable {
             self.validHistoricImagePaths.remove(at: idx)
         }
 
-        if let currentRef = self.speciesData?.referenceImageUrl {
+        if var updated = self.speciesData, let currentRef = updated.referenceImageUrl {
             var parts = currentRef.components(separatedBy: ",")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
@@ -1182,7 +1197,8 @@ private struct GBIFMedia: Decodable {
             if let idx = parts.firstIndex(of: urlStr) {
                 parts.remove(at: idx)
                 let joined = parts.joined(separator: ",")
-                self.speciesData?.referenceImageUrl = joined.isEmpty ? nil : joined
+                updated.referenceImageUrl = joined.isEmpty ? nil : joined
+                self.speciesData = updated
             }
         }
     }
@@ -1328,8 +1344,11 @@ private struct GBIFMedia: Decodable {
             }.value
 
             guard !Task.isCancelled else { return }
-            self.speciesData?.similarSpecies = parsedSimilar
-            self.speciesData?.candidates = parsedCandidates
+            if var updated = self.speciesData {
+                updated.similarSpecies = parsedSimilar
+                updated.candidates = parsedCandidates
+                self.speciesData = updated
+            }
 
             // Step 3: If an identification override is active, patch in the override species data.
             if let override = overrideName {
