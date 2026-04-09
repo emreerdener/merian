@@ -9,14 +9,24 @@ import Vision
 
 // MARK: - Private Response Types
 
-private struct WikiSummaryResponse: Decodable {
-    let extract: String?
-    let content_urls: ContentURLs?
-    let originalimage: OriginalImage?
+private struct WikiMobileSectionsResponse: Decodable {
+    let lead: Lead
+    let remaining: Remaining
 
-    struct ContentURLs: Decodable { let desktop: Desktop? }
-    struct Desktop: Decodable { let page: String? }
-    struct OriginalImage: Decodable { let source: String? }
+    struct Lead: Decodable {
+        let normalizedtitle: String?
+        let originalimage: OriginalImage?
+        struct OriginalImage: Decodable { let source: String? }
+    }
+
+    struct Remaining: Decodable {
+        let sections: [Section]
+        struct Section: Decodable {
+            let title: String?
+            let anchor: String?
+            let text: String?
+        }
+    }
 }
 
 private struct GBIFMediaResponse: Decodable {
@@ -545,19 +555,33 @@ private struct GBIFMedia: Decodable {
 
         let normalized = species.replacingOccurrences(of: " ", with: "_")
         guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)") else { return }
+              let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/mobile-sections/\(encoded)") else { return }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 4.0
+        // mobile-sections payload is larger than summary — allow extra headroom.
+        request.timeoutInterval = 8.0
         request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
 
         do {
             let (data, response) = try await InferenceEngine.externalAPISession.data(for: request)
             guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return }
 
-            let decoded = try JSONDecoder().decode(WikiSummaryResponse.self, from: data)
-            guard let extract = decoded.extract, let webUrl = decoded.content_urls?.desktop?.page else { return }
-            let imageUrl = decoded.originalimage?.source
+            let decoded = try JSONDecoder().decode(WikiMobileSectionsResponse.self, from: data)
+
+            // Find the "Description" section in the article body.
+            let descSection = decoded.remaining.sections.first {
+                $0.title?.caseInsensitiveCompare("Description") == .orderedSame
+            }
+            guard let rawHTML = descSection?.text, !rawHTML.isEmpty else { return }
+            let descriptionText = Self.stripHTML(rawHTML)
+            guard !descriptionText.isEmpty else { return }
+
+            // Construct the canonical desktop URL from the normalised page title.
+            let pageTitle = (decoded.lead.normalizedtitle ?? normalized)
+                .replacingOccurrences(of: " ", with: "_")
+            let encodedTitle = pageTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? pageTitle
+            let webUrl = "https://en.wikipedia.org/wiki/\(encodedTitle)"
+            let imageUrl = decoded.lead.originalimage?.source
 
             // Mark as attempted only on success — transient failures (timeout, 404) remain retryable.
             wikiFetchAttemptedIds.insert(species)
@@ -567,7 +591,7 @@ private struct GBIFMedia: Decodable {
                 // reliably fire @Observable notifications for struct value types; a single
                 // full-value replacement is the only guaranteed trigger.
                 if var updated = self.speciesData, updated.scientificName == species {
-                    updated.wikipediaOverview = extract
+                    updated.wikipediaOverview = descriptionText
                     updated.wikipediaUrl = webUrl
                     if let img = imageUrl, !img.isEmpty {
                         updated.referenceImageUrl = img
@@ -580,12 +604,34 @@ private struct GBIFMedia: Decodable {
                 let container = context.container
                 Task {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: extract, url: webUrl, imageUrl: imageUrl)
+                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: imageUrl)
                 }
             }
         } catch {
             MerianLog.general.debug("Wikipedia hydration skipped: \(error, privacy: .private)")
         }
+    }
+
+    /// Strips HTML tags and decodes common entities from a Wikipedia section's raw HTML text.
+    private static func stripHTML(_ html: String) -> String {
+        var result = html
+            .replacingOccurrences(of: "<br>",   with: "\n", options: .caseInsensitive)
+            .replacingOccurrences(of: "<br/>",  with: "\n", options: .caseInsensitive)
+            .replacingOccurrences(of: "<br />", with: "\n", options: .caseInsensitive)
+            .replacingOccurrences(of: "</p>",   with: "\n", options: .caseInsensitive)
+        result = result.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        result = result
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;",  with: "&")
+            .replacingOccurrences(of: "&lt;",   with: "<")
+            .replacingOccurrences(of: "&gt;",   with: ">")
+            .replacingOccurrences(of: "&#39;",  with: "'")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+        // Collapse runs of blank lines left by stripped block elements.
+        while result.contains("\n\n\n") {
+            result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - GBIF Background Hydration
