@@ -89,7 +89,8 @@ struct CameraRootView: View {
 
                                     // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
                                     CameraControlsLayer(
-                                        activeScanImages: viewModel.activeScanImages
+                                        activeScanImages: viewModel.activeScanImages,
+                                        isRefining: viewModel.baseRefinementRecord != nil
                                     )
                                 }
                                 .frame(width: proxy.size.width, height: proxy.size.height)
@@ -167,6 +168,7 @@ struct CameraRootView: View {
                             .opacity(captureMode == .visual ? 1 : 0)
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
                         }
+                        .disabled(viewModel.isStagingRefinement)
                         .padding(.bottom, 140)
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -187,6 +189,7 @@ struct CameraRootView: View {
                     } else {
                         ActiveScanToolbar(
                             images: viewModel.activeScanImages,
+                            isRefining: viewModel.baseRefinementRecord != nil,
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },
                             onCancel: {
@@ -194,6 +197,7 @@ struct CameraRootView: View {
                                 viewModel.activeScannedDatas.removeAll()
                                 viewModel.activeOriginals.removeAll()
                                 viewModel.activeDisplayDatas.removeAll()
+                                viewModel.cancelRefinementStaging()
                             },
                             onSubmit: { viewModel.submitActiveScan(modelContext: modelContext) }
                         )
@@ -233,7 +237,7 @@ struct CameraRootView: View {
             guard !UserDefaults.standard.bool(forKey: "requiresScanConfirmation") else { return }
             
             // Otherwise, auto-submit when the user hits their configured capacity limit
-            let limit = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") ? 2 : 1
+            let limit = (UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") || viewModel.baseRefinementRecord != nil) ? 2 : 1
             guard count == limit else { return }
             
             viewModel.submitActiveScan(modelContext: modelContext)
@@ -286,7 +290,8 @@ struct CameraRootView: View {
         }
         .onPhysicalCameraShutter(
             isEnabled: viewModel.activeSheet == nil &&
-                       viewModel.imageToCrop == nil
+                       viewModel.imageToCrop == nil &&
+                       !viewModel.isStagingRefinement
         ) {
             viewModel.executeCapture()
         }
@@ -299,9 +304,10 @@ struct CameraRootView: View {
 
 private struct CameraControlsLayer: View {
     let activeScanImages: [UIImage]
+    var isRefining: Bool = false
 
     var body: some View {
-        MainOverlayView(activeScanImages: activeScanImages)
+        MainOverlayView(activeScanImages: activeScanImages, isRefining: isRefining)
     }
 }
 

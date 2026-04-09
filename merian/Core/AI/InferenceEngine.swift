@@ -184,7 +184,7 @@ private struct GBIFMedia: Decodable {
     ///     Falls back to `imageDatas` when empty (e.g. offline-queue reprocessing path).
     ///   - telemetry: GPS, weather, and device context bundled at capture time.
     ///   - modelContext: The SwiftData context for persisting the parsed scan record locally.
-    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil) {
+    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -319,6 +319,26 @@ private struct GBIFMedia: Decodable {
                         let updatedAwards = await profileActor.calculateAwards()
                         // Already on @MainActor — no hop needed.
                         GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
+                    }
+                    
+                    if let oldRecord = targetEradicationRecord {
+                        if let context = modelContext {
+                            // Transfer user-generated metadata to the new scan before the old record is deleted.
+                            // Only customTags and collections carry over — review state (overrides, flags)
+                            // intentionally resets because this is a fresh analysis.
+                            if let newScanId = mappedData.scanId {
+                                let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == newScanId })
+                                if let newRecord = try? context.fetch(descriptor).first {
+                                    newRecord.customTags = oldRecord.customTags
+                                    if let oldCollections = oldRecord.collections, !oldCollections.isEmpty {
+                                        newRecord.collections = oldCollections
+                                    }
+                                }
+                            }
+                            ScanRepository.shared.eradicateScan(record: oldRecord, modelContext: context)
+                        } else {
+                            assertionFailure("targetEradicationRecord provided but modelContext is nil")
+                        }
                     }
 
                     CircuitBreakerManager.shared.recordSuccess()

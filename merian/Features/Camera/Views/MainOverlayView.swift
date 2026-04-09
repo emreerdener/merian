@@ -4,6 +4,7 @@ import SwiftUI
 struct MainOverlayView: View {
     // MARK: - Dependencies
     let activeScanImages: [UIImage]
+    var isRefining: Bool = false
 
     @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
 
@@ -14,7 +15,7 @@ struct MainOverlayView: View {
 
             // MARK: - Dynamic Intelligence
             if activeScanImages.count < 2 {
-                ViewfinderHints()
+                ViewfinderHints(isRefining: isRefining)
                     // Padding keeps hints above the fixed capture-bar + tab-bar overlay.
                     .padding(.bottom, 250)
                     .transition(.opacity)

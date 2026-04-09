@@ -36,6 +36,7 @@ struct AllCandidatesReviewedView: View {
                     Text("Review again")
                 }
                 .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(Color.primary.opacity(0.06))

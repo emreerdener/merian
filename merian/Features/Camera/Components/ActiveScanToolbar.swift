@@ -4,6 +4,7 @@ import SwiftUI
 struct ActiveScanToolbar: View {
     // MARK: - Properties
     let images: [UIImage]
+    let isRefining: Bool
     @Binding var selectedPhotoItems: [PhotosPickerItem]
     
     @State private var showTooltip: Bool = !ActiveScanToolbar.hasShownTooltipThisSession
@@ -23,6 +24,7 @@ struct ActiveScanToolbar: View {
             HStack(spacing: 16) {
                 ActiveScanThumbnailGrid(
                     images: images,
+                    isRefining: isRefining,
                     selectedPhotoItems: $selectedPhotoItems,
                     onThumbnailTap: onThumbnailTap
                 )
@@ -175,6 +177,7 @@ extension ActiveScanToolbar {
 // MARK: - Extracted Private Subviews
 private struct ActiveScanThumbnailGrid: View {
     let images: [UIImage]
+    let isRefining: Bool
     @Binding var selectedPhotoItems: [PhotosPickerItem]
     let onThumbnailTap: (Int) -> Void
 
@@ -194,7 +197,7 @@ private struct ActiveScanThumbnailGrid: View {
                 .buttonStyle(PlainButtonStyle())
             }
             
-            let currentLimit = isMultiCaptureEnabled ? 2 : 1
+            let currentLimit = (isMultiCaptureEnabled || isRefining) ? 2 : 1
             if images.count < currentLimit {
                 PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: max(1, currentLimit - images.count), matching: .images, photoLibrary: .shared()) {
                     Circle()

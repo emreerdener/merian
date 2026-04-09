@@ -35,6 +35,13 @@ final class CameraViewModel {
     /// larger payload — only `activeScannedDatas` (1024 px) is base64-encoded for Gemini.
     var activeDisplayDatas: [Data] = []
     
+    // MARK: - Refinement Flow
+    /// The historical scan actively chosen by the user to be appended with new photographic context.
+    /// Drives the multi-image composition path in `submitActiveScan`.
+    var baseRefinementRecord: LocalScanRecord?
+    var isStagingRefinement: Bool = false
+    @ObservationIgnored private var refinementStagingTask: Task<Void, Never>?
+    
     // MARK: - Composing Zone
     /// Vertical center of the on-screen composing zone as a fraction of screen height (0–1).
     /// Set by CameraRootView once layout is measured. The capture pipeline uses this to
@@ -74,6 +81,8 @@ final class CameraViewModel {
                     self?.activeSheet = .paywall
                 case .appDidEnterActivePhaseWithScan(let scanId):
                     self?.handleDeepLinkRoute(scanId: scanId)
+                case .triggerRefinement(let record):
+                    self?.startRefinementScan(from: record)
                 default:
                     break
                 }
@@ -107,6 +116,7 @@ final class CameraViewModel {
             activeOriginals.removeAll()
             activeDisplayDatas.removeAll()
             selectedPhotoItems.removeAll()
+            cancelRefinementStaging()
         }
     }
     
@@ -230,6 +240,70 @@ final class CameraViewModel {
         guard index < activeOriginals.count else { return }
         self.editingCropIndex = index
         self.imageToCrop = activeOriginals[index]
+    }
+    
+    func startRefinementScan(from record: LocalScanRecord) {
+        self.baseRefinementRecord = record
+        self.activeSheet = nil
+        
+        guard let localPath = record.localImagePath,
+              !localPath.starts(with: "http") else { return }
+
+        self.isStagingRefinement = true
+        self.refinementStagingTask?.cancel()
+
+        self.refinementStagingTask = Task { [weak self] in
+            guard let self = self else { return }
+            // localImagePath stores a bare filename relative to the documents directory
+            // (written by FileIOActor.writeTemporaryImages). Reconstruct the full URL
+            // the same way every other consumer does — see FileIOActor.validPaths and deleteImages.
+            let fileURL = URL.documentsDirectory.appendingPathComponent(localPath)
+            
+            do {
+                let rawData = try Data(contentsOf: fileURL)
+                let isPro = self.diContainer.revenueCatManager.isProActive
+                let inferenceSize = MerianConfig.inferenceImageMaxSize(isProActive: isPro)
+                
+                var inferenceData: Data?
+                var rawImage: UIImage?
+                
+                if let cgInference = ImageDownsampler.shared.downsample(url: fileURL, maxSize: inferenceSize) {
+                    rawImage = UIImage(cgImage: cgInference)
+                    inferenceData = autoreleasepool {
+                        let renderData = NSMutableData()
+                        guard let dest = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+                        CGImageDestinationAddImage(dest, cgInference, [kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality] as CFDictionary)
+                        guard CGImageDestinationFinalize(dest) else { return nil }
+                        return Data(renderData)
+                    }
+                }
+                
+                let finalSafeData = inferenceData ?? rawData
+                guard let finalImage = rawImage ?? UIImage(data: rawData) else {
+                    await MainActor.run { self.isStagingRefinement = false }
+                    return
+                }
+                
+                try Task.checkCancellation()
+                
+                await MainActor.run {
+                    self.activeOriginals.append(IdentifiableImage(image: finalImage, environmentContext: nil, isFromGallery: true))
+                    self.activeScannedDatas.append(finalSafeData)
+                    self.activeDisplayDatas.append(rawData)
+                    self.activeScanImages.append(finalImage)
+                    self.isStagingRefinement = false
+                }
+            } catch {
+                MerianLog.general.error("Failed to load historical refinement image for UI staging: \(error.localizedDescription, privacy: .private)")
+                await MainActor.run { self.isStagingRefinement = false }
+            }
+        }
+    }
+    
+    func cancelRefinementStaging() {
+        refinementStagingTask?.cancel()
+        isStagingRefinement = false
+        baseRefinementRecord = nil
     }
     
     // MARK: - Tooltip Orchestration

@@ -15,6 +15,9 @@ struct ImagesCarousel: View {
     // MARK: - State
     @State private var selectedIndex: Int = 0
 
+    // MARK: - Derived
+    private var captureCount: Int { hasLive ? liveCount : validHistoricImagePaths.count }
+
     // MARK: - Body
     var body: some View {
         Group {
@@ -283,7 +286,7 @@ private extension ImagesCarousel {
     @ViewBuilder
     var paginationDots: some View {
         ZStack {
-            if totalImages > 1 && !inferenceEngine.isProcessing {
+            if captureCount > 1 && !inferenceEngine.isProcessing {
                 HStack(spacing: 8) {
                     ForEach(0..<totalImages, id: \.self) { index in
                         Circle()

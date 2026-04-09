@@ -17,6 +17,10 @@ enum AppEvent {
     
     /// Dispatched by Siri/OS intents to immediately open the historical scans insight page.
     case requestRecallLastFindIntent
+    
+    /// Dispatched to seamlessly jump the user from an ambiguous Insight Sheet back to the Camera, 
+    /// carrying the `LocalScanRecord` context forward into a supplementary multi-image generation sequence.
+    case triggerRefinement(record: LocalScanRecord)
 }
 
 /// A centralized, `@MainActor`-bound event bus for system-wide internal message routing.

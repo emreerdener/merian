@@ -2,15 +2,17 @@ import SwiftUI
 
 struct ViewfinderHints: View {
     @Environment(ViewfinderIntelligence.self) var vui
+    var isRefining: Bool = false
     @State private var showInitialPrompt: Bool = true
     /// Stays false until the initial prompt has fully faded out, preventing the VUI hint
     /// from cross-fading in while the welcome text is still visible on screen.
     @State private var vuiHintsAllowed: Bool = false
+    @State private var promptTask: Task<Void, Never>?
 
     var body: some View {
         Group {
             if showInitialPrompt {
-                Text("Take a photo to identify")
+                Text(isRefining ? "Add another photo" : "Take a photo to identify")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -38,13 +40,28 @@ struct ViewfinderHints: View {
         .animation(.easeInOut(duration: 0.3), value: showInitialPrompt)
         .animation(.easeInOut(duration: 0.3), value: vui.isOptimal)
         .onAppear {
-            Task {
-                try? await Task.sleep(nanoseconds: 3_500_000_000) // 3.5 s
-                withAnimation { showInitialPrompt = false }
-                // Wait for the fade-out to finish before allowing VUI hints to appear.
-                try? await Task.sleep(nanoseconds: 350_000_000) // 0.35 s
-                vuiHintsAllowed = true
-            }
+            schedulePromptDismissal()
+        }
+        .onChange(of: isRefining) { _, refining in
+            guard refining else { return }
+            // Re-surface the prompt with refinement-specific text each time the
+            // user enters refinement mode (e.g. multiple sessions in one app launch).
+            promptTask?.cancel()
+            vuiHintsAllowed = false
+            withAnimation { showInitialPrompt = true }
+            schedulePromptDismissal()
+        }
+    }
+
+    private func schedulePromptDismissal() {
+        promptTask?.cancel()
+        promptTask = Task {
+            try? await Task.sleep(nanoseconds: 3_500_000_000) // 3.5 s
+            guard !Task.isCancelled else { return }
+            withAnimation { showInitialPrompt = false }
+            try? await Task.sleep(nanoseconds: 350_000_000) // 0.35 s
+            guard !Task.isCancelled else { return }
+            vuiHintsAllowed = true
         }
     }
 }

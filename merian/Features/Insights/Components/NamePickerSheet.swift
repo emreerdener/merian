@@ -41,7 +41,7 @@ struct NamePickerSheet: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("Choose a name")
+            .navigationTitle("Preferred name")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

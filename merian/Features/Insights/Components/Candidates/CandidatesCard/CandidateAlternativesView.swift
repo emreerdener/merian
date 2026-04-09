@@ -8,6 +8,7 @@ struct CandidateAlternativesView: View {
     let isWeakMatch: Bool
     let onReviewAlternatives: () -> Void
     let onConfirm: () -> Void
+    var onRefineScan: (() -> Void)?
     let onDismiss: () -> Void
     var showDismissButton: Bool = true
 

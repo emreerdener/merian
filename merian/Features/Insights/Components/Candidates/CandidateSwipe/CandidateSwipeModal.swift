@@ -11,12 +11,17 @@ struct CandidateSwipeModal: View {
     let confirmButtonTitle: String
     let onConfirmOriginal: () -> Void
     var onFlagIssue: (() -> Void)?
+    var onRefineScan: (() -> Void)?
 
     // MARK: - Environment
     
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+
+    // Explicit binding instead of @Environment(\.dismiss) — the dismiss environment value
+    // leaks up through nested sheets in SwiftUI and can erroneously close the outer
+    // InsightSheetView instead of only this modal.
+    @Binding var isPresented: Bool
 
     // MARK: - State
     
@@ -33,12 +38,14 @@ struct CandidateSwipeModal: View {
 
     // MARK: - Initialization
     
-    init(candidates: [IdentificationCandidate], aiScientificName: String, confirmButtonTitle: String, onConfirmOriginal: @escaping () -> Void, onFlagIssue: (() -> Void)?) {
+    init(isPresented: Binding<Bool>, candidates: [IdentificationCandidate], aiScientificName: String, confirmButtonTitle: String, onConfirmOriginal: @escaping () -> Void, onFlagIssue: (() -> Void)?, onRefineScan: (() -> Void)? = nil) {
+        self._isPresented = isPresented
         self.originalCandidates = candidates
         self.aiScientificName = aiScientificName
         self.confirmButtonTitle = confirmButtonTitle
         self.onConfirmOriginal = onConfirmOriginal
         self.onFlagIssue = onFlagIssue
+        self.onRefineScan = onRefineScan
         self._stack = State(initialValue: candidates)
     }
 
@@ -69,12 +76,12 @@ struct CandidateSwipeModal: View {
                     cardStackContent
                 }
             }
-            .navigationTitle(confirmedCandidate != nil ? "Success" : (stack.isEmpty ? "Review alternatives" : "\(stack.count) alternative\(stack.count == 1 ? "" : "s")"))
+            .navigationTitle(confirmedCandidate != nil ? "Success" : (stack.isEmpty ? "Alternatives" : "\(stack.count) alternative\(stack.count == 1 ? "" : "s")"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                    Button {
-                        dismiss()
+                        isPresented = false
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
@@ -92,6 +99,17 @@ struct CandidateSwipeModal: View {
                             }
                         } label: {
                             Image(systemName: isGridMode ? "square.stack.3d.up.fill" : "rectangle.grid.1x2")
+                        }
+                    }
+                } else if stack.isEmpty && confirmedCandidate == nil && !isDismissing {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Restart") {
+                            HapticManager.shared.triggerLightImpact()
+                            withAnimation(.spring(response: 0.35)) {
+                                stack = originalCandidates
+                                topCardOffset = .zero
+                                topCardIsDragging = false
+                            }
                         }
                     }
                 }
@@ -202,7 +220,7 @@ extension CandidateSwipeModal {
                             // 2. Trigger native dismissal
                             await MainActor.run {
                                 isDismissing = true
-                                dismiss()
+                                isPresented = false
                             }
                             
                             // 3. Defer structural data mutation to prevent SwiftUI destroying the host sheet anchor
@@ -245,61 +263,30 @@ extension CandidateSwipeModal {
             .padding(.horizontal, 32)
             
             VStack(spacing: 12) {
-                Button {
-                    HapticManager.shared.triggerSuccessPulse()
+                SlideToConfirm(label: "Confirm identification", onConfirm: {
                     isDismissing = true
                     onConfirmOriginal()
-                    dismiss()
-                } label: {
-                    Text(confirmButtonTitle)
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.green.opacity(0.15))
-                        .foregroundColor(.green)
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
+                    isPresented = false
+                })
 
-                Button {
-                    HapticManager.shared.triggerErrorThump()
-                    isDismissing = true
-                    dismiss()
-                    
-                    // Delay triggering the sheet presentation to allow the dismiss
-                    // animation to detach safely without SwiftUI presentation collisions.
-                    Task {
-                        try? await Task.sleep(nanoseconds: 300_000_000)
-                        await MainActor.run { onFlagIssue?() }
-                    }
-                } label: {
-                    Text("Flag for review")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.orange.opacity(0.15))
-                        .foregroundColor(.orange)
-                        .clipShape(Capsule())
+                if let onRefineScan = onRefineScan {
+                    SlideToConfirm(label: "Reanalyze species", onConfirm: {
+                        isDismissing = true
+                        onRefineScan()
+                        isPresented = false
+                    }, color: .orange)
                 }
-                .buttonStyle(.plain)
-                
-                Button {
-                    HapticManager.shared.triggerLightImpact()
-                    withAnimation(.spring(response: 0.35)) {
-                        stack = originalCandidates
-                        topCardOffset = .zero
-                        topCardIsDragging = false
-                    }
-                } label: {
-                    Text("Start over")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color(.secondarySystemBackground))
-                        .foregroundColor(.secondary)
-                        .clipShape(Capsule())
+
+                if onFlagIssue != nil {
+                    SlideToConfirm(label: "Flag for review", onConfirm: {
+                        isDismissing = true
+                        isPresented = false
+                        Task {
+                            try? await Task.sleep(nanoseconds: 300_000_000)
+                            await MainActor.run { onFlagIssue?() }
+                        }
+                    }, color: .red)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 24)
         }
@@ -420,7 +407,7 @@ extension CandidateSwipeModal {
             // 2. Trigger native dismissal
             await MainActor.run {
                 isDismissing = true
-                dismiss()
+                isPresented = false
             }
             
             // 3. Defer structural data mutation to prevent SwiftUI destroying the host sheet anchor

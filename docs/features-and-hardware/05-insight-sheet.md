@@ -196,6 +196,29 @@ if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
 
 The `allCandidatesRejected` discriminator (`isFlagged && candidates.count >= 2`) distinguishes the "user exhausted all alternatives" path from a generic flag — when it is true, `CandidatesCard` is hidden and a condensed `AllCandidatesReviewedView` is shown inside `ConfidenceExplanationSheet` instead. The `candidates.count >= 2` guard within `allCandidatesRejected` prevents this branch from triggering on the no-candidates flag path (where the user flagged without alternatives). `CandidatesCard` internally computes the threshold via `MerianConfig.confidenceBands(forInferenceTier: inferenceTier).diagnosticTrigger` for display-only purposes (e.g., subtitle copy).
 
+### `CandidateSwipeModal` — Alternatives Review Sheet
+
+`CandidateSwipeModal` is presented as a `.sheet` from both `CandidatesCard` (via `BiologicalView`) and `ConfidenceExplanationSheet`. It receives an explicit `@Binding var isPresented: Bool` rather than using `@Environment(\.dismiss)` — the dismiss environment value leaks up through nested sheets in SwiftUI and would close the parent `InsightSheetView` instead of only the modal.
+
+**Card stack**: The top card is draggable (Tinder-style). Dragging ≥ 200 pt right confirms the candidate via `confirmTopCard()`; left rejects via `rejectTopCard()`. The card behind it scales up as the drag percentage increases. A "Skip" capsule button appears when `stack.count > 1`, moving the top card to the bottom of the queue.
+
+**Grid mode**: When `stack.count > 1`, a grid toggle button appears in the top-right toolbar. Grid mode shows all remaining candidates as `GridSwipeableCell` rows with per-row confirm/reject buttons.
+
+**Toolbar**: The leading X button sets `isPresented = false`. When `stack.count > 1`, the trailing button toggles grid/stack mode. When alternatives are exhausted (`stack.isEmpty && confirmedCandidate == nil && !isDismissing`), a plain **Restart** text button appears in the trailing slot — it resets `stack = originalCandidates` without closing the sheet.
+
+**Exhausted state** (`exhaustedStateContent`): Shown when all candidates have been swiped away. Displays the original scan thumbnail and three action controls stacked vertically:
+1. `SlideToConfirm(label: "Confirm identification", color: .green)` — calls `onConfirmOriginal()` and dismisses
+2. `SlideToConfirm(label: "Reanalyze species", color: .orange)` — only shown when `onRefineScan != nil` (i.e. the scan is a local file and has not already been refined); calls `onRefineScan()` and dismisses
+3. `SlideToConfirm(label: "Flag for review", color: .red)` — only shown when `onFlagIssue != nil`; dismisses first then calls `onFlagIssue()` after a 300 ms delay to let the sheet settle before structural mutation
+
+**`onRefineScan` wiring**: `BiologicalView` computes `refinementAction: (() -> Void)?` — it sends `.triggerRefinement(record:)` via `AppEventPublisher` and calls `dismiss()`. The guard `(record.additionalImagePaths ?? []).isEmpty` blocks re-refinement of scans that already carry supplementary images. The action threads through: `BiologicalView` → `CandidatesCard(onRefineScan:)` → `CandidateSwipeModal(onRefineScan:)`. `ConfidenceExplanationSheet` independently computes the same action and passes it directly to the modal.
+
+**Confirmed state**: After `confirmTopCard()` or a grid confirm, `confirmedCandidate` is set, showing a green `checkmark.circle.fill` success screen for 1.5 s before the sheet auto-dismisses. `applyIdentificationOverride` is deferred a further 300 ms after dismissal to prevent SwiftUI from destroying the host sheet anchor during the structural `speciesData` mutation.
+
+**`onDisappear` guard**: If `stack.isEmpty && !isDismissing && confirmedCandidate == nil`, `inferenceEngine.markAlternativesExhausted()` is called — this sets the `alternativesExhausted` flag that surfaces `AllCandidatesReviewedView` in `ConfidenceExplanationSheet` on next open.
+
+**Nested sheet `Menu` incompatibility**: SwiftUI `Menu` uses `UIContextMenuInteraction` which fails to attach in nested sheet contexts — the tap falls through to the sheet's dismiss gesture. All contextual actions are surfaced as first-class controls within the view body rather than toolbar menus.
+
 ### Stage 2 — Approve / Deny UX
 
 Users can confirm or override the AI's primary identification directly from `CandidatesCard`. The card manages a local `ReviewState` enum:

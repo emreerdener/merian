@@ -6,6 +6,7 @@ struct CandidateVerificationView: View {
     let confirmButtonTitle: String
     let onConfirm: () -> Void
     var onFlagIssue: (() -> Void)?
+    var onRefineScan: (() -> Void)?
     let onDismiss: () -> Void
     var showDismissButton: Bool = true
 
@@ -28,7 +29,7 @@ struct CandidateVerificationView: View {
                 // Action Buttons
                 VStack(spacing: 12) {
                     SlideToConfirm(label: "Confirm identification", onConfirm: onConfirm)
-
+                    
                      Button {
                         HapticManager.shared.triggerMediumPulse()
                         onFlagIssue?()

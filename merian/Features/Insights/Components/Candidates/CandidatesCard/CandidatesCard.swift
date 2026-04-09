@@ -13,6 +13,7 @@ struct CandidatesCard: View {
     /// The caller should route to the flag/report flow.
     var onFlagIssue: (() -> Void)?
     var onMatchConfirmed: (() -> Void)?
+    var onRefineScan: (() -> Void)?
     var showDismissButton: Bool = true
 
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -59,6 +60,7 @@ struct CandidatesCard: View {
                             Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
                         },
                         onFlagIssue: onFlagIssue,
+                        onRefineScan: onRefineScan,
                         onDismiss: { dismissedScanId = inferenceEngine.speciesData?.scanId },
                         showDismissButton: showDismissButton
                     )
@@ -76,6 +78,7 @@ struct CandidatesCard: View {
                         onMatchConfirmed?()
                         Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
                     },
+                    onRefineScan: onRefineScan,
                     onDismiss: { dismissedScanId = inferenceEngine.speciesData?.scanId },
                     showDismissButton: showDismissButton
                 )
@@ -83,6 +86,7 @@ struct CandidatesCard: View {
         }
         .sheet(isPresented: $isSwipeModalPresented) {
             CandidateSwipeModal(
+                isPresented: $isSwipeModalPresented,
                 candidates: candidates,
                 aiScientificName: aiScientificName,
                 confirmButtonTitle: confirmButtonTitle,
@@ -90,7 +94,8 @@ struct CandidatesCard: View {
                     onMatchConfirmed?()
                     Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
                 },
-                onFlagIssue: onFlagIssue
+                onFlagIssue: onFlagIssue,
+                onRefineScan: onRefineScan
             )
         }
     }

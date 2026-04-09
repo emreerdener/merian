@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 import Vision
 
 extension CameraViewModel {
@@ -34,12 +35,14 @@ extension CameraViewModel {
         let displayDatasToAnalyze = activeDisplayDatas
         let capturedOriginals = activeOriginals
         let capturedPreFetchTask = preFetchTask
+        let targetEradicationRecord = baseRefinementRecord
 
         // 4. Clear the staging buffers immediately so the UI resets behind the overlay.
         activeScanImages.removeAll()
         activeScannedDatas.removeAll()
         activeDisplayDatas.removeAll()
         activeOriginals.removeAll()
+        baseRefinementRecord = nil
         preFetchTask = nil
 
         // 5. Generate a stable scanId shared by the queue record and live inference.
@@ -52,14 +55,6 @@ extension CameraViewModel {
         //    before any async boundary is crossed. `enqueueCapture` wraps its work in a
         //    UIBackgroundTask, ensuring the disk write + SwiftData insert + URLSession upload
         //    dispatch complete even if the user backgrounds in the next instant.
-        //
-        //    Use the already-cached GPS location (live location tracking is running while
-        //    the camera is active). `lastKnownLocation` prefers an accurate lock (≤30m) but
-        //    falls back to any inaccurate fix so scans in poor GPS conditions still carry a
-        //    macro-region coordinate — enough for WeatherKit backfill in `runInferencePipeline`.
-        //    Weather and locationName are backfilled by `fetchHistoricalContext` on the offline
-        //    path. For gallery photos the preFetchTask resolves the full context, but the queue
-        //    record's GPS is sufficient for the background path to succeed independently.
         let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
         let immediateDistance = diContainer.cameraManager.subjectDistanceInMeters
         let immediateTelemetry = CaptureTelemetry(
@@ -83,14 +78,19 @@ extension CameraViewModel {
         )
 
         // 7. Concurrently resolve the full telemetry and fire live inference.
+        //    Disk I/O and synchronous `ImageDownsampler` scaling run here
+        //    off the main thread to prevent UI stalling right as the sheet appears.
         Task {
+            let liveDatasToAnalyze = datasToAnalyze
+            let liveDisplayDatasToAnalyze = displayDatasToAnalyze
+            
             let resolvedContext = await capturedPreFetchTask?.value
             
             let telemetry = await CaptureTelemetry.resolveForActiveScan(
                 resolvedContext: resolvedContext,
                 historicalContext: capturedOriginals.first?.environmentContext,
                 isGalleryPhoto: capturedOriginals.first?.isFromGallery == true,
-                firstImageData: datasToAnalyze.first,
+                firstImageData: liveDatasToAnalyze.first,
                 distanceMeters: diContainer.cameraManager.subjectDistanceInMeters,
                 zoomFactor: diContainer.cameraManager.zoomFactor
             )
@@ -104,10 +104,11 @@ extension CameraViewModel {
                 guard self.pendingAnalyzeScanId == scanId else { return }
                 self.diContainer.inferenceEngine.analyze(
                     scanId: scanId,
-                    imageDatas: datasToAnalyze,
-                    displayDatas: displayDatasToAnalyze,
+                    imageDatas: liveDatasToAnalyze,
+                    displayDatas: liveDisplayDatasToAnalyze,
                     telemetry: telemetry,
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    targetEradicationRecord: targetEradicationRecord
                 )
             }
         }

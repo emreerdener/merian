@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 struct BiologicalView: View {
@@ -9,6 +10,22 @@ struct BiologicalView: View {
 
     // MARK: - Context State
     var timestamp: Date?
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var refinementAction: (() -> Void)? {
+        guard let scanIdStr = inferenceEngine.speciesData?.scanId else { return nil }
+        return {
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
+            guard let record = try? viewModel.activeLocalRecord?.modelContext?.fetch(descriptor).first ?? viewModel.activeLocalRecord,
+                  !(record.localImagePath?.starts(with: "http") == true),
+                  (record.additionalImagePaths ?? []).isEmpty else { return }
+            
+            HapticManager.shared.triggerSelectionPulse()
+            AppEventPublisher.shared.send(.triggerRefinement(record: record))
+            dismiss()
+        }
+    }
 
     // MARK: - Visual Layout
     var body: some View {
@@ -83,7 +100,8 @@ struct BiologicalView: View {
                         aiScientificName: primaryAIName,
                         inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                         onFlagIssue: { viewModel.isIdentificationFlagPresented = true },
-                        onMatchConfirmed: { viewModel.toastMessage = "Match confirmed" }
+                        onMatchConfirmed: { viewModel.toastMessage = "Match confirmed" },
+                        onRefineScan: refinementAction
                     )
                     .cardEntrance(index: 3)
                 }
@@ -125,19 +143,19 @@ struct BiologicalView: View {
                     }
                 }
                 .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
-                .cardEntrance(index: 4)
+                .cardEntrance(index: 8)
     
                 // MARK: - Spatiotemporal Context
                 ScanInformationCard(
                     speciesData: inferenceEngine.speciesData,
                     timestamp: timestamp
                 )
-                .cardEntrance(index: 8)
+                .cardEntrance(index: 9)
     
                 // MARK: - Custom Tags
                 if let scanId = inferenceEngine.speciesData?.scanId {
                     UserTagsCard(scanId: scanId)
-                        .cardEntrance(index: 9)
+                        .cardEntrance(index: 10)
                 }
             }
         }

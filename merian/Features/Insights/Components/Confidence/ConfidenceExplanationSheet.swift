@@ -1,4 +1,5 @@
 import CoreLocation
+import SwiftData
 import SwiftUI
 
 struct ConfidenceExplanationSheet: View {
@@ -17,10 +18,25 @@ struct ConfidenceExplanationSheet: View {
     @State private var isFlagPresented = false
     @State private var isSwipeModalPresented = false
     @State private var showPaywall = false
+    @State private var localRefinementRecord: LocalScanRecord?
 
     private var showLocationPrompt: Bool {
         let status = environmentContext.locationAuthorizationStatus
         return status == .notDetermined || status == .restricted || status == .denied
+    }
+
+    private var refinementAction: (() -> Void)? {
+        guard let scanIdStr = inferenceEngine.speciesData?.scanId else { return nil }
+        return {
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
+            guard let record = try? modelContext.fetch(descriptor).first,
+                  !(record.localImagePath?.starts(with: "http") == true),
+                  (record.additionalImagePaths ?? []).isEmpty else { return }
+            
+            HapticManager.shared.triggerSelectionPulse()
+            AppEventPublisher.shared.send(.triggerRefinement(record: record))
+            dismiss()
+        }
     }
 
     private var headerTitle: String {
@@ -101,6 +117,7 @@ struct ConfidenceExplanationSheet: View {
                     )
                     .padding(.horizontal, 16)
                 } else {
+
                     CandidatesCard(
                         candidates: candidates,
                         aiScientificName: aiScientificName ?? "Unknown subject",
@@ -109,6 +126,7 @@ struct ConfidenceExplanationSheet: View {
                             isFlagPresented = true
                         },
                         onMatchConfirmed: nil,
+                        onRefineScan: refinementAction,
                         showDismissButton: false
                     )
                     .padding(.horizontal, 16)
@@ -132,7 +150,9 @@ struct ConfidenceExplanationSheet: View {
             }
         }
         .sheet(isPresented: $isSwipeModalPresented) {
+            
             CandidateSwipeModal(
+                isPresented: $isSwipeModalPresented,
                 candidates: inferenceEngine.speciesData?.candidates ?? [],
                 aiScientificName: aiScientificName ?? "Unknown",
                 confirmButtonTitle: confirmButtonTitle,
@@ -141,11 +161,24 @@ struct ConfidenceExplanationSheet: View {
                 },
                 onFlagIssue: {
                     isFlagPresented = true
-                }
+                },
+                onRefineScan: refinementAction
             )
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+        .task(id: inferenceEngine.speciesData?.scanId) {
+            guard let scanIdStr = inferenceEngine.speciesData?.scanId else {
+                localRefinementRecord = nil
+                return
+            }
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
+            if let record = try? modelContext.fetch(descriptor).first, !(record.localImagePath?.starts(with: "http") == true) {
+                localRefinementRecord = record
+            } else {
+                localRefinementRecord = nil
+            }
         }
     }
 }
