@@ -146,9 +146,17 @@ struct BiologicalView: View {
                 .cardEntrance(index: 8)
     
                 // MARK: - Spatiotemporal Context
+                let imageCount: Int = {
+                    if !inferenceEngine.activeDisplayDatas.isEmpty {
+                        return inferenceEngine.activeDisplayDatas.count
+                    }
+                    let extras = viewModel.activeLocalRecord?.additionalImagePaths ?? []
+                    return 1 + extras.count
+                }()
                 ScanInformationCard(
                     speciesData: inferenceEngine.speciesData,
-                    timestamp: timestamp
+                    timestamp: timestamp,
+                    imageCount: imageCount
                 )
                 .cardEntrance(index: 9)
     

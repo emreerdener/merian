@@ -4,6 +4,7 @@ import SwiftUI
 struct ScanInformationCard: View {
     let speciesData: SpeciesData?
     var timestamp: Date?
+    var imageCount: Int = 1
     
     // Optional rendering fallbacks when speciesData is unvailable during live analysis
     var fallbackLocationName: String?
@@ -80,6 +81,11 @@ struct ScanInformationCard: View {
                             title: "TIME",
                             value: ts.formatted(date: .omitted, time: .shortened)
                         )
+                    }
+
+                    // Image count (only shown when > 1)
+                    if imageCount > 1 {
+                        KeyValueRow(title: "IMAGES", value: "\(imageCount) photos")
                     }
 
                     // Zoom

@@ -26,13 +26,9 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var refinementAction: (() -> Void)? {
-        guard let scanIdStr = inferenceEngine.speciesData?.scanId else { return nil }
+        guard let record = localRefinementRecord,
+              (record.additionalImagePaths ?? []).isEmpty else { return nil }
         return {
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
-            guard let record = try? modelContext.fetch(descriptor).first,
-                  !(record.localImagePath?.starts(with: "http") == true),
-                  (record.additionalImagePaths ?? []).isEmpty else { return }
-            
             HapticManager.shared.triggerSelectionPulse()
             AppEventPublisher.shared.send(.triggerRefinement(record: record))
             dismiss()
