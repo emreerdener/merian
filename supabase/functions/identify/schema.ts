@@ -83,7 +83,7 @@ Output fields must align semantically with the Darwin Core data standard:
 - \`wild\`: natural/semi-natural habitat, no intensive management
 - \`urban\`: human-modified landscape (gardens, parks, roadsides, buildings)
 - \`domesticated\`: captive animal, cultivated plant, farmed organism
-\`;
+`;
 
 // Shared schema properties present in both the biological and non-biological branches.
 // Extracted to a factory function so both branches reference identical field definitions
