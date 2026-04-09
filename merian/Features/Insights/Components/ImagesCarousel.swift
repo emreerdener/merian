@@ -286,7 +286,7 @@ private extension ImagesCarousel {
     @ViewBuilder
     var paginationDots: some View {
         ZStack {
-            if captureCount > 1 && !inferenceEngine.isProcessing {
+            if captureCount > 1 {
                 HStack(spacing: 8) {
                     ForEach(0..<totalImages, id: \.self) { index in
                         Circle()
@@ -307,7 +307,6 @@ private extension ImagesCarousel {
                 ))
             }
         }
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: inferenceEngine.isProcessing)
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: totalImages)
     }
 }

@@ -692,7 +692,9 @@ private struct GBIFMedia: Decodable {
                         // Individual optional-chain mutations (self.speciesData?.field = x) do not
                         // reliably fire @Observable notifications for struct value types; a single
                         // full-value replacement is the only guaranteed trigger.
-                        if var updated = self.speciesData {
+                        // Guard on scanId: a stale enrichment task completing after a new scan
+                        // has already set speciesData must not overwrite the new scan's fields.
+                        if var updated = self.speciesData, self.speciesData?.scanId == capturedScanId {
                             updated.habitatDescription = enrichData.habitat_description
                             if let tax = enrichData.taxonomy {
                                 updated.taxonomy = TaxonomyData(
@@ -778,7 +780,9 @@ private struct GBIFMedia: Decodable {
                                 )
                             }
                             // Single full-value replacement — see enrichment scope comment above.
-                            if var updated = self.speciesData {
+                            // Guard on scanId: a stale lookalikes task completing after a new scan
+                            // has set speciesData must not overwrite the new scan's similar species.
+                            if var updated = self.speciesData, self.speciesData?.scanId == capturedScanId {
                                 updated.similarSpecies = SimilarSpecies(entries: mappedEntries)
                                 self.speciesData = updated
                             }
