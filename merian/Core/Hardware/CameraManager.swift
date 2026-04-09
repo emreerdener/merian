@@ -76,6 +76,7 @@ import UIKit
         let id: Int64
         let continuation: CheckedContinuation<Data, Error>
         var timeoutTask: Task<Void, Error>?
+        var isResumed = false
     }
 
     @ObservationIgnored private let requestsLock = OSAllocatedUnfairLock()
@@ -629,8 +630,11 @@ import UIKit
                     try await Task.sleep(nanoseconds: 5_000_000_000)
                     guard let self = self else { return }
 
-                    let expired = self.requestsLock.withLock {
+                    let expired = self.requestsLock.withLock { () -> CaptureRequest? in
+                        guard var r = self.activeCaptureRequests[requestId], !r.isResumed else { return nil }
+                        r.isResumed = true
                         self.activeCaptureRequests.removeValue(forKey: requestId)
+                        return r
                     }
 
                     if let expired = expired {
@@ -645,8 +649,11 @@ import UIKit
 
                 queue.async {
                     guard let connection = self.photoOutput.connection(with: .video), connection.isActive && connection.isEnabled else {
-                        let failed = self.requestsLock.withLock {
+                        let failed = self.requestsLock.withLock { () -> CaptureRequest? in
+                            guard var r = self.activeCaptureRequests[requestId], !r.isResumed else { return nil }
+                            r.isResumed = true
                             self.activeCaptureRequests.removeValue(forKey: requestId)
+                            return r
                         }
 
                         if let failed = failed {
@@ -689,8 +696,11 @@ import UIKit
             Task { [weak self] in
                 guard let self = self else { return }
 
-                let cancelled = self.requestsLock.withLock {
+                let cancelled = self.requestsLock.withLock { () -> CaptureRequest? in
+                    guard var r = self.activeCaptureRequests[requestId], !r.isResumed else { return nil }
+                    r.isResumed = true
                     self.activeCaptureRequests.removeValue(forKey: requestId)
+                    return r
                 }
 
                 if let cancelled = cancelled {
@@ -706,8 +716,11 @@ import UIKit
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         let requestId = photo.resolvedSettings.uniqueID
 
-        let request = self.requestsLock.withLock {
+        let request = self.requestsLock.withLock { () -> CaptureRequest? in
+            guard var r = self.activeCaptureRequests[requestId], !r.isResumed else { return nil }
+            r.isResumed = true
             self.activeCaptureRequests.removeValue(forKey: requestId)
+            return r
         }
 
         guard let request = request else { return }

@@ -103,6 +103,16 @@ private struct GBIFMedia: Decodable {
     /// Tracks the single async hydration task spawned after a live inference result so it can be
     /// cancelled if the user fires a new scan before Wikipedia/enrichment/GBIF finish.
     @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
+    @ObservationIgnored private var backgroundWriteTasks = [UUID: Task<Void, Never>]()
+
+    private func executeTrackedBackgroundTask(operation: @escaping @Sendable () async -> Void) {
+        let id = UUID()
+        let task = Task { [weak self] in
+            defer { Task { @MainActor [weak self] in self?.backgroundWriteTasks.removeValue(forKey: id) } }
+            await operation()
+        }
+        backgroundWriteTasks[id] = task
+    }
 
     // MARK: - External API Session
 
@@ -143,6 +153,8 @@ private struct GBIFMedia: Decodable {
         self.enrichmentWriteTask?.cancel()
         self.enrichmentWriteTask = nil
         self.phaseRotationTask?.cancel()
+        for task in self.backgroundWriteTasks.values { task.cancel() }
+        self.backgroundWriteTasks.removeAll()
 
         // Reset scan identity and processing flags.
         self.activeScanId = nil
@@ -355,7 +367,7 @@ private struct GBIFMedia: Decodable {
                     // is a no-op (record not found). The idempotency guard in
                     // processAndCleanupOfflineScan prevents a duplicate LocalScanRecord.
                     if let scanId {
-                        Task { await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId) }
+                        executeTrackedBackgroundTask { await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId) }
                     }
 
                     // Send a local notification for inference complete.
@@ -855,7 +867,7 @@ private struct GBIFMedia: Decodable {
         }
 
         // 3. Cloud sync — IDOR-guarded direct PostgREST update.
-        Task { [weak self] in
+        executeTrackedBackgroundTask { [weak self] in
             guard let self else { return }
             await self.syncIdentificationReviewToCloud(scanId: scanId, override: scientificName, confirmed: false)
         }
@@ -873,13 +885,13 @@ private struct GBIFMedia: Decodable {
 
         if let context = modelContext {
             let container = context.container
-            Task {
+            executeTrackedBackgroundTask {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: true)
             }
         }
 
-        Task { [weak self] in
+        executeTrackedBackgroundTask { [weak self] in
             guard let self else { return }
             await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: true)
         }
@@ -895,7 +907,7 @@ private struct GBIFMedia: Decodable {
 
         if let context = modelContext {
             let container = context.container
-            Task {
+            executeTrackedBackgroundTask {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 await dbActor.updateScanAsFlagged(scanId: scanId)
             }
@@ -910,7 +922,7 @@ private struct GBIFMedia: Decodable {
 
         if let context = modelContext {
             let container = context.container
-            Task {
+            executeTrackedBackgroundTask {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 await dbActor.updateScanAsUnflagged(scanId: scanId)
             }
@@ -936,7 +948,7 @@ private struct GBIFMedia: Decodable {
         // 2. Persist all reset fields locally.
         if let context = modelContext {
             let container = context.container
-            Task {
+            executeTrackedBackgroundTask {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: false)
                 await dbActor.updateScanAsUnflagged(scanId: scanId)
@@ -944,7 +956,7 @@ private struct GBIFMedia: Decodable {
         }
 
         // 3. Zero both cloud columns.
-        Task { [weak self] in
+        executeTrackedBackgroundTask { [weak self] in
             guard let self else { return }
             await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: false)
         }
@@ -1045,7 +1057,7 @@ private struct GBIFMedia: Decodable {
                     let capturedIucn = row.iucn_red_list_status
                     let capturedHabitat = row.habitat_description
                     let capturedGbif = row.gbif_taxon_key
-                    Task {
+                    executeTrackedBackgroundTask {
                         let dbActor = BackgroundDatabaseActor(modelContainer: container)
                         await dbActor.updateScanWithOverrideSpeciesData(
                             scanId: scanId,
@@ -1069,7 +1081,7 @@ private struct GBIFMedia: Decodable {
                 if let scanId, let context = modelContext {
                     let container = context.container
                     let capturedScientificName = scientificName
-                    Task {
+                    executeTrackedBackgroundTask {
                         let dbActor = BackgroundDatabaseActor(modelContainer: container)
                         await dbActor.updateScanWithOverrideSpeciesData(
                             scanId: scanId,
@@ -1124,12 +1136,14 @@ private struct GBIFMedia: Decodable {
     /// resets to `isProcessing = false, speciesData = nil` — appropriate when the user
     /// dismisses the insight sheet with no new scan queued.
     func cancelActiveRequest(isUserInitiated: Bool = false) {
-        MerianLog.general.debug("Cancelled active inference request.")
+        self.activeScanId = nil
         self.isProcessing = false
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.historicHydrationTask?.cancel()
         self.phaseRotationTask?.cancel()
+        for task in self.backgroundWriteTasks.values { task.cancel() }
+        self.backgroundWriteTasks.removeAll()
         // Cancel GBIF hydration so stale image URLs cannot be written to a record
         // that is no longer active after the user fires a new scan or navigates away.
         self.gbifHydrationTask?.cancel()

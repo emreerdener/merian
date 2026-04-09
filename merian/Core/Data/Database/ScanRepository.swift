@@ -603,16 +603,14 @@ actor HistoricalDatabaseActor {
         // or schema-migrated collection records into memory before sync begins.
         var collectionsDescriptor = FetchDescriptor<ScanCollection>()
         collectionsDescriptor.fetchLimit = 500
-        let collectionObjectIds = (try? modelContext.fetchIdentifiers(collectionsDescriptor)) ?? []
-        let existingCollections = collectionObjectIds.compactMap { modelContext.model(for: $0) as? ScanCollection }
+        let existingCollections = (try? modelContext.fetch(collectionsDescriptor)) ?? []
         var existingLookup = Dictionary(existingCollections.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
         
         // Fetch only the local scan records referenced by the incoming collections.
         let referencedScanIds = remoteCollections.compactMap { $0.collection_scans }.flatMap { $0 }.map { $0.scan_id }
         let allScansDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { referencedScanIds.contains($0.id) })
         let localScans: [LocalScanRecord] = referencedScanIds.isEmpty ? [] : {
-            let objectIds = (try? modelContext.fetchIdentifiers(allScansDescriptor)) ?? []
-            return objectIds.compactMap { modelContext.model(for: $0) as? LocalScanRecord }
+            return (try? modelContext.fetch(allScansDescriptor)) ?? []
         }()
         let localScansLookup = Dictionary(localScans.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
 

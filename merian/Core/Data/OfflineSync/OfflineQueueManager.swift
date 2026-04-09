@@ -163,6 +163,7 @@ import SwiftData
                 } else {
                     // Circuit-break active uploads immediately on connectivity loss.
                     self?.reconnectDebounceTask?.cancel()
+                    self?.reconnectDebounceTask = nil
                     self?.syncTask?.cancel()
                     self?.collectionSyncTask?.cancel()
                     // Cancel any pending backoff retry — it must not fire while offline.

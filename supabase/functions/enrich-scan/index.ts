@@ -151,20 +151,28 @@ serve((req: Request) =>
       // isolate, wait for it to finish and return the now-cached result without a second call.
       const inFlightEnrichment = _enrichmentInFlight.get(scientific_name);
       if (inFlightEnrichment) {
-        await inFlightEnrichment.catch(() => {});
-        const refreshed = await getCachedSpecies(scientific_name, supabaseAdmin);
-        // Re-resolve altNames from the refreshed row (background write may have landed).
-        const refreshedAltNames = refreshed?.alternative_common_names ?? altNames;
-        return jsonResponse(
-          { success: true, data: formatEnrichmentOnlyPayload(refreshed, null, refreshedAltNames) },
-          200,
-        );
+        try {
+          await inFlightEnrichment;
+          const refreshed = await getCachedSpecies(scientific_name, supabaseAdmin);
+          // Re-resolve altNames from the refreshed row (background write may have landed).
+          const refreshedAltNames = refreshed?.alternative_common_names ?? altNames;
+          return jsonResponse(
+            { success: true, data: formatEnrichmentOnlyPayload(refreshed, null, refreshedAltNames) },
+            200,
+          );
+        } catch {
+          // Failed! Fall through to allow this request to retry the LLM call.
+        }
       }
 
       let resolveEnrichmentInFlight!: () => void;
+      let rejectEnrichmentInFlight!: (e: Error) => void;
       _enrichmentInFlight.set(
         scientific_name,
-        new Promise<void>((resolve) => { resolveEnrichmentInFlight = resolve; }),
+        new Promise<void>((resolve, reject) => { 
+          resolveEnrichmentInFlight = resolve; 
+          rejectEnrichmentInFlight = reject; 
+        }),
       );
 
       try {
@@ -184,16 +192,17 @@ serve((req: Request) =>
         );
 
         console.log(`[enrich-scan:enrichment] CACHE MISS for ${scientific_name}`);
+        resolveEnrichmentInFlight();
         return jsonResponse(
           { success: true, data: formatEnrichmentOnlyPayload(cachedSpecies, enrichmentResult, altNames) },
           200,
         );
       } catch (e: unknown) {
         console.error("[enrich-scan:enrichment] LLM error:", e);
+        rejectEnrichmentInFlight(e instanceof Error ? e : new Error(String(e)));
         const message = e instanceof Error ? e.message : "Failed to process enrichment.";
         return jsonResponse({ success: false, error: message }, 500);
       } finally {
-        resolveEnrichmentInFlight();
         _enrichmentInFlight.delete(scientific_name);
       }
     }
@@ -275,22 +284,30 @@ serve((req: Request) =>
     // and return the persisted result rather than firing a duplicate Gemini call.
     const inFlightLookalikes = _lookalikesInFlight.get(scientific_name);
     if (inFlightLookalikes) {
-      await inFlightLookalikes.catch(() => {});
-      const refreshedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
-      const refreshedId = refreshedSpecies?.id ?? speciesId;
-      const refreshedLookalikes = refreshedId
-        ? await fetchLookalikesFromJoinTable(refreshedId, supabaseAdmin)
-        : [];
-      return jsonResponse(
-        { success: true, data: formatLookalikesOnlyPayload(refreshedSpecies, refreshedLookalikes) },
-        200,
-      );
+      try {
+        await inFlightLookalikes;
+        const refreshedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
+        const refreshedId = refreshedSpecies?.id ?? speciesId;
+        const refreshedLookalikes = refreshedId
+          ? await fetchLookalikesFromJoinTable(refreshedId, supabaseAdmin)
+          : [];
+        return jsonResponse(
+          { success: true, data: formatLookalikesOnlyPayload(refreshedSpecies, refreshedLookalikes) },
+          200,
+        );
+      } catch {
+        // Failed! Fall through.
+      }
     }
 
     let resolveLookalikesInFlight!: () => void;
+    let rejectLookalikesInFlight!: (e: Error) => void;
     _lookalikesInFlight.set(
       scientific_name,
-      new Promise<void>((resolve) => { resolveLookalikesInFlight = resolve; }),
+      new Promise<void>((resolve, reject) => { 
+        resolveLookalikesInFlight = resolve; 
+        rejectLookalikesInFlight = reject;
+      }),
     );
 
     try {
@@ -354,16 +371,17 @@ serve((req: Request) =>
       );
 
       console.log(`[enrich-scan:lookalikes] CACHE MISS for ${scientific_name}`);
+      resolveLookalikesInFlight();
       return jsonResponse(
         { success: true, data: formatLookalikesOnlyPayload(cachedSpecies, lookalikes) },
         200,
       );
     } catch (e: unknown) {
       console.error("[enrich-scan:lookalikes] LLM error:", e);
+      rejectLookalikesInFlight(e instanceof Error ? e : new Error(String(e)));
       const message = e instanceof Error ? e.message : "Failed to process lookalikes.";
       return jsonResponse({ success: false, error: message }, 500);
     } finally {
-      resolveLookalikesInFlight();
       _lookalikesInFlight.delete(scientific_name);
     }
   }),
