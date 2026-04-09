@@ -203,6 +203,12 @@ serve((req: Request) =>
       gpsElevation != null ? `Elev:${gpsElevation}m` : null,
       depthScaleText ? `Depth:${depthScaleText}` : null,
       zoomFactor != null && zoomFactor > 1 ? `Zoom:${zoomFactor.toFixed(1)}x` : null,
+      // Subject size is a primary morphological discriminator — many species pairs (e.g.
+      // fungi, insects, plants) are visually indistinguishable except by size. Validated
+      // with the same guard used before DB insertion; the 50,000 cap is omitted here
+      // because a value that large is nonsensical context and the DB guard already handles it.
+      (estimated_size_cm != null && Number.isFinite(estimated_size_cm) && estimated_size_cm > 0)
+        ? `Size:${estimated_size_cm}cm` : null,
       semanticLocation ? `Loc:${semanticLocation}` : null,
       weatherCondition ? `Wx:${weatherCondition}` : null,
       weatherTemperatureF != null ? `Temp:${weatherTemperatureF}F` : null,
