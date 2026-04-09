@@ -87,7 +87,7 @@ struct CandidateAlternativesView: View {
                         
                         // Surface the quick-confirm when contained inside the confidence sheet
                         if !showDismissButton {
-                            SlideToConfirm(label: "Confirm identification", onConfirm: onConfirm)
+                            SlideToConfirm(label: "Confirm species", onConfirm: onConfirm)
                         }
                     }
                 }

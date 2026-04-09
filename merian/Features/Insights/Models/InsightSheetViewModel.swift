@@ -18,6 +18,7 @@ final class InsightSheetViewModel {
     var showDeleteConfirmation = false
     var showSaveSuccessAlert = false
     var showNewCollectionAlert = false
+    var isCandidateSwipePresented = false
     var toastMessage: String?
     var newCollectionName = ""
 

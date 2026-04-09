@@ -81,7 +81,7 @@ struct InsightSheetView: View {
         .alert("Photos saved", isPresented: $viewModel.showSaveSuccessAlert) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Your photos have been securely saved to your Camera Roll.")
+            Text("Your photos have been securely saved to your camera roll.")
         }
         .newCollectionAlert(
             isPresented: $viewModel.showNewCollectionAlert,
@@ -132,14 +132,49 @@ private extension InsightSheetView {
     
     @ToolbarContentBuilder
     var sheetToolbar: some ToolbarContent {
+        let isReviewLocked: Bool = {
+            guard let speciesData = inferenceEngine.speciesData else { return false }
+            return speciesData.userConfirmedIdentification || speciesData.userIdentificationOverride != nil
+        }()
+        
+        let canReanalyze: Bool = {
+            if isReviewLocked { return false }
+            guard let record = viewModel.activeLocalRecord, !(record.localImagePath?.starts(with: "http") == true) else { return false }
+            return (record.additionalImagePaths ?? []).isEmpty
+        }()
+        
+        let canReviewAlternatives: Bool = {
+            if isReviewLocked { return false }
+            guard let speciesData = inferenceEngine.speciesData else { return false }
+            return !(speciesData.candidates ?? []).isEmpty && !speciesData.alternativesExhausted
+        }()
+        
+        let canConfirm: Bool = {
+            guard let speciesData = inferenceEngine.speciesData else { return false }
+            return !speciesData.userConfirmedIdentification && speciesData.userIdentificationOverride == nil && !speciesData.isFlagged
+        }()
+        
         TopToolbar(
             commonName: viewModel.resolvedHeaderTitle,
             isCommonNameScrolledPast: viewModel.isCommonNameScrolledPast,
-            isFlagIssuePresented: $viewModel.isFlagIssuePresented,
             isIdentificationFlagPresented: $viewModel.isIdentificationFlagPresented,
             isSavingPhotos: $viewModel.isSavingPhotos,
             showDeleteConfirmation: $viewModel.showDeleteConfirmation,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
+            onReanalyze: canReanalyze ? {
+                if let record = viewModel.activeLocalRecord {
+                    HapticManager.shared.triggerSelectionPulse()
+                    AppEventPublisher.shared.send(.triggerRefinement(record: record))
+                }
+            } : nil,
+            onReviewAlternatives: canReviewAlternatives ? {
+                viewModel.isCandidateSwipePresented = true
+            } : nil,
+            onConfirmIdentification: canConfirm ? {
+                HapticManager.shared.triggerSuccessPulse()
+                Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
+            } : nil,
+            isAlreadyFlagged: (inferenceEngine.speciesData?.isFlagged ?? false) || isReviewLocked,
             isAnalyzing: inferenceEngine.isProcessing
         )
         

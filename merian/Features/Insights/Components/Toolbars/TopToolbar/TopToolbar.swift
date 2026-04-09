@@ -5,11 +5,14 @@ struct TopToolbar: ToolbarContent {
     
     let commonName: String
     let isCommonNameScrolledPast: Bool
-    @Binding var isFlagIssuePresented: Bool
     @Binding var isIdentificationFlagPresented: Bool
     @Binding var isSavingPhotos: Bool
     @Binding var showDeleteConfirmation: Bool
     let onSavePhotos: () -> Void
+    var onReanalyze: (() -> Void)?
+    var onReviewAlternatives: (() -> Void)?
+    var onConfirmIdentification: (() -> Void)?
+    let isAlreadyFlagged: Bool
     let isAnalyzing: Bool
     
     var body: some ToolbarContent {
@@ -33,15 +36,34 @@ struct TopToolbar: ToolbarContent {
                     Button(action: { onSavePhotos() }) {
                         Label("Download my photos", systemImage: "arrow.down.circle")
                     }
-                    Button(action: { isIdentificationFlagPresented = true }) {
-                        Label("Flag identification", systemImage: "flag")
+                    
+                    Section("Identification") {
+                        if let onConfirmIdentification = onConfirmIdentification {
+                            Button(action: onConfirmIdentification) {
+                                Label("Confirm species", systemImage: "checkmark.circle")
+                            }
+                        }
+                        if let onReviewAlternatives = onReviewAlternatives {
+                            Button(action: onReviewAlternatives) {
+                                Label("Review alternatives", systemImage: "list.bullet")
+                            }
+                        }
+                        if let onReanalyze = onReanalyze {
+                            Button(action: onReanalyze) {
+                                Label("Reanalyze species", systemImage: "arrow.2.circlepath")
+                            }
+                        }
+                        if !isAlreadyFlagged {
+                            Button(action: { isIdentificationFlagPresented = true }) {
+                                Label("Flag for review", systemImage: "flag")
+                            }
+                        }
                     }
-                    Button(action: { isFlagIssuePresented = true }) {
-                        Label("Report", systemImage: "exclamationmark.shield")
-                    }
-                    .disabled(isSavingPhotos)
-                    Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                        Label("Delete scan", systemImage: "trash")
+                    
+                    Section {
+                        Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+                            Label("Delete scan", systemImage: "trash")
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis")

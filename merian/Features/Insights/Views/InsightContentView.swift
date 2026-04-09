@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 struct InsightContentView: View {
@@ -84,6 +85,34 @@ struct InsightContentView: View {
                     withAnimation { viewModel.toastMessage = "Report submitted. Thanks!" }
                 }
                 .presentationDetents([.height(400)])
+            }
+        }
+        .sheet(isPresented: $viewModel.isCandidateSwipePresented) {
+            if let speciesData = inferenceEngine.speciesData {
+                CandidateSwipeModal(
+                    isPresented: $viewModel.isCandidateSwipePresented,
+                    candidates: speciesData.candidates ?? [],
+                    aiScientificName: speciesData.scientificName,
+                    confirmButtonTitle: {
+                        let cName = speciesData.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let aiSciName = speciesData.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let isCommonNameValid = !cName.isEmpty && cName.lowercased() != "unknown subject"
+                        let isScientificNameValid = !aiSciName.isEmpty && aiSciName.lowercased() != "unknown subject"
+                        if isCommonNameValid { return "Confirm \(cName.capitalized)" }
+                        if isScientificNameValid { return "Confirm \(aiSciName)" }
+                        return "Confirm initial match"
+                    }(),
+                    onConfirmOriginal: { Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) } },
+                    onFlagIssue: { viewModel.isIdentificationFlagPresented = true },
+                    onRefineScan: {
+                        guard let scanIdStr = speciesData.scanId else { return }
+                        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
+                        if let record = try? modelContext.fetch(descriptor).first {
+                            HapticManager.shared.triggerSelectionPulse()
+                            AppEventPublisher.shared.send(.triggerRefinement(record: record))
+                        }
+                    }
+                )
             }
         }
     }
