@@ -75,7 +75,7 @@ final class CameraViewModel {
             .receive(on: RunLoop.main)
             .sink { [weak self] event in
                 switch event {
-                case .appDidEnterInactivePhase:
+                case .appDidEnterBackgroundPhase:
                     self?.resetModalsForBackground()
                 case .triggerPaywall:
                     self?.activeSheet = .paywall

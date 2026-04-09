@@ -30,14 +30,30 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 
 ### `handleInactivePhase()`
 
-Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay).
+Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay, system alerts, **iOS limited photo library access prompt**).
 
-1. `CameraManager.stopSession()` — halts AVFoundation to preserve thermal budget and release hardware resources.
-2. Posts `.appDidEnterInactivePhase` (`Notification.Name.appDidEnterInactivePhase`, defined in `Core/Utilities/NotificationNames.swift`) — consumed by `CameraViewModel` (and other observers) to reset view state without directly coupling `AppLifecycleManager` to individual ViewModels.
+1. `CameraManager.stopSession()` — halts AVFoundation immediately to preserve thermal budget and release hardware resources.
+
+> **Sheet dismissal is NOT performed on inactive.** System overlays — including the iOS limited photo library access prompt — transition the scene to `.inactive` without ever reaching `.background`. Closing sheets on inactive would cause the insight sheet to disappear behind the system prompt whenever a user with restricted photo library access completed a scan, requiring them to manually reopen results. Sheet dismissal is deferred to `handleBackgroundPhase()`.
+
+---
+
+### `handleBackgroundPhase()`
+
+Triggered when `scenePhase == .background`.
+
+Posts `.appDidEnterBackgroundPhase` via `AppEventPublisher` — consumed by `CameraViewModel` to call `resetModalsForBackground()`.
+
+**Why sheets close on background (not inactive):**
+The iOS scene lifecycle distinguishes two classes of interruption:
+- **System overlays** (limited photo prompt, incoming call banner, Control Center): `active → inactive → active`. The user never leaves the app; the overlay dismisses and the app returns to full activity.
+- **Leaving the app** (home screen, app switcher): `active → inactive → background`. Only this path reaches `.background`.
+
+Firing `resetModalsForBackground` only on `.background` means the insight sheet survives the limited photo library prompt uninterrupted, while still closing correctly when the user genuinely leaves the app.
 
 #### `CameraViewModel` background reset policy
 
-`CameraViewModel.resetModalsForBackground()` handles the inactive notification with selective state preservation:
+`CameraViewModel.resetModalsForBackground()` handles the background notification with selective state preservation:
 
 **Always reset (unconditionally):**
 - `activeSheet`, `imageToCrop`, `editingCropIndex` — sheets hold UI locks and must not reopen stale.
@@ -48,17 +64,7 @@ Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay).
 
 To add new interrupt-sensitive states in the future, add a condition to `shouldPreserveStagingOnBackground` — the wipe path is already gated on it.
 
-> `CameraViewModel` intentionally **does not** nil out active ML payloads on this notification — that is reserved for `handleBackgroundPhase()` to prevent a race condition where UI cleanup runs before the background rescue can read the payload.
-
----
-
-### `handleBackgroundPhase()`
-
-Triggered when `scenePhase == .background`.
-
-This handler is a **no-op** for scan durability. Scans are made durable at submission time in `CameraViewModel.submitActiveScan` — the background URLSession upload is dispatched while the app is still in the foreground, before any async boundary is crossed. There is no race condition to rescue here.
-
-The handler exists as a documented anchor for future background-phase work and to make the phase contract explicit. It does not cancel inference, enqueue captures, or modify `InferenceEngine` state.
+**Scan durability note:** This handler is a no-op for scan durability. Scans are made durable at submission time in `CameraViewModel.submitActiveScan` — the background URLSession upload is dispatched while the app is still in the foreground, before any async boundary is crossed. It does not cancel inference, enqueue captures, or modify `InferenceEngine` state.
 
 **Why the old rescue pattern was removed:**
 The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, `CameraRootView.onChange(of: activeSheet)`, and `InsightSheetView.onDisappear`. All three paths were unreliable for the same structural reason: `Task(priority: .background)` tasks can be starved by the cooperative scheduler before `urlSession.uploadTask(...).resume()` is ever called if the process suspends within milliseconds. The `isSyncing` guard in `syncPendingScans` also silently dropped the rescue if a prior sync was in-flight. See `docs/development-guides/11-swiftdata-and-api-gotchas.md` §8 for the full analysis.
@@ -71,7 +77,7 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 |---|---|---|---|
 | Active | Start | Drain (quota-gated for free) | Normal live path |
 | Inactive | Stop | Untouched | Untouched — scan already queued |
-| Background | Already stopped | No-op — upload already dispatched | Live `inferenceTask` may still be running; background URLSession owns delivery if it completes first |
+| Background | Already stopped | No-op — upload already dispatched; sheet dismissal fires here | Live `inferenceTask` may still be running; background URLSession owns delivery if it completes first |
 
 **Rules AI agents must follow:**
 - **Never re-introduce rescue logic in `handleBackgroundPhase`.** Scans are enqueued in `submitActiveScan` before any async boundary. Rescue handlers re-added here will be unreliable for the same structural reasons the originals were — see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`.

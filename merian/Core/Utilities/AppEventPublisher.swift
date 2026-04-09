@@ -9,8 +9,10 @@ enum AppEvent {
     /// Dispatched via push notification tap to deep-link the user directly to a newly uploaded model.
     case appDidEnterActivePhaseWithScan(scanId: String)
     
-    /// Dispatched when the app enters the background / inactive phase. Modals should be dismissed.
-    case appDidEnterInactivePhase
+    /// Dispatched when the app enters the background phase. Modals should be dismissed.
+    /// Fires on background (not inactive) so that system overlays — such as the iOS limited
+    /// photo library access prompt — do not inadvertently close the insight sheet.
+    case appDidEnterBackgroundPhase
     
     /// Dispatched by Siri/OS intents to immediately jump the user to the lens viewfinder.
     case requestIdentifyNatureIntent

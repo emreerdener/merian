@@ -64,22 +64,25 @@ final class AppLifecycleManager {
         }
     }
 
-    /// Handles application transition to inactive (e.g. app switcher).
+    /// Handles application transition to inactive (e.g. app switcher, system overlays).
     func handleInactivePhase() {
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         guard hasCompletedOnboarding else { return }
 
+        // Stop the camera session immediately — the viewfinder should freeze during any
+        // interruption (app switcher, system alerts, limited photo library prompt, etc.).
         container.cameraManager.stopSession()
 
-        // Notify observers (e.g. CameraViewModel) to reset modal state.
-        // Posted via AppEventPublisher to safely broadcast cross-module states back to @MainActor observers.
-        container.appEventPublisher.send(.appDidEnterInactivePhase)
+        // Sheet dismissal is intentionally deferred to handleBackgroundPhase.
+        // System overlays — including the iOS limited photo library access prompt — transition
+        // the scene to .inactive without ever reaching .background, and must not close sheets.
     }
 
     /// Handles application transition to background.
     func handleBackgroundPhase() {
-        // No-op: scans are enqueued to the offline queue immediately at submission time
-        // (in CameraViewModel.submitActiveScan), so no rescue is needed here. The background
-        // URLSession upload was already dispatched while the app was in the foreground.
+        // Notify observers (e.g. CameraViewModel) to dismiss sheets and reset modal state.
+        // Fired here rather than on inactive so that system overlays (limited photo library
+        // prompt, system alerts) do not inadvertently close the insight sheet.
+        container.appEventPublisher.send(.appDidEnterBackgroundPhase)
     }
 }

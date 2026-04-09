@@ -9,24 +9,22 @@ import Vision
 
 // MARK: - Private Response Types
 
+private struct WikiOriginalImage: Decodable { let source: String? }
+private struct WikiSection: Decodable {
+    let title: String?
+    let anchor: String?
+    let text: String?
+}
 private struct WikiMobileSectionsResponse: Decodable {
-    let lead: Lead
-    let remaining: Remaining
-
     struct Lead: Decodable {
         let normalizedtitle: String?
-        let originalimage: OriginalImage?
-        struct OriginalImage: Decodable { let source: String? }
+        let originalimage: WikiOriginalImage?
     }
-
     struct Remaining: Decodable {
-        let sections: [Section]
-        struct Section: Decodable {
-            let title: String?
-            let anchor: String?
-            let text: String?
-        }
+        let sections: [WikiSection]
     }
+    let lead: Lead
+    let remaining: Remaining
 }
 
 private struct GBIFMediaResponse: Decodable {
@@ -615,17 +613,17 @@ private struct GBIFMedia: Decodable {
     /// Strips HTML tags and decodes common entities from a Wikipedia section's raw HTML text.
     private static func stripHTML(_ html: String) -> String {
         var result = html
-            .replacingOccurrences(of: "<br>",   with: "\n", options: .caseInsensitive)
-            .replacingOccurrences(of: "<br/>",  with: "\n", options: .caseInsensitive)
+            .replacingOccurrences(of: "<br>", with: "\n", options: .caseInsensitive)
+            .replacingOccurrences(of: "<br/>", with: "\n", options: .caseInsensitive)
             .replacingOccurrences(of: "<br />", with: "\n", options: .caseInsensitive)
-            .replacingOccurrences(of: "</p>",   with: "\n", options: .caseInsensitive)
+            .replacingOccurrences(of: "</p>", with: "\n", options: .caseInsensitive)
         result = result.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
         result = result
             .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&amp;",  with: "&")
-            .replacingOccurrences(of: "&lt;",   with: "<")
-            .replacingOccurrences(of: "&gt;",   with: ">")
-            .replacingOccurrences(of: "&#39;",  with: "'")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&#39;", with: "'")
             .replacingOccurrences(of: "&quot;", with: "\"")
         // Collapse runs of blank lines left by stripped block elements.
         while result.contains("\n\n\n") {
