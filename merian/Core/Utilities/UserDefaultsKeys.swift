@@ -22,4 +22,6 @@ enum UserDefaultsKeys {
     /// Prefix for per-species preferred common name. Append the scientific name to form the full key.
     /// e.g. `"speciesPreferredName_Gaillardia pulchella"` → user's chosen display name.
     static let speciesPreferredNamePrefix = "speciesPreferredName_"
+    /// Whether the user has been presented with the notification request post-identification.
+    static let hasPromptedForNotificationsPostIdent = "hasPromptedForNotificationsPostIdent"
 }

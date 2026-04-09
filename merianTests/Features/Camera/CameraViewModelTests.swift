@@ -20,8 +20,8 @@ struct CameraViewModelTests {
         viewModel.activeSheet = .insight
         viewModel.editingCropIndex = 1
 
-        // Act: fire the inactive-phase event via AppEventPublisher (replaces legacy NotificationCenter)
-        AppEventPublisher.shared.send(.appDidEnterInactivePhase)
+        // Act: fire the background-phase event via AppEventPublisher (replaces legacy NotificationCenter)
+        AppEventPublisher.shared.send(.appDidEnterBackgroundPhase)
 
         // Let RunLoop.main process the event
         try await Task.sleep(nanoseconds: 100_000_000)

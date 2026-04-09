@@ -23,8 +23,6 @@ enum OnboardingStep: Int, CaseIterable {
     case welcome = 0
     case camera
     case location
-    case photoLibrary
-    case notifications
     case ready
 }
 ```
@@ -34,8 +32,6 @@ enum OnboardingStep: Int, CaseIterable {
 | `.welcome` | `WelcomeStepView` | Branding screen — no permission request |
 | `.camera` | `CameraPermissionStepView` | Requests `AVCaptureDevice` camera permission |
 | `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` always/when-in-use authorization via `LocationPermissionDelegate` |
-| `.photoLibrary` | `PhotoLibraryPermissionStepView` | Requests `PHPhotoLibrary` read/write authorization |
-| `.notifications` | `PushNotificationPermissionStepView` | Requests `UNUserNotificationCenter` authorization |
 | `.ready` | `ReadyStepView` | Confirms setup complete; calls `viewModel.completeOnboarding()` |
 
 Each step view is wrapped in `OnboardingStepWrapper` which provides consistent layout, animation, and the "Continue" button that calls `viewModel.advanceStep()`.
@@ -88,8 +84,9 @@ Each permission step presents the rationale for the request before triggering th
 
 - **Camera**: Required for all scan functionality. Without it the shutter is non-functional.
 - **Location**: Required for GPS telemetry that improves AI accuracy (regional species ranges, invasive tracking) and populates the scan location metadata.
-- **Photo Library**: Required for `PhotoLibraryManager` to save captures to Camera Roll and read the gallery thumbnail. Can be granted as "Add Photos Only" for write-only use.
-- **Push Notifications**: Optional. Used for offline scan completion alerts (when the app is backgrounded during upload). Declining does not block any core functionality.
+
+> [!NOTE]
+> **Progressive Disclosure**: Push Notification and Photo Library permissions are deliberately omitted from the initial onboarding flow to reduce drop-off. Notifications are conditionally requested via a half-sheet after the first successful scan resolve. Photo Library permissions are conditionally requested via a half-sheet when the user specifically toggles "Save to camera roll" or taps the gallery import button.
 
 ---
 

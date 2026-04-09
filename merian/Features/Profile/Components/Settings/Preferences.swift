@@ -1,3 +1,4 @@
+import Photos
 import SwiftUI
 
 /// Abstracted Settings component bridging the massive divide between User Layout Toggles and Backend/Hardware Singletons.
@@ -140,6 +141,14 @@ struct Preferences: View {
             } label: {
                 Label("Preview analyzing state", systemImage: "play.circle")
             }
+            
+            #if targetEnvironment(simulator)
+            Button {
+                UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+            } label: {
+                Label("View onboarding", systemImage: "arrow.counterclockwise.circle")
+            }
+            #endif
         } header: {
             Text("Developer")
         }
@@ -233,6 +242,9 @@ struct CameraSettingsView: View {
     @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
     @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = UIDevice.current.isModernIPhone
     @AppStorage("saveToCameraRoll") private var saveToCameraRoll: Bool = true
+    
+    @State private var showPermissionPrompt = false
+    @State private var authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
 
     var body: some View {
         List {
@@ -251,7 +263,20 @@ struct CameraSettingsView: View {
                 SettingsToggleRow(
                     title: "Save to camera roll",
                     description: "Automatically save each captured photo to your iPhone's Photos library.",
-                    isOn: $saveToCameraRoll,
+                    isOn: Binding(
+                        get: { saveToCameraRoll },
+                        set: { newValue in
+                            if newValue {
+                                if authStatus == .notDetermined {
+                                    showPermissionPrompt = true
+                                } else {
+                                    saveToCameraRoll = true
+                                }
+                            } else {
+                                saveToCameraRoll = false
+                            }
+                        }
+                    ),
                     icon: "square.and.arrow.down",
                     iconColor: .teal
                 )
@@ -286,6 +311,19 @@ struct CameraSettingsView: View {
         }
         .navigationTitle("Camera")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showPermissionPrompt) {
+            PhotoLibraryPermissionSheetView {
+                authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+                if authStatus == .authorized || authStatus == .limited {
+                    saveToCameraRoll = true
+                }
+                showPermissionPrompt = false
+            }
+            .presentationDetents([.height(350)])
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        }
     }
 
     private var hintsEnabled: Binding<Bool> {

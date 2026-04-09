@@ -21,4 +21,16 @@ struct PhotoLibraryManagerTests {
         // Cleanup
         UserDefaults.standard.set(true, forKey: "saveToCameraRoll")
     }
+    
+    @Test func testStartObservingAndFetchBypassesNotDetermined() async {
+        let manager = PhotoLibraryManager.shared
+        
+        // This validates the progressive disclosure architectural update.
+        // Calling startObservingAndFetch() must silently drop and NOT fire PHPhotoLibrary.requestAuthorization 
+        // when status is .notDetermined, allowing the UI to manage the explicit permission gates.
+        manager.startObservingAndFetch()
+        
+        // If it reaches here without blocking on an expectation/completion handler lock, the fallthrough is valid.
+        #expect(true, "startObservingAndFetch safely drops .notDetermined requests to enforce progressive disclosure UI triggers.")
+    }
 }

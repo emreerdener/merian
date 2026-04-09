@@ -35,15 +35,6 @@ import UIKit
         case .authorized, .limited:
             self.setupObservation()
             self.retrieveLatestAsset()
-        case .notDetermined:
-            PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] newStatus in
-                if newStatus == .authorized || newStatus == .limited {
-                    Task { @MainActor in
-                        self?.setupObservation()
-                        self?.retrieveLatestAsset()
-                    }
-                }
-            }
         default:
             break
         }

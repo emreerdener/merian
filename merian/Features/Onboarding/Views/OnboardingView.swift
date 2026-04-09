@@ -23,10 +23,6 @@ struct OnboardingView: View {
                     CameraPermissionStepView { advanceStep() }
                 case .location:
                     LocationPermissionStepView(locationManagerDelegate: locationManagerDelegate) { advanceStep() }
-                case .photoLibrary:
-                    PhotoLibraryPermissionStepView { advanceStep() }
-                case .notifications:
-                    PushNotificationPermissionStepView { advanceStep() }
                 case .ready:
                     ReadyStepView {
                         viewModel.completeOnboarding() // Triggers root view teardown safely without zero-frame animation artifacts
