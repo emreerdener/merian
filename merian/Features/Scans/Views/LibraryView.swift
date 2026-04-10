@@ -109,7 +109,7 @@ struct LibraryView: View {
                             .frame(maxWidth: .infinity, idealHeight: 400)
                     } else {
                         EmptyStateView(
-                            iconName: "viewfinder",
+                            imageName: "fireflies",
                             title: "No scans found",
                             message: {
                                 if !searchManager.searchQuery.isEmpty {
