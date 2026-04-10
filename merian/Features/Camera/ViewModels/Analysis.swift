@@ -27,8 +27,12 @@ extension CameraViewModel {
         // immediately sees `isProcessing == true && speciesData == nil`.
         diContainer.inferenceEngine.prepareForNewScan()
 
+        let isOnline = diContainer.offlineQueueManager.isOnline
+
         // 2. Eagerly set the Insight sheet to open in its "Analyzing" skeleton state.
-        activeSheet = .insight
+        if isOnline {
+            activeSheet = .insight
+        }
 
         // 3. Capture the context needed for inference before clearing the staging buffers.
         let datasToAnalyze = activeScannedDatas
@@ -76,6 +80,12 @@ extension CameraViewModel {
             blurScore: nil,
             scanId: scanId
         )
+
+        // If completely offline, skip live inference and show a toast immediately.
+        guard isOnline else {
+            self.offlineToastMessage = "No network connection. Scan queued for upload."
+            return
+        }
 
         // 7. Concurrently resolve the full telemetry and fire live inference.
         //    Disk I/O and synchronous `ImageDownsampler` scaling run here

@@ -22,6 +22,7 @@ final class CameraViewModel {
     
     // MARK: - UI & Navigation State
     var activeSheet: ActiveSheet?
+    var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
     var editingCropIndex: Int?
     var activeScannedDatas: [Data] = []

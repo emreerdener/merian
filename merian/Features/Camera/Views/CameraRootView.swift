@@ -129,11 +129,34 @@ struct CameraRootView: View {
                 }
                 .ignoresSafeArea()
 
+                // MARK: Fixed Overlay — Action Toasts
+                if let toast = viewModel.offlineToastMessage {
+                    VStack {
+                        ToastBanner(onDismiss: { viewModel.offlineToastMessage = nil }) {
+                            Text(toast)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .padding(.top, 16)
+                        Spacer()
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(100)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                            if viewModel.offlineToastMessage == toast {
+                                withAnimation { viewModel.offlineToastMessage = nil }
+                            }
+                        }
+                    }
+                }
+
                 // MARK: Fixed Overlay — Mode Toggle (top)
                 if viewModel.activeScanImages.count < 2 {
                     VStack {
                         MediaModeToggle(activeMode: $captureMode, onModeChange: {})
                             .padding(.top, 16)
+                            .opacity(viewModel.offlineToastMessage != nil ? 0 : 1)
                         Spacer()
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))

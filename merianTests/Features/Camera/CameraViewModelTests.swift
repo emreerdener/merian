@@ -79,4 +79,28 @@ struct CameraViewModelTests {
         #expect(viewModel.activeDisplayDatas.isEmpty, "submitActiveScan must wipe stage data immediately")
         #expect(viewModel.activeSheet == .insight, "UI should implicitly launch processing skeleton sheet.")
     }
+
+    @Test func testSubmitActiveScanOfflineInterceptor() async throws {
+        // Arrange
+        let viewModel = CameraViewModel()
+        viewModel.activeScannedDatas = [Data()]
+        viewModel.activeDisplayDatas = [Data()]
+        let context = try createIsolatedContext()
+
+        // Explicitly simulate offline state within the globally injected queue manager
+        let originalState = AppDIContainer.shared.offlineQueueManager.isOnline
+        AppDIContainer.shared.offlineQueueManager.isOnline = false
+        
+        defer {
+            AppDIContainer.shared.offlineQueueManager.isOnline = originalState
+        }
+
+        // Act
+        viewModel.submitActiveScan(modelContext: context)
+
+        // Assert
+        #expect(viewModel.activeScannedDatas.isEmpty, "submitActiveScan must wipe stage data immediately regardless of network.")
+        #expect(viewModel.activeSheet == nil, "UI must NOT launch InsightSheet skeleton if offline.")
+        #expect(viewModel.offlineToastMessage == "No network connection. Scan queued for upload.", "UI must generate a toast message for offline interception.")
+    }
 }
