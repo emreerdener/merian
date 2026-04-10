@@ -41,27 +41,61 @@ final class InsightSheetViewModel {
     
     // MARK: - Image Engine Dependencies
     var inferenceEngine: InferenceEngine?
-    
+
+    // MARK: - Queued Scan Context
+    /// Non-nil when the sheet is presenting a queued scan from `LibraryView` rather than a
+    /// live inference result. Stored as a value-type `QueuedScanContext` — never a live
+    /// `OfflineQueuedScan` reference — so computed properties cannot access a zombie `@Model`
+    /// during SwiftUI's sheet dismissal animation after `context.delete()` fires.
+    var queuedContext: QueuedScanContext?
+
+    // MARK: - Processing State
+
+    /// Mirrors `InferenceEngine.isProcessing`. Routing through the viewModel means
+    /// toolbar flags and content routing all share a single source of truth without
+    /// each view needing its own direct engine environment read.
+    var isProcessing: Bool {
+        if queuedContext != nil { return true }
+        return inferenceEngine?.isProcessing ?? false
+    }
+
     // MARK: - Carousel Computed Properties
+
+    /// Stable scan ID for keying `ImagesCarousel`. Prefers the queued scan's own ID,
+    /// then the persisted local record, then the engine's active speciesData scanId.
+    var persistentScanId: String? {
+        if let ctx = queuedContext { return ctx.id }
+        return activeLocalRecord?.id ?? inferenceEngine?.speciesData?.scanId
+    }
+
     var refUrls: [String] {
         inferenceEngine?.speciesData?.referenceImageUrl?
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? []
     }
-    
+
     var validHistoricImagePaths: [String] {
-        inferenceEngine?.validHistoricImagePaths ?? []
+        if let ctx = queuedContext { return ctx.localImagePaths }
+        return inferenceEngine?.validHistoricImagePaths ?? []
     }
-    
+
+    /// Live capture image data for the carousel — mirrors `InferenceEngine.activeDisplayDatas`.
+    /// Routed through the viewModel so `ImagesCarousel` has no direct engine dependency.
+    var liveImageDatas: [Data] {
+        inferenceEngine?.activeDisplayDatas ?? []
+    }
+
     var hasLive: Bool {
-        !(inferenceEngine?.activeDisplayDatas.isEmpty ?? true)
+        guard queuedContext == nil else { return false }
+        return !(inferenceEngine?.activeDisplayDatas.isEmpty ?? true)
     }
-    
+
     var liveCount: Int {
-        inferenceEngine?.activeDisplayDatas.count ?? 0
+        guard queuedContext == nil else { return 0 }
+        return inferenceEngine?.activeDisplayDatas.count ?? 0
     }
-    
+
     var totalImages: Int {
         // carouselPages uses hasLive as an exclusive branch: when live data is present it
         // shows activeDisplayDatas and skips validHistoricImagePaths (they are the same image
@@ -70,7 +104,59 @@ final class InsightSheetViewModel {
         let captureCount = hasLive ? liveCount : validHistoricImagePaths.count
         return captureCount + refUrls.count
     }
-    
+
+    // MARK: - Toolbar Capability Flags
+
+    var isReviewLocked: Bool {
+        guard queuedContext == nil else { return false }
+        guard let speciesData = inferenceEngine?.speciesData else { return false }
+        return speciesData.userConfirmedIdentification || speciesData.userIdentificationOverride != nil
+    }
+
+    var canReanalyze: Bool {
+        guard queuedContext == nil else { return false }
+        if isReviewLocked { return false }
+        guard let record = activeLocalRecord, !(record.localImagePath?.starts(with: "http") == true) else { return false }
+        return (record.additionalImagePaths ?? []).isEmpty
+    }
+
+    var canReviewAlternatives: Bool {
+        guard queuedContext == nil else { return false }
+        if isReviewLocked { return false }
+        guard let speciesData = inferenceEngine?.speciesData else { return false }
+        return !(speciesData.candidates ?? []).isEmpty && !speciesData.alternativesExhausted
+    }
+
+    var canConfirm: Bool {
+        guard queuedContext == nil else { return false }
+        guard let speciesData = inferenceEngine?.speciesData else { return false }
+        return !speciesData.userConfirmedIdentification && speciesData.userIdentificationOverride == nil && !speciesData.isFlagged
+    }
+
+    var isAlreadyFlagged: Bool {
+        guard queuedContext == nil else { return false }
+        return (inferenceEngine?.speciesData?.isFlagged ?? false) || isReviewLocked
+    }
+
+    // MARK: - Content Routing
+
+    enum ContentMode: Equatable {
+        case analyzing
+        case nonBiological
+        case biological
+    }
+
+    /// Derives which content subtree `InsightContentView` should render.
+    /// Computed from engine state so each call site switches on one value
+    /// rather than duplicating the `isProcessing` / `speciesData` guard chain.
+    var contentMode: ContentMode {
+        if queuedContext != nil { return .analyzing }
+        if isProcessing { return .analyzing }
+        guard let data = inferenceEngine?.speciesData else { return .analyzing }
+        if !data.isBiological || data.commonName.lowercased() == "not applicable" { return .nonBiological }
+        return .biological
+    }
+
     // MARK: - Header Computed Properties
 
     /// The display name shown as the InsightHeader headline.

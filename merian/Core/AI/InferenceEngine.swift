@@ -368,19 +368,37 @@ private struct GBIFMedia: Decodable {
                     self.validHistoricImagePaths = savedImagePaths
                     self.speciesData = mappedData
 
-                    // Live inference succeeded — cancel the parallel background upload.
-                    // deleteQueuedScan cancels any in-flight URLSession tasks and removes
-                    // the SwiftData record. If the upload already staged and
-                    // processUploadCompletion claimed the scan first, deleteQueuedScan
-                    // is a no-op (record not found). The idempotency guard in
-                    // processAndCleanupOfflineScan prevents a duplicate LocalScanRecord.
+                    // Live inference succeeded — flush the queued scan record synchronously
+                    // on the main context before the completion notification fires.
+                    // flushOfflineQueuedScan is the guaranteed @Query re-evaluation trigger:
+                    // it performs a real pending-change save on the main ModelContext, which
+                    // reliably wakes @Query in any open sheet. deleteQueuedScan is async
+                    // (it awaits backgroundSession.allTasks before touching SwiftData), so
+                    // scheduling it via executeTrackedBackgroundTask means the notification
+                    // fires first — leaving the library grid stuck in loading state while
+                    // the user reacts to the banner.
+                    //
+                    // Ordering guarantee: flushOfflineQueuedScan runs synchronously here →
+                    // SwiftUI's next render pass fires @Query → library updates → THEN the
+                    // notification fires. Human reaction time (~200ms+) ensures the grid is
+                    // correct before the user looks at it.
+                    //
+                    // deleteQueuedScan is still called in a background Task to cancel the
+                    // parallel URLSession upload. It will find no SwiftData record (already
+                    // flushed) and return early after cancelling the task — no duplicate
+                    // LocalScanRecord is created because processAndCleanupOfflineScan's
+                    // idempotency guard detects the existing record and skips insertion.
                     if let scanId {
+                        OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
                         executeTrackedBackgroundTask { await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId) }
                     }
 
-                    // Send a local notification for inference complete.
-                    // The Offline queue path sends its own notification; this covers live inference.
-                    #if canImport(UIKit)
+                    // Schedule a local notification for inference complete.
+                    // Foreground banner suppression is handled by PushNotificationManager.willPresent:
+                    // InsightSheetView sets suppressInferenceBanners=true while it is visible so the
+                    // banner is silently delivered (not shown) when the user is already reading results.
+                    // When the user is elsewhere in the app (library, camera) the banner is allowed.
+                    // Background delivery bypasses willPresent entirely — the OS shows it automatically.
                     if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
                        let scanId = mappedData.scanId {
                         PushNotificationManager.shared.sendInferenceCompleteNotification(
@@ -388,7 +406,6 @@ private struct GBIFMedia: Decodable {
                             scanId: scanId
                         )
                     }
-                    #endif
 
                     MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
                     MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")

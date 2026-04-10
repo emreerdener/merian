@@ -387,7 +387,7 @@ self.speciesData?.referenceImageUrl = imgUrl
 self.speciesData?.taxonomy = taxonomy
 ```
 
-Views that track `inferenceEngine.speciesData` via `@Observable` (e.g. `HabitatAndDistributionCard`, `ImagesCarousel`) will not re-render when mutations are applied this way, even though the data is correctly written in memory. The card appears stuck or empty until something else forces a re-render (e.g. the user dismisses and reopens the sheet).
+Views that track `inferenceEngine.speciesData` via `@Observable` (e.g. `HabitatAndDistributionCard`) will not re-render when mutations are applied this way, even though the data is correctly written in memory. The card appears stuck or empty until something else forces a re-render (e.g. the user dismisses and reopens the sheet). `ImagesCarousel` is no longer in this category — it receives all data as injected parameters from `InsightSheetViewModel`, which in turn reads from the engine. The re-render chain still applies transitively through the viewModel's computed properties (`refUrls`, `validHistoricImagePaths`, `liveImageDatas`).
 
 ### ✅ The Required Pattern: Single Full-Value Replacement
 
@@ -418,4 +418,4 @@ All write paths in `InferenceEngine` that modify `speciesData` follow this patte
 
 ### Why This Matters for Live UI
 
-The insight sheet is open while background hydration tasks (`fetchWikipediaAndHydrate`, `fetchAndApplyEnrichment`, `fetchAndPatchOverrideData`) complete asynchronously. If these tasks use optional-chain mutations, the cards (`HabitatAndDistributionCard`, `TaxonomyCard`, `ImagesCarousel`, `SimilarSpeciesGallery`) will not update live — the user sees empty or skeleton states until the sheet is dismissed and reopened. Full-value replacement ensures cards populate in real time without any user interaction.
+The insight sheet is open while background hydration tasks (`fetchWikipediaAndHydrate`, `fetchAndApplyEnrichment`, `fetchAndPatchOverrideData`) complete asynchronously. If these tasks use optional-chain mutations, the cards (`HabitatAndDistributionCard`, `TaxonomyCard`, `SimilarSpeciesGallery`) will not update live — the user sees empty or skeleton states until the sheet is dismissed and reopened. Full-value replacement ensures cards populate in real time without any user interaction. `ImagesCarousel` receives its data through `InsightSheetViewModel` computed properties, so the same full-value-replacement rule applies at the engine level — the viewModel's observation chain propagates changes correctly only when `speciesData` itself is replaced, not field-mutated.

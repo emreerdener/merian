@@ -1,16 +1,20 @@
 import SwiftUI
 
 struct ImagesCarousel: View {
-    // MARK: - Dependencies
-    @Environment(InferenceEngine.self) var inferenceEngine
-
     // MARK: - Properties
     let scanId: String?
     let refUrls: [String]
     let validHistoricImagePaths: [String]
+    /// Live capture image data — populated only during an active camera pipeline.
+    let liveImageDatas: [Data]
     let hasLive: Bool
     let liveCount: Int
     let totalImages: Int
+    /// Whether inference is currently in progress. Controls the dimming overlay.
+    let isProcessing: Bool
+    /// Called when a carousel image fails to load. The caller decides whether to
+    /// propagate the failure to the engine (live path) or swallow it (queued path).
+    let onImageFailure: (String) -> Void
 
     // MARK: - State
     @State private var selectedIndex: Int = 0
@@ -25,12 +29,12 @@ struct ImagesCarousel: View {
                     .id(scanId ?? "null")
                     .ignoresSafeArea(.all, edges: .top)
                     .overlay {
-                        if inferenceEngine.isProcessing {
+                        if isProcessing {
                             AnalyzingVisualEffectsView()
                                 .transition(.opacity)
                         }
                     }
-                    .animation(.easeInOut(duration: 1.2), value: inferenceEngine.isProcessing)
+                    .animation(.easeInOut(duration: 1.2), value: isProcessing)
                     .overlay(alignment: .bottom) { paginationDots }
                     .overlay(alignment: .top) {
                         LinearGradient(
@@ -57,7 +61,7 @@ struct ImagesCarousel: View {
     private var carouselPages: [AnyView] {
         var pages: [AnyView] = []
         if hasLive {
-            for data in inferenceEngine.activeDisplayDatas {
+            for data in liveImageDatas {
                 pages.append(AnyView(LiveCapturePageView(data: data)))
             }
         } else {
@@ -86,7 +90,7 @@ struct ImagesCarousel: View {
     // MARK: - Action Handlers
     private func handleImageFailure(identifier: String) {
         if totalImages > 1 {
-            inferenceEngine.dropInvalidCarouselImage(identifier)
+            onImageFailure(identifier)
             if selectedIndex >= totalImages - 1 {
                 selectedIndex = max(0, totalImages - 2)
             }

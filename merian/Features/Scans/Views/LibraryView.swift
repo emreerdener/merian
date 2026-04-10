@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 // MARK: - Library View
@@ -6,12 +7,13 @@ struct LibraryView: View {
     // MARK: - State Dependencies
     @Bindable var searchManager: ScansManager
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     // MARK: - App State Context
     let filterCategories: [String]
     let isSearchFocused: Bool
-    var queuedScans: [OfflineQueuedScan] = []
+    var queuedScans: [QueuedScanSnapshot] = []
 
     // MARK: - Component Callbacks
     var isSelectionMode: Bool = false
@@ -21,7 +23,13 @@ struct LibraryView: View {
 
     // MARK: - Component State
     @State private var toastMessage: String?
-    @State private var scanToManage: OfflineQueuedScan?
+    @State private var scanToManage: QueuedScanContext?
+    /// Controls the queued-scan sheet independently of `scanToManage`.
+    ///
+    /// Using `.sheet(isPresented:)` instead of `.sheet(item:)` lets us clear
+    /// `scanToManage` (handing off to `InsightSheetView`'s internal transition)
+    /// without immediately dismissing the sheet when a scan completes.
+    @State private var isQueuedSheetPresented = false
 
     // MARK: - Visual Layout
     var body: some View {
@@ -72,12 +80,24 @@ struct LibraryView: View {
                             onDelete: onDelete,
                             isSelectionMode: isSelectionMode,
                             isSelected: isSelected,
-                            onQueuedScanTapped: { queuedScan in
-                                scanToManage = queuedScan
+                            onQueuedScanTapped: { snapshot in
+                                // Fetch the live OfflineQueuedScan and immediately snapshot
+                                // it into QueuedScanContext — resolving all attribute faults
+                                // while the object is live. The insight sheet chain then holds
+                                // only the value type; no @Model reference survives the tap.
+                                let scanId = snapshot.id
+                                var descriptor = FetchDescriptor<OfflineQueuedScan>(
+                                    predicate: #Predicate { $0.id == scanId }
+                                )
+                                descriptor.fetchLimit = 1
+                                if let scan = (try? modelContext.fetch(descriptor))?.first {
+                                    scanToManage = QueuedScanContext(from: scan)
+                                    isQueuedSheetPresented = true
+                                }
                             },
-                            onQueuedScanDelete: { queuedScan in
+                            onQueuedScanDelete: { snapshot in
                                 Task {
-                                    await offlineQueueManager.deleteQueuedScan(scanId: queuedScan.id)
+                                    await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id)
                                     await MainActor.run {
                                         withAnimation { toastMessage = "Scan cancelled & deleted" }
                                     }
@@ -133,31 +153,29 @@ struct LibraryView: View {
                     .zIndex(100)
                 }
             }
-            .sheet(item: $scanToManage) { queuedScan in
-                QueuedScanManagementSheet(
-                    queuedScan: queuedScan,
-                    isOnline: offlineQueueManager.isOnline,
-                    onDelete: {
-                        Task {
-                            await offlineQueueManager.deleteQueuedScan(scanId: queuedScan.id)
-                            await MainActor.run {
-                                withAnimation { toastMessage = "Scan cancelled & deleted" }
-                            }
-                        }
-                        scanToManage = nil
-                    },
-                    onClose: { scanToManage = nil }
-                )
+            .sheet(isPresented: $isQueuedSheetPresented, onDismiss: {
+                scanToManage = nil
+            }) {
+                // Pass the current context — may become nil mid-session when the scan
+                // completes and InsightSheetView transitions internally to results.
+                InsightSheetView(isPresented: $isQueuedSheetPresented, queuedScan: scanToManage)
             }
             .onChange(of: queuedScans.map(\.id)) { _, newIds in
-                // Auto-dismiss the management sheet when its scan completes (leaves the queue).
-                // Holding a live OfflineQueuedScan reference after flushOfflineQueuedScan
-                // deletes the object causes SwiftUI to render against a zombie @Model — nil
-                // out scanToManage as soon as the scan ID disappears from the queue.
-                // Comparing [String] ids is cheaper than PersistentModel equality on the full array.
-                guard let managed = scanToManage else { return }
-                if !newIds.contains(managed.id) {
+                guard let managed = scanToManage, !newIds.contains(managed.id) else { return }
+                // Scan left the queue. Determine whether it completed or was deleted/failed.
+                let scanId = managed.id
+                var descriptor = FetchDescriptor<LocalScanRecord>(
+                    predicate: #Predicate { $0.id == scanId }
+                )
+                descriptor.fetchLimit = 1
+                if (try? modelContext.fetch(descriptor))?.first != nil {
+                    // Completed successfully — clear the context so InsightSheetView receives
+                    // nil for queuedScan and its internal onChange can hand off to the engine.
+                    // The sheet stays open (isQueuedSheetPresented remains true).
                     scanToManage = nil
+                } else {
+                    // Deleted or failed — close the sheet entirely.
+                    isQueuedSheetPresented = false
                 }
             }
             .task(id: toastMessage) {

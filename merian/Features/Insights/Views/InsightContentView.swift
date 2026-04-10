@@ -25,15 +25,19 @@ struct InsightContentView: View {
                     // This creates a physical pixel bridge seamlessly masking `TabView` vertical pan-gesture framework synchronization tearing.
                     let bleedBuffer: CGFloat = 50 
                     
-                    let persistentScanId = viewModel.activeLocalRecord?.id ?? inferenceEngine.speciesData?.scanId
-                    
                     ImagesCarousel(
-                        scanId: persistentScanId,
+                        scanId: viewModel.persistentScanId,
                         refUrls: viewModel.refUrls,
                         validHistoricImagePaths: viewModel.validHistoricImagePaths,
+                        liveImageDatas: viewModel.liveImageDatas,
                         hasLive: viewModel.hasLive,
                         liveCount: viewModel.liveCount,
-                        totalImages: viewModel.totalImages
+                        totalImages: viewModel.totalImages,
+                        isProcessing: viewModel.isProcessing,
+                        onImageFailure: { path in
+                            guard viewModel.queuedContext == nil else { return }
+                            inferenceEngine.dropInvalidCarouselImage(path)
+                        }
                     )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
@@ -127,35 +131,35 @@ private extension InsightContentView {
         VStack(alignment: .leading, spacing: 16) {
 
             ZStack(alignment: .top) {
-                if inferenceEngine.isProcessing {
-                    AnalyzingContentView()
+                switch viewModel.contentMode {
+                case .analyzing:
+                    AnalyzingContentView(queuedContext: viewModel.queuedContext)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .background(Color(uiColor: .systemBackground))
                         .transition(.opacity)
-                } else if let speciesData = inferenceEngine.speciesData,
-                   !speciesData.isBiological || speciesData.commonName.lowercased() == "not applicable" {
-                    
-                    NonBiologicalView(
-                        species: speciesData,
-                        commonName: speciesData.commonName.capitalized,
-                        timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
-                    )
-                    .transition(.opacity)
-                } else {
-                    
+                case .nonBiological:
+                    if let speciesData = inferenceEngine.speciesData {
+                        NonBiologicalView(
+                            species: speciesData,
+                            commonName: speciesData.commonName.capitalized,
+                            timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
+                        )
+                        .transition(.opacity)
+                    }
+                case .biological:
                     BiologicalView(
                         viewModel: viewModel,
-                        isSafariPresented: $viewModel.isSafariPresented, 
+                        isSafariPresented: $viewModel.isSafariPresented,
                         selectedWikiURL: $viewModel.selectedWikiURL,
                         timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
                     )
                     .transition(.opacity)
                 }
             }
-            
+
             Spacer(minLength: 40)
         }
-        .animation(.easeInOut(duration: 0.35), value: inferenceEngine.isProcessing)
+        .animation(.easeInOut(duration: 0.35), value: viewModel.contentMode)
     }
 
     /// The rounded white background encapsulating the structural content cards smoothly.

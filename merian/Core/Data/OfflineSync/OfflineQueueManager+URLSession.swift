@@ -433,17 +433,18 @@ extension OfflineQueueManager {
         if let speciesName = processingResult.resolvedSpeciesName, let dbScanId = processingResult.finalScanId {
             let capturedContainer = extracted.container
             await MainActor.run {
-                UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
-                PushNotificationManager.shared.setBadgeCount(1)
+                // Only set the badge when the insight sheet is not already open.
+                // If suppressInferenceBanners is true the user is viewing results in the
+                // sheet — the badge would appear and immediately need clearing on dismiss.
+                if !UserDefaults.standard.bool(forKey: "suppressInferenceBanners") {
+                    UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
+                    PushNotificationManager.shared.setBadgeCount(1)
+                }
                 if processingResult.isNewDiscovery {
                     GamificationManager.shared.recordNewSpeciesDiscovered()
                 }
                 if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
-                    #if canImport(UIKit)
-                    if UIApplication.shared.applicationState != .active {
-                        PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
-                    }
-                    #endif
+                    PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
                 }
                 // Debounce award recalculation so a burst of completions fires one pass.
                 awardsDebounceTask?.cancel()

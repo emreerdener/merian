@@ -1,18 +1,44 @@
 import SwiftUI
 
+// MARK: - Queued Scan Value Snapshot
+
+/// A value-type snapshot of the data `ScansGrid` needs to render a queued scan tile.
+///
+/// Replacing the `[OfflineQueuedScan]` `@Model` reference array with this struct prevents
+/// the fatal "backing data detached from context" crash: `LazyVGrid` accesses tile attributes
+/// lazily, so if `context.delete()` tears down an `OfflineQueuedScan`'s backing before the
+/// grid renders its row, accessing an unfaulted attribute (e.g. `localImagePaths`) crashes.
+/// Because this struct copies the values at `refreshQueuedScans()` time, the SwiftData object
+/// can be deleted freely without affecting anything the grid has already captured.
+struct QueuedScanSnapshot: Identifiable, Equatable {
+    let id: String          // raw scan UUID — used for deletion lookups and onChange tracking
+    let imagePath: String?
+    let timestamp: Date
+
+    /// Namespaced key for use as the `ForEach` identity within `LazyVGrid`.
+    ///
+    /// `LocalScanRecord.id` and `OfflineQueuedScan.id` share the same UUID
+    /// (`client_scan_id` flows through to both). During the brief window where a
+    /// newly inserted `LocalScanRecord` and its corresponding `QueuedScanSnapshot`
+    /// coexist in the same `LazyVGrid`, SwiftUI would see duplicate `AnyHashable`
+    /// keys and warn "ID is used by multiple child views". The `q_` prefix makes the
+    /// queued-scan keys disjoint from the completed-scan keys.
+    var gridId: String { "q_\(id)" }
+}
+
 // MARK: - Core Discovery Grid Component
 struct ScansGrid<MenuContent: View>: View {
     // MARK: - State Properties
     let scans: [LocalScanRecord]
-    var queuedScans: [OfflineQueuedScan] = []
+    var queuedScans: [QueuedScanSnapshot] = []
 
     // MARK: - Component Callbacks
     let onSelect: (LocalScanRecord) -> Void
     var onDelete: ((LocalScanRecord) -> Void)?
     var isSelected: ((LocalScanRecord) -> Bool)?
     var onAddScans: (() -> Void)?
-    var onQueuedScanTapped: ((OfflineQueuedScan) -> Void)?
-    var onQueuedScanDelete: ((OfflineQueuedScan) -> Void)?
+    var onQueuedScanTapped: ((QueuedScanSnapshot) -> Void)?
+    var onQueuedScanDelete: ((QueuedScanSnapshot) -> Void)?
 
     // MARK: - Generic View Builders
     @ViewBuilder var customMenuItems: ((LocalScanRecord) -> MenuContent)
@@ -41,13 +67,13 @@ struct ScansGrid<MenuContent: View>: View {
             // Offline-queued scans render first — they have no AI analysis yet and
             // are excluded from selection mode. Tapping them shows a toast via the
             // onQueuedScanTapped callback rather than opening InsightSheet.
-            ForEach(queuedScans) { queued in
+            ForEach(queuedScans, id: \.gridId) { queued in
                 Button(action: {
                     HapticManager.shared.triggerMediumPulse()
                     onQueuedScanTapped?(queued)
                 }) {
                     ScanThumbnail(
-                        imagePath: queued.localImagePaths.first,
+                        imagePath: queued.imagePath,
                         fallbackImageUrl: nil,
                         maxDimension: thumbnailSize
                     )
@@ -152,14 +178,14 @@ struct ScansGrid<MenuContent: View>: View {
 extension ScansGrid where MenuContent == EmptyView {
     init(
         scans: [LocalScanRecord],
-        queuedScans: [OfflineQueuedScan] = [],
+        queuedScans: [QueuedScanSnapshot] = [],
         onSelect: @escaping (LocalScanRecord) -> Void,
         onDelete: ((LocalScanRecord) -> Void)? = nil,
         isSelectionMode: Bool = false,
         isSelected: ((LocalScanRecord) -> Bool)? = nil,
         onAddScans: (() -> Void)? = nil,
-        onQueuedScanTapped: ((OfflineQueuedScan) -> Void)? = nil,
-        onQueuedScanDelete: ((OfflineQueuedScan) -> Void)? = nil
+        onQueuedScanTapped: ((QueuedScanSnapshot) -> Void)? = nil,
+        onQueuedScanDelete: ((QueuedScanSnapshot) -> Void)? = nil
     ) {
         self.scans = scans
         self.queuedScans = queuedScans

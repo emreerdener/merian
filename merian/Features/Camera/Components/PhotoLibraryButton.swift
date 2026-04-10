@@ -1,6 +1,6 @@
+import Photos
 import PhotosUI
 import SwiftUI
-import Photos
 
 struct PhotoLibraryButton: View {
     @Binding var selectedPhotoItems: [PhotosPickerItem]

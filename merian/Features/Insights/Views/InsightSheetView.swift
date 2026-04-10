@@ -7,10 +7,12 @@ struct InsightSheetView: View {
     // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
+    @Environment(OfflineQueueManager.self) var offlineQueueManager
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
 
     @Binding var isPresented: Bool
+    var queuedScan: QueuedScanContext?
     
     // MARK: - State
     @State private var viewModel = InsightSheetViewModel()
@@ -29,7 +31,21 @@ struct InsightSheetView: View {
                 
                 // MARK: Lifecycle Bindings
                 .onAppear {
+                    // Seed both references immediately so viewModel computed properties
+                    // resolve on the first frame rather than waiting for InsightContentView's onAppear.
+                    viewModel.inferenceEngine = inferenceEngine
+                    viewModel.queuedContext = queuedScan
                     viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
+                    // Suppress foreground inference banners while the sheet is visible —
+                    // the user can already see the result. PushNotificationManager.willPresent
+                    // reads this flag and delivers the notification silently instead of as a banner.
+                    UserDefaults.standard.set(true, forKey: "suppressInferenceBanners")
+                    // Clear the tab bar badge — the user is actively viewing a scan result.
+                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
+                    PushNotificationManager.shared.setBadgeCount(0)
+                }
+                .onDisappear {
+                    UserDefaults.standard.set(false, forKey: "suppressInferenceBanners")
                 }
                 .task {
                     try? await Task.sleep(nanoseconds: 350_000_000)
@@ -38,9 +54,41 @@ struct InsightSheetView: View {
                     }
                 }
                 .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
+                    // Queued scan path: the engine's isProcessing reflects a different pipeline.
+                    // Skip celebration, haptics, and record-marking — they don't apply here.
+                    guard viewModel.queuedContext == nil else { return }
                     viewModel.evaluateProcessingCompletion(isStillProcessing: isStillProcessing, inferenceEngine: inferenceEngine, modelContext: modelContext)
                 }
+                .onChange(of: offlineQueueManager.unsyncedItemsCount) { _, _ in
+                    // Queued scan completion detection. When the scan count drops, the
+                    // OfflineQueuedScan for our context has been flushed — fetch the new
+                    // LocalScanRecord and hand off to the engine so the sheet transitions
+                    // smoothly to results instead of dismissing.
+                    guard let ctx = viewModel.queuedContext else { return }
+                    let scanId = ctx.id
+                    Task { @MainActor in
+                        // Retry up to 5 times (2.5 s total): the BackgroundDatabaseActor saves
+                        // LocalScanRecord to its own context before flushOfflineQueuedScan runs,
+                        // but remote store propagation to the main context is not instantaneous.
+                        for _ in 0..<5 {
+                            var descriptor = FetchDescriptor<LocalScanRecord>(
+                                predicate: #Predicate { $0.id == scanId }
+                            )
+                            descriptor.fetchLimit = 1
+                            if let record = (try? modelContext.fetch(descriptor))?.first {
+                                // Clear queuedContext BEFORE loading so the
+                                // onChange(of: isProcessing) guard passes when load() fires.
+                                viewModel.queuedContext = nil
+                                inferenceEngine.load(from: record)
+                                return
+                            }
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                        }
+                    }
+                }
                 .task(id: inferenceEngine.speciesData?.scanId) {
+                    // Queued scans have no speciesData — skip the record fetch and name load.
+                    guard viewModel.queuedContext == nil else { return }
                     if let scanId = inferenceEngine.speciesData?.scanId {
                         // Loop up to 5 times (2.5s max) to allow SwiftData background stores to propagate to the @MainActor context.
                         for _ in 0..<5 {
@@ -71,12 +119,19 @@ struct InsightSheetView: View {
         
         // Dialogs
         .alert("Delete scan?", isPresented: $viewModel.showDeleteConfirmation) {
-            Button("Delete scan permanently", role: .destructive) { 
-                viewModel.eradicateCurrentScan(modelContext: modelContext, inferenceEngine: inferenceEngine, dismiss: dismiss) 
+            Button(queuedScan != nil ? "Cancel upload & delete" : "Delete scan permanently", role: .destructive) {
+                if let queued = queuedScan {
+                    Task { await offlineQueueManager.deleteQueuedScan(scanId: queued.id) }
+                    dismiss()
+                } else {
+                    viewModel.eradicateCurrentScan(modelContext: modelContext, inferenceEngine: inferenceEngine, dismiss: dismiss)
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
+            Text(queuedScan != nil
+                ? "Are you sure you want to cancel this upload? The scan will be permanently deleted from your device."
+                : "Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
         .alert("Photos saved", isPresented: $viewModel.showSaveSuccessAlert) {
             Button("OK", role: .cancel) { }
@@ -132,28 +187,20 @@ private extension InsightSheetView {
     
     @ToolbarContentBuilder
     var sheetToolbar: some ToolbarContent {
-        let isReviewLocked: Bool = {
-            guard let speciesData = inferenceEngine.speciesData else { return false }
-            return speciesData.userConfirmedIdentification || speciesData.userIdentificationOverride != nil
-        }()
-        
-        let canReanalyze: Bool = {
-            if isReviewLocked { return false }
-            guard let record = viewModel.activeLocalRecord, !(record.localImagePath?.starts(with: "http") == true) else { return false }
-            return (record.additionalImagePaths ?? []).isEmpty
-        }()
-        
-        let canReviewAlternatives: Bool = {
-            if isReviewLocked { return false }
-            guard let speciesData = inferenceEngine.speciesData else { return false }
-            return !(speciesData.candidates ?? []).isEmpty && !speciesData.alternativesExhausted
-        }()
-        
-        let canConfirm: Bool = {
-            guard let speciesData = inferenceEngine.speciesData else { return false }
-            return !speciesData.userConfirmedIdentification && speciesData.userIdentificationOverride == nil && !speciesData.isFlagged
-        }()
-        
+        // Queued scan path: the standard ellipsis menu is suppressed (isAnalyzing == true),
+        // so surface a dedicated trash button for the only available destructive action.
+        if queuedScan != nil {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    viewModel.showDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .tint(.red)
+            }
+        }
+
         TopToolbar(
             commonName: viewModel.resolvedHeaderTitle,
             isCommonNameScrolledPast: viewModel.isCommonNameScrolledPast,
@@ -161,29 +208,29 @@ private extension InsightSheetView {
             isSavingPhotos: $viewModel.isSavingPhotos,
             showDeleteConfirmation: $viewModel.showDeleteConfirmation,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
-            onReanalyze: canReanalyze ? {
+            onReanalyze: viewModel.canReanalyze ? {
                 if let record = viewModel.activeLocalRecord {
                     HapticManager.shared.triggerSelectionPulse()
                     AppEventPublisher.shared.send(.triggerRefinement(record: record))
                 }
             } : nil,
-            onReviewAlternatives: canReviewAlternatives ? {
+            onReviewAlternatives: viewModel.canReviewAlternatives ? {
                 viewModel.isCandidateSwipePresented = true
             } : nil,
-            onConfirmIdentification: canConfirm ? {
+            onConfirmIdentification: viewModel.canConfirm ? {
                 HapticManager.shared.triggerSuccessPulse()
                 Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
             } : nil,
-            isAlreadyFlagged: (inferenceEngine.speciesData?.isFlagged ?? false) || isReviewLocked,
-            isAnalyzing: inferenceEngine.isProcessing
+            isAlreadyFlagged: viewModel.isAlreadyFlagged,
+            isAnalyzing: viewModel.isProcessing
         )
-        
+
         InsightBottomToolbar(
-            showBottomBarTools: viewModel.showBottomBarTools && !inferenceEngine.isProcessing,
+            showBottomBarTools: viewModel.showBottomBarTools && !viewModel.isProcessing,
             collections: collections,
             activeLocalRecord: viewModel.activeLocalRecord,
-            toggleScanInCollection: { collection in 
-                viewModel.toggleScanInCollection(collection, modelContext: modelContext) 
+            toggleScanInCollection: { collection in
+                viewModel.toggleScanInCollection(collection, modelContext: modelContext)
             },
             showNewCollectionAlert: $viewModel.showNewCollectionAlert,
             shareDiscovery: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) }

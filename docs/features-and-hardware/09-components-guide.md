@@ -135,22 +135,41 @@ An informational card rendered inside `ConfidenceExplanationSheet`, positioned b
 
 The full-width image carousel at the top of the Insight Sheet, combining live captures, on-disk paths, and reference images into a horizontally scrolling full-screen strip with per-page pinch-to-zoom and pan.
 
+`ImagesCarousel` has **no direct `InferenceEngine` dependency**. All data is injected as plain parameters, making the component reusable across both the live camera pipeline and the offline queued-scan path:
+
+| Parameter | Type | Source |
+|---|---|---|
+| `scanId` | `String?` | `viewModel.persistentScanId` — prefers `queuedScan.id`, then `activeLocalRecord?.id`, then `inferenceEngine.speciesData?.scanId` |
+| `refUrls` | `[String]` | `viewModel.refUrls` |
+| `validHistoricImagePaths` | `[String]` | `viewModel.validHistoricImagePaths` — returns `queuedScan.localImagePaths` for the queued-scan path; `inferenceEngine.validHistoricImagePaths` for the live path |
+| `liveImageDatas` | `[Data]` | `viewModel.liveImageDatas` (mirrors `inferenceEngine.activeDisplayDatas`) |
+| `hasLive` | `Bool` | `viewModel.hasLive` — always `false` when `queuedScan != nil` |
+| `liveCount` | `Int` | `viewModel.liveCount` — always `0` when `queuedScan != nil` |
+| `totalImages` | `Int` | `viewModel.totalImages` |
+| `isProcessing` | `Bool` | `viewModel.isProcessing` |
+| `onImageFailure` | `(String) -> Void` | Closure injected by `InsightContentView`; no-op when `queuedScan != nil` (guard prevents engine call) |
+
 - **`NativePageCarousel`**: A private `UIViewControllerRepresentable` wrapping `UIPageViewController`. `Coordinator.controllers: [ZoomPageViewController]` is populated eagerly so `AsyncLocalImageView.task` fires for all pages immediately — images load in the background before the user swipes to them. `UIPageViewController`'s internal `UIScrollView` defers to the sheet's pan gesture without manual workarounds (unlike `TabView(.page)`).
 - **`ZoomPageViewController`**: Each page controller. Embeds its SwiftUI content (`AsyncLocalImageView` or `LiveCapturePageView`) inside a `ZoomScrollView`. Exposes `rootView: AnyView` as a computed property proxying into the inner `UIHostingController`, so `updateUIViewController`'s existing `controller.rootView = pages[i]` state-push pattern works without modification.
 - **`ZoomScrollView`**: A `UIScrollView` subclass (`minimumZoomScale: 1.0`, `maximumZoomScale: 4.0`) that overrides `gestureRecognizerShouldBegin(_:)` to suppress its `panGestureRecognizer` when `zoomScale ≤ minimumZoomScale + 0.01`. This is the **only safe interception point** — replacing `panGestureRecognizer.delegate` directly throws `NSInvalidArgumentException` at runtime because UIKit requires the scroll view to remain its own pan delegate. At 1× UIPageViewController's swipe wins; above 1× the inner scroll view handles panning.
 - **Snap-back**: `scrollViewDidEndZooming` (pinch release) and `scrollViewDidEndDragging` (drag release while zoomed) both call `snapBackToIdentity`: pending deceleration is cancelled first, then `UIView.animate(usingSpringWithDamping: 0.72)` restores `zoomScale → 1.0` and `contentOffset → .zero` simultaneously.
 - **Async page growth**: `updateUIViewController` handles `validHistoricImagePaths` resolving asynchronously after `makeCoordinator`. New `ZoomPageViewController` instances are appended and `UIPageViewController.dataSource` is nil-reset to force neighbor re-queries.
-- **Image failure handling**: `handleImageFailure(identifier:)` calls `InferenceEngine.dropInvalidCarouselImage(_:)` and adjusts `selectedIndex`. `updateUIViewController` trims the controller pool and navigates away with `.reverse` if the displayed page was removed.
+- **Image failure handling**: `handleImageFailure(identifier:)` calls the injected `onImageFailure` closure and adjusts `selectedIndex`. `InsightContentView` passes `{ path in inferenceEngine.dropInvalidCarouselImage(path) }` for the live path; the queued-scan path passes a no-op. `updateUIViewController` trims the controller pool and navigates away with `.reverse` if the displayed page was removed.
 - **`LiveCapturePageView`**: Synchronously downsamples live capture `Data` via `ImageDownsampler` on layout evaluation, backed by `NSCache<NSNumber, UIImage>` keyed by `data.hashValue` to avoid re-decoding identical captures across re-renders.
 
 ## 16. Analyzing Content View: `AnalyzingContentView`
 **Location**: `Features/Insights/Views/Content/AnalyzingContentView.swift`
 
-The analyzing state rendered inside `InsightSheetView` while `InferenceEngine.isProcessing == true` and `speciesData == nil`. The insight sheet opens immediately on scan submission — no fullscreen overlay is used. When `isProcessing` becomes `false`, the view cross-fades out via `.easeInOut(duration: 0.35)` and `BiologicalView` or `NonBiologicalView` fades in.
+The analyzing state rendered inside `InsightSheetView` when `viewModel.contentMode == .analyzing`. `contentMode` is `.analyzing` while `InferenceEngine.isProcessing == true`, `speciesData == nil`, **or** a `queuedScan` is set. The insight sheet opens immediately on scan submission — no fullscreen overlay is used. When `contentMode` transitions away from `.analyzing`, the view cross-fades out via `.easeInOut(duration: 0.35)` and `BiologicalView` or `NonBiologicalView` fades in. `InsightContentView` switches on `viewModel.contentMode` — not `inferenceEngine.isProcessing` directly — keeping the routing extensible without modifying the view.
 
-- **Confidence Badge slot**: Renders `ConfidenceBadge` with `analyzingPhrase: inferenceEngine.scanningPhaseText`. The badge operates in analyzing mode — transparent capsule, `sparkles.2` icon, `Color.primary` text — and cycles through the rotating phase series with a left-to-right `RevealText` sweep on each change.
+`AnalyzingContentView` accepts an optional `queuedScan: OfflineQueuedScan? = nil` parameter, supporting two distinct paths:
+
+- **Live scan path** (`queuedScan == nil`): The `analyzingPhrase` computed property returns `inferenceEngine.scanningPhaseText` (the engine's rotating phase label). `ScanInformationCard` reads telemetry from `InferenceEngine` state directly.
+- **Queued-scan path** (`queuedScan != nil`): `analyzingPhrase` derives from `OfflineQueueManager.isOnline` and `queuedScan.queueState` — "Waiting for connection" when offline; "Queued for upload" / "Uploading..." / "Preparing analysis..." / "Identifying subject..." / "Upload failed" per `ScanQueueState` case. `ScanInformationCard` is populated from the queued scan's stored telemetry fields (`timestamp`, `locationName`, `weatherTemperatureF`, `weatherCondition`, `gpsElevation`, `gpsLatitude`, `gpsLongitude`) with live engine values as `??` fallbacks, ensuring the telemetry card is always meaningful even before the scan reaches the server.
+
+- **Confidence Badge slot**: Renders `ConfidenceBadge` with `analyzingPhrase: analyzingPhrase`. The badge operates in analyzing mode — transparent capsule, `sparkles.2` icon, `Color.primary` text — and cycles through phrase changes with a left-to-right `RevealText` sweep on each change.
 - **`DidYouKnowCard`**: A rotating biology fact card inserted between the badge and the telemetry card. Backed by `FactManager`, which loads a shuffled deck of 70+ facts from `FactLibrary` upon initialization and stores the user's `currentPosition` in `AppStorage` to prevent repeats across app sessions. Re-initialization overhead is mitigated by deferring parsing logic out of the main constructor via an asynchronous `prepareIfNeeded` background invocation inside `.task()`. Auto-advances every 8.5 seconds using a strict iOS 16 `Clock` `.task(id: factManager.currentIndex)` binding—which elegantly cancels and restarts the active countdown upon any horizontal tapped or drag gestures for manual left/right navigation (`advance()` / `retreat()`). The card body uses an invisible `Text` pre-seeded with the longest fact (`FactLibrary.longestFact`) as a height anchor. Footer layout features an 8x8 dot pagination strip matched to a monospaced `#CATEGORY` string.
-- **Eager telemetry via `ScanInformationCard`**: The scan's map, timestamp, weather, and altitude are rendered immediately — the card reads directly from `InferenceEngine` state, so the user sees their spatial context long before Gemini finishes.
+- **Eager telemetry via `ScanInformationCard`**: The scan's map, timestamp, weather, and altitude are rendered immediately regardless of whether the scan is live or queued.
 - **No internal spacer**: `AnalyzingContentView` intentionally omits a trailing `Spacer` — `InsightContentView.contentCards` provides the universal `Spacer(minLength: 40)` outside the routing block, preventing double-spacing.
 
 ## 17. Drag-to-Confirm Pill: `SlideToConfirm`

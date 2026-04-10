@@ -27,13 +27,21 @@ struct ScansSheetView: View {
     /// Driving this array from `OfflineQueueManager.unsyncedItemsCount` (an `@Observable`
     /// property) guarantees delivery: `@Observable` change notifications are queued and
     /// processed on the next active render pass regardless of when the mutation happened.
-    @State private var queuedScans: [OfflineQueuedScan] = []
+    ///
+    /// **Value-type snapshots**: `QueuedScanSnapshot` (not `OfflineQueuedScan`) prevents the
+    /// fatal "backing data detached from context" crash. `LazyVGrid` accesses tile data lazily —
+    /// if the `@Model` backing is torn down by `context.delete()` before the grid renders a row,
+    /// accessing an unfaulted attribute crashes. Copying the needed data into a value type at
+    /// fetch time means SwiftData deletions never affect what the grid has already captured.
+    @State private var queuedScans: [QueuedScanSnapshot] = []
 
     @Environment(\.modelContext) private var modelContext
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(\.dismiss) var dismiss
     @Binding var isInsightSheetOpen: Bool
+
+    @AppStorage(UserDefaultsKeys.hasUnseenScan) private var hasUnseenScan: Bool = false
     
     // MARK: - Navigation Control
     @State private var selectedScanForInsight: LocalScanRecord?
@@ -114,6 +122,16 @@ struct ScansSheetView: View {
             syncStateLocally()
             refreshQueuedScans()
             prefetchLeadingThumbnails(from: searchManager.allScans)
+            hasUnseenScan = false
+            PushNotificationManager.shared.setBadgeCount(0)
+        }
+        // If a scan completes while this sheet is already visible, the badge fires but
+        // the user is already looking at their library — clear it immediately.
+        .onChange(of: hasUnseenScan) { _, isSet in
+            if isSet {
+                hasUnseenScan = false
+                PushNotificationManager.shared.setBadgeCount(0)
+            }
         }
         .onChange(of: rawRecords) { _, _ in
             syncStateLocally()
@@ -149,19 +167,29 @@ struct ScansSheetView: View {
         LocalImageLoader.shared.prefetch(records: Array(slice), maxDimension: prefetchThumbnailSize)
     }
 
-    /// Fetches the current `OfflineQueuedScan` list directly from the model context.
+    /// Fetches the current `OfflineQueuedScan` list directly from the model context and
+    /// converts it to `[QueuedScanSnapshot]` — value-type copies that are immune to
+    /// SwiftData object deletion.
     ///
     /// Called on `onAppear` and whenever `offlineQueueManager.unsyncedItemsCount` changes.
     /// By fetching directly rather than relying on `@Query` auto-refresh, this bypasses the
     /// SwiftData sheet `@Query` notification drop that occurs when saves happen while the
     /// app is backgrounded.
+    ///
+    /// Converting to `QueuedScanSnapshot` here — while the objects are live — guarantees
+    /// `localImagePaths` is resolved before any subsequent `context.delete()` can make
+    /// the backing inaccessible. `LazyVGrid` receives only the value-type snapshot array,
+    /// so it can never hold a zombie `@Model` reference.
     private func refreshQueuedScans() {
         let nonFailedMax = ScanQueueState.failed.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate<OfflineQueuedScan> { $0.scanStateRaw < nonFailedMax },
             sortBy: [SortDescriptor(\OfflineQueuedScan.timestamp, order: .reverse)]
         )
-        queuedScans = (try? modelContext.fetch(descriptor)) ?? []
+        let fetched = (try? modelContext.fetch(descriptor)) ?? []
+        queuedScans = fetched.map {
+            QueuedScanSnapshot(id: $0.id, imagePath: $0.localImagePaths.first, timestamp: $0.timestamp)
+        }
     }
 
     /// Forces `searchManager` to reflect the latest `LocalScanRecord` state by fetching
@@ -195,7 +223,7 @@ struct ScansSheetView: View {
 private struct LibraryTabContent: View {
     @Bindable var searchManager: ScansManager
     let filterCategories: [String]
-    let queuedScans: [OfflineQueuedScan]
+    let queuedScans: [QueuedScanSnapshot]
     @Binding var isSearchFocused: Bool
     @Binding var selectedScanForInsight: LocalScanRecord?
     @Binding var showSelectionLimitAlert: Bool
