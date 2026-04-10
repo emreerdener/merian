@@ -4,19 +4,20 @@ import Foundation
 
 /// Intercepts network requests for MerianNetworkClient testing
 class MockURLProtocol: URLProtocol {
-    static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    static var mockEndpoints: [String: ((URLRequest) throws -> (HTTPURLResponse, Data))] = [:]
     
-    override class func canInit(with request: URLRequest) -> Bool {
-        return true
-    }
+    override class func canInit(with request: URLRequest) -> Bool { return true }
     
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
-        return request
-    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { return request }
     
     override func startLoading() {
-        guard let handler = MockURLProtocol.requestHandler else {
-            fatalError("Handler is unavailable.")
+        guard let path = request.url?.path else { return }
+        
+        let match = MockURLProtocol.mockEndpoints.first { path.hasSuffix($0.key) }
+        guard let handler = match?.value else {
+            let error = NSError(domain: "MockURLProtocol", code: 404, userInfo: [NSLocalizedDescriptionKey: "No endpoint configured for \(path)"])
+            self.client?.urlProtocol(self, didFailWithError: error)
+            return
         }
         
         do {
@@ -60,7 +61,7 @@ struct MerianNetworkClientTests {
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/identify"] = { request in
             // Assert Request correctness
             #expect(request.url?.path.hasSuffix("/identify") == true)
             #expect(request.httpMethod == "POST")
@@ -117,7 +118,7 @@ struct MerianNetworkClientTests {
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/enrich-scan"] = { request in
             #expect(request.url?.path.hasSuffix("/enrich-scan") == true)
             #expect(request.httpMethod == "POST")
             return (mockResponse, testData)
@@ -156,7 +157,7 @@ struct MerianNetworkClientTests {
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/generate-upload-urls"] = { request in
             #expect(request.url?.path.hasSuffix("/generate-upload-urls") == true)
             #expect(request.httpMethod == "POST")
             return (mockResponse, testData)
@@ -169,7 +170,7 @@ struct MerianNetworkClientTests {
 
     @Test func testDeleteScanEndpoint() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/delete-scan"] = { request in
             #expect(request.url?.path.hasSuffix("/delete-scan") == true)
             #expect(request.httpMethod == "POST")
             return (mockResponse, Data())
@@ -181,7 +182,7 @@ struct MerianNetworkClientTests {
     
     @Test func testSafeDeleteAccountEndpoint() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/safe-delete"] = { request in
             #expect(request.url?.path.hasSuffix("/safe-delete") == true)
             #expect(request.httpMethod == "POST")
             return (mockResponse, Data())
@@ -192,7 +193,7 @@ struct MerianNetworkClientTests {
 
     @Test func testRequestDwcAExport() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/request-export-dwca"] = { request in
             #expect(request.url?.path.hasSuffix("/request-export-dwca") == true)
             #expect(request.httpMethod == "POST")
             return (mockResponse, Data())
@@ -203,7 +204,7 @@ struct MerianNetworkClientTests {
     
     @Test func testSubmitFlagIssue() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/flag-issue"] = { request in
             #expect(request.url?.path.hasSuffix("/flag-issue") == true)
             #expect(request.httpMethod == "POST")
             return (mockResponse, Data())
@@ -219,7 +220,7 @@ struct MerianNetworkClientTests {
 
     @Test func testBlockUser() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/block-user"] = { request in
             #expect(request.url?.path.hasSuffix("/block-user") == true)
             #expect(request.httpMethod == "POST")
             return (mockResponse, Data())

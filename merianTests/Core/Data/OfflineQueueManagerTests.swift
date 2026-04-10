@@ -65,7 +65,74 @@ struct OfflineQueueManagerTests {
         #expect(found, "enqueueCapture must create an OfflineQueuedScan whose id matches the caller-supplied scanId")
     }
     
-    @Test func testPurgeSoftDeletedRecords() async throws { return }
+    @Test func testPurgeSoftDeletedRecords() async throws {
+        let manager = OfflineQueueManager.shared
+        let context = try createInMemoryContext()
+        
+        let originalContext = manager.modelContext
+        defer { manager.modelContext = originalContext }
+        manager.modelContext = context
+        
+        // We need to test the `.failed` tombstoned states dropping out successfully natively.
+        let scanToPurge = OfflineQueuedScan(id: "purge_scan_1", localImagePaths: ["purge.webp"], scanState: .failed)
+        
+        let scanToKeep = OfflineQueuedScan(id: "keep_scan_1", localImagePaths: ["keep.webp"], scanState: .pending)
+        
+        context.insert(scanToPurge)
+        context.insert(scanToKeep)
+        try context.save()
+        
+        // Act
+        manager.purgeSoftDeletedRecords()
+        
+        // Let background queue purge via polling Native Models natively
+        let deadline = Date().addingTimeInterval(3)
+        var purgedSuccessfully = false
+        while Date() < deadline {
+            let purgeDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == "purge_scan_1" })
+            if (try? context.fetchCount(purgeDescriptor)) == 0 {
+                purgedSuccessfully = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        
+        #expect(purgedSuccessfully, "purgeSoftDeletedRecords must completely purge records marked as .failed natively")
+        
+        let keepDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == "keep_scan_1" })
+        #expect((try? context.fetchCount(keepDescriptor)) == 1, "purgeSoftDeletedRecords must NOT arbitrarily purge un-deleted pending active lifecycle scans")
+    }
+
+    @Test func testSoftDeletedRecordsIgnoreQueueProcessing() async throws {
+        let manager = OfflineQueueManager.shared
+        let context = try createInMemoryContext()
+        
+        let originalContext = manager.modelContext
+        let originalOnline = manager.isOnline
+        defer {
+             manager.modelContext = originalContext
+             manager.isOnline = originalOnline
+        }
+        manager.modelContext = context
+        manager.isOnline = true
+        manager.hasReconciledStartupState = true
+        
+        // Setup a `.failed` scan that should be natively ignored and tombstoned
+        let softDeletedScan = OfflineQueuedScan(id: "ignore_scan_staged", localImagePaths: ["soft_delete_staged.webp"], scanState: .failed)
+        
+        context.insert(softDeletedScan)
+        try context.save()
+        
+        manager.replayInferenceForUploadedScans()
+        try await Task.sleep(nanoseconds: 800_000_000)
+        
+        let freshContext = ModelContext(context.container)
+        let id = softDeletedScan.id
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == id })
+        let record = try freshContext.fetch(descriptor).first
+        
+        #expect(record?.queueState == .failed, "Tombstoned (.failed) active tests must be cleanly ignored by processing lifecycle hooks over active networks")
+    }
 
     @Test func testDeleteQueuedScanRemovesSwiftDataRecord() async throws {
         let manager = OfflineQueueManager.shared

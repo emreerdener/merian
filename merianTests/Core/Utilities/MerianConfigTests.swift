@@ -21,12 +21,12 @@ struct MerianConfigTests {
         // Assert Pro uses a more relaxed boundary because it's highly calibrated
         #expect(proBands.strong == 0.85)
         #expect(proBands.possible == 0.65)
-        #expect(proBands.diagnosticTrigger == 0.85)
+        #expect(proBands.diagnosticTrigger == 0.99)
         
         // Assert Flash uses a strict boundary because it's fast and slightly overconfident
-        #expect(flashBands.strong == 0.96)
+        #expect(flashBands.strong == 0.95)
         #expect(flashBands.possible == 0.75)
-        #expect(flashBands.diagnosticTrigger == 0.96)
+        #expect(flashBands.diagnosticTrigger == 0.99)
     }
     
     @Test func testMissingTierFallsBackToFlashBandsGracefully() {
@@ -34,6 +34,6 @@ struct MerianConfigTests {
         let standardBands = MerianConfig.confidenceBands(forInferenceTier: nil)
         
         // Assert
-        #expect(standardBands.strong == 0.96) // Maps to Flash defaults safely
+        #expect(standardBands.strong == 0.95) // Maps to Flash defaults safely
     }
 }

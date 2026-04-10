@@ -4,7 +4,14 @@ import Foundation
 import SwiftData
 
 @MainActor
+@Suite("Inference Engine Tests", .serialized)
 struct InferenceEngineTests {
+    
+    init() {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+    }
 
     @Test func testEdgeResponseDecodingSuccess() throws {
         // Arrange: Simulate a valid JSON payload from the Gemini Edge Function
@@ -241,7 +248,7 @@ struct InferenceEngineTests {
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/enrich-scan"] = { request in
             #expect(request.url?.path.hasSuffix("/enrich-scan") == true)
             return (mockResponse, testData)
         }
@@ -873,7 +880,7 @@ struct InferenceEngineTests {
         defer {
             MerianNetworkClient.shared.overridingSession = originalSession
             OfflineQueueManager.shared.modelContext = originalContext
-            MockURLProtocol.requestHandler = nil
+            MockURLProtocol.mockEndpoints.removeAll()
         }
 
         let scanId = UUID().uuidString.lowercased()
@@ -895,7 +902,7 @@ struct InferenceEngineTests {
         }
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.requestHandler = { _ in (mockResponse, successJSON) }
+        MockURLProtocol.mockEndpoints["/"] = { _ in (mockResponse, successJSON) }
 
         let sessionConfig = URLSessionConfiguration.ephemeral
         sessionConfig.protocolClasses = [MockURLProtocol.self]

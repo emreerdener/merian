@@ -32,6 +32,7 @@ final class AppLifecycleManager {
 
         Task {
             await container.supabaseManager.initializeGhostSession()
+            container.offlineQueueManager.purgeSoftDeletedRecords()
             container.offlineQueueManager.syncPendingScans()
             // Recover scans whose upload completed but inference was interrupted
             // (e.g. app killed or suspended mid-inference). NWPathMonitor only fires

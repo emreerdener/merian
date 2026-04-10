@@ -33,7 +33,7 @@ struct FlagIdentificationViewModelTests {
         engine.load(from: record)
         
         // Mock successful Edge Function response
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/flag-issue"] = { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
@@ -68,7 +68,7 @@ struct FlagIdentificationViewModelTests {
         engine.load(from: record)
         
         // Mock failing server or networking disconnect
-        MockURLProtocol.requestHandler = { request in
+        MockURLProtocol.mockEndpoints["/flag-issue"] = { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }

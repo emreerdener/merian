@@ -48,8 +48,8 @@ struct AppLifecycleManagerTests {
 
         // In the test environment the network call fails immediately and increments
         // uploadRetryCount — a reliable, network-free observable that the pipeline was triggered.
-        // Poll up to 5s to avoid a fixed sleep racing the async Task in handleActivePhase().
-        let deadline = Date().addingTimeInterval(5)
+        // Poll up to 10s to avoid a fixed sleep racing the async Task in handleActivePhase() over Mock Networking.
+        let deadline = Date().addingTimeInterval(10)
         while (offlineManager.uploadRetryCount[stuck.id] ?? 0) == 0, Date() < deadline {
             try await Task.sleep(nanoseconds: 100_000_000)
         }

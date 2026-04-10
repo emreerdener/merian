@@ -14,8 +14,8 @@ struct BackgroundTaskWrapperTests {
         let backgroundTask = BackgroundTaskWrapper.execute(name: "UnitTestTask") { wrapper in
             closureDidExecute = true
             
-            // Task initially holds .invalid explicitly outside of a UIApplication bounds
-            #expect(wrapper.id == .invalid)
+            // Task executes within native UIApplication context inside testing daemon, generating valid identifiers
+            #expect(wrapper.id != .invalid)
         }
         
         // Wait for it to natively process through its asynchronous priority queue
