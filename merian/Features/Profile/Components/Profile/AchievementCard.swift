@@ -91,23 +91,9 @@ private struct AchievementMetricsView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center) {
-                Text(award.title)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.primary.opacity(0.85))
-                
-                Spacer()
-                
-                Text(award.difficultyString)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(award.difficultyColor)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(award.difficultyColor.opacity(0.12))
-                    )
-            }
+            Text(award.title)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.primary.opacity(0.85))
             
             Text(award.descriptionText)
                 .font(.system(size: 14))
