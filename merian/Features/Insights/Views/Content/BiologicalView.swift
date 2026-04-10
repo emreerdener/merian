@@ -78,11 +78,9 @@ struct BiologicalView: View {
                 .cardEntrance(index: 1)
 
             // MARK: - Layout Guards
-            let isErrorState = inferenceEngine.speciesData?.scientificName == "Offline Mode" ||
-                               inferenceEngine.speciesData?.scientificName == "Data Unreadable"
             let isBiological = inferenceEngine.speciesData?.isBiological ?? false
 
-            if !isErrorState && isBiological {
+            if isBiological {
                 // MARK: - Identification Candidates
                 let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil ||
                                      inferenceEngine.speciesData?.userConfirmedIdentification == true ||
@@ -114,30 +112,36 @@ struct BiologicalView: View {
                 .cardEntrance(index: 5)
     
                 // MARK: - Habitat & Distribution
-                HabitatAndDistributionCard()
-                    .cardEntrance(index: 6)
+                if !isUnknownSubject {
+                    HabitatAndDistributionCard()
+                        .cardEntrance(index: 6)
+                }
     
                 // MARK: - Biological Classification
-                TaxonomyCard(
-                    taxonomyData: inferenceEngine.speciesData?.taxonomy,
-                    scientificName: inferenceEngine.speciesData?.scientificName
-                )
-                .cardEntrance(index: 7)
+                if !isUnknownSubject {
+                    TaxonomyCard(
+                        taxonomyData: inferenceEngine.speciesData?.taxonomy,
+                        scientificName: inferenceEngine.speciesData?.scientificName
+                    )
+                    .cardEntrance(index: 7)
+                }
     
                  // MARK: - Similar Species Gallery
-                Group {
-                    if let similarData = inferenceEngine.speciesData?.similarSpecies {
-                        SimilarSpeciesGallery(
-                            similarData: similarData
-                        )
-                        .transition(.opacity)
-                    } else if inferenceEngine.isLookalikesLoading {
-                        SimilarSpeciesGallery.Skeleton()
+                if !isUnknownSubject {
+                    Group {
+                        if let similarData = inferenceEngine.speciesData?.similarSpecies {
+                            SimilarSpeciesGallery(
+                                similarData: similarData
+                            )
                             .transition(.opacity)
+                        } else if inferenceEngine.isLookalikesLoading {
+                            SimilarSpeciesGallery.Skeleton()
+                                .transition(.opacity)
+                        }
                     }
+                    .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
+                    .cardEntrance(index: 8)
                 }
-                .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
-                .cardEntrance(index: 8)
     
                 // MARK: - Spatiotemporal Context
                 let imageCount: Int = {

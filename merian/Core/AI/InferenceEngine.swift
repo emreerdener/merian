@@ -516,7 +516,7 @@ private struct GBIFMedia: Decodable {
             wikipediaUrl: nil,
             wikipediaOverview: nil,
             referenceImageUrl: nil,
-            isBiological: true,
+            isBiological: false,
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "unknown",
