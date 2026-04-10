@@ -4,9 +4,10 @@ import SwiftUI
 // MARK: - Core Feature Presentation Primitive
 struct OnboardingStepWrapper: View {
     // MARK: - Visual Asset Matrix
-    let iconColor: Color
-    let iconText: String
-    let iconCornerRadius: CGFloat
+    var imageName: String?
+    var iconColor: Color?
+    var iconText: String?
+    var iconCornerRadius: CGFloat?
     
     // MARK: - Typography Context
     let title: String
@@ -42,11 +43,19 @@ struct OnboardingStepWrapper: View {
             Spacer()
             
             // 1. Central Graphic Core
-            Rectangle()
-                .fill(iconColor)
-                .frame(width: 250, height: 250)
-                .clipShape(RoundedRectangle(cornerRadius: iconCornerRadius, style: .continuous))
-                .overlay(Text(iconText).foregroundColor(.gray))
+            if let imageName = imageName {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 340)
+                    .padding(.horizontal, 32)
+            } else if let iconColor = iconColor, let iconCornerRadius = iconCornerRadius, let iconText = iconText {
+                Rectangle()
+                    .fill(iconColor)
+                    .frame(width: 300, height: 300)
+                    .clipShape(RoundedRectangle(cornerRadius: iconCornerRadius, style: .continuous))
+                    .overlay(Text(iconText).foregroundColor(.gray))
+            }
             
             // 2. Messaging Display
             VStack(spacing: 16) {

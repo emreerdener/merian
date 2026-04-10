@@ -7,10 +7,8 @@ struct WelcomeStepView: View {
     // MARK: - Visual Layout
     var body: some View {
         OnboardingStepWrapper(
-            iconColor: Color.white.opacity(0.1),
-            iconText: "Welcome Rive Animation",
-            iconCornerRadius: 32,
-            title: "Your Magical\nMagnifying Glass",
+            imageName: "journal",
+            title: "Your magical\nmagnifying glass",
             subtitle: "Merian identifies the living world around you with scientific accuracy. Point at any plant or animal to begin.",
             primaryButtonTitle: "Get started",
             primaryButtonTextColor: Color.black,

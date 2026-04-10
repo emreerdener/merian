@@ -8,9 +8,7 @@ struct CameraPermissionStepView: View {
     // MARK: - Visual Layout
     var body: some View {
         OnboardingStepWrapper(
-            iconColor: Color.blue.opacity(0.1),
-            iconText: "Camera Rive Animation",
-            iconCornerRadius: 125, // 250/2 evaluates perfectly to a Circle
+            imageName: "camera",
             title: "We need to see\nwhat you see",
             subtitle: "Enable camera access so Merian can identify the natural world right in front of you. We never record without your permission.",
             primaryButtonTitle: "Enable camera",

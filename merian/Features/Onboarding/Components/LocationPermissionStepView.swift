@@ -11,9 +11,7 @@ struct LocationPermissionStepView: View {
     // MARK: - Visual Layout
     var body: some View {
         OnboardingStepWrapper(
-            iconColor: Color.green.opacity(0.1),
-            iconText: "Location Rive Animation",
-            iconCornerRadius: 100,
+            imageName: "location",
             title: "Where you are\nmatters",
             subtitle: "Merian uses your geographic coordinate context to instantly improve AI accuracy and identify local ecology.",
             primaryButtonTitle: "Enable location",

@@ -7,10 +7,8 @@ struct ReadyStepView: View {
     // MARK: - Visual Layout
     var body: some View {
         OnboardingStepWrapper(
-            iconColor: Color.yellow.opacity(0.1),
-            iconText: "Success Rive Animation",
-            iconCornerRadius: 32,
-            title: "Citizen scientist",
+            imageName: "bird",
+            title: "Citizen science",
             subtitle: "Every capture contributes to a global database tracking wildlife and biodiversity. Step outside and start scanning the natural world.",
             primaryButtonTitle: "Start scanning",
             primaryButtonTextColor: Color.black,
