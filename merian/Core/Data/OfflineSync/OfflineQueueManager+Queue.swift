@@ -293,7 +293,11 @@ extension OfflineQueueManager {
     ///
     /// On any failure — disk write or context save — partial image files are cleaned up atomically.
     ///
-    /// - Parameter scanId: A caller-supplied identifier that ties this queued record to a
+    /// - Parameters:
+    ///   - imageDatas: Array of raw image data blobs pending staging constraints.
+    ///   - telemetry: Core hardware and positional telemetry structured context payloads.
+    ///   - blurScore: CoreML generated variance logic scoring to gate upload priority.
+    ///   - scanId: A caller-supplied identifier that ties this queued record to a
     ///   concurrent live inference request. Pass the same UUID to `analyze()` so the live
     ///   path can cancel the upload if inference succeeds first. When `nil` a new UUID is
     ///   generated (used by callers that do not run a parallel live inference).

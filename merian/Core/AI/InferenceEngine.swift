@@ -204,6 +204,7 @@ private struct GBIFMedia: Decodable {
     ///     Falls back to `imageDatas` when empty (e.g. offline-queue reprocessing path).
     ///   - telemetry: GPS, weather, and device context bundled at capture time.
     ///   - modelContext: The SwiftData context for persisting the parsed scan record locally.
+    ///   - targetEradicationRecord: An optional historic scan record instance passed exclusively when re-running a failed or queued scan, mutating the payload directly on disk.
     func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()

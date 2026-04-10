@@ -40,6 +40,7 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     ///
     /// - Parameters:
     ///   - name: A human-readable name for the background task (visible in crash reports).
+    ///   - priority: The `TaskPriority` level corresponding to iOS QoS queues.
     ///   - expirationHandler: Called by iOS if the background time limit is reached before the operation finishes.
     ///   - operation: The async work to perform within the background execution window.
     /// - Returns: The underlying `Task`, discardable if fire-and-forget behaviour is intended.
