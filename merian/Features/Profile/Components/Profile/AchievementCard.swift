@@ -9,6 +9,7 @@ struct AchievementCard: View {
             AchievementIconView(award: award)
             AchievementMetricsView(award: award)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
