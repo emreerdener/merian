@@ -16,10 +16,10 @@ struct Terrarium: View {
                 ActiveTerrariumRenderer()
             } else {
                 // Temporary static orb placeholder
-                Image("terrarium_orb")
+                Image("profile_scene")
                     .resizable()
                     .scaledToFill()
-                    .scaleEffect(1.25) // Adjust this multiplier to zoom the image larger!
+                    .scaleEffect(1.0)
             }
         }
         .frame(width: 300, height: 300)

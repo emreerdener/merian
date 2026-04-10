@@ -3,15 +3,23 @@ import SwiftUI
 struct StatCard: View {
     let title: String
     let value: String
-    let icon: String
+    var icon: String?
+    var imageName: String?
     let color: Color
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: icon)
-                    .foregroundColor(color)
-                    .font(.title2)
+                if let imageName = imageName {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                } else if let icon = icon {
+                    Image(systemName: icon)
+                        .foregroundColor(color)
+                        .font(.title2)
+                }
                 Spacer()
             }
             
@@ -20,7 +28,7 @@ struct StatCard: View {
                     .font(.title2)
                     .fontWeight(.bold)
                 Text(title)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
