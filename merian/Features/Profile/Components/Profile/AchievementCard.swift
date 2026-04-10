@@ -1,13 +1,13 @@
 import SwiftUI
 
 // MARK: - Individual Gamification Unit
-struct AwardCard: View {
+struct AchievementCard: View {
     let award: AwardPayload
     
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            AwardIconView(award: award)
-            AwardMetricsView(award: award)
+        HStack(alignment: .center, spacing: 20) {
+            AchievementIconView(award: award)
+            AchievementMetricsView(award: award)
         }
         .padding(16)
         .background(
@@ -18,7 +18,7 @@ struct AwardCard: View {
 }
 
 // MARK: - Extracted Subcomponents
-private struct AwardIconView: View {
+private struct AchievementIconView: View {
     let award: AwardPayload
     
     // Core animation state for the premium specular border glow
@@ -26,18 +26,19 @@ private struct AwardIconView: View {
     
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(award.isCompleted ? award.tintInfo.color.opacity(0.12) : Color(uiColor: .systemGray6))
-                .frame(width: 48, height: 48)
+                .frame(width: 80, height: 80)
             
-            Image(systemName: award.tintInfo.icon)
+            Image(award.tintInfo.imageName)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 24, height: 24)
-                .foregroundColor(award.isCompleted ? award.tintInfo.color : Color(uiColor: .systemGray))
+                .frame(width: 56, height: 56)
+                .grayscale(award.isCompleted ? 0 : 1.0)
+                .opacity(award.isCompleted ? 1.0 : 0.4)
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(award.isCompleted ? award.tintInfo.color.opacity(0.25) : Color.primary.opacity(0.08), lineWidth: 1.5)
         )
         .overlay(
@@ -60,7 +61,7 @@ private struct AwardIconView: View {
                             .offset(x: shimmerPhase * max(geo.size.width, 1) * 2)
                             .blendMode(.screen)
                             .mask(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(lineWidth: 1.5)
+                                RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(lineWidth: 1.5)
                             )
                     }
                 }
@@ -85,11 +86,11 @@ private struct AwardIconView: View {
     }
 }
 
-private struct AwardMetricsView: View {
+private struct AchievementMetricsView: View {
     let award: AwardPayload
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center) {
                 Text(award.title)
                     .font(.system(size: 17, weight: .semibold))
@@ -130,13 +131,13 @@ private struct AwardMetricsView: View {
                 )
                 .padding(.top, 4)
             } else {
-                AwardProgressBar(award: award)
+                AchievementProgressBar(award: award)
             }
         }
     }
 }
 
-private struct AwardProgressBar: View {
+private struct AchievementProgressBar: View {
     let award: AwardPayload
     
     var body: some View {
@@ -176,22 +177,22 @@ extension AwardPayload {
         }
     }
     
-    var tintInfo: (color: Color, icon: String) {
+    var tintInfo: (color: Color, imageName: String) {
         switch type.lowercased() {
-        case "first_scan": return (Color(red: 0.25, green: 0.75, blue: 0.35), "shoeprints.fill")
-        case "explorer": return (Color(red: 0.8, green: 0.6, blue: 0.2), "safari.fill")
-        case "fungi": return (Color(red: 0.6, green: 0.4, blue: 0.6), "camera.macro")
-        case "plantae": return (Color(red: 0.3, green: 0.6, blue: 0.3), "leaf.fill")
-        case "insecta": return (Color(red: 0.8, green: 0.4, blue: 0.3), "ant.fill")
-        case "urban": return (Color(red: 0.4, green: 0.5, blue: 0.7), "building.2.fill")
+        case "first_scan": return (Color(red: 0.25, green: 0.75, blue: 0.35), "chick")
+        case "explorer": return (Color(red: 0.8, green: 0.6, blue: 0.2), "compass")
+        case "fungi": return (Color(red: 0.6, green: 0.4, blue: 0.6), "mushroom")
+        case "plantae": return (Color(red: 0.3, green: 0.6, blue: 0.3), "leaves")
+        case "insecta": return (Color(red: 0.8, green: 0.4, blue: 0.3), "zoo-scene")
+        case "urban": return (Color(red: 0.4, green: 0.5, blue: 0.7), "urban")
         case "frost_walker": return (Color(red: 0.4, green: 0.7, blue: 0.9), "snowflake")
-        case "alpine": return (Color(red: 0.6, green: 0.6, blue: 0.7), "mountain.2.fill")
-        case "nocturnal": return (Color(red: 0.3, green: 0.2, blue: 0.6), "moon.stars.fill")
-        case "guardian": return (Color(red: 0.85, green: 0.3, blue: 0.3), "shield.lefthalf.filled")
-        case "conservationist": return (Color(red: 0.2, green: 0.6, blue: 0.5), "globe.americas.fill")
-        case "toxicologist": return (Color(red: 0.75, green: 0.8, blue: 0.1), "exclamationmark.triangle.fill")
-        case "perfect_lens": return (Color(red: 0.3, green: 0.5, blue: 0.9), "scope")
-        default: return (Color.gray, "star.fill")
+        case "alpine": return (Color(red: 0.6, green: 0.6, blue: 0.7), "mountain")
+        case "nocturnal": return (Color(red: 0.3, green: 0.2, blue: 0.6), "moon")
+        case "guardian": return (Color(red: 0.85, green: 0.3, blue: 0.3), "ivy")
+        case "conservationist": return (Color(red: 0.2, green: 0.6, blue: 0.5), "shield")
+        case "toxicologist": return (Color(red: 0.75, green: 0.8, blue: 0.1), "toxic")
+        case "perfect_lens": return (Color(red: 0.3, green: 0.5, blue: 0.9), "camera-lens")
+        default: return (Color.gray, "chick")
         }
     }
     

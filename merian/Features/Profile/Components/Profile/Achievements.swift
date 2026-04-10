@@ -124,7 +124,7 @@ struct Achievements: View {
             
             VStack(spacing: 12) {
                 ForEach(sortedAwards) { award in
-                    AwardCard(award: award)
+                    AchievementCard(award: award)
                 }
             }
         }
