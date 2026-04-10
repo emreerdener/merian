@@ -9,9 +9,9 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | File | Role |
 |---|---|
 | `InsightSheetViewModel` | `@Observable @MainActor final class` — UI state, SwiftData ops, share/export, toolbar capability flags, content routing (`ContentMode`) |
-| `InsightSheetView` | Root sheet view; owns `@State private var viewModel = InsightSheetViewModel()`. Accepts an optional `queuedScan: OfflineQueuedScan? = nil` parameter. When non-nil, seeds `viewModel.queuedScan` on `onAppear`, suppresses the `onChange(of: inferenceEngine.isProcessing)` and `.task(id: scanId)` lifecycle bindings (via `guard viewModel.queuedScan == nil else { return }`), shows a dedicated trash `ToolbarItem` in place of the standard ellipsis menu, and branches the delete alert to call `offlineQueueManager.deleteQueuedScan(scanId:)` then `dismiss()` instead of `eradicateCurrentScan`. |
+| `InsightSheetView` | Root sheet view; owns `@State private var viewModel = InsightSheetViewModel()`. Accepts an optional `queuedScan: QueuedScanContext? = nil` value-type parameter (not an `OfflineQueuedScan @Model` reference — see §Queued Scan Value-Type Pattern). When non-nil, seeds `viewModel.queuedContext` on `onAppear`, shows a dedicated trash `ToolbarItem` in place of the standard ellipsis menu, and branches the delete alert to call `offlineQueueManager.deleteQueuedScan(scanId:)` then `dismiss()` instead of `eradicateCurrentScan`. On `onAppear` also sets `suppressInferenceBanners = true` and clears `hasUnseenScan`; on `onDisappear` clears `suppressInferenceBanners`. Detects queued-scan completion via `onChange(of: offlineQueueManager.unsyncedItemsCount)` — polling up to 5 × 500 ms for the new `LocalScanRecord` before handing off to `inferenceEngine.load(from:)` (see §Queued Scan Completion Transition). |
 | `InsightContentView` | Three-way content router. Switches on `viewModel.contentMode` (`.analyzing` / `.nonBiological` / `.biological`) — routing logic lives entirely in the viewModel rather than being duplicated in the view. Shows `AnalyzingContentView` when `contentMode == .analyzing`. Routes to `BiologicalView` or `NonBiologicalView` for the other two cases. The switch is animated with `.easeInOut(duration: 0.35)` keyed on `viewModel.contentMode`. **Routing guarantee:** `CameraViewModel.submitActiveScan()` calls `InferenceEngine.prepareForNewScan()` synchronously before opening the sheet — this sets `isProcessing = true` and `speciesData = nil` atomically, ensuring the router never briefly shows a previous scan's result view during the async telemetry-resolution gap. **`defer` state-reset guard:** The `defer` block inside `analyze()`'s `inferenceTask` captures `ownedScanId = scanId` before the task body. The reset (`isProcessing = false`, `activeScanId = nil`) only fires when `self.activeScanId == ownedScanId`, preventing a cancelled task's `defer` from overwriting a new scan's state that was set by a subsequent `prepareForNewScan()` + `analyze()` call racing before the cancellation propagated. **Background-completion path:** If the user backgrounds the app immediately after capture, the background URLSession pipeline can complete and commit the scan to the database while the live `InferenceEngine.analyze()` task is suspended. When the app returns to the foreground in this state, `processInferenceDownloadResult` detects the race (`engine.isProcessing == true && engine.activeScanId == scanId`) and hydrates `engine.speciesData` directly from the already-decoded `SpeciesData`, then cancels the live task and sets `isProcessing = false`. `InsightContentView` observes the change and exits "Analyzing..." mode immediately, preventing the live task from resuming and showing "Network Timeout" for a scan already committed. |
-| `AnalyzingContentView` | Shown inside `InsightSheetView` while `viewModel.contentMode == .analyzing`. Accepts an optional `queuedScan: OfflineQueuedScan? = nil` parameter. **Live scan path** (`queuedScan == nil`): `ConfidenceBadge` displays `inferenceEngine.scanningPhaseText` (rotating phase phrases). **Queued-scan path** (`queuedScan != nil`): The `analyzingPhrase` computed property derives the badge phrase from `OfflineQueueManager.isOnline` and `queuedScan.queueState` — "Waiting for connection" when offline, then "Queued for upload" / "Uploading..." / "Preparing analysis..." / "Identifying subject..." / "Upload failed" per `ScanQueueState`. `ScanInformationCard` is populated from the queued scan's stored telemetry fields (`timestamp`, `locationName`, `weatherTemperatureF`, `weatherCondition`, `gpsElevation`, `gpsLatitude`, `gpsLongitude`) with live engine values as `??` fallbacks. Renders three layers: (1) `ConfidenceBadge` in analyzing mode; (2) `DidYouKnowCard` — a rotating biology fact card giving users something interesting to read while processing. Backed by a `FactManager` singleton using `AppStorage` to maintain a shuffled deck of 70+ facts to prevent repeats. Automatically advances every 8.5 seconds relying on a strict SwiftUI `.task(id:)` reactive binding; (3) `ScanInformationCard` for eager telemetry. Transitions out via `.easeInOut(duration: 0.35)` keyed on `viewModel.contentMode`. |
+| `AnalyzingContentView` | Shown inside `InsightSheetView` while `viewModel.contentMode == .analyzing`. Accepts an optional `queuedContext: QueuedScanContext? = nil` value-type parameter (never a live `OfflineQueuedScan @Model` reference — zombie access after `context.delete()` would crash). **Live scan path** (`queuedContext == nil`): `ConfidenceBadge` displays `inferenceEngine.scanningPhaseText` (rotating phase phrases). **Queued-scan path** (`queuedContext != nil`): The `analyzingPhrase` computed property derives the badge phrase from `OfflineQueueManager.isOnline` and `OfflineQueueManager.isSyncing` — "Waiting for connection" when offline, "Uploading..." when syncing, otherwise "Processing...". These are manager-level flags rather than per-scan state to avoid any live `@Model` attribute access on a potentially deleted object. `ScanInformationCard` is populated from the `QueuedScanContext` value fields (`timestamp`, `locationName`, `weatherTemperatureF`, `weatherCondition`, `gpsElevation`, `gpsLatitude`, `gpsLongitude`) with live engine values as `??` fallbacks. Renders three layers: (1) `ConfidenceBadge` in analyzing mode; (2) `DidYouKnowCard` — a rotating biology fact card giving users something interesting to read while processing. Backed by a `FactManager` singleton using `AppStorage` to maintain a shuffled deck of 70+ facts to prevent repeats. Automatically advances every 8.5 seconds relying on a strict SwiftUI `.task(id:)` reactive binding; (3) `ScanInformationCard` for eager telemetry. Transitions out via `.easeInOut(duration: 0.35)` keyed on `viewModel.contentMode`. |
 | `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier` (indices 0–9). |
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
 | `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match". Automatically deduplicates its subtitle (scientific name) if it exactly matches the primary title string. Passes `userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, and `aiScientificName` from `speciesData` down to `ConfidenceBadge` (and transitively to `ConfidenceExplanationSheet`). Accepts an optional `visionTransitionText: String?` parameter: when non-nil, the paragraph slot renders the captured Apple Vision analysis text first, then cross-fades to Gemini `aiReasoning` after 700 ms via an `.easeInOut(0.45)` opacity transition. The species title is hidden initially and springs into view (`opacity 0→1`, `y+10→0`) on `.onAppear` with a 150 ms delay; a `triggerLightImpact(intensity: 0.5)` fires at title entrance and a `triggerSelectionPulse()` fires at the paragraph cross-fade moment. **Alternative names line**: when `alternativeCommonNames` is non-nil and non-empty, a footnote-sized "Also known as: X · Y · Z" line is rendered below the headline as a tappable `Button`; tapping calls `onAlternativeNamesTap` which sets `InsightSheetViewModel.isNamePickerPresented = true` to present `NamePickerSheet`. The common name title itself is also tappable when `alternativeCommonNames` are available — it calls the same `onAlternativeNamesTap` callback, so tapping the headline directly opens the same `NamePickerSheet` as tapping the "Also known as" footnote. |
@@ -72,9 +72,9 @@ var totalImages: Int {
 // Processing state — mirrors InferenceEngine.isProcessing.
 // Routing this through the viewModel means toolbar flags and contentMode
 // all share one source of truth without each view needing its own engine read.
-// When a queuedScan is set, always returns true so the sheet stays in .analyzing mode.
+// When a queuedContext is set, always returns true so the sheet stays in .analyzing mode.
 var isProcessing: Bool {
-    if queuedScan != nil { return true }
+    if queuedContext != nil { return true }
     return inferenceEngine?.isProcessing ?? false
 }
 
@@ -82,20 +82,20 @@ var isProcessing: Bool {
 // Routed through the viewModel so ImagesCarousel has no direct engine dependency.
 var liveImageDatas: [Data] { inferenceEngine?.activeDisplayDatas ?? [] }
 
-// Toolbar capability flags — all short-circuit to false when queuedScan != nil
+// Toolbar capability flags — all short-circuit to false when queuedContext != nil
 // (the queued-scan path exposes only a trash button; no review actions apply).
-var isReviewLocked: Bool   { guard queuedScan == nil else { return false }; /* userConfirmedIdentification || userIdentificationOverride != nil */ }
-var canReanalyze: Bool     { guard queuedScan == nil else { return false }; /* not review-locked, local path, no additional images */ }
-var canReviewAlternatives: Bool { guard queuedScan == nil else { return false }; /* not review-locked, candidates present, not exhausted */ }
-var canConfirm: Bool       { guard queuedScan == nil else { return false }; /* not confirmed, not overridden, not flagged */ }
-var isAlreadyFlagged: Bool { guard queuedScan == nil else { return false }; /* speciesData.isFlagged || isReviewLocked */ }
+var isReviewLocked: Bool   { guard queuedContext == nil else { return false }; /* userConfirmedIdentification || userIdentificationOverride != nil */ }
+var canReanalyze: Bool     { guard queuedContext == nil else { return false }; /* not review-locked, local path, no additional images */ }
+var canReviewAlternatives: Bool { guard queuedContext == nil else { return false }; /* not review-locked, candidates present, not exhausted */ }
+var canConfirm: Bool       { guard queuedContext == nil else { return false }; /* not confirmed, not overridden, not flagged */ }
+var isAlreadyFlagged: Bool { guard queuedContext == nil else { return false }; /* speciesData.isFlagged || isReviewLocked */ }
 
-// Content routing — derived from queuedScan / isProcessing / speciesData.
+// Content routing — derived from queuedContext / isProcessing / speciesData.
 // InsightContentView switches on this enum rather than duplicating the guard chain.
-// queuedScan always maps to .analyzing regardless of engine state.
+// queuedContext always maps to .analyzing regardless of engine state.
 enum ContentMode: Equatable { case analyzing, nonBiological, biological }
 var contentMode: ContentMode {
-    if queuedScan != nil { return .analyzing }
+    if queuedContext != nil { return .analyzing }
     // ... .analyzing when isProcessing; else .nonBiological / .biological
 }
 ```
@@ -109,12 +109,80 @@ var contentMode: ContentMode {
 
 ---
 
+## Queued Scan Value-Type Pattern
+
+`InsightSheetView` supports viewing pending `OfflineQueuedScan` records from the library grid. A critical constraint is that **no live `@Model` reference may be held** after the scan is deleted from the SwiftData context — accessing any unfaulted attribute on a deleted `@Model` crashes with `"backing data was detached from a context without resolving attribute faults"`.
+
+Two value-type structs encapsulate all data the insight chain needs at snapshot time, while the `@Model` object is live:
+
+| Type | Purpose |
+|---|---|
+| `QueuedScanSnapshot` | Minimal value type for `ScansGrid` tile rendering (`id`, `imagePath`, `timestamp`). Used in `LazyVGrid` `ForEach` so no grid tile holds a zombie `@Model` reference. |
+| `QueuedScanContext` | Richer value type for the full insight sheet chain — all telemetry fields (`localImagePaths`, `locationName`, `weatherTemperatureF`, `weatherCondition`, `gpsElevation`, `gpsLatitude`, `gpsLongitude`). Initialized from a live `OfflineQueuedScan` while the object is accessible. |
+
+`InsightSheetViewModel.queuedContext: QueuedScanContext?` stores the context. All computed properties (`isProcessing`, `contentMode`, toolbar flags, carousel sources) switch on `queuedContext == nil` rather than accessing any `@Model` attribute after initialization.
+
+**`gridId` namespacing**: `LocalScanRecord.id` and `QueuedScanSnapshot.id` share the same UUID value (`client_scan_id`). Without namespacing, `LazyVGrid`'s `ForEach` produces duplicate `AnyHashable` keys. `QueuedScanSnapshot.gridId` returns `"q_\(id)"` so queued-scan tiles always have a distinct key from their eventual `LocalScanRecord` counterpart.
+
+---
+
+## Queued Scan Completion Transition
+
+When an offline scan completes while `InsightSheetView` is open, the sheet must **transition to results without dismissing**. The key mechanism:
+
+`LibraryView` uses `.sheet(isPresented: $isQueuedSheetPresented)` with a separate `scanToManage: QueuedScanContext?` state. This decouples sheet presentation from the context — clearing `scanToManage` does not close the sheet.
+
+```
+OfflineQueueManager.flushOfflineQueuedScan()
+    → unsyncedItemsCount changes
+    → InsightSheetView.onChange(of: unsyncedItemsCount)
+    → Poll up to 5 × 500 ms for LocalScanRecord with matching ID
+    → viewModel.queuedContext = nil        // Clear BEFORE load so .analyzing guard passes
+    → inferenceEngine.load(from: record)   // Triggers isProcessing true→false
+    → InsightContentView renders results
+```
+
+Clearing `queuedContext` before calling `load(from:)` is critical: `InsightSheetView.onChange(of: inferenceEngine.isProcessing)` has a `guard viewModel.queuedContext == nil else { return }` guard — if `queuedContext` were still set when `isProcessing` goes false, the completion path (celebration, haptics, record-marking) would be skipped.
+
+`LibraryView.onChange(of: queuedScans.map(\.id))` also runs in parallel: when a scan leaves the queued array, it checks whether a `LocalScanRecord` exists for that ID. If yes, it sets `scanToManage = nil` (keeping `isQueuedSheetPresented = true`) so `InsightSheetView` receives `nil` for `queuedScan` and its internal transition runs. If no record exists (scan was deleted or failed), it sets `isQueuedSheetPresented = false` to dismiss the sheet.
+
+---
+
+## Tab Bar Badge Dot (`hasUnseenScan`)
+
+The `MainTabBar` subscribes to `@AppStorage(UserDefaultsKeys.hasUnseenScan)` to display an 8 pt red dot on the Scans icon.
+
+**Set to `true` (badge appears):**
+- `CameraViewModel.handleInferenceProcessingChange` — when live `isProcessing` goes false **and** `activeSheet != .insight` (user is not already viewing the result).
+- `OfflineQueueManager+URLSession.processInferenceDownloadResult` — when an offline scan completes, **unless** `suppressInferenceBanners` is `true` (insight sheet is open and the user is watching the transition to results).
+
+**Set to `false` (badge cleared):**
+- `CameraSheetRouter.scans.onAppear` — when the scans sheet opens from the camera tab bar.
+- `CameraSheetRouter.insight.onAppear` — when the insight sheet opens from the camera flow.
+- `ScansSheetView.onAppear` — on every scans sheet presentation.
+- `ScansSheetView.onChange(of: hasUnseenScan)` — immediately clears the badge if it fires while the scans sheet is already visible (a scan completing while the user is already in the library).
+- `InsightSheetView.onAppear` — clears the badge whenever any insight sheet opens (camera or library path).
+
+---
+
+## Push Notification Delivery
+
+`InsightSheetView` manages the `suppressInferenceBanners` UserDefaults flag:
+- **`onAppear`**: sets `suppressInferenceBanners = true`
+- **`onDisappear`**: sets `suppressInferenceBanners = false`
+
+`PushNotificationManager.willPresent(_:withCompletionHandler:)` reads this flag when the app is in the foreground. If `true` (user is on the insight sheet), the notification is delivered silently (`completionHandler([])`). If `false` (user is elsewhere in the app), the banner is shown (`completionHandler([.banner, .sound, .list])`).
+
+Both notification call sites (`InferenceEngine` live path, `OfflineQueueManager` offline path) schedule notifications unconditionally — without an `applicationState != .active` guard. Foreground suppression is delegated entirely to `PushNotificationManager.willPresent`. When the app is backgrounded, `willPresent` is never called and the OS shows the notification automatically.
+
+---
+
 ## Image Carousel
 
 The carousel merges three image sources in order:
 
 1. **Live captures** (`viewModel.liveImageDatas`, which mirrors `inferenceEngine.activeDisplayDatas`) — 2048 px display-quality `Data` from the current session, available during active inference
-2. **Historic paths** (`viewModel.validHistoricImagePaths`) — local file paths written to disk by `InferenceProcessingActor.parseAndSave` on live scan success, or populated via `InferenceEngine.load(from:)` for library scans. For the queued-scan path, `viewModel.validHistoricImagePaths` returns `queuedScan.localImagePaths` instead of the engine value.
+2. **Historic paths** (`viewModel.validHistoricImagePaths`) — local file paths written to disk by `InferenceProcessingActor.parseAndSave` on live scan success, or populated via `InferenceEngine.load(from:)` for library scans. For the queued-scan path, `viewModel.validHistoricImagePaths` returns `viewModel.queuedContext?.localImagePaths` (from the `QueuedScanContext` value type) instead of the engine value.
 3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF Occurrence array hydration.
 
 **Seamless image source handoff**: On a live scan, `validHistoricImagePaths` is populated with the on-disk paths returned by `parseAndSave` *before* `speciesData` is set and *before* `activeDisplayDatas` is cleared. This means the carousel has the user's saved image ready the instant the insight sheet renders — the reference image is never the only page shown on first open. The `NativePageCarousel` is keyed on `scanId` so that when `speciesData` is set (changing the key), the initial page build already includes the on-disk image paths.
