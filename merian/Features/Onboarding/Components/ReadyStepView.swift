@@ -9,7 +9,7 @@ struct ReadyStepView: View {
         OnboardingStepWrapper(
             imageName: "bird",
             title: "Citizen science",
-            subtitle: "Every capture contributes to a global database tracking wildlife and biodiversity. Step outside and start scanning the natural world.",
+            subtitle: "Every capture contributes to a global database tracking wildlife and biodiversity.",
             primaryButtonTitle: "Start scanning",
             primaryButtonTextColor: Color.black,
             primaryButtonColor: Color.white,
