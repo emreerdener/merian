@@ -83,7 +83,7 @@ extension CameraViewModel {
 
         // If completely offline, skip live inference and show a toast immediately.
         guard isOnline else {
-            self.offlineToastMessage = "No network connection. Scan queued for upload."
+            self.offlineToastMessage = "No network connection. Queued for upload."
             return
         }
 

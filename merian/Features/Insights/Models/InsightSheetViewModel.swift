@@ -142,6 +142,7 @@ final class InsightSheetViewModel {
 
     enum ContentMode: Equatable {
         case analyzing
+        case queued
         case nonBiological
         case biological
     }
@@ -150,7 +151,7 @@ final class InsightSheetViewModel {
     /// Computed from engine state so each call site switches on one value
     /// rather than duplicating the `isProcessing` / `speciesData` guard chain.
     var contentMode: ContentMode {
-        if queuedContext != nil { return .analyzing }
+        if queuedContext != nil { return .queued }
         if isProcessing { return .analyzing }
         guard let data = inferenceEngine?.speciesData else { return .analyzing }
         if !data.isBiological || data.commonName.lowercased() == "not applicable" { return .nonBiological }

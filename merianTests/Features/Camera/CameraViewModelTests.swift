@@ -101,6 +101,6 @@ struct CameraViewModelTests {
         // Assert
         #expect(viewModel.activeScannedDatas.isEmpty, "submitActiveScan must wipe stage data immediately regardless of network.")
         #expect(viewModel.activeSheet == nil, "UI must NOT launch InsightSheet skeleton if offline.")
-        #expect(viewModel.offlineToastMessage == "No network connection. Scan queued for upload.", "UI must generate a toast message for offline interception.")
+        #expect(viewModel.offlineToastMessage == "No network connection. Queued for upload.", "UI must generate a toast message for offline interception.")
     }
 }

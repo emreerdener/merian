@@ -133,10 +133,17 @@ private extension InsightContentView {
             ZStack(alignment: .top) {
                 switch viewModel.contentMode {
                 case .analyzing:
-                    AnalyzingContentView(queuedContext: viewModel.queuedContext)
+                    AnalyzingContentView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .background(Color(uiColor: .systemBackground))
                         .transition(.opacity)
+                case .queued:
+                    if let ctx = viewModel.queuedContext {
+                        QueuedContentView(queuedContext: ctx)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .background(Color(uiColor: .systemBackground))
+                            .transition(.opacity)
+                    }
                 case .nonBiological:
                     if let speciesData = inferenceEngine.speciesData {
                         NonBiologicalView(

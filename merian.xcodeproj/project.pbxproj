@@ -108,6 +108,7 @@
 		4FB01F5EC57E9A3712B10AFB /* Badge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625ABB8704998AD21D9B6CD2 /* Badge.swift */; };
 		50C0EB20117C47318FB5CA76 /* merianTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33781A4087102CB18738303 /* merianTests.swift */; };
 		50C62D39BB9CF90CD1FA0FE8 /* ImageCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A310C2AC0758FEE43F5E7C3 /* ImageCacheTests.swift */; };
+		511E9E328218E819DD3ADEF0 /* FileIOActorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F484E531B314ACE7B92AAA74 /* FileIOActorTests.swift */; };
 		5149037596828B5B9C0AE179 /* PushNotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DCA0392A80D8CEEC5DDCC95 /* PushNotificationManagerTests.swift */; };
 		51C5501DD56CE87412CC8B1C /* FlayedCandidateThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEFBA933BEC17D0E58B76C2 /* FlayedCandidateThumbnail.swift */; };
 		5284FBE14B0897A280791128 /* ScanThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA779F57AA05667EB6135895 /* ScanThumbnail.swift */; };
@@ -253,6 +254,7 @@
 		CA672046EEC1120C9EF87041 /* MainTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6963D372E7F7B17BB7B0DB3 /* MainTabBar.swift */; };
 		CAE0FD3322AA775B326689D6 /* UserTagsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8976BAB1482D318D41CCD32 /* UserTagsCard.swift */; };
 		CB0DA93C2FAC7D7A6B650289 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ACF7D9D4707401EA2481D98 /* PaywallView.swift */; };
+		CB8B444909B13226DF398917 /* QueuedContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0FFB0A7A7E65EE41F4EC8DF /* QueuedContentView.swift */; };
 		CBFDD531ADC7A61A23BEE23D /* CandidateSwipeModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA0D6C5C8620CE1B113B597 /* CandidateSwipeModal.swift */; };
 		CC5304A7E67E874E9F9A74CD /* FileIOActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58507F2BA73789441DA21050 /* FileIOActor.swift */; };
 		CCE496E6C94AF6BC7D6C664A /* SchemaV31.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD73940B23E4DE6F8296CF6 /* SchemaV31.swift */; };
@@ -458,7 +460,7 @@
 		581A8B2E85811233A30DDF85 /* OverviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewCard.swift; sourceTree = "<group>"; };
 		582CBFFF8AA1E0281FA9008B /* AddCollectionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCollectionButton.swift; sourceTree = "<group>"; };
 		58507F2BA73789441DA21050 /* FileIOActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIOActor.swift; sourceTree = "<group>"; };
-		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		59BCD91B24D5D1DF5B542FB0 /* AnalyzingContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyzingContentView.swift; sourceTree = "<group>"; };
 		59DF526286C247EAD0760E55 /* ArchivedVisualsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchivedVisualsView.swift; sourceTree = "<group>"; };
 		5A92AF34FCF40952AE6314B6 /* HeatmapCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapCellView.swift; sourceTree = "<group>"; };
@@ -610,7 +612,7 @@
 		D637402A4E4E76C6C9D0735E /* deploy_testflight.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = deploy_testflight.md; sourceTree = "<group>"; };
 		D86D6A051B5FE3A78E597BDC /* ScansSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansSheetView.swift; sourceTree = "<group>"; };
 		D8976BAB1482D318D41CCD32 /* UserTagsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTagsCard.swift; sourceTree = "<group>"; };
-		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBA0D6C5C8620CE1B113B597 /* CandidateSwipeModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSwipeModal.swift; sourceTree = "<group>"; };
 		DC435DD629FF43539F7B60D6 /* EnvironmentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContext.swift; sourceTree = "<group>"; };
 		DC4BA5174670296C98053C13 /* DateUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtilities.swift; sourceTree = "<group>"; };
@@ -619,6 +621,7 @@
 		DF91598A9C75D0F61E7DCB69 /* InsightHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightHeader.swift; sourceTree = "<group>"; };
 		E004EEF42093F3F50C563D43 /* ScansManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansManagerTests.swift; sourceTree = "<group>"; };
 		E0B4FD871843FF4574E6777D /* InsightSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetView.swift; sourceTree = "<group>"; };
+		E0FFB0A7A7E65EE41F4EC8DF /* QueuedContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedContentView.swift; sourceTree = "<group>"; };
 		E1F7A65BDC024C65BD4D0767 /* Persona.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persona.swift; sourceTree = "<group>"; };
 		E202754BAA0EEFC440DB0945 /* ImageDownsamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownsamplerTests.swift; sourceTree = "<group>"; };
 		E381DBD8187A400DB92FAAFD /* SchemaV13.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV13.swift; sourceTree = "<group>"; };
@@ -651,8 +654,9 @@
 		F340CAB78931C951CAD0AF0F /* GamificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationManager.swift; sourceTree = "<group>"; };
 		F364B8F7339FC3B32C92E344 /* ReportInsightViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportInsightViewModel.swift; sourceTree = "<group>"; };
 		F42B367C0EDB61254AF5188E /* SimilarSpeciesGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimilarSpeciesGallery.swift; sourceTree = "<group>"; };
+		F484E531B314ACE7B92AAA74 /* FileIOActorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIOActorTests.swift; sourceTree = "<group>"; };
 		F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
-		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5FE76D21F2C394346DB6F6B /* SchemaV15.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV15.swift; sourceTree = "<group>"; };
 		F60B6B87B52B4507F4A13C07 /* GamificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationModels.swift; sourceTree = "<group>"; };
 		F615780D12416A23B56634BD /* FlashButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashButton.swift; sourceTree = "<group>"; };
@@ -1123,6 +1127,7 @@
 			children = (
 				72B6122F2DCEB5D8D727A05E /* ArchiveManagerTests.swift */,
 				E757DE9D38A53D5BFB80435B /* BackgroundDatabaseActorTests.swift */,
+				F484E531B314ACE7B92AAA74 /* FileIOActorTests.swift */,
 				3A310C2AC0758FEE43F5E7C3 /* ImageCacheTests.swift */,
 				9AEC36D3B333E91D1346DF70 /* LocalImageLoaderTests.swift */,
 				1FCE111F1E884CC36C0F8E3A /* OfflineQueueManagerTests.swift */,
@@ -1471,6 +1476,7 @@
 				59BCD91B24D5D1DF5B542FB0 /* AnalyzingContentView.swift */,
 				F82A26CC53C51106E02D32DE /* BiologicalView.swift */,
 				93783BBD28B6D98B029A2052 /* NonBiologicalView.swift */,
+				E0FFB0A7A7E65EE41F4EC8DF /* QueuedContentView.swift */,
 			);
 			path = Content;
 			sourceTree = "<group>";
@@ -1840,7 +1846,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0B94C342D2F7F49D11202598 = {
 						DevelopmentTeam = LDL96V2WT5;
@@ -1852,9 +1858,11 @@
 						ProvisioningStyle = Automatic;
 					};
 					D06FD3E9CDCF533A0C2D2843 = {
+						DevelopmentTeam = LDL96V2WT5;
 						ProvisioningStyle = Automatic;
 					};
 					E59BC2C6A28D64E9B810676B = {
+						DevelopmentTeam = LDL96V2WT5;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -1958,6 +1966,7 @@
 				2D53135AE1FA4C7B2C3F3BA2 /* DateUtilitiesTests.swift in Sources */,
 				393390823BC93578441E9C0F /* DeviceIdentityManagerTests.swift in Sources */,
 				B4DCFC6657BAF833E5C352E3 /* EnvironmentContextManagerTests.swift in Sources */,
+				511E9E328218E819DD3ADEF0 /* FileIOActorTests.swift in Sources */,
 				D469A292DF5DCC6A25E03CFD /* FlagIdentificationViewModelTests.swift in Sources */,
 				EEF864446094E9A6A5D15412 /* GamificationManagerTests.swift in Sources */,
 				636FC2A87E6506B7889EBB19 /* HapticManagerTests.swift in Sources */,
@@ -2167,6 +2176,7 @@
 				390AA73850F254F851490E11 /* ProfileView.swift in Sources */,
 				73A773ABEFA5DCAE4C45A110 /* ProfileViewModel.swift in Sources */,
 				C5397ABBE642A9EA43820EA6 /* PushNotificationManager.swift in Sources */,
+				CB8B444909B13226DF398917 /* QueuedContentView.swift in Sources */,
 				2FBBC7E70E7041B4E87E4BA7 /* QueuedScanContext.swift in Sources */,
 				059B56C9FC3901AF2727E539 /* ReadyStepView.swift in Sources */,
 				A83D4B45BE330A967AE7C600 /* ReportInsightView.swift in Sources */,
@@ -2287,7 +2297,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -2310,7 +2320,7 @@
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;
@@ -2421,7 +2431,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 199;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -2447,7 +2456,6 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -2460,7 +2468,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -2532,7 +2540,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 199;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -2551,7 +2558,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -2567,7 +2573,7 @@
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;
