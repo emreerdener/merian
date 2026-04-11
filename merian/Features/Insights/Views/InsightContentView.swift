@@ -34,7 +34,7 @@ struct InsightContentView: View {
                     let activeHasLive = activeQueuedContext != nil ? false : viewModel.hasLive
                     let activeLiveCount = activeQueuedContext != nil ? 0 : viewModel.liveCount
                     let activeTotalImages = activeQueuedContext != nil ? (activeQueuedContext?.localImagePaths.count ?? 0) : viewModel.totalImages
-                    let activeIsProcessing = activeQueuedContext != nil ? true : viewModel.isProcessing
+                    let activeIsProcessing = activeQueuedContext != nil ? false : viewModel.isProcessing
 
                     ImagesCarousel(
                         scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
