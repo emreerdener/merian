@@ -364,10 +364,12 @@ private struct GBIFMedia: Decodable {
 
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
-                    HapticManager.shared.triggerSuccessPulse()
-                    // Retain in-memory activeDisplayDatas so the Carousel doesn't structurally tear down the LiveCapturePageView component.
-                    self.validHistoricImagePaths = savedImagePaths
-                    self.speciesData = mappedData
+                    if self.activeScanId == ownedScanId {
+                        HapticManager.shared.triggerSuccessPulse()
+                        // Retain in-memory activeDisplayDatas so the Carousel doesn't structurally tear down the LiveCapturePageView component.
+                        self.validHistoricImagePaths = savedImagePaths
+                        self.speciesData = mappedData
+                    }
 
                     // Live inference succeeded — flush the queued scan record synchronously
                     // on the main context before the completion notification fires.
@@ -487,13 +489,15 @@ private struct GBIFMedia: Decodable {
                     // No refund: the scan is already durably in the offline queue and will be
                     // retried by the background upload path. Refunding here would give the user
                     // a free extra scan against a quota that was already consumed.
-                    HapticManager.shared.triggerErrorThump()
-                    self.speciesData = makeErrorSpeciesData(
-                        title: "Analysis Failed",
-                        subtitle: "Data Unreadable",
-                        reasoning: "The AI failed to understand the image or produced an unreadable schema.",
-                        telemetry: telemetry
-                    )
+                    if self.activeScanId == ownedScanId {
+                        HapticManager.shared.triggerErrorThump()
+                        self.speciesData = makeErrorSpeciesData(
+                            title: "Analysis Failed",
+                            subtitle: "Data Unreadable",
+                            reasoning: "The AI failed to understand the image or produced an unreadable schema.",
+                            telemetry: telemetry
+                        )
+                    }
                     return
                 }
 
@@ -501,14 +505,16 @@ private struct GBIFMedia: Decodable {
                 // retried by the background upload path. No refund or re-enqueue needed.
                 AppTelemetry.trackError("InferenceNetworkFailure")
                 CircuitBreakerManager.shared.recordFailure()
-                HapticManager.shared.triggerErrorThump()
                 MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
-                self.speciesData = makeErrorSpeciesData(
-                    title: "Network timeout",
-                    subtitle: "Offline mode",
-                    reasoning: "Please check your network connection and try again.",
-                    telemetry: telemetry
-                )
+                if self.activeScanId == ownedScanId {
+                    HapticManager.shared.triggerErrorThump()
+                    self.speciesData = makeErrorSpeciesData(
+                        title: "Network timeout",
+                        subtitle: "Offline mode",
+                        reasoning: "Please check your network connection and try again.",
+                        telemetry: telemetry
+                    )
+                }
             }
         }
     }
@@ -1276,6 +1282,7 @@ private struct GBIFMedia: Decodable {
         self.isProcessing = true
         historicHydrationTask?.cancel()
 
+        self.activeScanId = record.id
         self.activeImageData = nil
         self.activeDisplayDatas = []
         self.validHistoricImagePaths = []
