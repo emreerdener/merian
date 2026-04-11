@@ -62,7 +62,11 @@ var allNamesForPicker: [String] {
 }
 var hazardType: String { inferenceEngine?.speciesData?.insightData.hazardType ?? "none" }
 var isHazardous: Bool { hazardType != "none" }
-var refUrls: [String] { /* parsed from comma-separated referenceImageUrl */ }
+var refUrls: [String] {
+    // Returns [] when speciesData.isHumanSubject — blocks Wikipedia/GBIF reference
+    // images for human subjects. totalImages derives from refUrls, so the carousel
+    // page count drops automatically with no additional call sites to update.
+}
 var totalImages: Int {
     // Mirrors carouselPages exclusive branch: live data and historic paths represent
     // the same capture image — only one is active at a time.
@@ -186,7 +190,7 @@ The carousel merges three image sources in order:
 
 1. **Live captures** (`viewModel.liveImageDatas`, which mirrors `inferenceEngine.activeDisplayDatas`) — 2048 px display-quality `Data` from the current session, available during active inference
 2. **Historic paths** (`viewModel.validHistoricImagePaths`) — local file paths written to disk by `InferenceProcessingActor.parseAndSave` on live scan success, or populated via `InferenceEngine.load(from:)` for library scans. For the queued-scan path, `viewModel.validHistoricImagePaths` returns `viewModel.queuedContext?.localImagePaths` (from the `QueuedScanContext` value type) instead of the engine value.
-3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF Occurrence array hydration.
+3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF Occurrence array hydration. **Suppressed for human subjects**: `viewModel.refUrls` returns `[]` when `speciesData.isHumanSubject` is true, preventing third-party photos of people from appearing in the carousel regardless of what the server populates.
 
 **Seamless image source handoff**: On a live scan, `validHistoricImagePaths` is populated with the on-disk paths returned by `parseAndSave` *before* `speciesData` is set and *before* `activeDisplayDatas` is cleared. This means the carousel has the user's saved image ready the instant the insight sheet renders — the reference image is never the only page shown on first open. The `NativePageCarousel` is keyed on `scanId` so that when `speciesData` is set (changing the key), the initial page build already includes the on-disk image paths.
 
@@ -279,16 +283,19 @@ When the AI's confidence falls below the tier-specific `diagnosticTrigger` thres
 
 ### Display Gate
 
-`BiologicalView` renders `CandidatesCard` when the scan has ≥ 2 candidates **or** when a review state is already recorded, **except** when all swipe alternatives have been rejected:
+`BiologicalView` renders `CandidatesCard` when the scan has ≥ 2 candidates or confidence is below the diagnostic trigger, subject to three hard suppression guards:
+
 ```swift
 let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil
                   || inferenceEngine.speciesData?.userConfirmedIdentification == true
-// When isFlagged AND candidates.count >= 2, the user rejected all swipe alternatives
-// — hide CandidatesCard here and surface AllCandidatesReviewedView in ConfidenceExplanationSheet instead
-let allCandidatesRejected = (inferenceEngine.speciesData?.isFlagged == true) && candidates.count >= 2
+                  || inferenceEngine.speciesData?.isFlagged == true
+                  || inferenceEngine.speciesData?.alternativesExhausted == true
+let isUnknownSubject = inferenceEngine.speciesData?.scientificName == "Taxonomy Unavailable"
+let isHumanSubject   = inferenceEngine.speciesData?.isHumanSubject ?? false
 
 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-   !allCandidatesRejected && (candidates.count >= 2 || hasReviewState || hasLowConfidence) {
+   !isUnknownSubject && !isHumanSubject && !hasReviewState
+   && (candidates.count >= 2 || hasLowConfidence) {
     CandidatesCard(candidates: candidates,
                    aiScientificName: primaryAIName,
                    inferenceTier: speciesData.inferenceTier)
@@ -296,7 +303,15 @@ if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
 }
 ```
 
-The `allCandidatesRejected` discriminator (`isFlagged && candidates.count >= 2`) distinguishes the "user exhausted all alternatives" path from a generic flag — when it is true, `CandidatesCard` is hidden and a condensed `AllCandidatesReviewedView` is shown inside `ConfidenceExplanationSheet` instead. The `candidates.count >= 2` guard within `allCandidatesRejected` prevents this branch from triggering on the no-candidates flag path (where the user flagged without alternatives). `CandidatesCard` internally computes the threshold via `MerianConfig.confidenceBands(forInferenceTier: inferenceTier).diagnosticTrigger` for display-only purposes (e.g., subtitle copy).
+**`isUnknownSubject`** — suppresses candidates when taxonomy is unavailable; the alternatives would be equally unresolved.
+
+**`isHumanSubject`** (`SpeciesData.isHumanSubject`: `commonName.lowercased() == "human" || scientificName.lowercased() == "homo sapiens"`) — suppresses candidates for human subjects. The AI sometimes generates plausible-sounding primate alternatives when confidence is low; surfacing them for a human photo would be misleading and inappropriate.
+
+**`hasReviewState`** — suppresses candidates once any review action has been taken (`userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, or `alternativesExhausted`). When `isFlagged && candidates.count >= 2` specifically (user rejected every swipe alternative), `CandidatesCard` is hidden and `AllCandidatesReviewedView` inside `ConfidenceExplanationSheet` takes over instead.
+
+`CandidatesCard` internally computes the threshold via `MerianConfig.confidenceBands(forInferenceTier: inferenceTier).diagnosticTrigger` for display-only purposes (e.g., subtitle copy).
+
+**`isHumanSubject` and the override path**: `isHumanSubject` checks `scientificName` (the mutable active field), not `aiScientificName`. If a user overrides a human scan to another species, `scientificName` changes to the override name, the guard lifts, and candidates for the override species become visible — consistent with the carousel ref-image unblock that also follows an override.
 
 ### `CandidateSwipeModal` — Alternatives Review Sheet
 

@@ -144,6 +144,18 @@ struct SpeciesData {
     var alternativesExhausted: Bool = false
 }
 
+// MARK: - Subject Classification
+
+extension SpeciesData {
+    /// True when the AI identified the subject as a human.
+    /// Used to suppress candidates and third-party reference images (Wikipedia/GBIF)
+    /// which are inappropriate to surface for human subjects.
+    /// Checks both common and scientific name so either field alone is sufficient.
+    var isHumanSubject: Bool {
+        commonName.lowercased() == "human" || scientificName.lowercased() == "homo sapiens"
+    }
+}
+
 // MARK: - Sanitization Helpers
 
 extension SpeciesData {

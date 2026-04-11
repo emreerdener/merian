@@ -90,9 +90,10 @@ struct BiologicalView: View {
                 let confidenceBands = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier)
                 let hasLowConfidence = (inferenceEngine.speciesData?.confidenceScore ?? 1.0) < confidenceBands.diagnosticTrigger
                 let isUnknownSubject = inferenceEngine.speciesData?.scientificName == "Taxonomy Unavailable"
+                let isHumanSubject = inferenceEngine.speciesData?.isHumanSubject ?? false
 
                 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-                   !isUnknownSubject && !hasReviewState && (candidates.count >= 2 || hasLowConfidence) {
+                   !isUnknownSubject && !isHumanSubject && !hasReviewState && (candidates.count >= 2 || hasLowConfidence) {
                     CandidatesCard(
                         candidates: candidates,
                         aiScientificName: primaryAIName,

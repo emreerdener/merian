@@ -69,7 +69,11 @@ final class InsightSheetViewModel {
     }
 
     var refUrls: [String] {
-        inferenceEngine?.speciesData?.referenceImageUrl?
+        guard let data = inferenceEngine?.speciesData else { return [] }
+        // Block Wikipedia/GBIF reference images for human subjects — surfacing
+        // third-party photos of people is inappropriate regardless of source.
+        guard !data.isHumanSubject else { return [] }
+        return data.referenceImageUrl?
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? []
