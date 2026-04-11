@@ -72,18 +72,18 @@ struct QueuedContentView: View {
     let queuedContext: QueuedScanContext
 
     /// The phrase displayed inside `ConfidenceBadge`'s analyzing capsule.
-    /// Reflects live `OfflineQueueManager` connectivity and sync state so the badge
-    /// updates in real-time as network conditions change.
+    /// Live system/connectivity status shown in the small `ConfidenceBadge` capsule.
+    /// Always distinct from `displayTitle` so the two never duplicate each other:
+    /// offline → "No connection" | online waiting → "In queue" | syncing → "Uploading..."
     private var badgePhrase: String {
-        guard offlineQueueManager.isOnline else { return "Waiting for connection" }
-        return offlineQueueManager.isSyncing ? "Uploading..." : "Queued for upload"
+        guard offlineQueueManager.isOnline else { return "No connection" }
+        return offlineQueueManager.isSyncing ? "Uploading..." : "In queue"
     }
 
-    /// The large display title mirrors connectivity: once the device is back online
-    /// and the queue manager is actively syncing, the title advances to "Uploading".
+    /// The large serif title describes what this scan *is*, not the network state.
+    /// Stable noun phrase so the badge above can report live status independently.
     private var displayTitle: String {
-        guard offlineQueueManager.isOnline else { return "Waiting for connection" }
-        return offlineQueueManager.isSyncing ? "Uploading" : "Queued for upload"
+        return offlineQueueManager.isSyncing ? "Syncing" : "Queued for upload"
     }
 
     var body: some View {
