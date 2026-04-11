@@ -35,9 +35,10 @@ private struct NewDiscoveryCelebrationView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "star.fill")
-                .font(.system(size: 24))
-                .foregroundColor(.yellow)
+            Image("star")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 24, height: 24)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text("New discovery")
