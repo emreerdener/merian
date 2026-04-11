@@ -699,7 +699,7 @@ private struct GBIFMedia: Decodable {
 
             // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
             var persistUrls: String?
-            if self.speciesData?.gbifTaxonKey == taxonKey, var updated = self.speciesData {
+            if self.activeScanId == scanId, var updated = self.speciesData {
                 var currentUrls = updated.referenceImageUrl?
                     .components(separatedBy: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -769,7 +769,7 @@ private struct GBIFMedia: Decodable {
             if needsMetadata {
                 group.addTask { @MainActor [weak self] in
                     guard let self else { return }
-                    defer { self.isEnrichmentLoading = false }
+                    defer { if self.activeScanId == capturedScanId { self.isEnrichmentLoading = false } }
                     do {
                         let response = try await MerianNetworkClient.shared.fetchEnrichment(
                             scanId: capturedScanId,
@@ -851,7 +851,7 @@ private struct GBIFMedia: Decodable {
             if needsLookalikes {
                 group.addTask { @MainActor [weak self] in
                     guard let self else { return }
-                    defer { self.isLookalikesLoading = false }
+                    defer { if self.activeScanId == capturedScanId { self.isLookalikesLoading = false } }
                     do {
                         let response = try await MerianNetworkClient.shared.fetchEnrichment(
                             scanId: capturedScanId,
@@ -1290,6 +1290,7 @@ private struct GBIFMedia: Decodable {
     func load(from record: LocalScanRecord) {
         self.isProcessing = true
         historicHydrationTask?.cancel()
+        gbifHydrationTask?.cancel()
 
         self.activeScanId = record.id
         self.activeImageData = nil
