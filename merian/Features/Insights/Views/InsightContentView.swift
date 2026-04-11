@@ -29,17 +29,24 @@ struct InsightContentView: View {
                     // This creates a physical pixel bridge seamlessly masking `TabView` vertical pan-gesture framework synchronization tearing.
                     let bleedBuffer: CGFloat = 50 
                     
+                    let activeQueuedContext = viewModel.queuedContext ?? queuedScan
+                    let activeValidPaths = activeQueuedContext?.localImagePaths ?? viewModel.validHistoricImagePaths
+                    let activeHasLive = activeQueuedContext != nil ? false : viewModel.hasLive
+                    let activeLiveCount = activeQueuedContext != nil ? 0 : viewModel.liveCount
+                    let activeTotalImages = activeQueuedContext != nil ? (activeQueuedContext?.localImagePaths.count ?? 0) : viewModel.totalImages
+                    let activeIsProcessing = activeQueuedContext != nil ? true : viewModel.isProcessing
+
                     ImagesCarousel(
-                        scanId: viewModel.persistentScanId,
+                        scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
                         refUrls: viewModel.refUrls,
-                        validHistoricImagePaths: viewModel.validHistoricImagePaths,
-                        liveImageDatas: viewModel.liveImageDatas,
-                        hasLive: viewModel.hasLive,
-                        liveCount: viewModel.liveCount,
-                        totalImages: viewModel.totalImages,
-                        isProcessing: viewModel.isProcessing,
+                        validHistoricImagePaths: activeValidPaths,
+                        liveImageDatas: activeQueuedContext != nil ? [] : viewModel.liveImageDatas,
+                        hasLive: activeHasLive,
+                        liveCount: activeLiveCount,
+                        totalImages: activeTotalImages,
+                        isProcessing: activeIsProcessing,
                         onImageFailure: { path in
-                            guard viewModel.queuedContext == nil else { return }
+                            guard activeQueuedContext == nil else { return }
                             inferenceEngine.dropInvalidCarouselImage(path)
                         }
                     )
