@@ -67,7 +67,7 @@ const modelConfigs = {
       // already-low temperature. The combination narrows the distribution enough
       // that borderline identifications consistently resolve to the same species.
       topK: 40,
-      maxOutputTokens: 2000,
+      maxOutputTokens: 4096,
       thinkingConfig: { thinkingBudget: 2048 },
       safetySettings: BIOLOGICAL_SAFETY_SETTINGS,
     },
@@ -79,7 +79,7 @@ const modelConfigs = {
       temperature: 0.1,
       seed: 42,
       topK: 40,
-      maxOutputTokens: 2000,
+      maxOutputTokens: 8192,
       thinkingConfig: { thinkingBudget: 5000 },
       safetySettings: BIOLOGICAL_SAFETY_SETTINGS,
     },
