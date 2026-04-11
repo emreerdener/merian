@@ -422,19 +422,13 @@ private struct GBIFMedia: Decodable {
                         let capturedGbifKey = mappedData.gbifTaxonKey
                         // Single tracked task — cancelled by the next `analyze()` call so stale
                         // hydration results from a previous scan cannot overwrite the new one.
-                        // Wikipedia completes first; enrichment and GBIF run concurrently after.
+                        // Wikipedia and Enrichment run concurrently; GBIF runs sequentially after Enrichment.
                         // Capture wikipediaOverview before the task boundary — if the identify
                         // response already included it from the species_dictionary join, the
                         // Wikipedia round-trip can be skipped entirely.
                         let capturedHasWikipedia = mappedData.wikipediaOverview != nil
                         liveHydrationTask = Task { [weak self] in
                             guard let self else { return }
-                            // Skip Wikipedia fetch when the identify response already includes an
-                            // overview from the species_dictionary join (species enriched before).
-                            if !capturedHasWikipedia {
-                                await self.fetchWikipediaAndHydrate(for: capturedScientificName, scanId: capturedScanId, modelContext: modelContext)
-                                guard !Task.isCancelled else { return }
-                            }
                             // Gate enrichment at the species level — habitat, lookalikes, and taxonomy
                             // are identical across all scans of the same species. After the first scan
                             // enriches a species in this session, subsequent scans skip the Edge
@@ -445,15 +439,29 @@ private struct GBIFMedia: Decodable {
                             // capture stays actor-bound — async let closures are implicitly
                             // @Sendable and cannot capture non-Sendable @MainActor types.
                             await withTaskGroup(of: Void.self) { group in
-                                group.addTask { @MainActor [weak self] in
-                                    guard let self else { return }
-                                    if !capturedIsEnriched {
-                                        await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                                // Task 1: Wikipedia Hydration
+                                if !capturedHasWikipedia {
+                                    group.addTask { @MainActor [weak self] in
+                                        guard let self else { return }
+                                        await self.fetchWikipediaAndHydrate(for: capturedScientificName, scanId: capturedScanId, modelContext: modelContext)
                                     }
                                 }
+                                
+                                // Task 2: Enrichment followed by GBIF Images
                                 group.addTask { @MainActor [weak self] in
                                     guard let self else { return }
-                                    if let key = capturedGbifKey {
+                                    var taxonKeyToUse = capturedGbifKey
+                                    
+                                    if !capturedIsEnriched {
+                                        await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                                        // Retrieve the newly updated taxon key if one was provided in the enrichment response
+                                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
+                                    }
+                                    
+                                    // Make sure we check for cancellation before proceeding to the next sequential network fetch
+                                    guard !Task.isCancelled else { return }
+                                    
+                                    if let key = taxonKeyToUse {
                                         await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
                                     }
                                 }
@@ -1425,39 +1433,46 @@ private struct GBIFMedia: Decodable {
                 await self.fetchAndPatchOverrideData(scientificName: override, scanId: recordId, modelContext: safeContext)
             }
 
-            // Step 4: Retroactively hydrate legacy scans missing Wikipedia data.
-            if needsWiki {
-                guard !Task.isCancelled else { return }
-                await self.fetchWikipediaAndHydrate(for: recordScientificName, scanId: recordId, modelContext: safeContext)
-            }
-
-            // Step 5: Enrichment or GBIF-image hydration (mutually exclusive).
-            // Two gates prevent redundant enrichment calls:
-            // - enrichmentAttemptedScanIds (scan-ID-scoped): prevents re-firing for the same
-            //   scan record within a session (e.g. user closes and reopens the same scan).
-            // - enrichedSpeciesNames (species-name-scoped): prevents a second enrichment call
-            //   if the user opens two different scans of the same species in the same session —
-            //   shared species-level data (habitat, lookalikes) is identical across all scans.
-            //   Mirrors the same gate used on the live inference path.
-            if needsEnrichment
-                && !self.enrichmentAttemptedScanIds.contains(recordId)
-                && !self.enrichedSpeciesNames.contains(recordScientificName) {
-                guard !Task.isCancelled else { return }
-                // Evict 10% on cap hit to bound session-scoped set growth.
-                if self.enrichmentAttemptedScanIds.count >= self.sessionSetCap {
-                    self.enrichmentAttemptedScanIds.subtract(self.enrichmentAttemptedScanIds.prefix(self.sessionSetCap / 10))
-                }
-                self.enrichmentAttemptedScanIds.insert(recordId)
-                await self.fetchAndApplyEnrichment(modelContext: safeContext, needsMetadata: needsMetadata, needsLookalikes: needsLookalikes)
-                if !Task.isCancelled {
-                    if self.enrichedSpeciesNames.count >= self.sessionSetCap {
-                        self.enrichedSpeciesNames.subtract(self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10))
+            // Steps 4 & 5: Retroactive Wikipedia hydration, Enrichment, and GBIF-image hydration.
+            // Run Wikipedia and Enrichment concurrently. GBIF images run sequentially after Enrichment.
+            await withTaskGroup(of: Void.self) { group in
+                if needsWiki {
+                    group.addTask { @MainActor [weak self] in
+                        guard let self else { return }
+                        guard !Task.isCancelled else { return }
+                        await self.fetchWikipediaAndHydrate(for: recordScientificName, scanId: recordId, modelContext: safeContext)
                     }
-                    self.enrichedSpeciesNames.insert(recordScientificName)
                 }
-            } else if let key = gbifKey, recordIsBiological {
-                guard !Task.isCancelled else { return }
-                await self.fetchGBIFImagesAndHydrate(for: key, scanId: recordId, modelContext: safeContext)
+
+                group.addTask { @MainActor [weak self] in
+                    guard let self else { return }
+                    var taxonKeyToUse = gbifKey
+
+                    // Enrichment: Two gates prevent redundant calls (scan-ID-scoped and species-name-scoped).
+                    if needsEnrichment
+                        && !self.enrichmentAttemptedScanIds.contains(recordId)
+                        && !self.enrichedSpeciesNames.contains(recordScientificName) {
+                        guard !Task.isCancelled else { return }
+                        // Evict 10% on cap hit to bound session-scoped set growth.
+                        if self.enrichmentAttemptedScanIds.count >= self.sessionSetCap {
+                            self.enrichmentAttemptedScanIds.subtract(self.enrichmentAttemptedScanIds.prefix(self.sessionSetCap / 10))
+                        }
+                        self.enrichmentAttemptedScanIds.insert(recordId)
+                        await self.fetchAndApplyEnrichment(modelContext: safeContext, needsMetadata: needsMetadata, needsLookalikes: needsLookalikes)
+                        if !Task.isCancelled {
+                            if self.enrichedSpeciesNames.count >= self.sessionSetCap {
+                                self.enrichedSpeciesNames.subtract(self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10))
+                            }
+                            self.enrichedSpeciesNames.insert(recordScientificName)
+                        }
+                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
+                    }
+
+                    if let key = taxonKeyToUse, recordIsBiological {
+                        guard !Task.isCancelled else { return }
+                        await self.fetchGBIFImagesAndHydrate(for: key, scanId: recordId, modelContext: safeContext)
+                    }
+                }
             }
         }
     }
