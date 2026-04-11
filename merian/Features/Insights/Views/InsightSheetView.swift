@@ -67,31 +67,12 @@ struct InsightSheetView: View {
                     guard viewModel.queuedContext == nil else { return }
                     viewModel.evaluateProcessingCompletion(isStillProcessing: isStillProcessing, inferenceEngine: inferenceEngine, modelContext: modelContext)
                 }
-                .onChange(of: offlineQueueManager.unsyncedItemsCount) { _, _ in
-                    // Queued scan completion detection. When the scan count drops, the
-                    // OfflineQueuedScan for our context has been flushed — fetch the new
-                    // LocalScanRecord and hand off to the engine so the sheet transitions
-                    // smoothly to results instead of dismissing.
-                    guard let ctx = viewModel.queuedContext else { return }
-                    let scanId = ctx.id
-                    Task { @MainActor in
-                        // Retry up to 5 times (2.5 s total): the BackgroundDatabaseActor saves
-                        // LocalScanRecord to its own context before flushOfflineQueuedScan runs,
-                        // but remote store propagation to the main context is not instantaneous.
-                        for _ in 0..<5 {
-                            var descriptor = FetchDescriptor<LocalScanRecord>(
-                                predicate: #Predicate { $0.id == scanId }
-                            )
-                            descriptor.fetchLimit = 1
-                            if let record = (try? modelContext.fetch(descriptor))?.first {
-                                // Clear queuedContext BEFORE loading so the
-                                // onChange(of: isProcessing) guard passes when load() fires.
-                                viewModel.queuedContext = nil
-                                inferenceEngine.load(from: record)
-                                return
-                            }
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                        }
+                .onChange(of: queuedScan) { oldScan, newScan in
+                    // The parent LibraryView proactively loaded the InferenceEngine
+                    // and cleared the property to signal the handoff is complete.
+                    // Release the queued context to transition cleanly to the results.
+                    if oldScan != nil && newScan == nil {
+                        viewModel.queuedContext = nil
                     }
                 }
                 .task(id: inferenceEngine.speciesData?.scanId) {

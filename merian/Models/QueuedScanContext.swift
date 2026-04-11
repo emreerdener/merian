@@ -12,7 +12,7 @@ import Foundation
 /// Snapshotting all needed data into this value type at tap time (while the object is live)
 /// breaks the direct observation dependency. SwiftUI never registers a tracking dependency on
 /// the `OfflineQueuedScan` model's properties, so no re-evaluation happens on deletion.
-struct QueuedScanContext: Identifiable {
+struct QueuedScanContext: Identifiable, Equatable {
     let id: String
     let localImagePaths: [String]
     let timestamp: Date

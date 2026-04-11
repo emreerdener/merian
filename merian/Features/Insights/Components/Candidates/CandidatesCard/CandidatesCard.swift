@@ -51,22 +51,19 @@ struct CandidatesCard: View {
             if let scanId = inferenceEngine.speciesData?.scanId, dismissedScanId == scanId {
                 EmptyView()
             } else if candidates.isEmpty {
-                if isWeakMatch {
-                    CandidateVerificationView(
-                        confirmButtonTitle: confirmButtonTitle,
-                        onConfirm: {
-                            HapticManager.shared.triggerSuccessPulse()
-                            onMatchConfirmed?()
-                            Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
-                        },
-                        onFlagIssue: onFlagIssue,
-                        onRefineScan: onRefineScan,
-                        onDismiss: { dismissedScanId = inferenceEngine.speciesData?.scanId },
-                        showDismissButton: showDismissButton
-                    )
-                } else {
-                    EmptyView()
-                }
+                CandidateVerificationView(
+                    isWeakMatch: isWeakMatch,
+                    confirmButtonTitle: confirmButtonTitle,
+                    onConfirm: {
+                        HapticManager.shared.triggerSuccessPulse()
+                        onMatchConfirmed?()
+                        Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
+                    },
+                    onFlagIssue: onFlagIssue,
+                    onRefineScan: onRefineScan,
+                    onDismiss: { dismissedScanId = inferenceEngine.speciesData?.scanId },
+                    showDismissButton: showDismissButton
+                )
             } else {
                 CandidateAlternativesView(
                     candidates: candidates,

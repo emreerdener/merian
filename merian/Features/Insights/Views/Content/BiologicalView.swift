@@ -93,7 +93,7 @@ struct BiologicalView: View {
                 let isHumanSubject = inferenceEngine.speciesData?.isHumanSubject ?? false
 
                 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-                   !isUnknownSubject && !isHumanSubject && !hasReviewState && (candidates.count >= 2 || hasLowConfidence) {
+                   !isUnknownSubject && !isHumanSubject && !hasReviewState {
                     CandidatesCard(
                         candidates: candidates,
                         aiScientificName: primaryAIName,

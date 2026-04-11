@@ -7,6 +7,7 @@ struct LibraryView: View {
     // MARK: - State Dependencies
     @Bindable var searchManager: ScansManager
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
+    @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -168,10 +169,12 @@ struct LibraryView: View {
                     predicate: #Predicate { $0.id == scanId }
                 )
                 descriptor.fetchLimit = 1
-                if (try? modelContext.fetch(descriptor))?.first != nil {
-                    // Completed successfully — clear the context so InsightSheetView receives
-                    // nil for queuedScan and its internal onChange can hand off to the engine.
-                    // The sheet stays open (isQueuedSheetPresented remains true).
+                if let record = (try? modelContext.fetch(descriptor))?.first {
+                    // Completed successfully — load the engine proactively so the sheet
+                    // transitions seamlessly to the correct biological state, preventing
+                    // the intermediate \"Analyzing\" fallback that occurs if scanToManage
+                    // drops before the engine is populated.
+                    inferenceEngine.load(from: record)
                     scanToManage = nil
                 } else {
                     // Deleted or failed — close the sheet entirely.

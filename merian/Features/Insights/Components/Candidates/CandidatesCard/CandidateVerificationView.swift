@@ -3,6 +3,7 @@ import SwiftUI
 /// Surface presented when the AI has low confidence and there are NO alternative candidates
 /// for the user to review. It prompts the user to either confirm the AI's match or flag it.
 struct CandidateVerificationView: View {
+    let isWeakMatch: Bool
     let confirmButtonTitle: String
     let onConfirm: () -> Void
     var onFlagIssue: (() -> Void)?
@@ -20,9 +21,15 @@ struct CandidateVerificationView: View {
                     Text("Verify identification")
                         .font(.system(.title2).weight(.bold))
                         .foregroundColor(.primary)
-                    Text("The model had low confidence on this match")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    if isWeakMatch {
+                        Text("The model had low confidence on this match")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Does this match look correct?")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .multilineTextAlignment(.center)
                 
@@ -77,6 +84,7 @@ struct CandidateVerificationView: View {
 #if DEBUG
 #Preview {
     CandidateVerificationView(
+        isWeakMatch: true,
         confirmButtonTitle: "Confirm viceroy",
         onConfirm: {},
         onFlagIssue: {},
