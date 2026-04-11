@@ -83,6 +83,9 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
 
             // Signal sync completion once all background upload tasks have settled.
             // Exclude inference download tasks — they have their own lifecycle.
+            // Re-query allTasks here (not reusing the snapshot from processUploadCompletion)
+            // because dispatchInferenceDownloadTask may have added new download tasks during
+            // handleResult — those must be excluded from the upload-completion gate.
             let remaining = await session.allTasks
             let activeUploadTasks = remaining.filter {
                 $0.taskIdentifier != taskIdentifier &&
@@ -238,6 +241,11 @@ extension OfflineQueueManager {
             }
             return true
         }
+
+        // Success — evict the retry counter so it does not accumulate across long sessions.
+        // The entry is only written on transient failures; on a clean first-attempt upload
+        // this is a no-op removeValue on a key that was never inserted.
+        await MainActor.run { OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId) }
 
         return false
     }

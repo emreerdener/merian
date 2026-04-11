@@ -32,6 +32,14 @@ import UIKit
     // `stateLock.withLock { }` closures. This is the manual synchronization contract that
     // replaces Swift actor isolation for state shared with AVFoundation nonisolated delegates.
     // INVARIANT: Never access these vars outside a `stateLock.withLock` block.
+    //
+    // LOCK ORDERING — STRICTLY ENFORCED:
+    //   `stateLock` guards session/rotation/inference-pause state.
+    //   `requestsLock` guards in-flight capture continuations (`activeCaptureRequests`).
+    //   These two locks must NEVER be nested:
+    //     - Do NOT acquire `requestsLock` while holding `stateLock`.
+    //     - Do NOT acquire `stateLock` while holding `requestsLock`.
+    //   Violation = guaranteed deadlock between the camera queue and the @MainActor timeout path.
     @ObservationIgnored nonisolated let stateLock = OSAllocatedUnfairLock()
     /// Frame-delivery throttle timestamp — updated at most once per 300 ms from the depth delegate.
     @ObservationIgnored nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
@@ -109,8 +117,17 @@ import UIKit
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                // Capture the target FPS before the debounce sleep — a second onChange
+                // that fires during the sleep may update targetFPS again, and reading it
+                // after would apply the final value correctly in any case.
+                let fps = HardwareOrchestrator.shared.targetFPS
                 self.isFPSTrackingRegistered = false
-                self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
+                // Debounce: coalesce rapid thermal-state change bursts (can fire 3–4×/s under
+                // sustained load) into a single AVFoundation reconfiguration call. Without this,
+                // concurrent session reconfigurations queue up and produce AVFoundation stalls.
+                try? await Task.sleep(nanoseconds: 100_000_000)  // 100 ms
+                guard !Task.isCancelled else { return }
+                self.applyTargetFPS(fps)
                 self.trackFPS()
             }
         }

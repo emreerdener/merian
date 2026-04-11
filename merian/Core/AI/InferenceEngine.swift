@@ -9,6 +9,11 @@ import Vision
 
 // MARK: - Private Response Types
 
+/// Thrown from inside Task.detached parse closures when the expected content is absent
+/// (e.g. a Wikipedia article with no "Description" section). Distinct from CancellationError
+/// so callers can distinguish a missing-data skip from genuine task cancellation.
+private struct WikiContentNotFound: Error {}
+
 private struct WikiOriginalImage: Decodable { let source: String? }
 private struct WikiSection: Decodable {
     let title: String?
@@ -112,8 +117,16 @@ private struct GBIFMedia: Decodable {
     /// cancelled if the user fires a new scan before Wikipedia/enrichment/GBIF finish.
     @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
     @ObservationIgnored private var backgroundWriteTasks = [UUID: Task<Void, Never>]()
+    /// Hard cap on concurrent background write tasks. When reached, new submissions are dropped
+    /// rather than allowed to stack — prevents OOM during rapid offline-queue replay where
+    /// multiple wiki/GBIF/enrichment writes can stack faster than SQLite drains them.
+    private let backgroundWriteTaskCap = 8
 
     private func executeTrackedBackgroundTask(operation: @escaping @Sendable () async -> Void) {
+        guard backgroundWriteTasks.count < backgroundWriteTaskCap else {
+            MerianLog.general.debug("backgroundWriteTasks cap hit (\(self.backgroundWriteTaskCap)) — dropping background write")
+            return
+        }
         let id = UUID()
         let task = Task { [weak self] in
             defer { Task { @MainActor [weak self] in self?.backgroundWriteTasks.removeValue(forKey: id) } }
@@ -336,7 +349,9 @@ private struct GBIFMedia: Decodable {
                     }
 
                     if let container = modelContext?.container {
-                        let profileActor = ProfileDatabaseActor(modelContainer: container)
+                        // Reuse the process-lifetime shared profile actor — avoids a full
+                        // ModelContext + actor allocation on every scan result.
+                        let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
                         let updatedAwards = await profileActor.calculateAwards()
                         // Already on @MainActor — no hop needed.
                         GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
@@ -596,22 +611,26 @@ private struct GBIFMedia: Decodable {
             let (data, response) = try await InferenceEngine.externalAPISession.data(for: request)
             guard let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200 else { return }
 
-            let decoded = try JSONDecoder().decode(WikiMobileSectionsResponse.self, from: data)
-
-            // Find the "Description" section in the article body.
-            let descSection = decoded.remaining.sections.first {
-                $0.title?.caseInsensitiveCompare("Description") == .orderedSame
-            }
-            guard let rawHTML = descSection?.text, !rawHTML.isEmpty else { return }
-            let descriptionText = Self.stripHTML(rawHTML)
-            guard !descriptionText.isEmpty else { return }
-
-            // Construct the canonical desktop URL from the normalised page title.
-            let pageTitle = (decoded.lead.normalizedtitle ?? normalized)
-                .replacingOccurrences(of: " ", with: "_")
-            let encodedTitle = pageTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? pageTitle
-            let webUrl = "https://en.wikipedia.org/wiki/\(encodedTitle)"
-            let imageUrl = decoded.lead.originalimage?.source
+            // Decode and parse off @MainActor — mobile-sections payloads are 20–150 KB of raw HTML.
+            // JSONDecoder + 6× string replacements + regex on the main run loop produces a visible
+            // jank spike right as the user is watching scan results populate.
+            let capturedNormalized = normalized
+            let (descriptionText, webUrl, imageUrl) = try await Task.detached(priority: .utility) {
+                let decoded = try JSONDecoder().decode(WikiMobileSectionsResponse.self, from: data)
+                let descSection = decoded.remaining.sections.first {
+                    $0.title?.caseInsensitiveCompare("Description") == .orderedSame
+                }
+                guard let rawHTML = descSection?.text, !rawHTML.isEmpty else {
+                    throw WikiContentNotFound()
+                }
+                let text = Self.stripHTML(rawHTML)
+                guard !text.isEmpty else { throw WikiContentNotFound() }
+                let pageTitle = (decoded.lead.normalizedtitle ?? capturedNormalized)
+                    .replacingOccurrences(of: " ", with: "_")
+                let encodedTitle = pageTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? pageTitle
+                let url = "https://en.wikipedia.org/wiki/\(encodedTitle)"
+                return (text, url, decoded.lead.originalimage?.source)
+            }.value
 
             // Mark as attempted only on success — transient failures (timeout, 404) remain retryable.
             wikiFetchAttemptedIds.insert(species)
@@ -632,7 +651,10 @@ private struct GBIFMedia: Decodable {
 
             if let scanId = scanId, let context = modelContext {
                 let container = context.container
-                Task {
+                // Route through executeTrackedBackgroundTask: bounded by the cap and
+                // cancelled by prepareForNewScan() / cancelActiveRequest() so a stale
+                // wiki write cannot touch a record that is no longer active.
+                executeTrackedBackgroundTask {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: imageUrl)
                 }
@@ -643,7 +665,7 @@ private struct GBIFMedia: Decodable {
     }
 
     /// Strips HTML tags and decodes common entities from a Wikipedia section's raw HTML text.
-    private static func stripHTML(_ html: String) -> String {
+    private nonisolated static func stripHTML(_ html: String) -> String {
         var result = html
             .replacingOccurrences(of: "<br>", with: "\n", options: .caseInsensitive)
             .replacingOccurrences(of: "<br/>", with: "\n", options: .caseInsensitive)
@@ -719,9 +741,8 @@ private struct GBIFMedia: Decodable {
 
             if let scanId = scanId, let context = modelContext, let finalUrls = persistUrls {
                 let container = context.container
-                Task {
+                executeTrackedBackgroundTask {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    // We only want to patch the image URL. Re-use updateScanWithWikipedia since it allows patching just the image URL.
                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: nil, url: nil, imageUrl: finalUrls)
                 }
             }
@@ -807,8 +828,10 @@ private struct GBIFMedia: Decodable {
                             self.speciesData = updated  // Single @Observable-triggering assignment
                         }
                         if let key = enrichData.gbif_taxon_key {
-                            // Store in a tracked handle so cancelActiveRequest() can kill this task
-                            // before it writes stale GBIF image URLs to a record no longer active.
+                            // Assign immediately on @MainActor so prepareForNewScan() / cancelActiveRequest()
+                            // can always cancel this handle regardless of when the enrichment DB write completes.
+                            // Late assignment (inside enrichmentWriteTask) would leave gbifHydrationTask nil
+                            // during the write, causing a cancel race where the fetch leaks into the next scan.
                             self.gbifHydrationTask?.cancel()
                             self.gbifHydrationTask = Task { [weak self] in
                                 guard let self else { return }

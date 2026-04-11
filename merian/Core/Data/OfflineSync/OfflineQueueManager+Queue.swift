@@ -119,9 +119,13 @@ extension OfflineQueueManager {
     func purgeSoftDeletedRecords() {
         guard let context = modelContext else { return }
         let failedRaw = ScanQueueState.failed.rawValue
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.scanStateRaw == failedRaw }
         )
+        // Only fetch the fields needed for disk cleanup and deletion — avoids loading all
+        // telemetry columns into memory for potentially large backlogs of failed scans.
+        descriptor.propertiesToFetch = [\.localImagePaths, \.id]
+        descriptor.fetchLimit = 500
         let documentsDirectory = URL.documentsDirectory
 
         do {
