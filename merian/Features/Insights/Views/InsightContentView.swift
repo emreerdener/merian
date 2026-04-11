@@ -7,6 +7,10 @@ struct InsightContentView: View {
     @Environment(\.modelContext) var modelContext
 
     @Bindable var viewModel: InsightSheetViewModel
+    /// Passed directly from `InsightSheetView` as a plain stored property so it reflects
+    /// the current struct value — unaffected by the `@State` initialization timing issue
+    /// where `.sheet(isPresented:)` pre-evaluates the body with `scanToManage = nil`.
+    var queuedScan: QueuedScanContext?
     
     // MARK: - Layout Constants
     private let overlapRadius: CGFloat = 32
@@ -133,12 +137,23 @@ private extension InsightContentView {
             ZStack(alignment: .top) {
                 switch viewModel.contentMode {
                 case .analyzing:
-                    AnalyzingContentView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .background(Color(uiColor: .systemBackground))
-                        .transition(.opacity)
+                    // Guard: `queuedScan` (view-level property) is non-nil when this sheet is
+                    // presenting a queued scan — we're just in the nil-window before onAppear
+                    // sets `viewModel.queuedContext`. Show QueuedContentView immediately instead
+                    // of the transient analyzing skeleton.
+                    if let ctx = queuedScan {
+                        QueuedContentView(queuedContext: ctx)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .background(Color(uiColor: .systemBackground))
+                            .transition(.opacity)
+                    } else {
+                        AnalyzingContentView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .background(Color(uiColor: .systemBackground))
+                            .transition(.opacity)
+                    }
                 case .queued:
-                    if let ctx = viewModel.queuedContext {
+                    if let ctx = viewModel.queuedContext ?? queuedScan {
                         QueuedContentView(queuedContext: ctx)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             .background(Color(uiColor: .systemBackground))

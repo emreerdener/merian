@@ -166,7 +166,7 @@ private extension InsightSheetView {
     @ViewBuilder
     var mainContentStack: some View {
         ZStack(alignment: .top) {
-            InsightContentView(viewModel: viewModel)
+            InsightContentView(viewModel: viewModel, queuedScan: queuedScan)
 
             if let message = viewModel.toastMessage {
                 ToastBanner(onDismiss: {

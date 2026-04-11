@@ -85,7 +85,7 @@ struct ScansGrid<MenuContent: View>: View {
                                     .controlSize(.regular)
                                     .tint(.white)
                             } else {
-                                Image(systemName: "network.slash")
+                                Image(systemName: "antenna.radiowaves.left.and.right.slash")
                                     .font(.system(size: 22, weight: .semibold))
                                     .foregroundColor(.white)
                             }
