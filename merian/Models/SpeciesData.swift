@@ -191,7 +191,12 @@ extension SpeciesData {
         )
 
         self.scanId = edgeRes.scan_id
-        self.commonName = edgeRes.common_name ?? "Unknown Subject"
+        
+        let primaryRawNames = edgeRes.common_name?.components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            
+        self.commonName = primaryRawNames?.first ?? "Unknown Subject"
         self.scientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
         self.insightData = insight
         self.confidenceScore = edgeRes.confidence_score ?? 0.0
@@ -226,7 +231,10 @@ extension SpeciesData {
         self.inferenceTier = edgeRes.inference_tier
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(edgeRes.alternative_common_names)
         self.candidates = edgeRes.candidates.map { entries in
-            entries.map { IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature) }
+            entries.map { 
+                let splitCandidateCommon = $0.common_name?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines)
+                return IdentificationCandidate(scientificName: $0.scientific_name, commonName: splitCandidateCommon, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature) 
+            }
         }
         self.imageQualityScore = edgeRes.image_quality?.overall_score
         self.aiScientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"

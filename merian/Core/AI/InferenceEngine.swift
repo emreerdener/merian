@@ -864,9 +864,10 @@ private struct GBIFMedia: Decodable {
 
                         if let entries = enrichData.similar_species, !entries.isEmpty {
                             let mappedEntries = entries.map {
-                                SimilarSpeciesEntry(
+                                let splitCommonName = $0.common_name?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines)
+                                return SimilarSpeciesEntry(
                                     scientificName: $0.scientific_name,
-                                    commonName: $0.common_name,
+                                    commonName: splitCommonName,
                                     referenceImageUrl: $0.reference_image_url,
                                     iucnRedListStatus: $0.iucn_red_list_status
                                 )
