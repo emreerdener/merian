@@ -12,8 +12,8 @@ struct LocationPermissionStepView: View {
     var body: some View {
         OnboardingStepWrapper(
             imageName: "location",
-            title: "Where you are\nmatters",
-            subtitle: "Merian uses your geographic coordinate context to instantly improve AI accuracy and identify local ecology.",
+            title: "Context is\neverything",
+            subtitle: "Merian uses your environment to cross-reference local habitats, instantly boosting AI accuracy. Your exact coordinates always remain strictly private.",
             primaryButtonTitle: "Enable location",
             primaryButtonTextColor: Color.black,
             primaryButtonColor: Color.green.opacity(0.8),
