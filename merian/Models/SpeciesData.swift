@@ -144,6 +144,25 @@ struct SpeciesData {
     var alternativesExhausted: Bool = false
 }
 
+// MARK: - Sanitization Helpers
+
+extension SpeciesData {
+    /// Sanitizes an incoming array of alternative common names by splitting any comma-separated
+    /// strings into individual names, stripping whitespace, and deduplicating.
+    static func sanitizeAlternativeNames(_ names: [String]?) -> [String]? {
+        guard let names = names else { return nil }
+        let sanitized = names
+            .flatMap { $0.components(separatedBy: ",") }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            
+        // Deduplicate while preserving order if possible (Set doesn't, but an Array filter with Set can)
+        var seen = Set<String>()
+        let unique = sanitized.filter { seen.insert($0.lowercased()).inserted }
+        return unique.isEmpty ? nil : unique
+    }
+}
+
 // MARK: - Edge Response Init
 
 extension SpeciesData {
@@ -205,7 +224,7 @@ extension SpeciesData {
         self.habitatDescription = edgeRes.species_insights?.habitat_description
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
         self.inferenceTier = edgeRes.inference_tier
-        self.alternativeCommonNames = edgeRes.alternative_common_names
+        self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(edgeRes.alternative_common_names)
         self.candidates = edgeRes.candidates.map { entries in
             entries.map { IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature) }
         }
@@ -300,7 +319,7 @@ extension SpeciesData {
         self.habitatDescription = habitatDescription
         self.gbifTaxonKey = gbifTaxonKey
         self.inferenceTier = inferenceTier
-        self.alternativeCommonNames = alternativeCommonNames
+        self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(alternativeCommonNames)
         self.candidates = candidates
         self.imageQualityScore = imageQualityScore
         self.aiScientificName = aiScientificName.isEmpty ? scientificName : aiScientificName

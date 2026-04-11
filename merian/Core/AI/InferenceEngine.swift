@@ -802,7 +802,7 @@ private struct GBIFMedia: Decodable {
                                 updated.gbifTaxonKey = key
                             }
                             if let names = enrichData.alternative_common_names {
-                                updated.alternativeCommonNames = names
+                                updated.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(names)
                             }
                             self.speciesData = updated  // Single @Observable-triggering assignment
                         }
