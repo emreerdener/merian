@@ -9,7 +9,7 @@ struct WelcomeStepView: View {
         OnboardingStepWrapper(
             imageName: "journal",
             title: "Your magical\nmagnifying glass",
-            subtitle: "Merian identifies the living world around you with scientific accuracy. Point at any plant or animal to begin.",
+            subtitle: "Merian identifies the living world around you with scientific accuracy. Scan any plant, animal, or fungi to begin.",
             primaryButtonTitle: "Get started",
             primaryButtonTextColor: Color.black,
             primaryButtonColor: Color.white,
