@@ -164,7 +164,21 @@ final class MerianNetworkClient {
         }
         #endif
 
-        let (data, response) = try await activeSession.data(for: request)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await activeSession.data(for: request)
+        } catch let urlError as URLError {
+            let transientCodes: Set<URLError.Code> = [
+                .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet
+            ]
+            if transientCodes.contains(urlError.code) && !isRetry {
+                MerianLog.network.debug("Transient network error \(urlError.code.rawValue, privacy: .public) — retrying in 2s.")
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+            }
+            throw urlError
+        }
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MerianError.invalidResponse
         }

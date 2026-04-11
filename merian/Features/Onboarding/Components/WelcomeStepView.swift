@@ -8,7 +8,7 @@ struct WelcomeStepView: View {
     var body: some View {
         OnboardingStepWrapper(
             imageName: "journal",
-            title: "Your magical\nmagnifying glass",
+            title: "Your pocket\nnaturalist",
             subtitle: "Merian identifies the living world around you with scientific accuracy. Scan any plant, animal, or fungi to begin.",
             primaryButtonTitle: "Get started",
             primaryButtonTextColor: Color.black,
