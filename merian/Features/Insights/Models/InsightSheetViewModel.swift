@@ -6,6 +6,16 @@ import SwiftUI
 @MainActor
 @Observable
 final class InsightSheetViewModel {
+
+    // MARK: - Init
+
+    /// Allows `InsightSheetView` to seed `queuedContext` at `@State` initialization time
+    /// via `State(initialValue:)`, ensuring `contentMode` resolves to `.queued` on the
+    /// very first SwiftUI render rather than defaulting to `.analyzing` during the nil-window
+    /// that exists before `onAppear` fires.
+    init(queuedContext: QueuedScanContext? = nil) {
+        self.queuedContext = queuedContext
+    }
     
     // MARK: - Interface State
     var showCelebration = false

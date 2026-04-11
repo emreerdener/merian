@@ -263,7 +263,7 @@ extension CandidateSwipeModal {
             .padding(.horizontal, 32)
             
             VStack(spacing: 12) {
-                SlideToConfirm(label: "Confirm species", onConfirm: {
+                SlideToConfirm(label: confirmButtonTitle, onConfirm: {
                     isDismissing = true
                     onConfirmOriginal()
                     isPresented = false

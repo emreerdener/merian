@@ -13,9 +13,17 @@ struct InsightSheetView: View {
 
     @Binding var isPresented: Bool
     var queuedScan: QueuedScanContext?
-    
+
     // MARK: - State
-    @State private var viewModel = InsightSheetViewModel()
+    @State private var viewModel: InsightSheetViewModel
+
+    // Seed queuedContext at @State initialization time so contentMode resolves
+    // to .queued on the very first render, before onAppear fires.
+    init(isPresented: Binding<Bool>, queuedScan: QueuedScanContext? = nil) {
+        _isPresented = isPresented
+        self.queuedScan = queuedScan
+        _viewModel = State(initialValue: InsightSheetViewModel(queuedContext: queuedScan))
+    }
     
     // MARK: - Data Layer
     @Query(sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]

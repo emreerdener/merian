@@ -28,7 +28,7 @@ struct CandidateVerificationView: View {
                 
                 // Action Buttons
                 VStack(spacing: 12) {
-                    SlideToConfirm(label: "Confirm species", onConfirm: onConfirm)
+                    SlideToConfirm(label: confirmButtonTitle, onConfirm: onConfirm)
                     
                      Button {
                         HapticManager.shared.triggerMediumPulse()
