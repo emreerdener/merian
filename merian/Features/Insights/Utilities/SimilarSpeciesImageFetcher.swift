@@ -28,7 +28,7 @@ private struct FetcherGBIFMediaResponse: Decodable {
 @MainActor
 @Observable
 final class SimilarSpeciesImageFetcher {
-    var image: UIImage?
+    var images: [UIImage] = []
     var isLoading: Bool = false
 
     // Isolated session for Wikipedia and GBIF external API metadata calls.
@@ -44,6 +44,8 @@ final class SimilarSpeciesImageFetcher {
     // Explicit network fallback strings that cache aggressively under OOM limits
     func fetchImage(for scientificName: String) async -> Bool {
         guard !scientificName.isEmpty else { return false }
+        
+        self.images.removeAll()
         
         // Ensure SwiftUI bindings track layout transitions
         self.isLoading = true
@@ -69,33 +71,48 @@ final class SimilarSpeciesImageFetcher {
                 return decoded.thumbnail?.source ?? decoded.originalimage?.source
             }()
 
-            async let gbifUrl: String? = {
+            async let gbifUrls: [String] = {
                 guard let encoded = scientificName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-                      let url = URL(string: "https://api.gbif.org/v1/occurrence/search?scientificName=\(encoded)&mediaType=StillImage&limit=1")
-                else { return nil }
+                      let url = URL(string: "https://api.gbif.org/v1/occurrence/search?scientificName=\(encoded)&mediaType=StillImage&limit=5")
+                else { return [] }
                 var request = URLRequest(url: url)
                 request.timeoutInterval = 5.0
                 guard let (data, response) = try? await SimilarSpeciesImageFetcher.externalAPISession.data(for: request),
                       let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
                       let decoded = try? JSONDecoder().decode(FetcherGBIFMediaResponse.self, from: data),
-                      let firstMedia = decoded.results?.first?.media?.first(where: { $0.type == "StillImage" })
-                else { return nil }
-                return firstMedia.identifier
+                      let results = decoded.results
+                else { return [] }
+                
+                return results.compactMap { $0.media?.first(where: { $0.type == "StillImage" })?.identifier }
             }()
 
-            return await [wikiUrl, gbifUrl].compactMap { $0 }
+            var urls: [String] = []
+            if let w = await wikiUrl { urls.append(w) }
+            urls.append(contentsOf: await gbifUrls)
+            
+            // Remove duplicates while keeping order
+            var seen = Set<String>()
+            return urls.filter { seen.insert($0).inserted }
         }.value
         
         if resolvedUrls.isEmpty { return false }
         
-        let fallbackUrlString = resolvedUrls.joined(separator: ",")
-        
         // 2. Delegate uncompressed bitmap instantiation to Zero-OOM actor limits
-        if let downloadedImage = await LocalImageLoader.shared.loadImage(fromPath: nil, fallbackUrl: fallbackUrlString, maxDimension: 500) {
-            self.image = downloadedImage
-            return true
+        // We accumulate dynamically so the UI can update while remaining images continue downloading
+        await withTaskGroup(of: UIImage?.self) { group in
+            for urlString in resolvedUrls {
+                group.addTask {
+                    return await LocalImageLoader.shared.loadImage(fromPath: nil, fallbackUrl: urlString, maxDimension: 500)
+                }
+            }
+            
+            for await downloadedImage in group {
+                if let downloadedImage = downloadedImage {
+                    self.images.append(downloadedImage)
+                }
+            }
         }
         
-        return false
+        return !self.images.isEmpty
     }
 }

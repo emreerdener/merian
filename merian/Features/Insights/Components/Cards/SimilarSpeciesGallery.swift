@@ -61,7 +61,7 @@ struct SimilarSpeciesCard: View {
                     )
                 } else if imageFetcher.isLoading {
                     ProgressView()
-                } else if let img = imageFetcher.image {
+                } else if let img = imageFetcher.images.first {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFill()

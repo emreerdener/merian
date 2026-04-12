@@ -1004,9 +1004,10 @@ private struct GBIFMedia: Decodable {
             }
         }
 
+        let capturedSpeciesId = activeSpeciesId
         executeTrackedBackgroundTask { [weak self] in
             guard let self else { return }
-            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: true, confirmedSpeciesId: activeSpeciesId, userReviewState: UserReviewState.aiConfirmed.rawValue)
+            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: true, confirmedSpeciesId: capturedSpeciesId, userReviewState: UserReviewState.aiConfirmed.rawValue)
         }
     }
 

@@ -9,7 +9,7 @@ struct FlayedCandidateThumbnail: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(.secondarySystemBackground))
             
-            if let img = imageFetcher.image {
+            if let img = imageFetcher.images.first {
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFill()
