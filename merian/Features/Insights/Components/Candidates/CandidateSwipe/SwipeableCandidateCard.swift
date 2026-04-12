@@ -118,7 +118,7 @@ struct SwipeableCandidateCard: View {
                     )
 
                 // Common name and scientific name
-                let _common = (candidate.commonName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let _common = (imageFetcher.commonName ?? candidate.commonName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if !_common.isEmpty && _common.lowercased() != candidate.scientificName.lowercased() {
                     Text(_common.capitalized)
                         .font(.system(.title, design: .serif).weight(.bold))

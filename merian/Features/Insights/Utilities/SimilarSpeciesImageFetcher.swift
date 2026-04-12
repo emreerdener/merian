@@ -8,6 +8,7 @@ private struct WikiThumbnail: Decodable {
 }
 
 private struct WikiSummaryResponse: Decodable {
+    let title: String?
     let thumbnail: WikiThumbnail?
     let originalimage: WikiThumbnail?
 }
@@ -29,6 +30,7 @@ private struct FetcherGBIFMediaResponse: Decodable {
 @Observable
 final class SimilarSpeciesImageFetcher {
     var images: [UIImage] = []
+    var commonName: String?
     var isLoading: Bool = false
 
     // Isolated session for Wikipedia and GBIF external API metadata calls.
@@ -56,8 +58,8 @@ final class SimilarSpeciesImageFetcher {
         // 1. Resolve remote URLs concurrently off the main thread.
         //    Wikipedia and GBIF run in parallel — previously sequential, which meant
         //    an 11s worst-case wait (5s wiki + 6s GBIF) before the placeholder appeared.
-        let resolvedUrls = await Task.detached(priority: .utility) { () -> [String] in
-            async let wikiUrl: String? = {
+        let fetchOutput = await Task.detached(priority: .utility) { () -> (urls: [String], commonName: String?) in
+            async let wikiResult: (String?, String?)? = {
                 guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
                       let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
                 else { return nil }
@@ -68,7 +70,7 @@ final class SimilarSpeciesImageFetcher {
                       let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
                       let decoded = try? JSONDecoder().decode(WikiSummaryResponse.self, from: data)
                 else { return nil }
-                return decoded.thumbnail?.source ?? decoded.originalimage?.source
+                return (decoded.title, decoded.thumbnail?.source ?? decoded.originalimage?.source)
             }()
 
             async let gbifUrls: [String] = {
@@ -87,13 +89,20 @@ final class SimilarSpeciesImageFetcher {
             }()
 
             var urls: [String] = []
-            if let w = await wikiUrl { urls.append(w) }
+            let wr = await wikiResult
+            if let w = wr?.1 { urls.append(w) }
             urls.append(contentsOf: await gbifUrls)
             
             // Remove duplicates while keeping order
             var seen = Set<String>()
-            return urls.filter { seen.insert($0).inserted }
+            let deduped = urls.filter { seen.insert($0).inserted }
+            return (urls: deduped, commonName: wr?.0)
         }.value
+        
+        let resolvedUrls = fetchOutput.urls
+        if let fallbackName = fetchOutput.commonName, fallbackName.lowercased() != scientificName.lowercased() {
+             self.commonName = fallbackName
+        }
         
         if resolvedUrls.isEmpty { return false }
         
