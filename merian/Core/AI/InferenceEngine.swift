@@ -721,7 +721,7 @@ private struct GBIFMedia: Decodable {
 
             // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
             var persistUrls: String?
-            if self.activeScanId == scanId, var updated = self.speciesData {
+            if var updated = self.speciesData, updated.scanId == scanId {
                 var currentUrls = updated.referenceImageUrl?
                     .components(separatedBy: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -790,7 +790,7 @@ private struct GBIFMedia: Decodable {
             if needsMetadata {
                 group.addTask { @MainActor [weak self] in
                     guard let self else { return }
-                    defer { if self.activeScanId == capturedScanId { self.isEnrichmentLoading = false } }
+                    defer { if self.speciesData?.scanId == capturedScanId { self.isEnrichmentLoading = false } }
                     do {
                         let response = try await MerianNetworkClient.shared.fetchEnrichment(
                             scanId: capturedScanId,
@@ -874,7 +874,7 @@ private struct GBIFMedia: Decodable {
             if needsLookalikes {
                 group.addTask { @MainActor [weak self] in
                     guard let self else { return }
-                    defer { if self.activeScanId == capturedScanId { self.isLookalikesLoading = false } }
+                    defer { if self.speciesData?.scanId == capturedScanId { self.isLookalikesLoading = false } }
                     do {
                         let response = try await MerianNetworkClient.shared.fetchEnrichment(
                             scanId: capturedScanId,
@@ -1251,7 +1251,12 @@ private struct GBIFMedia: Decodable {
     /// resets to `isProcessing = false, speciesData = nil` — appropriate when the user
     /// dismisses the insight sheet with no new scan queued.
     func cancelActiveRequest(isUserInitiated: Bool = false) {
-        self.activeScanId = nil
+        // NOTE: activeScanId is intentionally NOT cleared here.
+        // processInferenceDownloadResult reads activeScanId to detect the background-wins race
+        // (background URLSession completing while the live task is suspended). Clearing it here
+        // would break that detection. activeScanId is owned exclusively by:
+        //   - The inferenceTask's defer block (clears after task exits)
+        //   - prepareForNewScan() (clears synchronously before the next scan starts)
         self.isProcessing = false
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()

@@ -35,6 +35,7 @@ struct AppLifecycleManagerTests {
             offlineManager.isOnline                  = originalOnline
             offlineManager.hasReconciledStartupState = originalReconciled
             offlineManager.uploadRetryCount.removeValue(forKey: stuck.id)
+            offlineManager.replayedStagedScanCount   = 0
             UserDefaults.standard.set(originalOnboarding, forKey: "hasCompletedOnboarding")
         }
 
@@ -42,20 +43,23 @@ struct AppLifecycleManagerTests {
         offlineManager.isOnline                  = true
         // Bypass startup reconciliation so replayInferenceForUploadedScans queries .staged scans immediately.
         offlineManager.hasReconciledStartupState = true
+        // Reset debug counter so a prior test's replay doesn't interfere.
+        offlineManager.replayedStagedScanCount   = 0
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
 
         manager.handleActivePhase()
 
-        // In the test environment the network call fails immediately and increments
-        // uploadRetryCount — a reliable, network-free observable that the pipeline was triggered.
-        // Poll up to 10s to avoid a fixed sleep racing the async Task in handleActivePhase() over Mock Networking.
-        let deadline = Date().addingTimeInterval(10)
-        while (offlineManager.uploadRetryCount[stuck.id] ?? 0) == 0, Date() < deadline {
+        // replayedStagedScanCount is incremented immediately after tryClaimForInference
+        // succeeds — before any network work — so this is a network-free observable that
+        // the staged-scan replay pipeline was triggered.
+        // Poll up to 5s to allow the nested Tasks in handleActivePhase to be scheduled.
+        let deadline = Date().addingTimeInterval(5)
+        while offlineManager.replayedStagedScanCount == 0, Date() < deadline {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
 
         #expect(
-            (offlineManager.uploadRetryCount[stuck.id] ?? 0) > 0,
+            offlineManager.replayedStagedScanCount > 0,
             "handleActivePhase must call replayInferenceForUploadedScans() so .staged scans stuck mid-inference are recovered on foreground, not just on connectivity change"
         )
     }

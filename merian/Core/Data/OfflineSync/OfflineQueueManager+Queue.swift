@@ -260,6 +260,12 @@ extension OfflineQueueManager {
                 // If another path already claimed it, this returns false and we skip.
                 guard await dbActor.tryClaimForInference(scanId: scanId) else { return }
 
+#if DEBUG
+                // Increment before any network work so tests can observe this as a
+                // network-free signal that the replay pipeline was triggered.
+                await MainActor.run { self.replayedStagedScanCount += 1 }
+#endif
+
                 // Migration fallback: scans promoted from V32's isUploaded=true have no
                 // stagedR2Keys (the field didn't exist). Reconstruct from the current auth
                 // session — same approach as the pre-V33 code, safe because the userId

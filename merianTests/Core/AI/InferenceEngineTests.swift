@@ -902,7 +902,7 @@ struct InferenceEngineTests {
         }
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.mockEndpoints["/"] = { _ in (mockResponse, successJSON) }
+        MockURLProtocol.mockEndpoints["/identify"] = { _ in (mockResponse, successJSON) }
 
         let sessionConfig = URLSessionConfiguration.ephemeral
         sessionConfig.protocolClasses = [MockURLProtocol.self]

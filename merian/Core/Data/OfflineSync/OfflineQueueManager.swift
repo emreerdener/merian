@@ -76,6 +76,13 @@ import SwiftData
     /// Runs exactly once per process life on the first connectivity restore.
     @ObservationIgnored var hasReconciledStartupState = false
 
+#if DEBUG
+    /// Number of scans successfully claimed for inference by `replayInferenceStagedScans`.
+    /// Incremented before any network work begins — provides a network-free observable
+    /// for tests verifying that the staged-scan replay pipeline was triggered.
+    @ObservationIgnored var replayedStagedScanCount: Int = 0
+#endif
+
     /// Maximum consecutive transient errors before a scan is tombstoned.
     static let maxUploadRetries = 3
     /// Maximum delay between `generateUploadURLs` failure retries (seconds).

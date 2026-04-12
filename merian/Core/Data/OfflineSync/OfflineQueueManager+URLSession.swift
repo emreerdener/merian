@@ -344,7 +344,11 @@ extension OfflineQueueManager {
         }
 
         // Build the authenticated request. On failure (e.g., Keychain read failure while
-        // backgrounded), reset to .staged so the next sync cycle can retry.
+        // backgrounded), treat as a transient failure: increment the retry counter and
+        // reset to .staged so the next sync cycle can retry. Routing through
+        // handleInferenceRetry (rather than a bare transitionScanToStaged) means
+        // consecutive build failures count toward maxUploadRetries and are observable
+        // via uploadRetryCount — the same contract as network-level failures.
         let request: URLRequest
         do {
             request = try await MerianNetworkClient.shared.buildIdentifyRequest(
@@ -354,8 +358,7 @@ extension OfflineQueueManager {
             )
         } catch {
             MerianLog.data.error("dispatchInferenceDownloadTask: failed to build request for \(scanId, privacy: .private): \(error, privacy: .private)")
-            let retryActor = resolvedInferenceDbActor(container: extracted.container)
-            await retryActor.transitionScanToStaged(id: scanId)
+            await handleInferenceRetry(scanId: scanId)
             return
         }
 
