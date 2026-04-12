@@ -156,7 +156,7 @@ All three sets share a single `private let sessionSetCap = 500` ceiling. When an
 
 `InferenceEngine` now owns `@ObservationIgnored private var gbifHydrationTask: Task<Void, Never>?`. The property is:
 - **Cancelled and nil-ed** at the start of every `analyze()` call (new scan starts) and inside `cancelActiveRequest()` (background rescue or explicit cancel).
-- **Assigned** inside `fetchAndApplyEnrichment` using `gbifHydrationTask?.cancel(); gbifHydrationTask = Task { ... }` so only one GBIF hydration is ever in flight at a time.
+- **Assigned immediately on `@MainActor`** inside `fetchAndApplyEnrichment` — `gbifHydrationTask?.cancel(); gbifHydrationTask = Task { ... }` — so only one GBIF hydration is ever in flight at a time. **Critical**: this assignment must happen synchronously on `@MainActor`, never deferred inside an `await` or another `Task`. If it were nested inside `enrichmentWriteTask` (after the async DB write), a `prepareForNewScan()` call arriving during that write would see `gbifHydrationTask == nil`, issue a no-op cancel, and the deferred assignment would then spawn a running GBIF task that is never cancelled — leaking work for the previous scan into the next scan's result. `enrichmentWriteTask` is kept purely for the DB write (`updateScanWithEnrichment`) and is independent of `gbifHydrationTask`.
 
 ### GBIF Response Decoded Off `@MainActor` (`InferenceEngine`)
 
@@ -201,6 +201,20 @@ The function now issues a **single `FetchDescriptor<LocalScanRecord>`** filtered
 ### Reconnect Debounce Task Stacking (`OfflineQueueManager`)
 
 On a flapping WiFi ↔ cellular handoff, `NWPathMonitor` fires multiple `pathUpdateHandler` callbacks. Each positive-connectivity callback previously created a new untracked 1-second debounce task, causing stacked `syncPendingScans()` calls. `OfflineQueueManager` now holds `@ObservationIgnored private var reconnectDebounceTask: Task<Void, Never>?`. Every positive event cancels the previous debounce task before creating a new one. Connectivity-loss cancels the pending debounce alongside `syncTask` and `collectionSyncTask`, **and additionally nils the reference** (`reconnectDebounceTask = nil`). Without the nil assignment, a subsequent reconnect callback would see a non-nil (but already-cancelled) task handle, cancel it redundantly, and potentially skip creating a new one depending on control flow — the nil ensures the next reconnect always spawns a fresh debounce task.
+
+### Background Write Task Cap — OOM Guard (`InferenceEngine`)
+
+After a successful identification, `InferenceEngine` can queue background `BackgroundDatabaseActor` write tasks for Wikipedia hydration, GBIF image hydration, enrichment persistence, and identification review actions (confirm, override, flag, unflag, reset). Without a ceiling, rapid successive scans or a heavy session opening dozens of historical records could accumulate an unbounded number of concurrent actor instances and their associated `ModelContext` objects, eventually triggering JetSam OOM.
+
+`InferenceEngine` caps this with `private let backgroundWriteTaskCap = 8`. `executeTrackedBackgroundTask` guards entry: if `backgroundWriteTasks` already holds 8 entries when a new write is attempted, the write is dropped and a `MerianLog.general.debug` message is emitted — no crash, no silent corruption. Wikipedia and GBIF hydration DB writes (`updateScanWithWikipedia`) are routed through this cap instead of raw `Task { }` closures, so they respect the ceiling alongside review-action writes.
+
+### Wikipedia Decode Offloaded from `@MainActor` (`InferenceEngine`)
+
+After `URLSession` returns the Wikipedia mobile-sections API response, `fetchWikipediaAndHydrate` previously decoded the JSON and ran `stripHTML` synchronously on `@MainActor`. For popular species, the mobile-sections payload is 50–200 KB. Running `JSONDecoder` and the HTML stripping pass on the main run loop produces a measurable jank spike immediately after the user receives their scan result — especially visible during 120Hz `ScrollView` interactions.
+
+The JSON decode and `stripHTML` now run inside `Task.detached(priority: .utility)`. `stripHTML` is marked `nonisolated` since it is a pure string transformation with no actor state dependencies. Only the final `(String, String, String?)` tuple crosses back to `@MainActor` once the detached task completes.
+
+The detached closure throws `WikiContentNotFound` (a `private struct WikiContentNotFound: Error {}` sentinel) when the Wikipedia response contains no "Description" section or the stripped text is empty. This is distinct from `CancellationError` — a missing description is a parse skip, not task cancellation — so the `catch` path can correctly distinguish between the two without accidentally swallowing genuine cancellations.
 
 ### `AVCaptureSession.inputs` Thread Safety (`CameraManager`)
 

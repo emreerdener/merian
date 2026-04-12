@@ -245,7 +245,7 @@ extension OfflineQueueManager {
         // Success — evict the retry counter so it does not accumulate across long sessions.
         // The entry is only written on transient failures; on a clean first-attempt upload
         // this is a no-op removeValue on a key that was never inserted.
-        await MainActor.run { OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId) }
+        await MainActor.run { _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId) }
 
         return false
     }

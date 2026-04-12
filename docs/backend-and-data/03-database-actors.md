@@ -119,19 +119,22 @@ The design principle is page-at-a-time streaming: each page is processed and rel
 - `calculateHeatmapData()` — fetches with `[\.timestamp]` projection; computes the 52-week scan heatmap. Kept for call sites that only need heatmap data.
 - `calculateAwards()` (extension in `Achievements.swift`) — fetches with the full 11-column projection; delegates to `AchievementsCalculator.calculate(from:)`. Called from `InferenceEngine` after every successful inference (not gated on `isNewDiscovery` — awards can trigger on any condition: time-of-day, taxonomy, elevation, etc.)
 
-**When to create**: Ad-hoc. Use `calculateAll()` from `ProfileTabView` (single actor crossing for all profile data) and `calculateAwards()` from `InferenceEngine` (post-inference award refresh):
+**When to create**: Ad-hoc for profile tab; long-lived shared instance for post-inference award refresh:
 ```swift
-// ProfileTabView — single fetch for all profile data
+// ProfileTabView — single fetch for all profile data (ad-hoc)
 let actor = ProfileDatabaseActor(modelContainer: container)
 let (species, streak, heatmap, awards) = await actor.calculateAll()
 
-// InferenceEngine — post-inference award refresh only
-if let container = modelContext?.container {
-    let profileActor = ProfileDatabaseActor(modelContainer: container)
-    let updatedAwards = await profileActor.calculateAwards()
-    await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards) }
-}
+// InferenceEngine — post-inference award refresh only (long-lived shared instance)
+// OfflineQueueManager.shared.resolvedProfileDbActor(container:) returns a cached
+// ProfileDatabaseActor, reusing the same ModelContext across consecutive inferences
+// instead of allocating a fresh actor per scan.
+let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
+let updatedAwards = await profileActor.calculateAwards()
+await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards) }
 ```
+
+> **Why long-lived for `calculateAwards()`?** On a burst of offline scan completions (or rapid successive live scans), `analyze()` calls `calculateAwards()` after every result. Allocating a fresh `ProfileDatabaseActor` — and with it a fresh `ModelContext` — per scan wastes actor setup overhead and generates unnecessary SQLite context churn. `resolvedProfileDbActor` maintains one actor per `ModelContainer` identity; Swift actor serialization ensures concurrent callers queue safely.
 
 ---
 

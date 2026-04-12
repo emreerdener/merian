@@ -87,8 +87,7 @@ struct BiologicalView: View {
                                      inferenceEngine.speciesData?.isFlagged == true ||
                                      inferenceEngine.speciesData?.alternativesExhausted == true
                 let candidates = inferenceEngine.speciesData?.candidates ?? []
-                let confidenceBands = MerianConfig.confidenceBands(forInferenceTier: inferenceEngine.speciesData?.inferenceTier)
-                let hasLowConfidence = (inferenceEngine.speciesData?.confidenceScore ?? 1.0) < confidenceBands.diagnosticTrigger
+
                 let isUnknownSubject = inferenceEngine.speciesData?.scientificName == "Taxonomy Unavailable"
                 let isHumanSubject = inferenceEngine.speciesData?.isHumanSubject ?? false
 
