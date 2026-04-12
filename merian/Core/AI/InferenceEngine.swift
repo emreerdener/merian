@@ -965,23 +965,23 @@ private struct GBIFMedia: Decodable {
             speciesData = updated
         }
 
-        // 2. Persist to SwiftData.
+        // 2. Fetch and patch species data for the override species first, so we obtain the UUID.
+        let confirmedId = await fetchAndPatchOverrideData(scientificName: scientificName, scanId: scanId, modelContext: modelContext)
+
+        // 3. Persist to SwiftData.
         if let context = modelContext {
             let container = context.container
             Task {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanWithOverride(scanId: scanId, override: scientificName, confirmed: false)
+                await dbActor.updateScanWithOverride(scanId: scanId, override: scientificName, confirmed: false, newConfirmedSpeciesId: confirmedId, userReviewState: .userOverridden)
             }
         }
 
-        // 3. Cloud sync — IDOR-guarded direct PostgREST update.
+        // 4. Cloud sync — IDOR-guarded direct PostgREST update.
         executeTrackedBackgroundTask { [weak self] in
             guard let self else { return }
-            await self.syncIdentificationReviewToCloud(scanId: scanId, override: scientificName, confirmed: false)
+            await self.syncIdentificationReviewToCloud(scanId: scanId, override: scientificName, confirmed: false, confirmedSpeciesId: confirmedId, userReviewState: UserReviewState.userOverridden.rawValue)
         }
-
-        // 4. Fetch and patch species data for the override species.
-        await fetchAndPatchOverrideData(scientificName: scientificName, scanId: scanId, modelContext: modelContext)
     }
 
     /// Called when the user confirms the AI's primary identification ("Yes, correct").
@@ -991,17 +991,22 @@ private struct GBIFMedia: Decodable {
 
         speciesData?.userConfirmedIdentification = true
 
+        var activeSpeciesId: String?
         if let context = modelContext {
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+            activeSpeciesId = (try? context.fetch(descriptor))?.first?.speciesId
+
             let container = context.container
+            let confirmedSpeciesId = activeSpeciesId
             executeTrackedBackgroundTask {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: true)
+                await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: true, newConfirmedSpeciesId: confirmedSpeciesId, userReviewState: .aiConfirmed)
             }
         }
 
         executeTrackedBackgroundTask { [weak self] in
             guard let self else { return }
-            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: true)
+            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: true, confirmedSpeciesId: activeSpeciesId, userReviewState: UserReviewState.aiConfirmed.rawValue)
         }
     }
 
@@ -1058,7 +1063,7 @@ private struct GBIFMedia: Decodable {
             let container = context.container
             executeTrackedBackgroundTask {
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: false)
+                await dbActor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: false, newConfirmedSpeciesId: nil, userReviewState: .unreviewed)
                 await dbActor.updateScanAsUnflagged(scanId: scanId)
             }
         }
@@ -1066,7 +1071,7 @@ private struct GBIFMedia: Decodable {
         // 3. Zero both cloud columns.
         executeTrackedBackgroundTask { [weak self] in
             guard let self else { return }
-            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: false)
+            await self.syncIdentificationReviewToCloud(scanId: scanId, override: nil, confirmed: false, confirmedSpeciesId: nil, userReviewState: UserReviewState.unreviewed.rawValue)
         }
 
         // 4. Re-hydrate the AI's original species data from species_dictionary.
@@ -1091,8 +1096,10 @@ private struct GBIFMedia: Decodable {
     ///   Pass nil (default) when called from `applyIdentificationOverride` to suppress the
     ///   original AI reasoning under the override species name.
     @MainActor
-    private func fetchAndPatchOverrideData(scientificName: String, scanId: String?, modelContext: ModelContext?, restoringAiReasoning: String? = nil) async {
+    @discardableResult
+    private func fetchAndPatchOverrideData(scientificName: String, scanId: String?, modelContext: ModelContext?, restoringAiReasoning: String? = nil) async -> String? {
         struct SpeciesDictRow: Decodable {
+            let id: String
             let common_names: [String: String?]?
             let kingdom: String?
             let phylum: String?
@@ -1108,11 +1115,13 @@ private struct GBIFMedia: Decodable {
             let habitat_description: String?
             let gbif_taxon_key: Int?
         }
+        
+        struct IdOnlyRow: Decodable { let id: String }
 
         do {
             let rows: [SpeciesDictRow] = try await SupabaseManager.shared.client
                 .from("species_dictionary")
-                .select("common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key")
+                .select("id, common_names, kingdom, phylum, class, order, family, genus, wikipedia_overview, hazard_type, reference_image_url, wikipedia_url, iucn_red_list_status, habitat_description, gbif_taxon_key")
                 .eq("scientific_name", value: scientificName)
                 .limit(1)
                 .execute()
@@ -1188,6 +1197,7 @@ private struct GBIFMedia: Decodable {
                         )
                     }
                 }
+                return row.id
             } else {
                 // Cache miss — enrich the override species. fetchAndApplyEnrichment uses
                 // speciesData.scientificName which is already set to the override name.
@@ -1213,27 +1223,49 @@ private struct GBIFMedia: Decodable {
                     }
                 }
                 await fetchAndApplyEnrichment(modelContext: modelContext)
+
+                let fallbackRows: [IdOnlyRow]? = try? await SupabaseManager.shared.client
+                    .from("species_dictionary")
+                    .select("id")
+                    .eq("scientific_name", value: scientificName)
+                    .limit(1)
+                    .execute()
+                    .value
+                return fallbackRows?.first?.id
             }
         } catch {
             MerianLog.general.debug("fetchAndPatchOverrideData failed: \(error, privacy: .private)")
+            
+            let fallbackRows: [IdOnlyRow]? = try? await SupabaseManager.shared.client
+                .from("species_dictionary")
+                .select("id")
+                .eq("scientific_name", value: scientificName)
+                .limit(1)
+                .execute()
+                .value
+            return fallbackRows?.first?.id
         }
     }
 
     /// IDOR-guarded direct PostgREST update persisting both identification review fields.
     /// Accepts nil for `override` to set the column to NULL (reset / confirmed-only path).
-    private func syncIdentificationReviewToCloud(scanId: String, override: String?, confirmed: Bool) async {
+    private func syncIdentificationReviewToCloud(scanId: String, override: String?, confirmed: Bool, confirmedSpeciesId: String?, userReviewState: String) async {
         guard let userId = await MainActor.run(body: { SupabaseManager.shared.currentUser?.id.uuidString }) else { return }
 
         struct ReviewSyncPayload: Encodable {
             let user_identification_override: String?
             let user_confirmed_identification: Bool
+            let confirmed_species_id: String?
+            let user_review_state: String
         }
 
         do {
             try await SupabaseManager.shared.client
                 .from("scans")
                 .update(ReviewSyncPayload(user_identification_override: override,
-                                         user_confirmed_identification: confirmed))
+                                         user_confirmed_identification: confirmed,
+                                         confirmed_species_id: confirmedSpeciesId,
+                                         user_review_state: userReviewState))
                 .eq("id", value: scanId)
                 .eq("user_id", value: userId)
                 .execute()

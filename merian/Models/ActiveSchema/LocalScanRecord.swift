@@ -92,6 +92,15 @@ public final class LocalScanRecord {
     /// Nil for scans captured before V34 or species not yet enriched.
     @Attribute public var alternativeCommonNames: [String]?
 
+    @Attribute public var confirmedSpeciesId: String?
+
+    @Attribute public var userReviewStateRaw: String = UserReviewState.unreviewed.rawValue
+
+    public var userReviewState: UserReviewState {
+        get { UserReviewState(rawValue: userReviewStateRaw) ?? .unreviewed }
+        set { userReviewStateRaw = newValue.rawValue }
+    }
+
     public init(
         id: String = UUID().uuidString,
         speciesId: String,
@@ -145,7 +154,9 @@ public final class LocalScanRecord {
         userConfirmedIdentification: Bool = false,
         isFlagged: Bool = false,
         imageQualityScore: Int? = nil,
-        alternativeCommonNames: [String]? = nil) {
+        alternativeCommonNames: [String]? = nil,
+        confirmedSpeciesId: String? = nil,
+        userReviewStateRaw: String = UserReviewState.unreviewed.rawValue) {
 
         self.id = id
         self.speciesId = speciesId
@@ -206,5 +217,7 @@ public final class LocalScanRecord {
         self.isFlagged = isFlagged
         self.imageQualityScore = imageQualityScore
         self.alternativeCommonNames = alternativeCommonNames
+        self.confirmedSpeciesId = confirmedSpeciesId
+        self.userReviewStateRaw = userReviewStateRaw
     }
 }

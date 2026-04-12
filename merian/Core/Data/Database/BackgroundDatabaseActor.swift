@@ -596,11 +596,19 @@ actor BackgroundDatabaseActor {
     /// - Parameters:
     ///   - scanId: The scan record to update.
     ///   - override: The scientific name the user selected, or nil to clear.
-    ///   - confirmed: True when the user confirmed the AI identification ("Yes, correct").
-    func updateScanWithOverride(scanId: String, override: String?, confirmed: Bool) {
+    ///   - newConfirmedSpeciesId: The definitive species UUID (either the AI original or an override candidate).
+    func updateScanWithOverride(
+        scanId: String,
+        override: String?,
+        confirmed: Bool,
+        newConfirmedSpeciesId: String?,
+        userReviewState: UserReviewState
+    ) {
         mutateScan(id: scanId) { record in
             record.userIdentificationOverride = override
             record.userConfirmedIdentification = confirmed
+            record.confirmedSpeciesId = newConfirmedSpeciesId
+            record.userReviewState = userReviewState
         }
     }
 

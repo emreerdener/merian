@@ -357,15 +357,16 @@ Users can confirm or override the AI's primary identification directly from `Can
 - Suppresses `InsightData.aiReasoning` — the AI's vision reasoning was written for the original species and is misleading under the override name.
 `record.scientificName` is always used as `aiScientificName`, enabling the "AI originally suggested X" footer and the Undo/reset path regardless of how many times the sheet is reopened.
 
-**Data model**: Three fields on `LocalScanRecord` (all cloud-synced):
+**Data model**: Four fields on `LocalScanRecord` (all cloud-synced):
 - `userIdentificationOverride: String?` — mirrors `public.scans.user_identification_override`.
-- `userConfirmedIdentification: Bool` — mirrors `public.scans.user_confirmed_identification`. Both fields are sent in the same `ReviewSyncPayload` Encodable struct in `syncIdentificationReviewToCloud`.
+- `userConfirmedIdentification: Bool` — mirrors `public.scans.user_confirmed_identification`. Both legacy fields are sent in `ReviewSyncPayload` alongside the explicit enum.
+- `userReviewStateRaw: String` — typed mapping storing the `user_review_state` enum value natively.
 - `isFlagged: Bool` — persisted to flag upstream manual moderation routines.
 
 **Re-identification**: A user who has already acted on a review can always re-enter the selection flow:
 - From `.overridden`: tap Undo → calls `resetIdentificationReview` → reverts to `.pending` with full candidate list visible.
 - From `.confirmed`: tap "Change" in `ConfirmedView` → calls `resetIdentificationReview` → reverts to `.pending`.
-- `resetIdentificationReview` clears `userIdentificationOverride`, `userConfirmedIdentification`, and `isFlagged` locally (the latter via `BackgroundDatabaseActor.updateScanAsUnflagged`), reverts `speciesData.scientificName` to `aiScientificName`, and re-hydrates the AI's original species data from `species_dictionary`. Clearing `isFlagged` on reset is required for the `AllCandidatesReviewedView` → full reset path: without it, `allCandidatesRejected` stays `true` and `CandidatesCard` would remain hidden after the user resets.
+- `resetIdentificationReview` clears `userIdentificationOverride`, `userConfirmedIdentification`, and `isFlagged` locally (the latter via `BackgroundDatabaseActor.updateScanAsUnflagged`), reverts `speciesData.scientificName` to `aiScientificName`, and re-hydrates the AI's original species data from `species_dictionary`. It sets `userReviewStateRaw` to `"unreviewed"` locally. Clearing `isFlagged` on reset is required for the `AllCandidatesReviewedView` → full reset path: without it, `allCandidatesRejected` stays `true` and `CandidatesCard` would remain hidden after the user resets.
 
 **Cross-device sync caveat**: `ScanRepository.updateExistingScans` propagates `userConfirmedIdentification` in the `true` direction only — a reset performed on device A (which syncs `user_confirmed_identification = false` to the cloud) will not propagate to device B during that device's next sync. Device B retains its local confirmed/overridden state. Full bidirectional review-state sync is deferred.
 
