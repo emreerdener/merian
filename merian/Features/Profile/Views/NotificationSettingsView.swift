@@ -4,8 +4,8 @@ import UserNotifications
 /// Abstracted detail view establishing a parent/child routing flow specifically isolating Notification configuration.
 /// Ensures the primary Profile `Preferences` list does not organically expand into an unscrollable behemoth.
 struct NotificationSettingsView: View {
-    @AppStorage(UserDefaultsKeys.isPushNotificationsEnabled) private var isPushNotificationsEnabled: Bool = true
-    @AppStorage("isAchievementNotificationsEnabled") private var isAchievementNotificationsEnabled: Bool = true
+    @AppStorage(UserDefaultsKeys.isPushNotificationsEnabled) private var isPushNotificationsEnabled: Bool = false
+    @AppStorage("isAchievementNotificationsEnabled") private var isAchievementNotificationsEnabled: Bool = false
     
     @State private var showPermissionPrompt = false
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined

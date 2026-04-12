@@ -12,18 +12,18 @@ struct PhotoLibraryPermissionSheetView: View {
                 .padding(.top, 32)
             
             VStack(spacing: 8) {
-                Text("Archive your discoveries")
+                Text("Photo library access")
                     .font(.title2)
                     .fontWeight(.bold)
                 
-                Text("Merian needs access to your Photo Library to seamlessly save your high-resolution taxonomy images and metadata to your camera roll.")
+                Text("Merian needs access to your Photo Library to upload your images to be analyzed, and save your photos.")
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
             
-            VStack(spacing: 12) {
+            VStack(spacing: 16) {
                 Button {
                     let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
                     if status == .notDetermined {

@@ -7,7 +7,7 @@ struct PostIdentificationNotificationSheetView: View {
         VStack(spacing: 24) {
             Image(systemName: "bell.badge.fill")
                 .font(.system(size: 48))
-                .foregroundColor(.teal)
+                .foregroundColor(.purple)
                 .padding(.top, 32)
             
             VStack(spacing: 8) {
@@ -22,7 +22,7 @@ struct PostIdentificationNotificationSheetView: View {
                     .padding(.horizontal)
             }
             
-            VStack(spacing: 12) {
+            VStack(spacing: 16) {
                 Button {
                     AppDIContainer.shared.pushNotificationManager.requestAuthorization {
                         onDismiss()
@@ -33,7 +33,7 @@ struct PostIdentificationNotificationSheetView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.teal)
+                        .background(Color.purple)
                         .clipShape(Capsule())
                 }
                 
