@@ -430,12 +430,18 @@ serve((req: Request) =>
       payloadReadyForClient.candidates = null;
     }
 
+    const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
+    let speciesId: string | null = null;
+    let cachedSpecies: CachedSpeciesRow | null = null;
+    let missingCandidates: string[] = [];
+
     // Enrich forwarded candidates with authoritative English common names from species_dictionary.
     // Single batch query — only runs when candidates are being sent to the client.
     // Non-fatal: a DB error returns an empty Map and candidates reach the client without common names.
     if (Array.isArray(payloadReadyForClient.candidates) && payloadReadyForClient.candidates.length > 0) {
       const candidateNames = payloadReadyForClient.candidates.map((c) => c.scientific_name);
       const commonNameMap = await fetchCandidateCommonNames(candidateNames, supabaseAdmin);
+      missingCandidates = candidateNames.filter((n) => !commonNameMap.has(n));
       if (commonNameMap.size > 0) {
         payloadReadyForClient.candidates = payloadReadyForClient.candidates.map((c) => ({
           ...c,
@@ -443,10 +449,6 @@ serve((req: Request) =>
         }));
       }
     }
-
-    const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
-    let speciesId: string | null = null;
-    let cachedSpecies: CachedSpeciesRow | null = null;
 
     if (isIdentifiedBio) {
       cachedSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
@@ -657,6 +659,57 @@ serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
+
+        if (missingCandidates.length > 0) {
+          const bgCandidateEnrichStart = Date.now();
+          Promise.allSettled(
+            missingCandidates.map(async (candidateName) => {
+              const externalData = await fetchExternalEnrichment(candidateName);
+              
+              const primaryEnName = (externalData.wikiTitle && externalData.wikiTitle.toLowerCase() !== candidateName.toLowerCase())
+                ? externalData.wikiTitle.replace(/\s*\([^)]+\)$/, "").trim()
+                : (externalData.alternativeCommonNames[0] ?? null);
+
+              const primaryEnLower = (primaryEnName ?? "").toLowerCase();
+              const newAltNames: string[] | null = externalData.alternativeCommonNames.length > 0
+                ? externalData.alternativeCommonNames.filter(
+                    (n) => n.toLowerCase() !== primaryEnLower,
+                  )
+                : null;
+
+              await upsertSpeciesDictionary(
+                {
+                  scientific_name: candidateName,
+                  common_names: primaryEnName ? { en: primaryEnName } : {},
+                  alternative_common_names: newAltNames,
+                  kingdom: "Unknown",
+                  phylum: "Unknown",
+                  class: "Unknown",
+                  order: "Unknown",
+                  family: "Unknown",
+                  genus: "Unknown",
+                  wikipedia_overview: externalData.wikiExtract ?? null,
+                  hazard_type: "none",
+                  native_region: "Unknown",
+                  iucn_red_list_status: "not_evaluated",
+                  habitat_description: undefined,
+                  wikipedia_url: externalData.wikipediaUrl,
+                  gbif_taxon_key: externalData.gbifKey,
+                  reference_image_url: externalData.referenceImageUrl,
+                },
+                supabaseAdmin,
+              );
+            })
+          ).then((results) => {
+            for (let i = 0; i < results.length; i++) {
+              const res = results[i];
+              if (res.status === "rejected") {
+                console.error(`[bg_candidate_enrichment] Failed to enrich ${missingCandidates[i]}:`, res.reason instanceof Error ? res.reason.message : String(res.reason));
+              }
+            }
+            console.log(`[⏱ BENCH] bg_candidate_enrichment: ${Date.now() - bgCandidateEnrichStart}ms`);
+          });
+        }
 
         // Await species-level Flash call
         const groupTagsResult = await groupTagsPromise;

@@ -37,6 +37,7 @@ export async function fetchExternalEnrichment(scientificName: string) {
   let wikiExtract: string | null = null;
   let gbifKey: number | null = null;
   let combinedImageUrls: string | null = null;
+  let wikiTitle: string | null = null;
   let alternativeCommonNames: string[] = [];
 
   try {
@@ -122,7 +123,8 @@ export async function fetchExternalEnrichment(scientificName: string) {
         const extract = wikiJson.extract || null;
         const img =
           wikiJson.originalimage?.source || wikiJson.thumbnail?.source || null;
-        return { url, extract, img };
+        const title = wikiJson.title || null;
+        return { url, extract, img, title };
       })(),
     ]);
 
@@ -134,6 +136,7 @@ export async function fetchExternalEnrichment(scientificName: string) {
     if (wikiOutcome.status === "fulfilled") {
       wikiUrl = wikiOutcome.value.url;
       wikiExtract = wikiOutcome.value.extract;
+      wikiTitle = wikiOutcome.value.title;
       if (wikiOutcome.value.img) {
         fetchedUrls.unshift(wikiOutcome.value.img);
       }
@@ -152,5 +155,6 @@ export async function fetchExternalEnrichment(scientificName: string) {
     gbifKey,
     referenceImageUrl: combinedImageUrls,
     alternativeCommonNames,
+    wikiTitle,
   };
 }
