@@ -26,8 +26,26 @@ enum MerianSchemaV34: VersionedSchema {
     }
 
     typealias OfflineQueuedScan         = MerianSchemaV33.OfflineQueuedScan
-    typealias ScanCollection            = MerianSchemaV31.ScanCollection
     typealias PendingCloudDeletionTask  = MerianSchemaV30.PendingCloudDeletionTask
+
+    // ScanCollection redeclared so its inverse relationship points to V34.LocalScanRecord.
+    @Model
+    public final class ScanCollection {
+        @Attribute(.unique) public var id: String = UUID().uuidString
+        public var name: String
+        public var createdAt: Date = Date()
+        public var isDeleted: Bool = false
+
+        @Relationship(inverse: \LocalScanRecord.collections) public var scans: [LocalScanRecord]? = []
+
+        public init(id: String = UUID().uuidString, name: String, createdAt: Date = Date(), isDeleted: Bool = false, scans: [LocalScanRecord]? = []) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
+    }
 
     @Model
     public final class UserSpeciesPreference {
