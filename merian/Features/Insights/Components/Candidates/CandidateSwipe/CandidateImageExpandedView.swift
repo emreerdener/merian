@@ -3,24 +3,45 @@ import SwiftUI
 struct CandidateImageExpandedView: View {
     let images: [UIImage]
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedIndex: Int = 0
+    @Binding var selectedImage: UIImage?
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             
-            TabView(selection: $selectedIndex) {
-                ForEach(Array(images.enumerated()), id: \.offset) { index, img in
-                    ZoomableScrollView {
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFit()
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(images, id: \.self) { img in
+                        ZoomableScrollView {
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFit()
+                        }
+                        .containerRelativeFrame(.horizontal)
                     }
-                    .tag(index)
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: Binding(
+                get: { selectedImage ?? images.first },
+                set: { selectedImage = $0 }
+            ))
+            .ignoresSafeArea()
+            
+            VStack {
+                Spacer()
+                if images.count > 1 {
+                    HStack(spacing: 8) {
+                        ForEach(images, id: \.self) { img in
+                            Circle()
+                                .fill(img == (selectedImage ?? images.first) ? Color.white : Color.white.opacity(0.3))
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+                    .padding(.bottom, 24)
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: .always))
-            .ignoresSafeArea()
             
             VStack {
                 HStack {

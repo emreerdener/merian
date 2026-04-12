@@ -13,6 +13,7 @@ struct SwipeableCandidateCard: View {
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
     @State private var isOriginalImageExpanded = false
     @State private var isCandidateImageExpanded = false
+    @State private var candidateSelectedImage: UIImage?
     @State private var isFeatureExpanded = false
     @Environment(InferenceEngine.self) private var inferenceEngine
 
@@ -193,7 +194,7 @@ struct SwipeableCandidateCard: View {
         }
         .sheet(isPresented: $isCandidateImageExpanded) {
             if !imageFetcher.images.isEmpty {
-                CandidateImageExpandedView(images: imageFetcher.images)
+                CandidateImageExpandedView(images: imageFetcher.images, selectedImage: $candidateSelectedImage)
                     .presentationDragIndicator(.visible)
                     .presentationDetents([.fraction(0.85), .large])
                     .presentationCornerRadius(32)
