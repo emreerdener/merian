@@ -72,8 +72,9 @@ final class ProfileDatabaseActorTests: XCTestCase {
     
     func testHeatmapMatrixBounds() async throws {
         var massiveDistribution: [Int] = []
-        // Massively bombards the footprint bounds logic strictly inside the 52-week geometry window!
-        for _ in 0..<500 { massiveDistribution.append(Int.random(in: -360...0)) }
+        // Massively bombards the footprint bounds logic strictly inside the guaranteed 52-week geometry window!
+        // (Worst-case start date is today - 357 when today is Sunday)
+        for _ in 0..<500 { massiveDistribution.append(Int.random(in: -357...0)) }
         
         let actor = try await processScans(offsets: massiveDistribution)
         let heatmap = await actor.calculateHeatmapData()

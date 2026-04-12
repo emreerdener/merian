@@ -52,12 +52,20 @@ struct BackgroundDatabaseActorTests {
         let scanId = record.id
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.updateScanWithOverride(scanId: scanId, override: "Procyon cancrivorus", confirmed: false)
+        await actor.updateScanWithOverride(
+            scanId: scanId,
+            override: "Procyon cancrivorus",
+            confirmed: false,
+            newConfirmedSpeciesId: "mock-uuid-overridden",
+            userReviewState: .userOverridden
+        )
 
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         let fetched = try context.fetch(descriptor).first
         #expect(fetched?.userIdentificationOverride == "Procyon cancrivorus", "updateScanWithOverride must persist the override name")
         #expect(fetched?.userConfirmedIdentification == false, "confirmed must be false when only override is set")
+        #expect(fetched?.confirmedSpeciesId == "mock-uuid-overridden", "new confirmedSpeciesId must be persisted")
+        #expect(fetched?.userReviewStateRaw == "user_overridden", "userReviewStateRaw must be 'user_overridden'")
     }
 
     @Test func testUpdateScanWithOverrideClearsWithNil() async throws {
@@ -76,12 +84,20 @@ struct BackgroundDatabaseActorTests {
         let scanId = record.id
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: false)
+        await actor.updateScanWithOverride(
+            scanId: scanId,
+            override: nil,
+            confirmed: false,
+            newConfirmedSpeciesId: nil,
+            userReviewState: .unreviewed
+        )
 
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         let fetched = try context.fetch(descriptor).first
         #expect(fetched?.userIdentificationOverride == nil, "updateScanWithOverride(override: nil) must clear the override column")
         #expect(fetched?.userConfirmedIdentification == false)
+        #expect(fetched?.confirmedSpeciesId == nil, "confirmedSpeciesId must be cleared on reset")
+        #expect(fetched?.userReviewStateRaw == "unreviewed", "userReviewStateRaw must revert to unreviewed")
     }
 
     @Test func testUpdateScanWithOverrideSetsConfirmedTrue() async throws {
@@ -98,12 +114,20 @@ struct BackgroundDatabaseActorTests {
         let scanId = record.id
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.updateScanWithOverride(scanId: scanId, override: nil, confirmed: true)
+        await actor.updateScanWithOverride(
+            scanId: scanId,
+            override: nil,
+            confirmed: true,
+            newConfirmedSpeciesId: "mock-uuid-confirmed",
+            userReviewState: .aiConfirmed
+        )
 
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         let fetched = try context.fetch(descriptor).first
         #expect(fetched?.userConfirmedIdentification == true, "updateScanWithOverride must persist confirmed=true")
         #expect(fetched?.userIdentificationOverride == nil, "override must remain nil on a confirm-only action")
+        #expect(fetched?.confirmedSpeciesId == "mock-uuid-confirmed", "confirmedSpeciesId must be explicitly persisted on confirmation")
+        #expect(fetched?.userReviewStateRaw == "ai_confirmed", "userReviewStateRaw must be 'ai_confirmed'")
     }
 
     // MARK: - updateScanAsFlagged / updateScanAsUnflagged: V31 moderation review persistence

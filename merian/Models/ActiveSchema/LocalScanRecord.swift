@@ -94,10 +94,11 @@ public final class LocalScanRecord {
 
     @Attribute public var confirmedSpeciesId: String?
 
-    @Attribute public var userReviewStateRaw: String = UserReviewState.unreviewed.rawValue
+    // Changed to optional so SQLite lightweight migration can add the column correctly
+    @Attribute public var userReviewStateRaw: String? = "unreviewed"
 
     public var userReviewState: UserReviewState {
-        get { UserReviewState(rawValue: userReviewStateRaw) ?? .unreviewed }
+        get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
         set { userReviewStateRaw = newValue.rawValue }
     }
 
@@ -156,7 +157,8 @@ public final class LocalScanRecord {
         imageQualityScore: Int? = nil,
         alternativeCommonNames: [String]? = nil,
         confirmedSpeciesId: String? = nil,
-        userReviewStateRaw: String = UserReviewState.unreviewed.rawValue) {
+        userReviewStateRaw: String? = nil
+    ) {
 
         self.id = id
         self.speciesId = speciesId
