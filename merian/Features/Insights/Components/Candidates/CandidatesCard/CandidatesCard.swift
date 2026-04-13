@@ -9,6 +9,7 @@ struct CandidatesCard: View {
     /// The AI's original scientific name — shown in the "overridden" state as "AI suggested X".
     let aiScientificName: String
     let inferenceTier: String?
+    let confirmButtonTitle: String
     /// Called when the user taps "No, incorrect" and there are no candidates to choose from.
     /// The caller should route to the flag/report flow.
     var onFlagIssue: (() -> Void)?
@@ -24,20 +25,6 @@ struct CandidatesCard: View {
     private var displayCommonName: String {
         let name = inferenceEngine.speciesData?.commonName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return name.isEmpty ? aiScientificName : name.capitalized
-    }
-
-    private var confirmButtonTitle: String {
-        let cName = inferenceEngine.speciesData?.commonName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let isCommonNameValid = !cName.isEmpty && cName.lowercased() != "unknown subject"
-        let isScientificNameValid = !aiScientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && aiScientificName.lowercased() != "unknown subject"
-        
-        if isCommonNameValid {
-            return "Confirm \(cName.capitalized)"
-        } else if isScientificNameValid {
-            return "Confirm \(aiScientificName)"
-        } else {
-            return "Confirm initial match"
-        }
     }
 
     private var isWeakMatch: Bool {
@@ -107,7 +94,8 @@ struct CandidatesCard: View {
             IdentificationCandidate(scientificName: "Limenitis archippus", commonName: "Viceroy", confidenceScore: 0.71)
         ],
         aiScientificName: "Danaus plexippus",
-        inferenceTier: "flash"
+        inferenceTier: "flash",
+        confirmButtonTitle: "Confirm Monarch"
     )
     .environment(InferenceEngine())
     .padding()
@@ -120,7 +108,8 @@ struct CandidatesCard: View {
             IdentificationCandidate(scientificName: "Danaus gilippus", commonName: "Queen", confidenceScore: 0.58)
         ],
         aiScientificName: "Danaus plexippus",
-        inferenceTier: "flash"
+        inferenceTier: "flash",
+        confirmButtonTitle: "Confirm Monarch"
     )
     .environment(InferenceEngine())
     .padding()

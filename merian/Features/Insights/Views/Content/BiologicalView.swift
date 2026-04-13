@@ -97,6 +97,7 @@ struct BiologicalView: View {
                         candidates: candidates,
                         aiScientificName: primaryAIName,
                         inferenceTier: inferenceEngine.speciesData?.inferenceTier,
+                        confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                         onFlagIssue: { viewModel.isIdentificationFlagPresented = true },
                         onMatchConfirmed: { viewModel.toastMessage = "Match confirmed" },
                         onRefineScan: refinementAction

@@ -108,15 +108,7 @@ struct InsightContentView: View {
                     isPresented: $viewModel.isCandidateSwipePresented,
                     candidates: speciesData.candidates ?? [],
                     aiScientificName: speciesData.scientificName,
-                    confirmButtonTitle: {
-                        let cName = speciesData.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let aiSciName = speciesData.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let isCommonNameValid = !cName.isEmpty && cName.lowercased() != "unknown subject"
-                        let isScientificNameValid = !aiSciName.isEmpty && aiSciName.lowercased() != "unknown subject"
-                        if isCommonNameValid { return "Confirm \(cName.capitalized)" }
-                        if isScientificNameValid { return "Confirm \(aiSciName)" }
-                        return "Confirm initial match"
-                    }(),
+                    confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                     onConfirmOriginal: { Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) } },
                     onFlagIssue: { viewModel.isIdentificationFlagPresented = true },
                     onRefineScan: {

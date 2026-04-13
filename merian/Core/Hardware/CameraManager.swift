@@ -685,15 +685,6 @@ import UIKit
                         settings.flashMode = targetFlashMode
                     }
 
-                    // Dynamically align the capture connection with the physical device orientation
-                    let rotationAngle = self.stateLock.withLock { self.rotationCoordinator?.videoRotationAngleForHorizonLevelCapture ?? 90.0 }
-                    
-                    if let photoConnection = self.photoOutput.connection(with: .video) {
-                        if photoConnection.isVideoRotationAngleSupported(rotationAngle) {
-                            photoConnection.videoRotationAngle = rotationAngle
-                        }
-                    }
-
                     // Relying on AVCapturePhotoOutput's native EXIF metadata integration.
                     // Forcing connection.videoRotationAngle = 90 causes double-rotations.
                     if #available(iOS 16.0, *) {

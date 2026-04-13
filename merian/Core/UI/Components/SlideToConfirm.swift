@@ -45,7 +45,7 @@ struct SlideToConfirm: View {
                     .font(.headline)
                     .foregroundColor(color)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                    .minimumScaleFactor(0.6)
                     .opacity(max(0, 1.0 - progress * 2.5))
                     .frame(maxWidth: .infinity, alignment: .center)
 
