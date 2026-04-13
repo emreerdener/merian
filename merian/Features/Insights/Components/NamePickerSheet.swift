@@ -9,7 +9,6 @@ struct NamePickerSheet: View {
     let allNames: [String]
     let activeName: String
     let onSelect: (String) -> Void
-    let onReset: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -27,6 +26,7 @@ struct NamePickerSheet: View {
                                         .fontWeight(.semibold)
                                 }
                             }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -34,11 +34,6 @@ struct NamePickerSheet: View {
                     Text("Common names")
                 } footer: {
                     Text("Your selection is stored locally and applies only to your device.")
-                }
-
-                Section {
-                    Button("Use default name", action: onReset)
-                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Preferred name")

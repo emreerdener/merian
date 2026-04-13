@@ -61,12 +61,6 @@ struct BiologicalView: View {
                             viewModel.setPreferredCommonName(chosen, for: scientificName)
                         }
                         viewModel.isNamePickerPresented = false
-                    },
-                    onReset: {
-                        if let scientificName = inferenceEngine.speciesData?.scientificName {
-                            viewModel.clearPreferredCommonName(for: scientificName)
-                        }
-                        viewModel.isNamePickerPresented = false
                     }
                 )
                 .presentationDetents([.medium])
