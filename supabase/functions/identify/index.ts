@@ -660,12 +660,19 @@ serve((req: Request) =>
         );
         scanInserted = true;
 
+        // Capture the candidate enrichment promise before the final bgWriteTasks await so
+        // EdgeRuntime.waitUntil cannot terminate the isolate while external DNS resolution
+        // and upsertSpeciesDictionary writes are still in flight. A floating (un-awaited)
+        // Promise.allSettled is invisible to waitUntil and will be killed mid-flight the
+        // moment runBackgroundIngestion returns.
+        let candidateEnrichmentTask: Promise<void> = Promise.resolve();
         if (missingCandidates.length > 0) {
           const bgCandidateEnrichStart = Date.now();
-          Promise.allSettled(
-            missingCandidates.map(async (candidateName) => {
+          const capturedCandidates = missingCandidates.slice();
+          candidateEnrichmentTask = Promise.allSettled(
+            capturedCandidates.map(async (candidateName) => {
               const externalData = await fetchExternalEnrichment(candidateName);
-              
+
               const primaryEnName = (externalData.wikiTitle && externalData.wikiTitle.toLowerCase() !== candidateName.toLowerCase())
                 ? externalData.wikiTitle.replace(/\s*\([^)]+\)$/, "").trim()
                 : (externalData.alternativeCommonNames[0] ?? null);
@@ -704,7 +711,7 @@ serve((req: Request) =>
             for (let i = 0; i < results.length; i++) {
               const res = results[i];
               if (res.status === "rejected") {
-                console.error(`[bg_candidate_enrichment] Failed to enrich ${missingCandidates[i]}:`, res.reason instanceof Error ? res.reason.message : String(res.reason));
+                console.error(`[bg_candidate_enrichment] Failed to enrich ${capturedCandidates[i]}:`, res.reason instanceof Error ? res.reason.message : String(res.reason));
               }
             }
             console.log(`[⏱ BENCH] bg_candidate_enrichment: ${Date.now() - bgCandidateEnrichStart}ms`);
@@ -740,6 +747,9 @@ serve((req: Request) =>
           needsGroupTags && groupTagsResult?.group_tags?.length
             ? updateGroupTags(parsedData.scientific_name!, groupTagsResult.group_tags, supabaseAdmin)
             : Promise.resolve(),
+          // Bind candidate enrichment into the waitUntil execution lock so the isolate
+          // cannot terminate before all upsertSpeciesDictionary writes have resolved.
+          candidateEnrichmentTask,
         ]);
         for (const result of bgWriteResults) {
           if (result.status === "rejected") {

@@ -61,10 +61,15 @@ extension OfflineQueueManager {
         }
     }
 
-    /// Fans out deletions in batches of 10 to prevent unbounded concurrent network requests.
+    /// Fans out deletions in batches to prevent unbounded concurrent network requests.
     /// Without a cap, a user returning from a week offline could saturate the pool and trigger rate limits.
+    ///
+    /// Batch size is hardware-aware: 10 concurrent sockets is the normal-operation ceiling,
+    /// but in Low Power Mode the baseband chip is already constrained by the OS. Dropping to 3
+    /// limits peak antenna transmit power, avoiding the thermal spike that cascades to CPU
+    /// throttling and visible UI lag during large backlog drains.
     private func dispatchDeleteBatches(scanIds: [String]) async -> [(String, Error?)] {
-        let batchSize = 10
+        let batchSize = ProcessInfo.processInfo.isLowPowerModeEnabled ? 3 : 10
         var allResults: [(String, Error?)] = []
         allResults.reserveCapacity(scanIds.count)
 

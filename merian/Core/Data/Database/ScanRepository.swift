@@ -386,116 +386,128 @@ actor HistoricalDatabaseActor {
         let responseIds = responses.map { $0.id }.filter { existingIds.contains($0) }
         guard !responseIds.isEmpty else { return }
 
-        // Batch into chunks of 500 to keep SQLite IN-clause sizes within efficient planner range.
-        // Large IN lists (>500 entries) degrade the query planner from index-seek to table-scan.
+        // Build a per-chunk response lookup so each stride can resolve its own slice
+        // without scanning the full responses array.
+        let responseLookup: [String: HistoricalScanResponse] = Dictionary(
+            uniqueKeysWithValues: responses.compactMap { existingIds.contains($0.id) ? ($0.id, $0) : nil }
+        )
+
+        // Hoist encoder above both the chunk loop and the per-record loop.
+        // JSONEncoder carries Obj-C init overhead and key-strategy setup; allocating one
+        // per record across an entire sync page adds measurable GC pressure on the actor thread.
+        let encoder = JSONEncoder()
+
+        // Process, modify, save, and release each chunk of 500 in strict isolation.
+        // Accumulating all faulted LocalScanRecord objects before starting mutations
+        // (the previous pattern) held the entire page worth of heavy ORM objects in RAM
+        // simultaneously. Scoping per-chunk keeps peak heap flat at ≤500 objects regardless
+        // of page size, page count, or user library depth.
         let chunkSize = 500
-        var allExistingScans: [LocalScanRecord] = []
-        allExistingScans.reserveCapacity(responseIds.count)
-
         for chunkStart in stride(from: 0, to: responseIds.count, by: chunkSize) {
-            let chunk = Array(responseIds[chunkStart..<min(chunkStart + chunkSize, responseIds.count)])
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })
-            let objectIds = (try? modelContext.fetchIdentifiers(descriptor)) ?? []
-            let chunk_records = objectIds.compactMap { modelContext.model(for: $0) as? LocalScanRecord }
-            allExistingScans.append(contentsOf: chunk_records)
-        }
+            let chunkIds = Array(responseIds[chunkStart..<min(chunkStart + chunkSize, responseIds.count)])
 
-        let lookup: [String: LocalScanRecord] = Dictionary(uniqueKeysWithValues: allExistingScans.map { ($0.id, $0) })
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunkIds.contains($0.id) })
+            let chunkRecords = (try? modelContext.fetch(descriptor)) ?? []
+            let chunkLookup = Dictionary(uniqueKeysWithValues: chunkRecords.map { ($0.id, $0) })
 
-        var didUpdate = false
-        for res in responses {
-            guard let existing = lookup[res.id] else { continue }
-            let rawR2Image = res.image_storage_urls?.first
-            let additionalUrls = res.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
-            let dictRefImage = res.species_dictionary?.reference_image_url
+            var chunkDidUpdate = false
+            for id in chunkIds {
+                guard let existing = chunkLookup[id], let res = responseLookup[id] else { continue }
 
-            if existing.localImagePath == nil && rawR2Image != nil {
-                existing.localImagePath = rawR2Image; didUpdate = true
-            }
-            if existing.additionalImagePaths == nil && additionalUrls != nil {
-                existing.additionalImagePaths = additionalUrls; didUpdate = true
-            }
-            if existing.referenceImageUrl != dictRefImage {
-                existing.referenceImageUrl = dictRefImage; didUpdate = true
-            }
-            if let newLoc = res.semantic_location, existing.locationName != newLoc {
-                existing.locationName = newLoc; didUpdate = true
-            }
-            if existing.gpsLatitude == nil, let remoteLat = res.gps_lat_exact, let remoteLon = res.gps_long_exact {
-                existing.gpsLatitude = remoteLat
-                existing.gpsLongitude = remoteLon
-                existing.gpsElevation = res.gps_elevation
-                didUpdate = true
-            }
-            if let newReasoning = res.ai_reasoning, existing.aiReasoning != newReasoning {
-                existing.aiReasoning = newReasoning; didUpdate = true
-            }
-            let dict = res.species_dictionary
-            if let newHabitat = dict?.habitat_description, existing.habitatDescription != newHabitat {
-                existing.habitatDescription = newHabitat; didUpdate = true
-            }
-            if let newSize = res.estimated_size_cm, existing.estimatedSizeCm != newSize {
-                existing.estimatedSizeCm = newSize; didUpdate = true
-            }
-            if let newKingdom = dict?.kingdom, existing.taxonomyKingdom != newKingdom {
-                existing.taxonomyKingdom = newKingdom; didUpdate = true
-            }
-            if let newPhylum = dict?.phylum, existing.taxonomyPhylum != newPhylum {
-                existing.taxonomyPhylum = newPhylum; didUpdate = true
-            }
-            if let newClass = dict?.`class`, existing.taxonomyClass != newClass {
-                existing.taxonomyClass = newClass; didUpdate = true
-            }
-            if let newOrder = dict?.order, existing.taxonomyOrder != newOrder {
-                existing.taxonomyOrder = newOrder; didUpdate = true
-            }
-            if let newFamily = dict?.family, existing.taxonomyFamily != newFamily {
-                existing.taxonomyFamily = newFamily; didUpdate = true
-            }
-            if let newGenus = dict?.genus, existing.taxonomyGenus != newGenus {
-                existing.taxonomyGenus = newGenus; didUpdate = true
-            }
-            if let newLife = res.life_stage, existing.lifeStage != newLife {
-                existing.lifeStage = newLife; didUpdate = true
-            }
-            if let newRepro = res.reproductive_condition, existing.reproductiveCondition != newRepro {
-                existing.reproductiveCondition = newRepro; didUpdate = true
-            }
-            if let newIndiv = res.individual_count, existing.individualCount != newIndiv {
-                existing.individualCount = newIndiv; didUpdate = true
-            }
-            if let newInter = res.ecological_interactions, existing.ecologicalInteractions != newInter {
-                existing.ecologicalInteractions = newInter; didUpdate = true
-            }
-            if let newTier = res.inference_tier, existing.inferenceTier != newTier {
-                existing.inferenceTier = newTier; didUpdate = true
-            }
-            if let newTags = res.custom_tags, existing.customTags != newTags {
-                existing.customTags = newTags; didUpdate = true
-            }
-            if existing.candidatesData == nil, let cloudCandidates = res.candidates, !cloudCandidates.isEmpty {
-                existing.candidatesData = try? JSONEncoder().encode(cloudCandidates.map {
-                    IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature)
-                })
-                didUpdate = true
-            }
-            if let cloudOverride = res.user_identification_override,
-               existing.userIdentificationOverride != cloudOverride {
-                existing.userIdentificationOverride = cloudOverride
-                didUpdate = true
-            }
-            if res.user_confirmed_identification == true, !existing.userConfirmedIdentification {
-                existing.userConfirmedIdentification = true
-                didUpdate = true
-            }
-            if existing.imageQualityScore == nil, let newScore = res.image_quality_score {
-                existing.imageQualityScore = newScore
-                didUpdate = true
-            }
-        }
+                let rawR2Image = res.image_storage_urls?.first
+                let additionalUrls = res.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
+                let dictRefImage = res.species_dictionary?.reference_image_url
 
-        if didUpdate {
-            do { try modelContext.save() } catch { MerianLog.data.error("🚨 updateExistingScans: save failed: \(error, privacy: .private)") }
+                if existing.localImagePath == nil && rawR2Image != nil {
+                    existing.localImagePath = rawR2Image; chunkDidUpdate = true
+                }
+                if existing.additionalImagePaths == nil && additionalUrls != nil {
+                    existing.additionalImagePaths = additionalUrls; chunkDidUpdate = true
+                }
+                if existing.referenceImageUrl != dictRefImage {
+                    existing.referenceImageUrl = dictRefImage; chunkDidUpdate = true
+                }
+                if let newLoc = res.semantic_location, existing.locationName != newLoc {
+                    existing.locationName = newLoc; chunkDidUpdate = true
+                }
+                if existing.gpsLatitude == nil, let remoteLat = res.gps_lat_exact, let remoteLon = res.gps_long_exact {
+                    existing.gpsLatitude = remoteLat
+                    existing.gpsLongitude = remoteLon
+                    existing.gpsElevation = res.gps_elevation
+                    chunkDidUpdate = true
+                }
+                if let newReasoning = res.ai_reasoning, existing.aiReasoning != newReasoning {
+                    existing.aiReasoning = newReasoning; chunkDidUpdate = true
+                }
+                let dict = res.species_dictionary
+                if let newHabitat = dict?.habitat_description, existing.habitatDescription != newHabitat {
+                    existing.habitatDescription = newHabitat; chunkDidUpdate = true
+                }
+                if let newSize = res.estimated_size_cm, existing.estimatedSizeCm != newSize {
+                    existing.estimatedSizeCm = newSize; chunkDidUpdate = true
+                }
+                if let newKingdom = dict?.kingdom, existing.taxonomyKingdom != newKingdom {
+                    existing.taxonomyKingdom = newKingdom; chunkDidUpdate = true
+                }
+                if let newPhylum = dict?.phylum, existing.taxonomyPhylum != newPhylum {
+                    existing.taxonomyPhylum = newPhylum; chunkDidUpdate = true
+                }
+                if let newClass = dict?.`class`, existing.taxonomyClass != newClass {
+                    existing.taxonomyClass = newClass; chunkDidUpdate = true
+                }
+                if let newOrder = dict?.order, existing.taxonomyOrder != newOrder {
+                    existing.taxonomyOrder = newOrder; chunkDidUpdate = true
+                }
+                if let newFamily = dict?.family, existing.taxonomyFamily != newFamily {
+                    existing.taxonomyFamily = newFamily; chunkDidUpdate = true
+                }
+                if let newGenus = dict?.genus, existing.taxonomyGenus != newGenus {
+                    existing.taxonomyGenus = newGenus; chunkDidUpdate = true
+                }
+                if let newLife = res.life_stage, existing.lifeStage != newLife {
+                    existing.lifeStage = newLife; chunkDidUpdate = true
+                }
+                if let newRepro = res.reproductive_condition, existing.reproductiveCondition != newRepro {
+                    existing.reproductiveCondition = newRepro; chunkDidUpdate = true
+                }
+                if let newIndiv = res.individual_count, existing.individualCount != newIndiv {
+                    existing.individualCount = newIndiv; chunkDidUpdate = true
+                }
+                if let newInter = res.ecological_interactions, existing.ecologicalInteractions != newInter {
+                    existing.ecologicalInteractions = newInter; chunkDidUpdate = true
+                }
+                if let newTier = res.inference_tier, existing.inferenceTier != newTier {
+                    existing.inferenceTier = newTier; chunkDidUpdate = true
+                }
+                if let newTags = res.custom_tags, existing.customTags != newTags {
+                    existing.customTags = newTags; chunkDidUpdate = true
+                }
+                if existing.candidatesData == nil, let cloudCandidates = res.candidates, !cloudCandidates.isEmpty {
+                    existing.candidatesData = try? encoder.encode(cloudCandidates.map {
+                        IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature)
+                    })
+                    chunkDidUpdate = true
+                }
+                if let cloudOverride = res.user_identification_override,
+                   existing.userIdentificationOverride != cloudOverride {
+                    existing.userIdentificationOverride = cloudOverride
+                    chunkDidUpdate = true
+                }
+                if res.user_confirmed_identification == true, !existing.userConfirmedIdentification {
+                    existing.userConfirmedIdentification = true
+                    chunkDidUpdate = true
+                }
+                if existing.imageQualityScore == nil, let newScore = res.image_quality_score {
+                    existing.imageQualityScore = newScore
+                    chunkDidUpdate = true
+                }
+            }
+
+            // Save and drop all chunk object references so ARC can immediately reclaim
+            // the faulted LocalScanRecord heap before the next stride loads its 500 objects.
+            if chunkDidUpdate {
+                do { try modelContext.save() } catch { MerianLog.data.error("🚨 updateExistingScans: chunk save failed: \(error, privacy: .private)") }
+            }
         }
     }
 
