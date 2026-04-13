@@ -28,13 +28,15 @@ struct PlanCard: View {
                 Spacer()
                 
                 if revenueCat.isProActive {
-                    Image(systemName: "leaf")
-                        .font(.system(size: 32))
-                        .foregroundColor(.secondary.opacity(0.5))
+                    Image("sparkles")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 56, height: 56)
                 } else {
-                    Image(systemName: "leaf.circle")
-                        .font(.system(size: 28))
-                        .foregroundColor(.secondary.opacity(0.5))
+                    Image("compass")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 56, height: 56)     
                 }
             }
             

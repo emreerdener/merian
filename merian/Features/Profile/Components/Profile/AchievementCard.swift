@@ -167,7 +167,7 @@ extension AwardPayload {
     var tintInfo: (color: Color, imageName: String) {
         switch type.lowercased() {
         case "first_scan": return (Color(red: 0.25, green: 0.75, blue: 0.35), "chick")
-        case "explorer": return (Color(red: 0.8, green: 0.6, blue: 0.2), "compass")
+        case "explorer": return (Color(red: 0.8, green: 0.6, blue: 0.2), "naturalist")
         case "fungi": return (Color(red: 0.6, green: 0.4, blue: 0.6), "mushroom")
         case "plantae": return (Color(red: 0.3, green: 0.6, blue: 0.3), "leaves")
         case "insecta": return (Color(red: 0.8, green: 0.4, blue: 0.3), "zoo-scene")
