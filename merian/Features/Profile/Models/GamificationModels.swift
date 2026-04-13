@@ -118,4 +118,3 @@ public enum UserPersona: CaseIterable, Equatable {
         }
     }
 }
-

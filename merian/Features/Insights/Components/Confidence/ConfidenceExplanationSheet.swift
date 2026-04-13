@@ -118,6 +118,7 @@ struct ConfidenceExplanationSheet: View {
                         candidates: candidates,
                         aiScientificName: aiScientificName ?? "Unknown subject",
                         inferenceTier: inferenceTier,
+                        confirmButtonTitle: confirmButtonTitle,
                         onFlagIssue: {
                             isFlagPresented = true
                         },

@@ -21,7 +21,7 @@ struct ProfileTabView: View {
             // MARK: - Core Profile Content
             VStack(spacing: 24) {
                 // MARK: - Terrarium & Persona
-                VStack(spacing: 8) {
+                VStack(spacing: 16) {
                     Terrarium()
                     Persona(uniqueSpeciesCount: uniqueSpeciesCount)
                 }
