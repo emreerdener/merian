@@ -321,9 +321,9 @@ actor HistoricalDatabaseActor {
 
     /// Reconciles a single page of remote scan responses against local state.
     ///
-    /// On the first call `cachedLocalIds` is computed from the database. Subsequent calls
-    /// reuse and update the cached set so the full-library fetch runs exactly once per session
-    /// regardless of how many pages are streamed.
+    /// Computes the existing-ID set fresh each call via a chunked `FetchDescriptor` with
+    /// `propertiesToFetch = [\.id]` (ID-only column projection). Delegates to
+    /// `updateExistingScans` for records already present locally and `ingestScans` for new ones.
     ///
     /// - Returns: The number of new `LocalScanRecord` rows inserted from this page.
     @discardableResult

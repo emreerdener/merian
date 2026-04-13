@@ -38,8 +38,8 @@ struct OverviewCard: View {
             let size = data.estimatedSizeCm.map { String(format: "%.1f cm", $0) }
             let invasive = data.isInvasive ? "Invasive" : "Not invasive"
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
-            let lifeStage = (data.lifeStage == "unknown" || data.lifeStage == nil) ? nil : capitalizeFirstLetter(data.lifeStage!)
-            let reproduction = (data.reproductiveCondition == "not_applicable" || data.reproductiveCondition == nil) ? nil : capitalizeFirstLetter(data.reproductiveCondition!.replacingOccurrences(of: "_", with: " "))
+            let lifeStage = data.lifeStage.flatMap { $0 == "unknown" ? nil : capitalizeFirstLetter($0) }
+            let reproduction = data.reproductiveCondition.flatMap { $0 == "not_applicable" ? nil : capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }
             let interactions = data.ecologicalInteractions?.isEmpty == false ? data.ecologicalInteractions?.joined(separator: "; ") : nil
             
             let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || interactions != nil || data.isInvasive || iucnStatus != nil

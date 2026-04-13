@@ -435,15 +435,38 @@ serve((req: Request) =>
     let cachedSpecies: CachedSpeciesRow | null = null;
     let missingCandidates: string[] = [];
 
-    // Enrich forwarded candidates with authoritative English common names from species_dictionary.
-    // Single batch query — only runs when candidates are being sent to the client.
-    // Non-fatal: a DB error returns an empty Map and candidates reach the client without common names.
-    if (Array.isArray(payloadReadyForClient.candidates) && payloadReadyForClient.candidates.length > 0) {
-      const candidateNames = payloadReadyForClient.candidates.map((c) => c.scientific_name);
-      const commonNameMap = await fetchCandidateCommonNames(candidateNames, supabaseAdmin);
+    // Fire both DB lookups in parallel when both are needed.
+    //
+    // fetchCandidateCommonNames: enriches the candidates list with authoritative English names
+    //   from species_dictionary. Only runs when candidates are being forwarded to the client.
+    //   Non-fatal: returns an empty Map on DB error; candidates reach the client without names.
+    //
+    // fetchCachedSpecies: reads taxonomy, IUCN, wiki, and reference image for the primary species.
+    //   Only runs when the subject was biologically identified.
+    //
+    // Both queries depend only on parsedData (resolved above) and are independent of each other.
+    // Running them serially added a full DB round-trip to every scan that satisfied both conditions.
+    const hasCandidates =
+      Array.isArray(payloadReadyForClient.candidates) &&
+      payloadReadyForClient.candidates.length > 0;
+
+    const [commonNameMap, fetchedCachedSpecies] = await Promise.all([
+      hasCandidates
+        ? fetchCandidateCommonNames(
+            payloadReadyForClient.candidates!.map((c) => c.scientific_name),
+            supabaseAdmin,
+          )
+        : Promise.resolve(new Map<string, string>()),
+      isIdentifiedBio
+        ? fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin)
+        : Promise.resolve(null),
+    ]);
+
+    if (hasCandidates) {
+      const candidateNames = payloadReadyForClient.candidates!.map((c) => c.scientific_name);
       missingCandidates = candidateNames.filter((n) => !commonNameMap.has(n));
       if (commonNameMap.size > 0) {
-        payloadReadyForClient.candidates = payloadReadyForClient.candidates.map((c) => ({
+        payloadReadyForClient.candidates = payloadReadyForClient.candidates!.map((c) => ({
           ...c,
           common_name: commonNameMap.get(c.scientific_name),
         }));
@@ -451,7 +474,7 @@ serve((req: Request) =>
     }
 
     if (isIdentifiedBio) {
-      cachedSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
+      cachedSpecies = fetchedCachedSpecies;
 
       let staticData: StaticSpeciesData = { hazard_type: "none" };
 
@@ -573,45 +596,71 @@ serve((req: Request) =>
           const bgEnrichStart = Date.now();
           const externalData = await fetchExternalEnrichment(parsedData.scientific_name!);
 
+          // Re-read the species row immediately before the upsert to coalesce any taxonomy
+          // written by a concurrent enrich-scan call that raced this background task.
+          // fetchExternalEnrichment above takes 1-3 seconds (GBIF + Wikipedia I/O), giving
+          // enrich-scan's updateSpeciesEnrichment write plenty of time to land.
+          // Without this re-read, upsertSpeciesDictionary uses ignoreDuplicates: false
+          // (ON CONFLICT DO UPDATE), so any real taxonomy already written by enrich-scan
+          // would be overwritten with "Unknown" skeleton values from the original cache-miss
+          // snapshot taken at the start of the request.
+          const freshSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
+
           const newCommonNames = {
-            ...(cachedSpecies?.common_names ?? {}),
+            ...(freshSpecies?.common_names ?? cachedSpecies?.common_names ?? {}),
             ...(parsedData.common_name ? { en: parsedData.common_name } : {}),
           };
 
           // Build the deduplicated alternative names list. Exclude the primary canonical
           // name (common_names.en) so the two lists are mutually exclusive on the client.
+          // Prefer GBIF-sourced names; fall back to the freshly-read DB value if GBIF returned
+          // nothing (e.g. timeout) and enrich-scan already populated the column.
           const primaryEn = (newCommonNames.en ?? "").toLowerCase();
-          const newAltNames: string[] | null = externalData.alternativeCommonNames.length > 0
-            ? externalData.alternativeCommonNames.filter(
-                (n) => n.toLowerCase() !== primaryEn,
-              )
-            : null;
+          const newAltNames: string[] | null =
+            externalData.alternativeCommonNames.length > 0
+              ? externalData.alternativeCommonNames.filter((n) => n.toLowerCase() !== primaryEn)
+              : freshSpecies?.alternative_common_names ?? null;
 
           const upsertedId = await upsertSpeciesDictionary(
             {
               scientific_name: parsedData.scientific_name!,
               common_names: newCommonNames,
               alternative_common_names: newAltNames,
-              kingdom: cachedSpecies?.kingdom ?? "Unknown",
-              phylum: cachedSpecies?.phylum ?? "Unknown",
-              class: cachedSpecies?.class ?? "Unknown",
-              order: cachedSpecies?.order ?? "Unknown",
-              family: cachedSpecies?.family ?? "Unknown",
-              genus: cachedSpecies?.genus ?? "Unknown",
+              // Preserve any taxonomy written by a concurrent enrich-scan call.
+              // "Unknown" is only used when no real value exists yet on either snapshot.
+              kingdom: freshSpecies?.kingdom || cachedSpecies?.kingdom || "Unknown",
+              phylum: freshSpecies?.phylum || cachedSpecies?.phylum || "Unknown",
+              class: freshSpecies?.class || cachedSpecies?.class || "Unknown",
+              order: freshSpecies?.order || cachedSpecies?.order || "Unknown",
+              family: freshSpecies?.family || cachedSpecies?.family || "Unknown",
+              genus: freshSpecies?.genus || cachedSpecies?.genus || "Unknown",
               wikipedia_overview:
-                cachedSpecies?.wikipedia_overview ?? externalData.wikiExtract ?? null,
-              hazard_type: cachedSpecies?.hazard_type ?? "none",
+                freshSpecies?.wikipedia_overview ??
+                cachedSpecies?.wikipedia_overview ??
+                externalData.wikiExtract ?? null,
+              hazard_type: freshSpecies?.hazard_type ?? cachedSpecies?.hazard_type ?? "none",
               native_region: "Unknown",
-              iucn_red_list_status: cachedSpecies?.iucn_red_list_status ?? "not_evaluated",
-              habitat_description: cachedSpecies?.habitat_description || undefined,
-              wikipedia_url: cachedSpecies?.wikipedia_url || externalData.wikipediaUrl,
-              gbif_taxon_key: cachedSpecies?.gbif_taxon_key || externalData.gbifKey,
+              iucn_red_list_status:
+                freshSpecies?.iucn_red_list_status ??
+                cachedSpecies?.iucn_red_list_status ??
+                "not_evaluated",
+              habitat_description:
+                freshSpecies?.habitat_description || cachedSpecies?.habitat_description || undefined,
+              wikipedia_url:
+                freshSpecies?.wikipedia_url || cachedSpecies?.wikipedia_url || externalData.wikipediaUrl,
+              gbif_taxon_key:
+                freshSpecies?.gbif_taxon_key ?? cachedSpecies?.gbif_taxon_key ?? externalData.gbifKey,
               reference_image_url:
-                cachedSpecies?.reference_image_url || externalData.referenceImageUrl,
+                freshSpecies?.reference_image_url ||
+                cachedSpecies?.reference_image_url ||
+                externalData.referenceImageUrl,
             },
             supabaseAdmin,
           );
-          speciesId = upsertedId || cachedSpecies?.id || null;
+          // freshSpecies?.id covers the case where the row already existed (created by a
+          // concurrent enrich-scan write) but the upsert returned null because ignoreDuplicates
+          // behaviour updated the row without returning the id separately.
+          speciesId = upsertedId || freshSpecies?.id || cachedSpecies?.id || null;
           console.log(`[⏱ BENCH] bg_enrichment: ${Date.now() - bgEnrichStart}ms`);
         }
 
@@ -772,9 +821,18 @@ serve((req: Request) =>
           const keysToPurge = modResult.publicUrls.map((url: string) =>
             url.replace("https://media.merian.app/", ""),
           );
-          await Promise.allSettled(
+          const rollbackResults = await Promise.allSettled(
             keysToPurge.map((key: string) => deleteR2Object(key, r2Config)),
           );
+          const failedRollbacks = rollbackResults.filter((r) => r.status === "rejected");
+          if (failedRollbacks.length > 0) {
+            logStructuredError("r2_rollback_partial_failure", {
+              scan_id: generatedScanId,
+              user_id: user.id,
+              failed_count: failedRollbacks.length,
+              total_count: keysToPurge.length,
+            });
+          }
         }
 
         const errorMsg = e instanceof Error ? e.message : String(e);

@@ -77,13 +77,12 @@ guard await inferenceActor.tryClaimForInference(scanId: scanId) else { return }
 **Declaration**: `@ModelActor actor HistoricalDatabaseActor`
 
 **Responsibilities:**
-- `reconcileScanPage(responses:)` — primary entry point for streaming reconciliation; called once per page fetched from the cloud. Computes the existing-ID set once on the first call (ID-only projection) and caches it in `cachedLocalIds`, then updates existing records and ingests missing ones for the page. The `cachedLocalIds` set is updated incrementally as each page inserts new records, so the full local ID set is never re-fetched per page. Returns the count of newly inserted records.
-- `syncCollectionsDown(remoteCollections:)` — called once, after all scan pages have been streamed. Delegates to `syncCollections` and then clears `cachedLocalIds`, releasing the accumulated set from memory.
-- `cachedLocalIds` (private `var`) — `Set<String>?` that lives for the duration of a `syncHistoricalScansDown` call. `nil` before the first `reconcileScanPage` call and after `syncCollectionsDown` clears it.
-- `updateExistingScans` (private) — predicate-scoped fetch with `propertiesToFetch` column projection; saves only if fields changed. Batches the incoming `responseIds` into chunks of 500 before building each `#Predicate`, preventing SQL IN-clause planner degradation on large libraries.
-- `ingestScans` (private) — inserts new `LocalScanRecord` rows; checkpoint-saves every `MerianConfig.ingestCheckpointInterval` (50) records
+- `reconcileScanPage(responses:)` — primary entry point for streaming reconciliation; called once per page fetched from the cloud. Computes the existing-ID set fresh each call via a chunked `FetchDescriptor` with `propertiesToFetch = [\.id]` (ID-only column projection), then delegates to `updateExistingScans` and `ingestScans` for the page. Returns the count of newly inserted records.
+- `syncCollectionsDown(remoteCollections:)` — called once, after all scan pages have been streamed. Delegates to `syncCollections`.
+- `updateExistingScans` (private) — **chunk-process-save** loop: for each stride of 500 IDs, fetches that chunk's full `LocalScanRecord` objects, mutates changed fields, calls `modelContext.save()` if any field changed, then lets the chunk's references fall out of scope so ARC reclaims the heap before the next stride. A single `JSONEncoder` is hoisted above both loops to avoid per-record allocation overhead. Prevents IN-clause planner degradation and bounds peak faulted-object count to one chunk.
+- `ingestScans` (private) — inserts new `LocalScanRecord` rows; checkpoint-saves every `MerianConfig.ingestCheckpointInterval` (100) records
 - `syncCollections` (private) — upserts `ScanCollection` records; fetches only the local scans referenced by incoming collections
-- `reconcileAllHistoricalData(responses:collections:)` — **legacy, kept for test compatibility only**. Resets `cachedLocalIds`, delegates to `reconcileScanPage` once, then calls `syncCollectionsDown`. New call sites should use the `reconcileScanPage` / `syncCollectionsDown` pair.
+- `reconcileAllHistoricalData(responses:collections:)` — **legacy, kept for test compatibility only**. Delegates to `reconcileScanPage` once, then calls `syncCollectionsDown`. New call sites should use the `reconcileScanPage` / `syncCollectionsDown` pair.
 
 **When to create**: Ad-hoc, once per `syncHistoricalScansDown` call. Use the paged API to stream one page at a time rather than accumulating the full cloud response in memory:
 ```swift

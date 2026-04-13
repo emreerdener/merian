@@ -187,9 +187,14 @@ serve((req: Request) =>
           }).catch((e) => console.error("PostHog EnrichmentCostAnalyzed failed:", e));
         }
 
-        runBackground(
-          updateSpeciesEnrichment(scientific_name, enrichmentResult, null, supabaseAdmin, altNames),
-        );
+        // Await the DB write before resolving the singleflight promise. Any concurrent
+        // request waiting on this singleflight will immediately re-read species_dictionary
+        // after resolution. If we resolve before the write lands, that re-read returns the
+        // stale skeleton — the singleflight guard provided zero benefit for the waiter.
+        // updateSpeciesEnrichment is a targeted UPDATE on a single row; awaiting it adds
+        // only one lightweight DB round-trip of latency to the primary request, which is
+        // already on the cache-miss path (Gemini just ran).
+        await updateSpeciesEnrichment(scientific_name, enrichmentResult, null, supabaseAdmin, altNames);
 
         console.log(`[enrich-scan:enrichment] CACHE MISS for ${scientific_name}`);
         resolveEnrichmentInFlight();
@@ -366,9 +371,10 @@ serve((req: Request) =>
         }).catch((e) => console.error("PostHog EnrichmentCostAnalyzed failed:", e));
       }
 
-      runBackground(
-        updateSpeciesEnrichment(scientific_name, null, similarResult, supabaseAdmin),
-      );
+      // Await before resolving for the same reason as the enrichment scope — any waiter
+      // re-reads species_dictionary immediately after resolution, and must see the updated
+      // similar_species TEXT[] to avoid a stale cache miss on the next call.
+      await updateSpeciesEnrichment(scientific_name, null, similarResult, supabaseAdmin);
 
       console.log(`[enrich-scan:lookalikes] CACHE MISS for ${scientific_name}`);
       resolveLookalikesInFlight();

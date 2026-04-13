@@ -223,12 +223,15 @@ export async function resolveLookalikesToJoinTable(
     return !hasEn;
   });
   if (backfills.length > 0) {
-    await supabaseAdmin.rpc("merge_common_name_en_batch", {
+    const { error: backfillError } = await supabaseAdmin.rpc("merge_common_name_en_batch", {
       p_updates: backfills.map((m) => ({
         id: m.id,
         en_name: entryByName.get(m.scientific_name)!.common_name,
       })),
     });
+    if (backfillError) {
+      console.error("[resolveLookalikesToJoinTable] merge_common_name_en_batch failed:", backfillError.message);
+    }
   }
 
   const matchedNames = new Set(validated.map((m) => m.scientific_name));

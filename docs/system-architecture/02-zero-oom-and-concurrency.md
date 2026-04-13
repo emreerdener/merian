@@ -480,12 +480,17 @@ while true {
 await dbActor.syncCollectionsDown(remoteCollections: allCollections)
 ```
 
-Inside `reconcileScanPage`, the full local ID set is computed once (ID-only column projection, `propertiesToFetch = [\.id]`) on the first call and cached as `cachedLocalIds: Set<String>?`. Subsequent page calls reuse the cached set, appending newly inserted IDs incrementally. `syncCollectionsDown` clears `cachedLocalIds` after the collection sync, releasing the set from memory.
+Inside `reconcileScanPage`, the existence check uses a chunked `FetchDescriptor` with `propertiesToFetch = [\.id]` — a narrow ID-only column projection scoped to each page's incoming IDs. The set is computed fresh per call; no cross-call caching is used so there is no stale-ID risk across pages.
 
-### IN-Clause Batching (`HistoricalDatabaseActor.updateExistingScans`)
-`updateExistingScans` builds a SwiftData `#Predicate { chunk.contains($0.id) }` to fetch only the local records that appear in the incoming cloud page. On large libraries, a single `#Predicate` with hundreds of IDs degrades the SQLite query planner — the planner stops using the primary key index for IN-clause lookups above a threshold and falls back to a full table scan.
+### Chunk-Process-Save Pattern (`HistoricalDatabaseActor.updateExistingScans`)
+`updateExistingScans` must reconcile existing local records against a page of incoming cloud responses. Two constraints apply simultaneously:
 
-The fix chunks `responseIds` into slices of 500 before building each predicate. Each chunk executes as a separate `FetchDescriptor` fetch, and results are concatenated. The `propertiesToFetch` projection (`[\.id, \.localImagePath, \.additionalImagePaths, \.referenceImageUrl, \.locationName, \.gpsLatitude, \.gpsLongitude, \.gpsElevation]`) is applied to every chunk, keeping column reads narrow across all batches.
+1. **IN-clause planner degradation**: A single `#Predicate { responseIds.contains($0.id) }` with hundreds of IDs causes SQLite to abandon the primary-key index above a threshold and fall back to a full table scan.
+2. **Peak heap accumulation**: Fetching all matching records across chunks into a shared `allExistingScans` array before iterating holds the entire page's worth of fully-faulted `LocalScanRecord` objects in RAM at once — up to 500 heavy ORM objects simultaneously.
+
+The fix addresses both with a **chunk-process-save** loop: for each stride of 500 IDs, a separate `FetchDescriptor` fetches only that chunk's records (full fetch, no column projection needed since all fields are read during mutation), mutations run immediately against the chunk's records, `modelContext.save()` is called if any field changed, and the chunk's object references fall out of scope — allowing ARC to reclaim the heap before the next stride loads its 500 objects. Peak faulted-object count is bounded to one chunk regardless of page size, page count, or user library depth.
+
+`JSONEncoder` is hoisted above both the chunk loop and the per-record loop. Allocating one encoder per record across a sync page adds measurable GC pressure on the `@ModelActor` thread; a single hoisted instance is reused for every `candidatesData` encode across all chunks.
 
 ### Idle CMMotionManager Battery Drain (`EnvironmentContextManager`)
 `EnvironmentContextManager` previously instantiated a `CMMotionManager` and started device-motion updates at 100 Hz (`motionManager.startDeviceMotionUpdates(to:)`) during live location tracking. No code path ever consumed the motion data — there were no `motionManager.deviceMotion` reads and no handler closure attached to the update queue. The manager was running at 100 Hz purely to warm the sensor, burning CPU cycles and waking the processor 100 times per second for zero benefit.
