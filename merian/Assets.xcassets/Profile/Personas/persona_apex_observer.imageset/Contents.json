@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "persona_apex_observer.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

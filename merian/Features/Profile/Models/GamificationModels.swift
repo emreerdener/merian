@@ -69,3 +69,53 @@ enum AwardSortOption: String, CaseIterable, Identifiable {
         }
     }
 }
+
+// MARK: - Personas
+public enum UserPersona: CaseIterable, Equatable {
+    case observer
+    case explorer
+    case naturalist
+    case scholar
+    case apexObserver
+    
+    public init(speciesCount: Int) {
+        switch speciesCount {
+        case 0: self = .observer
+        case 1..<10: self = .explorer
+        case 10..<50: self = .naturalist
+        case 50..<100: self = .scholar
+        default: self = .apexObserver
+        }
+    }
+    
+    public var title: String {
+        switch self {
+        case .observer: return "The Observer"
+        case .explorer: return "Casual Explorer"
+        case .naturalist: return "Dedicated Naturalist"
+        case .scholar: return "Verified Scholar"
+        case .apexObserver: return "Apex Observer"
+        }
+    }
+    
+    public var description: String {
+        switch self {
+        case .observer: return "The viewfinder is ready. Step outside to log your first scan."
+        case .explorer: return "Starting your collection. Learning the language of local flora and fauna."
+        case .naturalist: return "Mapping local biodiversity and building a vibrant library."
+        case .scholar: return "Curating a museum-grade archive of the natural world."
+        case .apexObserver: return "An absolute authority on the ecosystem. Your collection is a masterpiece."
+        }
+    }
+    
+    public var imageName: String {
+        switch self {
+        case .observer: return "persona_observer"
+        case .explorer: return "persona_explorer"
+        case .naturalist: return "persona_naturalist"
+        case .scholar: return "persona_scholar"
+        case .apexObserver: return "persona_apex_observer"
+        }
+    }
+}
+

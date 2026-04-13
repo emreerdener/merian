@@ -241,7 +241,7 @@ struct CameraSettingsView: View {
     @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
     @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
     @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = UIDevice.current.isModernIPhone
-    @AppStorage("saveToCameraRoll") private var saveToCameraRoll: Bool = true
+    @AppStorage("saveToCameraRoll") private var saveToCameraRoll: Bool = false
     
     @State private var showPermissionPrompt = false
     @State private var authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)

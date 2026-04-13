@@ -10,13 +10,17 @@ struct Terrarium: View {
         Bundle.main.url(forResource: "merian_terrarium", withExtension: "riv") != nil
     }
     
+    private var persona: UserPersona {
+        UserPersona(speciesCount: gamificationManager.unlockedSpeciesCount)
+    }
+    
     var body: some View {
         ZStack {
             if isRiveFileBundled {
                 ActiveTerrariumRenderer()
             } else {
-                // Temporary static orb placeholder
-                Image("profile_scene")
+                // Conditional persona image placeholder
+                Image(persona.imageName)
                     .resizable()
                     .scaledToFill()
                     .scaleEffect(1.0)

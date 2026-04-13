@@ -134,7 +134,7 @@ import UIKit
     }
     
     func saveImageToLibrary(imageData: Data, location: CLLocation? = nil) async {
-        let shouldSave = UserDefaults.standard.object(forKey: "saveToCameraRoll") as? Bool ?? true
+        let shouldSave = UserDefaults.standard.object(forKey: "saveToCameraRoll") as? Bool ?? false
         guard shouldSave else { return }
         
         let success = await executePhotoLibraryWrite(payload: .data(imageData), location: location, accessLevel: .readWrite)
