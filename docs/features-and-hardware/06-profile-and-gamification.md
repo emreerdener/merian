@@ -14,10 +14,31 @@ This document covers the Profile tab architecture, how scan statistics are compu
 | `ProfileDatabaseActor` | `@ModelActor` — fetches all `LocalScanRecord` rows, computes profile stats, heatmap, and awards |
 | `AchievementsCalculator` | Pure `struct` with `static func calculate(from:) -> [AwardPayload]` |
 | `GamificationManager` | `@MainActor @Observable` singleton — in-memory award cache, notification triggers |
-| `GamificationModels` | `AwardPayload`, `AwardState` value types |
+| `GamificationModels` | `AwardPayload`, `AwardState`, and `UserPersona` enumerations |
 | `Achievements` component | SwiftUI view rendering the award grid with sort options |
 | `UserStats` component | Renders species count and current streak from `LocalScanRecord` |
+| `Persona` component | Renders the user's active `UserPersona` tier badge and title |
+| `Terrarium` component | Biological 3D hex-grid mapping representation based on the user's active progression tier |
+| `PlanCard` component | Dynamic subscription banner reading `isProActive` to serve custom `.xcassets` graphics (`sparkles` vs `compass`) |
 | `ScansHeatmap` | Calendar heatmap of scan activity (52-week rolling window) anchored to analysis upload date, bypassing EXIF `captureDate` |
+
+---
+
+## Personas and Terrarium
+
+The `UserPersona` enumeration (defined in `GamificationModels.swift`) replaces legacy arbitrary ranking scales with a strict, 5-tier biological taxonomy path derived mathematically from the user's `uniqueSpeciesCount` (NOT total scans):
+
+| Tier Level | Persona Title | Unique Species Threshold | Asset Identifier |
+|---|---|---|---|
+| Tier 1 | Observer | 0 | `persona_observer` |
+| Tier 2 | Casual Explorer | 10 | `persona_explorer` |
+| Tier 3 | Dedicated Naturalist | 50 | `persona_naturalist` |
+| Tier 4 | Verified Scholar | 250 | `persona_scholar` |
+| Tier 5 | Apex Observer | 1000 | `persona_apex` |
+
+The `Persona` UI component cross-references this enum against the user's live profile statistics to render the appropriate `.imageset` container from the `Profile/Personas/` catalog. It sits adjacent to the `Terrarium` component on the Profile Tab, which loads compounding biological elements based on the same 5-tier logic. 
+
+**Plan Card Integration**: The `PlanCard` dynamic banner also eschews standard SF Symbols in favor of custom vectors. Depending on `RevenueCatManager.shared.isProActive`, it targets `merian/Assets.xcassets/Profile/Plan/sparkles.imageset` for Premium users, falling back to `compass.imageset` for Free-tier users.
 
 ---
 

@@ -185,5 +185,5 @@ A pill-shaped drag-to-confirm control that replicates the iPhone unlock gesture,
 - **Snap-back**: Releasing before the 88% threshold springs the thumb back via `.spring(response: 0.45, dampingFraction: 0.72)` with a `triggerLightImpact()` haptic.
 - **Completion state**: On trigger, the thumb snaps to full width with `.spring(response: 0.28, dampingFraction: 0.82)`, chevrons are replaced by a checkmark, and `onConfirm` is called after a 380 ms delay so the user sees the completed state before the view transitions.
 - **Haptics**: `triggerSuccessPulse()` on threshold reached; `triggerLightImpact()` on snap-back.
-- **Label**: Fixed to `"Confirm species"` at all call sites — not a dynamic species name — to prevent text overflow on long species names. The species name is always prominent in the card heading directly above.
+- **Label**: Accepts dynamically injected strings (e.g. `"Confirm \(viewModel.resolvedHeaderTitle)"`). To handle long scientific names without breaking the UI pill geometry on single lines, the `<Text>` label aggressively shrinks typography via `.minimumScaleFactor(0.6)` before resorting to truncation.
 - **Disabled**: Once `isCompleted = true`, the component ignores further drag input.
