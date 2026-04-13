@@ -380,7 +380,7 @@ private struct GBIFMedia: Decodable {
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     if self.activeScanId == ownedScanId {
-                        HapticManager.shared.triggerSuccessPulse()
+                        HapticManager.shared.triggerHeavyImpact()
                         // Retain in-memory activeDisplayDatas so the Carousel doesn't structurally tear down the LiveCapturePageView component.
                         self.validHistoricImagePaths = savedImagePaths
                         self.speciesData = mappedData
@@ -1593,7 +1593,6 @@ private struct GBIFMedia: Decodable {
                 guard !Task.isCancelled else { break }
                 guard let self else { return }
                 self.scanningPhaseText = phrases[index]
-                HapticManager.shared.triggerSelectionPulse()
                 index = (index + 1) % phrases.count
             }
         }
