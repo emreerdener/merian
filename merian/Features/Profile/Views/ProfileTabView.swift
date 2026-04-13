@@ -20,11 +20,11 @@ struct ProfileTabView: View {
         ScrollView(showsIndicators: false) {
             // MARK: - Core Profile Content
             VStack(spacing: 24) {
-                // MARK: - Terrarium
-                Terrarium()
-                
-                // MARK: - User Persona
-                Persona(uniqueSpeciesCount: uniqueSpeciesCount)
+                // MARK: - Terrarium & Persona
+                VStack(spacing: 8) {
+                    Terrarium()
+                    Persona(uniqueSpeciesCount: uniqueSpeciesCount)
+                }
 
                 // MARK: - User Profile
                 UserProfile()
