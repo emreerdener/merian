@@ -60,8 +60,9 @@ struct PlanCard: View {
                 .padding()
                 .background(Color.primary)
                 .foregroundColor(Color(UIColor.systemBackground))
-                .cornerRadius(16)
+                .clipShape(Capsule())
             }
+            .padding(.top, 8)
             .buttonStyle(BorderlessButtonStyle())
         }
         .frame(maxWidth: .infinity, alignment: .leading)

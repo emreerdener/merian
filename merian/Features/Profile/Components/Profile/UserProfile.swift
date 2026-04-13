@@ -24,7 +24,7 @@ struct UserProfile: View {
                         .padding()
                         .background(Color.primary)
                         .foregroundColor(Color(UIColor.systemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .clipShape(Capsule())
                     }
                     
                     Button(action: {
@@ -33,7 +33,10 @@ struct UserProfile: View {
                         }
                     }) {
                         HStack {
-                            Image(systemName: "g.circle.fill")
+                            Image("google")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 18, height: 18)
                             Text("Sign in with Google")
                                 .fontWeight(.semibold)
                         }
@@ -41,7 +44,7 @@ struct UserProfile: View {
                         .padding()
                         .background(Color(UIColor.secondarySystemGroupedBackground))
                         .foregroundColor(.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .clipShape(Capsule())
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
