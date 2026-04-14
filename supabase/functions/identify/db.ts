@@ -128,6 +128,8 @@ export interface ScanInsertRow {
   candidates?: IdentificationCandidate[] | null;
   image_quality_score?: number | null;
   is_live_capture?: boolean;
+  /** Structured observation context staged by the user; NULL for image-only scans. */
+  user_observation_context?: Record<string, unknown> | null;
 }
 
 /**

@@ -1,12 +1,19 @@
 import SwiftUI
 
-/// Staging definition for the impending audio sensory boundary.
+/// All capture modes available from the camera root view.
+/// Adding a new case automatically adds a segment to `MediaModeToggle`
+/// and a page to the `CameraRootView` pager — no other changes needed.
 enum CaptureMode: String, CaseIterable {
     case visual
     case audio
+    case sighting
 }
 
-/// A highly modular, glassmorphic capsule toggle controlling the active environmental capture state natively!
+/// A glassmorphic capsule toggle controlling the active capture mode.
+///
+/// Pill math is index-driven so adding new `CaptureMode` cases requires no
+/// changes here — `segmentWidth` divides the total width by `allCases.count`
+/// and the drag gesture navigates by index ± 1.
 struct MediaModeToggle: View {
     @Binding var activeMode: CaptureMode
     let onModeChange: () -> Void
@@ -14,24 +21,52 @@ struct MediaModeToggle: View {
     @State private var dragOffset: CGFloat = 0
     @State private var toggleSize: CGSize = .zero
 
-    private var segmentWidth: CGFloat { toggleSize.width / 2 }
+    // MARK: - Layout Math
 
-    private var pillX: CGFloat {
-        if activeMode == .visual {
-            return max(0, min(dragOffset, segmentWidth))
-        } else {
-            return segmentWidth + max(-segmentWidth, min(dragOffset, 0))
-        }
+    private var segmentCount: CGFloat { CGFloat(CaptureMode.allCases.count) }
+    private var segmentWidth: CGFloat { toggleSize.width / segmentCount }
+
+    private var activeIndex: Int {
+        CaptureMode.allCases.firstIndex(of: activeMode) ?? 0
     }
 
+    /// Pill x-position: index-based base + clamped drag offset, bounded to valid segment range.
+    private var pillX: CGFloat {
+        let base = CGFloat(activeIndex) * segmentWidth
+        let clamped = max(-segmentWidth, min(dragOffset, segmentWidth))
+        return max(0, min(base + clamped, toggleSize.width - segmentWidth))
+    }
+
+    /// Interpolates label color from pill position so it transitions smoothly during drag.
     private func labelColor(for mode: CaptureMode) -> Color {
         guard segmentWidth > 0 else {
             return activeMode == mode ? .black : .white.opacity(0.85)
         }
-        let fraction = pillX / segmentWidth
-        let isActive = mode == .visual ? fraction < 0.5 : fraction >= 0.5
+        let modeIndex = CGFloat(CaptureMode.allCases.firstIndex(of: mode) ?? 0)
+        let pilledIndex = pillX / segmentWidth
+        let isActive = abs(modeIndex - pilledIndex) < 0.5
         return isActive ? .black : .white.opacity(0.85)
     }
+
+    // MARK: - Mode Metadata
+
+    private func icon(for mode: CaptureMode) -> String {
+        switch mode {
+        case .visual:   return "viewfinder"
+        case .audio:    return "waveform"
+        case .sighting: return "eye"
+        }
+    }
+
+    private func label(for mode: CaptureMode) -> String {
+        switch mode {
+        case .visual:   return "Scan"
+        case .audio:    return "Record"
+        case .sighting: return "Sighting"
+        }
+    }
+
+    // MARK: - Body
 
     var body: some View {
         HStack(spacing: 0) {
@@ -42,14 +77,14 @@ struct MediaModeToggle: View {
                     }
                     onModeChange()
                 }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: mode == .visual ? "viewfinder" : "waveform")
-                        Text(mode == .visual ? "Scan" : "Record")
+                    HStack(spacing: 5) {
+                        Image(systemName: icon(for: mode))
+                        Text(label(for: mode))
                     }
                     .font(.subheadline)
                     .fontWeight(.bold)
                     .foregroundColor(labelColor(for: mode))
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .contentShape(Rectangle())
                 }
@@ -73,35 +108,39 @@ struct MediaModeToggle: View {
                     .offset(x: pillX)
             }
         }
-        // Drag gesture on the container — only activates when starting on the active segment.
+        // Drag gesture: only activates when starting on the active segment,
+        // then commits to adjacent mode on threshold cross.
         .simultaneousGesture(
             DragGesture(minimumDistance: 5, coordinateSpace: .local)
                 .onChanged { value in
-                    let startInActive = activeMode == .visual
-                        ? value.startLocation.x < segmentWidth
-                        : value.startLocation.x >= segmentWidth
-                    guard startInActive else { return }
-                    if activeMode == .visual {
-                        dragOffset = max(0, min(value.translation.width, segmentWidth))
-                    } else {
-                        dragOffset = max(-segmentWidth, min(value.translation.width, 0))
-                    }
+                    guard segmentWidth > 0 else { return }
+                    let startSegment = Int(value.startLocation.x / segmentWidth)
+                    guard startSegment == activeIndex else { return }
+                    dragOffset = max(-segmentWidth, min(value.translation.width, segmentWidth))
                 }
                 .onEnded { value in
-                    let startInActive = activeMode == .visual
-                        ? value.startLocation.x < segmentWidth
-                        : value.startLocation.x >= segmentWidth
-                    if startInActive {
-                        let threshold = segmentWidth / 2
-                        if activeMode == .visual && dragOffset > threshold {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { activeMode = .audio }
-                            onModeChange()
-                        } else if activeMode == .audio && dragOffset < -threshold {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { activeMode = .visual }
-                            onModeChange()
+                    defer {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            dragOffset = 0
                         }
                     }
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { dragOffset = 0 }
+                    guard segmentWidth > 0 else { return }
+                    let startSegment = Int(value.startLocation.x / segmentWidth)
+                    guard startSegment == activeIndex else { return }
+
+                    let threshold = segmentWidth / 2
+                    let cases = CaptureMode.allCases
+                    if dragOffset > threshold && activeIndex < cases.count - 1 {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            activeMode = cases[activeIndex + 1]
+                        }
+                        onModeChange()
+                    } else if dragOffset < -threshold && activeIndex > 0 {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            activeMode = cases[activeIndex - 1]
+                        }
+                        onModeChange()
+                    }
                 }
         )
         .padding(4)

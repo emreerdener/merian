@@ -22,7 +22,7 @@ extension CameraViewModel {
         // Prevent accidental hardware captures while a modal, sheet, or crop view is actively presented
         guard activeSheet == nil,
               !isCapturing,
-              activeScanImages.count < 2,
+              stagedCapture.images.count < stagedImageCapacity,
               imageToCrop == nil else { return }
               
         isCapturing = true
@@ -95,10 +95,12 @@ extension CameraViewModel {
                             self.preFetchTask = task
                             let backgroundRawImage = UIImage(cgImage: validCGImage, scale: 1.0, orientation: .up)
                             let identifiable = IdentifiableImage(image: backgroundRawImage, environmentContext: nil, isFromGallery: false)
-                            self.activeOriginals.append(identifiable)
-                            self.activeScannedDatas.append(finalSafeData)
-                            self.activeDisplayDatas.append(displaySafeData)
-                            self.activeScanImages.append(backgroundRawImage)
+                            self.stagedCapture.images.append(StagedImage(
+                                compressedData: finalSafeData,
+                                displayData: displaySafeData,
+                                uiImage: backgroundRawImage,
+                                original: identifiable
+                            ))
                         }
                     }
                 } catch {

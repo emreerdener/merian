@@ -14,7 +14,7 @@ struct MainOverlayView: View {
             Spacer()
 
             // MARK: - Dynamic Intelligence
-            if activeScanImages.count < 2 {
+            if activeScanImages.count < stagedImageCapacity {
                 ViewfinderHints(isRefining: isRefining)
                     // Padding keeps hints above the fixed capture-bar + tab-bar overlay.
                     .padding(.bottom, 250)
@@ -23,7 +23,7 @@ struct MainOverlayView: View {
         }
         .frame(maxWidth: .infinity)
         .overlay(alignment: zoomSideLeft ? .leading : .trailing) {
-            if activeScanImages.count < 2 {
+            if activeScanImages.count < stagedImageCapacity {
                 ZoomSliderView()
                     .padding(.bottom, 110)
             }

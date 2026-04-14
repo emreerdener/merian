@@ -3,32 +3,38 @@ import SwiftUI
 
 struct ActiveScanToolbar: View {
     // MARK: - Properties
-    let images: [UIImage]
+    let stagedCapture: StagedCapture
     let isRefining: Bool
     @Binding var selectedPhotoItems: [PhotosPickerItem]
-    
+
     @State private var showTooltip: Bool = !ActiveScanToolbar.hasShownTooltipThisSession
     private static var hasShownTooltipThisSession: Bool = false
     @State private var shimmerPhase: CGFloat = -1.0
-    
+
     // MARK: - Callbacks
     let onThumbnailTap: (Int) -> Void
     let onCancel: () -> Void
     let onSubmit: () -> Void
-    
+
     // MARK: - Body Layout
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             cancelButton
-                        
+
             HStack(spacing: 16) {
                 ActiveScanThumbnailGrid(
-                    images: images,
+                    images: stagedCapture.images.map(\.uiImage),
                     isRefining: isRefining,
                     selectedPhotoItems: $selectedPhotoItems,
                     onThumbnailTap: onThumbnailTap
                 )
-                
+
+                // Description badge — shown when a sighting context has been staged
+                // alongside images, signalling a combined multi-modal submission.
+                if stagedCapture.observationContext != nil {
+                    StagedDescriptionBadge()
+                }
+
                 submitButton
             }
             .padding(8)
@@ -43,8 +49,9 @@ struct ActiveScanToolbar: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
             }
         }
-        .padding(.bottom, 24) // Accommodate the physical iPhone home indicator explicitly
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: images.count)
+        .padding(.bottom, 24)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.images.count)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.observationContext != nil)
         .task {
             if showTooltip {
                 ActiveScanToolbar.hasShownTooltipThisSession = true
@@ -103,13 +110,13 @@ extension ActiveScanToolbar {
             .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 16)
             .frame(height: 48) // Guarantees exactly 48 points!
-            .background(images.isEmpty ? Color.white.opacity(0.15) : buttonColor)
-            .foregroundColor(images.isEmpty ? .white.opacity(0.6) : .white)
+            .background(stagedCapture.isEmpty ? Color.white.opacity(0.15) : buttonColor)
+            .foregroundColor(stagedCapture.isEmpty ? .white.opacity(0.6) : .white)
             .clipShape(Capsule())
             // Ambient Static Glass Boundary
             .overlay(
                 Capsule()
-                    .strokeBorder(images.isEmpty ? .clear : buttonColor.opacity(0.4), lineWidth: 1.5)
+                    .strokeBorder(stagedCapture.isEmpty ? .clear : buttonColor.opacity(0.4), lineWidth: 1.5)
             )
             // Animated Holographic Glare Sweep
             .overlay(
@@ -134,12 +141,12 @@ extension ActiveScanToolbar {
                         )
                 }
                 .allowsHitTesting(false) // Prevents the geometry overlay from blocking taps
-                .opacity(images.isEmpty ? 0 : 1)
+                .opacity(stagedCapture.isEmpty ? 0 : 1)
             )
-            .shadow(color: images.isEmpty ? .clear : buttonColor.opacity(0.25), radius: 10, x: 0, y: 4)
+            .shadow(color: stagedCapture.isEmpty ? .clear : buttonColor.opacity(0.25), radius: 10, x: 0, y: 4)
         }
-        .disabled(images.isEmpty) // Prevents submission of 0 images
-        .animation(.easeInOut(duration: 0.2), value: images.isEmpty)
+        .disabled(stagedCapture.isEmpty) // Prevents submission of 0 images
+        .animation(.easeInOut(duration: 0.2), value: stagedCapture.isEmpty)
         .onAppear {
             withAnimation(.linear(duration: 4.5).repeatForever(autoreverses: false)) {
                 shimmerPhase = 2.5
@@ -197,7 +204,7 @@ private struct ActiveScanThumbnailGrid: View {
                 .buttonStyle(PlainButtonStyle())
             }
             
-            let currentLimit = (isMultiCaptureEnabled || isRefining) ? 2 : 1
+            let currentLimit = (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1
             if images.count < currentLimit {
                 PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: max(1, currentLimit - images.count), matching: .images, photoLibrary: .shared()) {
                     Circle()
@@ -212,6 +219,28 @@ private struct ActiveScanThumbnailGrid: View {
                 .buttonStyle(PlainButtonStyle())
             }
         }
+    }
+}
+
+/// Compact badge that appears in the toolbar when a sighting description has been
+/// staged alongside images — signals a combined multi-modal submission to the user.
+private struct StagedDescriptionBadge: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "text.alignleft")
+                .font(.system(size: 13, weight: .medium))
+            Text("Description")
+                .font(.caption)
+                .fontWeight(.medium)
+        }
+        .foregroundStyle(.white.opacity(0.85))
+        .padding(.horizontal, 10)
+        .frame(height: 48)
+        .background(
+            Capsule()
+                .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
+        )
+        .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 }
 

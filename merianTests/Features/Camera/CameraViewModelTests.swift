@@ -1,6 +1,7 @@
 import Testing
 import SwiftData
 import Foundation
+import UIKit
 @testable import Merian
 
 @MainActor
@@ -51,10 +52,10 @@ struct CameraViewModelTests {
         #expect(viewModel.activeSheet == nil, "ViewModel must strictly hide the active sheet upon jump back to camera viewfinder.")
     }
 
-    @Test func testSubmitActiveScanClearsBuffersAndStateSynchronously() async throws {
+    @Test func testSubmitStagedCaptureClearsBuffersAndStateSynchronously() async throws {
         // Arrange
         let viewModel = CameraViewModel()
-        
+
         let record = LocalScanRecord(
             speciesId: "species_refine",
             scientificName: "Test Species",
@@ -63,43 +64,52 @@ struct CameraViewModelTests {
         )
         viewModel.startRefinementScan(from: record)
 
-        // Simulate active capture staging
-        viewModel.activeScannedDatas = [Data()]
-        viewModel.activeDisplayDatas = [Data()]
-        
+        // Simulate active capture staging via StagedCapture
+        let stagedImage = StagedImage(
+            compressedData: Data(),
+            displayData: Data(),
+            uiImage: UIImage(),
+            original: IdentifiableImage(image: UIImage())
+        )
+        viewModel.stagedCapture.images = [stagedImage]
+
         let context = try createIsolatedContext()
 
         // Act
-        viewModel.submitActiveScan(modelContext: context)
+        viewModel.submitStagedCapture(modelContext: context)
 
-        // Assert: given submitActiveScan is non-async up to the Task boundary,
+        // Assert: given submitStagedCapture is non-async up to the Task boundary,
         // all synchronously wiped memory locks should instantly flush to prevent user double-taps safely.
-        #expect(viewModel.baseRefinementRecord == nil, "submitActiveScan must wipe the baseRefinementRecord synchronously immediately.")
-        #expect(viewModel.activeScannedDatas.isEmpty, "submitActiveScan must wipe stage data immediately")
-        #expect(viewModel.activeDisplayDatas.isEmpty, "submitActiveScan must wipe stage data immediately")
+        #expect(viewModel.baseRefinementRecord == nil, "submitStagedCapture must wipe the baseRefinementRecord synchronously immediately.")
+        #expect(viewModel.stagedCapture.images.isEmpty, "submitStagedCapture must wipe staged images immediately")
         #expect(viewModel.activeSheet == .insight, "UI should implicitly launch processing skeleton sheet.")
     }
 
-    @Test func testSubmitActiveScanOfflineInterceptor() async throws {
+    @Test func testSubmitStagedCaptureOfflineInterceptor() async throws {
         // Arrange
         let viewModel = CameraViewModel()
-        viewModel.activeScannedDatas = [Data()]
-        viewModel.activeDisplayDatas = [Data()]
+        let stagedImage = StagedImage(
+            compressedData: Data(),
+            displayData: Data(),
+            uiImage: UIImage(),
+            original: IdentifiableImage(image: UIImage())
+        )
+        viewModel.stagedCapture.images = [stagedImage]
         let context = try createIsolatedContext()
 
         // Explicitly simulate offline state within the globally injected queue manager
         let originalState = AppDIContainer.shared.offlineQueueManager.isOnline
         AppDIContainer.shared.offlineQueueManager.isOnline = false
-        
+
         defer {
             AppDIContainer.shared.offlineQueueManager.isOnline = originalState
         }
 
         // Act
-        viewModel.submitActiveScan(modelContext: context)
+        viewModel.submitStagedCapture(modelContext: context)
 
         // Assert
-        #expect(viewModel.activeScannedDatas.isEmpty, "submitActiveScan must wipe stage data immediately regardless of network.")
+        #expect(viewModel.stagedCapture.images.isEmpty, "submitStagedCapture must wipe staged images immediately regardless of network.")
         #expect(viewModel.activeSheet == nil, "UI must NOT launch InsightSheet skeleton if offline.")
         #expect(viewModel.offlineToastMessage == "No network connection. Queued for upload.", "UI must generate a toast message for offline interception.")
     }

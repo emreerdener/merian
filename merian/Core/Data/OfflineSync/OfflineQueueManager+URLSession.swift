@@ -183,7 +183,9 @@ extension OfflineQueueManager {
             localImagePaths: extracted.localImagePaths,
             r2Keys: r2Keys,
             container: extracted.container,
-            originalTimestamp: extracted.originalTimestamp
+            originalTimestamp: extracted.originalTimestamp,
+            description: extracted.description,
+            observationContextJSON: extracted.observationContextJSON
         )
         await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
@@ -286,12 +288,26 @@ extension OfflineQueueManager {
             timestamp: DateUtilities.iso8601Formatter.string(from: scan.timestamp)
         )
         telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
+
+        // Reconstruct the serialized description for combined image+description scans.
+        // The JSON was encoded at enqueue time to survive the actor boundary; decode it
+        // here (main actor, synchronous) and render to plain text before passing to the
+        // background inference path — keeping the dispatch site free of JSON decoding.
+        let description: String? = scan.observationContextJSON.flatMap { json in
+            guard let data = json.data(using: .utf8),
+                  let context = try? JSONDecoder().decode(ObservationContext.self, from: data),
+                  !context.isEmpty else { return nil }
+            return context.serialized()
+        }
+
         return ExtractedScanData(
             telemetry: telemetry,
             localImagePaths: scan.localImagePaths,
             r2Keys: scan.stagedR2Keys ?? [],
             container: container,
-            originalTimestamp: scan.timestamp
+            originalTimestamp: scan.timestamp,
+            description: description,
+            observationContextJSON: scan.observationContextJSON
         )
     }
 
@@ -351,11 +367,24 @@ extension OfflineQueueManager {
         // via uploadRetryCount — the same contract as network-level failures.
         let request: URLRequest
         do {
-            request = try await MerianNetworkClient.shared.buildIdentifyRequest(
-                r2ObjectKeys: extracted.r2Keys,
-                telemetry: finalTelemetry,
-                clientScanId: scanId
-            )
+            // Sighting-only scans have no image paths — route to /identify-sighting.
+            // Image scans (with or without an attached description) always use /identify.
+            if extracted.localImagePaths.isEmpty, let ctxJSON = extracted.observationContextJSON {
+                request = try await MerianNetworkClient.shared.buildSightingRequest(
+                    description: extracted.description ?? "",
+                    observationContextJSON: ctxJSON,
+                    telemetry: finalTelemetry,
+                    clientScanId: scanId
+                )
+            } else {
+                request = try await MerianNetworkClient.shared.buildIdentifyRequest(
+                    r2ObjectKeys: extracted.r2Keys,
+                    telemetry: finalTelemetry,
+                    clientScanId: scanId,
+                    description: extracted.description,
+                    observationContextJSON: extracted.observationContextJSON
+                )
+            }
         } catch {
             MerianLog.data.error("dispatchInferenceDownloadTask: failed to build request for \(scanId, privacy: .private): \(error, privacy: .private)")
             await handleInferenceRetry(scanId: scanId)
@@ -428,7 +457,8 @@ extension OfflineQueueManager {
             originalImagePaths: extracted.localImagePaths,
             scanId: scanId,
             originalTimestamp: extracted.originalTimestamp,
-            telemetry: extracted.telemetry
+            telemetry: extracted.telemetry,
+            observationContextJSON: extracted.observationContextJSON
         )
 
         // Delete the OfflineQueuedScan from the main ModelContext so @Query re-evaluates in

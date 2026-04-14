@@ -50,6 +50,16 @@ struct ExtractedScanData: Sendable {
     /// The model container, used to create a new `BackgroundDatabaseActor` on the inference thread.
     let container: ModelContainer
     let originalTimestamp: Date
+    /// Pre-serialized `ObservationContext` text for combined image+description scans.
+    ///
+    /// Derived at extraction time by decoding `OfflineQueuedScan.observationContextJSON` and
+    /// calling `ObservationContext.serialized()`. Storing the already-rendered string here keeps
+    /// the inference dispatch path free of JSON decoding. `nil` for image-only scans.
+    let description: String?
+    /// Raw `ObservationContext` JSON string forwarded to the edge function as `observation_context`
+    /// and persisted in the `scans` table. Separate from `description` (plain-text for Gemini).
+    /// `nil` for image-only scans.
+    let observationContextJSON: String?
 }
 
 // MARK: - Offline Scan Processing Result

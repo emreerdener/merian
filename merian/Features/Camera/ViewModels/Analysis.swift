@@ -5,26 +5,37 @@ import Vision
 
 extension CameraViewModel {
 
-    // MARK: - Submit Active Scan
+    // MARK: - Submit Staged Capture
 
-    /// Kicks off the inference pipeline for the accumulated `activeScanImages`.
+    /// Kicks off the inference pipeline for everything currently in `stagedCapture`.
+    ///
+    /// Routing logic:
+    /// - Images only → `identify` endpoint (existing image path)
+    /// - Images + description → `identify` endpoint with description injected as
+    ///   additional Gemini context (combined path)
+    /// - Description only → falls back to `analyzeSighting` (no images to upload)
     ///
     /// Call order:
     /// 1. Reset `InferenceEngine` display state and open the insight sheet immediately.
     /// 2. Snapshot the staging buffers, then clear them to prevent double-submit.
     /// 3. Generate a stable `scanId` shared by the queue record and live inference task.
-    /// 4. **Enqueue immediately** (still in foreground) with cached GPS. The background
-    ///    URLSession upload is dispatched inside the same `UIBackgroundTask` window, so it
-    ///    survives an immediate app suspension. No rescue logic is needed.
+    /// 4. **Enqueue immediately** (still in foreground) with cached GPS and the
+    ///    serialized observation context when present. The background URLSession
+    ///    upload is dispatched inside the same `UIBackgroundTask` window.
     /// 5. Await the pre-fetched `EnvironmentContext`, build full telemetry, and fire
-    ///    `InferenceEngine.analyze`. The live path and background upload race — whichever
-    ///    completes first wins. On live success, `analyze` cancels the upload; on failure
-    ///    or cancellation the background path continues uninterrupted.
-    func submitActiveScan(modelContext: ModelContext) {
-        guard !activeScannedDatas.isEmpty else { return }
+    ///    `InferenceEngine.analyze`. The live path and background upload race —
+    ///    whichever completes first wins.
+    func submitStagedCapture(modelContext: ModelContext) {
+        guard !stagedCapture.images.isEmpty else {
+            // No images — description-only path
+            if let context = stagedCapture.observationContext, !context.isEmpty {
+                submitSightingSolo(observationContext: context, modelContext: modelContext)
+            }
+            return
+        }
 
         // 1. Reset all InferenceEngine display state synchronously so the content router
-        // immediately sees `isProcessing == true && speciesData == nil`.
+        //    immediately sees `isProcessing == true && speciesData == nil`.
         diContainer.inferenceEngine.prepareForNewScan()
 
         let isOnline = diContainer.offlineQueueManager.isOnline
@@ -35,30 +46,23 @@ extension CameraViewModel {
         }
 
         // 3. Capture the context needed for inference before clearing the staging buffers.
-        let datasToAnalyze = activeScannedDatas
-        let displayDatasToAnalyze = activeDisplayDatas
-        let capturedOriginals = activeOriginals
-        let capturedPreFetchTask = preFetchTask
+        let capturedImages          = stagedCapture.images
+        let capturedObsContext      = stagedCapture.observationContext
+        let capturedPreFetchTask    = preFetchTask
         let targetEradicationRecord = baseRefinementRecord
 
         // 4. Clear the staging buffers immediately so the UI resets behind the overlay.
-        activeScanImages.removeAll()
-        activeScannedDatas.removeAll()
-        activeDisplayDatas.removeAll()
-        activeOriginals.removeAll()
+        stagedCapture.clearAll()
         baseRefinementRecord = nil
         preFetchTask = nil
 
         // 5. Generate a stable scanId shared by the queue record and live inference.
-        //    This ties the two paths so that whichever completes first, the other can
-        //    be idempotently skipped or cancelled.
         let scanId = UUID().uuidString.lowercased()
         pendingAnalyzeScanId = scanId
 
         // 6. Enqueue immediately — in-foreground — so the scan reaches disk and SwiftData
-        //    before any async boundary is crossed. `enqueueCapture` wraps its work in a
-        //    UIBackgroundTask, ensuring the disk write + SwiftData insert + URLSession upload
-        //    dispatch complete even if the user backgrounds in the next instant.
+        //    before any async boundary is crossed. Carries the observation context JSON so
+        //    the offline-retry path can reconstruct the full combined payload.
         let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
         let immediateDistance = diContainer.cameraManager.subjectDistanceInMeters
         let immediateTelemetry = CaptureTelemetry(
@@ -75,10 +79,11 @@ extension CameraViewModel {
             estimatedSizeCm: nil
         )
         diContainer.offlineQueueManager.enqueueCapture(
-            imageDatas: datasToAnalyze,
+            imageDatas: capturedImages.map(\.compressedData),
             telemetry: immediateTelemetry,
             blurScore: nil,
-            scanId: scanId
+            scanId: scanId,
+            observationContext: capturedObsContext
         )
 
         // If completely offline, skip live inference and show a toast immediately.
@@ -88,35 +93,26 @@ extension CameraViewModel {
         }
 
         // 7. Concurrently resolve the full telemetry and fire live inference.
-        //    Disk I/O and synchronous `ImageDownsampler` scaling run here
-        //    off the main thread to prevent UI stalling right as the sheet appears.
         Task {
-            let liveDatasToAnalyze = datasToAnalyze
-            let liveDisplayDatasToAnalyze = displayDatasToAnalyze
-            
             let resolvedContext = await capturedPreFetchTask?.value
-            
+
             let telemetry = await CaptureTelemetry.resolveForActiveScan(
                 resolvedContext: resolvedContext,
-                historicalContext: capturedOriginals.first?.environmentContext,
-                isGalleryPhoto: capturedOriginals.first?.isFromGallery == true,
-                firstImageData: liveDatasToAnalyze.first,
+                historicalContext: capturedImages.first?.original.environmentContext,
+                isGalleryPhoto: capturedImages.first?.original.isFromGallery == true,
+                firstImageData: capturedImages.first?.compressedData,
                 distanceMeters: diContainer.cameraManager.subjectDistanceInMeters,
                 zoomFactor: diContainer.cameraManager.zoomFactor
             )
 
-            // Guard: skip if a newer scan has been submitted while the preFetchTask was
-            // awaiting. `pendingAnalyzeScanId` is set to this scan's ID at submission time
-            // and overwritten by the next `submitActiveScan` call, so an inequality here
-            // means this Task is stale and the engine has already moved on.
-            // The offline queue already holds this scan — the background path will complete it.
             await MainActor.run {
                 guard self.pendingAnalyzeScanId == scanId else { return }
                 self.diContainer.inferenceEngine.analyze(
                     scanId: scanId,
-                    imageDatas: liveDatasToAnalyze,
-                    displayDatas: liveDisplayDatasToAnalyze,
+                    imageDatas: capturedImages.map(\.compressedData),
+                    displayDatas: capturedImages.map(\.displayData),
                     telemetry: telemetry,
+                    observationContext: capturedObsContext,   // non-nil when combined
                     modelContext: modelContext,
                     targetEradicationRecord: targetEradicationRecord
                 )
@@ -129,10 +125,6 @@ extension CameraViewModel {
     /// Responds to changes in `InferenceEngine.isProcessing`.
     func handleInferenceProcessingChange(isStillProcessing: Bool) {
         guard !isStillProcessing else { return }
-        // Mark a new unread scan only for real results (scanId is nil on error placeholders
-        // like "Analysis Failed" / "Network Timeout" which are not persisted to the library).
-        // Skip if the insight sheet is already open — the user is actively viewing the result
-        // and closing the sheet should not trigger the indicator.
         if diContainer.inferenceEngine.speciesData?.scanId != nil, activeSheet != .insight {
             UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
             PushNotificationManager.shared.setBadgeCount(1)
@@ -160,12 +152,8 @@ extension CaptureTelemetry {
             }
             return CaptureTelemetry(from: context, distance: distanceMeters, zoom: zoomToUse, estimatedSizeCm: estimatedSizeCm)
         } else if let hc = historicalContext {
-            // Library photo — zoom at original capture time is unknown; omit.
             return CaptureTelemetry(from: hc, distance: nil)
         } else if isGalleryPhoto {
-            // No EXIF available — omit timestamp rather than fabricating the current date.
-            // The server defaults scans.timestamp to now(), which honestly represents when
-            // the scan was submitted rather than a false original capture time.
             return CaptureTelemetry(
                 subjectDistanceInMeters: nil, gpsLatitude: nil, gpsLongitude: nil, gpsElevation: nil,
                 locationName: nil, weatherCondition: nil, weatherTemperatureF: nil, timeOfDay: nil,

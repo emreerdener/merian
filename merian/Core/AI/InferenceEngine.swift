@@ -221,7 +221,11 @@ private struct GBIFMedia: Decodable {
     ///   - telemetry: GPS, weather, and device context bundled at capture time.
     ///   - modelContext: The SwiftData context for persisting the parsed scan record locally.
     ///   - targetEradicationRecord: An optional historic scan record instance passed exclusively when re-running a failed or queued scan, mutating the payload directly on disk.
-    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
+    ///   - observationContext: Optional structured description staged alongside the photo.
+    ///     When non-nil, `ObservationContext.serialized()` is appended as a text part in the
+    ///     Gemini request and the raw JSON is forwarded as `observation_context` to the edge
+    ///     function and persisted in `LocalScanRecord.observationContextJSON`.
+    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, observationContext: ObservationContext? = nil, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -321,12 +325,19 @@ private struct GBIFMedia: Decodable {
                 
                 MerianLog.general.debug("[⏱ BENCH] Pre-flight (encode+auth): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
                 let inferenceStart = CFAbsoluteTimeGetCurrent()
+                // Encode ObservationContext to JSON once: used for DB persistence (observationContextJSON)
+                // and already serialised to plain text for the Gemini prompt (description).
+                let observationContextJSONString: String? = observationContext.flatMap { ctx in
+                    (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
+                }
                 let resultData = try await client.analyzeSubject(
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
                     telemetry: telemetry,
-                    clientScanId: scanId
+                    clientScanId: scanId,
+                    description: observationContext?.serialized(),
+                    observationContextJSON: observationContextJSONString
                 )
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
@@ -338,7 +349,8 @@ private struct GBIFMedia: Decodable {
                     telemetry: telemetry,
                     modelContext: modelContext,
                     compressedDatas: compressedDatas,
-                    displayDatas: capturedDisplayDatas
+                    displayDatas: capturedDisplayDatas,
+                    observationContextJSON: observationContextJSONString
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery
@@ -551,6 +563,186 @@ private struct GBIFMedia: Decodable {
                     self.speciesData = makeErrorSpeciesData(
                         title: "Network timeout",
                         subtitle: "Offline mode",
+                        reasoning: "Please check your network connection and try again.",
+                        telemetry: telemetry
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Sighting Inference Pipeline
+
+    /// Runs the text-only identification pipeline for a Sighting submission.
+    ///
+    /// Mirrors `analyze()` structurally but accepts a verbal `ObservationContext` instead of
+    /// image data. No offline queue enqueue — Sightings are online-only in V1. No
+    /// `activeDisplayDatas` or `validHistoricImagePaths` are set; the carousel will initially
+    /// render black until GBIF reference images arrive via the post-inference hydration task.
+    func analyzeSighting(
+        scanId: String?,
+        observationContext: ObservationContext,
+        telemetry: CaptureTelemetry,
+        modelContext: ModelContext?
+    ) {
+        guard !observationContext.isEmpty else { return }
+
+        self.inferenceTask?.cancel()
+        self.liveHydrationTask?.cancel()
+        self.historicHydrationTask?.cancel()
+        self.historicHydrationTask = nil
+        self.gbifHydrationTask?.cancel()
+        self.enrichmentWriteTask?.cancel()
+        self.phaseRotationTask?.cancel()
+        self.gbifHydrationTask = nil
+        self.enrichmentWriteTask = nil
+
+        // Reset loading flags synchronously — same pattern as analyze().
+        self.isEnrichmentLoading = false
+        self.isLookalikesLoading = false
+        self.scanningPhaseText = "Identifying sighting..."
+
+        self.activeScanId = scanId
+        self.activeLatitude = telemetry.gpsLatitude
+        self.activeLongitude = telemetry.gpsLongitude
+        self.activeElevation = telemetry.gpsElevation
+        self.activeLocationName = telemetry.locationName
+        self.activeWeatherCondition = telemetry.weatherCondition
+        self.activeTemperatureF = telemetry.weatherTemperatureF
+
+        let ownedScanId = scanId
+
+        self.inferenceTask = Task { [weak self] in
+            guard let self = self else { return }
+
+            defer {
+                if self.activeScanId == ownedScanId {
+                    self.isProcessing = false
+                    self.activeScanId = nil
+                }
+                self.phaseRotationTask?.cancel()
+            }
+
+            do {
+                if CircuitBreakerManager.shared.isCircuitTripped {
+                    throw URLError(.notConnectedToInternet)
+                }
+
+                try Task.checkCancellation()
+
+                let resultData = try await MerianNetworkClient.shared.identifySighting(
+                    observationContext: observationContext,
+                    telemetry: telemetry,
+                    clientScanId: scanId
+                )
+
+                let sightingObsContextJSON: String? = (try? JSONEncoder().encode(observationContext))
+                    .flatMap { String(data: $0, encoding: .utf8) }
+                let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
+                    resultData: resultData,
+                    telemetry: telemetry,
+                    modelContext: modelContext,
+                    compressedDatas: [],
+                    displayDatas: [],
+                    skipImageRequirement: true,
+                    observationContextJSON: sightingObsContextJSON
+                )
+                let finalMappedData = parseResult.mappedData
+                let isNewDisc = parseResult.isNewDiscovery
+
+                if var mappedData = finalMappedData {
+                    if isNewDisc {
+                        mappedData.isNewDiscovery = true
+                        GamificationManager.shared.recordNewSpeciesDiscovered()
+                    }
+
+                    if let container = modelContext?.container {
+                        let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
+                        let updatedAwards = await profileActor.calculateAwards()
+                        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
+                    }
+
+                    CircuitBreakerManager.shared.recordSuccess()
+                    AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
+
+                    if self.activeScanId == ownedScanId {
+                        HapticManager.shared.triggerHeavyImpact()
+                        self.speciesData = mappedData
+                        // No validHistoricImagePaths — sightings have no captured image.
+                    }
+
+                    if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
+                       let sightingScanId = mappedData.scanId {
+                        PushNotificationManager.shared.sendInferenceCompleteNotification(
+                            speciesName: mappedData.commonName,
+                            scanId: sightingScanId
+                        )
+                    }
+
+                    // Post-inference hydration — identical to analyze() path.
+                    // Wikipedia + enrichment + GBIF images populate the carousel after the result appears.
+                    if mappedData.isBiological {
+                        let capturedScientificName = mappedData.scientificName
+                        let capturedScanId = mappedData.scanId
+                        let capturedGbifKey = mappedData.gbifTaxonKey
+                        let capturedHasWikipedia = mappedData.wikipediaOverview != nil
+
+                        liveHydrationTask = Task { [weak self] in
+                            guard let self else { return }
+                            let capturedIsEnriched = self.enrichedSpeciesNames.contains(capturedScientificName)
+
+                            await withTaskGroup(of: Void.self) { group in
+                                if !capturedHasWikipedia {
+                                    group.addTask { @MainActor [weak self] in
+                                        guard let self else { return }
+                                        await self.fetchWikipediaAndHydrate(
+                                            for: capturedScientificName,
+                                            scanId: capturedScanId,
+                                            modelContext: modelContext
+                                        )
+                                    }
+                                }
+                                group.addTask { @MainActor [weak self] in
+                                    guard let self else { return }
+                                    var taxonKeyToUse = capturedGbifKey
+                                    if !capturedIsEnriched {
+                                        await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
+                                    }
+                                    guard !Task.isCancelled else { return }
+                                    if let key = taxonKeyToUse {
+                                        await self.fetchGBIFImagesAndHydrate(
+                                            for: key,
+                                            scanId: capturedScanId,
+                                            modelContext: modelContext
+                                        )
+                                    }
+                                }
+                            }
+
+                            if !capturedIsEnriched && !Task.isCancelled,
+                               self.speciesData?.habitatDescription != nil {
+                                if self.enrichedSpeciesNames.count >= self.sessionSetCap {
+                                    self.enrichedSpeciesNames.subtract(
+                                        self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10)
+                                    )
+                                }
+                                self.enrichedSpeciesNames.insert(capturedScientificName)
+                            }
+                        }
+                    }
+                }
+            } catch {
+                if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
+
+                AppTelemetry.trackError("SightingInferenceFailure")
+                CircuitBreakerManager.shared.recordFailure()
+                MerianLog.general.debug("Sighting inference failure: \(error.localizedDescription, privacy: .private)")
+                if self.activeScanId == ownedScanId {
+                    HapticManager.shared.triggerErrorThump()
+                    self.speciesData = makeErrorSpeciesData(
+                        title: "Network timeout",
+                        subtitle: "Please try again",
                         reasoning: "Please check your network connection and try again.",
                         telemetry: telemetry
                     )

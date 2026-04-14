@@ -128,6 +128,8 @@ serve((req: Request) =>
       timestamp,
       estimated_size_cm,
       client_scan_id,
+      description,
+      observation_context,
     } = body;
 
     // Range-validate GPS coordinates — out-of-bounds values from a corrupted or
@@ -222,11 +224,22 @@ serve((req: Request) =>
       timeOfDay ? `Time:${timeOfDay}` : null,
     ].filter(Boolean);
 
+    // Build the multipart content array. Image parts always come first so the model
+    // anchors its visual read before seeing the user's text. The description part is
+    // appended only when the user staged a sighting note alongside their images —
+    // it provides morphological cues (colour, size, behaviour) that the image alone
+    // may not convey, sharpening subspecies and look-alike disambiguation.
+    const descriptionPart: Part[] =
+      description && description.trim().length > 0
+        ? [{ text: `\n\nAdditional observation context from user:\n${description.trim()}` }]
+        : [];
+
     const parts: Part[] = [
       { text: `Context: ${telemetryItems.join(", ")}. Perform biological identification.` },
       ...base64Payloads.map((payload) => ({
         inlineData: { mimeType: mimeType || "image/webp", data: payload },
       })),
+      ...descriptionPart,
     ];
 
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
@@ -704,6 +717,9 @@ serve((req: Request) =>
             candidates: payloadReadyForClient.candidates ?? null,
             image_quality_score: parsedData.image_quality?.overall_score ?? null,
             is_live_capture: parsedData.is_live_capture,
+            user_observation_context: (observation_context != null && typeof observation_context === "object" && !Array.isArray(observation_context))
+              ? observation_context as Record<string, unknown>
+              : null,
           },
           supabaseAdmin,
         );

@@ -39,7 +39,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV33.self,
             MerianSchemaV34.self,
             MerianSchemaV35.self,
-            MerianSchemaV36.self
+            MerianSchemaV36.self,
+            MerianSchemaV37.self
         ]
     }
 
@@ -79,7 +80,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV32toV33,
             migrateV33toV34,
             migrateV34toV35,
-            migrateV35toV36
+            migrateV35toV36,
+            migrateV36toV37
         ]
     }
 
@@ -100,6 +102,11 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     static let migrateV35toV36 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV35.self,
         toVersion: MerianSchemaV36.self
+    )
+
+    static let migrateV36toV37 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV36.self,
+        toVersion: MerianSchemaV37.self
     )
 
     // Temporary backfill storage for V32→V33 migration.

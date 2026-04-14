@@ -48,7 +48,9 @@ actor InferenceProcessingActor {
         telemetry: CaptureTelemetry,
         modelContext: ModelContext?,
         compressedDatas: [Data],
-        displayDatas: [Data] = []
+        displayDatas: [Data] = [],
+        skipImageRequirement: Bool = false,
+        observationContextJSON: String? = nil
     ) async throws -> ParseAndSaveResult {
         let parsedWrapper: EdgeResponseWrapper
         do {
@@ -74,13 +76,26 @@ actor InferenceProcessingActor {
         var newDiscovery = false
         var savedPaths: [String] = []
 
-        if mappedData.confidenceScore > 0.0, let container = modelContext?.container, !compressedDatas.isEmpty {
-            // Write display-quality images when available; fall back to inference-quality
-            // (offline-queue reprocessing path where only 1024 px data is stored on disk).
-            let datasToWrite = displayDatas.isEmpty ? compressedDatas : displayDatas
-            savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: datasToWrite)
+        if mappedData.confidenceScore > 0.0, let container = modelContext?.container,
+           !compressedDatas.isEmpty || skipImageRequirement {
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            newDiscovery = await dbActor.saveLiveScanRecord(mappedData: mappedData, localImagePaths: savedPaths)
+            if !compressedDatas.isEmpty {
+                // Standard image path: write display-quality images when available, fall back to
+                // inference-quality (offline-queue reprocessing path with only 1024 px on disk).
+                let datasToWrite = displayDatas.isEmpty ? compressedDatas : displayDatas
+                savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: datasToWrite)
+                newDiscovery = await dbActor.saveLiveScanRecord(
+                    mappedData: mappedData,
+                    localImagePaths: savedPaths,
+                    observationContextJSON: observationContextJSON
+                )
+            } else {
+                // Sighting path: no image data — save record with nil localImagePath.
+                newDiscovery = await dbActor.saveSightingRecord(
+                    mappedData: mappedData,
+                    observationContextJSON: observationContextJSON
+                )
+            }
         }
 
         return ParseAndSaveResult(mappedData: mappedData, isNewDiscovery: newDiscovery, savedPaths: savedPaths)

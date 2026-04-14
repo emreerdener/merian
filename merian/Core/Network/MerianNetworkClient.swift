@@ -234,7 +234,9 @@ final class MerianNetworkClient {
     func buildIdentifyRequest(
         r2ObjectKeys: [String],
         telemetry: CaptureTelemetry,
-        clientScanId: String
+        clientScanId: String,
+        description: String? = nil,
+        observationContextJSON: String? = nil
     ) async throws -> URLRequest {
         let functionUrl = try endpointURL("identify")
 
@@ -265,7 +267,14 @@ final class MerianNetworkClient {
         let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
         let capturedScanId = clientScanId
         let capturedTelemetry = telemetry
+        let capturedDescription = description
+        let capturedObservationContextJSON = observationContextJSON
         let bodyData = try await Task.detached(priority: .userInitiated) {
+            let observationContextObject: [String: Any]? = capturedObservationContextJSON.flatMap { json in
+                guard let data = json.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                return obj
+            }
             let isolatedPayload: [String: Any?] = [
                 "r2ObjectKeys": r2ObjectKeys,
                 "imageBase64s": nil,
@@ -286,7 +295,9 @@ final class MerianNetworkClient {
                 "timeOfDay": timeOfDay,
                 "timestamp": capturedTelemetry.timestamp,
                 "estimated_size_cm": capturedTelemetry.estimatedSizeCm,
-                "client_scan_id": capturedScanId
+                "client_scan_id": capturedScanId,
+                "description": capturedDescription?.isEmpty == false ? capturedDescription : nil,
+                "observation_context": observationContextObject
             ]
             return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
         }.value
@@ -304,7 +315,7 @@ final class MerianNetworkClient {
         return request
     }
 
-    func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry, clientScanId: String? = nil) async throws -> Data {
+    func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry, clientScanId: String? = nil, description: String? = nil, observationContextJSON: String? = nil) async throws -> Data {
         let functionUrl = try endpointURL("identify")
 
         let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
@@ -326,7 +337,14 @@ final class MerianNetworkClient {
 
         let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
         let capturedClientScanId = clientScanId
+        let capturedDescription = description
+        let capturedObservationContextJSON2 = observationContextJSON
         let bodyData = try await Task.detached(priority: .userInitiated) {
+            let observationContextObject: [String: Any]? = capturedObservationContextJSON2.flatMap { json in
+                guard let data = json.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                return obj
+            }
             let isolatedPayload: [String: Any?] = [
                 "r2ObjectKeys": r2ObjectKeys,
                 "imageBase64s": base64ImageDatas,
@@ -347,7 +365,11 @@ final class MerianNetworkClient {
                 "timeOfDay": timeOfDay,
                 "timestamp": telemetry.timestamp,
                 "estimated_size_cm": telemetry.estimatedSizeCm,
-                "client_scan_id": capturedClientScanId
+                "client_scan_id": capturedClientScanId,
+                // Combined path: non-nil when the user staged a sighting description alongside images.
+                // The edge function injects this as additional Gemini context beside the image parts.
+                "description": capturedDescription?.isEmpty == false ? capturedDescription : nil,
+                "observation_context": observationContextObject
             ]
 
             return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
@@ -355,6 +377,110 @@ final class MerianNetworkClient {
         // Inference calls can take up to 25–30s on gemini-2.5-pro with slow connections.
         // Use a 90s timeout matching timeoutIntervalForResource to prevent false timeouts.
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 90.0)
+        return data
+    }
+
+    // MARK: - Sighting Identification
+
+    /// Builds a fully-authenticated POST URLRequest for the `/identify-sighting` edge function.
+    ///
+    /// Returns the request without executing it so the caller can dispatch it as a
+    /// background URLSession download task — enabling result delivery while backgrounded.
+    ///
+    /// - Parameters:
+    ///   - description: Pre-serialized `ObservationContext.serialized()` plain text for Gemini.
+    ///   - observationContextJSON: Raw JSON string forwarded as `observation_context`.
+    ///     Decoded to an object inside `Task.detached` — safe to capture across the actor boundary.
+    ///   - telemetry: GPS, weather, and device context for the sighting.
+    ///   - clientScanId: Stable scan identifier shared with the queued `OfflineQueuedScan` record.
+    func buildSightingRequest(
+        description: String,
+        observationContextJSON: String,
+        telemetry: CaptureTelemetry,
+        clientScanId: String
+    ) async throws -> URLRequest {
+        let functionUrl = try endpointURL("identify-sighting")
+
+        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let userId = (authUserId ?? deviceId).lowercased()
+        let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
+        let deviceTimeZone = TimeZone.current.identifier
+        let deviceRegion = Locale.current.region?.identifier
+
+        let captureDate: Date = telemetry.timestamp.flatMap {
+            DateUtilities.iso8601Formatter.date(from: $0)
+        } ?? Date()
+        let currentMonth = Calendar.current.component(.month, from: captureDate)
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let timeOfDay = formatter.string(from: captureDate)
+
+        let capturedDescription = description
+        let capturedObservationContextJSON = observationContextJSON
+        let capturedTelemetry = telemetry
+        let capturedScanId = clientScanId
+
+        let bodyData = try await Task.detached(priority: .userInitiated) {
+            let observationContextObject: [String: Any]? = capturedObservationContextJSON
+                .data(using: .utf8)
+                .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let isolatedPayload: [String: Any?] = [
+                "user_id": userId,
+                "description": capturedDescription,
+                "gpsLatitude": capturedTelemetry.gpsLatitude,
+                "gpsLongitude": capturedTelemetry.gpsLongitude,
+                "gpsElevation": capturedTelemetry.gpsElevation,
+                "semanticLocation": capturedTelemetry.locationName,
+                "weatherCondition": capturedTelemetry.weatherCondition,
+                "weatherTemperatureF": capturedTelemetry.weatherTemperatureF,
+                "deviceLocale": deviceLocale,
+                "deviceTimeZone": deviceTimeZone,
+                "deviceRegion": deviceRegion,
+                "currentMonth": currentMonth,
+                "timeOfDay": timeOfDay,
+                "timestamp": capturedTelemetry.timestamp,
+                "client_scan_id": capturedScanId,
+                "observation_context": observationContextObject
+            ]
+            return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+        }.value
+
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 60.0)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
+        for (key, val) in authHeaders {
+            request.setValue(val, forHTTPHeaderField: key)
+        }
+
+        return request
+    }
+
+    /// Posts a structured verbal observation to the `/identify-sighting` edge function
+    /// and returns the raw response data for decoding by `InferenceProcessingActor`.
+    ///
+    /// Delegates payload construction to `buildSightingRequest` so the offline-replay
+    /// path (`dispatchInferenceDownloadTask`) reuses the same request-building logic
+    /// without duplicating auth header setup or JSON encoding.
+    func identifySighting(
+        observationContext: ObservationContext,
+        telemetry: CaptureTelemetry,
+        clientScanId: String? = nil
+    ) async throws -> Data {
+        let contextJSON: String = (try? JSONEncoder().encode(observationContext))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let request = try await buildSightingRequest(
+            description: observationContext.serialized(),
+            observationContextJSON: contextJSON,
+            telemetry: telemetry,
+            clientScanId: clientScanId ?? UUID().uuidString.lowercased()
+        )
+        let (data, _) = try await activeSession.data(for: request)
         return data
     }
 

@@ -25,16 +25,11 @@ final class CameraViewModel {
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
     var editingCropIndex: Int?
-    var activeScannedDatas: [Data] = []
-    var activeScanImages: [UIImage] = []
-    var activeOriginals: [IdentifiableImage] = []
+    /// All content staged for the next combined submission — images, optional audio (reserved),
+    /// and optional sighting description. Replaces the previous four parallel image arrays.
+    var stagedCapture = StagedCapture()
     var selectedPhotoItems: [PhotosPickerItem] = []
     var isTooltipVisible: Bool = false
-    /// Display-quality (2048 px) versions of the staged captures, written to disk after
-    /// inference so the insight sheet and scan library render without JPEG blocking artifacts.
-    /// Kept separate from `activeScannedDatas` so the AI inference path never sees the
-    /// larger payload — only `activeScannedDatas` (1024 px) is base64-encoded for Gemini.
-    var activeDisplayDatas: [Data] = []
     
     // MARK: - Refinement Flow
     /// The historical scan actively chosen by the user to be appended with new photographic context.
@@ -100,8 +95,8 @@ final class CameraViewModel {
     ///
     /// Add cases here as new interrupt-sensitive states are introduced.
     private var shouldPreserveStagingOnBackground: Bool {
-        // User has images staged for submission — a brief background trip should not discard their work.
-        !activeScanImages.isEmpty
+        // Any staged content should survive a brief background trip.
+        !stagedCapture.isEmpty
     }
 
     private func resetModalsForBackground() {
@@ -110,12 +105,9 @@ final class CameraViewModel {
         imageToCrop = nil
         editingCropIndex = nil
 
-        // Only wipe staged images if no active workflow should survive the background transition.
+        // Only wipe staged content if no active workflow should survive the background transition.
         if !shouldPreserveStagingOnBackground {
-            activeScannedDatas.removeAll()
-            activeScanImages.removeAll()
-            activeOriginals.removeAll()
-            activeDisplayDatas.removeAll()
+            stagedCapture.clearAll()
             selectedPhotoItems.removeAll()
             cancelRefinementStaging()
         }
@@ -150,8 +142,8 @@ final class CameraViewModel {
             await MainActor.run { self.selectedPhotoItems.removeAll() }
             
             for newItem in itemsToProcess {
-                // Fast-fail check to protect strictly against exceeding the strict 2-image limit natively
-                if await MainActor.run(resultType: Bool.self, body: { self.activeScanImages.count >= 2 }) {
+                // Fast-fail check to protect strictly against exceeding the image cap natively
+                if await MainActor.run(resultType: Bool.self, body: { self.stagedCapture.images.count >= stagedImageCapacity }) {
                     break
                 }
                 
@@ -218,10 +210,12 @@ final class CameraViewModel {
                             guard !finalSafeData.isEmpty else { continue }
                             await MainActor.run {
                                 let identifiable = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)
-                                self.activeOriginals.append(identifiable)
-                                self.activeScannedDatas.append(finalSafeData)
-                                self.activeDisplayDatas.append(displaySafeData)
-                                self.activeScanImages.append(rawImage)
+                                self.stagedCapture.images.append(StagedImage(
+                                    compressedData: finalSafeData,
+                                    displayData: displaySafeData,
+                                    uiImage: rawImage,
+                                    original: identifiable
+                                ))
                             }
                         }
                     } else {
@@ -238,9 +232,9 @@ final class CameraViewModel {
     
     // MARK: - Manual Crop Routing
     func presentCrop(for index: Int) {
-        guard index < activeOriginals.count else { return }
+        guard index < stagedCapture.images.count else { return }
         self.editingCropIndex = index
-        self.imageToCrop = activeOriginals[index]
+        self.imageToCrop = stagedCapture.images[index].original
     }
     
     func startRefinementScan(from record: LocalScanRecord) {
@@ -288,10 +282,13 @@ final class CameraViewModel {
                 try Task.checkCancellation()
                 
                 await MainActor.run {
-                    self.activeOriginals.append(IdentifiableImage(image: finalImage, environmentContext: nil, isFromGallery: true))
-                    self.activeScannedDatas.append(finalSafeData)
-                    self.activeDisplayDatas.append(rawData)
-                    self.activeScanImages.append(finalImage)
+                    let identifiable = IdentifiableImage(image: finalImage, environmentContext: nil, isFromGallery: true)
+                    self.stagedCapture.images.append(StagedImage(
+                        compressedData: finalSafeData,
+                        displayData: rawData,
+                        uiImage: finalImage,
+                        original: identifiable
+                    ))
                     self.isStagingRefinement = false
                 }
             } catch {

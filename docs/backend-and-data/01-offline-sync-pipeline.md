@@ -5,7 +5,7 @@ Merian's core differentiator is treating off-grid nature encounters as a first-c
 ## How the Queue Works
 
 ### 1. Realtime Inference Mapper (`saveLiveScanRecord`)
-When a user scans a subject with an active network connection, the Gemini response cascades back from the Edge node. To persist this inference against iOS RAM loss, `BackgroundDatabaseActor.saveLiveScanRecord(mappedData:localImagePaths:)` is invoked on its isolated `@ModelActor` thread. It accepts an array of local image filenames (relative paths in `URL.documentsDirectory`), inserts a `LocalScanRecord`, and calls `modelContext.save()`.
+When a user scans a subject with an active network connection, the Gemini response cascades back from the Edge node. To persist this inference against iOS RAM loss, `BackgroundDatabaseActor.saveLiveScanRecord(mappedData:localImagePaths:observationContextJSON:)` is invoked on its isolated `@ModelActor` thread. It accepts an array of local image filenames (relative paths in `URL.documentsDirectory`) and an optional `observationContextJSON: String?` (the raw JSON of any `ObservationContext` staged by the user; `nil` for image-only scans). It inserts a `LocalScanRecord` and calls `modelContext.save()`.
 
 ### 2. Scan Submission & Immediate Durability (`submitActiveScan` → `enqueueCapture`)
 

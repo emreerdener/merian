@@ -266,12 +266,13 @@ extension OfflineQueueManager {
                 await MainActor.run { self.replayedStagedScanCount += 1 }
 #endif
 
-                // Migration fallback: scans promoted from V32's isUploaded=true have no
-                // stagedR2Keys (the field didn't exist). Reconstruct from the current auth
-                // session — same approach as the pre-V33 code, safe because the userId
+                // Migration fallback: pre-V33 image scans have no stagedR2Keys.
+                // Reconstruct from the current auth session — safe because the userId
                 // embedded in the R2 key matches the session that performed the upload.
+                // Sighting-only scans intentionally have both r2Keys and localImagePaths
+                // empty — guard on !localImagePaths.isEmpty to skip this path for them.
                 let finalExtracted: ExtractedScanData
-                if extracted.r2Keys.isEmpty {
+                if extracted.r2Keys.isEmpty && !extracted.localImagePaths.isEmpty {
                     let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
                     let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
                     let userId = (authUserId ?? deviceId).lowercased()
@@ -281,7 +282,9 @@ extension OfflineQueueManager {
                         localImagePaths: extracted.localImagePaths,
                         r2Keys: reconstructedKeys,
                         container: extracted.container,
-                        originalTimestamp: extracted.originalTimestamp
+                        originalTimestamp: extracted.originalTimestamp,
+                        description: extracted.description,
+                        observationContextJSON: extracted.observationContextJSON
                     )
                 } else {
                     finalExtracted = extracted
@@ -311,7 +314,13 @@ extension OfflineQueueManager {
     ///   concurrent live inference request. Pass the same UUID to `analyze()` so the live
     ///   path can cancel the upload if inference succeeds first. When `nil` a new UUID is
     ///   generated (used by callers that do not run a parallel live inference).
-    func enqueueCapture(imageDatas: [Data], telemetry: CaptureTelemetry, blurScore: Double? = nil, scanId: String? = nil) {
+    func enqueueCapture(
+        imageDatas: [Data],
+        telemetry: CaptureTelemetry,
+        blurScore: Double? = nil,
+        scanId: String? = nil,
+        observationContext: ObservationContext? = nil
+    ) {
         let resolvedScanId = scanId ?? UUID().uuidString
         let documentsDirectory = URL.documentsDirectory
         let pairs = imageDatas.map { _ -> (name: String, url: URL) in
@@ -320,6 +329,12 @@ extension OfflineQueueManager {
         }
         let fileNames = pairs.map(\.name)
         let fileURLs = pairs.map(\.url)
+
+        // Encode the observation context to JSON on the calling actor — no async boundary yet.
+        let contextJSON: String? = observationContext.flatMap { ctx in
+            guard !ctx.isEmpty else { return nil }
+            return (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
+        }
 
         BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { [weak self] _ in
             guard let self else { return }
@@ -331,13 +346,85 @@ extension OfflineQueueManager {
                         fileNames: fileNames,
                         fileURLs: fileURLs,
                         telemetry: telemetry,
-                        blurScore: blurScore
+                        blurScore: blurScore,
+                        observationContextJSON: contextJSON
                     )
                 }
             } catch {
                 MerianLog.data.error("enqueueCapture: image write to disk failed — scan will not be queued: \(error, privacy: .private)")
                 self.cleanupImages(at: fileURLs)
             }
+        }
+    }
+
+    // MARK: - Sighting Enqueue
+
+    /// Enqueues a description-only sighting scan for offline retry.
+    ///
+    /// Sightings carry no image files, so they enter the queue at `.staged` directly,
+    /// bypassing the R2 upload phase entirely.  `replayInferenceStagedScans` picks them
+    /// up and dispatches a `/identify-sighting` background download task when connectivity
+    /// restores — routed by `dispatchInferenceDownloadTask` which detects the empty
+    /// `localImagePaths` and non-nil `observationContextJSON`.
+    ///
+    /// Quota is consumed at enqueue time, mirroring `enqueueCapture`, so the scan slot
+    /// is allocated before any async boundary is crossed.
+    @MainActor
+    func enqueueSighting(
+        observationContext: ObservationContext,
+        telemetry: CaptureTelemetry,
+        scanId: String? = nil
+    ) {
+        guard !observationContext.isEmpty else { return }
+        guard let contextData = try? JSONEncoder().encode(observationContext),
+              let contextJSON = String(data: contextData, encoding: .utf8) else {
+            MerianLog.data.error("enqueueSighting: failed to encode ObservationContext — sighting not queued")
+            return
+        }
+
+        if !RevenueCatManager.shared.isProActive {
+            guard UsageManager.shared.canPerformScan(isProActive: false) else {
+                MerianLog.data.debug("enqueueSighting: free user scan quota exhausted — sighting not queued")
+                return
+            }
+            UsageManager.shared.consumeScan()
+        }
+
+        let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
+        let scan = OfflineQueuedScan(
+            id: resolvedScanId,
+            timestamp: Date(),
+            localImagePaths: [],
+            gpsLatitude: telemetry.gpsLatitude,
+            gpsLongitude: telemetry.gpsLongitude,
+            gpsElevation: telemetry.gpsElevation,
+            weatherCondition: telemetry.weatherCondition,
+            weatherTemperatureF: telemetry.weatherTemperatureF,
+            blurScore: nil,
+            subjectDistanceInMeters: nil,
+            locationName: telemetry.locationName,
+            isFlashFired: nil,
+            cameraPitchDegrees: nil,
+            compassHeading: nil,
+            relativeHumidity: nil,
+            uvIndex: nil,
+            zoomFactor: telemetry.zoomFactor.map { Double($0) },
+            scanState: .staged,
+            stagedR2Keys: [],
+            observationContextJSON: contextJSON
+        )
+
+        guard let modelContext else {
+            MerianLog.data.error("enqueueSighting: modelContext unavailable — sighting not queued")
+            return
+        }
+        modelContext.insert(scan)
+        do {
+            try modelContext.save()
+            updateUnsyncedItemCount()
+            AppTelemetry.trackOfflineQueued()
+        } catch {
+            MerianLog.data.error("enqueueSighting: context.save() failed: \(error, privacy: .private)")
         }
     }
 
@@ -361,7 +448,8 @@ extension OfflineQueueManager {
         fileNames: [String],
         fileURLs: [URL],
         telemetry: CaptureTelemetry,
-        blurScore: Double?
+        blurScore: Double?,
+        observationContextJSON: String? = nil
     ) {
         // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
         // Consuming here (not at upload time) prevents silent stalls when syncPendingScans fires
@@ -393,7 +481,8 @@ extension OfflineQueueManager {
             relativeHumidity: nil,
             uvIndex: nil,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
-            scanState: .pending
+            scanState: .pending,
+            observationContextJSON: observationContextJSON
         )
         
         guard let modelContext else {

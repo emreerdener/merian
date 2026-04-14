@@ -97,6 +97,11 @@ public final class LocalScanRecord {
     // Changed to optional so SQLite lightweight migration can add the column correctly
     @Attribute public var userReviewStateRaw: String? = "unreviewed"
 
+    /// Raw JSON string of the structured `ObservationContext` staged by the user before submission.
+    /// Set once at scan creation; never mutated after.
+    /// `nil` for image-only scans or scans captured before V37.
+    @Attribute public var observationContextJSON: String?
+
     public var userReviewState: UserReviewState {
         get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
         set { userReviewStateRaw = newValue.rawValue }
@@ -157,7 +162,8 @@ public final class LocalScanRecord {
         imageQualityScore: Int? = nil,
         alternativeCommonNames: [String]? = nil,
         confirmedSpeciesId: String? = nil,
-        userReviewStateRaw: String? = nil
+        userReviewStateRaw: String? = nil,
+        observationContextJSON: String? = nil
     ) {
 
         self.id = id
@@ -221,5 +227,6 @@ public final class LocalScanRecord {
         self.alternativeCommonNames = alternativeCommonNames
         self.confirmedSpeciesId = confirmedSpeciesId
         self.userReviewStateRaw = userReviewStateRaw
+        self.observationContextJSON = observationContextJSON
     }
 }

@@ -12,42 +12,67 @@ struct CropSheetModifier: ViewModifier {
                     initialScale: identItem.lastCropScale,
                     initialOffset: identItem.lastCropOffset,
                     onCrop: { croppedData, finalScale, finalOffset, displaySize in
-                        if let editIndex = viewModel.editingCropIndex, editIndex < viewModel.activeScannedDatas.count {
-                            viewModel.activeScannedDatas[editIndex] = croppedData
-                            if let cgImage = autoreleasepool(invoking: { ImageDownsampler.shared.downsample(data: croppedData, maxSize: 512) }) {
-                                viewModel.activeScanImages[editIndex] = UIImage(cgImage: cgImage)
+                        if let editIndex = viewModel.editingCropIndex,
+                           editIndex < viewModel.stagedCapture.images.count {
+
+                            let existing = viewModel.stagedCapture.images[editIndex]
+
+                            // Rebuild the thumbnail from the cropped compressed data.
+                            let thumbnail: UIImage
+                            if let cgImage = autoreleasepool(invoking: {
+                                ImageDownsampler.shared.downsample(data: croppedData, maxSize: 512)
+                            }) {
+                                thumbnail = UIImage(cgImage: cgImage)
+                            } else {
+                                thumbnail = existing.uiImage
                             }
-                            viewModel.activeOriginals[editIndex].lastCropScale = finalScale
-                            viewModel.activeOriginals[editIndex].lastCropOffset = finalOffset
+
+                            // Persist the crop geometry back into the original so a second
+                            // crop session opens at the last confirmed position.
+                            var updatedOriginal = existing.original
+                            updatedOriginal.lastCropScale = finalScale
+                            updatedOriginal.lastCropOffset = finalOffset
+
+                            viewModel.stagedCapture.images[editIndex] = StagedImage(
+                                compressedData: croppedData,
+                                displayData: existing.displayData, // replaced asynchronously below
+                                uiImage: thumbnail,
+                                original: updatedOriginal
+                            )
 
                             // Re-run the same crop geometry on the 2048px display image so
                             // the scan library stores what Gemini actually analyzed.
                             // Runs off the main thread; display data updates asynchronously
                             // before the user can tap Submit.
-                            if editIndex < viewModel.activeDisplayDatas.count {
-                                let capturedDisplayData = viewModel.activeDisplayDatas[editIndex]
-                                let capturedIndex = editIndex
-                                Task {
-                                    let displayCropped = await Task.detached {
-                                        let src: UIImage? = autoreleasepool {
-                                            guard let cgImage = ImageDownsampler.shared.downsample(data: capturedDisplayData, maxSize: 2048) else { return nil }
-                                            return UIImage(cgImage: cgImage)
-                                        }
-                                        guard let image = src else { return Data() }
-                                        
-                                        return await ImageCropProcessor.generateCrop(
-                                            image: image,
-                                            displaySize: displaySize,
-                                            scale: finalScale,
-                                            currentScale: 1.0,
-                                            offset: finalOffset,
-                                            currentOffset: .zero,
-                                            maxPixelSize: nil
-                                        )
-                                    }.value
-                                    guard !displayCropped.isEmpty else { return }
-                                    viewModel.activeDisplayDatas[capturedIndex] = displayCropped
-                                }
+                            let capturedDisplayData = existing.displayData
+                            let capturedIndex = editIndex
+                            Task {
+                                let displayCropped = await Task.detached {
+                                    let src: UIImage? = autoreleasepool {
+                                        guard let cgImage = ImageDownsampler.shared.downsample(data: capturedDisplayData, maxSize: 2048) else { return nil }
+                                        return UIImage(cgImage: cgImage)
+                                    }
+                                    guard let image = src else { return Data() }
+
+                                    return await ImageCropProcessor.generateCrop(
+                                        image: image,
+                                        displaySize: displaySize,
+                                        scale: finalScale,
+                                        currentScale: 1.0,
+                                        offset: finalOffset,
+                                        currentOffset: .zero,
+                                        maxPixelSize: nil
+                                    )
+                                }.value
+                                guard !displayCropped.isEmpty,
+                                      capturedIndex < viewModel.stagedCapture.images.count else { return }
+                                let current = viewModel.stagedCapture.images[capturedIndex]
+                                viewModel.stagedCapture.images[capturedIndex] = StagedImage(
+                                    compressedData: current.compressedData,
+                                    displayData: displayCropped,
+                                    uiImage: current.uiImage,
+                                    original: current.original
+                                )
                             }
                         }
                         viewModel.editingCropIndex = nil
@@ -58,10 +83,9 @@ struct CropSheetModifier: ViewModifier {
                         viewModel.imageToCrop = nil
                     },
                     onDelete: {
-                        if let editIndex = viewModel.editingCropIndex, editIndex < viewModel.activeScannedDatas.count {
-                            viewModel.activeScannedDatas.remove(at: editIndex)
-                            viewModel.activeScanImages.remove(at: editIndex)
-                            viewModel.activeOriginals.remove(at: editIndex)
+                        if let editIndex = viewModel.editingCropIndex,
+                           editIndex < viewModel.stagedCapture.images.count {
+                            viewModel.stagedCapture.images.remove(at: editIndex)
                         }
                         viewModel.editingCropIndex = nil
                         viewModel.imageToCrop = nil

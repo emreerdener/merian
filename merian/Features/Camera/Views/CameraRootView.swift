@@ -89,7 +89,7 @@ struct CameraRootView: View {
 
                                     // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
                                     CameraControlsLayer(
-                                        activeScanImages: viewModel.activeScanImages,
+                                        activeScanImages: viewModel.stagedCapture.images.map(\.uiImage),
                                         isRefining: viewModel.baseRefinementRecord != nil
                                     )
                                 }
@@ -100,6 +100,18 @@ struct CameraRootView: View {
                                 AudioRecordingView()
                                     .frame(width: proxy.size.width, height: proxy.size.height)
                                     .id(CaptureMode.audio)
+
+                                // MARK: Page 3 — Sighting Input
+                                SightingInputView(
+                                    hasStaged: !viewModel.stagedCapture.images.isEmpty
+                                ) { observationContext in
+                                    viewModel.submitSighting(
+                                        observationContext: observationContext,
+                                        modelContext: modelContext
+                                    )
+                                }
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                                .id(CaptureMode.sighting)
                             }
                             .scrollTargetLayout()
                         }
@@ -152,7 +164,7 @@ struct CameraRootView: View {
                 }
 
                 // MARK: Fixed Overlay — Mode Toggle (top)
-                if viewModel.activeScanImages.count < 2 {
+                if viewModel.stagedCapture.images.count < stagedImageCapacity {
                     VStack {
                         MediaModeToggle(activeMode: $captureMode, onModeChange: {})
                             .padding(.top, 16)
@@ -160,20 +172,20 @@ struct CameraRootView: View {
                         Spacer()
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.activeScanImages.count)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
                 }
 
                 // MARK: Fixed Overlay — Capture Controls (bottom, independent of toolbar)
                 // Pinned to a fixed absolute bottom offset so toolbar height changes
                 // (MainTabBar vs ActiveScanToolbar) never shift the shutter row.
-                if viewModel.activeScanImages.count < 2 {
+                if viewModel.stagedCapture.images.count < stagedImageCapacity {
                     VStack {
                         Spacer()
                         HStack(alignment: .bottom) {
                             PhotoLibraryButton(
                                 selectedPhotoItems: $viewModel.selectedPhotoItems,
                                 latestThumbnail: photoLibraryManager.latestThumbnail,
-                                maxSelectionCount: isMultiCaptureEnabled ? max(1, 2 - viewModel.activeScanImages.count) : 1
+                                maxSelectionCount: isMultiCaptureEnabled ? max(1, stagedImageCapacity - viewModel.stagedCapture.images.count) : 1
                             )
                             .opacity(captureMode == .visual ? 1 : 0)
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
@@ -195,14 +207,14 @@ struct CameraRootView: View {
                         .padding(.bottom, 140)
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.activeScanImages.count)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
                 }
 
                 // MARK: Fixed Overlay — Navigation / scan toolbar (bottom, independent of capture bar)
                 VStack {
                     Spacer()
 
-                    if viewModel.activeScanImages.isEmpty {
+                    if viewModel.stagedCapture.images.isEmpty {
                         MainTabBar(
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),
                             isUserProfileOpen: $viewModel.activeSheet.mapped(to: .profile)
@@ -211,23 +223,20 @@ struct CameraRootView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     } else {
                         ActiveScanToolbar(
-                            images: viewModel.activeScanImages,
+                            stagedCapture: viewModel.stagedCapture,
                             isRefining: viewModel.baseRefinementRecord != nil,
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },
                             onCancel: {
-                                viewModel.activeScanImages.removeAll()
-                                viewModel.activeScannedDatas.removeAll()
-                                viewModel.activeOriginals.removeAll()
-                                viewModel.activeDisplayDatas.removeAll()
+                                viewModel.stagedCapture.clearAll()
                                 viewModel.cancelRefinementStaging()
                             },
-                            onSubmit: { viewModel.submitActiveScan(modelContext: modelContext) }
+                            onSubmit: { viewModel.submitStagedCapture(modelContext: modelContext) }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.activeScanImages.count)
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
 
         } // ZStack
         .background(Color.black.ignoresSafeArea())
@@ -255,19 +264,19 @@ struct CameraRootView: View {
         .onChange(of: viewModel.selectedPhotoItems) { _, newItems in
             viewModel.handlePhotoPickerSelection(newItems: newItems, modelContext: modelContext)
         }
-        .onChange(of: viewModel.activeScanImages.count) { _, count in
+        .onChange(of: viewModel.stagedCapture.images.count) { _, count in
             // If the user explicitly wants to confirm all submissions, never auto-submit
             guard !UserDefaults.standard.bool(forKey: "requiresScanConfirmation") else { return }
-            
+
             // Otherwise, auto-submit when the user hits their configured capacity limit
             let limit = (UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") || viewModel.baseRefinementRecord != nil) ? 2 : 1
             guard count == limit else { return }
-            
-            viewModel.submitActiveScan(modelContext: modelContext)
+
+            viewModel.submitStagedCapture(modelContext: modelContext)
         }
         .onChange(of: captureMode) { _, newMode in
             HapticManager.shared.triggerSheetSpring()
-            if newMode == .audio {
+            if newMode == .audio || newMode == .sighting {
                 cameraManager.stopSession()
             } else if scenePhase == .active && viewModel.activeSheet == nil {
                 // Only start the camera if the app is fully active and not occluded by a sheet.

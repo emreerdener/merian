@@ -254,7 +254,8 @@ actor BackgroundDatabaseActor {
         originalImagePaths: [String],
         scanId: String,
         originalTimestamp: Date,
-        telemetry: CaptureTelemetry? = nil
+        telemetry: CaptureTelemetry? = nil,
+        observationContextJSON: String? = nil
     ) -> OfflineScanProcessingResult {
         var inferenceFailed = true
         var resolvedSpeciesName: String?
@@ -308,7 +309,8 @@ actor BackgroundDatabaseActor {
                     recordId: recordId,
                     activeSpeciesId: activeSpeciesId,
                     originalTimestamp: originalTimestamp,
-                    originalImagePaths: originalImagePaths
+                    originalImagePaths: originalImagePaths,
+                    observationContextJSON: observationContextJSON
                 )
                 
                 resultingScanId = recordId
@@ -381,7 +383,8 @@ actor BackgroundDatabaseActor {
         recordId: String,
         activeSpeciesId: String,
         originalTimestamp: Date,
-        originalImagePaths: [String]
+        originalImagePaths: [String],
+        observationContextJSON: String? = nil
     ) {
         var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
@@ -434,7 +437,8 @@ actor BackgroundDatabaseActor {
                 ecologicalInteractions: mappedData.ecologicalInteractions,
                 inferenceTier: mappedData.inferenceTier,
                 imageQualityScore: mappedData.imageQualityScore,
-                alternativeCommonNames: mappedData.alternativeCommonNames
+                alternativeCommonNames: mappedData.alternativeCommonNames,
+                observationContextJSON: observationContextJSON
             )
             modelContext.insert(record)
         }
@@ -443,7 +447,7 @@ actor BackgroundDatabaseActor {
     // MARK: - Live Scan Recording
 
     /// Persists a real-time scan result to SwiftData on the actor thread.
-    func saveLiveScanRecord(mappedData: SpeciesData, localImagePaths: [String]) -> Bool {
+    func saveLiveScanRecord(mappedData: SpeciesData, localImagePaths: [String], observationContextJSON: String? = nil) -> Bool {
         guard mappedData.confidenceScore > 0.0, let firstPath = localImagePaths.first else {
             return false
         }
@@ -509,13 +513,95 @@ actor BackgroundDatabaseActor {
             reproductiveCondition: mappedData.reproductiveCondition,
             individualCount: mappedData.individualCount,
             ecologicalInteractions: mappedData.ecologicalInteractions,
-            imageQualityScore: mappedData.imageQualityScore
+            imageQualityScore: mappedData.imageQualityScore,
+            observationContextJSON: observationContextJSON
         )
         modelContext.insert(record)
         do {
             try modelContext.save()
         } catch {
             MerianLog.data.error("saveLiveScanRecord: save failed: \(error, privacy: .private)")
+        }
+        return isNewDiscovery
+    }
+
+    // MARK: - Sighting Recording
+
+    /// Persists a Sighting scan result — a text-description-based identification with no local image.
+    ///
+    /// Mirrors `saveLiveScanRecord` but omits the `localImagePath` requirement. Sightings are
+    /// saved with `is_live_capture = false` and nil image paths so the library renders them
+    /// without a thumbnail until reference images arrive via GBIF hydration.
+    func saveSightingRecord(mappedData: SpeciesData, observationContextJSON: String? = nil) -> Bool {
+        guard mappedData.confidenceScore > 0.0 else { return false }
+
+        let targetName = mappedData.scientificName
+        var fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.scientificName == targetName }
+        )
+        fetchDescriptor.fetchLimit = 1
+        fetchDescriptor.propertiesToFetch = [\.speciesId]
+        let existingRecords: [LocalScanRecord]
+        do {
+            existingRecords = try modelContext.fetch(fetchDescriptor)
+        } catch {
+            MerianLog.data.debug("saveSightingRecord: species lookup failed: \(error, privacy: .private)")
+            existingRecords = []
+        }
+
+        let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
+        let isNewDiscovery = existingRecords.isEmpty
+
+        let record = LocalScanRecord(
+            id: mappedData.scanId ?? UUID().uuidString,
+            speciesId: activeSpeciesId,
+            scientificName: mappedData.scientificName,
+            commonName: mappedData.commonName,
+            timestamp: Date(),
+            captureDate: Date(),
+            localImagePath: nil,
+            semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
+            hazardType: mappedData.insightData.hazardType,
+            isBiological: mappedData.isBiological,
+            isLiveCapture: false,
+            isInvasive: mappedData.isInvasive,
+            ecologyType: mappedData.ecologyType,
+            wikipediaUrl: mappedData.wikipediaUrl,
+            referenceImageUrl: mappedData.referenceImageUrl,
+            additionalImagePaths: nil,
+            confidenceScore: mappedData.confidenceScore,
+            taxonomyKingdom: mappedData.taxonomy?.kingdom,
+            taxonomyPhylum: mappedData.taxonomy?.phylum,
+            taxonomyClass: mappedData.taxonomy?.className,
+            taxonomyOrder: mappedData.taxonomy?.order,
+            taxonomyFamily: mappedData.taxonomy?.family,
+            taxonomyGenus: mappedData.taxonomy?.genus,
+            locationName: mappedData.locationName,
+            weatherCondition: mappedData.weatherCondition,
+            weatherTemperatureF: mappedData.weatherTemperatureF,
+            similarSpecies: mappedData.similarSpecies?.lookalikes,
+            candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
+            iucnRedListStatus: mappedData.iucnRedListStatus,
+            gpsLatitude: mappedData.gpsLatitude,
+            gpsLongitude: mappedData.gpsLongitude,
+            gpsElevation: mappedData.gpsElevation,
+            zoomFactor: nil,
+            aiReasoning: mappedData.aiReasoning,
+            habitatDescription: mappedData.habitatDescription,
+            gbifTaxonKey: mappedData.gbifTaxonKey,
+            estimatedSizeCm: nil,
+            lifeStage: mappedData.lifeStage,
+            reproductiveCondition: mappedData.reproductiveCondition,
+            individualCount: mappedData.individualCount,
+            ecologicalInteractions: mappedData.ecologicalInteractions,
+            imageQualityScore: nil,
+            observationContextJSON: observationContextJSON
+        )
+        modelContext.insert(record)
+        do {
+            try modelContext.save()
+        } catch {
+            MerianLog.data.error("saveSightingRecord: save failed: \(error, privacy: .private)")
         }
         return isNewDiscovery
     }
