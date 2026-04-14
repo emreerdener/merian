@@ -685,8 +685,13 @@ import UIKit
                         settings.flashMode = targetFlashMode
                     }
 
-                    // Relying on AVCapturePhotoOutput's native EXIF metadata integration.
-                    // Forcing connection.videoRotationAngle = 90 causes double-rotations.
+                    // Hardware-level rotation guarantees the buffer is physically rotated before delivery
+                    // so the EXIF orientation is simply "Up". This overrides any app-level orientation locks.
+                    if let rotationAngle = self.stateLock.withLock({ self.rotationCoordinator?.videoRotationAngleForHorizonLevelCapture }),
+                       connection.isVideoRotationAngleSupported(rotationAngle) {
+                        connection.videoRotationAngle = rotationAngle
+                    }
+
                     if #available(iOS 16.0, *) {
                         settings.maxPhotoDimensions = self.photoOutput.maxPhotoDimensions
                     } else {
