@@ -12,6 +12,8 @@ struct ImagesCarousel: View {
     let totalImages: Int
     /// Whether inference is currently in progress. Controls the dimming overlay.
     let isProcessing: Bool
+    /// True while background hydration is fetching reference imagery
+    let isReferenceImageLoading: Bool
     /// Called when a carousel image fails to load. The caller decides whether to
     /// propagate the failure to the engine (live path) or swallow it (queued path).
     let onImageFailure: (String) -> Void
@@ -84,6 +86,18 @@ struct ImagesCarousel: View {
                 )
             ))
         }
+        
+        if refUrls.isEmpty && isReferenceImageLoading {
+            pages.append(AnyView(
+                ZStack {
+                    Color(uiColor: .systemGray6)
+                    ProgressView()
+                        .controlSize(.regular)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ))
+        }
+        
         return pages
     }
 

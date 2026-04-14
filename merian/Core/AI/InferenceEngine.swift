@@ -82,6 +82,8 @@ private struct GBIFMedia: Decodable {
     var isEnrichmentLoading: Bool = false
     /// True while the "lookalikes" scope call (similar species cards) is in flight.
     var isLookalikesLoading: Bool = false
+    /// True while the "reference image" scope call (GBIF imagery) is in flight after inference finishes without one.
+    var isReferenceImageLoading: Bool = false
 
     // MARK: - Background Rescue State
     @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
@@ -183,6 +185,7 @@ private struct GBIFMedia: Decodable {
         self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
+        self.isReferenceImageLoading = false
 
         // Clear the previous scan's result and image data.
         self.speciesData = nil
@@ -235,6 +238,7 @@ private struct GBIFMedia: Decodable {
         // pipeline has already set these flags to true, prematurely clearing the skeletons.
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
+        self.isReferenceImageLoading = false
         self.scanningPhaseText = "Analyzing subject..."
 
         self.activeScanId = scanId
@@ -435,6 +439,8 @@ private struct GBIFMedia: Decodable {
                         let capturedScientificName = mappedData.scientificName
                         let capturedScanId = mappedData.scanId
                         let capturedGbifKey = mappedData.gbifTaxonKey
+                        let willFetchGBIF = capturedGbifKey != nil && (mappedData.referenceImageUrl == nil || mappedData.referenceImageUrl?.isEmpty == true)
+                        
                         // Single tracked task — cancelled by the next `analyze()` call so stale
                         // hydration results from a previous scan cannot overwrite the new one.
                         // Wikipedia and Enrichment run concurrently; GBIF runs sequentially after Enrichment.
@@ -444,6 +450,17 @@ private struct GBIFMedia: Decodable {
                         let capturedHasWikipedia = mappedData.wikipediaOverview != nil
                         liveHydrationTask = Task { [weak self] in
                             guard let self else { return }
+                            defer {
+                                Task { @MainActor [weak self] in
+                                    if self?.speciesData?.scanId == capturedScanId {
+                                        self?.isReferenceImageLoading = false
+                                    }
+                                }
+                            }
+                            if willFetchGBIF {
+                                await MainActor.run { self.isReferenceImageLoading = true }
+                            }
+                            
                             // Gate enrichment at the species level — habitat, lookalikes, and taxonomy
                             // are identical across all scans of the same species. After the first scan
                             // enriches a species in this session, subsequent scans skip the Edge
@@ -1309,6 +1326,7 @@ private struct GBIFMedia: Decodable {
         self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
+        self.isReferenceImageLoading = false
         self.speciesData = nil
         activeImageData = nil
         activeDisplayDatas.removeAll()

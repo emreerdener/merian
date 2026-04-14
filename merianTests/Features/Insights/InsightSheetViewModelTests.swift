@@ -97,4 +97,38 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.activeLocalRecord?.id == recordId)
         #expect(viewModel.activeLocalRecord?.hasBeenViewed == true, "fetchLocalRecord must actively flag the read-receipt to false the unread states across the app ecosystem")
     }
+
+    @Test func testTotalImagesWithReferenceImageLoading() async throws {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        viewModel.inferenceEngine = engine
+        
+        // Base state: 1 live captured image, no reference image yet
+        engine.activeDisplayDatas = [Data()]
+        engine.speciesData = SpeciesData(
+            scanId: "load_test",
+            commonName: "Test",
+            scientificName: "Test",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0.9,
+            referenceImageUrl: nil,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+        
+        #expect(viewModel.totalImages == 1, "Should count 1 live image only when not loading")
+        
+        // Toggle hydration flag
+        engine.isReferenceImageLoading = true
+        #expect(viewModel.totalImages == 2, "Should append +1 for the loading skeleton while refUrls is empty")
+        
+        // Simulate network resolving and injecting a URL while task clears
+        engine.speciesData?.referenceImageUrl = "https://example.com/gbif.jpg"
+        #expect(viewModel.totalImages == 2, "Should count the real URL and drop skeleton to avoid double-counting even if loading flag lingers")
+        
+        engine.isReferenceImageLoading = false
+        #expect(viewModel.totalImages == 2, "Final state should remain 2 after task cleanup")
+    }
 }

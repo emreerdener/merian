@@ -116,7 +116,8 @@ final class InsightSheetViewModel {
         // written to disk — showing both would duplicate the capture). Must mirror that logic
         // here or totalImages overcounts and produces unreachable pagination dots.
         let captureCount = hasLive ? liveCount : validHistoricImagePaths.count
-        return captureCount + refUrls.count
+        let refCount = refUrls.count + ((inferenceEngine?.isReferenceImageLoading == true && refUrls.isEmpty) ? 1 : 0)
+        return captureCount + refCount
     }
 
     // MARK: - Toolbar Capability Flags

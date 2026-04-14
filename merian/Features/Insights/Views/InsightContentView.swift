@@ -45,6 +45,7 @@ struct InsightContentView: View {
                         liveCount: activeLiveCount,
                         totalImages: activeTotalImages,
                         isProcessing: activeIsProcessing,
+                        isReferenceImageLoading: activeQueuedContext != nil ? false : (inferenceEngine.isReferenceImageLoading),
                         onImageFailure: { path in
                             guard activeQueuedContext == nil else { return }
                             inferenceEngine.dropInvalidCarouselImage(path)
