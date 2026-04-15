@@ -263,7 +263,7 @@ struct CameraRootView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.isEmpty)
 
         } // ZStack
-        .background(Color.black.ignoresSafeArea())
+        .background(Color(UIColor.systemBackground).ignoresSafeArea())
 
         // MARK: - View Modifiers
         .cameraSheetRouter(viewModel: viewModel)
@@ -405,7 +405,7 @@ private struct CaptureButton: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.white, lineWidth: 1)
+                .stroke(captureMode == .visual ? Color.white : Color.primary, lineWidth: 1)
                 .frame(width: 80, height: 80)
 
             Circle()
@@ -413,7 +413,6 @@ private struct CaptureButton: View {
                 .frame(width: 72, height: 72)
                 .animation(.easeInOut(duration: 0.25), value: captureMode)
         }
-        .environment(\.colorScheme, .dark)
         .accessibilityIdentifier("CaptureShutter")
         .accessibilityAddTraits(.isButton)
         .onTapGesture {
