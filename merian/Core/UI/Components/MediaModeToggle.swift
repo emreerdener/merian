@@ -23,7 +23,7 @@ struct MediaModeToggle: View {
     /// Visual-only mode while a drag is in flight. `nil` at rest.
     /// Decoupled from `activeMode` so writing the binding (which drives the pager)
     /// only happens once, in `onEnded`, not on every `onChanged` event.
-    @State private var dragMode: CaptureMode? = nil
+    @State private var dragMode: CaptureMode?
     @State private var dragOffset: CGFloat = 0
     @State private var segmentWidths: [Int: CGFloat] = [:]
 
