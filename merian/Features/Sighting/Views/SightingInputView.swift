@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Full-screen chip-based input form for the Sighting identification mode.
+/// Full-screen text-first input field for Sighting identification.
 ///
 /// The view is intentionally decoupled from `InferenceEngine` and `CameraViewModel` —
 /// it only produces an `ObservationContext` value and delivers it via `onSubmit`.
@@ -18,10 +18,18 @@ struct SightingInputView: View {
     let onSubmit: (ObservationContext) -> Void
 
     @State private var context = ObservationContext()
-    @State private var showDetails: Bool = false
     @FocusState private var isTextFieldFocused: Bool
-
-    private let maxFreeTextLength = 150
+    
+    // Auto-rotating prompts
+    private let prompts = [
+        "Describe what you saw...",
+        "What color was it?",
+        "How large was it?",
+        "Where did you see it?",
+        "Any unique markings or behaviors?"
+    ]
+    @State private var promptIndex = 0
+    let timer = Timer.publish(every: 4.0, on: .main, in: .common).autoconnect()
 
     private var topSafeArea: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
@@ -47,81 +55,62 @@ struct SightingInputView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(.white)
 
-                        Text("The more detail you add, the better the identification.")
+                        Text("We'll extract the characteristics to identify it.")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.5))
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 28)
 
-                    // MARK: Section 1 — Organism Class (required)
-                    SectionLabel(title: "What did you see?", isRequired: true)
-                    OrganismClassGrid(selection: $context.organismClass)
-                        .padding(.bottom, 28)
-
-                    // MARK: Section 2 — Colors
-                    SectionLabel(title: "Colors")
-                    ColorSwatchRow(selection: $context.colors)
-                        .padding(.bottom, 28)
-
-                    // MARK: Section 3 — Size
-                    SectionLabel(title: "Size")
-                    SizeSegmentedPicker(selection: $context.size)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 28)
-
-                    // MARK: Section 4 — Where / Habitat
-                    SectionLabel(title: "Where was it?")
-                    ChipGrid(
-                        items: ObservationHabitat.allCases,
-                        selection: $context.habitat,
-                        label: { $0.displayName },
-                        icon: { $0.systemImage }
-                    )
-                    .padding(.bottom, 28)
-
-                    // MARK: Section 5 — Behavior
-                    SectionLabel(title: "What was it doing?")
-                    ChipGrid(
-                        items: ObservationBehavior.allCases,
-                        selection: $context.behaviors,
-                        label: { $0.displayName },
-                        icon: { $0.systemImage }
-                    )
-                    .padding(.bottom, 28)
-
-                    // MARK: Section 6 — Details (expandable)
-                    ExpandableSection(isExpanded: $showDetails, label: "More details") {
-                        VStack(alignment: .leading, spacing: 0) {
-                            SectionLabel(title: "Markings")
-                            ChipGrid(
-                                items: ObservationMarking.allCases,
-                                selection: $context.markings,
-                                label: { $0.displayName },
-                                icon: nil
+                    // MARK: Text Area
+                    ZStack(alignment: .topLeading) {
+                        // Background
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white.opacity(0.05))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(
+                                        isTextFieldFocused ? Color.white.opacity(0.3) : Color.white.opacity(0.12),
+                                        lineWidth: 0.5
+                                    )
                             )
-                            .padding(.bottom, 24)
 
-                            SectionLabel(title: "Texture")
-                            SingleSelectChipRow(
-                                items: ObservationTexture.allCases,
-                                selection: $context.texture,
-                                label: { $0.displayName }
-                            )
-                            .padding(.bottom, 24)
+                        // Rotating placeholder
+                        if context.freeText.isEmpty {
+                            Text(prompts[promptIndex])
+                                .font(.body)
+                                .foregroundStyle(.white.opacity(0.3))
+                                .padding(.horizontal, 16)
+                                .padding(.top, 16)
+                                .allowsHitTesting(false)
+                                .transition(.opacity.animation(.easeInOut(duration: 0.5)))
+                                .id("prompt-\(promptIndex)") // Force transition
+                        }
+
+                        TextEditor(text: $context.freeText)
+                            .font(.body)
+                            .foregroundStyle(.white)
+                            .focused($isTextFieldFocused)
+                            .scrollContentBackground(.hidden)
+                            .background(Color.clear)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 220)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 24)
+                    .onReceive(timer) { _ in
+                        // Only rotate if empty so we don't execute animations/evaluations while they type
+                        if context.freeText.isEmpty {
+                            withAnimation {
+                                promptIndex = (promptIndex + 1) % prompts.count
+                            }
                         }
                     }
-                    .padding(.bottom, 28)
-
-                    // MARK: Section 7 — Free-text notes
-                    SectionLabel(title: "Any other notes?")
-                    FreeTextEditor(text: $context.freeText, maxLength: maxFreeTextLength, isFocused: $isTextFieldFocused)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 28)
 
                     // MARK: Identify Button (Scrollable)
                     Button(action: {
-                        guard context.organismClass != nil else { return }
+                        guard !context.isEmpty else { return }
                         isTextFieldFocused = false
                         onSubmit(context)
                         // Observation context is securely retained locally instead of rapidly wiped
@@ -132,18 +121,17 @@ struct SightingInputView: View {
                                 .fontWeight(.semibold)
                         }
                         .font(.body)
-                        .foregroundStyle(context.organismClass == nil ? .white.opacity(0.35) : .black)
+                        .foregroundStyle(context.isEmpty ? .white.opacity(0.35) : .black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
                             Capsule()
-                                .fill(context.organismClass == nil ? Color.white.opacity(0.12) : Color.white)
+                                .fill(context.isEmpty ? Color.white.opacity(0.12) : Color.white)
                         )
                         .padding(.horizontal, 20)
                     }
-                    .animation(.easeInOut(duration: 0.2), value: context.organismClass == nil)
+                    .animation(.easeInOut(duration: 0.2), value: context.isEmpty)
                     .animation(.easeInOut(duration: 0.2), value: hasStaged)
-                    .padding(.top, 10)
 
                     // Bottom spacer: clears the global tab bar / scan toolbar
                     Spacer().frame(height: 160)
