@@ -22,7 +22,7 @@ struct Terrarium: View {
                 // Conditional persona image placeholder
                 Image(persona.imageName)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
                     .scaleEffect(1.0)
             }
         }

@@ -26,15 +26,16 @@ struct CameraRootView: View {
 
     // MARK: - Zoom Drag Lock
     @State private var isVerticalZooming: Bool = false
+    @State private var isToggleDragging: Bool = false
 
-    /// Bridges CaptureMode into the optional Binding<ID?> form that scrollPosition(id:) requires.
-    /// Wraps the setter in withAnimation so the MediaModeToggle pill animates when the page settles.
-    private var captureModeScrollBinding: Binding<CaptureMode?> {
-        Binding(
-            get: { captureMode },
-            set: { if let val = $0 { withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) { captureMode = val } } }
-        )
-    }
+    /// Dedicated scroll-position state for the pager. Decoupled from captureMode so that
+    /// scrollPosition(id:) never writes captureMode directly — eliminating the "onChange(of:
+    /// CaptureMode) tried to update multiple times per frame" warning that occurs when the
+    /// ScrollView's UIKit pan fires its binding setter multiple times per frame during a
+    /// simultaneous toggle drag. Two onChange handlers keep the two variables in sync:
+    ///   scrollPageMode → captureMode  (user paging, guarded by !isToggleDragging)
+    ///   captureMode    → scrollProxy.scrollTo  (programmatic, e.g. toggle tap/drag end)
+    @State private var scrollPageMode: CaptureMode? = .visual
 
     // MARK: - View Hierarchy
     var body: some View {
@@ -116,13 +117,22 @@ struct CameraRootView: View {
                             .scrollTargetLayout()
                         }
                         .scrollTargetBehavior(.paging)
-                        .scrollPosition(id: captureModeScrollBinding)
-                        .scrollDisabled(isVerticalZooming)
+                        .scrollPosition(id: $scrollPageMode)
+                        .scrollDisabled(isVerticalZooming || isToggleDragging)
                         .background(ScrollBounceDisabler())
-                        // Explicit programmatic scroll when captureMode changes from outside
-                        // the scroll view (e.g. MediaModeToggle tap/drag). scrollPosition(id:)
-                        // handles user-swipe → captureMode; this handles captureMode → scroll.
+                        // Pager → captureMode: when the user swipes to a new page, sync
+                        // captureMode. Guarded by !isToggleDragging so simultaneous toggle
+                        // drag events that pan the scroll don't write captureMode mid-drag.
+                        .onChange(of: scrollPageMode) { _, newPage in
+                            guard let newPage, newPage != captureMode, !isToggleDragging else { return }
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                captureMode = newPage
+                            }
+                        }
+                        // captureMode → pager: when the toggle commits a mode (tap or drag end),
+                        // programmatically scroll the pager to match.
                         .onChange(of: captureMode) { _, newMode in
+                            guard newMode != scrollPageMode else { return }
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                                 scrollProxy.scrollTo(newMode, anchor: .leading)
                             }
@@ -166,7 +176,7 @@ struct CameraRootView: View {
                 // MARK: Fixed Overlay — Mode Toggle (top)
                 if viewModel.stagedCapture.images.count < stagedImageCapacity {
                     VStack {
-                        MediaModeToggle(activeMode: $captureMode, onModeChange: {})
+                        MediaModeToggle(activeMode: $captureMode, isDragging: $isToggleDragging, onModeChange: {})
                             .padding(.top, 16)
                             .opacity(viewModel.offlineToastMessage != nil ? 0 : 1)
                         Spacer()
@@ -193,6 +203,8 @@ struct CameraRootView: View {
                             Spacer()
 
                             CaptureButton(captureMode: captureMode, onCapture: { viewModel.executeCapture() })
+                                .opacity(captureMode == .sighting ? 0 : 1)
+                                .animation(.easeInOut(duration: 0.2), value: captureMode)
 
                             Spacer()
 

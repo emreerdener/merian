@@ -26,14 +26,20 @@ struct SightingInputView: View {
     // MARK: - Body
 
     var body: some View {
+        // GeometryReader with .ignoresSafeArea() expands to the true screen edges so
+        // geo.safeAreaInsets.top always returns the real device inset (Dynamic Island,
+        // notch, or plain status bar) regardless of what ancestor views have consumed.
+        // The horizontal pager zeroes out safe area propagation for its child pages,
+        // so this view must measure the inset independently.
+        GeometryReader { geo in
         ZStack(alignment: .bottom) {
             Color.black.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Top spacer: clears the fixed MediaModeToggle overlay (16pt padding + ~44pt height + 8pt gap)
-                    Spacer().frame(height: 84)
+                    // Top spacer: device safe area + MediaModeToggle (16pt padding + ~44pt height) + 20pt gap.
+                    Spacer().frame(height: geo.safeAreaInsets.top + 80)
 
                     // MARK: Header
                     VStack(alignment: .leading, spacing: 6) {
@@ -157,6 +163,8 @@ struct SightingInputView: View {
             }
         }
         .environment(\.colorScheme, .dark)
+        } // GeometryReader
+        .ignoresSafeArea()
     }
 }
 
