@@ -49,7 +49,7 @@ struct CameraRootView: View {
                 // explicit .frame(), bypassing any ambiguity in containerRelativeFrame's
                 // safe-area-vs-full-screen reference resolution.
                 GeometryReader { proxy in
-                    ScrollViewReader { scrollProxy in
+                    ScrollViewReader { _ in
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 0) {
 
@@ -95,15 +95,18 @@ struct CameraRootView: View {
                                     )
                                 }
                                 .frame(width: proxy.size.width, height: proxy.size.height)
+                                .clipped()
                                 .id(CaptureMode.visual)
 
                                 // MARK: Page 2 — Audio Recording
                                 AudioRecordingView()
                                     .frame(width: proxy.size.width, height: proxy.size.height)
+                                    .clipped()
                                     .id(CaptureMode.audio)
 
                                 // MARK: Page 3 — Describe Input
                                 DescribeInputView(
+                                    captureMode: captureMode,
                                     hasStaged: !viewModel.stagedCapture.images.isEmpty
                                 ) { observationContext in
                                     viewModel.submitDescribe(
@@ -112,6 +115,7 @@ struct CameraRootView: View {
                                     )
                                 }
                                 .frame(width: proxy.size.width, height: proxy.size.height)
+                                .clipped()
                                 .id(CaptureMode.describe)
                             }
                             .scrollTargetLayout()
@@ -134,7 +138,7 @@ struct CameraRootView: View {
                         .onChange(of: captureMode) { _, newMode in
                             guard newMode != scrollPageMode else { return }
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                scrollProxy.scrollTo(newMode, anchor: .leading)
+                                scrollPageMode = newMode
                             }
                         }
                         .onAppear {

@@ -12,8 +12,7 @@ import SwiftUI
 ///   always remains interactive; this view must NOT place anything above the
 ///   `safeAreaInsets.top + 64` band.
 struct DescribeInputView: View {
-    /// True when images (or audio) are already staged — switches the button label to
-    /// "Add to Scan & Identify" so the user knows their description will be combined.
+    var captureMode: CaptureMode
     var hasStaged: Bool = false
     let onSubmit: (ObservationContext) -> Void
 
@@ -29,7 +28,7 @@ struct DescribeInputView: View {
         "Any unique markings or behaviors?"
     ]
     @State private var promptIndex = 0
-    let timer = Timer.publish(every: 4.0, on: .main, in: .common).autoconnect()
+    let timer = Timer.publish(every: 3.0, on: .main, in: .common).autoconnect()
 
     private var topSafeArea: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
@@ -138,8 +137,12 @@ struct DescribeInputView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .onChange(of: captureMode) { _, newMode in
+                if newMode != .describe {
+                    isTextFieldFocused = false
+                }
+            }
         }
         .environment(\.colorScheme, .dark)
-        .ignoresSafeArea()
     }
 }
