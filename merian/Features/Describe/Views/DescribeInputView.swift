@@ -34,11 +34,14 @@ struct DescribeInputView: View {
         return windowScene?.windows.first?.safeAreaInsets.top ?? 59
     }
 
+    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
+    @AppStorage("requiresScanConfirmation") private var requiresScanConfirmation: Bool = false
+
     // MARK: - Body
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color.black.ignoresSafeArea()
+            Color(UIColor.systemBackground).ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -48,14 +51,16 @@ struct DescribeInputView: View {
 
                     // MARK: Header
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Describe what you saw")
+                        Text(prompts[promptIndex])
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
+                            .transition(.opacity.animation(.easeInOut(duration: 0.5)))
+                            .id("prompt-\(promptIndex)")
 
                         Text("We'll extract the characteristics to identify it.")
                             .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 28)
@@ -64,30 +69,28 @@ struct DescribeInputView: View {
                     ZStack(alignment: .topLeading) {
                         // Background
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(0.05))
+                            .fill(Color(UIColor.secondarySystemBackground))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                                     .strokeBorder(
-                                        isTextFieldFocused ? Color.white.opacity(0.3) : Color.white.opacity(0.12),
+                                        isTextFieldFocused ? Color.primary.opacity(0.3) : Color.primary.opacity(0.12),
                                         lineWidth: 0.5
                                     )
                             )
 
-                        // Rotating placeholder
+                        // Static placeholder
                         if context.freeText.isEmpty {
-                            Text(prompts[promptIndex])
+                            Text("Describe what you saw...")
                                 .font(.body)
-                                .foregroundStyle(.white.opacity(0.3))
+                                .foregroundStyle(.tertiary)
                                 .padding(.horizontal, 16)
                                 .padding(.top, 16)
                                 .allowsHitTesting(false)
-                                .transition(.opacity.animation(.easeInOut(duration: 0.5)))
-                                .id("prompt-\(promptIndex)") // Force transition
                         }
 
                         TextEditor(text: $context.freeText)
                             .font(.body)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
                             .focused($isTextFieldFocused)
                             .scrollContentBackground(.hidden)
                             .background(Color.clear)
@@ -118,16 +121,16 @@ struct DescribeInputView: View {
                         // so users can jump back and edit their description seamlessly.
                     }) {
                         HStack(spacing: 8) {
-                            Text(hasStaged ? "Add description & identify" : "Identify")
+                            Text((hasStaged || isMultiCaptureEnabled || requiresScanConfirmation) ? "Add description" : "Identify")
                                 .fontWeight(.semibold)
                         }
                         .font(.body)
-                        .foregroundStyle(.black)
+                        .foregroundStyle(Color(UIColor.systemBackground))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
                             Capsule()
-                                .fill(Color.white)
+                                .fill(Color.primary)
                         )
                         .padding(.horizontal, 20)
                     }
@@ -144,6 +147,5 @@ struct DescribeInputView: View {
                 }
             }
         }
-        .environment(\.colorScheme, .dark)
     }
 }

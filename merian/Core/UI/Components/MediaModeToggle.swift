@@ -41,9 +41,10 @@ struct MediaModeToggle: View {
         }
         .pickerStyle(.segmented)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            Capsule()
                 .fill(Color.black.opacity(0.5))
         )
+        .clipShape(Capsule())
         .padding(.horizontal, 48)
         .environment(\.colorScheme, .dark)
     }
