@@ -83,7 +83,7 @@ struct MainTabBar: View {
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 8)
+                .shadow(color: .black.opacity(0.16), radius: 15, x: 0, y: 8)
         )
         .overlay(
             Capsule()

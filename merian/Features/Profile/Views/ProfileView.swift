@@ -60,6 +60,9 @@ struct ProfileView: View {
                 Text("Settings").tag(ProfileTab.settings)
             }
             .pickerStyle(.segmented)
+            .padding(.bottom, 1)
+            .background(Capsule().fill(.regularMaterial))
+            .clipShape(Capsule())
             .frame(width: 200)
         }
     }

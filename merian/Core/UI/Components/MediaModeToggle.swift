@@ -52,16 +52,8 @@ struct MediaModeToggle: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(.top, 1)
-        .padding(.bottom, 3)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule()
-                        .strokeBorder(.primary.opacity(0.15), lineWidth: 0.5)
-                )
-        )
+        .padding(.bottom, 1)
+        .background(Capsule().fill(.regularMaterial))
         .clipShape(Capsule())
         .scaleEffect(1.1)
         .padding(.horizontal, 48)
