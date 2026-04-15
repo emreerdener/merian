@@ -387,6 +387,9 @@ verify_jwt = false
 [functions.identify]
 verify_jwt = false
 
+[functions.identify-sighting]
+verify_jwt = false
+
 [functions.enrich-scan]
 verify_jwt = false
 

@@ -480,7 +480,14 @@ final class MerianNetworkClient {
             telemetry: telemetry,
             clientScanId: clientScanId ?? UUID().uuidString.lowercased()
         )
-        let (data, _) = try await activeSession.data(for: request)
+        
+        guard let url = request.url, let bodyData = request.httpBody else {
+            throw MerianError.invalidURL
+        }
+        
+        // Use performAuthenticatedRequest to ensure 401s trigger zombie session regen
+        // rather than failing silently and causing a JSON decoding error later.
+        let (data, _) = try await performAuthenticatedRequest(url: url, method: "POST", body: bodyData, timeoutInterval: 60.0)
         return data
     }
 
