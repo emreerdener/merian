@@ -16,7 +16,7 @@ struct DescribeInputView: View {
     var hasStaged: Bool = false
     let onSubmit: (ObservationContext) -> Void
 
-    @State private var context = ObservationContext()
+    @Binding var context: ObservationContext
     @FocusState private var isTextFieldFocused: Bool
     
     // Auto-rotating prompts

@@ -16,6 +16,7 @@ import SwiftUI
     // MARK: - Dependencies (AI & Intelligence)
     var inferenceEngine = InferenceEngine()
     var viewfinderIntelligence = ViewfinderIntelligence.shared
+    var speechManager = SpeechManager()
     
     // MARK: - Dependencies (Core Services)
     @ObservationIgnored
@@ -83,6 +84,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.circuitBreakerManager)
             .environment(container.environmentContextManager)
             .environment(container.profileViewModel)
+            .environment(container.speechManager)
     }
 }
 

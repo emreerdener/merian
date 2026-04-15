@@ -33,6 +33,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/08-app-intents.md`](./features-and-hardware/08-app-intents.md)** — App Intents integration for Siri and Shortcuts.
 - **[`/features-and-hardware/09-components-guide.md`](./features-and-hardware/09-components-guide.md)** — Shared UI components and design system primitives.
 - **[`/features-and-hardware/10-watchos-integration.md`](./features-and-hardware/10-watchos-integration.md)** — watchOS companion target: acoustic capture pipeline, WatchConnectivity delivery, and iOS receiver status.
+- **[`/features-and-hardware/11-describe-and-voice-dictation.md`](./features-and-hardware/11-describe-and-voice-dictation.md)** — Describe capture mode: `ObservationContext` state ownership, `SpeechManager` AVAudioEngine + SFSpeechRecognizer pipeline, dictation task lifecycle, and Swift 6 concurrency guarantees.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** — Roadmap for extending inference to rocks, minerals, and fossils.
 
 ### Development Guides

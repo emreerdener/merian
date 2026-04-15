@@ -11,12 +11,15 @@ struct CameraRootView: View {
     @Environment(ViewfinderIntelligence.self) var vui
     @Environment(PhotoLibraryManager.self) var photoLibraryManager
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(SpeechManager.self) var speechManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
     // MARK: - View Model & State
     @State private var viewModel = CameraViewModel()
     @State private var captureMode: CaptureMode = .visual
+    @State private var observationContext = ObservationContext()
+    @State private var dictationTask: Task<Void, Never>?
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
 
     // MARK: - Focus Indicator State
@@ -107,13 +110,15 @@ struct CameraRootView: View {
                                 // MARK: Page 3 — Describe Input
                                 DescribeInputView(
                                     captureMode: captureMode,
-                                    hasStaged: !viewModel.stagedCapture.images.isEmpty
-                                ) { observationContext in
-                                    viewModel.submitDescribe(
-                                        observationContext: observationContext,
-                                        modelContext: modelContext
-                                    )
-                                }
+                                    hasStaged: !viewModel.stagedCapture.images.isEmpty,
+                                    onSubmit: { observationContext in
+                                        viewModel.submitDescribe(
+                                            observationContext: observationContext,
+                                            modelContext: modelContext
+                                        )
+                                    },
+                                    context: $observationContext
+                                )
                                 .frame(width: proxy.size.width, height: proxy.size.height)
                                 .clipped()
                                 .id(CaptureMode.describe)
@@ -141,6 +146,9 @@ struct CameraRootView: View {
                         // programmatically scroll the pager to match.
                         .onChange(of: captureMode) { _, newMode in
                             if newMode != .describe {
+                                dictationTask?.cancel()
+                                dictationTask = nil
+                                speechManager.stopDictation()
                                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             }
                             guard newMode != scrollPageMode else { return }
@@ -214,7 +222,36 @@ struct CameraRootView: View {
 
                             Spacer()
 
-                            CaptureButton(captureMode: captureMode, onCapture: { viewModel.executeCapture() })
+                            CaptureButton(
+                                captureMode: captureMode,
+                                isRecording: speechManager.isRecording,
+                                onCapture: { viewModel.executeCapture() },
+                                onTranscribe: {
+                                    if speechManager.isRecording || dictationTask != nil {
+                                        speechManager.stopDictation()
+                                        dictationTask?.cancel()
+                                        dictationTask = nil
+                                        return
+                                    }
+                                    
+                                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                    let baseline = observationContext.freeText
+                                    
+                                    dictationTask = Task {
+                                        defer { dictationTask = nil }
+                                        do {
+                                            try await speechManager.startDictation(onResult: { text in
+                                                let separator = baseline.isEmpty ? "" : " "
+                                                observationContext.freeText = baseline + separator + text
+                                            })
+                                        } catch is PermissionError {
+                                            viewModel.offlineToastMessage = "Microphone access required. Check Settings."
+                                        } catch {
+                                            // Silently swallow OS/hardware failures
+                                        }
+                                    }
+                                }
+                            )
                                 .animation(.easeInOut(duration: 0.2), value: captureMode)
 
                             Spacer()
@@ -400,7 +437,9 @@ private struct ScrollBounceDisabler: UIViewRepresentable {
 
 private struct CaptureButton: View {
     let captureMode: CaptureMode
+    let isRecording: Bool
     let onCapture: () -> Void
+    let onTranscribe: () -> Void
 
     var body: some View {
         ZStack {
@@ -418,6 +457,9 @@ private struct CaptureButton: View {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 32, weight: .medium))
                         .foregroundStyle(Color(UIColor.systemBackground))
+                        .opacity(isRecording ? 0.5 : 1.0)
+                        .scaleEffect(isRecording ? 0.8 : 1.0)
+                        .animation(isRecording ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: isRecording)
                         .transition(.scale.combined(with: .opacity))
                 }
             }
@@ -430,11 +472,10 @@ private struct CaptureButton: View {
                 HapticManager.shared.triggerFocusSnap()
                 onCapture()
             case .audio:
-                // TODO: Wire audio recording trigger
                 HapticManager.shared.triggerFocusSnap()
             case .describe:
-                // TODO: Wire describe transcription trigger
                 HapticManager.shared.triggerFocusSnap()
+                onTranscribe()
             }
         }
     }

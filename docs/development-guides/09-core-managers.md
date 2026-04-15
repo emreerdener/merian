@@ -4,6 +4,21 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 ## Hardware Domain
 
+### `SpeechManager`
+- `@MainActor @Observable final class` living at `merian/Features/Describe/Managers/SpeechManager.swift`, registered in `AppDIContainer` and distributed to the view hierarchy via `DIContainerModifier`.
+- Owns the full `AVAudioEngine` + `SFSpeechRecognizer` pipeline for live voice dictation on the Describe page.
+- **`isRecording: Bool`** — the single source of truth for dictation state. Drives the `CaptureButton` pulse animation and the `onTranscribe` stop-path guard in `CameraRootView`. Never set to `true` until `audioEngine.start()` succeeds; reset to `false` in all failure and teardown paths.
+- **`startDictation(onResult: @MainActor @escaping (String) -> Void) async throws`**:
+  - Initializes `SFSpeechRecognizer()` and silently no-ops if the recognizer is `nil` or `!isAvailable` (unsupported locale — no user-visible error).
+  - Requests `SFSpeechRecognizer` authorization and microphone permission (`AVAudioApplication.requestRecordPermission()`) via `withCheckedContinuation`. Throws `PermissionError` on denial; caller surfaces this via `viewModel.offlineToastMessage`.
+  - Checks `Task.isCancelled` after each `await` suspension point. If cancelled after the `AVAudioSession` was already activated, deactivates the session before returning — preventing audio session locks from surviving into the Audio page.
+  - Configures `AVAudioSession` as `.record` / `.measurement` before spinning up the engine. Teardown calls `.setActive(false, options: .notifyOthersOnDeactivation)` so the session cooperates with any future `AudioRecordingView` pipeline.
+  - `isRecording = true` is assigned as the **absolute final line** — only after `try audioEngine.start()` confirms the engine is live.
+- **`stopDictation()`** — delegates entirely to `teardownAudioEngine()` then sets `isRecording = false`. Safe to call when the engine was never started.
+- **`teardownAudioEngine()` (private)** — calls `audioEngine.stop()` and `audioEngine.inputNode.removeTap(onBus: 0)` **unconditionally** (both are no-ops if not running / no tap installed). This prevents an orphaned tap crash when `start()` throws after `installTap` has already been called. Ends and nils the recognition request and task, then deactivates the audio session.
+- **Auto-termination**: The `SFSpeechRecognitionTask` result handler dispatches back to `@MainActor` via `Task { @MainActor [weak self] in ... }`. When `error != nil || result.isFinal == true`, it calls `stopDictation()` internally — the user does not need to tap the mic again to stop a session that the system ended (e.g. 60-second silence timeout).
+- **`PermissionError`** — a `LocalizedError` struct defined in the same file. Thrown exclusively on permission denial, caught by `catch is PermissionError` at the `CameraRootView` call site for toast display. All other throws (hardware faults, `AVAudioEngine` start failure) are silently swallowed at the call site since no user-actionable recovery path exists.
+
 ### `CameraManager`
 - Abstracts AVFoundation via `AVCaptureDevice.DiscoverySession`, preferring `.builtInTripleCamera` on Pro devices for optical zoom support, falling back to `.builtInLiDARDepthCamera`, `.builtInDualCamera`, `.builtInDualWideCamera`, and `.builtInWideAngleCamera` in that order. Depth data via `AVCaptureDepthDataOutput` is attached conditionally and works with any device in the list that supports it.
 - Activated via `.handleActivePhase()` calls in `MerianApp.swift`.

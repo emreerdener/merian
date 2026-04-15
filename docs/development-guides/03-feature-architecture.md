@@ -13,6 +13,8 @@ Features/
 └── Camera/
     ├── Components/         # Reusable sub-views that accept value-type inputs
     │   └── ShutterButton.swift
+    ├── Managers/           # @Observable @MainActor hardware/service managers scoped to the feature
+    │   └── SpeechManager.swift
     ├── Modifiers/          # ViewModifier and custom modifier structs
     │   ├── CameraSheetRouter.swift
     │   └── CropSheetModifier.swift
@@ -35,6 +37,7 @@ Features/
 - `Components/` are passive — they receive data via `let` properties and closures. They must not access `AppDIContainer.shared` directly.
 - `Models/` are local to the feature and never `@Model` (SwiftData models live in `merian/Models/`).
 - `Modifiers/` implement `ViewModifier` or provide `.modifier(...)` call-site helpers.
+- `Managers/` hold `@Observable @MainActor final class` service objects that own a hardware or OS resource scoped to the feature (e.g. `SpeechManager` owns `AVAudioEngine`). Managers that must be shared across multiple features belong in `AppDIContainer` instead.
 
 ---
 
@@ -161,5 +164,7 @@ Complex sheet routing logic (multiple `.sheet`, `.fullScreenCover`, custom modif
 3. Add `<FeatureName>ViewModel.swift` in `ViewModels/` — `@Observable @MainActor final class`.
 4. Wire DI access via `let diContainer = AppDIContainer.shared` inside the ViewModel.
 5. If the feature needs Core managers exposed to the view layer, register them in `MerianApp.swift`'s `.environment()` chain.
-6. If the feature introduces a new Core manager, add it as a `lazy var` in `AppDIContainer.swift` and document it in `docs/development-guides/core-managers.md`.
-7. Update `docs/development-guides/09-ai-agent-guidelines.md` Section 2 if the directory structure changes.
+6. If the feature introduces a new Core manager, add it as a `var` in `AppDIContainer.swift`, add `.environment(container.managerName)` to `DIContainerModifier.body()`, and document it in `docs/development-guides/09-core-managers.md`.
+7. If the feature introduces a hardware/OS resource manager scoped only to that feature, place it in `Managers/` (not `AppDIContainer`).
+8. Run `xcodegen generate` after adding any new Swift file or subdirectory — `project.yml` uses a directory wildcard (`sources: [Merian]`) so no `project.yml` edit is required, but the `.xcodeproj` must be regenerated.
+9. Update `docs/development-guides/09-ai-agent-guidelines.md` Section 2 if the directory structure changes.
