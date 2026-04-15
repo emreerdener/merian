@@ -28,7 +28,6 @@ struct DescribeInputView: View {
         "Any unique markings or behaviors?"
     ]
     @State private var promptIndex = 0
-    let timer = Timer.publish(every: 3.0, on: .main, in: .common).autoconnect()
 
     private var topSafeArea: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
@@ -98,11 +97,14 @@ struct DescribeInputView: View {
                     .frame(maxWidth: .infinity, minHeight: 220)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
-                    .onReceive(timer) { _ in
-                        // Only rotate if empty so we don't execute animations/evaluations while they type
-                        if context.freeText.isEmpty {
-                            withAnimation {
-                                promptIndex = (promptIndex + 1) % prompts.count
+                    .task {
+                        while !Task.isCancelled {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            // Only rotate if empty so we don't execute animations/evaluations while they type
+                            if context.freeText.isEmpty && captureMode == .describe {
+                                withAnimation {
+                                    promptIndex = (promptIndex + 1) % prompts.count
+                                }
                             }
                         }
                     }
@@ -116,20 +118,19 @@ struct DescribeInputView: View {
                         // so users can jump back and edit their description seamlessly.
                     }) {
                         HStack(spacing: 8) {
-                            Text(hasStaged ? "Add to scan & identify" : "Identify describe")
+                            Text(hasStaged ? "Add description & identify" : "Identify")
                                 .fontWeight(.semibold)
                         }
                         .font(.body)
-                        .foregroundStyle(context.isEmpty ? .white.opacity(0.35) : .black)
+                        .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
                             Capsule()
-                                .fill(context.isEmpty ? Color.white.opacity(0.12) : Color.white)
+                                .fill(Color.white)
                         )
                         .padding(.horizontal, 20)
                     }
-                    .animation(.easeInOut(duration: 0.2), value: context.isEmpty)
                     .animation(.easeInOut(duration: 0.2), value: hasStaged)
 
                     // Bottom spacer: clears the global tab bar / scan toolbar

@@ -40,6 +40,10 @@ struct MediaModeToggle: View {
             }
         }
         .pickerStyle(.segmented)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(0.5))
+        )
         .padding(.horizontal, 48)
         .environment(\.colorScheme, .dark)
     }

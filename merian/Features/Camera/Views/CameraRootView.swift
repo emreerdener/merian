@@ -123,11 +123,15 @@ struct CameraRootView: View {
                         .scrollTargetBehavior(.paging)
                         .scrollPosition(id: $scrollPageMode)
                         .scrollDisabled(isVerticalZooming || isToggleDragging)
+                        .scrollDismissesKeyboard(.interactively)
                         .background(ScrollBounceDisabler())
                         // Pager → captureMode: when the user swipes to a new page, sync
                         // captureMode. Guarded by !isToggleDragging so simultaneous toggle
                         // drag events that pan the scroll don't write captureMode mid-drag.
                         .onChange(of: scrollPageMode) { _, newPage in
+                            if newPage != .describe {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            }
                             guard let newPage, newPage != captureMode, !isToggleDragging else { return }
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                                 captureMode = newPage
@@ -136,6 +140,9 @@ struct CameraRootView: View {
                         // captureMode → pager: when the toggle commits a mode (tap or drag end),
                         // programmatically scroll the pager to match.
                         .onChange(of: captureMode) { _, newMode in
+                            if newMode != .describe {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            }
                             guard newMode != scrollPageMode else { return }
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                                 scrollPageMode = newMode
