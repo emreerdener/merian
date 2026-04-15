@@ -1,17 +1,17 @@
 import SwiftUI
 
-/// Full-screen text-first input field for Sighting identification.
+/// Full-screen text-first input field for Describe identification.
 ///
 /// The view is intentionally decoupled from `InferenceEngine` and `CameraViewModel` —
 /// it only produces an `ObservationContext` value and delivers it via `onSubmit`.
-/// All network orchestration and multi-modal routing lives in `CameraViewModel.submitSighting`.
+/// All network orchestration and multi-modal routing lives in `CameraViewModel.submitDescribe`.
 ///
 /// Layout contract with `CameraRootView`:
 /// - Fills the full page frame (same size as the camera and audio pages).
 /// - The fixed `MediaModeToggle` overlay sits above this view in the Z-stack and
 ///   always remains interactive; this view must NOT place anything above the
 ///   `safeAreaInsets.top + 64` band.
-struct SightingInputView: View {
+struct DescribeInputView: View {
     /// True when images (or audio) are already staged — switches the button label to
     /// "Add to Scan & Identify" so the user knows their description will be combined.
     var hasStaged: Bool = false
@@ -117,7 +117,7 @@ struct SightingInputView: View {
                         // so users can jump back and edit their description seamlessly.
                     }) {
                         HStack(spacing: 8) {
-                            Text(hasStaged ? "Add to scan & identify" : "Identify sighting")
+                            Text(hasStaged ? "Add to scan & identify" : "Identify describe")
                                 .fontWeight(.semibold)
                         }
                         .font(.body)

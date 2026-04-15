@@ -226,7 +226,7 @@ serve((req: Request) =>
 
     // Build the multipart content array. Image parts always come first so the model
     // anchors its visual read before seeing the user's text. The description part is
-    // appended only when the user staged a sighting note alongside their images —
+    // appended only when the user staged a describe note alongside their images —
     // it provides morphological cues (colour, size, behaviour) that the image alone
     // may not convey, sharpening subspecies and look-alike disambiguation.
     const descriptionPart: Part[] =

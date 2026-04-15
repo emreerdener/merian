@@ -18,12 +18,12 @@ export {
 export type { CachedSpeciesRow };
 
 // ---------------------------------------------------------------------------
-// SightingScanInsertRow — mirrors ScanInsertRow from identify/db.ts with
-// sighting-specific fields: no image_storage_urls (empty array) and
+// DescribeScanInsertRow — mirrors ScanInsertRow from identify/db.ts with
+// describe-specific fields: no image_storage_urls (empty array) and
 // is_live_capture always false.
 // ---------------------------------------------------------------------------
 
-export interface SightingScanInsertRow {
+export interface DescribeScanInsertRow {
   id: string;
   user_id: string;
   species_id: string | null;
@@ -42,9 +42,9 @@ export interface SightingScanInsertRow {
   time_of_day?: string;
   ai_reasoning?: string | null;
   extracted_visual_traits: string[];
-  /** Empty for sightings — no image stored. */
+  /** Empty for describes — no image stored. */
   colors: string[];
-  /** Empty for sightings — no R2 upload. */
+  /** Empty for describes — no R2 upload. */
   image_storage_urls: string[];
   llm_prompt_tokens?: number | null;
   llm_candidate_tokens?: number | null;
@@ -57,20 +57,20 @@ export interface SightingScanInsertRow {
   ecological_interactions: string[];
   inference_tier: string;
   candidates?: IdentificationCandidate[] | null;
-  /** Always null for sightings — no image to score. */
+  /** Always null for describes — no image to score. */
   image_quality_score?: number | null;
-  /** Always false for sightings. */
+  /** Always false for describes. */
   is_live_capture: false;
-  /** Structured observation context staged by the user; always present for sightings. */
+  /** Structured observation context staged by the user; always present for describes. */
   user_observation_context?: Record<string, unknown> | null;
 }
 
-export async function insertSightingScan(
-  row: SightingScanInsertRow,
+export async function insertDescribeScan(
+  row: DescribeScanInsertRow,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from("scans")
     .upsert(row, { onConflict: "id", ignoreDuplicates: true });
-  if (error) throw new Error(`insertSightingScan: ${error.message}`);
+  if (error) throw new Error(`insertDescribeScan: ${error.message}`);
 }

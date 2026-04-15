@@ -525,14 +525,14 @@ actor BackgroundDatabaseActor {
         return isNewDiscovery
     }
 
-    // MARK: - Sighting Recording
+    // MARK: - Describe Recording
 
-    /// Persists a Sighting scan result — a text-description-based identification with no local image.
+    /// Persists a Describe scan result — a text-description-based identification with no local image.
     ///
-    /// Mirrors `saveLiveScanRecord` but omits the `localImagePath` requirement. Sightings are
+    /// Mirrors `saveLiveScanRecord` but omits the `localImagePath` requirement. Describes are
     /// saved with `is_live_capture = false` and nil image paths so the library renders them
     /// without a thumbnail until reference images arrive via GBIF hydration.
-    func saveSightingRecord(mappedData: SpeciesData, observationContextJSON: String? = nil) -> Bool {
+    func saveDescribeRecord(mappedData: SpeciesData, observationContextJSON: String? = nil) -> Bool {
         guard mappedData.confidenceScore > 0.0 else { return false }
 
         let targetName = mappedData.scientificName
@@ -545,7 +545,7 @@ actor BackgroundDatabaseActor {
         do {
             existingRecords = try modelContext.fetch(fetchDescriptor)
         } catch {
-            MerianLog.data.debug("saveSightingRecord: species lookup failed: \(error, privacy: .private)")
+            MerianLog.data.debug("saveDescribeRecord: species lookup failed: \(error, privacy: .private)")
             existingRecords = []
         }
 
@@ -601,7 +601,7 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
-            MerianLog.data.error("saveSightingRecord: save failed: \(error, privacy: .private)")
+            MerianLog.data.error("saveDescribeRecord: save failed: \(error, privacy: .private)")
         }
         return isNewDiscovery
     }

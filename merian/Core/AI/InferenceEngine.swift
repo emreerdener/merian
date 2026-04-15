@@ -571,15 +571,15 @@ private struct GBIFMedia: Decodable {
         }
     }
 
-    // MARK: - Sighting Inference Pipeline
+    // MARK: - Describe Inference Pipeline
 
-    /// Runs the text-only identification pipeline for a Sighting submission.
+    /// Runs the text-only identification pipeline for a Describe submission.
     ///
     /// Mirrors `analyze()` structurally but accepts a verbal `ObservationContext` instead of
-    /// image data. No offline queue enqueue — Sightings are online-only in V1. No
+    /// image data. No offline queue enqueue — Describes are online-only in V1. No
     /// `activeDisplayDatas` or `validHistoricImagePaths` are set; the carousel will initially
     /// render black until GBIF reference images arrive via the post-inference hydration task.
-    func analyzeSighting(
+    func analyzeDescribe(
         scanId: String?,
         observationContext: ObservationContext,
         telemetry: CaptureTelemetry,
@@ -600,7 +600,7 @@ private struct GBIFMedia: Decodable {
         // Reset loading flags synchronously — same pattern as analyze().
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
-        self.scanningPhaseText = "Identifying sighting..."
+        self.scanningPhaseText = "Identifying describe..."
 
         self.activeScanId = scanId
         self.activeLatitude = telemetry.gpsLatitude
@@ -630,13 +630,13 @@ private struct GBIFMedia: Decodable {
 
                 try Task.checkCancellation()
 
-                let resultData = try await MerianNetworkClient.shared.identifySighting(
+                let resultData = try await MerianNetworkClient.shared.identifyDescribe(
                     observationContext: observationContext,
                     telemetry: telemetry,
                     clientScanId: scanId
                 )
 
-                let sightingObsContextJSON: String? = (try? JSONEncoder().encode(observationContext))
+                let describeObsContextJSON: String? = (try? JSONEncoder().encode(observationContext))
                     .flatMap { String(data: $0, encoding: .utf8) }
                 let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
@@ -645,7 +645,7 @@ private struct GBIFMedia: Decodable {
                     compressedDatas: [],
                     displayDatas: [],
                     skipImageRequirement: true,
-                    observationContextJSON: sightingObsContextJSON
+                    observationContextJSON: describeObsContextJSON
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery
@@ -668,14 +668,14 @@ private struct GBIFMedia: Decodable {
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()
                         self.speciesData = mappedData
-                        // No validHistoricImagePaths — sightings have no captured image.
+                        // No validHistoricImagePaths — describes have no captured image.
                     }
 
                     if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
-                       let sightingScanId = mappedData.scanId {
+                       let describeScanId = mappedData.scanId {
                         PushNotificationManager.shared.sendInferenceCompleteNotification(
                             speciesName: mappedData.commonName,
-                            scanId: sightingScanId
+                            scanId: describeScanId
                         )
                     }
 
@@ -735,9 +735,9 @@ private struct GBIFMedia: Decodable {
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
 
-                AppTelemetry.trackError("SightingInferenceFailure")
+                AppTelemetry.trackError("DescribeInferenceFailure")
                 CircuitBreakerManager.shared.recordFailure()
-                MerianLog.general.debug("Sighting inference failure: \(error.localizedDescription, privacy: .private)")
+                MerianLog.general.debug("Describe inference failure: \(error.localizedDescription, privacy: .private)")
                 if self.activeScanId == ownedScanId {
                     HapticManager.shared.triggerErrorThump()
                     self.speciesData = makeErrorSpeciesData(

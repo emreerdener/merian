@@ -6,7 +6,7 @@ import SwiftUI
 enum CaptureMode: String, CaseIterable {
     case visual
     case audio
-    case sighting
+    case describe
 }
 
 /// A glassmorphic capsule toggle controlling the active capture mode.
@@ -77,7 +77,7 @@ struct MediaModeToggle: View {
         switch mode {
         case .visual:   return "viewfinder"
         case .audio:    return "waveform"
-        case .sighting: return "eye"
+        case .describe: return "text.alignleft"
         }
     }
 
@@ -85,7 +85,7 @@ struct MediaModeToggle: View {
         switch mode {
         case .visual:   return "Scan"
         case .audio:    return "Record"
-        case .sighting: return "Sighting"
+        case .describe: return "Describe"
         }
     }
 

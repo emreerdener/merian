@@ -12,7 +12,7 @@ let stagedImageCapacity = 2
 /// `activeScannedDatas`, `activeOriginals`, `activeDisplayDatas`) with one coherent
 /// value type. Any combination of modalities is valid:
 /// - images only (existing behaviour, up to 2)
-/// - description only (solo Sighting path)
+/// - description only (solo Describe path)
 /// - images + description (combined path → `identify` with context injection)
 /// - audio only / audio + images / audio + description (reserved; wired in when
 ///   `AudioRecordingView` ships its recording pipeline)
@@ -29,7 +29,7 @@ struct StagedCapture {
     /// Populated when `AudioRecordingView` ships its recording pipeline.
     var audioFilePath: String?
 
-    /// Optional sighting description staged from the Sighting tab before submission.
+    /// Optional describe description staged from the Describe tab before submission.
     var observationContext: ObservationContext?
 
     // MARK: - Derived State

@@ -90,8 +90,8 @@ actor InferenceProcessingActor {
                     observationContextJSON: observationContextJSON
                 )
             } else {
-                // Sighting path: no image data — save record with nil localImagePath.
-                newDiscovery = await dbActor.saveSightingRecord(
+                // Describe path: no image data — save record with nil localImagePath.
+                newDiscovery = await dbActor.saveDescribeRecord(
                     mappedData: mappedData,
                     observationContextJSON: observationContextJSON
                 )

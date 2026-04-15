@@ -366,7 +366,7 @@ final class MerianNetworkClient {
                 "timestamp": telemetry.timestamp,
                 "estimated_size_cm": telemetry.estimatedSizeCm,
                 "client_scan_id": capturedClientScanId,
-                // Combined path: non-nil when the user staged a sighting description alongside images.
+                // Combined path: non-nil when the user staged a describe description alongside images.
                 // The edge function injects this as additional Gemini context beside the image parts.
                 "description": capturedDescription?.isEmpty == false ? capturedDescription : nil,
                 "observation_context": observationContextObject
@@ -380,9 +380,9 @@ final class MerianNetworkClient {
         return data
     }
 
-    // MARK: - Sighting Identification
+    // MARK: - Describe Identification
 
-    /// Builds a fully-authenticated POST URLRequest for the `/identify-sighting` edge function.
+    /// Builds a fully-authenticated POST URLRequest for the `/identify-describe` edge function.
     ///
     /// Returns the request without executing it so the caller can dispatch it as a
     /// background URLSession download task — enabling result delivery while backgrounded.
@@ -391,15 +391,15 @@ final class MerianNetworkClient {
     ///   - description: Pre-serialized `ObservationContext.serialized()` plain text for Gemini.
     ///   - observationContextJSON: Raw JSON string forwarded as `observation_context`.
     ///     Decoded to an object inside `Task.detached` — safe to capture across the actor boundary.
-    ///   - telemetry: GPS, weather, and device context for the sighting.
+    ///   - telemetry: GPS, weather, and device context for the describe.
     ///   - clientScanId: Stable scan identifier shared with the queued `OfflineQueuedScan` record.
-    func buildSightingRequest(
+    func buildDescribeRequest(
         description: String,
         observationContextJSON: String,
         telemetry: CaptureTelemetry,
         clientScanId: String
     ) async throws -> URLRequest {
-        let functionUrl = try endpointURL("identify-sighting")
+        let functionUrl = try endpointURL("identify-describe")
 
         let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
         let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
@@ -461,20 +461,20 @@ final class MerianNetworkClient {
         return request
     }
 
-    /// Posts a structured verbal observation to the `/identify-sighting` edge function
+    /// Posts a structured verbal observation to the `/identify-describe` edge function
     /// and returns the raw response data for decoding by `InferenceProcessingActor`.
     ///
-    /// Delegates payload construction to `buildSightingRequest` so the offline-replay
+    /// Delegates payload construction to `buildDescribeRequest` so the offline-replay
     /// path (`dispatchInferenceDownloadTask`) reuses the same request-building logic
     /// without duplicating auth header setup or JSON encoding.
-    func identifySighting(
+    func identifyDescribe(
         observationContext: ObservationContext,
         telemetry: CaptureTelemetry,
         clientScanId: String? = nil
     ) async throws -> Data {
         let contextJSON: String = (try? JSONEncoder().encode(observationContext))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-        let request = try await buildSightingRequest(
+        let request = try await buildDescribeRequest(
             description: observationContext.serialized(),
             observationContextJSON: contextJSON,
             telemetry: telemetry,

@@ -7,7 +7,7 @@ const SchemaType = Type;
 // System instruction — text-only identification path
 // ---------------------------------------------------------------------------
 
-export const getSightingSystemInstruction = (): string =>
+export const getDescribeSystemInstruction = (): string =>
   `# Role
 You are an expert field-guide biologist and taxonomist specializing in species identification from verbal observation descriptions. Your task is to identify the most likely biological subject from a structured text description provided by a user who observed but did not photograph the organism.
 
@@ -20,7 +20,7 @@ You are an expert field-guide biologist and taxonomist specializing in species i
 # Identification Rules
 1. **Nomenclature:** common_name must be maximally specific in Title Case.
 2. **Scientific Name:** Must be the currently accepted binomial from GBIF, ITIS, or Catalogue of Life. Return a genus-level name only when species determination is genuinely impossible from the description. Never fabricate names.
-3. **is_live_capture:** ALWAYS return false — this is a recalled verbal sighting, not a photographic capture.
+3. **is_live_capture:** ALWAYS return false — this is a recalled verbal describe, not a photographic capture.
 4. **image_quality:** ALWAYS return { sharpness: 0, framing: 0, diagnostic_utility: 0, overall_score: 0 } — there is no image to score. This field exists only for schema parity with the vision path.
 5. **extracted_visual_traits:** Extract the 3 most taxonomically significant descriptors directly from the observation description. These must be verbatim or closely paraphrased from what the user wrote, not inferred.
 6. **Confidence Calibration:** Text-based identifications are inherently less precise than photographic ones. Anchors:
@@ -61,7 +61,7 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
   is_biological_subject: { type: SchemaType.BOOLEAN },
   is_live_capture: {
     type: SchemaType.BOOLEAN,
-    description: "Always false for sighting descriptions.",
+    description: "Always false for describe descriptions.",
   },
   confidence_score: {
     type: SchemaType.NUMBER,
@@ -98,7 +98,7 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
       overall_score: { type: SchemaType.INTEGER },
     },
     required: ["sharpness", "framing", "diagnostic_utility", "overall_score"],
-    description: "Always return all zeros for sighting descriptions — no image to score.",
+    description: "Always return all zeros for describe descriptions — no image to score.",
   },
 });
 
@@ -114,7 +114,7 @@ const SHARED_REQUIRED = [
 
 let schemaCache: ResponseSchema | null = null;
 
-export const getSightingResponseSchema = (): ResponseSchema => {
+export const getDescribeResponseSchema = (): ResponseSchema => {
   if (schemaCache) return schemaCache;
 
   schemaCache = {

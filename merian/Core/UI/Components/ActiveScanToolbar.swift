@@ -29,7 +29,7 @@ struct ActiveScanToolbar: View {
                     onThumbnailTap: onThumbnailTap
                 )
 
-                // Description badge — shown when a sighting context has been staged
+                // Description badge — shown when a describe context has been staged
                 // alongside images, signalling a combined multi-modal submission.
                 if stagedCapture.observationContext != nil {
                     StagedDescriptionBadge()
@@ -222,7 +222,7 @@ private struct ActiveScanThumbnailGrid: View {
     }
 }
 
-/// Compact badge that appears in the toolbar when a sighting description has been
+/// Compact badge that appears in the toolbar when a describe description has been
 /// staged alongside images — signals a combined multi-modal submission to the user.
 private struct StagedDescriptionBadge: View {
     var body: some View {

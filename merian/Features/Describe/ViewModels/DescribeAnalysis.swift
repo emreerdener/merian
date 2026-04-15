@@ -3,14 +3,14 @@ import SwiftUI
 
 extension CameraViewModel {
 
-    // MARK: - Submit Sighting (entry point from SightingInputView)
+    // MARK: - Submit Describe (entry point from DescribeInputView)
 
     /// Routes the observation based on what else is staged.
     ///
     /// - **Images staged**: stages the description into `stagedCapture.observationContext`
     ///   and delegates to `submitStagedCapture` → combined image + description path.
-    /// - **No images staged**: solo description-only path via `submitSightingSolo`.
-    func submitSighting(observationContext: ObservationContext, modelContext: ModelContext) {
+    /// - **No images staged**: solo description-only path via `submitDescribeSolo`.
+    func submitDescribe(observationContext: ObservationContext, modelContext: ModelContext) {
         guard !observationContext.isEmpty else { return }
 
         let isMultiCaptureEnabled = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled")
@@ -28,14 +28,14 @@ extension CameraViewModel {
                 stagedCapture.observationContext = observationContext
                 submitStagedCapture(modelContext: modelContext)
             } else {
-                submitSightingSolo(observationContext: observationContext, modelContext: modelContext)
+                submitDescribeSolo(observationContext: observationContext, modelContext: modelContext)
             }
         }
     }
 
-    // MARK: - Solo Sighting Path (description only, no images)
+    // MARK: - Solo Describe Path (description only, no images)
 
-    /// Routes a solo sighting submission through the live `/identify-sighting` edge function
+    /// Routes a solo describe submission through the live `/identify-describe` edge function
     /// when online, or enqueues it as a `.staged` `OfflineQueuedScan` for background retry when
     /// offline — mirroring the resilience guarantee of the image capture path.
     ///
@@ -44,14 +44,14 @@ extension CameraViewModel {
     /// 2. Snapshot the `ObservationContext` (value type — no race risk).
     /// 3. Generate a stable `scanId`.
     /// 4. Resolve full telemetry from the environment context manager.
-    /// 5. Fire `InferenceEngine.analyzeSighting`.
+    /// 5. Fire `InferenceEngine.analyzeDescribe`.
     ///
     /// Call order (offline):
     /// 1. Reset `InferenceEngine` state (ensures a clean slate for the next online attempt).
-    /// 2. Enqueue via `OfflineQueueManager.enqueueSighting` with cached GPS telemetry.
+    /// 2. Enqueue via `OfflineQueueManager.enqueueDescribe` with cached GPS telemetry.
     ///    WeatherKit backfill is deferred to `dispatchInferenceDownloadTask` on retry.
     /// 3. Show "No network connection. Queued for upload." toast.
-    func submitSightingSolo(observationContext: ObservationContext, modelContext: ModelContext) {
+    func submitDescribeSolo(observationContext: ObservationContext, modelContext: ModelContext) {
         guard !observationContext.isEmpty else { return }
 
         // Reset inference state synchronously so a previous result is never shown in the sheet.
@@ -70,7 +70,7 @@ extension CameraViewModel {
         // WeatherKit backfill runs in dispatchInferenceDownloadTask when connectivity restores.
         guard isOnline else {
             let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
-            diContainer.offlineQueueManager.enqueueSighting(
+            diContainer.offlineQueueManager.enqueueDescribe(
                 observationContext: capturedContext,
                 telemetry: CaptureTelemetry(
                     subjectDistanceInMeters: nil,
@@ -119,7 +119,7 @@ extension CameraViewModel {
 
             await MainActor.run {
                 guard self.pendingAnalyzeScanId == scanId else { return }
-                self.diContainer.inferenceEngine.analyzeSighting(
+                self.diContainer.inferenceEngine.analyzeDescribe(
                     scanId: scanId,
                     observationContext: capturedContext,
                     telemetry: telemetry,

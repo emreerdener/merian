@@ -1,6 +1,6 @@
 // Re-export the shared response types from the identify function.
-// identify-sighting returns the exact same ClientPayload so the iOS client
-// needs zero changes to parse sighting results.
+// identify-describe returns the exact same ClientPayload so the iOS client
+// needs zero changes to parse describe results.
 export type {
   MerianIdentification,
   IdentificationCandidate,
@@ -11,10 +11,10 @@ export type {
 } from "../identify/types.ts";
 
 // ---------------------------------------------------------------------------
-// Sighting-specific request shape
+// Describe-specific request shape
 // ---------------------------------------------------------------------------
 
-export interface SightingRequest {
+export interface DescribeRequest {
   user_id: string;
   /** Serialized ObservationContext from the iOS client — key: value lines. */
   description: string;

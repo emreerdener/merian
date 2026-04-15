@@ -26,7 +26,7 @@ final class CameraViewModel {
     var imageToCrop: IdentifiableImage?
     var editingCropIndex: Int?
     /// All content staged for the next combined submission — images, optional audio (reserved),
-    /// and optional sighting description. Replaces the previous four parallel image arrays.
+    /// and optional describe description. Replaces the previous four parallel image arrays.
     var stagedCapture = StagedCapture()
     var selectedPhotoItems: [PhotosPickerItem] = []
     var isTooltipVisible: Bool = false

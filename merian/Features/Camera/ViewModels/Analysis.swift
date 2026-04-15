@@ -13,7 +13,7 @@ extension CameraViewModel {
     /// - Images only → `identify` endpoint (existing image path)
     /// - Images + description → `identify` endpoint with description injected as
     ///   additional Gemini context (combined path)
-    /// - Description only → falls back to `analyzeSighting` (no images to upload)
+    /// - Description only → falls back to `analyzeDescribe` (no images to upload)
     ///
     /// Call order:
     /// 1. Reset `InferenceEngine` display state and open the insight sheet immediately.
@@ -29,7 +29,7 @@ extension CameraViewModel {
         guard !stagedCapture.images.isEmpty else {
             // No images — description-only path
             if let context = stagedCapture.observationContext, !context.isEmpty {
-                submitSightingSolo(observationContext: context, modelContext: modelContext)
+                submitDescribeSolo(observationContext: context, modelContext: modelContext)
             }
             return
         }

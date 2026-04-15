@@ -102,17 +102,17 @@ struct CameraRootView: View {
                                     .frame(width: proxy.size.width, height: proxy.size.height)
                                     .id(CaptureMode.audio)
 
-                                // MARK: Page 3 — Sighting Input
-                                SightingInputView(
+                                // MARK: Page 3 — Describe Input
+                                DescribeInputView(
                                     hasStaged: !viewModel.stagedCapture.images.isEmpty
                                 ) { observationContext in
-                                    viewModel.submitSighting(
+                                    viewModel.submitDescribe(
                                         observationContext: observationContext,
                                         modelContext: modelContext
                                     )
                                 }
                                 .frame(width: proxy.size.width, height: proxy.size.height)
-                                .id(CaptureMode.sighting)
+                                .id(CaptureMode.describe)
                             }
                             .scrollTargetLayout()
                         }
@@ -203,7 +203,7 @@ struct CameraRootView: View {
                             Spacer()
 
                             CaptureButton(captureMode: captureMode, onCapture: { viewModel.executeCapture() })
-                                .opacity(captureMode == .sighting ? 0 : 1)
+                                .opacity(captureMode == .describe ? 0 : 1)
                                 .animation(.easeInOut(duration: 0.2), value: captureMode)
 
                             Spacer()
@@ -290,7 +290,7 @@ struct CameraRootView: View {
         }
         .onChange(of: captureMode) { _, newMode in
             HapticManager.shared.triggerSheetSpring()
-            if newMode == .audio || newMode == .sighting {
+            if newMode == .audio || newMode == .describe {
                 cameraManager.stopSession()
             } else if scenePhase == .active && viewModel.activeSheet == nil {
                 // Only start the camera if the app is fully active and not occluded by a sheet.

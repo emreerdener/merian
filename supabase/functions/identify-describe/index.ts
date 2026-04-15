@@ -9,14 +9,14 @@ import { sanitizeScientificName } from "../identify/sanitize.ts";
 
 import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "../identify/types.ts";
 import { FLASH_DIAGNOSTIC_TRIGGER, PRO_DIAGNOSTIC_TRIGGER, diagnosticTriggerForTier } from "../identify/thresholds.ts";
-import { getSightingSystemInstruction, getSightingResponseSchema } from "./schema.ts";
+import { getDescribeSystemInstruction, getDescribeResponseSchema } from "./schema.ts";
 import {
   upsertGhostUserIfMissing,
   fetchCachedSpecies,
   upsertSpeciesDictionary,
   fetchCandidateCommonNames,
   updateGroupTags,
-  insertSightingScan,
+  insertDescribeScan,
 } from "./db.ts";
 
 // Enum guards — keep in sync with life_stage_enum and reproductive_condition_enum in DB.
@@ -30,13 +30,13 @@ const VALID_REPRODUCTIVE_CONDITIONS = new Set([
 ]);
 
 // Text-only model configs — no image parts, so thinking budgets are smaller.
-// Flash text calls for sightings are less ambiguous than vision (the user already
+// Flash text calls for describes are less ambiguous than vision (the user already
 // filtered by organism class) so 1,024 tokens is sufficient headroom.
 const modelConfigs = {
   flash: {
     model: "gemini-2.5-flash" as const,
     config: {
-      systemInstruction: getSightingSystemInstruction(),
+      systemInstruction: getDescribeSystemInstruction(),
       temperature: 0.15,
       seed: 42,
       topK: 40,
@@ -47,7 +47,7 @@ const modelConfigs = {
   pro: {
     model: "gemini-2.5-pro" as const,
     config: {
-      systemInstruction: getSightingSystemInstruction(),
+      systemInstruction: getDescribeSystemInstruction(),
       temperature: 0.15,
       seed: 42,
       topK: 40,
@@ -172,7 +172,7 @@ serve((req: Request) =>
         config: {
           ...modelCfg.config,
           responseMimeType: "application/json",
-          responseSchema: getSightingResponseSchema(),
+          responseSchema: getDescribeResponseSchema(),
         },
       });
 
@@ -201,7 +201,7 @@ serve((req: Request) =>
       console.log(`[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${Date.now() - geminiStart}ms inference`);
     } catch (genError) {
       const errMsg = genError instanceof Error ? genError.message : String(genError);
-      logStructuredError("identify-sighting/gemini_failed", {
+      logStructuredError("identify-describe/gemini_failed", {
         user_id: user.id,
         model: targetModel,
         elapsed_ms: Date.now() - geminiStart,
@@ -213,7 +213,7 @@ serve((req: Request) =>
     if (finishReason && finishReason !== "STOP" && finishReason !== "FINISH_REASON_UNSPECIFIED") {
       const isPermanentContentFailure =
         finishReason === "SAFETY" || finishReason === "PROHIBITED_CONTENT";
-      logStructuredError("identify-sighting/non_stop_finish", {
+      logStructuredError("identify-describe/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
         permanent: isPermanentContentFailure,
@@ -228,7 +228,7 @@ serve((req: Request) =>
     try {
       parsedData = extractJson<MerianIdentification>(responseText);
     } catch (parseError) {
-      logStructuredError("identify-sighting/parse_failed", {
+      logStructuredError("identify-describe/parse_failed", {
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
         response_length: responseText.length,
@@ -269,7 +269,7 @@ serve((req: Request) =>
       parsedData.reproductive_condition = "not_applicable";
     }
 
-    // Sightings always have zero blur (no image).
+    // Describes always have zero blur (no image).
     parsedData.blur_score = 0;
 
     const generatedScanId: string =
@@ -421,7 +421,7 @@ serve((req: Request) =>
           speciesId = upsertedId || freshSpecies?.id || null;
         }
 
-        await insertSightingScan(
+        await insertDescribeScan(
           {
             id: generatedScanId,
             user_id: user.id,
@@ -493,7 +493,7 @@ serve((req: Request) =>
           );
         }
       } catch (bgError) {
-        logStructuredError("identify-sighting/background_ingestion_failed", {
+        logStructuredError("identify-describe/background_ingestion_failed", {
           user_id: user.id,
           error: bgError instanceof Error ? bgError.message : String(bgError),
         });

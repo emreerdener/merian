@@ -367,10 +367,10 @@ extension OfflineQueueManager {
         // via uploadRetryCount — the same contract as network-level failures.
         let request: URLRequest
         do {
-            // Sighting-only scans have no image paths — route to /identify-sighting.
+            // Describe-only scans have no image paths — route to /identify-describe.
             // Image scans (with or without an attached description) always use /identify.
             if extracted.localImagePaths.isEmpty, let ctxJSON = extracted.observationContextJSON {
-                request = try await MerianNetworkClient.shared.buildSightingRequest(
+                request = try await MerianNetworkClient.shared.buildDescribeRequest(
                     description: extracted.description ?? "",
                     observationContextJSON: ctxJSON,
                     telemetry: finalTelemetry,

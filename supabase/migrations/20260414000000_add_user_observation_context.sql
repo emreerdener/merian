@@ -2,7 +2,7 @@
 --
 -- Stores the structured ObservationContext staged by the user before submission.
 -- NULL for image-only scans. Present for combined image+description scans and
--- description-only sighting scans.
+-- description-only describe scans.
 --
 -- JSONB is chosen over separate columns because ObservationContext has 7 array/enum
 -- fields. A single nullable JSONB column is the simplest schema that keeps the

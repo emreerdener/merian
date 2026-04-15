@@ -269,7 +269,7 @@ extension OfflineQueueManager {
                 // Migration fallback: pre-V33 image scans have no stagedR2Keys.
                 // Reconstruct from the current auth session — safe because the userId
                 // embedded in the R2 key matches the session that performed the upload.
-                // Sighting-only scans intentionally have both r2Keys and localImagePaths
+                // Describe-only scans intentionally have both r2Keys and localImagePaths
                 // empty — guard on !localImagePaths.isEmpty to skip this path for them.
                 let finalExtracted: ExtractedScanData
                 if extracted.r2Keys.isEmpty && !extracted.localImagePaths.isEmpty {
@@ -357,20 +357,20 @@ extension OfflineQueueManager {
         }
     }
 
-    // MARK: - Sighting Enqueue
+    // MARK: - Describe Enqueue
 
-    /// Enqueues a description-only sighting scan for offline retry.
+    /// Enqueues a description-only describe scan for offline retry.
     ///
-    /// Sightings carry no image files, so they enter the queue at `.staged` directly,
+    /// Describes carry no image files, so they enter the queue at `.staged` directly,
     /// bypassing the R2 upload phase entirely.  `replayInferenceStagedScans` picks them
-    /// up and dispatches a `/identify-sighting` background download task when connectivity
+    /// up and dispatches a `/identify-describe` background download task when connectivity
     /// restores — routed by `dispatchInferenceDownloadTask` which detects the empty
     /// `localImagePaths` and non-nil `observationContextJSON`.
     ///
     /// Quota is consumed at enqueue time, mirroring `enqueueCapture`, so the scan slot
     /// is allocated before any async boundary is crossed.
     @MainActor
-    func enqueueSighting(
+    func enqueueDescribe(
         observationContext: ObservationContext,
         telemetry: CaptureTelemetry,
         scanId: String? = nil
@@ -378,13 +378,13 @@ extension OfflineQueueManager {
         guard !observationContext.isEmpty else { return }
         guard let contextData = try? JSONEncoder().encode(observationContext),
               let contextJSON = String(data: contextData, encoding: .utf8) else {
-            MerianLog.data.error("enqueueSighting: failed to encode ObservationContext — sighting not queued")
+            MerianLog.data.error("enqueueDescribe: failed to encode ObservationContext — describe not queued")
             return
         }
 
         if !RevenueCatManager.shared.isProActive {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {
-                MerianLog.data.debug("enqueueSighting: free user scan quota exhausted — sighting not queued")
+                MerianLog.data.debug("enqueueDescribe: free user scan quota exhausted — describe not queued")
                 return
             }
             UsageManager.shared.consumeScan()
@@ -415,7 +415,7 @@ extension OfflineQueueManager {
         )
 
         guard let modelContext else {
-            MerianLog.data.error("enqueueSighting: modelContext unavailable — sighting not queued")
+            MerianLog.data.error("enqueueDescribe: modelContext unavailable — describe not queued")
             return
         }
         modelContext.insert(scan)
@@ -424,7 +424,7 @@ extension OfflineQueueManager {
             updateUnsyncedItemCount()
             AppTelemetry.trackOfflineQueued()
         } catch {
-            MerianLog.data.error("enqueueSighting: context.save() failed: \(error, privacy: .private)")
+            MerianLog.data.error("enqueueDescribe: context.save() failed: \(error, privacy: .private)")
         }
     }
 
