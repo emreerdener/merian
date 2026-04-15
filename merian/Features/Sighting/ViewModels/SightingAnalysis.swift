@@ -13,12 +13,23 @@ extension CameraViewModel {
     func submitSighting(observationContext: ObservationContext, modelContext: ModelContext) {
         guard !observationContext.isEmpty else { return }
 
-        if !stagedCapture.images.isEmpty {
-            // Combined path — attach the description to the pending image capture and submit.
+        let isMultiCaptureEnabled = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled")
+
+        if isMultiCaptureEnabled {
             stagedCapture.observationContext = observationContext
-            submitStagedCapture(modelContext: modelContext)
+            let limit = 2 // Current capacity limit for multi-capture items
+            let totalItems = stagedCapture.images.count + 1
+            
+            if !UserDefaults.standard.bool(forKey: "requiresScanConfirmation") && totalItems >= limit {
+                submitStagedCapture(modelContext: modelContext)
+            }
         } else {
-            submitSightingSolo(observationContext: observationContext, modelContext: modelContext)
+            if !stagedCapture.images.isEmpty {
+                stagedCapture.observationContext = observationContext
+                submitStagedCapture(modelContext: modelContext)
+            } else {
+                submitSightingSolo(observationContext: observationContext, modelContext: modelContext)
+            }
         }
     }
 

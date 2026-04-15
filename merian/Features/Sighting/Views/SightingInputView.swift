@@ -23,15 +23,14 @@ struct SightingInputView: View {
 
     private let maxFreeTextLength = 150
 
+    private var topSafeArea: CGFloat {
+        let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+        return windowScene?.windows.first?.safeAreaInsets.top ?? 59
+    }
+
     // MARK: - Body
 
     var body: some View {
-        // GeometryReader with .ignoresSafeArea() expands to the true screen edges so
-        // geo.safeAreaInsets.top always returns the real device inset (Dynamic Island,
-        // notch, or plain status bar) regardless of what ancestor views have consumed.
-        // The horizontal pager zeroes out safe area propagation for its child pages,
-        // so this view must measure the inset independently.
-        GeometryReader { geo in
         ZStack(alignment: .bottom) {
             Color.black.ignoresSafeArea()
 
@@ -39,7 +38,7 @@ struct SightingInputView: View {
                 VStack(alignment: .leading, spacing: 0) {
 
                     // Top spacer: device safe area + MediaModeToggle (16pt padding + ~44pt height) + 20pt gap.
-                    Spacer().frame(height: geo.safeAreaInsets.top + 80)
+                    Spacer().frame(height: topSafeArea + 100)
 
                     // MARK: Header
                     VStack(alignment: .leading, spacing: 6) {
@@ -120,51 +119,39 @@ struct SightingInputView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 28)
 
-                    // Bottom spacer: clears the fixed identify button + bottom safe area
-                    Spacer().frame(height: 120)
+                    // MARK: Identify Button (Scrollable)
+                    Button(action: {
+                        guard context.organismClass != nil else { return }
+                        isTextFieldFocused = false
+                        onSubmit(context)
+                        // Observation context is securely retained locally instead of rapidly wiped
+                        // so users can jump back and edit their description seamlessly.
+                    }) {
+                        HStack(spacing: 8) {
+                            Text(hasStaged ? "Add to scan & identify" : "Identify sighting")
+                                .fontWeight(.semibold)
+                        }
+                        .font(.body)
+                        .foregroundStyle(context.organismClass == nil ? .white.opacity(0.35) : .black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            Capsule()
+                                .fill(context.organismClass == nil ? Color.white.opacity(0.12) : Color.white)
+                        )
+                        .padding(.horizontal, 20)
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: context.organismClass == nil)
+                    .animation(.easeInOut(duration: 0.2), value: hasStaged)
+                    .padding(.top, 10)
+
+                    // Bottom spacer: clears the global tab bar / scan toolbar
+                    Spacer().frame(height: 160)
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-
-            // MARK: Fixed Bottom — Identify Button
-            VStack(spacing: 0) {
-                LinearGradient(
-                    colors: [.black.opacity(0), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 40)
-                .allowsHitTesting(false)
-
-                Button(action: {
-                    isTextFieldFocused = false
-                    onSubmit(context)
-                    context = ObservationContext()
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: hasStaged ? "plus.circle.fill" : "eye.fill")
-                        Text(hasStaged ? "Add to Scan & Identify" : "Identify Sighting")
-                            .fontWeight(.semibold)
-                    }
-                    .font(.body)
-                    .foregroundStyle(context.organismClass == nil ? .white.opacity(0.35) : .black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        Capsule()
-                            .fill(context.organismClass == nil ? Color.white.opacity(0.12) : Color.white)
-                    )
-                    .padding(.horizontal, 20)
-                }
-                .disabled(context.organismClass == nil)
-                .animation(.easeInOut(duration: 0.2), value: context.organismClass == nil)
-                .animation(.easeInOut(duration: 0.2), value: hasStaged)
-                .padding(.bottom, 24)
-                .background(Color.black)
-            }
         }
         .environment(\.colorScheme, .dark)
-        } // GeometryReader
         .ignoresSafeArea()
     }
 }

@@ -215,6 +215,7 @@ struct CameraRootView: View {
                             .opacity(captureMode == .visual ? 1 : 0)
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
                         }
+                        .allowsHitTesting(captureMode == .visual)
                         .disabled(viewModel.isStagingRefinement)
                         .padding(.bottom, 140)
                     }
@@ -226,7 +227,7 @@ struct CameraRootView: View {
                 VStack {
                     Spacer()
 
-                    if viewModel.stagedCapture.images.isEmpty {
+                    if viewModel.stagedCapture.isEmpty {
                         MainTabBar(
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),
                             isUserProfileOpen: $viewModel.activeSheet.mapped(to: .profile)
@@ -248,7 +249,7 @@ struct CameraRootView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.isEmpty)
 
         } // ZStack
         .background(Color.black.ignoresSafeArea())
@@ -282,7 +283,8 @@ struct CameraRootView: View {
 
             // Otherwise, auto-submit when the user hits their configured capacity limit
             let limit = (UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") || viewModel.baseRefinementRecord != nil) ? 2 : 1
-            guard count == limit else { return }
+            let totalItems = count + (viewModel.stagedCapture.observationContext != nil ? 1 : 0)
+            guard totalItems >= limit else { return }
 
             viewModel.submitStagedCapture(modelContext: modelContext)
         }
