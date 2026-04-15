@@ -209,12 +209,12 @@ struct CameraRootView: View {
                                 maxSelectionCount: isMultiCaptureEnabled ? max(1, stagedImageCapacity - viewModel.stagedCapture.images.count) : 1
                             )
                             .opacity(captureMode == .visual ? 1 : 0)
+                            .allowsHitTesting(captureMode == .visual)
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
 
                             Spacer()
 
                             CaptureButton(captureMode: captureMode, onCapture: { viewModel.executeCapture() })
-                                .opacity(captureMode == .describe ? 0 : 1)
                                 .animation(.easeInOut(duration: 0.2), value: captureMode)
 
                             Spacer()
@@ -224,9 +224,9 @@ struct CameraRootView: View {
                                 onToggleFlash: { cameraManager.toggleFlash() }
                             )
                             .opacity(captureMode == .visual ? 1 : 0)
+                            .allowsHitTesting(captureMode == .visual)
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
                         }
-                        .allowsHitTesting(captureMode == .visual)
                         .disabled(viewModel.isStagingRefinement)
                         .padding(.bottom, 140)
                     }
@@ -408,17 +408,34 @@ private struct CaptureButton: View {
                 .stroke(captureMode == .visual ? Color.white : Color.primary, lineWidth: 1)
                 .frame(width: 80, height: 80)
 
-            Circle()
-                .fill(captureMode == .audio ? Color.red : Color.white)
-                .frame(width: 72, height: 72)
-                .animation(.easeInOut(duration: 0.25), value: captureMode)
+            ZStack {
+                Circle()
+                    .fill(captureMode == .audio ? Color.red : (captureMode == .describe ? Color.primary : Color.white))
+                    .frame(width: 72, height: 72)
+                    .animation(.easeInOut(duration: 0.25), value: captureMode)
+
+                if captureMode == .describe {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 32, weight: .medium))
+                        .foregroundStyle(Color(UIColor.systemBackground))
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
         }
         .accessibilityIdentifier("CaptureShutter")
         .accessibilityAddTraits(.isButton)
         .onTapGesture {
-            guard captureMode == .visual else { return }
-            HapticManager.shared.triggerFocusSnap()
-            onCapture()
+            switch captureMode {
+            case .visual:
+                HapticManager.shared.triggerFocusSnap()
+                onCapture()
+            case .audio:
+                // TODO: Wire audio recording trigger
+                HapticManager.shared.triggerFocusSnap()
+            case .describe:
+                // TODO: Wire describe transcription trigger
+                HapticManager.shared.triggerFocusSnap()
+            }
         }
     }
 }
