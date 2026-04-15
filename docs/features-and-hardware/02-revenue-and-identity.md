@@ -32,7 +32,6 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 - Initializes via `.configure(withAPIKey:)`, pulling the active iOS `ProcessInfo` values mapped to `.xcconfig` secure layers.
 - Uses `logIn(currentAppUserID)` to bind the IDFV tracking string.
 - Evaluates `isProActive` via `.customerInfo()`, checking for active entitlements across `pro` and `7_day_pass` identifiers and updating SwiftUI state. The `PlanCard` observes this property in the Profile header, redrawing the subscription tier card to reflect the current state (e.g., Naturalist UNLIMITED SCANS vs Explorer 2 SCANS DAILY) and surfacing the `PaywallView` sheet.
-- **Species Insights**: `HabitatAndDistributionCard` is embedded in `BiologicalView`. Enrichment loads automatically 2–3 seconds after each biological scan via `InferenceEngine.fetchAndApplyEnrichment` — no user action required. A shimmer loading skeleton is displayed while `isEnrichmentLoading` is `true`. If data fails to load, a "Retry" button re-triggers `fetchAndApplyEnrichment`.
 
 ## RevenueCat Webhook (`revenuecat-webhook`)
 

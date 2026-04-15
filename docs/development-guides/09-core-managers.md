@@ -206,11 +206,53 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **`baseQuery(for:)` helper**: A private `baseQuery(for key: String) -> [String: Any]` method builds the base `[kSecClass: kSecClassGenericPassword, kSecAttrAccount: key]` dictionary. This was previously duplicated verbatim in all three methods (`set`, `bool`, `removeObject`).
 - **`migrateFromUserDefaults()`**: The `init` migration logic was extracted into a named method for clarity.
 
+## Events & Circuit Breaking
+
+### `AppEventPublisher`
+- Lives at `Core/Utilities/AppEventPublisher.swift`. `@MainActor final class` with a `PassthroughSubject<AppEvent, Never>` publisher and a `static let shared` singleton.
+- Replaces `NotificationCenter` broadcasts with strongly-typed `AppEvent` cases:
+  - `.triggerPaywall` — dispatched when the scan quota is exhausted; `CameraRootView` listens and presents `PaywallView`.
+  - `.appDidEnterActivePhaseWithScan(scanId:)` — dispatched from a push notification tap to deep-link to a specific scan's insight sheet.
+  - `.appDidEnterBackgroundPhase` — dispatched when the app enters the background phase; insight sheet dismissal and inference teardown listen here. Fires on background (not inactive) so system overlays (e.g. the photo library access prompt) do not inadvertently close the sheet.
+  - `.requestIdentifyNatureIntent` — dispatched by Siri/OS App Intents to jump to the camera viewfinder.
+  - `.requestRecallLastFindIntent` — dispatched by Siri/OS App Intents to open the last scan's insight sheet.
+  - `.triggerRefinement(record:)` — dispatched from `BiologicalView` when the user requests re-inference on an existing scan with supplementary images; `CameraRootView` listens via `AppEventPublisher.shared.publisher.sink`.
+- Registered in `AppDIContainer` as `var appEventPublisher = AppEventPublisher()`. **Not environment-injected** — call sites access it via `AppDIContainer.shared.appEventPublisher` or `AppEventPublisher.shared` directly.
+
+### `CircuitBreakerManager`
+- Lives at `Core/Security/CircuitBreakerManager.swift`. `@MainActor @Observable final class` with a `static let shared` singleton registered in `AppDIContainer`.
+- Exposes `isCircuitTripped: Bool` — when `true`, outbound inference requests should be skipped to avoid hammering a failing edge endpoint.
+- **Trip logic**: `recordFailure()` increments a consecutive-failure counter. After 3 consecutive failures (`failureThreshold`), `tripCircuit()` sets `isCircuitTripped = true` and starts a 15-minute cooldown `Timer`. On cooldown expiry, `resetCircuit()` clears the trip and the counter.
+- **Reset logic**: `recordSuccess()` zeroes the counter and resets the circuit if it was tripped, allowing the next request to proceed normally.
+- **Usage**: Callers in `InferenceEngine` and `OfflineQueueManager` should call `recordFailure()` on unrecoverable network errors and `recordSuccess()` on a successful inference response. Gate new inference attempts behind `!circuitBreakerManager.isCircuitTripped`.
+
 ## Telemetry & Billing
 
 ### `RevenueCatManager`
 - Manages `isProActive` state.
 - Handles `.purchaserInfo()` callbacks and connects to the `revenuecat-webhook` Edge function.
+
+### `UsageManager`
+- Lives at `Core/Analytics/UsageManager.swift`. Enforces the daily free-tier scan quota.
+- `canPerformScan(isProActive:) -> Bool` — returns `isProActive || freeScansRemaining > 0`. Checked at two pre-scan gates only: `Capture.swift` (camera shutter) and `handlePhotoPickerSelection` (photo library picker). Network failures in `InferenceEngine` never trigger the paywall — they surface an error state and refund the token.
+- `consumeScan()` — called once at enqueue time inside `OfflineQueueManager.insertAndPersistRecord`, before the `OfflineQueuedScan` record is inserted. Every scan that enters the queue is already paid for; `syncPendingScans` has no quota checks.
+- `refundScan()` — restores the consumed token if inference fails unrecoverably (task cancellation, JSON decoding failure, network error).
+- Grants 2 free daily scans via `UserDefaults` keyed against `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day boundaries via `evaluateDailyRefresh()`, called from `AppDIContainer.handleActivePhase()` on foreground transitions.
+- Full contract documented in [02-revenue-and-identity.md](../features-and-hardware/02-revenue-and-identity.md#usage-limits-usagemanager).
+
+### `SocialGuardManager`
+- Lives at `Core/Security/SocialGuardManager.swift`. Manages a persistent local `Set<String>` of blocked user UUIDs (`blockedUserIds`).
+- Updates UI blocking state across Discovery feeds optimistically (immediately on the local set), then asynchronously flushes the UUID to the `/block-user` Edge node via `MerianNetworkClient`.
+- Automatically reverts the block if the Edge API returns an error, restoring the previous set state.
+- Full contract documented in [02-revenue-and-identity.md](../features-and-hardware/02-revenue-and-identity.md#trust--safety-socialguardmanager).
+
+### `GamificationManager`
+- Lives at `Core/Analytics/GamificationManager.swift`. `@MainActor @Observable` singleton that persists lightweight gamification state in `UserDefaults`.
+- `unlockedSpeciesCount` — incremented each time `recordNewSpeciesDiscovered()` is called (by `InferenceEngine` when `isNewDiscovery == true`).
+- `hasFireflyBadge` — unlocked when `unlockedSpeciesCount >= 5`; drives the Terrarium Rive model firefly animation.
+- `unlockedAchievements: Set<String>` — type keys of all completed awards, persisted across sessions.
+- `evaluateAchievementsForNotifications(awards:)` — called after `ProfileDatabaseActor.calculateAwards()` completes after every inference. Checks for newly completed awards and queues local push notifications via `PushNotificationManager`.
+- Full architecture documented in [06-profile-and-gamification.md](../features-and-hardware/06-profile-and-gamification.md).
 
 ### `PostHogManager`
 - Not `@MainActor` — `PostHogSDK` is thread-safe, so `configure()` genuinely runs on the background thread pool when dispatched via `Task.detached` in `MerianApp.init()`.

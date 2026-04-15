@@ -1,6 +1,6 @@
 # Merian System Architecture Overview
 
-Merian is a biological field identification app for iOS. Point the camera at any plant, insect, fungus, or animal — Merian identifies it using Gemini AI, records GPS telemetry and weather context, and builds a personal species journal that works fully offline.
+Merian is a biological field identification app for iOS. Point the camera at any plant, insect, fungus, or animal — or describe a subject by voice in the Describe mode — and Merian identifies it using Gemini AI, records GPS telemetry and weather context, and builds a personal species journal that works fully offline.
 
 Merian is built around a "Zero-OOM" (Out Of Memory) design philosophy targeting stable, native performance on iOS hardware. Expensive machine learning work is offloaded to Supabase Serverless Edge infrastructure to protect device battery and memory.
 
@@ -11,7 +11,7 @@ When the user captures an image, the architecture triggers a coordinated sequenc
 1. **Hardware Abstraction**: `HardwareOrchestrator` governs `CameraManager`, locking white balance and reading the exact location coordinates (`CLLocationCoordinate2D`, elevation, and LiDAR `subjectDistanceInMeters`).
 2. **Network Abstraction**: If `NWPathMonitor` reports an active connection, `OfflineQueueManager` asks the Supabase Edge (`generate-upload-urls`) for a temporary Cloudflare R2 upload URL and `PUT`s the file in the background.
 3. **Biological Inference (`InferenceEngine.swift`)**: Fires the R2 key and `CaptureTelemetry` to the Supabase `/identify` Edge Node, keeping the `GEMINI_API_KEY` off the client.
-4. **Offline Resilience (Pro Feature)**: If a Pro user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is marked `isOfflineQueued = true`. Apple's background `URLSession` triggers upload when connectivity returns. Free users receive an `APIError.proRequiredForOfflineTracking` error that surfaces a paywall.
+4. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing is gated by the daily scan quota (`UsageManager.canPerformScan`) — free users who have exhausted their 2-scan-per-day limit hit the paywall at capture time rather than at sync time. Every scan that enters the queue is already paid for and uploads unconditionally.
 
 ## Core Decoupling (AppDIContainer)
 
