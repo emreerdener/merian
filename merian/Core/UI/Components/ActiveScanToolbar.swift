@@ -6,6 +6,7 @@ struct ActiveScanToolbar: View {
     let stagedCapture: StagedCapture
     let isRefining: Bool
     @Binding var selectedPhotoItems: [PhotosPickerItem]
+    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
 
     @State private var showTooltip: Bool = !ActiveScanToolbar.hasShownTooltipThisSession
     private static var hasShownTooltipThisSession: Bool = false
@@ -15,6 +16,7 @@ struct ActiveScanToolbar: View {
     let onThumbnailTap: (Int) -> Void
     let onCancel: () -> Void
     let onSubmit: () -> Void
+    let onDescriptionTap: () -> Void
 
     // MARK: - Body Layout
     var body: some View {
@@ -22,17 +24,40 @@ struct ActiveScanToolbar: View {
             cancelButton
 
             HStack(spacing: 16) {
-                ActiveScanThumbnailGrid(
-                    images: stagedCapture.images.map(\.uiImage),
-                    isRefining: isRefining,
-                    selectedPhotoItems: $selectedPhotoItems,
-                    onThumbnailTap: onThumbnailTap
-                )
-
-                // Description badge — shown when a describe context has been staged
-                // alongside images, signalling a combined multi-modal submission.
-                if stagedCapture.observationContext != nil {
-                    StagedDescriptionBadge()
+                ForEach(orderedNodes) { node in
+                    switch node {
+                    case .image(let uiImage, let index, _):
+                        Button(action: { onThumbnailTap(index) }, label: {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 48, height: 48)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
+                        })
+                        .buttonStyle(PlainButtonStyle())
+                        
+                    case .description:
+                        Button(action: onDescriptionTap) {
+                            StagedDescriptionBadge()
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                
+                let currentLimit = (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1
+                if orderedNodes.count < currentLimit {
+                    PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: max(1, currentLimit - orderedNodes.count), matching: .images, photoLibrary: .shared()) {
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                            .frame(width: 48, height: 48)
+                            .overlay(
+                                Image(systemName: "plus")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.5))
+                            )
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
 
                 submitButton
@@ -182,43 +207,36 @@ extension ActiveScanToolbar {
 }
 
 // MARK: - Extracted Private Subviews
-private struct ActiveScanThumbnailGrid: View {
-    let images: [UIImage]
-    let isRefining: Bool
-    @Binding var selectedPhotoItems: [PhotosPickerItem]
-    let onThumbnailTap: (Int) -> Void
 
-    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
+private enum StagedNode: Identifiable {
+    case image(uiImage: UIImage, index: Int, addedAt: Date)
+    case description(addedAt: Date)
 
-    var body: some View {
-        HStack(spacing: 16) {
-            ForEach(0..<images.count, id: \.self) { index in
-                Button(action: { onThumbnailTap(index) }, label: {
-                    Image(uiImage: images[index])
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 48, height: 48)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
-                })
-                .buttonStyle(PlainButtonStyle())
-            }
-            
-            let currentLimit = (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1
-            if images.count < currentLimit {
-                PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: max(1, currentLimit - images.count), matching: .images, photoLibrary: .shared()) {
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                        .frame(width: 48, height: 48)
-                        .overlay(
-                            Image(systemName: "plus")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white.opacity(0.5))
-                        )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
+    var id: String {
+        switch self {
+        case .image(_, let index, _): return "img_\(index)"
+        case .description: return "desc"
         }
+    }
+    
+    var addedAt: Date {
+        switch self {
+        case .image(_, _, let d): return d
+        case .description(let d): return d
+        }
+    }
+}
+
+extension ActiveScanToolbar {
+    private var orderedNodes: [StagedNode] {
+        var nodes: [StagedNode] = []
+        for (index, img) in stagedCapture.images.enumerated() {
+            nodes.append(.image(uiImage: img.uiImage, index: index, addedAt: img.addedAt))
+        }
+        if let obs = stagedCapture.observationContext, let date = obs.addedAt {
+            nodes.append(.description(addedAt: date))
+        }
+        return nodes.sorted { $0.addedAt < $1.addedAt }
     }
 }
 
@@ -226,21 +244,15 @@ private struct ActiveScanThumbnailGrid: View {
 /// staged alongside images — signals a combined multi-modal submission to the user.
 private struct StagedDescriptionBadge: View {
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "text.alignleft")
-                .font(.system(size: 13, weight: .medium))
-            Text("Description")
-                .font(.caption)
-                .fontWeight(.medium)
-        }
-        .foregroundStyle(.white.opacity(0.85))
-        .padding(.horizontal, 10)
-        .frame(height: 48)
-        .background(
-            Capsule()
-                .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
-        )
-        .transition(.scale(scale: 0.8).combined(with: .opacity))
+        Image(systemName: "text.alignleft")
+            .font(.system(size: 18, weight: .medium))
+            .foregroundStyle(.white.opacity(0.85))
+            .frame(width: 48, height: 48)
+            .background(
+                Circle()
+                    .fill(Color.white.opacity(0.25))
+            )
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 }
 

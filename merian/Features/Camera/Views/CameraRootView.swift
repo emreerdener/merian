@@ -31,6 +31,9 @@ struct CameraRootView: View {
     @State private var isVerticalZooming: Bool = false
     @State private var isToggleDragging: Bool = false
 
+    // MARK: - Staged Description Sheet
+    @State private var isStagedDescriptionSheetPresented: Bool = false
+
     /// Dedicated scroll-position state for the pager. Decoupled from captureMode so that
     /// scrollPosition(id:) never writes captureMode directly — eliminating the "onChange(of:
     /// CaptureMode) tried to update multiple times per frame" warning that occurs when the
@@ -292,7 +295,8 @@ struct CameraRootView: View {
                                 viewModel.stagedCapture.clearAll()
                                 viewModel.cancelRefinementStaging()
                             },
-                            onSubmit: { viewModel.submitStagedCapture(modelContext: modelContext) }
+                            onSubmit: { viewModel.submitStagedCapture(modelContext: modelContext) },
+                            onDescriptionTap: { isStagedDescriptionSheetPresented = true }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -301,6 +305,24 @@ struct CameraRootView: View {
 
         } // ZStack
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
+        .sheet(isPresented: $isStagedDescriptionSheetPresented) {
+            StagedDescriptionSheet(
+                initialText: viewModel.stagedCapture.observationContext?.freeText ?? "",
+                onSave: { newText in
+                    let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed.isEmpty {
+                        viewModel.stagedCapture.observationContext = nil
+                    } else {
+                        var updatedContext = viewModel.stagedCapture.observationContext ?? ObservationContext()
+                        updatedContext.freeText = trimmed
+                        viewModel.stagedCapture.observationContext = updatedContext
+                    }
+                },
+                onRemove: {
+                    viewModel.stagedCapture.observationContext = nil
+                }
+            )
+        }
 
         // MARK: - View Modifiers
         .cameraSheetRouter(viewModel: viewModel)
@@ -480,3 +502,4 @@ private struct CaptureButton: View {
         }
     }
 }
+// End of CameraRootView.swift

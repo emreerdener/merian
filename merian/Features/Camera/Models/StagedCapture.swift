@@ -73,4 +73,7 @@ struct StagedImage {
     /// Full-resolution original retained for the crop editor. Holds the `EnvironmentContext`
     /// captured at shutter time (GPS, weather) and whether it came from the photo library.
     let original: IdentifiableImage
+    
+    /// Chronological insertion tracking for dynamic UI sorting against other capture modalities.
+    var addedAt: Date = Date()
 }

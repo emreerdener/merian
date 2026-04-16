@@ -11,6 +11,9 @@ struct ObservationContext: Codable, Equatable, Sendable {
 
     /// Unstructured natural language descriptors provided by the user.
     var freeText: String = ""
+    
+    /// Chronological insertion tracking for dynamic UI sorting against other capture modalities.
+    var addedAt: Date? = Date()
 
     /// True when the user has not selected any identifying descriptors.
     var isEmpty: Bool {

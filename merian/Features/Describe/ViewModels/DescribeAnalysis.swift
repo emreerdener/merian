@@ -13,10 +13,16 @@ extension CameraViewModel {
     func submitDescribe(observationContext: ObservationContext, modelContext: ModelContext) {
         guard !observationContext.isEmpty else { return }
 
+        // The observationContext originates from a long-lived @State binding in
+        // CameraRootView. We must mint a brand new generation timestamp here right
+        // as the user formally submits it to staging to guarantee chronological accuracy.
+        var stagedContext = observationContext
+        stagedContext.addedAt = Date()
+
         let isMultiCaptureEnabled = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled")
 
         if isMultiCaptureEnabled {
-            stagedCapture.observationContext = observationContext
+            stagedCapture.observationContext = stagedContext
             let limit = 2 // Current capacity limit for multi-capture items
             let totalItems = stagedCapture.images.count + 1
             
@@ -25,10 +31,10 @@ extension CameraViewModel {
             }
         } else {
             if !stagedCapture.images.isEmpty {
-                stagedCapture.observationContext = observationContext
+                stagedCapture.observationContext = stagedContext
                 submitStagedCapture(modelContext: modelContext)
             } else {
-                submitDescribeSolo(observationContext: observationContext, modelContext: modelContext)
+                submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext)
             }
         }
     }

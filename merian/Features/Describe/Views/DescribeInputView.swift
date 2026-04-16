@@ -19,7 +19,8 @@ struct DescribeInputView: View {
     @Binding var context: ObservationContext
     @FocusState private var isTextFieldFocused: Bool
     
-    // Auto-rotating prompts
+    // Auto-rotating prompts layer
+    private let promptTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
     private let prompts = [
         "Describe what you saw...",
         "What color was it?",
@@ -57,10 +58,6 @@ struct DescribeInputView: View {
                             .foregroundStyle(.primary)
                             .transition(.opacity.animation(.easeInOut(duration: 0.5)))
                             .id("prompt-\(promptIndex)")
-
-                        Text("We'll extract the characteristics to identify it.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 28)
@@ -78,36 +75,24 @@ struct DescribeInputView: View {
                                     )
                             )
 
-                        // Static placeholder
-                        if context.freeText.isEmpty {
-                            Text("Describe what you saw...")
-                                .font(.body)
-                                .foregroundStyle(.tertiary)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 16)
-                                .allowsHitTesting(false)
-                        }
-
-                        TextEditor(text: $context.freeText)
+                        TextField("Enter description...", text: $context.freeText, axis: .vertical)
+                            .lineLimit(8...14)
                             .font(.body)
                             .foregroundStyle(.primary)
                             .focused($isTextFieldFocused)
-                            .scrollContentBackground(.hidden)
-                            .background(Color.clear)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 16)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                     .frame(maxWidth: .infinity, minHeight: 220)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
-                    .task {
-                        while !Task.isCancelled {
-                            try? await Task.sleep(nanoseconds: 3_000_000_000)
-                            // Only rotate if empty so we don't execute animations/evaluations while they type
-                            if context.freeText.isEmpty && captureMode == .describe {
-                                withAnimation {
-                                    promptIndex = (promptIndex + 1) % prompts.count
-                                }
+                    .onReceive(promptTimer) { _ in
+                        guard captureMode == .describe else { return }
+                        // Only rotate if empty so we don't execute animations/evaluations while they type
+                        if context.freeText.isEmpty {
+                            withAnimation {
+                                promptIndex = (promptIndex + 1) % prompts.count
                             }
                         }
                     }
