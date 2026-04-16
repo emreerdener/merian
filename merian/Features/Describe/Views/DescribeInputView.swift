@@ -22,7 +22,7 @@ struct DescribeInputView: View {
     // Auto-rotating prompts layer
     private let promptTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
     private let prompts = [
-        "Describe what you saw...",
+        "What did you see?",
         "What color was it?",
         "How large was it?",
         "Where did you see it?",
