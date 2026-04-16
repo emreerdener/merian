@@ -9,8 +9,9 @@ import SwiftUI
 /// Layout contract with `CameraRootView`:
 /// - Fills the full page frame (same size as the camera and audio pages).
 /// - The fixed `MediaModeToggle` overlay sits above this view in the Z-stack and
-///   always remains interactive; this view must NOT place anything above the
-///   `safeAreaInsets.top + 64` band.
+// Global timer detached from view recalcs to ensure the publisher stream isn't destroyed
+private let promptTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
+
 struct DescribeInputView: View {
     var captureMode: CaptureMode
     var hasStaged: Bool = false
@@ -18,9 +19,6 @@ struct DescribeInputView: View {
 
     @Binding var context: ObservationContext
     @FocusState private var isTextFieldFocused: Bool
-    
-    // Auto-rotating prompts layer
-    private let promptTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
     private let prompts = [
         "What did you see?",
         "What color was it?",
