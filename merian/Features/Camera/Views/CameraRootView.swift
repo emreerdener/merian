@@ -495,6 +495,7 @@ private struct CaptureButton: View {
                 }
             }
         }
+        .contentShape(Circle())
         .accessibilityIdentifier("CaptureShutter")
         .accessibilityAddTraits(.isButton)
         .onTapGesture {

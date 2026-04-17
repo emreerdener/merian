@@ -51,7 +51,13 @@ struct StagedDescriptionSheet: View {
             }
             .padding(16)
             .frame(maxHeight: .infinity, alignment: .top)
-            .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
+            .background(
+                Color(UIColor.systemGroupedBackground)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        isFocused = false
+                    }
+            )
             .navigationTitle("Description")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -61,6 +67,13 @@ struct StagedDescriptionSheet: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        isFocused = false
+                    }
+                    .fontWeight(.bold)
                 }
             }
         }

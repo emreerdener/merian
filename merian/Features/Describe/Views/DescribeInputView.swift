@@ -41,7 +41,11 @@ struct DescribeInputView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color(UIColor.systemBackground).ignoresSafeArea()
+            Color(UIColor.systemBackground)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    isTextFieldFocused = false
+                }
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -90,6 +94,15 @@ struct DescribeInputView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 16)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            .toolbar {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    Spacer()
+                                    Button("Done") {
+                                        isTextFieldFocused = false
+                                    }
+                                    .bold()
+                                }
+                            }
                     }
                     .frame(maxWidth: .infinity, minHeight: 220)
                     .padding(.horizontal, 20)
@@ -108,16 +121,18 @@ struct DescribeInputView: View {
                                 .fontWeight(.semibold)
                         }
                         .font(.body)
-                        .foregroundStyle(Color(UIColor.systemBackground))
+                        .foregroundStyle(context.isEmpty ? Color.primary.opacity(0.4) : Color(UIColor.systemBackground))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
                             Capsule()
-                                .fill(Color.primary)
+                                .fill(context.isEmpty ? Color(UIColor.tertiarySystemGroupedBackground) : Color.primary)
                         )
                         .padding(.horizontal, 20)
                     }
+                    .disabled(context.isEmpty)
                     .animation(.easeInOut(duration: 0.2), value: hasStaged)
+                    .animation(.easeInOut(duration: 0.2), value: context.isEmpty)
 
                     // Bottom spacer: clears the global tab bar / scan toolbar
                     Spacer().frame(height: 160)
