@@ -1,5 +1,8 @@
 import SwiftUI
 
+// Global timer detached from view recalcs to ensure the publisher stream isn't destroyed
+private let promptTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
+
 /// Full-screen text-first input field for Describe identification.
 ///
 /// The view is intentionally decoupled from `InferenceEngine` and `CameraViewModel` —
@@ -9,9 +12,8 @@ import SwiftUI
 /// Layout contract with `CameraRootView`:
 /// - Fills the full page frame (same size as the camera and audio pages).
 /// - The fixed `MediaModeToggle` overlay sits above this view in the Z-stack and
-// Global timer detached from view recalcs to ensure the publisher stream isn't destroyed
-private let promptTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
-
+///   always remains interactive; this view must NOT place anything above the
+///   `safeAreaInsets.top + 64` band.
 struct DescribeInputView: View {
     var captureMode: CaptureMode
     var hasStaged: Bool = false

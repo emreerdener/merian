@@ -32,7 +32,7 @@ struct InsightHeader: View {
             VStack(alignment: .center, spacing: 8) {
                 
                 // MARK: - Scientific Name
-                if !subtitle.isEmpty && subtitle.lowercased() != title.lowercased() {
+                if !subtitle.isEmpty && subtitle.lowercased() != title.lowercased() && subtitle != "Taxonomy Unavailable" {
                     Text(subtitle.strippingCultivarNotation().replacingOccurrences(of: "\n", with: " "))
                         .font(.system(.title3))
                         .italic()

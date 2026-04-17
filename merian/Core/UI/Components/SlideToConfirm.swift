@@ -47,6 +47,7 @@ struct SlideToConfirm: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .opacity(max(0, 1.0 - progress * 2.5))
+                    .padding(.horizontal, thumbSize + thumbInset * 2)
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 // Thumb
