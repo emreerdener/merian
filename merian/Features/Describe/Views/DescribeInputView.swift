@@ -1,8 +1,5 @@
 import SwiftUI
 
-// Global timer detached from view recalcs to ensure the publisher stream isn't destroyed
-private let promptTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
-
 /// Full-screen text-first input field for Describe identification.
 ///
 /// The view is intentionally decoupled from `InferenceEngine` and `CameraViewModel` —
@@ -25,10 +22,12 @@ struct DescribeInputView: View {
         "What did you see?",
         "What color was it?",
         "How large was it?",
-        "Where did you see it?",
-        "Any unique markings or behaviors?"
+        "Where exactly did you find it?",
+        "What was its shape or texture?",
+        "Any unique markings or patterns?",
+        "Was it alone or in a group?",
+        "Did it have distinct parts?"
     ]
-    @State private var promptIndex = 0
 
     private var topSafeArea: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
@@ -52,12 +51,20 @@ struct DescribeInputView: View {
 
                     // MARK: Header
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(prompts[promptIndex])
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.primary)
-                            .transition(.opacity.animation(.easeInOut(duration: 0.5)))
-                            .id("prompt-\(promptIndex)")
+                        TimelineView(.periodic(from: .now, by: 4.0)) { contextView in
+                            let rawIndex = Int(contextView.date.timeIntervalSince1970 / 4)
+                            let activeIndex = context.freeText.isEmpty ? (rawIndex % prompts.count) : 0
+                            
+                            // Wrapping in ZStack with an explicit ID guarantees crossfade in SwiftUI over all OS versions
+                            ZStack(alignment: .leading) {
+                                Text(prompts[activeIndex])
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.primary)
+                                    .id("prompt-\(activeIndex)")
+                                    .transition(.opacity.animation(.easeInOut(duration: 0.5)))
+                            }
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 28)
@@ -87,15 +94,6 @@ struct DescribeInputView: View {
                     .frame(maxWidth: .infinity, minHeight: 220)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
-                    .onReceive(promptTimer) { _ in
-                        guard captureMode == .describe else { return }
-                        // Only rotate if empty so we don't execute animations/evaluations while they type
-                        if context.freeText.isEmpty {
-                            withAnimation {
-                                promptIndex = (promptIndex + 1) % prompts.count
-                            }
-                        }
-                    }
 
                     // MARK: Identify Button (Scrollable)
                     Button(action: {

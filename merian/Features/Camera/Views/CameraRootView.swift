@@ -21,6 +21,7 @@ struct CameraRootView: View {
     @State private var observationContext = ObservationContext()
     @State private var dictationTask: Task<Void, Never>?
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
+    @State private var isKeyboardVisible: Bool = false
 
     // MARK: - Focus Indicator State
     @State private var focusLocation: CGPoint?
@@ -272,6 +273,8 @@ struct CameraRootView: View {
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
+                    .opacity(isKeyboardVisible ? 0 : 1)
+                    .allowsHitTesting(!isKeyboardVisible)
                 }
 
                 // MARK: Fixed Overlay — Navigation / scan toolbar (bottom, independent of capture bar)
@@ -302,6 +305,8 @@ struct CameraRootView: View {
                     }
                 }
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.isEmpty)
+                .opacity(isKeyboardVisible ? 0 : 1)
+                .allowsHitTesting(!isKeyboardVisible)
 
         } // ZStack
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
@@ -343,6 +348,12 @@ struct CameraRootView: View {
         .onDisappear {
             cameraManager.stopSession()
             AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.25)) { isKeyboardVisible = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.25)) { isKeyboardVisible = false }
         }
         .onChange(of: viewModel.selectedPhotoItems) { _, newItems in
             viewModel.handlePhotoPickerSelection(newItems: newItems, modelContext: modelContext)
@@ -471,17 +482,15 @@ private struct CaptureButton: View {
 
             ZStack {
                 Circle()
-                    .fill(captureMode == .audio ? Color.red : (captureMode == .describe ? Color.primary : Color.white))
+                    .fill(captureMode == .audio ? Color.red : (captureMode == .describe ? (isRecording ? Color.primary : Color.clear) : Color.white))
                     .frame(width: 72, height: 72)
                     .animation(.easeInOut(duration: 0.25), value: captureMode)
+                    .animation(.easeInOut(duration: 0.25), value: isRecording)
 
                 if captureMode == .describe {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 32, weight: .medium))
-                        .foregroundStyle(Color(UIColor.systemBackground))
-                        .opacity(isRecording ? 0.5 : 1.0)
-                        .scaleEffect(isRecording ? 0.8 : 1.0)
-                        .animation(isRecording ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: isRecording)
+                        .foregroundStyle(isRecording ? Color(UIColor.systemBackground) : Color.primary)
                         .transition(.scale.combined(with: .opacity))
                 }
             }
