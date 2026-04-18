@@ -22,6 +22,8 @@ struct CameraRootView: View {
     @State private var dictationTask: Task<Void, Never>?
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
     @State private var isKeyboardVisible: Bool = false
+    @State private var showDescribeHint: Bool = false
+    @State private var describeHintTask: Task<Void, Never>?
 
     // MARK: - Focus Indicator State
     @State private var focusLocation: CGPoint?
@@ -214,6 +216,21 @@ struct CameraRootView: View {
                 if viewModel.stagedCapture.images.count < stagedImageCapacity {
                     VStack {
                         Spacer()
+
+                        if captureMode == .describe && showDescribeHint {
+                            Text("Voice dictate")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(.ultraThinMaterial)
+                                .environment(\.colorScheme, .dark)
+                                .clipShape(Capsule())
+                                .padding(.bottom, 16)
+                                .transition(.opacity)
+                        }
+
                         HStack(alignment: .bottom) {
                             PhotoLibraryButton(
                                 selectedPhotoItems: $viewModel.selectedPhotoItems,
@@ -229,6 +246,7 @@ struct CameraRootView: View {
                             CaptureButton(
                                 captureMode: captureMode,
                                 isRecording: speechManager.isRecording,
+                                audioLevel: speechManager.audioLevel,
                                 onCapture: { viewModel.executeCapture() },
                                 onTranscribe: {
                                     if speechManager.isRecording || dictationTask != nil {
@@ -371,6 +389,20 @@ struct CameraRootView: View {
         }
         .onChange(of: captureMode) { _, newMode in
             HapticManager.shared.triggerSheetSpring()
+            
+            if newMode == .describe {
+                describeHintTask?.cancel()
+                withAnimation(.easeInOut(duration: 0.3)) { showDescribeHint = true }
+                describeHintTask = Task {
+                    try? await Task.sleep(nanoseconds: 3_500_000_000) // 3.5 s
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeInOut(duration: 0.3)) { showDescribeHint = false }
+                }
+            } else {
+                describeHintTask?.cancel()
+                withAnimation(.easeInOut(duration: 0.3)) { showDescribeHint = false }
+            }
+
             if newMode == .audio || newMode == .describe {
                 cameraManager.stopSession()
             } else if scenePhase == .active && viewModel.activeSheet == nil {
@@ -471,11 +503,19 @@ private struct ScrollBounceDisabler: UIViewRepresentable {
 private struct CaptureButton: View {
     let captureMode: CaptureMode
     let isRecording: Bool
+    let audioLevel: CGFloat
     let onCapture: () -> Void
     let onTranscribe: () -> Void
 
     var body: some View {
         ZStack {
+            if captureMode == .describe && isRecording {
+                Circle()
+                    .fill(Color.primary.opacity(0.15))
+                    .frame(width: 80 + (audioLevel * 60), height: 80 + (audioLevel * 60))
+                    .animation(.linear(duration: 0.1), value: audioLevel)
+            }
+
             Circle()
                 .stroke(captureMode == .visual ? Color.white : Color.primary, lineWidth: 1)
                 .frame(width: 80, height: 80)

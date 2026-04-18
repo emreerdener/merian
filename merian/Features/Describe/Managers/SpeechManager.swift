@@ -12,11 +12,12 @@ struct PermissionError: LocalizedError {
 @Observable
 final class SpeechManager {
     var isRecording: Bool = false
+    var audioLevel: CGFloat = 0.0
     
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    
+
     func startDictation(onResult: @MainActor @escaping (String) -> Void) async throws {
         guard let recognizer = SFSpeechRecognizer(), recognizer.isAvailable else {
             return
@@ -51,6 +52,8 @@ final class SpeechManager {
             return
         }
         
+        audioLevel = 0.0
+        
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest = recognitionRequest else { return }
         
@@ -75,8 +78,27 @@ final class SpeechManager {
         // Pass nil so AVAudioEngine negotiates the native hardware format itself.
         // Querying outputFormat(forBus: 0) before the audio session has fully settled
         // can return a 0 Hz format, which causes installTap to throw IsFormatSampleRateAndChannelCountValid.
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
             recognitionRequest.append(buffer)
+            
+            guard let channelData = buffer.floatChannelData?[0] else { return }
+            let frames = buffer.frameLength
+            var rms: Float = 0
+            for i in 0..<Int(frames) {
+                rms += channelData[i] * channelData[i]
+            }
+            if frames > 0 {
+                rms = sqrt(rms / Float(frames))
+            }
+            
+            // Convert to a 0.0 - 1.0 scale
+            let minDb: Float = -60.0
+            let db = 20 * log10(max(rms, 1e-6))
+            let level = CGFloat(max(0.0, min(1.0, (db - minDb) / (0 - minDb))))
+            
+            Task { @MainActor [weak self] in
+                self?.audioLevel = level
+            }
         }
         
         audioEngine.prepare()
