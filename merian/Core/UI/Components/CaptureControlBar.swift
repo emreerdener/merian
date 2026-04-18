@@ -26,6 +26,15 @@ struct CaptureControlBar: View {
         VStack {
             Spacer()
 
+            // MARK: Capacity Evaluation
+            // Determine if the staging area has hit the hard capacity limit. 
+            // In multi-capture mode, this counts bounded images + description.
+            // When capacity is met, all capture interfaces dynamically disable to 
+            // force the user to either submit the stage or remove an item.
+            let totalStagedItems = viewModel.stagedCapture.images.count + (viewModel.stagedCapture.observationContext != nil ? 1 : 0)
+            let capacityLimit = isMultiCaptureEnabled ? stagedImageCapacity : 1
+            let isAtCapacity = totalStagedItems >= capacityLimit
+
             HStack(alignment: .bottom) {
                 ZStack(alignment: .leading) {
                     PhotoLibraryButton(
@@ -33,8 +42,8 @@ struct CaptureControlBar: View {
                         latestThumbnail: photoLibraryManager.latestThumbnail,
                         maxSelectionCount: isMultiCaptureEnabled ? max(1, stagedImageCapacity - viewModel.stagedCapture.images.count) : 1
                     )
-                    .opacity(captureMode == .visual ? 1 : 0)
-                    .allowsHitTesting(captureMode == .visual)
+                    .opacity(captureMode == .visual ? (isAtCapacity ? 0.5 : 1) : 0)
+                    .allowsHitTesting(captureMode == .visual && !isAtCapacity)
                     
                     TableOfContentsButton(
                         onTap: onTableOfContentsTap
@@ -70,6 +79,8 @@ struct CaptureControlBar: View {
                     }
                 )
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
+                .opacity(isAtCapacity ? 0.5 : 1.0)
+                .disabled(isAtCapacity)
 
                 Spacer()
                 ZStack {
@@ -77,15 +88,15 @@ struct CaptureControlBar: View {
                         isFlashEnabled: cameraManager.isFlashEnabled,
                         onToggleFlash: { cameraManager.toggleFlash() }
                     )
-                    .opacity(captureMode == .visual ? 1 : 0)
-                    .allowsHitTesting(captureMode == .visual)
+                    .opacity(captureMode == .visual ? (isAtCapacity ? 0.5 : 1) : 0)
+                    .allowsHitTesting(captureMode == .visual && !isAtCapacity)
 
                     DictationButton(
                         isRecording: speechManager.isRecording,
                         onToggleDictation: onDictationTap
                     )
-                    .opacity(captureMode == .describe ? 1 : 0)
-                    .allowsHitTesting(captureMode == .describe)
+                    .opacity(captureMode == .describe ? (isAtCapacity ? 0.5 : 1) : 0)
+                    .allowsHitTesting(captureMode == .describe && !isAtCapacity)
                 }
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
             }

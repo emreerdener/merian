@@ -1,7 +1,5 @@
 import SwiftUI
 
-
-
 // MARK: - View
 
 /// Full-screen text-first input field for Describe identification.
@@ -226,4 +224,3 @@ struct DescribeInputView: View {
         }
     }
 }
-

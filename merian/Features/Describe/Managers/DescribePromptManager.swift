@@ -8,6 +8,10 @@ import Observation
 /// without complex, deeply-nested bindings.
 @Observable
 final class DescribePromptManager {
+    /// The index of the currently active guided question being displayed.
     var activeQuestionIndex: Int = 0
+    
+    /// Tracks which questions the user has already engaged with via Quick Tags.
+    /// Used locally to orchestrate one-time auto-progression to the next prompt.
     var interactedQuestionIndices: Set<Int> = []
 }
