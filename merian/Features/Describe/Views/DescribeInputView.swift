@@ -25,6 +25,7 @@ struct DescribeInputView: View {
     // MARK: - Dictation state
 
     @State private var dictationTask: Task<Void, Never>?
+    @State private var sortedTags: [GuidedQuestion.Tag] = guidedQuestions[0].tags
 
     // MARK: - Derived
 
@@ -102,7 +103,7 @@ struct DescribeInputView: View {
                     // aiText fragment into freeText.
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(guidedQuestions[promptManager.activeQuestionIndex].tags, id: \.self) { tag in
+                            ForEach(sortedTags, id: \.self) { tag in
                                 Button(action: {
                                     HapticManager.shared.triggerSelectionPulse()
                                     appendTag(tag)
@@ -179,6 +180,12 @@ struct DescribeInputView: View {
                 .frame(minHeight: proxy.size.height)
             }
             .scrollDismissesKeyboard(.immediately)
+            .onAppear {
+                updateSortedTags(for: promptManager.activeQuestionIndex)
+            }
+            .onChange(of: promptManager.activeQuestionIndex) { _, newIndex in
+                updateSortedTags(for: newIndex)
+            }
             .onChange(of: captureMode) { _, newMode in
                 if newMode != .describe {
                     isTextFieldFocused = false
@@ -209,6 +216,8 @@ struct DescribeInputView: View {
     /// Inserts the tag's optimized AI text fragment into freeText, maintaining
     /// natural sentence flow.
     private func appendTag(_ tag: GuidedQuestion.Tag) {
+        DescribeTagTracker.shared.recordUsage(for: tag.tagId)
+        
         let insertion = tag.aiText
         let trimmed = context.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
@@ -222,5 +231,30 @@ struct DescribeInputView: View {
                 context.freeText = trimmed + ", " + insertion
             }
         }
+    }
+    
+    /// Computes the persistent, stable order of tags for the active view sequence
+    /// utilizing a tiered popularity override architecture natively bound to `UserDefaults`.
+    private func updateSortedTags(for index: Int) {
+        guard index >= 0 && index < guidedQuestions.count else { return }
+        
+        sortedTags = guidedQuestions[index].tags
+            .enumerated()
+            .sorted { a, b in
+                let freqA = DescribeTagTracker.shared.frequency(for: a.element.tagId)
+                let freqB = DescribeTagTracker.shared.frequency(for: b.element.tagId)
+                
+                // Tier 1: Historical behavioral engagement
+                if freqA != freqB { return freqA > freqB }
+                
+                // Tier 2: Forced general popularity baseline overrides
+                if a.element.defaultWeight != b.element.defaultWeight {
+                    return a.element.defaultWeight > b.element.defaultWeight
+                }
+                
+                // Tier 3: Strict array insertion fallback (guarantees native structural stability)
+                return a.offset < b.offset
+            }
+            .map(\.element)
     }
 }

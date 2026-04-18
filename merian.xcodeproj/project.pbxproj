@@ -177,6 +177,7 @@
 		85F9CF449E4916399A71B71F /* CandidateImageExpandedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 485FF228092493A29E82C5BB /* CandidateImageExpandedView.swift */; };
 		8826B19268129624F2D87D25 /* Community.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE77AD677713EA5D8F12C3D6 /* Community.swift */; };
 		89143DCFA1EF1A9D5B72F894 /* SocialGuardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E53EEAA4B495EBA59F7F561 /* SocialGuardManager.swift */; };
+		8BD0C362A4824C14E800D1BC /* DescribeTagTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8B85C74D85F81CAE997B5A /* DescribeTagTracker.swift */; };
 		8CB9444D4E09FD393C8368D5 /* CollectionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E649DC3A7E515D7F38BDA6 /* CollectionCard.swift */; };
 		8D682E72FA6886D99D49D265 /* ProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8378315C39B79BD5E77AE02D /* ProfileTabView.swift */; };
 		8E3E84DCEAB3DD6D9568D7B2 /* OfflineQueueManager+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = F131CDD79AD1B517448E9E8E /* OfflineQueueManager+Sync.swift */; };
@@ -643,6 +644,7 @@
 		CB2EB84AC2BA696B226C867A /* SchemaV34.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV34.swift; sourceTree = "<group>"; };
 		CB33C2AAD173F49DF2B86AD7 /* Analysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analysis.swift; sourceTree = "<group>"; };
 		CC0DFCB724906CA9FEAB0F4D /* ObservationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationContext.swift; sourceTree = "<group>"; };
+		CC8B85C74D85F81CAE997B5A /* DescribeTagTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeTagTracker.swift; sourceTree = "<group>"; };
 		CD2F826786333CB7FACE40CB /* ScanCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCollection.swift; sourceTree = "<group>"; };
 		CEDDFC2BE211CBF973BF691C /* UnderReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderReviewView.swift; sourceTree = "<group>"; };
 		CF124E8F88CCF61F4F474368 /* AppTelemetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetryTests.swift; sourceTree = "<group>"; };
@@ -1339,6 +1341,7 @@
 		8659C767E999BDD32E1A8C0E /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				CC8B85C74D85F81CAE997B5A /* DescribeTagTracker.swift */,
 				E2E4780C7B9E0344AE6F860B /* GuidedQuestion.swift */,
 				CC0DFCB724906CA9FEAB0F4D /* ObservationContext.swift */,
 			);
@@ -2213,6 +2216,7 @@
 				ACF4E1962797BCB5BEEB5762 /* DescribeInputView.swift in Sources */,
 				DBA1F9850A7EFDB9DA3933A2 /* DescribePromptManager.swift in Sources */,
 				17D70387796CE6F84360C2D9 /* DescribeQuestionsSheet.swift in Sources */,
+				8BD0C362A4824C14E800D1BC /* DescribeTagTracker.swift in Sources */,
 				653576165C2B6ACE190F811B /* DeviceIdentityManager.swift in Sources */,
 				566AD805B331410140EEC800 /* DidYouKnowCard.swift in Sources */,
 				92C891B29125D4A9A8A52963 /* DistinguishingFeatureSheetView.swift in Sources */,
