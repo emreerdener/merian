@@ -22,7 +22,7 @@ struct DescribeInputView: View {
         "What did you see?",
         "What color was it?",
         "How large was it?",
-        "Where exactly did you find it?",
+        "Where did you find it?",
         "What was its shape or texture?",
         "Any unique markings or patterns?",
         "Was it alone or in a group?",
@@ -40,7 +40,6 @@ struct DescribeInputView: View {
     // MARK: - Body
 
     var body: some View {
-        let isTextInputEmpty = context.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         
         ZStack(alignment: .bottom) {
             Color(UIColor.systemBackground)
@@ -93,10 +92,21 @@ struct DescribeInputView: View {
                             .font(.body)
                             .foregroundStyle(.primary)
                             .focused($isTextFieldFocused)
-                            .submitLabel(.done)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 16)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            .toolbar {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    Spacer()
+                                    Button("Done") {
+                                        isTextFieldFocused = false
+                                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                    }
+                                    .bold()
+                                    .padding(.trailing, 8)
+                                    .padding(.bottom, 6)
+                                }
+                            }
                     }
                     .frame(maxWidth: .infinity, minHeight: 220)
                     .padding(.horizontal, 20)
@@ -104,29 +114,27 @@ struct DescribeInputView: View {
 
                     // MARK: Identify Button (Scrollable)
                     Button(action: {
-                        guard !isTextInputEmpty else { return }
                         isTextFieldFocused = false
                         onSubmit(context)
                         // Observation context is securely retained locally instead of rapidly wiped
                         // so users can jump back and edit their description seamlessly.
                     }) {
                         HStack(spacing: 8) {
-                            Text((hasStaged || isMultiCaptureEnabled || requiresScanConfirmation) ? "Add description" : "Identify")
+                            let willStageOnly = isMultiCaptureEnabled && (requiresScanConfirmation || !hasStaged)
+                            Text(willStageOnly ? "Add description" : "Identify")
                                 .fontWeight(.semibold)
                         }
                         .font(.body)
-                        .foregroundStyle(isTextInputEmpty ? Color.primary.opacity(0.4) : Color(UIColor.systemBackground))
+                        .foregroundStyle(Color(UIColor.systemBackground))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
                             Capsule()
-                                .fill(isTextInputEmpty ? Color(UIColor.tertiarySystemGroupedBackground) : Color.primary)
+                                .fill(Color.primary)
                         )
                         .padding(.horizontal, 20)
                     }
-                    .disabled(isTextInputEmpty)
                     .animation(.easeInOut(duration: 0.2), value: hasStaged)
-                    .animation(.easeInOut(duration: 0.2), value: isTextInputEmpty)
 
                     // Bottom spacer: clears the global tab bar / scan toolbar
                     Spacer().frame(height: 160)

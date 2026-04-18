@@ -509,16 +509,17 @@ private struct CaptureButton: View {
 
     var body: some View {
         ZStack {
-            if captureMode == .describe && isRecording {
-                Circle()
-                    .fill(Color.primary.opacity(0.15))
-                    .frame(width: 80 + (audioLevel * 60), height: 80 + (audioLevel * 60))
-                    .animation(.linear(duration: 0.1), value: audioLevel)
-            }
-
             Circle()
                 .stroke(captureMode == .visual ? Color.white : Color.primary, lineWidth: 1)
                 .frame(width: 80, height: 80)
+                .background {
+                    if captureMode == .describe && isRecording {
+                        Circle()
+                            .fill(Color.primary.opacity(0.15))
+                            .frame(width: 80 + (audioLevel * 60), height: 80 + (audioLevel * 60))
+                            .animation(.linear(duration: 0.1), value: audioLevel)
+                    }
+                }
 
             ZStack {
                 Circle()

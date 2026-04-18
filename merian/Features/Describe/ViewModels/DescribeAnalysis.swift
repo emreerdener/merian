@@ -10,7 +10,14 @@ extension CameraViewModel {
     /// - **Images staged**: stages the description into `stagedCapture.observationContext`
     ///   and delegates to `submitStagedCapture` → combined image + description path.
     /// - **No images staged**: solo description-only path via `submitDescribeSolo`.
+    ///
+    /// Includes a 1.5s debounce to prevent duplicate enqueuing on rapid physical taps.
     func submitDescribe(observationContext: ObservationContext, modelContext: ModelContext) {
+        // Prevent rapid duplicate taps from spawning identical offline queue records
+        let now = CFAbsoluteTimeGetCurrent()
+        guard (now - (stagedCapture.lastSubmitTime ?? 0)) > 1.5 else { return }
+        stagedCapture.lastSubmitTime = now
+
         guard !observationContext.isEmpty else { return }
 
         // The observationContext originates from a long-lived @State binding in

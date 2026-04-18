@@ -31,6 +31,9 @@ struct StagedCapture {
 
     /// Optional describe description staged from the Describe tab before submission.
     var observationContext: ObservationContext?
+    
+    /// Timestamp of the last describe submission to prevent rapid identical enqueueing.
+    var lastSubmitTime: CFAbsoluteTime?
 
     // MARK: - Derived State
 

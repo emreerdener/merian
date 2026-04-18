@@ -12,6 +12,7 @@ struct PermissionError: LocalizedError {
 @Observable
 final class SpeechManager {
     var isRecording: Bool = false
+    var isStarting: Bool = false
     var audioLevel: CGFloat = 0.0
     
     private let audioEngine = AVAudioEngine()
@@ -19,6 +20,10 @@ final class SpeechManager {
     private var recognitionTask: SFSpeechRecognitionTask?
 
     func startDictation(onResult: @MainActor @escaping (String) -> Void) async throws {
+        guard !isStarting, !isRecording else { return }
+        isStarting = true
+        defer { isStarting = false }
+
         guard let recognizer = SFSpeechRecognizer(), recognizer.isAvailable else {
             return
         }
