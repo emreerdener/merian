@@ -13,12 +13,13 @@ struct Preferences: View {
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
     @AppStorage("requiresScanConfirmation") private var requiresScanConfirmation: Bool = false
-
     @Binding var notificationSettingsActive: Bool
     @Binding var cameraSettingsActive: Bool
+    @Binding var captureModeOrderSettingsActive: Bool
 
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
+        
         Section {
 
             // MARK: - Theme
@@ -50,6 +51,16 @@ struct Preferences: View {
                     description: "Zoom controls, viewfinder hints, and capture preferences.",
                     icon: "camera.fill",
                     iconColor: .gray
+                )
+            }
+            
+            // MARK: - Sections
+            Button { captureModeOrderSettingsActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Sections",
+                    description: "Reorder capture sections and choose your default launch mode.",
+                    icon: "rectangle.split.3x1.fill",
+                    iconColor: .orange
                 )
             }
            
@@ -309,6 +320,7 @@ struct CameraSettingsView: View {
                 Text("Zoom")
             }
         }
+        .environment(\.editMode, .constant(.active))
         .navigationTitle("Camera")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPermissionPrompt) {
@@ -409,6 +421,40 @@ struct GeoprivacyPickerView: View {
             }
         }
         .navigationTitle("Geoprivacy")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Capture Mode Settings
+
+/// Dedicated settings sheet for configuring the order and default launch view of the core capture tabs.
+struct CaptureModeSettingsView: View {
+    @AppStorage(UserDefaultsKeys.captureModeOrder) private var captureModeOrderRaw: String = "visual,audio,describe"
+
+    private var orderedModes: [CaptureMode] {
+        CaptureMode.userOrder(from: captureModeOrderRaw)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(orderedModes, id: \.self) { mode in
+                    Text(mode.title)
+                        .foregroundColor(.primary)
+                }
+                .onMove { indices, newOffset in
+                    var modes = orderedModes
+                    modes.move(fromOffsets: indices, toOffset: newOffset)
+                    captureModeOrderRaw = modes.map(\.rawValue).joined(separator: ",")
+                }
+            } header: {
+                Text("Default sections")
+            } footer: {
+                Text("Drag to rearrange the capture sections. The first item in the list will be your default view on launch.")
+            }
+        }
+        .environment(\.editMode, .constant(.active))
+        .navigationTitle("Sections")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

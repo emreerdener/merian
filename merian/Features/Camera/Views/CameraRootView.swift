@@ -17,11 +17,19 @@ struct CameraRootView: View {
 
     // MARK: - View Model & State
     @State private var viewModel = CameraViewModel()
-    @State private var captureMode: CaptureMode = .visual
+    
+    /// The currently active capture mode governing the active UI state.
+    @State private var captureMode: CaptureMode
     @State private var observationContext = ObservationContext()
     @State private var dictationTask: Task<Void, Never>?
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
+    
+    /// The user-defined order for the capture tabs, physically defining the underlying ScrollView layout.
+    @AppStorage(UserDefaultsKeys.captureModeOrder) private var captureModeOrderRaw: String = "visual,audio,describe"
     @State private var isKeyboardVisible: Bool = false
+    
+    /// The safely deserialized sequence of capture modes governing the ScrollView array.
+    private var orderedModes: [CaptureMode] { CaptureMode.userOrder(from: captureModeOrderRaw) }
 
     // MARK: - Focus Indicator State
     @State private var focusLocation: CGPoint?
@@ -46,7 +54,18 @@ struct CameraRootView: View {
     /// simultaneous toggle drag. Two onChange handlers keep the two variables in sync:
     ///   scrollPageMode → captureMode  (user paging, guarded by !isToggleDragging)
     ///   captureMode    → scrollProxy.scrollTo  (programmatic, e.g. toggle tap/drag end)
-    @State private var scrollPageMode: CaptureMode? = .visual
+    @State private var scrollPageMode: CaptureMode?
+    
+    /// Instantiates the CameraRootView by immediately checking `UserDefaults`
+    /// to retrieve the user's preferred first tab (default view).
+    /// This strictly sidesteps lifecycle events like `.onAppear`, which would
+    /// improperly re-snap the UI to the primary tab every time the view remounts.
+    init() {
+        let raw = UserDefaults.standard.string(forKey: UserDefaultsKeys.captureModeOrder) ?? "visual,audio,describe"
+        let mode = CaptureMode.userOrder(from: raw).first ?? .visual
+        _captureMode = State(initialValue: mode)
+        _scrollPageMode = State(initialValue: mode)
+    }
 
     // MARK: - View Hierarchy
     var body: some View {
@@ -60,70 +79,76 @@ struct CameraRootView: View {
                 // explicit .frame(), bypassing any ambiguity in containerRelativeFrame's
                 // safe-area-vs-full-screen reference resolution.
                 GeometryReader { proxy in
-                    ScrollViewReader { _ in
+                    ScrollViewReader { scrollProxy in
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 0) {
+                                ForEach(orderedModes, id: \.self) { mode in
+                                    switch mode {
+                                    case .visual:
+                                        // MARK: Page 1 — Camera
+                                        ZStack {
+                                            // 1. Optical Bridge
+                                            CameraPreviewView(
+                                                session: cameraManager.session,
+                                                onTap: { layerPoint, devicePoint in
+                                                    viewModel.handleFocusTap(devicePoint: devicePoint)
 
-                                // MARK: Page 1 — Camera
-                                ZStack {
-                                    // 1. Optical Bridge
-                                    CameraPreviewView(
-                                        session: cameraManager.session,
-                                        onTap: { layerPoint, devicePoint in
-                                            viewModel.handleFocusTap(devicePoint: devicePoint)
+                                                    // Drive the focus indicator from the UIKit layer point — the SwiftUI
+                                                    // gesture modifier can't compete with the UITapGestureRecognizer on
+                                                    // the preview layer.
+                                                    focusLocation = layerPoint
+                                                    showFocusIndicator = true
+                                                    focusHideTask?.cancel()
+                                                    focusHideTask = Task { @MainActor in
+                                                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                                        guard !Task.isCancelled else { return }
+                                                        withAnimation(.easeOut) { showFocusIndicator = false }
+                                                    }
+                                                },
+                                                onVerticalDragActiveChanged: { isVerticalZooming = $0 }
+                                            )
+                                            .ignoresSafeArea()
+                                            .background(Color.black.ignoresSafeArea())
+                                            .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
 
-                                            // Drive the focus indicator from the UIKit layer point — the SwiftUI
-                                            // gesture modifier can't compete with the UITapGestureRecognizer on
-                                            // the preview layer.
-                                            focusLocation = layerPoint
-                                            showFocusIndicator = true
-                                            focusHideTask?.cancel()
-                                            focusHideTask = Task { @MainActor in
-                                                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                                                guard !Task.isCancelled else { return }
-                                                withAnimation(.easeOut) { showFocusIndicator = false }
-                                            }
-                                        },
-                                        onVerticalDragActiveChanged: { isVerticalZooming = $0 }
-                                    )
-                                    .ignoresSafeArea()
-                                    .background(Color.black.ignoresSafeArea())
-                                    .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
+                                            // 2. Hardware Effects (Flash Snap)
+                                            Color.black
+                                                .ignoresSafeArea()
+                                                .opacity(viewModel.flashOpacity)
+                                                .allowsHitTesting(false)
 
-                                    // 2. Hardware Effects (Flash Snap)
-                                    Color.black
-                                        .ignoresSafeArea()
-                                        .opacity(viewModel.flashOpacity)
-                                        .allowsHitTesting(false)
+                                            // 3. Thermal Overlay
+                                            ThermalWarningView()
 
-                                    // 3. Thermal Overlay
-                                    ThermalWarningView()
+                                            // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
+                                            CameraControlsLayer(
+                                                activeScanImages: viewModel.stagedCapture.images.map(\.uiImage),
+                                                isRefining: viewModel.baseRefinementRecord != nil
+                                            )
+                                        }
+                                        .frame(width: proxy.size.width, height: proxy.size.height)
+                                        .clipped()
+                                        .id(CaptureMode.visual)
 
-                                    // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
-                                    CameraControlsLayer(
-                                        activeScanImages: viewModel.stagedCapture.images.map(\.uiImage),
-                                        isRefining: viewModel.baseRefinementRecord != nil
-                                    )
+                                    case .audio:
+                                        // MARK: Page 2 — Audio Recording
+                                        AudioRecordingView()
+                                            .frame(width: proxy.size.width, height: proxy.size.height)
+                                            .clipped()
+                                            .id(CaptureMode.audio)
+
+                                    case .describe:
+                                        // MARK: Page 3 — Describe Input
+                                        DescribeInputView(
+                                            captureMode: captureMode,
+                                            context: $observationContext,
+                                            promptManager: describePromptManager
+                                        )
+                                        .frame(width: proxy.size.width, height: proxy.size.height)
+                                        .clipped()
+                                        .id(CaptureMode.describe)
+                                    }
                                 }
-                                .frame(width: proxy.size.width, height: proxy.size.height)
-                                .clipped()
-                                .id(CaptureMode.visual)
-
-                                // MARK: Page 2 — Audio Recording
-                                AudioRecordingView()
-                                    .frame(width: proxy.size.width, height: proxy.size.height)
-                                    .clipped()
-                                    .id(CaptureMode.audio)
-
-                                // MARK: Page 3 — Describe Input
-                                DescribeInputView(
-                                    captureMode: captureMode,
-                                    context: $observationContext,
-                                    promptManager: describePromptManager
-                                )
-                                .frame(width: proxy.size.width, height: proxy.size.height)
-                                .clipped()
-                                .id(CaptureMode.describe)
                             }
                             .scrollTargetLayout()
                         }
@@ -132,6 +157,18 @@ struct CameraRootView: View {
                         .scrollDisabled(isVerticalZooming || isToggleDragging)
                         .scrollDismissesKeyboard(.interactively)
                         .background(ScrollBounceDisabler())
+                        .onChange(of: captureModeOrderRaw, initial: true) { _, raw in
+                            let decoded = CaptureMode.userOrder(from: raw)
+                            let healedRaw = decoded.map(\.rawValue).joined(separator: ",")
+                            if raw != healedRaw {
+                                captureModeOrderRaw = healedRaw
+                            }
+                            // Re-anchor the ScrollView securely onto the active capture mode 
+                            // whenever the physical sequence changes underneath it.
+                            DispatchQueue.main.async {
+                                scrollProxy.scrollTo(captureMode, anchor: .center)
+                            }
+                        }
                         // Pager → captureMode: when the user swipes to a new page, sync
                         // captureMode. Guarded by !isToggleDragging so simultaneous toggle
                         // drag events that pan the scroll don't write captureMode mid-drag.
@@ -197,7 +234,12 @@ struct CameraRootView: View {
                 // MARK: Fixed Overlay — Mode Toggle (top)
                 if viewModel.stagedCapture.images.count < stagedImageCapacity {
                     VStack {
-                        MediaModeToggle(activeMode: $captureMode, isDragging: $isToggleDragging, onModeChange: {})
+                        MediaModeToggle(
+                            activeMode: $captureMode, 
+                            isDragging: $isToggleDragging, 
+                            orderedModes: orderedModes, 
+                            onModeChange: {}
+                        )
                             .padding(.top, 16)
                             .opacity(viewModel.offlineToastMessage != nil ? 0 : 1)
                         Spacer()

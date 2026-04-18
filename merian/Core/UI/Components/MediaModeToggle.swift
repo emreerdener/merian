@@ -15,6 +15,20 @@ enum CaptureMode: String, CaseIterable {
         case .describe: return "Describe"
         }
     }
+    
+    /// Parses a comma-separated string into a safe array of CaptureModes.
+    /// Automatically detects missing enums across updates or migrations and 
+    /// appends them to heal the backing store.
+    static func userOrder(from raw: String) -> [CaptureMode] {
+        var decoded = raw
+            .split(separator: ",")
+            .compactMap { CaptureMode(rawValue: String($0)) }
+        let missing = CaptureMode.allCases.filter { !decoded.contains($0) }
+        if !missing.isEmpty {
+            decoded.append(contentsOf: missing)
+        }
+        return decoded
+    }
 }
 
 /// A standard iOS native segmented picker controlling the active capture mode.
@@ -23,13 +37,15 @@ enum CaptureMode: String, CaseIterable {
 struct MediaModeToggle: View {
     @Binding var activeMode: CaptureMode
     @Binding var isDragging: Bool // Maintained for signature compatibility; unused internally
+    let orderedModes: [CaptureMode]
     let onModeChange: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
-    init(activeMode: Binding<CaptureMode>, isDragging: Binding<Bool>, onModeChange: @escaping () -> Void) {
+    init(activeMode: Binding<CaptureMode>, isDragging: Binding<Bool>, orderedModes: [CaptureMode], onModeChange: @escaping () -> Void) {
         self._activeMode = activeMode
         self._isDragging = isDragging
+        self.orderedModes = orderedModes
         self.onModeChange = onModeChange
         
         // Explicitly flush the empty proxy from the global app memory to restore Apple's native sliding thumb!
@@ -47,7 +63,7 @@ struct MediaModeToggle: View {
                 onModeChange()
             }
         )) {
-            ForEach(CaptureMode.allCases, id: \.self) { mode in
+            ForEach(orderedModes, id: \.self) { mode in
                 Text(mode.title).tag(mode)
             }
         }

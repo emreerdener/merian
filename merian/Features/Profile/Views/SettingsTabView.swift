@@ -20,6 +20,7 @@ struct SettingsTabView: View {
     @State private var managePlanActive = false
     @State private var notificationSettingsActive = false
     @State private var cameraSettingsActive = false
+    @State private var captureModeOrderSettingsActive = false
     @State private var toastMessage: String?
 
     var body: some View {
@@ -30,7 +31,8 @@ struct SettingsTabView: View {
                     defaultGeoprivacy: $viewModel.defaultGeoprivacy,
                     managePlanActive: $managePlanActive,
                     notificationSettingsActive: $notificationSettingsActive,
-                    cameraSettingsActive: $cameraSettingsActive
+                    cameraSettingsActive: $cameraSettingsActive,
+                    captureModeOrderSettingsActive: $captureModeOrderSettingsActive
                 )
 
                 ExportScans(
@@ -69,6 +71,9 @@ struct SettingsTabView: View {
             }
             .navigationDestination(isPresented: $cameraSettingsActive) {
                 CameraSettingsView()
+            }
+            .navigationDestination(isPresented: $captureModeOrderSettingsActive) {
+                CaptureModeSettingsView()
             }
             .navigationDestination(isPresented: $managePlanActive) {
                 ManagePlanView()

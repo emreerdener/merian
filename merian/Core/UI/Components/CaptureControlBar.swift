@@ -40,7 +40,7 @@ struct CaptureControlBar: View {
                     PhotoLibraryButton(
                         selectedPhotoItems: $viewModel.selectedPhotoItems,
                         latestThumbnail: photoLibraryManager.latestThumbnail,
-                        maxSelectionCount: isMultiCaptureEnabled ? max(1, stagedImageCapacity - viewModel.stagedCapture.images.count) : 1
+                        maxSelectionCount: isMultiCaptureEnabled ? max(1, capacityLimit - totalStagedItems) : 1
                     )
                     .opacity(captureMode == .visual ? (isAtCapacity ? 0.5 : 1) : 0)
                     .allowsHitTesting(captureMode == .visual && !isAtCapacity)

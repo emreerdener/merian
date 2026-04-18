@@ -24,4 +24,6 @@ enum UserDefaultsKeys {
     static let speciesPreferredNamePrefix = "speciesPreferredName_"
     /// Whether the user has been presented with the notification request post-identification.
     static let hasPromptedForNotificationsPostIdent = "hasPromptedForNotificationsPostIdent"
+    /// The user's customized ordering of the primary capture tabs, stored as a comma-separated string.
+    static let captureModeOrder = "captureModeOrder"
 }
