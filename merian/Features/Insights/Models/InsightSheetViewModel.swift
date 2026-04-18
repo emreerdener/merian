@@ -125,6 +125,13 @@ final class InsightSheetViewModel {
         guard queuedContext == nil else { return false }
         return !(inferenceEngine?.activeDisplayDatas.isEmpty ?? true)
     }
+    
+    var hasUserPhotos: Bool {
+        if let queued = queuedContext {
+            return !queued.localImagePaths.isEmpty
+        }
+        return hasLive ? !liveImageDatas.isEmpty : !validHistoricImagePaths.isEmpty
+    }
 
     var liveCount: Int {
         guard queuedContext == nil else { return 0 }

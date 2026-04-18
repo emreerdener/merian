@@ -6,7 +6,7 @@ struct InsightDescriptionSheet: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Observation Notes")
+            Text("Observation description")
                 .font(.headline)
                 .padding(.top, 24)
                 .padding(.horizontal)

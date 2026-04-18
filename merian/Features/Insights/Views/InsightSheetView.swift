@@ -196,6 +196,7 @@ private extension InsightSheetView {
             isIdentificationFlagPresented: $viewModel.isIdentificationFlagPresented,
             isSavingPhotos: $viewModel.isSavingPhotos,
             showDeleteConfirmation: $viewModel.showDeleteConfirmation,
+            hasUserPhotos: viewModel.hasUserPhotos,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
             onReanalyze: viewModel.canReanalyze ? {
                 if let record = viewModel.activeLocalRecord {

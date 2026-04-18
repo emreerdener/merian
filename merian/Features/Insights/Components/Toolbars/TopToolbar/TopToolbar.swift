@@ -8,6 +8,7 @@ struct TopToolbar: ToolbarContent {
     @Binding var isIdentificationFlagPresented: Bool
     @Binding var isSavingPhotos: Bool
     @Binding var showDeleteConfirmation: Bool
+    let hasUserPhotos: Bool
     let onSavePhotos: () -> Void
     var onReanalyze: (() -> Void)?
     var onReviewAlternatives: (() -> Void)?
@@ -33,8 +34,10 @@ struct TopToolbar: ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             if !isAnalyzing {
                 Menu {
-                    Button(action: { onSavePhotos() }) {
-                        Label("Download my photos", systemImage: "arrow.down.circle")
+                    if hasUserPhotos {
+                        Button(action: { onSavePhotos() }) {
+                            Label("Download my photos", systemImage: "arrow.down.circle")
+                        }
                     }
                     
                     Section("Identification") {

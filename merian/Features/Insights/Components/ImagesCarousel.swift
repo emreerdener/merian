@@ -492,32 +492,43 @@ private struct DescriptionTextCarouselPage: View {
     let onTap: (() -> Void)?
     
     var body: some View {
-        ZStack {
-            // Core background matching Merian's dark tone
-            LinearGradient(
-                colors: [Color(uiColor: .systemGray5), Color(uiColor: .systemGray6)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            
-            VStack(spacing: 12) {
-                Text(text)
-                    .font(.body)
-                    .lineLimit(4)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 32)
+        GeometryReader { geo in
+            ZStack {
+                Color(uiColor: .systemBackground)
+                    .opacity(0.95)
                 
-                HStack(spacing: 6) {
-                    Image(systemName: "text.magnifyingglass")
-                    Text("Tap to read")
+                Image("description_bg")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFill()
+                    .foregroundStyle(Color.green)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .opacity(0.20)
+                    .clipped()
+                
+                // Description card
+                VStack(spacing: 16) {
+                    Text(text)
+                        .font(.system(size: 34, weight: .regular))
+                        .lineLimit(4)
+                        .minimumScaleFactor(0.2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity)
                 }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .padding(24)
+                .frame(width: max(0, geo.size.width - 96))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
+                )
+                .shadow(color: .black.opacity(0.10), radius: 12, y: 6)
+                
             }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .contentShape(Rectangle())
+            .onTapGesture { onTap?() }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .onTapGesture { onTap?() }
     }
 }
