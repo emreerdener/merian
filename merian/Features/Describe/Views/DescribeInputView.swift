@@ -13,29 +13,43 @@ import SwiftUI
 ///   `safeAreaInsets.top + 64` band.
 struct DescribeInputView: View {
     var captureMode: CaptureMode
-    var hasStaged: Bool = false
-    let onSubmit: (ObservationContext) -> Void
 
     @Binding var context: ObservationContext
     @FocusState private var isTextFieldFocused: Bool
+    
+    // Curated, conversational prompts targeting Morphology, Ecology, and Behavior
     private let prompts = [
-        "What did you see?",
-        "What color was it?",
-        "How large was it?",
-        "Where did you find it?",
-        "What was its shape or texture?",
-        "Any unique markings or patterns?",
-        "Was it alone or in a group?",
-        "Did it have distinct parts?"
+        "Any striking colors, patterns, or unusual textures?",
+        "How large was it compared to an everyday object?",
+        "Where exactly was it? (e.g., under a log, high in a tree)",
+        "What was it doing? Was it moving or staying still?",
+        "Did it have any distinct features like a unique shell or wings?",
+        "Describe its overall shape or the vibe it gave off.",
+        "Was it alone, or interacting with others in a group?",
+        "What kind of environment or weather was it in?"
+    ]
+    
+    private struct QuickTag: Hashable {
+        let emoji: String
+        let text: String
+    }
+
+    private let quickTags: [QuickTag] = [
+        QuickTag(emoji: "🪵", text: "On wood"),
+        QuickTag(emoji: "💧", text: "In water"),
+        QuickTag(emoji: "🪨", text: "Under a rock"),
+        QuickTag(emoji: "🌿", text: "On a leaf"),
+        QuickTag(emoji: "🌙", text: "Nocturnal"),
+        QuickTag(emoji: "💨", text: "Fast moving"),
+        QuickTag(emoji: "🛑", text: "Completely still"),
+        QuickTag(emoji: "🪲", text: "Hard shell"),
+        QuickTag(emoji: "🪶", text: "Feathers")
     ]
 
     private var topSafeArea: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
         return windowScene?.windows.first?.safeAreaInsets.top ?? 59
     }
-
-    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
-    @AppStorage("requiresScanConfirmation") private var requiresScanConfirmation: Bool = false
 
     // MARK: - Body
 
@@ -56,8 +70,9 @@ struct DescribeInputView: View {
 
                     // MARK: Header
                     VStack(alignment: .leading, spacing: 6) {
-                        TimelineView(.periodic(from: .now, by: 4.0)) { contextView in
-                            let rawIndex = Int(contextView.date.timeIntervalSince1970 / 4)
+                        // Pacing slowed to 6.0 seconds to reduce reading anxiety
+                        TimelineView(.periodic(from: .now, by: 6.0)) { contextView in
+                            let rawIndex = Int(contextView.date.timeIntervalSince1970 / 6)
                             let activeIndex = rawIndex % prompts.count
                             
                             // Wrapping in ZStack with an explicit ID guarantees crossfade in SwiftUI over all OS versions
@@ -67,12 +82,36 @@ struct DescribeInputView: View {
                                     .fontWeight(.bold)
                                     .foregroundStyle(.primary)
                                     .id("prompt-\(activeIndex)")
-                                    .transition(.opacity.animation(.easeInOut(duration: 0.5)))
+                                    .transition(.opacity.animation(.easeInOut(duration: 0.6)))
                             }
                         }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 28)
+
+                                        // MARK: Quick Tags Pill Bar
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(quickTags, id: \.self) { tag in
+                                Button(action: {
+                                    appendTag(tag.text)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Text(tag.emoji)
+                                        Text(tag.text)
+                                            .foregroundStyle(.primary)
+                                    }
+                                    .font(.subheadline)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color(UIColor.secondarySystemBackground))
+                                    .clipShape(Capsule())
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                    .padding(.bottom, 24)
 
                     // MARK: Text Area
                     ZStack(alignment: .topLeading) {
@@ -87,13 +126,14 @@ struct DescribeInputView: View {
                                     )
                             )
 
-                        TextField("Enter description...", text: $context.freeText, axis: .vertical)
+                        TextField("e.g., A bright green beetle with gold stripes resting on an oak leaf...", text: $context.freeText, axis: .vertical)
                             .lineLimit(8...14)
                             .font(.body)
                             .foregroundStyle(.primary)
                             .focused($isTextFieldFocused)
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 48)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             .toolbar {
                                 ToolbarItemGroup(placement: .keyboard) {
@@ -107,37 +147,30 @@ struct DescribeInputView: View {
                                     .padding(.bottom, 6)
                                 }
                             }
+                            
+                        // Inline Dictation Mic
+                        Button(action: {
+                            // TODO
+                        }) {
+                            Image(systemName: "mic.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(Color(UIColor.systemBackground))
+                                .frame(width: 30, height: 30)
+                                .background(Color.primary)
+                                .clipShape(Circle())
+                        }
+                        .padding(.trailing, 8)
+                        .padding(.bottom, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     }
                     .frame(maxWidth: .infinity, minHeight: 220)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
+                    
 
-                    // MARK: Identify Button (Scrollable)
-                    Button(action: {
-                        isTextFieldFocused = false
-                        onSubmit(context)
-                        // Observation context is securely retained locally instead of rapidly wiped
-                        // so users can jump back and edit their description seamlessly.
-                    }) {
-                        HStack(spacing: 8) {
-                            let willStageOnly = isMultiCaptureEnabled && (requiresScanConfirmation || !hasStaged)
-                            Text(willStageOnly ? "Add description" : "Identify")
-                                .fontWeight(.semibold)
-                        }
-                        .font(.body)
-                        .foregroundStyle(Color(UIColor.systemBackground))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            Capsule()
-                                .fill(Color.primary)
-                        )
-                        .padding(.horizontal, 20)
-                    }
-                    .animation(.easeInOut(duration: 0.2), value: hasStaged)
 
                     // Bottom spacer: clears the global tab bar / scan toolbar
-                    Spacer().frame(height: 160)
+                    Spacer().frame(height: 180)
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -150,6 +183,19 @@ struct DescribeInputView: View {
                     isTextFieldFocused = false
                 }
             }
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    /// Appends the selected tag to the free text field intelligently.
+    private func appendTag(_ textToAppend: String) {
+        if context.freeText.isEmpty {
+            context.freeText = textToAppend.capitalized
+        } else {
+            // Check if user already typed a trailing space to prevent double spacing
+            let separator = context.freeText.hasSuffix(" ") ? "" : ", "
+            context.freeText += "\(separator)\(textToAppend)"
         }
     }
 }

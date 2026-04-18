@@ -22,8 +22,6 @@ struct CameraRootView: View {
     @State private var dictationTask: Task<Void, Never>?
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
     @State private var isKeyboardVisible: Bool = false
-    @State private var showDescribeHint: Bool = false
-    @State private var describeHintTask: Task<Void, Never>?
 
     // MARK: - Focus Indicator State
     @State private var focusLocation: CGPoint?
@@ -116,13 +114,6 @@ struct CameraRootView: View {
                                 // MARK: Page 3 — Describe Input
                                 DescribeInputView(
                                     captureMode: captureMode,
-                                    hasStaged: !viewModel.stagedCapture.images.isEmpty,
-                                    onSubmit: { observationContext in
-                                        viewModel.submitDescribe(
-                                            observationContext: observationContext,
-                                            modelContext: modelContext
-                                        )
-                                    },
                                     context: $observationContext
                                 )
                                 .frame(width: proxy.size.width, height: proxy.size.height)
@@ -217,20 +208,6 @@ struct CameraRootView: View {
                     VStack {
                         Spacer()
 
-                        if captureMode == .describe && showDescribeHint {
-                            Text("Voice dictate")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(.ultraThinMaterial)
-                                .environment(\.colorScheme, .dark)
-                                .clipShape(Capsule())
-                                .padding(.bottom, 16)
-                                .transition(.opacity)
-                        }
-
                         HStack(alignment: .bottom) {
                             PhotoLibraryButton(
                                 selectedPhotoItems: $viewModel.selectedPhotoItems,
@@ -243,34 +220,23 @@ struct CameraRootView: View {
 
                             Spacer()
 
+                            let willStageOnly = isMultiCaptureEnabled && (UserDefaults.standard.bool(forKey: "requiresScanConfirmation") || viewModel.stagedCapture.images.isEmpty)
+                            
                             CaptureButton(
                                 captureMode: captureMode,
-                                isRecording: speechManager.isRecording,
-                                audioLevel: speechManager.audioLevel,
-                                onCapture: { viewModel.executeCapture() },
-                                onTranscribe: {
-                                    if speechManager.isRecording || dictationTask != nil {
-                                        speechManager.stopDictation()
-                                        dictationTask?.cancel()
-                                        dictationTask = nil
-                                        return
-                                    }
-                                    
-                                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                                    let baseline = observationContext.freeText
-                                    
-                                    dictationTask = Task {
-                                        defer { dictationTask = nil }
-                                        do {
-                                            try await speechManager.startDictation(onResult: { text in
-                                                let separator = baseline.isEmpty ? "" : " "
-                                                observationContext.freeText = baseline + separator + text
-                                            })
-                                        } catch is PermissionError {
-                                            viewModel.offlineToastMessage = "Microphone access required. Check Settings."
-                                        } catch {
-                                            // Silently swallow OS/hardware failures
-                                        }
+                                willStageOnly: willStageOnly,
+                                onAction: {
+                                    switch captureMode {
+                                    case .visual:
+                                        viewModel.executeCapture()
+                                    case .audio:
+                                        break
+                                    case .describe:
+                                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                        viewModel.submitDescribe(
+                                            observationContext: observationContext,
+                                            modelContext: modelContext
+                                        )
                                     }
                                 }
                             )
@@ -390,19 +356,6 @@ struct CameraRootView: View {
         .onChange(of: captureMode) { _, newMode in
             HapticManager.shared.triggerSheetSpring()
             
-            if newMode == .describe {
-                describeHintTask?.cancel()
-                withAnimation(.easeInOut(duration: 0.3)) { showDescribeHint = true }
-                describeHintTask = Task {
-                    try? await Task.sleep(nanoseconds: 3_500_000_000) // 3.5 s
-                    guard !Task.isCancelled else { return }
-                    withAnimation(.easeInOut(duration: 0.3)) { showDescribeHint = false }
-                }
-            } else {
-                describeHintTask?.cancel()
-                withAnimation(.easeInOut(duration: 0.3)) { showDescribeHint = false }
-            }
-
             if newMode == .audio || newMode == .describe {
                 cameraManager.stopSession()
             } else if scenePhase == .active && viewModel.activeSheet == nil {
@@ -502,36 +455,25 @@ private struct ScrollBounceDisabler: UIViewRepresentable {
 
 private struct CaptureButton: View {
     let captureMode: CaptureMode
-    let isRecording: Bool
-    let audioLevel: CGFloat
-    let onCapture: () -> Void
-    let onTranscribe: () -> Void
+    let willStageOnly: Bool
+    let onAction: () -> Void
 
     var body: some View {
         ZStack {
             Circle()
                 .stroke(captureMode == .visual ? Color.white : Color.primary, lineWidth: 1)
                 .frame(width: 80, height: 80)
-                .background {
-                    if captureMode == .describe && isRecording {
-                        Circle()
-                            .fill(Color.primary.opacity(0.15))
-                            .frame(width: 80 + (audioLevel * 60), height: 80 + (audioLevel * 60))
-                            .animation(.linear(duration: 0.1), value: audioLevel)
-                    }
-                }
 
             ZStack {
                 Circle()
-                    .fill(captureMode == .audio ? Color.red : (captureMode == .describe ? (isRecording ? Color.primary : Color.clear) : Color.white))
+                    .fill(captureMode == .audio ? Color.red : (captureMode == .describe ? Color.primary : Color.white))
                     .frame(width: 72, height: 72)
                     .animation(.easeInOut(duration: 0.25), value: captureMode)
-                    .animation(.easeInOut(duration: 0.25), value: isRecording)
 
                 if captureMode == .describe {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 32, weight: .medium))
-                        .foregroundStyle(isRecording ? Color(UIColor.systemBackground) : Color.primary)
+                    Image(systemName: willStageOnly ? "plus" : "arrow.up")
+                        .font(.system(size: 32))
+                        .foregroundStyle(Color(UIColor.systemBackground))
                         .transition(.scale.combined(with: .opacity))
                 }
             }
@@ -540,16 +482,8 @@ private struct CaptureButton: View {
         .accessibilityIdentifier("CaptureShutter")
         .accessibilityAddTraits(.isButton)
         .onTapGesture {
-            switch captureMode {
-            case .visual:
-                HapticManager.shared.triggerFocusSnap()
-                onCapture()
-            case .audio:
-                HapticManager.shared.triggerFocusSnap()
-            case .describe:
-                HapticManager.shared.triggerFocusSnap()
-                onTranscribe()
-            }
+            HapticManager.shared.triggerFocusSnap()
+            onAction()
         }
     }
 }
