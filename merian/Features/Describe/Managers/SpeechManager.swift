@@ -50,10 +50,21 @@ final class SpeechManager {
         
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
-        try audioSession.setActive(true)
+        
+        #if targetEnvironment(simulator)
+        // Simulator specific fix: iOS forces 0 Hz sample rates randomly causing -10851 aborts.
+        try? audioSession.setPreferredSampleRate(48000)
+        #endif
+        
+        // IPC calls block heavily; detach them from MainActor to prevent UI RPC timeouts.
+        try await Task.detached {
+            try audioSession.setActive(true)
+        }.value
         
         if Task.isCancelled {
-            try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+            Task.detached {
+                try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+            }
             return
         }
         
@@ -127,6 +138,9 @@ final class SpeechManager {
         recognitionRequest = nil
         recognitionTask = nil
 
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // Prevent mediaserverd IPC wait from deadlocking MainActor tearing down the session
+        Task.detached {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 }

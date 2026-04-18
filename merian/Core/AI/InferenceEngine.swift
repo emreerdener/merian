@@ -524,6 +524,23 @@ private struct GBIFMedia: Decodable {
                                 self.enrichedSpeciesNames.insert(capturedScientificName)
                             }
                         }
+                        
+                        // Wait up to 3 seconds for hydration so reference images are available before UI clears the "Analyzing" state.
+                        if let hydrationTask = liveHydrationTask {
+                            do {
+                                try await withThrowingTaskGroup(of: Void.self) { group in
+                                    group.addTask { await hydrationTask.value }
+                                    group.addTask {
+                                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                                        throw CancellationError()
+                                    }
+                                    try await group.next()
+                                    group.cancelAll()
+                                }
+                            } catch {
+                                // Timeout reached; proceed and let the images finish loading in the background
+                            }
+                        }
                     }
                 }
             } catch {
@@ -728,6 +745,23 @@ private struct GBIFMedia: Decodable {
                                     )
                                 }
                                 self.enrichedSpeciesNames.insert(capturedScientificName)
+                            }
+                        }
+                        
+                        // Wait up to 3 seconds for hydration so reference images are available before UI clears the "Identifying..." state.
+                        if let hydrationTask = liveHydrationTask {
+                            do {
+                                try await withThrowingTaskGroup(of: Void.self) { group in
+                                    group.addTask { await hydrationTask.value }
+                                    group.addTask {
+                                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                                        throw CancellationError()
+                                    }
+                                    try await group.next()
+                                    group.cancelAll()
+                                }
+                            } catch {
+                                // Timeout reached; proceed and let the images finish loading in the background
                             }
                         }
                     }

@@ -34,6 +34,10 @@ struct CameraRootView: View {
 
     // MARK: - Staged Description Sheet
     @State private var isStagedDescriptionSheetPresented: Bool = false
+    
+    // MARK: - Describe Prompts TOC
+    @State private var isDescribeQuestionsSheetPresented: Bool = false
+    @State private var describePromptManager = DescribePromptManager()
 
     /// Dedicated scroll-position state for the pager. Decoupled from captureMode so that
     /// scrollPosition(id:) never writes captureMode directly — eliminating the "onChange(of:
@@ -114,7 +118,8 @@ struct CameraRootView: View {
                                 // MARK: Page 3 — Describe Input
                                 DescribeInputView(
                                     captureMode: captureMode,
-                                    context: $observationContext
+                                    context: $observationContext,
+                                    promptManager: describePromptManager
                                 )
                                 .frame(width: proxy.size.width, height: proxy.size.height)
                                 .clipped()
@@ -209,13 +214,21 @@ struct CameraRootView: View {
                         Spacer()
 
                         HStack(alignment: .bottom) {
-                            PhotoLibraryButton(
-                                selectedPhotoItems: $viewModel.selectedPhotoItems,
-                                latestThumbnail: photoLibraryManager.latestThumbnail,
-                                maxSelectionCount: isMultiCaptureEnabled ? max(1, stagedImageCapacity - viewModel.stagedCapture.images.count) : 1
-                            )
-                            .opacity(captureMode == .visual ? 1 : 0)
-                            .allowsHitTesting(captureMode == .visual)
+                            ZStack(alignment: .leading) {
+                                PhotoLibraryButton(
+                                    selectedPhotoItems: $viewModel.selectedPhotoItems,
+                                    latestThumbnail: photoLibraryManager.latestThumbnail,
+                                    maxSelectionCount: isMultiCaptureEnabled ? max(1, stagedImageCapacity - viewModel.stagedCapture.images.count) : 1
+                                )
+                                .opacity(captureMode == .visual ? 1 : 0)
+                                .allowsHitTesting(captureMode == .visual)
+                                
+                                TableOfContentsButton(
+                                    onTap: { isDescribeQuestionsSheetPresented = true }
+                                )
+                                .opacity(captureMode == .describe ? 1 : 0)
+                                .allowsHitTesting(captureMode == .describe)
+                            }
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
 
                             Spacer()
@@ -243,13 +256,22 @@ struct CameraRootView: View {
                                 .animation(.easeInOut(duration: 0.2), value: captureMode)
 
                             Spacer()
+                            ZStack {
+                                FlashButton(
+                                    isFlashEnabled: cameraManager.isFlashEnabled,
+                                    onToggleFlash: { cameraManager.toggleFlash() }
+                                )
+                                .opacity(captureMode == .visual ? 1 : 0)
+                                .allowsHitTesting(captureMode == .visual)
 
-                            FlashButton(
-                                isFlashEnabled: cameraManager.isFlashEnabled,
-                                onToggleFlash: { cameraManager.toggleFlash() }
-                            )
-                            .opacity(captureMode == .visual ? 1 : 0)
-                            .allowsHitTesting(captureMode == .visual)
+                                DictationButton(
+                                    isRecording: speechManager.isRecording,
+                                    audioLevel: speechManager.audioLevel,
+                                    onToggleDictation: { handleMicTap() }
+                                )
+                                .opacity(captureMode == .describe ? 1 : 0)
+                                .allowsHitTesting(captureMode == .describe)
+                            }
                             .animation(.easeInOut(duration: 0.2), value: captureMode)
                         }
                         .disabled(viewModel.isStagingRefinement)
@@ -310,6 +332,11 @@ struct CameraRootView: View {
                 onRemove: {
                     viewModel.stagedCapture.observationContext = nil
                 }
+            )
+        }
+        .sheet(isPresented: $isDescribeQuestionsSheetPresented) {
+            DescribeQuestionsSheet(
+                promptManager: describePromptManager
             )
         }
 
@@ -408,6 +435,22 @@ struct CameraRootView: View {
             viewModel.executeCapture()
         }
     }
+
+    // MARK: - Helpers
+    private func handleMicTap() {
+        if speechManager.isRecording {
+            speechManager.stopDictation()
+            dictationTask?.cancel()
+            dictationTask = nil
+        } else {
+            let base = observationContext.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+            dictationTask = Task {
+                try? await speechManager.startDictation { transcribed in
+                    observationContext.freeText = base.isEmpty ? transcribed : base + " " + transcribed
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Camera Controls Layer
@@ -487,4 +530,60 @@ private struct CaptureButton: View {
         }
     }
 }
+
+// MARK: - Dictation Button
+private struct DictationButton: View {
+    let isRecording: Bool
+    let audioLevel: CGFloat
+    let onToggleDictation: () -> Void
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.triggerMediumPulse()
+            onToggleDictation()
+        }) {
+            ZStack {
+                // Reactive reverberation ring
+                if isRecording {
+                    Circle()
+                        .fill(Color.red.opacity(0.4))
+                        .frame(width: 50 + (audioLevel * 30), height: 50 + (audioLevel * 30))
+                        .animation(.easeOut(duration: 0.15), value: audioLevel)
+                }
+
+                Image(systemName: isRecording ? "waveform" : "mic.fill")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(isRecording ? .red : .white)
+                    .frame(width: 50, height: 50)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .environment(\.colorScheme, .dark)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isRecording)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 32)
+    }
+}
+
+// MARK: - Table of Contents Button
+private struct TableOfContentsButton: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.triggerMediumPulse()
+            onTap()
+        }) {
+            Image(systemName: "list.bullet")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 50, height: 50)
+                .background(.ultraThinMaterial, in: Circle())
+                .environment(\.colorScheme, .dark)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 32)
+    }
+}
+
 // End of CameraRootView.swift
