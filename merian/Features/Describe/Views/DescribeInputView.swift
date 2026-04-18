@@ -149,15 +149,16 @@ struct DescribeInputView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color(UIColor.systemBackground)
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                Color(UIColor.systemBackground)
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
 
                     // Top spacer: device safe area + MediaModeToggle (16pt padding + ~44pt height) + 20pt gap.
-                    Spacer().frame(height: topSafeArea + 100)
+                    Spacer().frame(height: topSafeArea + 60)
 
                     // MARK: Question Header
                     VStack(alignment: .leading, spacing: 0) {
@@ -207,7 +208,7 @@ struct DescribeInputView: View {
                             .frame(maxWidth: .infinity, minHeight: 35, alignment: .topLeading)
                     }
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 8)
 
                     // MARK: Contextual Quick Tags
                     // Tags are scoped to the active question. Tapping inserts the optimized
@@ -216,6 +217,7 @@ struct DescribeInputView: View {
                         HStack(spacing: 8) {
                             ForEach(guidedQuestions[promptManager.activeQuestionIndex].tags, id: \.self) { tag in
                                 Button(action: {
+                                    HapticManager.shared.triggerSelectionPulse()
                                     appendTag(tag)
                                 }) {
                                     Text(tag.label)
@@ -232,7 +234,7 @@ struct DescribeInputView: View {
                         .padding(.horizontal, 20)
                         .animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
                     }
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 16)
 
                     // MARK: Text Area
                     ZStack(alignment: .topLeading) {
@@ -253,37 +255,25 @@ struct DescribeInputView: View {
                             text: $context.freeText,
                             axis: .vertical
                         )
-                        .lineLimit(8...14)
+                        .lineLimit(5...10)
                         .font(.body)
                         .foregroundStyle(.primary)
                         .focused($isTextFieldFocused)
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
                         .padding(.bottom, 48)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .toolbar {
-                            ToolbarItemGroup(placement: .keyboard) {
-                                Spacer()
-                                Button("Done") {
-                                    isTextFieldFocused = false
-                                    UIApplication.shared.sendAction(
-                                        #selector(UIResponder.resignFirstResponder),
-                                        to: nil, from: nil, for: nil
-                                    )
-                                }
-                                .bold()
-                                .padding(.trailing, 8)
-                                .padding(.bottom, 6)
-                            }
-                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 220)
+                    .frame(minHeight: 160)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
 
+                    Spacer() // Absorbs extra vertical space
+
                     // Bottom spacer: clears the global tab bar / scan toolbar
-                    Spacer().frame(height: 180)
+                    Spacer().frame(height: 250)
                 }
+                .frame(minHeight: proxy.size.height)
             }
             .scrollDismissesKeyboard(.immediately)
             .onChange(of: captureMode) { _, newMode in
@@ -293,6 +283,7 @@ struct DescribeInputView: View {
                     dictationTask = nil
                 }
             }
+        }
         }
     }
 

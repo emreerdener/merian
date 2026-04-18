@@ -12,13 +12,14 @@ extension CameraViewModel {
     /// - **No images staged**: solo description-only path via `submitDescribeSolo`.
     ///
     /// Includes a 1.5s debounce to prevent duplicate enqueuing on rapid physical taps.
-    func submitDescribe(observationContext: ObservationContext, modelContext: ModelContext) {
+    @discardableResult
+    func submitDescribe(observationContext: ObservationContext, modelContext: ModelContext) -> Bool {
         // Prevent rapid duplicate taps from spawning identical offline queue records
         let now = CFAbsoluteTimeGetCurrent()
-        guard (now - (stagedCapture.lastSubmitTime ?? 0)) > 1.5 else { return }
+        guard (now - (stagedCapture.lastSubmitTime ?? 0)) > 1.5 else { return false }
         stagedCapture.lastSubmitTime = now
 
-        guard !observationContext.isEmpty else { return }
+        guard !observationContext.isEmpty else { return false }
 
         // The observationContext originates from a long-lived @State binding in
         // CameraRootView. We must mint a brand new generation timestamp here right
@@ -36,12 +37,15 @@ extension CameraViewModel {
             if !UserDefaults.standard.bool(forKey: "requiresScanConfirmation") && totalItems >= limit {
                 submitStagedCapture(modelContext: modelContext)
             }
+            return true
         } else {
             if !stagedCapture.images.isEmpty {
                 stagedCapture.observationContext = stagedContext
                 submitStagedCapture(modelContext: modelContext)
+                return true
             } else {
                 submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext)
+                return true
             }
         }
     }

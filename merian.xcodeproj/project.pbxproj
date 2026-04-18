@@ -329,6 +329,7 @@
 		FAE969384943FC018AF0FAE0 /* CandidateActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65612403ABDBC21445243E69 /* CandidateActionBar.swift */; };
 		FAECE180627AC9FCD58E9DA3 /* SafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29970E8D61AA5E64E0B76148 /* SafariView.swift */; };
 		FBD552F932F331C0D412DEE4 /* ScanCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2F826786333CB7FACE40CB /* ScanCollection.swift */; };
+		FC8CCA7E8E74BF81B38515CC /* CaptureControlBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9792FA4EFA7CB43CAC1AC710 /* CaptureControlBar.swift */; };
 		FD84FEF5A734D7B4E58D7701 /* UnderReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEDDFC2BE211CBF973BF691C /* UnderReviewView.swift */; };
 		FDB2CC5787BC86018ECC3E1D /* ConfidenceBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F2624C5929D7631BE2DD79C /* ConfidenceBadge.swift */; };
 		FE2E517FD075611792A3FF5C /* DescribeAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F7B8B7AF2A899F11BCA25BC /* DescribeAnalysis.swift */; };
@@ -558,6 +559,7 @@
 		94F20E3C8C9DFB1A3B0BC386 /* ProfileDatabaseActorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileDatabaseActorTests.swift; sourceTree = "<group>"; };
 		9509DAB625D53A19AE6DDD50 /* ConfidenceExplanationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceExplanationSheet.swift; sourceTree = "<group>"; };
 		975D2C15DC9A7F9860C1DB7C /* ReportInsightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportInsightView.swift; sourceTree = "<group>"; };
+		9792FA4EFA7CB43CAC1AC710 /* CaptureControlBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureControlBar.swift; sourceTree = "<group>"; };
 		982525C62BD28E842B2F5D11 /* OfflineQueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManager.swift; sourceTree = "<group>"; };
 		9ACF7D9D4707401EA2481D98 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		9AEC36D3B333E91D1346DF70 /* LocalImageLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalImageLoaderTests.swift; sourceTree = "<group>"; };
@@ -1144,6 +1146,7 @@
 			children = (
 				1FF1E2C711495802F6298EDB /* ActiveScanToolbar.swift */,
 				59DF526286C247EAD0760E55 /* ArchivedVisualsView.swift */,
+				9792FA4EFA7CB43CAC1AC710 /* CaptureControlBar.swift */,
 				AA401B34F87B7B4B66AD1FD5 /* FadingScrollView.swift */,
 				F6963D372E7F7B17BB7B0DB3 /* MainTabBar.swift */,
 				49BD12B2FA16808496408D6F /* MediaModeToggle.swift */,
@@ -2175,6 +2178,7 @@
 				C7E713A20C2A1EB51FDA7C79 /* CandidateVerificationView.swift in Sources */,
 				0043B3AA403242D02A61A6E2 /* CandidatesCard.swift in Sources */,
 				922CCACF20E168E62D7EB515 /* Capture.swift in Sources */,
+				FC8CCA7E8E74BF81B38515CC /* CaptureControlBar.swift in Sources */,
 				E63E6ACB0BC12DE3ED8081BB /* Card.swift in Sources */,
 				36606C1BF6B4909B3DB5A8A4 /* CardEntranceModifier.swift in Sources */,
 				97B4FC91A9500211B78270EB /* CategoryFilterBar.swift in Sources */,

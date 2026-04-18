@@ -246,11 +246,11 @@ private struct StagedDescriptionBadge: View {
     var body: some View {
         Image(systemName: "text.alignleft")
             .font(.system(size: 18, weight: .medium))
-            .foregroundStyle(.white.opacity(0.85))
+            .foregroundStyle(Color(UIColor.systemBackground))
             .frame(width: 48, height: 48)
             .background(
                 Circle()
-                    .fill(Color.white.opacity(0.25))
+                    .fill(Color.primary)
             )
             .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
@@ -258,7 +258,7 @@ private struct StagedDescriptionBadge: View {
 
 private struct ActiveScanTooltipOverlay: View {
     var body: some View {
-        Text("Tap an image to edit")
+        Text("Tap to edit")
             .symbolRenderingMode(.palette)
             .foregroundStyle(.white.opacity(0.9), .blue)
             .font(.caption.weight(.medium))

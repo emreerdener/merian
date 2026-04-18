@@ -210,77 +210,14 @@ struct CameraRootView: View {
                 // Pinned to a fixed absolute bottom offset so toolbar height changes
                 // (MainTabBar vs ActiveScanToolbar) never shift the shutter row.
                 if viewModel.stagedCapture.images.count < stagedImageCapacity {
-                    VStack {
-                        Spacer()
-
-                        HStack(alignment: .bottom) {
-                            ZStack(alignment: .leading) {
-                                PhotoLibraryButton(
-                                    selectedPhotoItems: $viewModel.selectedPhotoItems,
-                                    latestThumbnail: photoLibraryManager.latestThumbnail,
-                                    maxSelectionCount: isMultiCaptureEnabled ? max(1, stagedImageCapacity - viewModel.stagedCapture.images.count) : 1
-                                )
-                                .opacity(captureMode == .visual ? 1 : 0)
-                                .allowsHitTesting(captureMode == .visual)
-                                
-                                TableOfContentsButton(
-                                    onTap: { isDescribeQuestionsSheetPresented = true }
-                                )
-                                .opacity(captureMode == .describe ? 1 : 0)
-                                .allowsHitTesting(captureMode == .describe)
-                            }
-                            .animation(.easeInOut(duration: 0.2), value: captureMode)
-
-                            Spacer()
-
-                            let willStageOnly = isMultiCaptureEnabled && (UserDefaults.standard.bool(forKey: "requiresScanConfirmation") || viewModel.stagedCapture.images.isEmpty)
-                            
-                            CaptureButton(
-                                captureMode: captureMode,
-                                willStageOnly: willStageOnly,
-                                onAction: {
-                                    switch captureMode {
-                                    case .visual:
-                                        viewModel.executeCapture()
-                                    case .audio:
-                                        break
-                                    case .describe:
-                                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                                        viewModel.submitDescribe(
-                                            observationContext: observationContext,
-                                            modelContext: modelContext
-                                        )
-                                    }
-                                }
-                            )
-                                .animation(.easeInOut(duration: 0.2), value: captureMode)
-
-                            Spacer()
-                            ZStack {
-                                FlashButton(
-                                    isFlashEnabled: cameraManager.isFlashEnabled,
-                                    onToggleFlash: { cameraManager.toggleFlash() }
-                                )
-                                .opacity(captureMode == .visual ? 1 : 0)
-                                .allowsHitTesting(captureMode == .visual)
-
-                                DictationButton(
-                                    isRecording: speechManager.isRecording,
-                                    audioLevel: speechManager.audioLevel,
-                                    onToggleDictation: { handleMicTap() }
-                                )
-                                .opacity(captureMode == .describe ? 1 : 0)
-                                .allowsHitTesting(captureMode == .describe)
-                            }
-                            .animation(.easeInOut(duration: 0.2), value: captureMode)
-                        }
-                        .disabled(viewModel.isStagingRefinement)
-                        .padding(.bottom, 140)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
-                    .opacity(isKeyboardVisible ? 0 : 1)
-                    .allowsHitTesting(!isKeyboardVisible)
+                    CaptureControlBar(
+                        viewModel: viewModel,
+                        captureMode: captureMode,
+                        observationContext: $observationContext,
+                        isKeyboardVisible: isKeyboardVisible,
+                        onTableOfContentsTap: { isDescribeQuestionsSheetPresented = true },
+                        onDictationTap: { handleMicTap() }
+                    )
                 }
 
                 // MARK: Fixed Overlay — Navigation / scan toolbar (bottom, independent of capture bar)
@@ -446,6 +383,9 @@ struct CameraRootView: View {
             let base = observationContext.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
             dictationTask = Task {
                 try? await speechManager.startDictation { transcribed in
+                    // Defensive guard: ignore spurious empty callbacks from SFSpeechRecognizer
+                    // which occasionally occur during task teardown and can overwrite the text.
+                    guard !transcribed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                     observationContext.freeText = base.isEmpty ? transcribed : base + " " + transcribed
                 }
             }
@@ -489,100 +429,6 @@ private struct ScrollBounceDisabler: UIViewRepresentable {
                 }
             }
         }
-    }
-}
-
-// MARK: - Capture Button
-// Single button that transitions between the white shutter style (camera) and
-// the red record style (audio) in place, with no position change.
-
-private struct CaptureButton: View {
-    let captureMode: CaptureMode
-    let willStageOnly: Bool
-    let onAction: () -> Void
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(captureMode == .visual ? Color.white : Color.primary, lineWidth: 1)
-                .frame(width: 80, height: 80)
-
-            ZStack {
-                Circle()
-                    .fill(captureMode == .audio ? Color.red : (captureMode == .describe ? Color.primary : Color.white))
-                    .frame(width: 72, height: 72)
-                    .animation(.easeInOut(duration: 0.25), value: captureMode)
-
-                if captureMode == .describe {
-                    Image(systemName: willStageOnly ? "plus" : "arrow.up")
-                        .font(.system(size: 32))
-                        .foregroundStyle(Color(UIColor.systemBackground))
-                        .transition(.scale.combined(with: .opacity))
-                }
-            }
-        }
-        .contentShape(Circle())
-        .accessibilityIdentifier("CaptureShutter")
-        .accessibilityAddTraits(.isButton)
-        .onTapGesture {
-            HapticManager.shared.triggerFocusSnap()
-            onAction()
-        }
-    }
-}
-
-// MARK: - Dictation Button
-private struct DictationButton: View {
-    let isRecording: Bool
-    let audioLevel: CGFloat
-    let onToggleDictation: () -> Void
-
-    var body: some View {
-        Button(action: {
-            HapticManager.shared.triggerMediumPulse()
-            onToggleDictation()
-        }) {
-            ZStack {
-                // Reactive reverberation ring
-                if isRecording {
-                    Circle()
-                        .fill(Color.red.opacity(0.4))
-                        .frame(width: 50 + (audioLevel * 30), height: 50 + (audioLevel * 30))
-                        .animation(.easeOut(duration: 0.15), value: audioLevel)
-                }
-
-                Image(systemName: isRecording ? "waveform" : "mic.fill")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(isRecording ? .red : .white)
-                    .frame(width: 50, height: 50)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .environment(\.colorScheme, .dark)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isRecording)
-            }
-        }
-        .buttonStyle(.plain)
-        .padding(.trailing, 32)
-    }
-}
-
-// MARK: - Table of Contents Button
-private struct TableOfContentsButton: View {
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: {
-            HapticManager.shared.triggerMediumPulse()
-            onTap()
-        }) {
-            Image(systemName: "list.bullet")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: 50, height: 50)
-                .background(.ultraThinMaterial, in: Circle())
-                .environment(\.colorScheme, .dark)
-        }
-        .buttonStyle(.plain)
-        .padding(.leading, 32)
     }
 }
 

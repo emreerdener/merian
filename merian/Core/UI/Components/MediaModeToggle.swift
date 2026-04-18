@@ -53,7 +53,7 @@ struct MediaModeToggle: View {
         }
         .pickerStyle(.segmented)
         .padding(.bottom, 1)
-        .background(Capsule().fill(.ultraThinMaterial))
+        .background(Capsule().fill(.ultraThinMaterial).opacity(0.8))
         .clipShape(Capsule())
         .scaleEffect(1.1)
         .padding(.horizontal, 48)
