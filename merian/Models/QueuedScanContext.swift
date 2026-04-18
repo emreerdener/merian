@@ -22,6 +22,8 @@ struct QueuedScanContext: Identifiable, Equatable {
     let gpsElevation: Double?
     let gpsLatitude: Double?
     let gpsLongitude: Double?
+    
+    /// A JSON-encoded verbatim snapshot of the `ObservationContext` associated with this queued scan.
     let observationContextJSON: String?
 
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.

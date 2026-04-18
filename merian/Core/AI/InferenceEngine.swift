@@ -64,6 +64,9 @@ private struct GBIFMedia: Decodable {
     var activeDisplayDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData?
+    
+    /// Holds the user's staged textual description natively during the active live asynchronous
+    /// taxonomy pipeline evaluation. Defensively cleared upfront during `prepareForNewScan` and `analyze`.
     var activeObservationContext: ObservationContext?
 
     // MARK: - Environmental Telemetry State

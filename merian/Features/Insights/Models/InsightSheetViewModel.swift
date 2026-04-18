@@ -21,12 +21,17 @@ final class InsightSheetViewModel {
     }
     
     // MARK: - Internal Cached State
+    /// An in-memory cache of the successfully decoded `ObservationContext` representing the user's text.
+    /// Safely decoded exactly once within lifecycle mappings (`init` and `fetchLocalRecord`) to prevent
+    /// main-thread thrashing on layout changes where the framework routinely interrogates boundary sizes.
     private var cachedHistoricObservationContext: ObservationContext?
     
     // MARK: - Interface State
     var showCelebration = false
     var showBottomBarTools = false
     var isCommonNameScrolledPast = false
+    
+    /// Indicates whether the `InsightDescriptionSheet` is currently covering the insight router organically.
     var isDescriptionSheetPresented = false
 
     // MARK: - Alert & Modal Flags
@@ -107,6 +112,8 @@ final class InsightSheetViewModel {
         inferenceEngine?.activeDisplayDatas ?? []
     }
     
+    /// Safely resolves the user's textual input gracefully escalating exclusively from top-down layers: 
+    /// offline queue snapshot, SQLite cache entity, and finally passing down to the hot inference pipeline.
     var observationContext: ObservationContext? {
         if queuedContext != nil || activeLocalRecord != nil {
             return cachedHistoricObservationContext

@@ -18,7 +18,11 @@ struct ImagesCarousel: View {
     /// propagate the failure to the engine (live path) or swallow it (queued path).
     let onImageFailure: (String) -> Void
     
+    /// An optional, trimmed plaintext payload explicitly tracking the user's input context.
+    /// Explicitly drives the instantiation of the `DescriptionTextCarouselPage` node natively within layout.
     let descriptionText: String?
+    
+    /// Triggers exclusively when tapping the interactive textual subcomponent.
     let onDescriptionTap: (() -> Void)?
 
     // MARK: - State
@@ -480,6 +484,9 @@ private struct AnalyzingVisualEffectsView: View {
 }
 
 // MARK: - Description Overlay Component
+
+/// Dedicated visual abstraction managing the abbreviated visual representation explicitly mapping
+/// the textual node context dynamically anchored alongside photo assets within the timeline natively.
 private struct DescriptionTextCarouselPage: View {
     let text: String
     let onTap: (() -> Void)?
