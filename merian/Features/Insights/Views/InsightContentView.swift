@@ -30,11 +30,16 @@ struct InsightContentView: View {
                     let bleedBuffer: CGFloat = 50 
                     
                     let activeQueuedContext = viewModel.queuedContext ?? queuedScan
+                    let activeObservationContext = viewModel.observationContext
                     let activeValidPaths = activeQueuedContext?.localImagePaths ?? viewModel.validHistoricImagePaths
                     let activeHasLive = activeQueuedContext != nil ? false : viewModel.hasLive
                     let activeLiveCount = activeQueuedContext != nil ? 0 : viewModel.liveCount
-                    let activeTotalImages = activeQueuedContext != nil ? (activeQueuedContext?.localImagePaths.count ?? 0) : viewModel.totalImages
                     let activeIsProcessing = activeQueuedContext != nil ? false : viewModel.isProcessing
+
+                    let hasDescription = activeObservationContext?.isEmpty == false
+                    let activeTotalImages = (activeQueuedContext != nil 
+                        ? (activeQueuedContext?.localImagePaths.count ?? 0) 
+                        : viewModel.totalImages) + (activeQueuedContext != nil ? (hasDescription ? 1 : 0) : 0)
 
                     ImagesCarousel(
                         scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
@@ -49,7 +54,9 @@ struct InsightContentView: View {
                         onImageFailure: { path in
                             guard activeQueuedContext == nil else { return }
                             inferenceEngine.dropInvalidCarouselImage(path)
-                        }
+                        },
+                        descriptionText: hasDescription ? activeObservationContext?.freeText : nil,
+                        onDescriptionTap: { viewModel.isDescriptionSheetPresented = true }
                     )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
@@ -121,6 +128,11 @@ struct InsightContentView: View {
                         }
                     }
                 )
+            }
+        }
+        .sheet(isPresented: $viewModel.isDescriptionSheetPresented) {
+            if let context = viewModel.observationContext {
+                InsightDescriptionSheet(text: context.freeText)
             }
         }
     }

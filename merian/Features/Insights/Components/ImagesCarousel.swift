@@ -17,6 +17,9 @@ struct ImagesCarousel: View {
     /// Called when a carousel image fails to load. The caller decides whether to
     /// propagate the failure to the engine (live path) or swallow it (queued path).
     let onImageFailure: (String) -> Void
+    
+    let descriptionText: String?
+    let onDescriptionTap: (() -> Void)?
 
     // MARK: - State
     @State private var selectedIndex: Int = 0
@@ -62,12 +65,17 @@ struct ImagesCarousel: View {
     /// already loading in the background before the user reaches them.
     private var carouselPages: [AnyView] {
         var pages: [AnyView] = []
+        let hasDesc = descriptionText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+
         if hasLive {
-            for data in liveImageDatas {
+            for (idx, data) in liveImageDatas.enumerated() {
                 pages.append(AnyView(LiveCapturePageView(data: data)))
+                if idx == 0 && hasDesc, let text = descriptionText {
+                    pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
+                }
             }
-        } else {
-            for path in validHistoricImagePaths {
+        } else if !validHistoricImagePaths.isEmpty {
+            for (idx, path) in validHistoricImagePaths.enumerated() {
                 pages.append(AnyView(
                     AsyncLocalImageView(
                         path: path,
@@ -75,8 +83,15 @@ struct ImagesCarousel: View {
                         onImageLoadFailed: { handleImageFailure(identifier: path) }
                     )
                 ))
+                if idx == 0 && hasDesc, let text = descriptionText {
+                    pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
+                }
             }
+        } else if hasDesc, let text = descriptionText {
+            // Pure describe mode
+            pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
         }
+
         for urlString in refUrls {
             pages.append(AnyView(
                 AsyncLocalImageView(
@@ -461,5 +476,41 @@ private struct AnalyzingVisualEffectsView: View {
                 pulseOpacity = 0.4
             }
         }
+    }
+}
+
+// MARK: - Description Overlay Component
+private struct DescriptionTextCarouselPage: View {
+    let text: String
+    let onTap: (() -> Void)?
+    
+    var body: some View {
+        ZStack {
+            // Core background matching Merian's dark tone
+            LinearGradient(
+                colors: [Color(uiColor: .systemGray5), Color(uiColor: .systemGray6)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            
+            VStack(spacing: 12) {
+                Text(text)
+                    .font(.body)
+                    .lineLimit(4)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 32)
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "text.magnifyingglass")
+                    Text("Tap to read")
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap?() }
     }
 }

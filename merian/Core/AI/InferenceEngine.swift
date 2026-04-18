@@ -64,6 +64,7 @@ private struct GBIFMedia: Decodable {
     var activeDisplayDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData?
+    var activeObservationContext: ObservationContext?
 
     // MARK: - Environmental Telemetry State
     private(set) var activeLatitude: Double?
@@ -192,6 +193,7 @@ private struct GBIFMedia: Decodable {
         self.validHistoricImagePaths = []
         self.activeImageData = nil
         self.activeDisplayDatas = []
+        self.activeObservationContext = nil
 
         // Clear telemetry so stale GPS/weather cannot bleed into the new scan's display.
         self.activeLatitude = nil
@@ -245,12 +247,15 @@ private struct GBIFMedia: Decodable {
         self.isReferenceImageLoading = false
         self.scanningPhaseText = "Analyzing subject..."
 
+        self.activeObservationContext = nil
         self.activeScanId = scanId
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
         self.activeDisplayDatas = displayDatas.isEmpty ? imageDatas : displayDatas
         self.validHistoricImagePaths = []
         self.speciesData = nil
+        
+        self.activeObservationContext = observationContext
 
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
@@ -619,6 +624,7 @@ private struct GBIFMedia: Decodable {
         self.isLookalikesLoading = false
         self.scanningPhaseText = "Identifying describe..."
 
+        self.activeObservationContext = nil
         self.activeScanId = scanId
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
@@ -626,6 +632,8 @@ private struct GBIFMedia: Decodable {
         self.activeLocationName = telemetry.locationName
         self.activeWeatherCondition = telemetry.weatherCondition
         self.activeTemperatureF = telemetry.weatherTemperatureF
+        
+        self.activeObservationContext = observationContext
 
         let ownedScanId = scanId
 

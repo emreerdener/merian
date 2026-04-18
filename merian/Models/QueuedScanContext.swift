@@ -22,6 +22,7 @@ struct QueuedScanContext: Identifiable, Equatable {
     let gpsElevation: Double?
     let gpsLatitude: Double?
     let gpsLongitude: Double?
+    let observationContextJSON: String?
 
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.
     /// Must be called while the object is still alive (before any `context.delete()`).
@@ -35,5 +36,6 @@ struct QueuedScanContext: Identifiable, Equatable {
         self.gpsElevation = scan.gpsElevation
         self.gpsLatitude = scan.gpsLatitude
         self.gpsLongitude = scan.gpsLongitude
+        self.observationContextJSON = scan.observationContextJSON
     }
 }

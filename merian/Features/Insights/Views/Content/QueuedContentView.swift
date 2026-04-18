@@ -13,7 +13,8 @@ private extension QueuedScanContext {
         weatherCondition: String?,
         gpsElevation: Double?,
         gpsLatitude: Double?,
-        gpsLongitude: Double?
+        gpsLongitude: Double?,
+        observationContextJSON: String? = nil
     ) {
         self.id = id
         self.localImagePaths = localImagePaths
@@ -24,6 +25,7 @@ private extension QueuedScanContext {
         self.gpsElevation = gpsElevation
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
+        self.observationContextJSON = observationContextJSON
     }
 
     static var preview: QueuedScanContext {
@@ -36,7 +38,8 @@ private extension QueuedScanContext {
             weatherCondition: "partly cloudy",
             gpsElevation: 142,
             gpsLatitude: 37.8970,
-            gpsLongitude: -122.5810
+            gpsLongitude: -122.5810,
+            observationContextJSON: nil
         )
     }
 }

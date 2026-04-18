@@ -15,12 +15,19 @@ final class InsightSheetViewModel {
     /// that exists before `onAppear` fires.
     init(queuedContext: QueuedScanContext? = nil) {
         self.queuedContext = queuedContext
+        if let jsonStr = queuedContext?.observationContextJSON, let data = jsonStr.data(using: .utf8) {
+            self.cachedHistoricObservationContext = try? JSONDecoder().decode(ObservationContext.self, from: data)
+        }
     }
+    
+    // MARK: - Internal Cached State
+    private var cachedHistoricObservationContext: ObservationContext?
     
     // MARK: - Interface State
     var showCelebration = false
     var showBottomBarTools = false
     var isCommonNameScrolledPast = false
+    var isDescriptionSheetPresented = false
 
     // MARK: - Alert & Modal Flags
     var isFlagIssuePresented = false
@@ -99,6 +106,13 @@ final class InsightSheetViewModel {
     var liveImageDatas: [Data] {
         inferenceEngine?.activeDisplayDatas ?? []
     }
+    
+    var observationContext: ObservationContext? {
+        if queuedContext != nil || activeLocalRecord != nil {
+            return cachedHistoricObservationContext
+        }
+        return inferenceEngine?.activeObservationContext
+    }
 
     var hasLive: Bool {
         guard queuedContext == nil else { return false }
@@ -117,7 +131,9 @@ final class InsightSheetViewModel {
         // here or totalImages overcounts and produces unreachable pagination dots.
         let captureCount = hasLive ? liveCount : validHistoricImagePaths.count
         let refCount = refUrls.count + ((inferenceEngine?.isReferenceImageLoading == true && refUrls.isEmpty) ? 1 : 0)
-        return captureCount + refCount
+        let hasDescription = observationContext?.isEmpty == false
+        
+        return captureCount + refCount + (hasDescription ? 1 : 0)
     }
 
     // MARK: - Toolbar Capability Flags
@@ -386,6 +402,9 @@ final class InsightSheetViewModel {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
+            if let jsonStr = record.observationContextJSON, let data = jsonStr.data(using: .utf8) {
+                self.cachedHistoricObservationContext = try? JSONDecoder().decode(ObservationContext.self, from: data)
+            }
             markRecordViewedIfAppropriate(modelContext: modelContext)
         }
     }
