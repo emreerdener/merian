@@ -7,10 +7,8 @@ import UserNotifications
 struct PushNotificationManagerTests {
     
     @Test func testManagerInitialization() {
-        let manager = PushNotificationManager.shared
-        
         // Assert the hardware primitive initializes safely off the singleton
-        #expect(manager != nil)
+        let _ = PushNotificationManager.shared
     }
     
     @Test func testSetupDelegateRegistersSuccessfully() {

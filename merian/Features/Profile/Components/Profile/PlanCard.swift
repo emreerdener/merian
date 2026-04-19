@@ -19,7 +19,7 @@ struct PlanCard: View {
                             .tracking(1)
                     }
                     
-                    Text(revenueCat.isProActive ? "Naturalist" : "Explorer")
+                    Text(revenueCat.isProActive ? "Pro" : "Free")
                         .font(.system(.title, design: .serif))
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
@@ -28,7 +28,7 @@ struct PlanCard: View {
                 Spacer()
                 
                 if revenueCat.isProActive {
-                    Image("sparkles")
+                    Image("pw_butterfly")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 56, height: 56)

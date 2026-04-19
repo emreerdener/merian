@@ -11,7 +11,6 @@ struct MerianAppIntentsTests {
         
         // As long as perform() finishes successfully without an error or a timeout
         // it means AppState.shared.navigateTo("camera") was successfully hit natively
-        #expect(result != nil)
     }
     
     @Test func testRecallLastFindIntentDeepLinksToInsights() async throws {
@@ -20,6 +19,5 @@ struct MerianAppIntentsTests {
         let result = try await intent.perform()
         
         // Assert intent yields successfully without dropping pointers
-        #expect(result != nil)
     }
 }

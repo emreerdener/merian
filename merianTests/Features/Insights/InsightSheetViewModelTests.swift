@@ -104,7 +104,7 @@ struct InsightSheetViewModelTests {
         viewModel.inferenceEngine = engine
         
         // Base state: 1 live captured image, no reference image yet
-        engine.activeDisplayDatas = [Data()]
+        engine.activeImageData = Data()
         engine.speciesData = SpeciesData(
             scanId: "load_test",
             commonName: "Test",

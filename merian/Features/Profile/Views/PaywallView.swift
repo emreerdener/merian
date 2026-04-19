@@ -49,7 +49,7 @@ struct PaywallView: View {
                             Image(feature.icon)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 96, height: 96)
+                                .frame(width: 112, height: 112)
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(feature.title)

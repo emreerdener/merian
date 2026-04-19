@@ -8,7 +8,7 @@ import { requireParams } from "../_shared/http.ts";
 import { sanitizeScientificName } from "../identify/sanitize.ts";
 
 import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "../identify/types.ts";
-import { FLASH_DIAGNOSTIC_TRIGGER, PRO_DIAGNOSTIC_TRIGGER, diagnosticTriggerForTier } from "../identify/thresholds.ts";
+import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
 import { getDescribeSystemInstruction, getDescribeResponseSchema } from "./schema.ts";
 import {
   upsertGhostUserIfMissing,

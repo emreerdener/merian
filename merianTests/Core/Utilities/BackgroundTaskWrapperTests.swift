@@ -4,15 +4,28 @@ import Foundation
 
 struct BackgroundTaskWrapperTests {
     
+    final class ThreadSafeFlag: @unchecked Sendable {
+        private var lock = NSLock()
+        private var _value = false
+        var value: Bool {
+            lock.lock(); defer { lock.unlock() }
+            return _value
+        }
+        func setTrue() {
+            lock.lock(); defer { lock.unlock() }
+            _value = true
+        }
+    }
+    
     @Test func testBackgroundTaskExecutesAndYieldsGracefully() async {
         // Arrange
-        var closureDidExecute = false
+        let closureDidExecute = ThreadSafeFlag()
         
         // Act
         // Because we are outside a UIApplication environment, standard identifiers won't map properly
         // but the block execution and locking safety mechanisms must still process synchronously.
         let backgroundTask = BackgroundTaskWrapper.execute(name: "UnitTestTask") { wrapper in
-            closureDidExecute = true
+            closureDidExecute.setTrue()
             
             // Task executes within native UIApplication context inside testing daemon, generating valid identifiers
             #expect(wrapper.id != .invalid)
@@ -22,7 +35,7 @@ struct BackgroundTaskWrapperTests {
         _ = await backgroundTask.value
         
         // Assert
-        #expect(closureDidExecute == true, "The BackgroundTaskWrapper failed to actually execute the attached block.")
+        #expect(closureDidExecute.value == true, "The BackgroundTaskWrapper failed to actually execute the attached block.")
     }
     
     @Test func testSafeEndIsThreadSafeAndIdempotent() {
