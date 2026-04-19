@@ -128,7 +128,11 @@ serve((req: Request) =>
 
     if (audio_base64) {
       // Inline path: iOS sends the WAV base64-encoded in the request body.
-      rawWavBuffer = decodeBase64(audio_base64).buffer as ArrayBuffer;
+      try {
+        rawWavBuffer = decodeBase64(audio_base64).buffer as ArrayBuffer;
+      } catch {
+        return jsonResponse({ error: "Invalid audio encoding: malformed base64." }, 400);
+      }
       console.log(`[⏱ BENCH] base64_decode: ${Date.now() - fnStart}ms, size=${rawWavBuffer.byteLength}`);
     } else {
       // R2 path: IDOR + path traversal guards only apply here.
