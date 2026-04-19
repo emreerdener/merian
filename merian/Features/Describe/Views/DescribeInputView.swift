@@ -134,13 +134,13 @@ struct DescribeInputView: View {
                                             Image(imageName)
                                                 .resizable()
                                                 .scaledToFit()
-                                                .frame(width: 56, height: 56)
+                                                .frame(width: 64, height: 64)
                                             Text(tag.label)
                                                 .font(.subheadline.weight(.medium))
                                                 .lineLimit(1)
                                         }
                                         .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
-                                        .frame(width: 96, height: 104)
+                                        .frame(width: 96, height: 112)
                                         .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
                                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                     } else {

@@ -19,7 +19,6 @@ final class AppLifecycleManager {
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         guard hasCompletedOnboarding else { return }
 
-        container.cameraManager.startSession()
         container.usageManager.evaluateDailyRefresh()
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()

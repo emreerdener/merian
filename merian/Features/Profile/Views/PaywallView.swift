@@ -8,11 +8,11 @@ struct PaywallFeature {
 }
 
 let proFeatures = [
-    PaywallFeature(icon: "infinity", title: "Unlimited Scans", description: "Identify species continuously without daily scan limits."),
-    PaywallFeature(icon: "sparkles", title: "Pro AI Vision", description: "Access our most advanced, diagnostic-grade AI model."),
-    PaywallFeature(icon: "waveform", title: "Audio Recording", description: "Identify birds and insects by their distinct calls."),
-    PaywallFeature(icon: "square.stack.3d.up", title: "Multi-Capture Mode", description: "Upload multiple images or audio to help identify."),
-    PaywallFeature(icon: "leaf.arrow.triangle.circlepath", title: "Ecological Telemetry", description: "Unlock deep dive insights like size and interactions.")
+    PaywallFeature(icon: "pw_dragonfly", title: "Unlimited Scans", description: "Identify species continuously without daily scan limits."),
+    PaywallFeature(icon: "pw_hawk", title: "Pro AI Vision", description: "Access our most advanced, diagnostic-grade AI model."),
+    PaywallFeature(icon: "pw_bird", title: "Audio Recording", description: "Identify birds and insects by their distinct calls."),
+    PaywallFeature(icon: "pw_bee", title: "Multi-Capture Mode", description: "Upload multiple images or audio to help identify."),
+    PaywallFeature(icon: "pw_heron", title: "Ecological Telemetry", description: "Unlock deep dive insights like size and interactions.")
 ]
 
 struct PaywallView: View {
@@ -25,16 +25,10 @@ struct PaywallView: View {
             VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 12) {
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(
-                            LinearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        )
-                        .padding(24)
-                        .background(
-                            Circle()
-                                .fill(Color.green.opacity(0.1))
-                        )
+                    Image("pw_butterfly")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 200, height: 200)
                         .padding(.bottom, 8)
 
                     Text("Merian Pro")
@@ -52,10 +46,10 @@ struct PaywallView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     ForEach(proFeatures, id: \.title) { feature in
                         HStack(spacing: 16) {
-                            Image(systemName: feature.icon)
-                                .font(.title2)
-                                .foregroundColor(.green)
-                                .frame(width: 36)
+                            Image(feature.icon)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 96, height: 96)
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(feature.title)

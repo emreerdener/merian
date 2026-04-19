@@ -359,9 +359,14 @@ struct CameraRootView: View {
 
             viewModel.submitStagedCapture(modelContext: modelContext)
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active && captureMode == .visual && viewModel.activeSheet == nil {
+                cameraManager.startSession()
+            }
+        }
         .onChange(of: captureMode) { _, newMode in
             HapticManager.shared.triggerSheetSpring()
-            
+
             if newMode == .audio || newMode == .describe {
                 cameraManager.stopSession()
             } else if scenePhase == .active && viewModel.activeSheet == nil {
