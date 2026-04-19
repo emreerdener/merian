@@ -34,13 +34,23 @@ struct OverviewCard: View {
             let wikiExtract = data.wikipediaOverview
             let hasWiki = (wikiExtract?.count ?? 0) >= 60
             
-            let colors = (data.colors?.isEmpty == false) ? data.colors?.joined(separator: ", ").capitalized : nil
             let size = data.estimatedSizeCm.map { String(format: "%.1f cm", $0) }
             let invasive = data.isInvasive ? "Invasive" : "Not invasive"
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
             let lifeStage = data.lifeStage.flatMap { $0 == "unknown" ? nil : capitalizeFirstLetter($0) }
             let reproduction = data.reproductiveCondition.flatMap { $0 == "not_applicable" ? nil : capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }
-            let interactions = data.ecologicalInteractions?.isEmpty == false ? data.ecologicalInteractions?.map { capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }.joined(separator: ", ") : nil
+            
+            let hasOriginalImage = inferenceEngine.activeImageData != nil || !inferenceEngine.validHistoricImagePaths.isEmpty
+            
+            let colors: String? = {
+                guard hasOriginalImage, let raw = data.colors, !raw.isEmpty else { return nil }
+                return raw.joined(separator: ", ").capitalized
+            }()
+            
+            let interactions: String? = {
+                guard hasOriginalImage, let raw = data.ecologicalInteractions, !raw.isEmpty else { return nil }
+                return raw.map { capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }.joined(separator: ", ")
+            }()
             
             let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || interactions != nil || data.isInvasive || iucnStatus != nil
             

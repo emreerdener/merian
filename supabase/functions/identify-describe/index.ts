@@ -250,9 +250,6 @@ serve((req: Request) =>
     if (Array.isArray(parsedData.extracted_visual_traits)) {
       parsedData.extracted_visual_traits = parsedData.extracted_visual_traits.slice(0, 10);
     }
-    if (Array.isArray(parsedData.ecological_interactions)) {
-      parsedData.ecological_interactions = parsedData.ecological_interactions.slice(0, 10);
-    }
     if (typeof parsedData.ai_reasoning === "string" && parsedData.ai_reasoning.length > 2000) {
       parsedData.ai_reasoning = parsedData.ai_reasoning.slice(0, 2000);
     }
@@ -451,7 +448,7 @@ serve((req: Request) =>
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ?? "not_applicable",
             individual_count: parsedData.individual_count ?? null,
-            ecological_interactions: parsedData.ecological_interactions ?? [],
+            ecological_interactions: [],
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: payloadReadyForClient.candidates ?? null,
             image_quality_score: null,

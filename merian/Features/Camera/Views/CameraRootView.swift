@@ -415,6 +415,7 @@ struct CameraRootView: View {
             guard let requested else { return }
             captureMode = requested
             viewModel.requestedCaptureMode = nil
+            observationContext = ObservationContext()
         }
         .onPhysicalCameraShutter(
             isEnabled: viewModel.activeSheet == nil &&

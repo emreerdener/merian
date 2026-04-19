@@ -22,17 +22,20 @@ struct CaptureControlBar: View {
 
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
 
+    private var isRefining: Bool { viewModel.baseRefinementRecord != nil }
+    private var imageCount: Int { viewModel.stagedCapture.images.count }
+    // Mirror the ActiveScanToolbar capacity logic — includes isRefining so reanalysis
+    // flows get the same two-slot limit as multi-capture without enabling multi-capture.
+    private var capacityLimit: Int { (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1 }
+
     var body: some View {
         VStack {
             Spacer()
 
             // MARK: Capacity Evaluation
-            // Determine if the staging area has hit the hard capacity limit. 
-            // In multi-capture mode, this counts bounded images + description.
-            // When capacity is met, all capture interfaces dynamically disable to 
-            // force the user to either submit the stage or remove an item.
-            let totalStagedItems = viewModel.stagedCapture.images.count + (viewModel.stagedCapture.observationContext != nil ? 1 : 0)
-            let capacityLimit = isMultiCaptureEnabled ? stagedImageCapacity : 1
+            // capacityLimit and imageCount come from struct-level computed properties
+            // so they stay consistent between body and the photosPicker modifier below.
+            let totalStagedItems = imageCount + (viewModel.stagedCapture.observationContext != nil ? 1 : 0)
             let isAtCapacity = totalStagedItems >= capacityLimit
 
             HStack(alignment: .bottom) {
@@ -55,8 +58,15 @@ struct CaptureControlBar: View {
 
                 Spacer()
 
-                let willStageOnly = isMultiCaptureEnabled && (UserDefaults.standard.bool(forKey: "requiresScanConfirmation") || viewModel.stagedCapture.images.isEmpty)
-                
+                // Show "+" when images are staged (FAB stages description into the toolbar),
+                // or when the user requires confirmation before submission — regardless of
+                // multi-capture mode. Show "↑" only for immediate solo-describe submission.
+                let willStageOnly = !viewModel.stagedCapture.images.isEmpty
+                    || UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
+                // All modes disabled when staging area is full — no new input can be added.
+                // Describe also disabled while a refinement image is still loading.
+                let isSubmitDisabled: Bool = isAtCapacity || (captureMode == .describe && viewModel.isStagingRefinement)
+
                 CaptureButton(
                     captureMode: captureMode,
                     willStageOnly: willStageOnly,
@@ -79,8 +89,8 @@ struct CaptureControlBar: View {
                     }
                 )
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
-                .opacity(isAtCapacity ? 0.5 : 1.0)
-                .disabled(isAtCapacity)
+                .opacity(isSubmitDisabled ? 0.5 : 1.0)
+                .disabled(isSubmitDisabled)
 
                 Spacer()
                 ZStack {
@@ -95,12 +105,11 @@ struct CaptureControlBar: View {
                         isRecording: speechManager.isRecording,
                         onToggleDictation: onDictationTap
                     )
-                    .opacity(captureMode == .describe ? (isAtCapacity ? 0.5 : 1) : 0)
-                    .allowsHitTesting(captureMode == .describe && !isAtCapacity)
+                    .opacity(captureMode == .describe ? 1 : 0)
+                    .allowsHitTesting(captureMode == .describe)
                 }
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
             }
-            .disabled(viewModel.isStagingRefinement)
             .padding(.bottom, 140)
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))

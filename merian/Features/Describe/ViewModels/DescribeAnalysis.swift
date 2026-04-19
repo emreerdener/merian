@@ -40,13 +40,20 @@ extension CameraViewModel {
             return true
         } else {
             if !stagedCapture.images.isEmpty {
+                // Images already staged — add the description to the toolbar without submitting.
+                // The ActiveScanToolbar's Identify button owns submission in this state.
                 stagedCapture.observationContext = stagedContext
-                submitStagedCapture(modelContext: modelContext)
                 return true
             } else {
-                let targetEradicationRecord = baseRefinementRecord
-                baseRefinementRecord = nil
-                submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext, targetEradicationRecord: targetEradicationRecord)
+                if UserDefaults.standard.bool(forKey: "requiresScanConfirmation") {
+                    // Stage as a solo node so the user confirms via Identify before submitting.
+                    // submitStagedCapture routes description-only back through submitDescribeSolo.
+                    stagedCapture.observationContext = stagedContext
+                } else {
+                    let targetEradicationRecord = baseRefinementRecord
+                    baseRefinementRecord = nil
+                    submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext, targetEradicationRecord: targetEradicationRecord)
+                }
                 return true
             }
         }

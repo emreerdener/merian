@@ -11,6 +11,7 @@ struct ActiveScanToolbar: View {
     @State private var showTooltip: Bool = !ActiveScanToolbar.hasShownTooltipThisSession
     private static var hasShownTooltipThisSession: Bool = false
     @State private var shimmerPhase: CGFloat = -1.0
+    @State private var isPhotoPickerPresented: Bool = false
 
     // MARK: - Callbacks
     let onThumbnailTap: (Int) -> Void
@@ -47,7 +48,13 @@ struct ActiveScanToolbar: View {
                 
                 let currentLimit = (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1
                 if orderedNodes.count < currentLimit {
-                    PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: max(1, currentLimit - orderedNodes.count), matching: .images, photoLibrary: .shared()) {
+                    // Use isPresented + explicit keyboard resign so iOS cannot restore the
+                    // text field as first responder when the picker dismisses — that restoration
+                    // fires keyboardWillShow and hides the toolbar behind the keyboard overlay.
+                    Button(action: {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        isPhotoPickerPresented = true
+                    }) {
                         Circle()
                             .strokeBorder(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
                             .frame(width: 48, height: 48)
@@ -58,6 +65,13 @@ struct ActiveScanToolbar: View {
                             )
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .photosPicker(
+                        isPresented: $isPhotoPickerPresented,
+                        selection: $selectedPhotoItems,
+                        maxSelectionCount: max(1, currentLimit - orderedNodes.count),
+                        matching: .images,
+                        photoLibrary: .shared()
+                    )
                 }
 
                 submitButton

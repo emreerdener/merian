@@ -151,11 +151,6 @@ export const getDescribeResponseSchema = (): ResponseSchema => {
         nullable: true,
       },
       individual_count: { type: SchemaType.INTEGER, nullable: true },
-      ecological_interactions: {
-        type: SchemaType.ARRAY,
-        items: { type: SchemaType.STRING },
-        nullable: true,
-      },
     },
     required: [...SHARED_REQUIRED],
   };
