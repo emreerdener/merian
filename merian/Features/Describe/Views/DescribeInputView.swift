@@ -128,13 +128,32 @@ struct DescribeInputView: View {
                                         }
                                     }
                                 }) {
-                                    Text(tag.label)
+                                    if let imageName = tag.imageName {
+                                        VStack(spacing: 8) {
+                                            Image(imageName)
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 56, height: 56)
+                                            Text(tag.label)
+                                                .font(.subheadline.weight(.medium))
+                                                .multilineTextAlignment(.center)
+                                                .lineLimit(2)
+                                        }
                                         .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
-                                        .font(.subheadline)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 10)
+                                        .frame(width: 104)
+                                        .padding(.vertical, 12)
+                                        .padding(.horizontal, 4)
                                         .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
-                                        .clipShape(Capsule())
+                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    } else {
+                                        Text(tag.label)
+                                            .font(.subheadline)
+                                            .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 10)
+                                            .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
+                                            .clipShape(Capsule())
+                                    }
                                 }
                                 .transition(.opacity)
                             }
@@ -191,7 +210,7 @@ struct DescribeInputView: View {
                 updateSortedTags(for: newIndex)
             }
             .onChange(of: context.freeText) { _, newText in
-                if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && promptManager.isFunnelActive {
+                if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     promptManager.resetFunnel()
                     updateSortedTags(for: promptManager.activeQuestionIndex)
                     return
@@ -255,10 +274,15 @@ struct DescribeInputView: View {
             let capped = insertion.prefix(1).uppercased() + insertion.dropFirst()
             var text = context.freeText
             
-            if let range = text.range(of: capped + ".") { text.removeSubrange(range) }
-            else if let range = text.range(of: ", " + insertion) { text.removeSubrange(range) }
-            else if let range = text.range(of: insertion) { text.removeSubrange(range) }
-            else if let range = text.range(of: capped) { text.removeSubrange(range) }
+            if let range = text.range(of: capped + ".") {
+                text.removeSubrange(range)
+            } else if let range = text.range(of: ", " + insertion) {
+                text.removeSubrange(range)
+            } else if let range = text.range(of: insertion) {
+                text.removeSubrange(range)
+            } else if let range = text.range(of: capped) {
+                text.removeSubrange(range)
+            }
             
             context.freeText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return

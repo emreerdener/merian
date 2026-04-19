@@ -17,7 +17,7 @@ final class DescribePromptManager {
     
     // MARK: - Funnel State
     
-    var activeSubjectId: String? = nil
+    var activeSubjectId: String?
     var activeQuestions: [GuidedQuestion] = guidedQuestions
     
     var isFunnelActive: Bool { 

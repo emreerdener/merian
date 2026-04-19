@@ -12,6 +12,8 @@ struct GuidedQuestion: Hashable {
         /// Optimized natural-language fragment written into freeText.
         let aiText: String
         let defaultWeight: Int
+        /// Optional image name in Assets for visual representation.
+        var imageName: String?
     }
     let prompt: String
     let tags: [Tag]
@@ -27,15 +29,15 @@ let guidedQuestions: [GuidedQuestion] = [
     GuidedQuestion(
         prompt: "What did you find?",
         tags: [
-            .init(tagId: "subj_bird", label: "A bird", aiText: "a bird", defaultWeight: 100),
-            .init(tagId: "subj_insec", label: "An insect", aiText: "an insect", defaultWeight: 90),
-            .init(tagId: "subj_spid", label: "A spider", aiText: "a spider or arachnid", defaultWeight: 80),
-            .init(tagId: "subj_rept", label: "A reptile", aiText: "a reptile or amphibian", defaultWeight: 70),
-            .init(tagId: "subj_plan", label: "A plant", aiText: "a plant or flower", defaultWeight: 60),
-            .init(tagId: "subj_mush", label: "A mushroom", aiText: "a mushroom or fungus", defaultWeight: 50),
-            .init(tagId: "subj_mamm", label: "A small mammal", aiText: "a small mammal", defaultWeight: 40),
-            .init(tagId: "subj_fish", label: "A fish", aiText: "a fish or aquatic creature", defaultWeight: 30),
-            .init(tagId: "subj_othr", label: "Other", aiText: "an unlisted subject", defaultWeight: 20)
+            .init(tagId: "subj_bird", label: "Bird", aiText: "a bird", defaultWeight: 100, imageName: "desc_bird"),
+            .init(tagId: "subj_insec", label: "Insect", aiText: "an insect", defaultWeight: 90, imageName: "desc_butterfly"),
+            .init(tagId: "subj_spid", label: "Spider", aiText: "a spider or arachnid", defaultWeight: 80, imageName: "desc_spider"),
+            .init(tagId: "subj_rept", label: "Reptile", aiText: "a reptile or amphibian", defaultWeight: 70, imageName: "desc_lizard"),
+            .init(tagId: "subj_plan", label: "Plant", aiText: "a plant or flower", defaultWeight: 60, imageName: "desc_plant"),
+            .init(tagId: "subj_mush", label: "Mushroom", aiText: "a mushroom or fungus", defaultWeight: 50, imageName: "desc_mushrooms"),
+            .init(tagId: "subj_mamm", label: "Mammal", aiText: "a mammal", defaultWeight: 40, imageName: "desc_mouse"),
+            .init(tagId: "subj_fish", label: "Fish", aiText: "a fish or aquatic creature", defaultWeight: 30, imageName: "desc_fish"),
+            .init(tagId: "subj_othr", label: "Other", aiText: "an unlisted subject", defaultWeight: 20, imageName: "desc_worm")
         ]
     ),
     
