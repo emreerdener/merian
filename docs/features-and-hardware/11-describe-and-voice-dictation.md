@@ -28,7 +28,83 @@ The context is intentionally not reset after submission, so users can swipe back
 
 ---
 
-## 2. `DescribeInputView`
+## 2. Guided Question System
+
+### `GuidedQuestion` & `GuidedQuestion.Tag` (`Features/Describe/Models/GuidedQuestion.swift`)
+
+`GuidedQuestion` is the primitive that drives the tag-sheet carousel. Each question has a `prompt: String` and a `tags: [Tag]` array. A `Tag` carries:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `tagId` | `String` | Stable identifier used for funnel keying and selection state |
+| `label` | `String` | Display text on the tag chip |
+| `aiText` | `String` | Natural-language fragment appended to `freeText` when tapped |
+| `defaultWeight` | `Int` | Sort priority within the question |
+| `imageName` | `String?` | Asset catalog name for image-tile rendering (non-nil on the subject question only) |
+
+Tags with a non-nil `imageName` render as 96×104 pt `RoundedRectangle(cornerRadius: 16)` tiles (image above label). All others render as `Capsule` text chips. The subject question (index 0) uses image tiles for all 9 entries (Bird, Insect, Spider, Reptile, Plant, Mushroom, Mammal, Fish, Other). The `Other` tag has `aiText: ""` — selecting it appends nothing to `freeText`, leaving the AI prompt unchanged.
+
+The global `guidedQuestions: [GuidedQuestion]` array has 9 entries:
+
+| Index | Prompt |
+|---|---|
+| 0 | "What did you find?" — subject selector (image tiles, activates species funnel) |
+| 1 | "What was the surrounding environment like?" |
+| 2 | "Where exactly did you spot it?" |
+| 3 | "Roughly how big was it?" |
+| 4 | "How would you describe its overall shape?" |
+| 5 | "Did you notice any distinct features, like wings or a shell?" |
+| 6 | "Did it have any distinct colors or patterns?" |
+| 7 | "What was it doing when you observed it?" |
+| 8 | "Was it alone, or in a group?" |
+| 9 | "Are there any other interesting details you noticed?" — text-only (`tags: []`) |
+
+---
+
+### `SubjectFunnels` (`Features/Describe/Models/SubjectFunnels.swift`)
+
+`let subjectFunnels: [String: [GuidedQuestion]]` maps each subject `tagId` to a 4–5 question species-specific funnel. When a subject is selected, `DescribePromptManager.activateFunnel(for:)` prepends the subject question (index 0), inserts the funnel, and appends three shared telemetry questions (environment, location, open-ended) to form the `activeQuestions` array.
+
+Defined funnels:
+
+| `tagId` | Subject | Funnel questions |
+|---|---|---|
+| `subj_bird` | Bird | Type of bird · Size · Beak shape · Plumage · Behavior |
+| `subj_insec` | Insect | Insect type · Wing visibility · Body texture · Markings |
+| `subj_plan` | Plant | Plant type · Leaf shape · Flower presence · Habitat |
+| `subj_mush` | Mushroom | Cap shape · Color · Habitat · Stalk |
+| `subj_spid` | Spider | Body size · Web presence · Color · Leg count |
+| `subj_rept` | Reptile | Type · Scale pattern · Limb presence · Behavior |
+| `subj_mamm` | Mammal | Size · Fur color · Tail · Behavior |
+| `subj_fish` | Fish | Body shape · Fin pattern · Scale color · Habitat |
+
+(`subj_othr` has no entry in `subjectFunnels` — `activateFunnel(for: "subj_othr")` silently no-ops.)
+
+---
+
+### `SubjectKeywordMatcher` (`Features/Describe/Models/SubjectKeywordMatcher.swift`)
+
+A pure static struct. `infer(from: String) -> String?` lowercases and tokenizes the input, then looks each word up in a static `[String: String]` keyword table. Returns the first matching subject `tagId` or `nil`. Covers ~50 common-name keywords across all 8 subject types (e.g. `"hawk"` → `"subj_bird"`, `"beetle"` → `"subj_insec"`, `"frog"` → `"subj_rept"`). Used by `DescribeInputView` to auto-activate a funnel from typed or dictated text.
+
+---
+
+### `DescribePromptManager` — Funnel State (`Features/Describe/Managers/DescribePromptManager.swift`)
+
+New funnel-state properties added alongside the existing `activeQuestionIndex` and `interactedQuestionIndices`:
+
+| Property | Type | Purpose |
+|---|---|---|
+| `activeSubjectId` | `String?` | `tagId` of the currently selected subject (`nil` = no funnel) |
+| `activeQuestions` | `[GuidedQuestion]` | The live question list — either `guidedQuestions` or a funnel-customized subset |
+| `isFunnelActive` | `Bool` (computed) | `activeSubjectId != nil` |
+
+**`activateFunnel(for subjectId: String)`**: guards `subjectFunnels[subjectId]` exists, sets `activeSubjectId`, builds `activeQuestions` as `[guidedQuestions[0]] + funnel + [guidedQuestions[1], guidedQuestions[2], guidedQuestions.last!]`, resets `interactedQuestionIndices`, and advances `activeQuestionIndex` to 1 (stepping past the subject question the user just answered).
+
+**`resetFunnel()`**: sets `activeSubjectId = nil`, restores `activeQuestions = guidedQuestions`, resets `interactedQuestionIndices`, and resets `activeQuestionIndex = 0`.
+
+---
+
+## 3. `DescribeInputView`
 
 Lives at `merian/Features/Describe/Views/DescribeInputView.swift`.
 
@@ -38,13 +114,33 @@ Lives at `merian/Features/Describe/Views/DescribeInputView.swift`.
 - `@Binding var context: ObservationContext` — two-way binding to `CameraRootView`'s lifted state.
 - `let onSubmit: (ObservationContext) -> Void` — called when the user taps "Identify" / "Add description".
 - `@FocusState private var isTextFieldFocused: Bool` — drives the text area border highlight and `.scrollDismissesKeyboard(.interactively)`.
+- `@State private var inferenceDebounceTask: Task<Void, Never>?` — holds the 1.5-second debounce task for keyword-based funnel auto-activation.
 - Auto-rotating prompts (`promptIndex`) cycle every 3 seconds only when `context.freeText.isEmpty && captureMode == .describe`, preventing animation noise while the user is typing.
 
 The `TextEditor` binds to `$context.freeText`. The placeholder is a separate `Text` view rendered when `context.freeText.isEmpty`, with `.allowsHitTesting(false)` so it doesn't intercept taps.
 
+### Tag Rendering
+
+The tag strip iterates `promptManager.activeQuestions` (not the static `guidedQuestions`). Each tag is rendered conditionally:
+- **Non-nil `imageName`** → 96×104 pt tile (`RoundedRectangle(cornerRadius: 16)`): `Image(imageName)` (56×56 pt `.scaledToFit`) above the label. Background is `.primary` / foreground `.systemBackground` when selected as the active funnel subject; otherwise `.secondarySystemBackground` / `.primary`.
+- **Nil `imageName`** → standard `Capsule` chip. Same selection-state colour logic applies.
+
+The tag scroll view carries `.id("tags_scroll_\(promptManager.activeQuestionIndex)")` so `ScrollViewReader` can snap to the correct tag row when the question advances.
+
+### Funnel Lifecycle in `DescribeInputView`
+
+**Subject tap → funnel activation**: On the subject question (index 0), tapping a tag checks `promptManager.activeSubjectId == tag.tagId`. If the tag is already the active subject (toggle-off), `promptManager.resetFunnel()` is called and the tags are re-sorted. Otherwise, the normal `appendTag` path runs, then `promptManager.activateFunnel(for: tag.tagId)` is called, advancing to the first funnel question. Auto-advance is suppressed when `isSelectedFunnel == true` to prevent double-stepping.
+
+**Text-driven auto-activation (1.5s debounce)**: `onChange(of: context.freeText)`:
+1. If `freeText` is empty → `promptManager.resetFunnel()` and early return.
+2. If `isFunnelActive` → no-op (funnel already running).
+3. Otherwise: cancel any in-flight `inferenceDebounceTask`, start a new `Task` that sleeps 1.5 seconds, then calls `SubjectKeywordMatcher.infer(from: freeText)`. If a subject is inferred, `promptManager.activateFunnel(for: subjectId)` activates the funnel. Useful when the user dictates "I saw a hawk" before tapping any tags — the funnel activates automatically after typing settles.
+
+**Funnel reset on submit**: `inferenceDebounceTask?.cancel()` is called before `onSubmit` fires, preventing a race where a pending debounce activates a funnel after the submission has already started.
+
 ---
 
-## 3. `SpeechManager`
+## 4. `SpeechManager`
 
 Lives at `merian/Features/Describe/Managers/SpeechManager.swift`. Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and distributed via `.environment(container.speechManager)` in `DIContainerModifier.body()`. Accessed in `CameraRootView` as `@Environment(SpeechManager.self) var speechManager`.
 
@@ -104,7 +200,7 @@ Both `stop()` and `removeTap(onBus:)` are called **unconditionally**. This preve
 
 ---
 
-## 4. `CameraRootView` Dictation Wiring
+## 5. `CameraRootView` Dictation Wiring
 
 ### State additions
 
@@ -184,7 +280,7 @@ Cancelling `dictationTask` before calling `stopDictation()` ensures `startDictat
 
 ---
 
-## 5. Permissions
+## 6. Permissions
 
 Both required `Info.plist` strings are already present:
 
@@ -197,7 +293,7 @@ Permission requests happen inside `startDictation` — not at app launch or onbo
 
 ---
 
-## 6. AVAudioSession Lifecycle
+## 7. AVAudioSession Lifecycle
 
 | Event | Action |
 |---|---|
@@ -210,7 +306,7 @@ Permission requests happen inside `startDictation` — not at app launch or onbo
 
 ---
 
-## 7. Swift 6 Concurrency
+## 8. Swift 6 Concurrency
 
 `SpeechManager` is `@MainActor`. All stored properties (`isRecording`, `audioEngine`, `recognitionRequest`, `recognitionTask`) are `@MainActor`-isolated. The `onResult` callback is typed `@MainActor @escaping (String) -> Void` — this guarantees the closure (which captures `@MainActor`-isolated `@State` from `CameraRootView`) executes on `@MainActor` without a `@Sendable` actor-crossing, eliminating Swift 6 strict concurrency warnings at the capture site.
 
