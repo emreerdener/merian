@@ -25,6 +25,7 @@ struct DescribeInputView: View {
     // MARK: - Dictation state
 
     @State private var dictationTask: Task<Void, Never>?
+    @State private var inferenceDebounceTask: Task<Void, Never>?
     @State private var sortedTags: [GuidedQuestion.Tag] = guidedQuestions[0].tags
 
     // MARK: - Derived
@@ -54,7 +55,7 @@ struct DescribeInputView: View {
                         // Navigation row: dots flush left (decorative only), buttons flush right.
                         HStack {
                             HStack(spacing: 5) {
-                                ForEach(guidedQuestions.indices, id: \.self) { idx in
+                                ForEach(promptManager.activeQuestions.indices, id: \.self) { idx in
                                     Circle()
                                         .fill(idx == promptManager.activeQuestionIndex
                                               ? Color.primary
@@ -86,7 +87,7 @@ struct DescribeInputView: View {
                         // We use a single Text view with an .id modifier to force
                         // a transition when the active question changes, which is far
                         // more reliable than the prior ZStack opacity workaround.
-                        Text(guidedQuestions[promptManager.activeQuestionIndex].prompt)
+                        Text(promptManager.activeQuestions[promptManager.activeQuestionIndex].prompt)
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundStyle(.primary)
@@ -104,13 +105,16 @@ struct DescribeInputView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(sortedTags, id: \.self) { tag in
+                                let isSelectedFunnel = promptManager.activeQuestionIndex == 0 && tag.tagId == promptManager.activeSubjectId
                                 Button(action: {
                                     HapticManager.shared.triggerSelectionPulse()
+                                    let indexBeforeAppend = promptManager.activeQuestionIndex
                                     appendTag(tag)
                                     
-                                    let currentIdx = promptManager.activeQuestionIndex
-                                    if !promptManager.interactedQuestionIndices.contains(currentIdx) {
-                                        promptManager.interactedQuestionIndices.insert(currentIdx)
+                                    if isSelectedFunnel { return } // Avoid auto-advance if they are unselecting
+                                    
+                                    if !promptManager.interactedQuestionIndices.contains(indexBeforeAppend) {
+                                        promptManager.interactedQuestionIndices.insert(indexBeforeAppend)
                                         
                                         Task { @MainActor in
                                             // Slight delay so the user witnesses the text append and haptic feedback
@@ -118,18 +122,18 @@ struct DescribeInputView: View {
                                             guard !Task.isCancelled else { return }
                                             
                                             // Only advance if they haven't manually navigated away
-                                            if promptManager.activeQuestionIndex == currentIdx {
+                                            if promptManager.activeQuestionIndex == indexBeforeAppend {
                                                 advanceQuestion()
                                             }
                                         }
                                     }
                                 }) {
                                     Text(tag.label)
-                                        .foregroundStyle(.primary)
+                                        .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
                                         .font(.subheadline)
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 10)
-                                        .background(Color(UIColor.secondarySystemBackground))
+                                        .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
                                         .clipShape(Capsule())
                                 }
                                 .transition(.opacity)
@@ -186,11 +190,30 @@ struct DescribeInputView: View {
             .onChange(of: promptManager.activeQuestionIndex) { _, newIndex in
                 updateSortedTags(for: newIndex)
             }
+            .onChange(of: context.freeText) { _, newText in
+                if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && promptManager.isFunnelActive {
+                    promptManager.resetFunnel()
+                    updateSortedTags(for: promptManager.activeQuestionIndex)
+                    return
+                }
+                guard !promptManager.isFunnelActive else { return }
+                inferenceDebounceTask?.cancel()
+                inferenceDebounceTask = Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    guard !Task.isCancelled else { return }
+                    if let subjectId = SubjectKeywordMatcher.infer(from: newText) {
+                        promptManager.activateFunnel(for: subjectId)
+                        updateSortedTags(for: promptManager.activeQuestionIndex)
+                    }
+                }
+            }
             .onChange(of: captureMode) { _, newMode in
                 if newMode != .describe {
                     isTextFieldFocused = false
                     dictationTask?.cancel()
                     dictationTask = nil
+                    inferenceDebounceTask?.cancel()
+                    inferenceDebounceTask = nil
                 }
             }
         }
@@ -200,14 +223,18 @@ struct DescribeInputView: View {
     // MARK: - Helpers
 
     private func advanceQuestion() {
-        let next = (promptManager.activeQuestionIndex + 1) % guidedQuestions.count
+        let count = promptManager.activeQuestions.count
+        guard count > 0 else { return }
+        let next = (promptManager.activeQuestionIndex + 1) % count
         withAnimation(.easeInOut(duration: 0.4)) {
             promptManager.activeQuestionIndex = next
         }
     }
 
     private func previousQuestion() {
-        let prev = (promptManager.activeQuestionIndex - 1 + guidedQuestions.count) % guidedQuestions.count
+        let count = promptManager.activeQuestions.count
+        guard count > 0 else { return }
+        let prev = (promptManager.activeQuestionIndex - 1 + count) % count
         withAnimation(.easeInOut(duration: 0.4)) {
             promptManager.activeQuestionIndex = prev
         }
@@ -217,6 +244,25 @@ struct DescribeInputView: View {
     /// natural sentence flow.
     private func appendTag(_ tag: GuidedQuestion.Tag) {
         DescribeTagTracker.shared.recordUsage(for: tag.tagId)
+        
+        // Handle toggling off an active funnel
+        if promptManager.activeQuestionIndex == 0 && promptManager.activeSubjectId == tag.tagId {
+            promptManager.resetFunnel()
+            updateSortedTags(for: promptManager.activeQuestionIndex)
+            
+            // Try to gracefully remove the text insertion
+            let insertion = tag.aiText
+            let capped = insertion.prefix(1).uppercased() + insertion.dropFirst()
+            var text = context.freeText
+            
+            if let range = text.range(of: capped + ".") { text.removeSubrange(range) }
+            else if let range = text.range(of: ", " + insertion) { text.removeSubrange(range) }
+            else if let range = text.range(of: insertion) { text.removeSubrange(range) }
+            else if let range = text.range(of: capped) { text.removeSubrange(range) }
+            
+            context.freeText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return
+        }
         
         let insertion = tag.aiText
         let trimmed = context.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -231,14 +277,28 @@ struct DescribeInputView: View {
                 context.freeText = trimmed + ", " + insertion
             }
         }
+        
+        // Funnel activation: subject tags on Q1 switch the question sequence
+        if promptManager.activeQuestionIndex == 0 {
+            if promptManager.activeSubjectId != tag.tagId {
+                if subjectFunnels[tag.tagId] != nil {
+                    promptManager.resetFunnel()
+                    promptManager.activateFunnel(for: tag.tagId)
+                    updateSortedTags(for: promptManager.activeQuestionIndex)
+                } else if promptManager.isFunnelActive {
+                    promptManager.resetFunnel()
+                    updateSortedTags(for: promptManager.activeQuestionIndex)
+                }
+            }
+        }
     }
     
     /// Computes the persistent, stable order of tags for the active view sequence
     /// utilizing a tiered popularity override architecture natively bound to `UserDefaults`.
     private func updateSortedTags(for index: Int) {
-        guard index >= 0 && index < guidedQuestions.count else { return }
+        guard index >= 0 && index < promptManager.activeQuestions.count else { return }
         
-        sortedTags = guidedQuestions[index].tags
+        sortedTags = promptManager.activeQuestions[index].tags
             .enumerated()
             .sorted { a, b in
                 let freqA = DescribeTagTracker.shared.frequency(for: a.element.tagId)

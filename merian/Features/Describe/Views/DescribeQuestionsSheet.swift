@@ -13,7 +13,7 @@ struct DescribeQuestionsSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(Array(guidedQuestions.enumerated()), id: \.offset) { idx, question in
+                ForEach(Array(promptManager.activeQuestions.enumerated()), id: \.offset) { idx, question in
                     Button(action: {
                         HapticManager.shared.triggerSelectionPulse()
                         withAnimation(.easeInOut(duration: 0.4)) {
