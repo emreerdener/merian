@@ -32,10 +32,10 @@ final class AudioCaptureManager {
     private(set) var snrLevel: SNRLevel = .clear
     /// Non-nil only after the user explicitly confirms in the review UI.
     /// Setting this triggers `onChange(of: audioFilePath)` in CaptureWorkspaceView → submitAudio.
-    private(set) var audioFilePath: String? = nil
+    private(set) var audioFilePath: String?
     /// Non-nil after recording finishes, before the user confirms or discards.
     /// Drives the review state in AudioRecordingView.
-    private(set) var pendingPlaybackPath: String? = nil
+    private(set) var pendingPlaybackPath: String?
     private(set) var isPlaying: Bool = false
 
     // MARK: Constants
@@ -180,7 +180,7 @@ final class AudioCaptureManager {
             let session = AVAudioSession.sharedInstance()
             try? session.setCategory(.playback, mode: .default)
             try? session.setActive(true)
-            await MainActor.run { capturedPlayer.play() }
+            await MainActor.run { _ = capturedPlayer.play() }
 
             let duration = capturedPlayer.duration
             try? await Task.sleep(nanoseconds: UInt64((duration + 0.3) * 1_000_000_000))
