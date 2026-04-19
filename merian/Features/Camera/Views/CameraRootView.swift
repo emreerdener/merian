@@ -406,6 +406,11 @@ struct CameraRootView: View {
             default: break
             }
         }
+        .onChange(of: viewModel.requestedCaptureMode) { _, requested in
+            guard let requested else { return }
+            captureMode = requested
+            viewModel.requestedCaptureMode = nil
+        }
         .onPhysicalCameraShutter(
             isEnabled: viewModel.activeSheet == nil &&
                        viewModel.imageToCrop == nil &&

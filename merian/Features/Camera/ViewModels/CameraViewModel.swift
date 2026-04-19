@@ -37,6 +37,10 @@ final class CameraViewModel {
     var baseRefinementRecord: LocalScanRecord?
     var isStagingRefinement: Bool = false
     @ObservationIgnored private var refinementStagingTask: Task<Void, Never>?
+    /// Set to `.describe` when reanalysis is triggered so `CameraRootView` navigates to the
+    /// Describe page immediately after the insight sheet dismisses. Consumed and cleared by
+    /// `CameraRootView.onChange(of: viewModel.requestedCaptureMode)`.
+    var requestedCaptureMode: CaptureMode?
     
     // MARK: - Composing Zone
     /// Vertical center of the on-screen composing zone as a fraction of screen height (0–1).
@@ -240,6 +244,7 @@ final class CameraViewModel {
     func startRefinementScan(from record: LocalScanRecord) {
         self.baseRefinementRecord = record
         self.activeSheet = nil
+        self.requestedCaptureMode = .describe
         
         guard let localPath = record.localImagePath,
               !localPath.starts(with: "http") else { return }

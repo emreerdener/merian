@@ -44,7 +44,9 @@ extension CameraViewModel {
                 submitStagedCapture(modelContext: modelContext)
                 return true
             } else {
-                submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext)
+                let targetEradicationRecord = baseRefinementRecord
+                baseRefinementRecord = nil
+                submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext, targetEradicationRecord: targetEradicationRecord)
                 return true
             }
         }
@@ -68,7 +70,7 @@ extension CameraViewModel {
     /// 2. Enqueue via `OfflineQueueManager.enqueueDescribe` with cached GPS telemetry.
     ///    WeatherKit backfill is deferred to `dispatchInferenceDownloadTask` on retry.
     /// 3. Show "No network connection. Queued for upload." toast.
-    func submitDescribeSolo(observationContext: ObservationContext, modelContext: ModelContext) {
+    func submitDescribeSolo(observationContext: ObservationContext, modelContext: ModelContext, targetEradicationRecord: LocalScanRecord? = nil) {
         guard !observationContext.isEmpty else { return }
 
         // Reset inference state synchronously so a previous result is never shown in the sheet.
@@ -140,7 +142,8 @@ extension CameraViewModel {
                     scanId: scanId,
                     observationContext: capturedContext,
                     telemetry: telemetry,
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    targetEradicationRecord: targetEradicationRecord
                 )
             }
         }

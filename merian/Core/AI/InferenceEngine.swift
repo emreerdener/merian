@@ -626,7 +626,8 @@ private struct GBIFMedia: Decodable {
         scanId: String?,
         observationContext: ObservationContext,
         telemetry: CaptureTelemetry,
-        modelContext: ModelContext?
+        modelContext: ModelContext?,
+        targetEradicationRecord: LocalScanRecord? = nil
     ) {
         guard !observationContext.isEmpty else { return }
 
@@ -706,6 +707,23 @@ private struct GBIFMedia: Decodable {
                         let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
                         let updatedAwards = await profileActor.calculateAwards()
                         GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
+                    }
+
+                    if let oldRecord = targetEradicationRecord {
+                        if let context = modelContext {
+                            if let newScanId = mappedData.scanId {
+                                let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == newScanId })
+                                if let newRecord = try? context.fetch(descriptor).first {
+                                    newRecord.customTags = oldRecord.customTags
+                                    if let oldCollections = oldRecord.collections, !oldCollections.isEmpty {
+                                        newRecord.collections = oldCollections
+                                    }
+                                }
+                            }
+                            ScanRepository.shared.eradicateScan(record: oldRecord, modelContext: context)
+                        } else {
+                            assertionFailure("targetEradicationRecord provided but modelContext is nil")
+                        }
                     }
 
                     CircuitBreakerManager.shared.recordSuccess()
