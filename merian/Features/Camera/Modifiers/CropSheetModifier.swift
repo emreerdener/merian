@@ -20,7 +20,7 @@ struct CropSheetModifier: ViewModifier {
                             // Rebuild the thumbnail from the cropped compressed data.
                             let thumbnail: UIImage
                             if let cgImage = autoreleasepool(invoking: {
-                                ImageDownsampler.shared.downsample(data: croppedData, maxSize: 512)
+                                ImageDownsampler.downsample(data: croppedData, maxSize: 512)
                             }) {
                                 thumbnail = UIImage(cgImage: cgImage)
                             } else {
@@ -49,7 +49,7 @@ struct CropSheetModifier: ViewModifier {
                             Task {
                                 let displayCropped = await Task.detached {
                                     let src: UIImage? = autoreleasepool {
-                                        guard let cgImage = ImageDownsampler.shared.downsample(data: capturedDisplayData, maxSize: 2048) else { return nil }
+                                        guard let cgImage = ImageDownsampler.downsample(data: capturedDisplayData, maxSize: 2048) else { return nil }
                                         return UIImage(cgImage: cgImage)
                                     }
                                     guard let image = src else { return Data() }

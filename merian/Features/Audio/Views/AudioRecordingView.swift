@@ -9,9 +9,10 @@ struct AudioRecordingView: View {
             Color(UIColor.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 12) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.tertiary)
+                Image("bird_tree")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 240, height: 240)
 
                 Text("Audio recording coming soon")
                     .font(.subheadline)

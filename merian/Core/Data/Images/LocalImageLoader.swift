@@ -133,7 +133,7 @@ actor LocalImageLoader {
         LocalImageLoader.decodeSemaphore.wait()
         defer { LocalImageLoader.decodeSemaphore.signal() }
         
-        guard let cgImage = ImageDownsampler.shared.downsample(url: url, maxSize: maxSize) else { return nil }
+        guard let cgImage = ImageDownsampler.downsample(url: url, maxSize: maxSize) else { return nil }
         let image = UIImage(cgImage: cgImage)
         ImageCache.shared.set(image, forKey: cacheKey)
         return image
@@ -153,7 +153,7 @@ actor LocalImageLoader {
                     LocalImageLoader.decodeSemaphore.wait()
                     defer { LocalImageLoader.decodeSemaphore.signal() }
                     
-                    if let cgImage = ImageDownsampler.shared.downsample(url: tempURL, maxSize: maxSize) {
+                    if let cgImage = ImageDownsampler.downsample(url: tempURL, maxSize: maxSize) {
                         let result = UIImage(cgImage: cgImage)
                         ImageCache.shared.set(result, forKey: cacheKey)
                         continuation.resume(returning: result)

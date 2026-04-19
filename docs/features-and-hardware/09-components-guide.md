@@ -146,7 +146,7 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 | `scanId` | `String?` | `viewModel.persistentScanId` — prefers `queuedScan.id`, then `activeLocalRecord?.id`, then `inferenceEngine.speciesData?.scanId` |
 | `refUrls` | `[String]` | `viewModel.refUrls` |
 | `validHistoricImagePaths` | `[String]` | `viewModel.validHistoricImagePaths` — returns `queuedScan.localImagePaths` for the queued-scan path; `inferenceEngine.validHistoricImagePaths` for the live path |
-| `liveImageDatas` | `[Data]` | `viewModel.liveImageDatas` (mirrors `inferenceEngine.activeDisplayDatas`) |
+| `liveImageData` | `Data?` | `viewModel.liveImageData` (mirrors `inferenceEngine.activeImageData`) |
 | `hasLive` | `Bool` | `viewModel.hasLive` — always `false` when `queuedScan != nil` |
 | `liveCount` | `Int` | `viewModel.liveCount` — always `0` when `queuedScan != nil` |
 | `totalImages` | `Int` | `viewModel.totalImages` |

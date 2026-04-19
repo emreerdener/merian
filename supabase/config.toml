@@ -439,6 +439,9 @@ entrypoint = "./functions/merge-ghost-profile/index.ts"
 
 
 
+[functions.check-scan-status]
+verify_jwt = false
+
 [functions.request-export-dwca]
 enabled = true
 # INTENTIONAL: verify_jwt = true — DwC-A export is a personal data download that requires

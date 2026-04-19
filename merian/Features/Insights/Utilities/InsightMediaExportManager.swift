@@ -45,7 +45,7 @@ final class InsightMediaExportManager {
                 await MainActor.run { presentShareSheet(items) }
             } else if let urlStr = safeCloudUrl, let url = URL(string: urlStr) {
                 if let (data, _) = try? await InsightMediaExportManager.mediaSession.data(from: url),
-                   let cgImage = autoreleasepool(invoking: { ImageDownsampler.shared.downsample(data: data, maxSize: 2048) }) {
+                   let cgImage = autoreleasepool(invoking: { ImageDownsampler.downsample(data: data, maxSize: 2048) }) {
                     items.insert(UIImage(cgImage: cgImage), at: 0)
                 }
                 await MainActor.run { presentShareSheet(items) }
@@ -114,7 +114,7 @@ final class InsightMediaExportManager {
                     if let safeCloudUrl = refUrls.first(where: { $0.contains("merian.app") })?.trimmingCharacters(in: .whitespacesAndNewlines), let url = URL(string: safeCloudUrl) {
                         // Limit batch RAM footprint by streaming and downsampling if it was massive, but here we fall back to generic data mapping since these are small cloud thumbnails
                         if let (data, _) = try? await InsightMediaExportManager.mediaSession.data(from: url),
-                           let cgImage = autoreleasepool(invoking: { ImageDownsampler.shared.downsample(data: data, maxSize: 2048) }) {
+                           let cgImage = autoreleasepool(invoking: { ImageDownsampler.downsample(data: data, maxSize: 2048) }) {
                             items.append(UIImage(cgImage: cgImage))
                         }
                     }
@@ -204,11 +204,11 @@ actor ExportProcessingActor {
     
     func extractImage(liveData: Data?, historicPath: String?) -> UIImage? {
         return autoreleasepool {
-            if let live = liveData, let cgImage = ImageDownsampler.shared.downsample(data: live, maxSize: 2048) {
+            if let live = liveData, let cgImage = ImageDownsampler.downsample(data: live, maxSize: 2048) {
                 return UIImage(cgImage: cgImage)
             } else if let validPath = historicPath {
                 let url = URL.documentsDirectory.appendingPathComponent(validPath)
-                if let cgImage = ImageDownsampler.shared.downsample(url: url, maxSize: 2048) {
+                if let cgImage = ImageDownsampler.downsample(url: url, maxSize: 2048) {
                     return UIImage(cgImage: cgImage)
                 }
             }
@@ -219,7 +219,7 @@ actor ExportProcessingActor {
     func extractThumbnail(from localPath: String?) async -> UIImage? {
         if let validPath = localPath {
             let fileURL = URL.documentsDirectory.appendingPathComponent(validPath)
-            if let cgImage = ImageDownsampler.shared.downsample(url: fileURL, maxSize: 1024) {
+            if let cgImage = ImageDownsampler.downsample(url: fileURL, maxSize: 1024) {
                 return UIImage(cgImage: cgImage)
             }
         }

@@ -324,7 +324,7 @@ extension CandidateSwipeModal {
         ZStack {
             Color(.secondarySystemBackground)
             
-            if let data = inferenceEngine.activeDisplayDatas.first ?? inferenceEngine.activeImageData,
+            if let data = inferenceEngine.activeImageData,
                let uiImage = UIImage(data: data) {
                 Image(uiImage: uiImage)
                     .resizable()

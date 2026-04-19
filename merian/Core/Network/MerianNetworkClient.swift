@@ -548,6 +548,20 @@ final class MerianNetworkClient {
         }
     }
 
+    // MARK: - Outbox Confirmation
+
+    /// Asks the server whether `scanId` exists in `public.scans` for the current user.
+    /// Returns `"found"` or `"not_found"`. Called from `OfflineQueueManager.handleInferenceRetry`
+    /// before resetting a scan to `.staged`, closing the gap where inference succeeded server-side
+    /// but the background download task never delivered the response.
+    func checkScanStatus(scanId: String) async throws -> String {
+        let functionUrl = try endpointURL("check-scan-status")
+        let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let decoded = try JSONDecoder().decode([String: String].self, from: data)
+        return decoded["status"] ?? "not_found"
+    }
+
     // MARK: - Data Mutation
 
     func deleteScan(scanId: String) async throws {

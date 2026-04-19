@@ -6,7 +6,7 @@ struct ImagesCarousel: View {
     let refUrls: [String]
     let validHistoricImagePaths: [String]
     /// Live capture image data — populated only during an active camera pipeline.
-    let liveImageDatas: [Data]
+    let liveImageData: Data?
     let hasLive: Bool
     let liveCount: Int
     let totalImages: Int
@@ -72,9 +72,9 @@ struct ImagesCarousel: View {
         let hasDesc = descriptionText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
 
         if hasLive {
-            for (idx, data) in liveImageDatas.enumerated() {
+            if let data = liveImageData {
                 pages.append(AnyView(LiveCapturePageView(data: data)))
-                if idx == 0 && hasDesc, let text = descriptionText {
+                if hasDesc, let text = descriptionText {
                     pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
                 }
             }
@@ -292,7 +292,7 @@ private struct LiveCapturePageView: View {
         
         // Force synchronous decode natively
         let img = autoreleasepool { () -> UIImage? in
-            if let cgImage = ImageDownsampler.shared.downsample(data: data, maxSize: 2048) {
+            if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 2048) {
                 return UIImage(cgImage: cgImage)
             }
             return nil
@@ -488,6 +488,7 @@ private struct AnalyzingVisualEffectsView: View {
 /// Dedicated visual abstraction managing the abbreviated visual representation explicitly mapping
 /// the textual node context dynamically anchored alongside photo assets within the timeline natively.
 private struct DescriptionTextCarouselPage: View {
+    @Environment(\.colorScheme) private var colorScheme
     let text: String
     let onTap: (() -> Void)?
     
@@ -509,21 +510,27 @@ private struct DescriptionTextCarouselPage: View {
                 // Description card
                 VStack(spacing: 16) {
                     Text(text)
-                        .font(.system(size: 34, weight: .regular))
-                        .lineLimit(4)
-                        .minimumScaleFactor(0.2)
+                        .font(.system(size: 80, weight: .medium))
+                        .lineLimit(6)
+                        .minimumScaleFactor(0.3)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.primary)
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .padding(24)
-                .frame(width: max(0, geo.size.width - 96))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .padding(28)
+                .frame(width: max(0, geo.size.width - 48), height: max(0, geo.size.height - 216))
+                .background(
+                    colorScheme == .light 
+                        ? AnyShapeStyle(Color.white.opacity(0.8)) 
+                        : AnyShapeStyle(.ultraThinMaterial.opacity(0.75)), 
+                    in: RoundedRectangle(cornerRadius: 32, style: .continuous)
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(colorScheme == .light ? Color.black.opacity(0.1) : Color.white.opacity(0.2), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.10), radius: 12, y: 6)
+                .offset(y: 24)
                 
             }
             .frame(width: geo.size.width, height: geo.size.height)

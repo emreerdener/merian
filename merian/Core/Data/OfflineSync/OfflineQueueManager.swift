@@ -159,9 +159,11 @@ import SwiftData
                     self?.reconnectDebounceTask?.cancel()
                     self?.reconnectDebounceTask = Task { [weak self] in
                         guard let self else { return }
-                        // Debounce 1s to let the OS networking stack fully settle before syncing.
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        // Debounce 3s to let the OS networking stack fully settle before syncing.
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
                         guard !Task.isCancelled else { return }
+                        // Skip background sync on constrained networks (Low Data Mode).
+                        if self.monitor.currentPath.isConstrained { return }
                         self.syncPendingScans()
                         self.replayInferenceForUploadedScans()
                         await self.syncPendingDeletions()

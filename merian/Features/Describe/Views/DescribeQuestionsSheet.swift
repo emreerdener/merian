@@ -38,14 +38,6 @@ struct DescribeQuestionsSheet: View {
             .navigationTitle("Prompts")
             .navigationBarTitleDisplayMode(.inline)
             .listStyle(.insetGrouped)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                   Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                    }
-                }
-            }
         }
         .presentationDetents([.medium, .large])
     }

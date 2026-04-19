@@ -6,7 +6,7 @@ struct OriginalCapturePiPView: View {
 
     var body: some View {
         Group {
-            if let imageData = inferenceEngine.activeDisplayDatas.first {
+            if let imageData = inferenceEngine.activeImageData {
                 if let img = decodedImage {
                     Image(uiImage: img)
                         .resizable()
@@ -20,7 +20,7 @@ struct OriginalCapturePiPView: View {
                         .task {
                             let img = await Task.detached(priority: .userInitiated) {
                                 autoreleasepool { () -> UIImage? in
-                                    if let cgImage = ImageDownsampler.shared.downsample(data: imageData, maxSize: 512) {
+                                    if let cgImage = ImageDownsampler.downsample(data: imageData, maxSize: 512) {
                                         return UIImage(cgImage: cgImage)
                                     }
                                     return nil

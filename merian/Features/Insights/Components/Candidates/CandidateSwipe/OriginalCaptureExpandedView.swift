@@ -10,7 +10,7 @@ struct OriginalCaptureExpandedView: View {
             Color.black.ignoresSafeArea()
             
             Group {
-                if let imageData = inferenceEngine.activeDisplayDatas.first {
+                if let imageData = inferenceEngine.activeImageData {
                     if let img = decodedImage {
                         ZoomableScrollView {
                             Image(uiImage: img)

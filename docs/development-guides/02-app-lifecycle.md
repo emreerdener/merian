@@ -58,9 +58,9 @@ Firing `resetModalsForBackground` only on `.background` means the insight sheet 
 **Always reset (unconditionally):**
 - `activeSheet`, `imageToCrop`, `editingCropIndex` — sheets hold UI locks and must not reopen stale.
 **Conditionally preserved — governed by `shouldPreserveStagingOnBackground`:**
-- `activeScannedDatas`, `activeScanImages`, `activeOriginals`, `activeDisplayDatas`, `selectedPhotoItems` — staged captures are only wiped when `shouldPreserveStagingOnBackground` returns `false`.
+- `stagedCapture` (the `StagedCapture` value — `images: [StagedImage]` bundling compressed inference copy, 2048 px display copy, `UIImage` thumbnail, and full-resolution original) — cleared via `stagedCapture.clearAll()` when `shouldPreserveStagingOnBackground` returns `false`.
 
-`shouldPreserveStagingOnBackground` is a private computed property that returns `true` when the user has images staged in the Active Scan Toolbar (`activeScanImages` is non-empty). This prevents a brief background trip (e.g. switching apps momentarily) from silently discarding the user's in-progress scan workflow.
+`shouldPreserveStagingOnBackground` is a private computed property that returns `true` when the user has images staged in the Active Scan Toolbar (`!stagedCapture.isEmpty`). This prevents a brief background trip (e.g. switching apps momentarily) from silently discarding the user's in-progress scan workflow.
 
 To add new interrupt-sensitive states in the future, add a condition to `shouldPreserveStagingOnBackground` — the wipe path is already gated on it.
 

@@ -46,18 +46,18 @@ serve((req: Request) =>
       // Body is optional, defaults to 20
     }
 
-    // 1. Fetch block list for the requesting user
-    const blockedIds = await fetchBlockedUserIds(user.id, supabaseAdmin);
+    // 1. Compute overfetch limit to accommodate potential post-query block filtering
+    const overFetchLimit = limit + Math.max(20, Math.ceil(limit * 0.2));
 
-    // 2. Build exclusion list: self + blocked users
-    const excludedIds = [user.id, ...blockedIds];
+    // 2. Fetch block list and raw feed in parallel
+    const [blockedIds, rawFeed] = await Promise.all([
+      fetchBlockedUserIds(user.id, supabaseAdmin),
+      fetchDiscoveryFeed(user.id, overFetchLimit, supabaseAdmin),
+    ]);
 
-    // 3. Query public scans
-    const feedData = await fetchDiscoveryFeed(
-      excludedIds,
-      limit,
-      supabaseAdmin,
-    );
+    // 3. Post-filter the feed to exclude blocked users
+    const excludedSet = new Set(blockedIds);
+    const feedData = rawFeed.filter(s => s.user_id != null && !excludedSet.has(s.user_id)).slice(0, limit);
 
     // 4. Sanitize coordinates for Geoprivacy compliance
     const sanitizedFeedData = sanitizeFeedData(feedData);

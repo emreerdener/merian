@@ -425,9 +425,51 @@ To allow `sync-collections` to manually parse and extract the JWT using Deno `.h
 
 ---
 
+## Deno `/check-scan-status` Edge Node
+
+Provides a lightweight outbox confirmation endpoint. After the iOS client receives an HTTP 200 from `/identify`, it can poll this endpoint to confirm the scan row actually landed in the `scans` table — mitigating the transactional outbox gap where the 200 is returned before the background `insertScan` has committed.
+
+### Request Payload
+
+```json
+{ "scan_id": "<UUID>" }
+```
+
+### Response Payload
+
+```json
+{ "status": "found" | "not_found" }
+```
+
+### Authentication & IDOR
+
+The `Authorization: Bearer` JWT is verified by `withEdgeHandler`. The DB query enforces ownership with a dual `.eq("id", scan_id).eq("user_id", user.id)` constraint — a user cannot probe another user's scan IDs. The query returns only the `id` column; no scan data is transmitted.
+
+### Architecture
+
+Follows the domain-driven module pattern: `index.ts` orchestrates auth and parameter validation; `db.ts` owns the `fetchScanOwnership(scanId, userId, supabaseAdmin): Promise<boolean>` PostgREST call. No `db.ts` writes occur. Errors from `fetchScanOwnership` are caught by `index.ts` and mapped to a structured `logStructuredError` + 500 response.
+
+---
+
 ## Deno `/get-filtered-discovery-feed` Edge Node
 
-Fetches the global social feed of public biological captures, excluding users the authenticated user has blocked. The blocked `user_id` array is passed as a raw TypeScript array (e.g. `.not("user_id", "in", isolatedExclusions)`) to avoid PostgreSQL parser exceptions.
+Fetches the global social feed of public biological captures, excluding the requesting user and any users they have blocked.
+
+### Feed Query Strategy
+
+Block list and feed are fetched in **parallel** via `Promise.all`:
+
+```typescript
+const overFetchLimit = limit + Math.max(20, Math.ceil(limit * 0.2));
+const [blockedIds, rawFeed] = await Promise.all([
+  fetchBlockedUserIds(user.id, supabaseAdmin),
+  fetchDiscoveryFeed(user.id, overFetchLimit, supabaseAdmin),
+]);
+const excludedSet = new Set(blockedIds);
+const feedData = rawFeed.filter(s => s.user_id != null && !excludedSet.has(s.user_id)).slice(0, limit);
+```
+
+`fetchDiscoveryFeed` excludes only the requesting user at the DB level (`.neq("user_id", selfId)`). Blocked user filtering is applied post-query in TypeScript. To compensate for rows removed by the block filter, the DB query over-fetches by `Math.max(20, 20% of limit)` rows. For the default limit of 20, this fetches up to 40 rows. Block list filtering happens on the fast in-memory `Set`, not in the SQL query — this eliminates a SQL variable-length array parameter that required manual escaping.
 
 ### Authentication Enforcement
 

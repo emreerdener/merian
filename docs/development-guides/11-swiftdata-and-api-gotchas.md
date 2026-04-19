@@ -387,7 +387,7 @@ self.speciesData?.referenceImageUrl = imgUrl
 self.speciesData?.taxonomy = taxonomy
 ```
 
-Views that track `inferenceEngine.speciesData` via `@Observable` (e.g. `HabitatAndDistributionCard`) will not re-render when mutations are applied this way, even though the data is correctly written in memory. The card appears stuck or empty until something else forces a re-render (e.g. the user dismisses and reopens the sheet). `ImagesCarousel` is no longer in this category — it receives all data as injected parameters from `InsightSheetViewModel`, which in turn reads from the engine. The re-render chain still applies transitively through the viewModel's computed properties (`refUrls`, `validHistoricImagePaths`, `liveImageDatas`).
+Views that track `inferenceEngine.speciesData` via `@Observable` (e.g. `HabitatAndDistributionCard`) will not re-render when mutations are applied this way, even though the data is correctly written in memory. The card appears stuck or empty until something else forces a re-render (e.g. the user dismisses and reopens the sheet). `ImagesCarousel` is no longer in this category — it receives all data as injected parameters from `InsightSheetViewModel`, which in turn reads from the engine. The re-render chain still applies transitively through the viewModel's computed properties (`refUrls`, `validHistoricImagePaths`, `liveImageData`).
 
 ### ✅ The Required Pattern: Single Full-Value Replacement
 

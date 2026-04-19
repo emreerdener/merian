@@ -4,13 +4,11 @@ import ImageIO
 
 /// Downsamples large photos using ImageIO thumbnailing to avoid OOM pressure.
 /// All operations are `nonisolated` and safe to call from any concurrency context.
-public actor ImageDownsampler {
-
-    public static let shared = ImageDownsampler()
+public enum ImageDownsampler {
 
     private static let sourceOptions: CFDictionary = [kCGImageSourceShouldCache: false] as CFDictionary
 
-    private nonisolated func thumbnailOptions(maxSize: CGFloat) -> CFDictionary {
+    private static func thumbnailOptions(maxSize: CGFloat) -> CFDictionary {
         [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -25,7 +23,7 @@ public actor ImageDownsampler {
     /// warning when they encounter alpha-bearing inputs ("is trying to save an opaque image
     /// with 'AlphaPremulLast'"). Drawing into a `noneSkipLast` context strips the channel
     /// without any external library dependency and without visible quality change.
-    private nonisolated func stripAlpha(from image: CGImage) -> CGImage {
+    private static func stripAlpha(from image: CGImage) -> CGImage {
         let alphaInfo = image.alphaInfo
         guard alphaInfo != .none,
               alphaInfo != .noneSkipLast,
@@ -48,7 +46,7 @@ public actor ImageDownsampler {
     }
 
     /// Downsamples an image file at `url` to fit within `maxSize` pixels on the longest edge.
-    public nonisolated func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
+    public static func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
         autoreleasepool {
             let options = thumbnailOptions(maxSize: maxSize)
             guard let source = CGImageSourceCreateWithURL(url as CFURL, Self.sourceOptions),
@@ -58,7 +56,7 @@ public actor ImageDownsampler {
     }
 
     /// Downsamples an image from raw `data` to fit within `maxSize` pixels on the longest edge.
-    public nonisolated func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
+    public static func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
         autoreleasepool {
             let options = thumbnailOptions(maxSize: maxSize)
             guard let source = CGImageSourceCreateWithData(data as CFData, Self.sourceOptions),

@@ -8,9 +8,9 @@ let stagedImageCapacity = 2
 /// A unified staging container that holds every capture modality a user can combine
 /// before a single analysis submission.
 ///
-/// Replaces the four parallel image arrays in `CameraViewModel` (`activeScanImages`,
-/// `activeScannedDatas`, `activeOriginals`, `activeDisplayDatas`) with one coherent
-/// value type. Any combination of modalities is valid:
+/// Replaces the four parallel image arrays previously held in `CameraViewModel`
+/// (thumbnails, compressed inference data, display-quality data, and full-resolution
+/// originals) with one coherent value type, now represented by `[StagedImage]`. Any combination of modalities is valid:
 /// - images only (existing behaviour, up to 2)
 /// - description only (solo Describe path)
 /// - images + description (combined path → `identify` with context injection)

@@ -128,18 +128,19 @@ struct DescribeInputView: View {
                                         }
                                     }
                                 }) {
+                                    // Species Image Tags
                                     if let imageName = tag.imageName {
                                         VStack(spacing: 4) {
                                             Image(imageName)
                                                 .resizable()
                                                 .scaledToFit()
-                                                .frame(width: 44, height: 44)
+                                                .frame(width: 56, height: 56)
                                             Text(tag.label)
                                                 .font(.subheadline.weight(.medium))
                                                 .lineLimit(1)
                                         }
                                         .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
-                                        .frame(width: 88, height: 88)
+                                        .frame(width: 96, height: 104)
                                         .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
                                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                     } else {

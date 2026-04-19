@@ -55,7 +55,7 @@ extension CameraViewModel {
                     // vision tile, ~75% token savings) for Flash/free tier, 1024 px (four tiles,
                     // full morphological detail) for Pro. The full-resolution photo was already
                     // saved to Camera Roll above.
-                    let safeCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: diContainer.revenueCatManager.isProActive))
+                    let safeCGImage = ImageDownsampler.downsample(data: captureData, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: diContainer.revenueCatManager.isProActive))
 
                     // Crop to a square centered on the composing zone — the visible area between
                     // the mode toggle (top) and the capture button row (bottom). Falls back to the
@@ -75,7 +75,7 @@ extension CameraViewModel {
                     // only finalSafeData is base64-encoded for Gemini.
                     // Same composing-zone crop applied for visual consistency with the inference frame.
                     let displaySafeData: Data = {
-                        guard let displayCGImage = ImageDownsampler.shared.downsample(data: captureData, maxSize: MerianConfig.displayImageMaxSize) else {
+                        guard let displayCGImage = ImageDownsampler.downsample(data: captureData, maxSize: MerianConfig.displayImageMaxSize) else {
                             return finalSafeData // fallback to inference quality
                         }
                         let croppedDisplayCGImage = ImageCropProcessor.squareCrop(displayCGImage, verticalCenterFraction: composingCenter) ?? displayCGImage

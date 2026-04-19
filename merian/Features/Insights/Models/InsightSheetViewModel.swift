@@ -106,10 +106,10 @@ final class InsightSheetViewModel {
         return inferenceEngine?.validHistoricImagePaths ?? []
     }
 
-    /// Live capture image data for the carousel — mirrors `InferenceEngine.activeDisplayDatas`.
+    /// Live capture image data for the carousel — mirrors `InferenceEngine.activeImageData`.
     /// Routed through the viewModel so `ImagesCarousel` has no direct engine dependency.
-    var liveImageDatas: [Data] {
-        inferenceEngine?.activeDisplayDatas ?? []
+    var liveImageData: Data? {
+        inferenceEngine?.activeImageData
     }
     
     /// Safely resolves the user's textual input gracefully escalating exclusively from top-down layers: 
@@ -123,24 +123,24 @@ final class InsightSheetViewModel {
 
     var hasLive: Bool {
         guard queuedContext == nil else { return false }
-        return !(inferenceEngine?.activeDisplayDatas.isEmpty ?? true)
+        return liveImageData != nil && validHistoricImagePaths.isEmpty
     }
     
     var hasUserPhotos: Bool {
         if let queued = queuedContext {
             return !queued.localImagePaths.isEmpty
         }
-        return hasLive ? !liveImageDatas.isEmpty : !validHistoricImagePaths.isEmpty
+        return hasLive ? (liveImageData != nil) : !validHistoricImagePaths.isEmpty
     }
 
     var liveCount: Int {
         guard queuedContext == nil else { return 0 }
-        return inferenceEngine?.activeDisplayDatas.count ?? 0
+        return hasLive ? 1 : 0
     }
 
     var totalImages: Int {
         // carouselPages uses hasLive as an exclusive branch: when live data is present it
-        // shows activeDisplayDatas and skips validHistoricImagePaths (they are the same image
+        // shows liveImageData and skips validHistoricImagePaths (they are the same image
         // written to disk — showing both would duplicate the capture). Must mirror that logic
         // here or totalImages overcounts and produces unreachable pagination dots.
         let captureCount = hasLive ? liveCount : validHistoricImagePaths.count

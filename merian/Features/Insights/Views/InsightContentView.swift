@@ -45,7 +45,7 @@ struct InsightContentView: View {
                         scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
                         refUrls: viewModel.refUrls,
                         validHistoricImagePaths: activeValidPaths,
-                        liveImageDatas: activeQueuedContext != nil ? [] : viewModel.liveImageDatas,
+                        liveImageData: activeQueuedContext != nil ? nil : viewModel.liveImageData,
                         hasLive: activeHasLive,
                         liveCount: activeLiveCount,
                         totalImages: activeTotalImages,

@@ -109,7 +109,7 @@ Prior to the enqueue-at-submission refactor, `InferenceEngine` retained `activeI
 
 All three buffers have been removed entirely. Scan durability is now provided at submission time — `CameraViewModel.submitActiveScan` calls `enqueueCapture` synchronously before any `async` boundary, writing images to disk and dispatching the background URLSession upload while the app is still in the foreground (see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`). `analyze()` receives images as `imageDatas` parameters, uses them for base64 encoding, and does not retain them as instance state — Swift ARC reclaims the memory after the call.
 
-`activeDisplayDatas` is the only image buffer retained in `InferenceEngine`. It holds the 2048 px display-quality WebP images that feed the insight sheet carousel during active inference, and is cleared after `speciesData` is assigned on success.
+`activeImageData: Data?` is the only image buffer retained in `InferenceEngine` during the inference window. It holds a single 2048 px display-quality WebP frame that feeds the insight sheet carousel as a preview while inference is in progress. Once `InferenceProcessingActor.parseAndSave` completes and `validHistoricImagePaths` is populated with the on-disk paths, the carousel transitions from the in-memory `activeImageData` preview to the path-based renders — at which point `activeImageData` is still held but no longer the primary display source. It is released when `prepareForNewScan()` or `cancelActiveRequest()` fires. This two-phase design eliminates the previous `activeDisplayDatas: [Data]` array that held all display images (potentially multiple MB for multi-image captures) simultaneously in RAM for the full inference session.
 
 ### Historical Scan Hydration Task Proliferation (`InferenceEngine.load(from:)`)
 
@@ -128,7 +128,7 @@ When opening a historical scan, `load(from:)` previously spawned up to 4 indepen
 - Nil-s the task handles for `historicHydrationTask`, `gbifHydrationTask`, and `enrichmentWriteTask`.
 - Resets all loading flags (`isEnrichmentLoading`, `isLookalikesLoading`) and `scanningPhaseText`.
 - Sets `isProcessing = true` and `speciesData = nil` atomically, so the router sees the correct `AnalyzingContentView` condition from the very first SwiftUI frame.
-- Clears all image and telemetry state (`validHistoricImagePaths`, `activeDisplayDatas`, all environmental telemetry fields).
+- Clears all image and telemetry state (`validHistoricImagePaths`, `activeImageData`, all environmental telemetry fields).
 
 `analyze()` subsequently overwrites the image and telemetry fields with the new scan's data once the async Task resolves. `analyze()` also cancels `historicHydrationTask` internally so the offline-queue reprocessing path (which calls `analyze()` directly without going through `submitActiveScan()`) gets the same protection.
 
@@ -140,15 +140,31 @@ When opening a historical scan, `load(from:)` previously spawned up to 4 indepen
 
 For species that permanently lack GBIF data or habitat descriptions, the enrichment eligibility condition evaluated `true` on every open, firing an `enrich-scan` Edge Function call that returned the same empty result each time. `InferenceEngine` now maintains `@ObservationIgnored private var enrichmentAttemptedScanIds: Set<String>`. The gate is set **before** the call so even empty results prevent re-fires. Live inference scans (via `analyze()`) bypass this gate.
 
+### Enrichment Rate-Limit Recovery (`InferenceEngine`)
+
+`fetchAndApplyEnrichment` calls the `enrich-scan` Edge Function, which proxies to Gemini. When Gemini returns HTTP 429, `InferenceEngine` previously set a permanent `isEnrichmentRateLimited: Bool = true` flag for the remainder of the app session — a single transient quota spike killed enrichment for all subsequent scans until app restart.
+
+`isEnrichmentRateLimited` has been replaced with `@ObservationIgnored private var enrichmentRateLimitedUntil: Date?`. On a 429 response, `enrichmentRateLimitedUntil` is set to `Date.now.addingTimeInterval(60)` (60-second backoff; the `Retry-After` response header is used when present). The gate condition is:
+
+```swift
+guard enrichmentRateLimitedUntil.map({ $0 <= Date.now }) ?? true else { return }
+```
+
+- `nil` → passes (not rate limited)
+- Future date → blocks (backoff still active)
+- Past date → passes (backoff expired, enrichment resumes automatically)
+
+`enrichmentRateLimitedUntil` is cleared to `nil` inside `prepareForNewScan()` so a new scan session does not inherit a prior session's backoff window. Both the `enrichment` and `lookalikes` scope 429 handlers set the same `enrichmentRateLimitedUntil` property.
+
 ### Session-Scoped Deduplication Set Eviction (`InferenceEngine`)
 
 `InferenceEngine` maintains three session-scoped `Set<String>` guards to prevent redundant network calls across an app session:
 
 - **`wikiFetchAttemptedIds`** — Wikipedia fetch attempts, keyed by scientific name.
-- **`enrichedSpeciesNames`** — species that have completed a full `enrich-scan` Edge call, keyed by scientific name. Shared between the live-inference path and `load(from:)` so a second scan of the same species never re-enriches within a session.
-- **`enrichmentAttemptedScanIds`** — scan IDs for which enrichment was attempted via `load(from:)`. Prevents re-firing on every historical open for species that permanently lack GBIF or habitat data.
+- **`enrichedSpeciesTimestamps: [String: Double]`** — species that have completed a full `enrich-scan` Edge call, keyed by scientific name, with the `timeIntervalSinceReferenceDate` of first enrichment as the value. Persisted to `UserDefaults` (key: `"enrichedSpeciesTimestamps"`) with a **24-hour rolling expiration window** — `isSpeciesEnriched(name)` returns `true` only when the stored timestamp is less than 86 400 seconds old. Loaded once at `InferenceEngine` init from `UserDefaults`; written back lazily only when a new species is first enriched via `markSpeciesEnriched(name)`. Replaces the previous in-memory `Set<String>` that was session-scoped and had a hard 500-entry cap — the `UserDefaults` dictionary persists across app restarts, preventing redundant enrichment calls for species the user has already scanned within the past day.
+- **`enrichmentAttemptedScanIds`** — scan IDs for which enrichment was attempted via `load(from:)`. Prevents re-firing on every historical open for species that permanently lack GBIF or habitat data. Remains session-scoped with a 500-entry cap and 10% eviction policy.
 
-All three sets share a single `private let sessionSetCap = 500` ceiling. When any set reaches the cap, **10% of entries** (`prefix(sessionSetCap / 10)`) are evicted, preserving 90% of recently-used entries and bounding session RAM to ~50 KB per set (~100 bytes × 500 entries). This replaced a previous full-wipe strategy on `wikiFetchAttemptedIds` that caused all 500 recently-fetched Wikipedia entries to be re-fetched immediately, and the absence of any cap on `enrichedSpeciesNames`/`enrichmentAttemptedScanIds` which allowed those sets to grow without bound for power users browsing large libraries.
+`wikiFetchAttemptedIds` and `enrichmentAttemptedScanIds` share a single `private let sessionSetCap = 500` ceiling. When either set reaches the cap, **10% of entries** (`prefix(sessionSetCap / 10)`) are evicted, preserving 90% of recently-used entries and bounding session RAM to ~50 KB per set. `enrichedSpeciesTimestamps` has no hard cap — the 24-hour TTL window naturally bounds growth to the number of distinct species a user scans within a day (practically < 200 entries for any realistic session).
 
 ### Stale GBIF Write Prevention — Tracked `gbifHydrationTask` (`InferenceEngine`)
 
@@ -202,11 +218,15 @@ The function now issues a **single `FetchDescriptor<LocalScanRecord>`** filtered
 
 On a flapping WiFi ↔ cellular handoff, `NWPathMonitor` fires multiple `pathUpdateHandler` callbacks. Each positive-connectivity callback previously created a new untracked 1-second debounce task, causing stacked `syncPendingScans()` calls. `OfflineQueueManager` now holds `@ObservationIgnored private var reconnectDebounceTask: Task<Void, Never>?`. Every positive event cancels the previous debounce task before creating a new one. Connectivity-loss cancels the pending debounce alongside `syncTask` and `collectionSyncTask`, **and additionally nils the reference** (`reconnectDebounceTask = nil`). Without the nil assignment, a subsequent reconnect callback would see a non-nil (but already-cancelled) task handle, cancel it redundantly, and potentially skip creating a new one depending on control flow — the nil ensures the next reconnect always spawns a fresh debounce task.
 
-### Background Write Task Cap — OOM Guard (`InferenceEngine`)
+The debounce window is **3 seconds** (previously 1 second). A WiFi → cellular → WiFi transition typically fires 3–4 `NWPathMonitor` events within ~2 seconds; the 1-second window fired on the first cellular `satisfied` event before WiFi association was complete, triggering sync on a metered connection unnecessarily. The 3-second window lets the OS networking stack fully resolve the final interface before the sync begins.
+
+Additionally, after the debounce resolves, the handler checks `monitor.currentPath.isConstrained` before proceeding. When `isConstrained` is `true` (iOS Low Data Mode is active), all non-critical background syncs are skipped. Critical user-triggered uploads are not affected — they bypass this path entirely.
+
+### Background Write Task Cap and Pending Queue (`InferenceEngine`)
 
 After a successful identification, `InferenceEngine` can queue background `BackgroundDatabaseActor` write tasks for Wikipedia hydration, GBIF image hydration, enrichment persistence, and identification review actions (confirm, override, flag, unflag, reset). Without a ceiling, rapid successive scans or a heavy session opening dozens of historical records could accumulate an unbounded number of concurrent actor instances and their associated `ModelContext` objects, eventually triggering JetSam OOM.
 
-`InferenceEngine` caps this with `private let backgroundWriteTaskCap = 8`. `executeTrackedBackgroundTask` guards entry: if `backgroundWriteTasks` already holds 8 entries when a new write is attempted, the write is dropped and a `MerianLog.general.debug` message is emitted — no crash, no silent corruption. Wikipedia and GBIF hydration DB writes (`updateScanWithWikipedia`) are routed through this cap instead of raw `Task { }` closures, so they respect the ceiling alongside review-action writes.
+`InferenceEngine` caps concurrent in-flight tasks with `private let backgroundWriteTaskCap = 8`. When all 8 slots are occupied, `executeTrackedBackgroundTask` appends the incoming closure to `@ObservationIgnored private var pendingBackgroundTasks: [@Sendable () async -> Void]` rather than dropping it. When any slot frees (inside the `defer` block that removes the completed task from `backgroundWriteTasks`), `@MainActor private func drainPendingBackgroundTasks()` is called. It dequeues the next pending closure via `removeFirst()` and dispatches it into a new tracked slot — effectively creating a bounded work queue with depth 8 and a FIFO overflow buffer. This replaced the previous drop-on-cap behaviour that silently discarded Wikipedia and GBIF hydration writes during offline-queue replay where multiple scans flush simultaneously.
 
 ### Wikipedia Decode Offloaded from `@MainActor` (`InferenceEngine`)
 
@@ -713,7 +733,7 @@ A `habitatDescription != nil, similarSpecies != nil` gate was briefly added at t
 
 **Why the gate was redundant:**
 - **Live scans**: `SpeciesData.init(fromEdgeResponse:)` always initializes `similarSpecies = nil`, so the gate would never fire for a newly-captured scan anyway.
-- **Historical scans**: `enrichmentAttemptedScanIds` (scan-ID-scoped) and `enrichedSpeciesNames` (species-name-scoped) already guard re-fires within a session.
+- **Historical scans**: `enrichmentAttemptedScanIds` (scan-ID-scoped) and `enrichedSpeciesTimestamps` (species-name-scoped, 24-hour UserDefaults window) already guard re-fires within and across sessions.
 - **Cross-session deduplication**: The persistent backstop is the enrichment data itself. `load(from:)` computes a local `needsEnrichment` variable — `record.habitatDescription == nil || record.gbifTaxonKey == nil || (record.lookalikesData == nil && (record.similarSpecies?.isEmpty ?? true))` — and skips `fetchAndApplyEnrichment` when all fields are already present. No separate `needsEnrichment: Bool` column exists on `LocalScanRecord`; the stored enrichment fields are the gate.
 
 **Rule:** Do not gate `fetchAndApplyEnrichment` on `similarSpecies != nil`. `similarSpecies` can be populated from the legacy TEXT[] path with incomplete data (no common names, no images), which is visually indistinguishable from a populated join-table result at the gate check site but represents un-upgraded data that must still flow through `enrich-scan`.
@@ -766,7 +786,7 @@ let needsLookalikes = record.lookalikesData == nil || lookalikesHaveNoCommonName
 
 GBIF image hydration continues to run unconditionally because it writes `referenceImageUrl` to the specific scan record. Only the `enrich-scan` Edge calls (which write species-level fields shared across all scans) are skipped when already present. For users scanning the same species repeatedly in a field session, this eliminates all but the first enrichment calls per species.
 
-**Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on historic scan opens); `enrichedSpeciesNames` is species-name-scoped (guards redundant Edge calls during live-inference bursts). Both gates are in-memory and reset on launch. The persistent cross-session backstop is the enrichment data itself: `load(from:)` computes `needsMetadata` and `needsLookalikes` from stored field presence — no separate `needsEnrichment: Bool` column exists on `LocalScanRecord`. Do not add an explicit boolean flag; the stored field presence is the correct signal. Do not gate on `similarSpecies` field presence alone; see the "Persistent Field Gate — REMOVED" section for the regression that approach introduced.
+**Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on historic scan opens) and is session-scoped (resets on launch). `enrichedSpeciesTimestamps` is species-name-scoped (guards redundant Edge calls during live-inference bursts) and is **cross-session-persistent** via `UserDefaults` with a 24-hour TTL — a species enriched yesterday will not re-enrich today. The persistent cross-session backstop is the enrichment data itself: `load(from:)` computes `needsMetadata` and `needsLookalikes` from stored field presence — no separate `needsEnrichment: Bool` column exists on `LocalScanRecord`. Do not add an explicit boolean flag; the stored field presence is the correct signal. Do not gate on `similarSpecies` field presence alone; see the "Persistent Field Gate — REMOVED" section for the regression that approach introduced.
 
 ### WAL Flush Frequency (`MerianConfig.ingestCheckpointInterval`)
 

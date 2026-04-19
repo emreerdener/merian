@@ -563,8 +563,24 @@ extension OfflineQueueManager {
 
     /// Increments the retry counter for a scan and either resets it to `.staged` for the
     /// next sync cycle or tombstones it once `maxUploadRetries` is exhausted.
+    ///
+    /// Before retrying, polls `/check-scan-status` to detect the outbox gap: if the edge
+    /// function already persisted the scan but the background download task never delivered
+    /// the response, a naive retry would re-run inference and insert a duplicate row. When
+    /// the scan is found server-side, the queue entry is tombstoned and historical sync
+    /// recovers the `LocalScanRecord` on the next active-phase foreground transition.
     private func handleInferenceRetry(scanId: String) async {
         guard let container = modelContext?.container else { return }
+
+        if let status = try? await MerianNetworkClient.shared.checkScanStatus(scanId: scanId),
+           status == "found" {
+            MerianLog.data.debug("checkScanStatus: \(scanId, privacy: .private) already in DB — tombstoning queue entry")
+            await MainActor.run {
+                uploadRetryCount.removeValue(forKey: scanId)
+                softDeleteQueuedScan(scanId: scanId)
+            }
+            return
+        }
 
         let retries = await MainActor.run { () -> Int in
             let next = (uploadRetryCount[scanId] ?? 0) + 1

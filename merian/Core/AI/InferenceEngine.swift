@@ -61,7 +61,6 @@ private struct GBIFMedia: Decodable {
     var scanningPhaseText: String = "Analyzing subject..."
     @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
     var activeImageData: Data?
-    var activeDisplayDatas: [Data] = []
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData?
     
@@ -99,14 +98,13 @@ private struct GBIFMedia: Decodable {
     /// Live-inference scans (via `analyze()`) bypass this gate intentionally.
     @ObservationIgnored private var enrichmentAttemptedScanIds: Set<String> = []
     /// Scientific names for which `fetchAndApplyEnrichment` has successfully completed on the
-    /// live-inference path within this session. Skips the Edge round-trip for repeat observations
-    /// of the same species — habitat, lookalikes, and taxonomy data is identical across scans.
-    @ObservationIgnored private var enrichedSpeciesNames: Set<String> = []
-    /// Set to true the first time `enrich-scan` returns HTTP 429. All subsequent
-    /// `fetchAndApplyEnrichment` calls bail out immediately for the remainder of the session —
-    /// the daily quota is shared across scopes, so once one call is rate-limited all further
-    /// calls would be too. Resets on app relaunch (session-scoped).
-    @ObservationIgnored private var isEnrichmentRateLimited = false
+    /// live-inference path. Stored in UserDefaults with a 24-hour expiration.
+    @ObservationIgnored private var enrichedSpeciesTimestamps: [String: Double] = UserDefaults.standard.dictionary(forKey: "enrichedSpeciesTimestamps") as? [String: Double] ?? [:]
+
+    /// Set to the Date 60 seconds in the future the first time `enrich-scan` returns HTTP 429. All subsequent
+    /// `fetchAndApplyEnrichment` calls bail out immediately if this date is in the future.
+    /// Resets on `prepareForNewScan()`.
+    @ObservationIgnored private var enrichmentRateLimitedUntil: Date?
     /// Tracks the GBIF image hydration task spawned by `fetchAndApplyEnrichment` so it can be
     /// cancelled immediately when the user navigates away or fires a new scan. Without this handle
     /// the task survives `liveHydrationTask` cancellation and can write stale image URLs back to
@@ -128,17 +126,42 @@ private struct GBIFMedia: Decodable {
     /// multiple wiki/GBIF/enrichment writes can stack faster than SQLite drains them.
     private let backgroundWriteTaskCap = 8
 
+    @ObservationIgnored private var pendingBackgroundTasks: [@Sendable () async -> Void] = []
+
     private func executeTrackedBackgroundTask(operation: @escaping @Sendable () async -> Void) {
         guard backgroundWriteTasks.count < backgroundWriteTaskCap else {
-            MerianLog.general.debug("backgroundWriteTasks cap hit (\(self.backgroundWriteTaskCap)) — dropping background write")
+            pendingBackgroundTasks.append(operation)
             return
         }
         let id = UUID()
         let task = Task { [weak self] in
-            defer { Task { @MainActor [weak self] in self?.backgroundWriteTasks.removeValue(forKey: id) } }
+            defer { 
+                Task { @MainActor [weak self] in 
+                    self?.backgroundWriteTasks.removeValue(forKey: id)
+                    self?.drainPendingBackgroundTasks()
+                } 
+            }
             await operation()
         }
         backgroundWriteTasks[id] = task
+    }
+
+    @MainActor
+    private func drainPendingBackgroundTasks() {
+        guard backgroundWriteTasks.count < backgroundWriteTaskCap, !pendingBackgroundTasks.isEmpty else { return }
+        let next = pendingBackgroundTasks.removeFirst()
+        executeTrackedBackgroundTask(operation: next)
+    }
+
+    private func isSpeciesEnriched(_ name: String) -> Bool {
+        guard let ts = enrichedSpeciesTimestamps[name] else { return false }
+        return Date(timeIntervalSinceReferenceDate: ts) > Date.now.addingTimeInterval(-86400)
+    }
+
+    private func markSpeciesEnriched(_ name: String) {
+        let ts = Date.now.timeIntervalSinceReferenceDate
+        enrichedSpeciesTimestamps[name] = ts
+        UserDefaults.standard.set(enrichedSpeciesTimestamps, forKey: "enrichedSpeciesTimestamps")
     }
 
     // MARK: - External API Session
@@ -190,12 +213,12 @@ private struct GBIFMedia: Decodable {
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         self.isReferenceImageLoading = false
+        self.enrichmentRateLimitedUntil = nil
 
         // Clear the previous scan's result and image data.
         self.speciesData = nil
         self.validHistoricImagePaths = []
         self.activeImageData = nil
-        self.activeDisplayDatas = []
         self.activeObservationContext = nil
 
         // Clear telemetry so stale GPS/weather cannot bleed into the new scan's display.
@@ -254,7 +277,6 @@ private struct GBIFMedia: Decodable {
         self.activeScanId = scanId
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
-        self.activeDisplayDatas = displayDatas.isEmpty ? imageDatas : displayDatas
         self.validHistoricImagePaths = []
         self.speciesData = nil
         
@@ -405,7 +427,7 @@ private struct GBIFMedia: Decodable {
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()
-                        // Retain in-memory activeDisplayDatas so the Carousel doesn't structurally tear down the LiveCapturePageView component.
+                        // Retain validHistoricImagePaths so the Carousel doesn't structurally tear down the LiveCapturePageView component.
                         self.validHistoricImagePaths = savedImagePaths
                         self.speciesData = mappedData
                     }
@@ -486,7 +508,7 @@ private struct GBIFMedia: Decodable {
                             // enriches a species in this session, subsequent scans skip the Edge
                             // round-trip entirely. GBIF image hydration always runs (it writes
                             // referenceImageUrl for the specific scan record).
-                            let capturedIsEnriched = self.enrichedSpeciesNames.contains(capturedScientificName)
+                            let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
                             // Use withTaskGroup + @MainActor child tasks so the ModelContext
                             // capture stays actor-bound — async let closures are implicitly
                             // @Sendable and cannot capture non-Sendable @MainActor types.
@@ -525,11 +547,7 @@ private struct GBIFMedia: Decodable {
                             // subsequent scan of the same species with no auto path out.
                             if !capturedIsEnriched && !Task.isCancelled,
                                self.speciesData?.habitatDescription != nil {
-                                // Evict 10% on cap hit — same policy as wikiFetchAttemptedIds.
-                                if self.enrichedSpeciesNames.count >= self.sessionSetCap {
-                                    self.enrichedSpeciesNames.subtract(self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10))
-                                }
-                                self.enrichedSpeciesNames.insert(capturedScientificName)
+                                self.markSpeciesEnriched(capturedScientificName)
                             }
                         }
                         
@@ -602,7 +620,7 @@ private struct GBIFMedia: Decodable {
     ///
     /// Mirrors `analyze()` structurally but accepts a verbal `ObservationContext` instead of
     /// image data. No offline queue enqueue — Describes are online-only in V1. No
-    /// `activeDisplayDatas` or `validHistoricImagePaths` are set; the carousel will initially
+    /// `validHistoricImagePaths` is set; the carousel will initially
     /// render black until GBIF reference images arrive via the post-inference hydration task.
     func analyzeDescribe(
         scanId: String?,
@@ -717,7 +735,7 @@ private struct GBIFMedia: Decodable {
 
                         liveHydrationTask = Task { [weak self] in
                             guard let self else { return }
-                            let capturedIsEnriched = self.enrichedSpeciesNames.contains(capturedScientificName)
+                            let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
 
                             await withTaskGroup(of: Void.self) { group in
                                 if !capturedHasWikipedia {
@@ -750,12 +768,7 @@ private struct GBIFMedia: Decodable {
 
                             if !capturedIsEnriched && !Task.isCancelled,
                                self.speciesData?.habitatDescription != nil {
-                                if self.enrichedSpeciesNames.count >= self.sessionSetCap {
-                                    self.enrichedSpeciesNames.subtract(
-                                        self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10)
-                                    )
-                                }
-                                self.enrichedSpeciesNames.insert(capturedScientificName)
+                                self.markSpeciesEnriched(capturedScientificName)
                             }
                         }
                         
@@ -1030,7 +1043,7 @@ private struct GBIFMedia: Decodable {
               data.scientificName.lowercased() != "taxonomy unavailable" else { return }
 
         guard needsMetadata || needsLookalikes else { return }
-        guard !isEnrichmentRateLimited else { return }
+        guard enrichmentRateLimitedUntil.map({ $0 <= Date.now }) ?? true else { return }
 
         if needsMetadata { isEnrichmentLoading = true }
         if needsLookalikes { isLookalikesLoading = true }
@@ -1115,7 +1128,7 @@ private struct GBIFMedia: Decodable {
                     } catch let error as MerianError {
                         if case .httpError(let code, _) = error, code == 403 { return }
                         if case .httpError(let code, _) = error, code == 429 {
-                            self.isEnrichmentRateLimited = true
+                            self.enrichmentRateLimitedUntil = Date.now.addingTimeInterval(60)
                             return
                         }
                         MerianLog.general.debug("Enrichment scope failed: \(error, privacy: .private)")
@@ -1178,7 +1191,7 @@ private struct GBIFMedia: Decodable {
                     } catch let error as MerianError {
                         if case .httpError(let code, _) = error, code == 403 { return }
                         if case .httpError(let code, _) = error, code == 429 {
-                            self.isEnrichmentRateLimited = true
+                            self.enrichmentRateLimitedUntil = Date.now.addingTimeInterval(60)
                             return
                         }
                         MerianLog.general.debug("Lookalikes scope failed: \(error, privacy: .private)")
@@ -1566,7 +1579,6 @@ private struct GBIFMedia: Decodable {
         self.isReferenceImageLoading = false
         self.speciesData = nil
         activeImageData = nil
-        activeDisplayDatas.removeAll()
         validHistoricImagePaths.removeAll()
         activeLatitude = nil
         activeLongitude = nil
@@ -1610,7 +1622,6 @@ private struct GBIFMedia: Decodable {
 
         self.activeScanId = record.id
         self.activeImageData = nil
-        self.activeDisplayDatas = []
         self.validHistoricImagePaths = []
 
         // Capture all non-Sendable model properties synchronously on @MainActor
@@ -1769,7 +1780,7 @@ private struct GBIFMedia: Decodable {
                     // Enrichment: Two gates prevent redundant calls (scan-ID-scoped and species-name-scoped).
                     if needsEnrichment
                         && !self.enrichmentAttemptedScanIds.contains(recordId)
-                        && !self.enrichedSpeciesNames.contains(recordScientificName) {
+                        && !self.isSpeciesEnriched(recordScientificName) {
                         guard !Task.isCancelled else { return }
                         // Evict 10% on cap hit to bound session-scoped set growth.
                         if self.enrichmentAttemptedScanIds.count >= self.sessionSetCap {
@@ -1778,10 +1789,7 @@ private struct GBIFMedia: Decodable {
                         self.enrichmentAttemptedScanIds.insert(recordId)
                         await self.fetchAndApplyEnrichment(modelContext: safeContext, needsMetadata: needsMetadata, needsLookalikes: needsLookalikes)
                         if !Task.isCancelled {
-                            if self.enrichedSpeciesNames.count >= self.sessionSetCap {
-                                self.enrichedSpeciesNames.subtract(self.enrichedSpeciesNames.prefix(self.sessionSetCap / 10))
-                            }
-                            self.enrichedSpeciesNames.insert(recordScientificName)
+                            self.markSpeciesEnriched(recordScientificName)
                         }
                         taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
                     }
@@ -1813,7 +1821,7 @@ private struct GBIFMedia: Decodable {
             guard let self else { return }
 
             // Downsample once
-            guard let cgImage = ImageDownsampler.shared.downsample(data: data, maxSize: 512) else {
+            guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 512) else {
                 return
             }
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])

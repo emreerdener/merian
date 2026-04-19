@@ -14,7 +14,7 @@ actor SizeEstimator {
     /// - Returns: The estimated maximum linear dimension of the primary subject in centimeters
     static func estimateSize(imageData: Data, distanceMeters: Float) async -> Double? {
         return autoreleasepool {
-            guard let cgImage = ImageDownsampler.shared.downsample(data: imageData, maxSize: 512) else { return nil }
+            guard let cgImage = ImageDownsampler.downsample(data: imageData, maxSize: 512) else { return nil }
         
             let request = VNGenerateObjectnessBasedSaliencyImageRequest()
             

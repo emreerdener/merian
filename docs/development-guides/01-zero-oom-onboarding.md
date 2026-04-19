@@ -14,7 +14,7 @@ To maintain strict bounds against the 2GB iPhone memory ceiling, **you may never
 
 | BANNED API / PATTERN | MERIAN APPROVED ALTERNATIVE | WHY IT'S FATAL |
 | :--- | :--- | :--- |
-| `UIImage(data:)` | `ImageDownsampler.shared.downsample(data:maxSize:)` | `UIImage` initialization decompresses the entire 12MP payload into raw RAM (often 50MB–100MB per image). Four frames loaded sequentially will crash the host process. |
+| `UIImage(data:)` | `ImageDownsampler.downsample(data:maxSize:)` | `UIImage` initialization decompresses the entire 12MP payload into raw RAM (often 50MB–100MB per image). Four frames loaded sequentially will crash the host process. |
 | `@EnvironmentObject` | `AppDIContainer.shared` + `@Observable` | Massive environment objects cause entire view graphs to recompute uncontrollably ("View Graph Tearing") when state mutates. We isolate dependencies using iOS 17's macro. |
 | SQLite `FileManager` I/O | `Task { await FileIOActor.shared }` | Synchronously deleting files from a `ModelContext` lock causes the SwiftData Persistence Store to deadlock, interrupting camera feed logic. Always use `FileIOActor`. |
 | `.sheet(isPresented:)` without `@MainActor` delays | `DispatchQueue.main.async { activeSheet = ... }` | Emitting UIKit-backed modals concurrently while `AVCaptureSession` tears down locks the hardware GPU thread and produces black screens. |

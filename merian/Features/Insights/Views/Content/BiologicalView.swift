@@ -140,9 +140,7 @@ struct BiologicalView: View {
     
                 // MARK: - Spatiotemporal Context
                 let imageCount: Int = {
-                    if !inferenceEngine.activeDisplayDatas.isEmpty {
-                        return inferenceEngine.activeDisplayDatas.count
-                    }
+                    if inferenceEngine.activeImageData != nil { return 1 }
                     let extras = viewModel.activeLocalRecord?.additionalImagePaths ?? []
                     return 1 + extras.count
                 }()

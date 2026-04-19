@@ -170,7 +170,7 @@ final class CameraViewModel {
                     if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
                         // Inference payload: tier-conditional longest edge — 768 px for Flash (free),
                         // 1024 px for Pro. Matches the camera shutter path for consistent token costs per tier.
-                        let inferenceCGImage = ImageDownsampler.shared.downsample(url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: self.diContainer.revenueCatManager.isProActive))
+                        let inferenceCGImage = ImageDownsampler.downsample(url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: self.diContainer.revenueCatManager.isProActive))
 
                         if let cgImage = inferenceCGImage {
                             let rawImage = UIImage(cgImage: cgImage)
@@ -191,7 +191,7 @@ final class CameraViewModel {
                             // Display payload: 2048 px — written to disk so the insight sheet and
                             // scan library render crisp.
                             let displaySafeData: Data = autoreleasepool {
-                                guard let displayCGImage = ImageDownsampler.shared.downsample(url: validUrl, maxSize: MerianConfig.displayImageMaxSize) else {
+                                guard let displayCGImage = ImageDownsampler.downsample(url: validUrl, maxSize: MerianConfig.displayImageMaxSize) else {
                                     return finalSafeData
                                 }
                                 let renderData = NSMutableData()
@@ -262,7 +262,7 @@ final class CameraViewModel {
                 var inferenceData: Data?
                 var rawImage: UIImage?
                 
-                if let cgInference = ImageDownsampler.shared.downsample(url: fileURL, maxSize: inferenceSize) {
+                if let cgInference = ImageDownsampler.downsample(url: fileURL, maxSize: inferenceSize) {
                     rawImage = UIImage(cgImage: cgInference)
                     inferenceData = autoreleasepool {
                         let renderData = NSMutableData()

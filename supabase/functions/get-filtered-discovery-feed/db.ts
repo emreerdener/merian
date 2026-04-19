@@ -19,7 +19,7 @@ export async function fetchBlockedUserIds(
 }
 
 export async function fetchDiscoveryFeed(
-  excludedIds: string[],
+  selfId: string,
   limit: number,
   supabaseAdmin: SupabaseClient,
 ): Promise<FeedScan[]> {
@@ -55,7 +55,7 @@ export async function fetchDiscoveryFeed(
     .eq("geoprivacy", "open")
     .eq("is_live_capture", true)
     .eq("users.is_shadowbanned", false)
-    .not("user_id", "in", excludedIds)
+    .neq("user_id", selfId)
     .not("image_storage_urls", "eq", "{}")
     .order("timestamp", { ascending: false })
     .limit(limit);

@@ -40,7 +40,7 @@ struct OverviewCard: View {
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
             let lifeStage = data.lifeStage.flatMap { $0 == "unknown" ? nil : capitalizeFirstLetter($0) }
             let reproduction = data.reproductiveCondition.flatMap { $0 == "not_applicable" ? nil : capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }
-            let interactions = data.ecologicalInteractions?.isEmpty == false ? data.ecologicalInteractions?.joined(separator: "; ") : nil
+            let interactions = data.ecologicalInteractions?.isEmpty == false ? data.ecologicalInteractions?.map { capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }.joined(separator: ", ") : nil
             
             let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || interactions != nil || data.isInvasive || iucnStatus != nil
             

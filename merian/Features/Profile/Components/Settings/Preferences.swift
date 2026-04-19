@@ -60,7 +60,7 @@ struct Preferences: View {
                     title: "Sections",
                     description: "Reorder capture sections and choose your default launch mode.",
                     icon: "rectangle.split.3x1.fill",
-                    iconColor: .orange
+                    iconColor: .yellow
                 )
             }
            
