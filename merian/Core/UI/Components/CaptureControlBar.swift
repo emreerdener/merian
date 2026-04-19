@@ -17,6 +17,7 @@ struct CaptureControlBar: View {
     @Environment(CameraManager.self) private var cameraManager
     @Environment(PhotoLibraryManager.self) private var photoLibraryManager
     @Environment(SpeechManager.self) private var speechManager
+    @Environment(AudioCaptureManager.self) private var audioCaptureManager
     @Environment(\.modelContext) private var modelContext
 
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
@@ -67,7 +68,9 @@ struct CaptureControlBar: View {
                     || UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
                 // All modes disabled when staging area is full — no new input can be added.
                 // Describe also disabled while a refinement image is still loading.
-                let isSubmitDisabled: Bool = isAtCapacity || (captureMode == .describe && viewModel.isStagingRefinement)
+                let isSubmitDisabled: Bool = isAtCapacity
+                    || (captureMode == .describe && viewModel.isStagingRefinement)
+                    || (captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil)
 
                 CaptureButton(
                     captureMode: captureMode,
@@ -77,7 +80,19 @@ struct CaptureControlBar: View {
                         case .visual:
                             viewModel.executeCapture()
                         case .audio:
-                            break
+                            if audioCaptureManager.isRecording {
+                                audioCaptureManager.cancelRecording()
+                            } else {
+                                Task {
+                                    do {
+                                        try await audioCaptureManager.startRecording()
+                                    } catch {
+                                        await MainActor.run {
+                                            viewModel.offlineToastMessage = error.localizedDescription
+                                        }
+                                    }
+                                }
+                            }
                         case .describe:
                             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             let didSubmit = viewModel.submitDescribe(

@@ -11,6 +11,7 @@ struct CaptureWorkspaceView: View {
     @Environment(ViewfinderIntelligence.self) var vui
     @Environment(PhotoLibraryManager.self) var photoLibraryManager
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(AudioCaptureManager.self) var audioCaptureManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
@@ -307,9 +308,17 @@ struct CaptureWorkspaceView: View {
             if newPhase == .active && captureMode == .visual && viewModel.activeSheet == nil {
                 cameraManager.startSession()
             }
+            if (newPhase == .background || newPhase == .inactive) &&
+               (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil) {
+                audioCaptureManager.cancelRecording()
+            }
         }
         .onChange(of: captureMode) { _, newMode in
             HapticManager.shared.triggerSheetSpring()
+
+            if newMode != .audio && (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil) {
+                audioCaptureManager.cancelRecording()
+            }
 
             if newMode == .audio || newMode == .describe {
                 cameraManager.stopSession()
@@ -360,6 +369,11 @@ struct CaptureWorkspaceView: View {
             captureMode = requested
             viewModel.requestedCaptureMode = nil
             observationContext = ObservationContext()
+        }
+        .onChange(of: audioCaptureManager.audioFilePath) { _, fileName in
+            guard let fileName else { return }
+            viewModel.submitAudio(audioFileName: fileName, modelContext: modelContext)
+            audioCaptureManager.reset()
         }
         .onPhysicalCameraShutter(
             isEnabled: viewModel.activeSheet == nil &&

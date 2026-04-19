@@ -96,18 +96,19 @@ Glassmorphic hint capsule overlaid at the bottom of the camera viewfinder. Bridg
 
 ### `CaptureMode` & `MediaModeToggle` (`Features/Camera/Components/MediaModeToggle.swift`)
 
-`CaptureMode` is a `String` `CaseIterable` enum defining the two capture pages:
+`CaptureMode` is a `String` `CaseIterable` enum defining the three capture pages:
 
 ```swift
 enum CaptureMode: String, CaseIterable {
-    case visual  // Camera viewfinder (page 1)
-    case audio   // Audio recording (page 2)
+    case visual   // Camera viewfinder (page 1)
+    case audio    // Audio recording (page 2)
+    case describe // Text + voice describe (page 3)
 }
 ```
 
-`MediaModeToggle` is a glassmorphic capsule segmented control that switches between capture modes. It is rendered in `CaptureWorkspaceView`'s fixed top overlay (not inside the paged content area) so it is always visible regardless of which page is active.
+The page order is user-configurable via `@AppStorage(UserDefaultsKeys.captureModeOrder)` (default `"visual,audio,describe"`). `CaptureWorkspaceView.orderedModes` deserializes this into the `ForEach` order.
 
-- Layout: two equal-width segments (icon + label: "Scan" / "Record") inside an `.ultraThinMaterial` capsule with a white pill sliding behind the active segment.
+`MediaModeToggle` is a glassmorphic capsule segmented control that switches between capture modes. It is rendered in `CaptureWorkspaceView`'s fixed top overlay (not inside the paged content area) so it is always visible regardless of which page is active.
 - **Size probe**: A `GeometryReader` in the background measures the actual rendered width into `toggleSize`, making the pill `segmentWidth = toggleSize.width / 2`.
 - **Pill offset (`pillX`)**: Computed from `activeMode` + `dragOffset` so the pill tracks a live drag smoothly before it commits.
 - **Label colour**: Interpolates between `.black` (active) and `.white.opacity(0.85)` (inactive) in real time as `pillX / segmentWidth` crosses 0.5 — no animation delay during drag.
@@ -116,9 +117,15 @@ enum CaptureMode: String, CaseIterable {
 
 ---
 
-### `AudioRecordingView` (`Features/Camera/Views/AudioRecordingView.swift`)
+### `AudioRecordingView` (`Features/CaptureWorkspace/Modalities/Audio/Views/AudioRecordingView.swift`)
 
-Placeholder content for the audio recording capture mode. Renders a full-bleed black background with a centred waveform icon and "Audio recording coming soon" label at low opacity. All persistent controls (capture button, `MediaModeToggle`, tab bar) live in `CaptureWorkspaceView`'s fixed overlay and remain visible above this view.
+Full-screen content view for the audio capture mode. All persistent controls (capture button, `MediaModeToggle`, tab bar) live in `CaptureWorkspaceView`'s fixed overlay.
+
+Shows two states based on `AudioCaptureManager.isRecording`:
+- **Idle**: centered `waveform.circle` icon + instructional label.
+- **Recording**: `SNRGaugeView` pill (top) · `SpectrogramView` Canvas (middle, 240 pt) · circular countdown ring + second counter (bottom, above `CaptureControlBar`).
+
+See [Audio Listen Mode](./12-audio-listen-mode.md) for the full `SpectrogramActor`, `AudioCaptureManager`, and `OfflineQueueManager+AudioQueue` pipeline documentation.
 
 ---
 
@@ -129,7 +136,8 @@ Placeholder content for the audio recording capture mode. Renders a full-bleed b
 | Page | `CaptureMode` ID | Content |
 |------|-----------------|---------|
 | 1 | `.visual` | `CameraPreviewView` + focus indicator + flash overlay + `ThermalWarningView` + `CameraControlsLayer` (hints + zoom slider) |
-| 2 | `.audio` | `AudioRecordingView` |
+| 2 | `.audio` | `AudioRecordingView` (spectrogram + SNR gauge + countdown ring) |
+| 3 | `.describe` | `DescribeInputView` (text + tag strip + voice dictation) |
 
 **`captureModeScrollBinding`**: Bridges `CaptureMode` into the `Binding<CaptureMode?>` form that `.scrollPosition(id:)` requires. The setter wraps a `.spring(response: 0.35, dampingFraction: 0.75)` animation so the `MediaModeToggle` pill animates when the page settles after a free swipe.
 
@@ -146,7 +154,7 @@ Placeholder content for the audio recording capture mode. Renders a full-bleed b
 - **Capture bar** (`PhotoLibraryButton` · `CaptureButton` · `FlashButton`) and **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two independent `VStack` overlays**, each with their own `Spacer()` + fixed bottom padding. The capture bar uses `.padding(.bottom, 140)` anchoring it at a constant absolute position regardless of which toolbar is showing. This prevents `ActiveScanToolbar` (taller than `MainTabBar`) from pushing the shutter row upward when it slides in.
 - `PhotoLibraryButton` and `FlashButton` fade to opacity 0 when `captureMode == .audio` (camera-only controls), preserving their layout slot so the shutter button stays centred.
 
-**`CaptureButton`**: The shutter button transitions its inner `Circle` fill between `.white` (camera) and `.red` (audio) in place via `.animation(.easeInOut(duration: 0.25))`. Taps are ignored when `captureMode == .audio`.
+**`CaptureButton`**: The shutter button transitions its inner `Circle` fill between `.white` (visual), `.red` (audio), and `.primary` (describe) in place via `.animation(.easeInOut(duration: 0.25))`. Taps on `.audio` start recording via `AudioCaptureManager.startRecording()` if idle, or call `cancelRecording()` if already recording. Permission and hardware errors surface via `viewModel.offlineToastMessage`.
 
 **Session lifecycle**: The camera session is tightly coupled to the UI state to conserve thermal budget and prevent hardware deadlocks.
 - `onChange(of: captureMode)` fires `HapticManager.shared.triggerSheetSpring()` on every mode switch, then stops the camera session when switching to `.audio` and restarts it on return to `.visual` (unless `activeSheet` is present).

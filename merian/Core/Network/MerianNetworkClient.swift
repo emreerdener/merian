@@ -491,6 +491,104 @@ final class MerianNetworkClient {
         return data
     }
 
+    // MARK: - Audio Identification
+
+    /// Builds a fully-authenticated POST URLRequest for the `/audio-spec` edge function.
+    ///
+    /// Reads the WAV from Documents, base64-encodes it on a detached task (avoids blocking
+    /// the main actor on disk I/O), and embeds it inline as `audio_base64` in the JSON body.
+    ///
+    /// - Parameters:
+    ///   - audioFilePath: WAV filename relative to `URL.documentsDirectory`.
+    ///   - telemetry: GPS, weather, and device context.
+    ///   - clientScanId: Stable scan identifier shared with the queued `OfflineQueuedScan`.
+    func buildAudioRequest(
+        audioFilePath: String,
+        telemetry: CaptureTelemetry,
+        clientScanId: String
+    ) async throws -> URLRequest {
+        let functionUrl = try endpointURL("audio-spec")
+
+        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let userId = (authUserId ?? deviceId).lowercased()
+        let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
+        let deviceTimeZone = TimeZone.current.identifier
+        let deviceRegion = Locale.current.region?.identifier
+
+        let captureDate: Date = telemetry.timestamp.flatMap {
+            DateUtilities.iso8601Formatter.date(from: $0)
+        } ?? Date()
+        let currentMonth = Calendar.current.component(.month, from: captureDate)
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let timeOfDay = formatter.string(from: captureDate)
+
+        let capturedTelemetry = telemetry
+        let capturedScanId = clientScanId
+        let audioURL = URL.documentsDirectory.appendingPathComponent(audioFilePath)
+
+        let bodyData = try await Task.detached(priority: .userInitiated) {
+            let wavData = try Data(contentsOf: audioURL)
+            let base64Audio = wavData.base64EncodedString()
+            let isolatedPayload: [String: Any?] = [
+                "user_id": userId,
+                "audio_base64": base64Audio,
+                "gps_latitude": capturedTelemetry.gpsLatitude,
+                "gps_longitude": capturedTelemetry.gpsLongitude,
+                "gps_elevation": capturedTelemetry.gpsElevation,
+                "semantic_location": capturedTelemetry.locationName,
+                "weather_condition": capturedTelemetry.weatherCondition,
+                "weather_temperature_f": capturedTelemetry.weatherTemperatureF,
+                "device_locale": deviceLocale,
+                "device_time_zone": deviceTimeZone,
+                "device_region": deviceRegion,
+                "current_month": currentMonth,
+                "time_of_day": timeOfDay,
+                "timestamp": capturedTelemetry.timestamp,
+                "client_scan_id": capturedScanId
+            ]
+            return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+        }.value
+
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90.0)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
+        for (key, val) in authHeaders {
+            request.setValue(val, forHTTPHeaderField: key)
+        }
+
+        return request
+    }
+
+    /// Posts a bioacoustic recording to the `/audio-spec` edge function and returns raw response data.
+    ///
+    /// WAV is read from Documents and sent inline as base64. The edge function performs
+    /// silence trimming, resampling, and Gemini identification server-side.
+    func identifyAudio(
+        audioFilePath: String,
+        telemetry: CaptureTelemetry,
+        clientScanId: String? = nil
+    ) async throws -> Data {
+        let request = try await buildAudioRequest(
+            audioFilePath: audioFilePath,
+            telemetry: telemetry,
+            clientScanId: clientScanId ?? UUID().uuidString.lowercased()
+        )
+
+        guard let url = request.url, let bodyData = request.httpBody else {
+            throw MerianError.invalidURL
+        }
+
+        let (data, _) = try await performAuthenticatedRequest(url: url, method: "POST", body: bodyData, timeoutInterval: 90.0)
+        return data
+    }
+
     func fetchEnrichment(
         scanId: String,
         scientificName: String,

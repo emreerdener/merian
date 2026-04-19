@@ -827,6 +827,198 @@ private struct GBIFMedia: Decodable {
         }
     }
 
+    // MARK: - Audio Inference
+
+    /// Fires the `audio_spec` edge function for bioacoustic species identification.
+    ///
+    /// Mirrors `analyzeDescribe` structurally. Always called in parallel with
+    /// `OfflineQueueManager.enqueueAudio` so the scan is durable on interruption.
+    func analyzeAudio(
+        scanId: String?,
+        audioFileName: String,
+        telemetry: CaptureTelemetry,
+        modelContext: ModelContext?
+    ) {
+        self.inferenceTask?.cancel()
+        self.liveHydrationTask?.cancel()
+        self.historicHydrationTask?.cancel()
+        self.historicHydrationTask = nil
+        self.gbifHydrationTask?.cancel()
+        self.enrichmentWriteTask?.cancel()
+        self.phaseRotationTask?.cancel()
+        self.gbifHydrationTask = nil
+        self.enrichmentWriteTask = nil
+
+        self.isEnrichmentLoading = false
+        self.isLookalikesLoading = false
+        self.scanningPhaseText = "Listening..."
+
+        self.activeObservationContext = nil
+        self.activeScanId = scanId
+        self.activeLatitude = telemetry.gpsLatitude
+        self.activeLongitude = telemetry.gpsLongitude
+        self.activeElevation = telemetry.gpsElevation
+        self.activeLocationName = telemetry.locationName
+        self.activeWeatherCondition = telemetry.weatherCondition
+        self.activeTemperatureF = telemetry.weatherTemperatureF
+
+        let ownedScanId = scanId
+
+        self.inferenceTask = Task { [weak self] in
+            guard let self else { return }
+
+            defer {
+                if self.activeScanId == ownedScanId {
+                    self.isProcessing = false
+                    self.activeScanId = nil
+                }
+                self.phaseRotationTask?.cancel()
+            }
+
+            do {
+                if CircuitBreakerManager.shared.isCircuitTripped {
+                    throw URLError(.notConnectedToInternet)
+                }
+
+                try Task.checkCancellation()
+
+                let resultData = try await MerianNetworkClient.shared.identifyAudio(
+                    audioFilePath: audioFileName,
+                    telemetry: telemetry,
+                    clientScanId: scanId
+                )
+
+                let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
+                    resultData: resultData,
+                    telemetry: telemetry,
+                    modelContext: modelContext,
+                    compressedDatas: [],
+                    displayDatas: [],
+                    skipImageRequirement: true,
+                    observationContextJSON: nil
+                )
+                let finalMappedData = parseResult.mappedData
+                let isNewDisc = parseResult.isNewDiscovery
+
+                if var mappedData = finalMappedData {
+                    if isNewDisc {
+                        mappedData.isNewDiscovery = true
+                        GamificationManager.shared.recordNewSpeciesDiscovered()
+                    }
+
+                    if let container = modelContext?.container {
+                        let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
+                        let updatedAwards = await profileActor.calculateAwards()
+                        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
+                    }
+
+                    CircuitBreakerManager.shared.recordSuccess()
+                    AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
+
+                    if self.activeScanId == ownedScanId {
+                        HapticManager.shared.triggerHeavyImpact()
+                        self.speciesData = mappedData
+                    }
+
+                    // Flush the offline queue record so the background replay cycle doesn't
+                    // make a redundant Gemini call on the same audio file. Audio always enqueues
+                    // for durability, so unlike describe, there is always a record to clean up.
+                    if let scanId = ownedScanId {
+                        OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
+                        executeTrackedBackgroundTask {
+                            await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId)
+                        }
+                    }
+
+                    if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
+                       let audioScanId = mappedData.scanId {
+                        PushNotificationManager.shared.sendInferenceCompleteNotification(
+                            speciesName: mappedData.commonName,
+                            scanId: audioScanId
+                        )
+                    }
+
+                    if mappedData.isBiological {
+                        let capturedScientificName = mappedData.scientificName
+                        let capturedScanId = mappedData.scanId
+                        let capturedGbifKey = mappedData.gbifTaxonKey
+                        let capturedHasWikipedia = mappedData.wikipediaOverview != nil
+
+                        liveHydrationTask = Task { [weak self] in
+                            guard let self else { return }
+                            let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
+
+                            await withTaskGroup(of: Void.self) { group in
+                                if !capturedHasWikipedia {
+                                    group.addTask { @MainActor [weak self] in
+                                        guard let self else { return }
+                                        await self.fetchWikipediaAndHydrate(
+                                            for: capturedScientificName,
+                                            scanId: capturedScanId,
+                                            modelContext: modelContext
+                                        )
+                                    }
+                                }
+                                group.addTask { @MainActor [weak self] in
+                                    guard let self else { return }
+                                    var taxonKeyToUse = capturedGbifKey
+                                    if !capturedIsEnriched {
+                                        await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
+                                    }
+                                    guard !Task.isCancelled else { return }
+                                    if let key = taxonKeyToUse {
+                                        await self.fetchGBIFImagesAndHydrate(
+                                            for: key,
+                                            scanId: capturedScanId,
+                                            modelContext: modelContext
+                                        )
+                                    }
+                                }
+                            }
+
+                            if !capturedIsEnriched && !Task.isCancelled,
+                               self.speciesData?.habitatDescription != nil {
+                                self.markSpeciesEnriched(capturedScientificName)
+                            }
+                        }
+
+                        if let hydrationTask = liveHydrationTask {
+                            do {
+                                try await withThrowingTaskGroup(of: Void.self) { group in
+                                    group.addTask { await hydrationTask.value }
+                                    group.addTask {
+                                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                                        throw CancellationError()
+                                    }
+                                    try await group.next()
+                                    group.cancelAll()
+                                }
+                            } catch {
+                                // Timeout; hydration continues in background
+                            }
+                        }
+                    }
+                }
+            } catch {
+                if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
+
+                AppTelemetry.trackError("AudioInferenceFailure")
+                CircuitBreakerManager.shared.recordFailure()
+                MerianLog.general.debug("Audio inference failure: \(error.localizedDescription, privacy: .private)")
+                if self.activeScanId == ownedScanId {
+                    HapticManager.shared.triggerErrorThump()
+                    self.speciesData = makeErrorSpeciesData(
+                        title: "Network timeout",
+                        subtitle: "Please try again",
+                        reasoning: "Please check your network connection and try again.",
+                        telemetry: telemetry
+                    )
+                }
+            }
+        }
+    }
+
     // MARK: - Error State Factory
 
     /// Builds an error-placeholder `SpeciesData` for the two failure paths in `analyze()`.

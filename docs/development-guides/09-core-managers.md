@@ -19,6 +19,27 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Auto-termination**: The `SFSpeechRecognitionTask` result handler dispatches back to `@MainActor` via `Task { @MainActor [weak self] in ... }`. When `error != nil || result.isFinal == true`, it calls `stopDictation()` internally — the user does not need to tap the mic again to stop a session that the system ended (e.g. 60-second silence timeout).
 - **`PermissionError`** — a `LocalizedError` struct defined in the same file. Thrown exclusively on permission denial, caught by `catch is PermissionError` at the `CaptureWorkspaceView` call site for toast display. All other throws (hardware faults, `AVAudioEngine` start failure) are silently swallowed at the call site since no user-actionable recovery path exists.
 
+### `AudioCaptureManager`
+- `@MainActor @Observable final class` at `merian/Core/Hardware/AudioCaptureManager.swift`, registered as `var audioCaptureManager = AudioCaptureManager()` in `AppDIContainer` and distributed via `DIContainerModifier`.
+- Owns the full `AVAudioEngine` bioacoustic recording pipeline for the `.audio` capture page.
+- **`isRecording: Bool`** — single source of truth for recording state. Set to `true` only after `audioEngine.start()` succeeds.
+- **`recordingProgress: Double`** — 0.0 → 1.0 over 12 seconds, driven by a 100-tick countdown Task (120 ms per tick).
+- **`spectrogramColumns: [SpectrogramColumn]`** — rolling 120-column display buffer fed by `SpectrogramActor` on each tap callback.
+- **`snrLevel: SNRLevel`** — most recent SNR classification from `SpectrogramActor.snrLevel(from:)`.
+- **`audioFilePath: String?`** — set to the WAV filename when recording finishes; consumed and cleared by `CaptureWorkspaceView.onChange` → `submitAudio` → `reset()`.
+- **`startRecording() async throws`**: follows the same `Task.detached` AVAudioSession setup pattern as `SpeechManager.startDictation` to prevent `@MainActor` IPC deadlock against `mediaserverd`. Uses a `[weak manager]` capture in the inner `@MainActor` DSP-result Task to break the `AudioCaptureManager → audioEngine → inputNode → tap closure → manager` retain cycle.
+- **`cancelRecording()`** — cancels countdown task, tears down engine, deletes partial file from `tmp/`.
+- **`reset()`** — clears all state for the next session; call after `audioFilePath` has been consumed by `submitAudio`.
+- **Strict Requirement**: Never call `AVAudioSession.sharedInstance()` directly on `@MainActor`. All session configuration and teardown must run in `Task.detached` to avoid deadlock.
+
+### `SpectrogramActor`
+- Swift `actor` at `merian/Core/Hardware/SpectrogramActor.swift`. All FFT and mel-scale arithmetic runs on a background actor thread, keeping `@MainActor` free for 60fps rendering.
+- **2048-point real FFT** via Accelerate `vDSP_fft_zrip` with `vDSP_hann_window`. Wrapped in `autoreleasepool` per buffer to prevent `AVAudioPCMBuffer` Obj-C object accumulation.
+- **64-bin mel scale**, 80 Hz – 16 kHz: covers the bioacoustically relevant range for bird, insect, and frog ID.
+- **`process(buffer:) -> SpectrogramColumn?`** — main entry point from the tap callback; returns `nil` if FFT setup unavailable or buffer empty.
+- **`snrLevel(from:) -> SNRLevel`** — rolling 96-entry noise floor history (~2 s). Thresholds: `.clipping` (peak > 0.95), `.warning` (SNR < 10 dB), `.caution` (10–20 dB), `.clear` (≥ 20 dB).
+- **`reset()`** — clears the noise floor history. Called by `AudioCaptureManager.reset()` between sessions.
+
 ### `CameraManager`
 - Abstracts AVFoundation via `AVCaptureDevice.DiscoverySession`, preferring `.builtInTripleCamera` on Pro devices for optical zoom support, falling back to `.builtInLiDARDepthCamera`, `.builtInDualCamera`, `.builtInDualWideCamera`, and `.builtInWideAngleCamera` in that order. Depth data via `AVCaptureDepthDataOutput` is attached conditionally and works with any device in the list that supports it.
 - Activated via `.handleActivePhase()` calls in `MerianApp.swift`.

@@ -17,6 +17,7 @@ import SwiftUI
     var inferenceEngine = InferenceEngine()
     var viewfinderIntelligence = ViewfinderIntelligence.shared
     var speechManager = SpeechManager()
+    var audioCaptureManager = AudioCaptureManager()
     
     // MARK: - Dependencies (Core Services)
     @ObservationIgnored
@@ -85,6 +86,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.environmentContextManager)
             .environment(container.profileViewModel)
             .environment(container.speechManager)
+            .environment(container.audioCaptureManager)
     }
 }
 

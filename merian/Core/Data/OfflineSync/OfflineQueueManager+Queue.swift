@@ -104,6 +104,9 @@ extension OfflineQueueManager {
         for path in scan.localImagePaths {
             try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
         }
+        if let audioPath = scan.audioFilePath {
+            try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(audioPath))
+        }
 
         context.delete(scan)
         do {
@@ -124,7 +127,7 @@ extension OfflineQueueManager {
         )
         // Only fetch the fields needed for disk cleanup and deletion — avoids loading all
         // telemetry columns into memory for potentially large backlogs of failed scans.
-        descriptor.propertiesToFetch = [\.localImagePaths, \.id]
+        descriptor.propertiesToFetch = [\.localImagePaths, \.id, \.audioFilePath]
         descriptor.fetchLimit = 500
         let documentsDirectory = URL.documentsDirectory
 
@@ -137,6 +140,9 @@ extension OfflineQueueManager {
                     } catch {
                         MerianLog.data.debug("purgeSoftDeletedRecords: removeItem failed: \(error, privacy: .private)")
                     }
+                }
+                if let audioPath = scan.audioFilePath {
+                    try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(audioPath))
                 }
                 context.delete(scan)
             }
@@ -284,7 +290,8 @@ extension OfflineQueueManager {
                         container: extracted.container,
                         originalTimestamp: extracted.originalTimestamp,
                         description: extracted.description,
-                        observationContextJSON: extracted.observationContextJSON
+                        observationContextJSON: extracted.observationContextJSON,
+                        audioFilePath: nil
                     )
                 } else {
                     finalExtracted = extracted

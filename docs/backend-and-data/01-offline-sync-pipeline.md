@@ -57,12 +57,14 @@ Before upload tasks are dispatched, `BackgroundDatabaseActor.markScansAsUploadin
 |---|---|---|
 | `.pending` | 0 | Awaiting upload to R2 |
 | `.uploading` | 1 | URLSession task dispatched, bytes in transit |
-| `.staged` | 2 | All images confirmed in R2; awaiting inference |
+| `.staged` | 2 | All images confirmed in R2; awaiting inference. Also used by describe-only and audio-only scans that bypass R2 upload. |
 | `.inferencing` | 3 | Background URLSession download task dispatched to `identify` Edge function |
 | *(reserved)* | 4 | — |
 | `.failed` | 5 | Terminal — tombstoned, awaiting purge |
 
 After the last image for a scan receives HTTP 200, `BackgroundDatabaseActor.markScanAsStaged(scanId:r2Keys:)` atomically persists the confirmed R2 object keys into `stagedR2Keys: [String]?` and transitions to `.staged`. Storing the keys at upload time eliminates the auth-expiry 403 edge case that occurred when keys were reconstructed from the current session UUID at inference time — a session that may have expired hours later. `replayInferenceForUploadedScans()` queries for `.staged` scans and re-enters them via `dispatchInferenceDownloadTask` using the persisted keys.
+
+**Audio-only `.staged` scans**: `OfflineQueueManager.enqueueAudio` enters records directly at `.staged` (no R2 upload phase — the audio file lives in `Documents/`). These records carry `audioFilePath != nil` and empty `localImagePaths`. `replayInferenceStagedScans` skips them via a `guard scan.audioFilePath == nil else { continue }` guard at the top of its dispatch loop — the `audio_spec` edge function is not yet deployed, so attempting to route them through the existing image/describe inference path would produce 400 errors and unnecessary tombstoning. When `audio_spec` ships, a dedicated dispatch arm will handle audio-only records.
 
 **Distributed lock (`tryClaimForInference`)**: Before any inference pipeline starts, `BackgroundDatabaseActor.tryClaimForInference(scanId:)` performs an atomic `.staged → .inferencing` transition. It returns `false` if the scan is already `.inferencing`, preventing two concurrent pipelines from racing for the same scan. This replaces the in-memory `activeScanUploadIds` set which was lost on process death.
 

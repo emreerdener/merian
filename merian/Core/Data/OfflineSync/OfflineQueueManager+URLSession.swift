@@ -185,7 +185,8 @@ extension OfflineQueueManager {
             container: extracted.container,
             originalTimestamp: extracted.originalTimestamp,
             description: extracted.description,
-            observationContextJSON: extracted.observationContextJSON
+            observationContextJSON: extracted.observationContextJSON,
+            audioFilePath: nil
         )
         await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
@@ -307,7 +308,8 @@ extension OfflineQueueManager {
             container: container,
             originalTimestamp: scan.timestamp,
             description: description,
-            observationContextJSON: scan.observationContextJSON
+            observationContextJSON: scan.observationContextJSON,
+            audioFilePath: scan.audioFilePath
         )
     }
 
@@ -367,9 +369,16 @@ extension OfflineQueueManager {
         // via uploadRetryCount — the same contract as network-level failures.
         let request: URLRequest
         do {
-            // Describe-only scans have no image paths — route to /identify-describe.
-            // Image scans (with or without an attached description) always use /identify.
-            if extracted.localImagePaths.isEmpty, let ctxJSON = extracted.observationContextJSON {
+            // Audio scans route to /audio-spec via inline base64 WAV.
+            // Describe-only scans (empty localImagePaths, non-nil context) route to /identify-describe.
+            // Image scans (with or without a description) route to /identify.
+            if let audioPath = extracted.audioFilePath {
+                request = try await MerianNetworkClient.shared.buildAudioRequest(
+                    audioFilePath: audioPath,
+                    telemetry: finalTelemetry,
+                    clientScanId: scanId
+                )
+            } else if extracted.localImagePaths.isEmpty, let ctxJSON = extracted.observationContextJSON {
                 request = try await MerianNetworkClient.shared.buildDescribeRequest(
                     description: extracted.description ?? "",
                     observationContextJSON: ctxJSON,

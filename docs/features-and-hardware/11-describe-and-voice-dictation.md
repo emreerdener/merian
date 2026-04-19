@@ -302,7 +302,7 @@ Permission requests happen inside `startDictation` — not at app launch or onbo
 | Task cancelled mid-setup (after session activated) | `setActive(false, ...)` before returning from `startDictation` |
 | `SFSpeechRecognitionTask` auto-terminates | `stopDictation()` → `teardownAudioEngine` → session deactivated |
 
-`notifyOthersOnDeactivation` on deactivation signals the audio subsystem to restore any previously ducked audio (e.g., music playback) once dictation ends. This also ensures the future `AudioRecordingView` pipeline on the `.audio` page can acquire its own `AVAudioSession` cleanly after the user swipes away from `.describe`.
+`notifyOthersOnDeactivation` on deactivation signals the audio subsystem to restore any previously ducked audio (e.g., music playback) once dictation ends. This also ensures `AudioCaptureManager` on the `.audio` page can acquire its own `AVAudioSession` cleanly after the user swipes away from `.describe`. Both `SpeechManager` and `AudioCaptureManager` use the same `.record` / `.measurement` session category and the same `Task.detached` activation pattern — whichever page the user is on last cleanly deactivates before the other activates.
 
 ---
 

@@ -60,6 +60,9 @@ struct ExtractedScanData: Sendable {
     /// and persisted in the `scans` table. Separate from `description` (plain-text for Gemini).
     /// `nil` for image-only scans.
     let observationContextJSON: String?
+    /// Filename of the recorded WAV relative to the Documents directory, for audio-only scans.
+    /// `nil` for image and describe scans.
+    let audioFilePath: String?
 }
 
 // MARK: - Offline Scan Processing Result
