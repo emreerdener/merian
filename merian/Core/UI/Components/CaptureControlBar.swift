@@ -58,10 +58,13 @@ struct CaptureControlBar: View {
 
                 Spacer()
 
-                // Show "+" when images are staged (FAB stages description into the toolbar),
-                // or when the user requires confirmation before submission — regardless of
-                // multi-capture mode. Show "↑" only for immediate solo-describe submission.
+                // Show "+" whenever the FAB stages rather than immediately submits:
+                //   • images already staged (description joins them in the toolbar)
+                //   • multi-capture mode (description is always staged, user submits via Identify)
+                //   • confirm-before-submit ON (every input must be staged first)
+                // Show "↑" only for immediate solo-describe when none of the above apply.
                 let willStageOnly = !viewModel.stagedCapture.images.isEmpty
+                    || isMultiCaptureEnabled
                     || UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
                 // All modes disabled when staging area is full — no new input can be added.
                 // Describe also disabled while a refinement image is still loading.
