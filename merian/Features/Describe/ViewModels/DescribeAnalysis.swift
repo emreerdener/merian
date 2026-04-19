@@ -1,7 +1,7 @@
 import SwiftData
 import SwiftUI
 
-extension CameraViewModel {
+extension CaptureWorkspaceViewModel {
 
     // MARK: - Submit Describe (entry point from DescribeInputView)
 
@@ -22,7 +22,7 @@ extension CameraViewModel {
         guard !observationContext.isEmpty else { return false }
 
         // The observationContext originates from a long-lived @State binding in
-        // CameraRootView. We must mint a brand new generation timestamp here right
+        // CaptureWorkspaceView. We must mint a brand new generation timestamp here right
         // as the user formally submits it to staging to guarantee chronological accuracy.
         var stagedContext = observationContext
         stagedContext.addedAt = Date()

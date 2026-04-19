@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CameraSheetRouter: ViewModifier {
-    @Bindable var viewModel: CameraViewModel
+    @Bindable var viewModel: CaptureWorkspaceViewModel
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @State private var showNotificationPrompt = false
     
@@ -57,7 +57,7 @@ struct CameraSheetRouter: ViewModifier {
 }
 
 extension View {
-    func cameraSheetRouter(viewModel: CameraViewModel) -> some View {
+    func cameraSheetRouter(viewModel: CaptureWorkspaceViewModel) -> some View {
         self.modifier(CameraSheetRouter(viewModel: viewModel))
     }
 }

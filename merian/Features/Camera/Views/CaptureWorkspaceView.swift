@@ -4,24 +4,22 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
-struct CameraRootView: View {
+struct CaptureWorkspaceView: View {
     // MARK: - Environment & Dependencies
     @Environment(CameraManager.self) var cameraManager
     @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
     @Environment(ViewfinderIntelligence.self) var vui
     @Environment(PhotoLibraryManager.self) var photoLibraryManager
     @Environment(InferenceEngine.self) var inferenceEngine
-    @Environment(SpeechManager.self) var speechManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
     // MARK: - View Model & State
-    @State private var viewModel = CameraViewModel()
+    @State private var viewModel = CaptureWorkspaceViewModel()
     
-    /// The currently active capture mode governing the active UI state.
+    @State private var coordinator = CaptureActionCoordinator()
     @State private var captureMode: CaptureMode
     @State private var observationContext = ObservationContext()
-    @State private var dictationTask: Task<Void, Never>?
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
     
     /// The user-defined order for the capture tabs, physically defining the underlying ScrollView layout.
@@ -31,21 +29,12 @@ struct CameraRootView: View {
     /// The safely deserialized sequence of capture modes governing the ScrollView array.
     private var orderedModes: [CaptureMode] { CaptureMode.userOrder(from: captureModeOrderRaw) }
 
-    // MARK: - Focus Indicator State
-    @State private var focusLocation: CGPoint?
-    @State private var showFocusIndicator: Bool = false
-    @State private var focusHideTask: Task<Void, Never>?
-
     // MARK: - Zoom Drag Lock
     @State private var isVerticalZooming: Bool = false
     @State private var isToggleDragging: Bool = false
 
     // MARK: - Staged Description Sheet
     @State private var isStagedDescriptionSheetPresented: Bool = false
-    
-    // MARK: - Describe Prompts TOC
-    @State private var isDescribeQuestionsSheetPresented: Bool = false
-    @State private var describePromptManager = DescribePromptManager()
 
     /// Dedicated scroll-position state for the pager. Decoupled from captureMode so that
     /// scrollPosition(id:) never writes captureMode directly — eliminating the "onChange(of:
@@ -56,7 +45,7 @@ struct CameraRootView: View {
     ///   captureMode    → scrollProxy.scrollTo  (programmatic, e.g. toggle tap/drag end)
     @State private var scrollPageMode: CaptureMode?
     
-    /// Instantiates the CameraRootView by immediately checking `UserDefaults`
+    /// Instantiates the CaptureWorkspaceView by immediately checking `UserDefaults`
     /// to retrieve the user's preferred first tab (default view).
     /// This strictly sidesteps lifecycle events like `.onAppear`, which would
     /// improperly re-snap the UI to the primary tab every time the view remounts.
@@ -86,46 +75,10 @@ struct CameraRootView: View {
                                     switch mode {
                                     case .visual:
                                         // MARK: Page 1 — Camera
-                                        ZStack {
-                                            // 1. Optical Bridge
-                                            CameraPreviewView(
-                                                session: cameraManager.session,
-                                                onTap: { layerPoint, devicePoint in
-                                                    viewModel.handleFocusTap(devicePoint: devicePoint)
-
-                                                    // Drive the focus indicator from the UIKit layer point — the SwiftUI
-                                                    // gesture modifier can't compete with the UITapGestureRecognizer on
-                                                    // the preview layer.
-                                                    focusLocation = layerPoint
-                                                    showFocusIndicator = true
-                                                    focusHideTask?.cancel()
-                                                    focusHideTask = Task { @MainActor in
-                                                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                                                        guard !Task.isCancelled else { return }
-                                                        withAnimation(.easeOut) { showFocusIndicator = false }
-                                                    }
-                                                },
-                                                onVerticalDragActiveChanged: { isVerticalZooming = $0 }
-                                            )
-                                            .ignoresSafeArea()
-                                            .background(Color.black.ignoresSafeArea())
-                                            .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
-
-                                            // 2. Hardware Effects (Flash Snap)
-                                            Color.black
-                                                .ignoresSafeArea()
-                                                .opacity(viewModel.flashOpacity)
-                                                .allowsHitTesting(false)
-
-                                            // 3. Thermal Overlay
-                                            ThermalWarningView()
-
-                                            // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
-                                            CameraControlsLayer(
-                                                activeScanImages: viewModel.stagedCapture.images.map(\.uiImage),
-                                                isRefining: viewModel.baseRefinementRecord != nil
-                                            )
-                                        }
+                                        VisualCaptureView(
+                                            viewModel: viewModel,
+                                            isVerticalZooming: $isVerticalZooming
+                                        )
                                         .frame(width: proxy.size.width, height: proxy.size.height)
                                         .clipped()
                                         .id(CaptureMode.visual)
@@ -142,7 +95,7 @@ struct CameraRootView: View {
                                         DescribeInputView(
                                             captureMode: captureMode,
                                             context: $observationContext,
-                                            promptManager: describePromptManager
+                                            coordinator: coordinator
                                         )
                                         .frame(width: proxy.size.width, height: proxy.size.height)
                                         .clipped()
@@ -185,9 +138,6 @@ struct CameraRootView: View {
                         // programmatically scroll the pager to match.
                         .onChange(of: captureMode) { _, newMode in
                             if newMode != .describe {
-                                dictationTask?.cancel()
-                                dictationTask = nil
-                                speechManager.stopDictation()
                                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             }
                             guard newMode != scrollPageMode else { return }
@@ -257,8 +207,7 @@ struct CameraRootView: View {
                         captureMode: captureMode,
                         observationContext: $observationContext,
                         isKeyboardVisible: isKeyboardVisible,
-                        onTableOfContentsTap: { isDescribeQuestionsSheetPresented = true },
-                        onDictationTap: { handleMicTap() }
+                        coordinator: coordinator
                     )
                 }
 
@@ -311,11 +260,6 @@ struct CameraRootView: View {
                 onRemove: {
                     viewModel.stagedCapture.observationContext = nil
                 }
-            )
-        }
-        .sheet(isPresented: $isDescribeQuestionsSheetPresented) {
-            DescribeQuestionsSheet(
-                promptManager: describePromptManager
             )
         }
 
@@ -425,41 +369,8 @@ struct CameraRootView: View {
             viewModel.executeCapture()
         }
     }
-
-    // MARK: - Helpers
-    private func handleMicTap() {
-        if speechManager.isRecording {
-            speechManager.stopDictation()
-            dictationTask?.cancel()
-            dictationTask = nil
-        } else {
-            let base = observationContext.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
-            dictationTask = Task {
-                try? await speechManager.startDictation { transcribed in
-                    // Defensive guard: ignore spurious empty callbacks from SFSpeechRecognizer
-                    // which occasionally occur during task teardown and can overwrite the text.
-                    guard !transcribed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    observationContext.freeText = base.isEmpty ? transcribed : base + " " + transcribed
-                }
-            }
-        }
-    }
 }
 
-// MARK: - Camera Controls Layer
-// Passes only scroll-dependent, camera-specific content into page 1.
-// All persistent controls (toggle, capture bar, tab bar) live in the fixed overlay above.
-
-private struct CameraControlsLayer: View {
-    let activeScanImages: [UIImage]
-    var isRefining: Bool = false
-
-    var body: some View {
-        MainOverlayView(activeScanImages: activeScanImages, isRefining: isRefining)
-    }
-}
-
-// MARK: - Scroll Bounce Disabler
 // SwiftUI has no native API for disabling pager bounce. This probe walks up the UIKit
 // hierarchy from inside the ScrollView's content to find the backing UIScrollView
 // and hard-disables bounce so neither edge rubber-bands.
@@ -485,4 +396,4 @@ private struct ScrollBounceDisabler: UIViewRepresentable {
     }
 }
 
-// End of CameraRootView.swift
+// End of CaptureWorkspaceView.swift

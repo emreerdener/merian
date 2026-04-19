@@ -80,7 +80,7 @@ final class AppLifecycleManager {
 
     /// Handles application transition to background.
     func handleBackgroundPhase() {
-        // Notify observers (e.g. CameraViewModel) to dismiss sheets and reset modal state.
+        // Notify observers (e.g. CaptureWorkspaceViewModel) to dismiss sheets and reset modal state.
         // Fired here rather than on inactive so that system overlays (limited photo library
         // prompt, system alerts) do not inadvertently close the insight sheet.
         container.appEventPublisher.send(.appDidEnterBackgroundPhase)

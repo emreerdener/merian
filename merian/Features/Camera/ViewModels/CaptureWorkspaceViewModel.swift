@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 
 @Observable
 @MainActor
-final class CameraViewModel {
+final class CaptureWorkspaceViewModel {
     
     // MARK: - Types
     enum ActiveSheet: String, Identifiable {
@@ -37,14 +37,14 @@ final class CameraViewModel {
     var baseRefinementRecord: LocalScanRecord?
     var isStagingRefinement: Bool = false
     @ObservationIgnored private var refinementStagingTask: Task<Void, Never>?
-    /// Set to `.describe` when reanalysis is triggered so `CameraRootView` navigates to the
+    /// Set to `.describe` when reanalysis is triggered so `CaptureWorkspaceView` navigates to the
     /// Describe page immediately after the insight sheet dismisses. Consumed and cleared by
-    /// `CameraRootView.onChange(of: viewModel.requestedCaptureMode)`.
+    /// `CaptureWorkspaceView.onChange(of: viewModel.requestedCaptureMode)`.
     var requestedCaptureMode: CaptureMode?
     
     // MARK: - Composing Zone
     /// Vertical center of the on-screen composing zone as a fraction of screen height (0–1).
-    /// Set by CameraRootView once layout is measured. The capture pipeline uses this to
+    /// Set by CaptureWorkspaceView once layout is measured. The capture pipeline uses this to
     /// center the auto-crop on the region the user actually frames their subject in,
     /// rather than the geometric center of the full sensor image.
     var composingZoneVerticalCenter: CGFloat = 0.5

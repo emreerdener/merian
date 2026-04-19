@@ -14,7 +14,7 @@ Historically, empty states in the Scans Library, Non-Biological Vault, and Colle
 
 The central navigational routing anchor for the application, designed as a custom floating "Liquid Glass" capsule rather than relying on standard iOS `TabView` mechanics.
 - **Glassmorphism**: Uses `.ultraThinMaterial` backgrounds bounded by a specular `.strokeBorder`.
-- **Z-Index Layering**: Hovers persistently at the bottom of the `CameraRootView` camera feed, allowing the viewfinder to bleed infinitely to the edges of the device screen.
+- **Z-Index Layering**: Hovers persistently at the bottom of the `CaptureWorkspaceView` camera feed, allowing the viewfinder to bleed infinitely to the edges of the device screen.
 - **Notification Badging**: Subscribes to `@AppStorage("hasUnseenScan")` to overlay an 8pt red continuous notification dot on the Scans icon, tracking silent inference completions without manual `@State` plumbing.
 
 ## 3. Archival Aesthetics: `ArchivedVisualsView`

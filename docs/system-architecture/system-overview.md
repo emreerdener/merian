@@ -20,7 +20,7 @@ Merian does not use `@EnvironmentObject` for its core architectural engines. All
 Everything is wired in `AppDIContainer.swift`:
 
 - A global singleton providing protocol-free dependency injection.
-- Centralizes `.handleActivePhase()`, `.handleInactivePhase()`, and `.handleBackgroundPhase()` lifecycle handlers to manage hardware state and background tasks (such as `archiveManager.evaluateAndRescueAgingScans()`). It also manages the background inference race: `CameraViewModel` observes the inactive phase to reset view state but does not nil out active ML payloads — that is reserved for `handleBackgroundPhase()`. When the app backgrounds mid-inference, Pro users have their capture enqueued to `OfflineQueueManager` (resuming via background URLSession) and the live request is cancelled. Free users have their in-flight request left running within iOS's ~30-second background window; on completion, `InferenceEngine.analyze()` dispatches a push notification.
+- Centralizes `.handleActivePhase()`, `.handleInactivePhase()`, and `.handleBackgroundPhase()` lifecycle handlers to manage hardware state and background tasks (such as `archiveManager.evaluateAndRescueAgingScans()`). It also manages the background inference race: `CaptureWorkspaceViewModel` observes the inactive phase to reset view state but does not nil out active ML payloads — that is reserved for `handleBackgroundPhase()`. When the app backgrounds mid-inference, Pro users have their capture enqueued to `OfflineQueueManager` (resuming via background URLSession) and the live request is cancelled. Free users have their in-flight request left running within iOS's ~30-second background window; on completion, `InferenceEngine.analyze()` dispatches a push notification.
 
 ## SwiftData & Data Layer
 

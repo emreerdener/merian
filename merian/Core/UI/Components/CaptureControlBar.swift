@@ -8,12 +8,11 @@ import SwiftUI
 /// (like the photo library, table of contents, flash toggle, and dictation)
 /// based on the current capture mode.
 struct CaptureControlBar: View {
-    @Bindable var viewModel: CameraViewModel
+    @Bindable var viewModel: CaptureWorkspaceViewModel
     let captureMode: CaptureMode
     @Binding var observationContext: ObservationContext
     let isKeyboardVisible: Bool
-    let onTableOfContentsTap: () -> Void
-    let onDictationTap: () -> Void
+    let coordinator: CaptureActionCoordinator
 
     @Environment(CameraManager.self) private var cameraManager
     @Environment(PhotoLibraryManager.self) private var photoLibraryManager
@@ -49,7 +48,7 @@ struct CaptureControlBar: View {
                     .allowsHitTesting(captureMode == .visual && !isAtCapacity)
                     
                     TableOfContentsButton(
-                        onTap: onTableOfContentsTap
+                        onTap: { coordinator.tocRequestID = UUID() }
                     )
                     .opacity(captureMode == .describe ? 1 : 0)
                     .allowsHitTesting(captureMode == .describe)
@@ -105,8 +104,8 @@ struct CaptureControlBar: View {
                     .allowsHitTesting(captureMode == .visual && !isAtCapacity)
 
                     DictationButton(
-                        isRecording: speechManager.isRecording,
-                        onToggleDictation: onDictationTap
+                        isRecording: coordinator.isDictationRequested,
+                        onToggleDictation: { coordinator.isDictationRequested.toggle() }
                     )
                     .opacity(captureMode == .describe ? 1 : 0)
                     .allowsHitTesting(captureMode == .describe)

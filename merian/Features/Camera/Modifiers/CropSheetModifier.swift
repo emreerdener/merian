@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CropSheetModifier: ViewModifier {
     @Binding var isPresented: Bool
-    @Bindable var viewModel: CameraViewModel
+    @Bindable var viewModel: CaptureWorkspaceViewModel
 
     func body(content: Content) -> some View {
         content.fullScreenCover(isPresented: $isPresented) {

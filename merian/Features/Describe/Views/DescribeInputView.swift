@@ -4,11 +4,11 @@ import SwiftUI
 
 /// Full-screen text-first input field for Describe identification.
 ///
-/// The view is intentionally decoupled from `InferenceEngine` and `CameraViewModel` —
+/// The view is intentionally decoupled from `InferenceEngine` and `CaptureWorkspaceViewModel` —
 /// it only produces an `ObservationContext` value and delivers it via `onSubmit`.
-/// All network orchestration and multi-modal routing lives in `CameraViewModel.submitDescribe`.
+/// All network orchestration and multi-modal routing lives in `CaptureWorkspaceViewModel.submitDescribe`.
 ///
-/// Layout contract with `CameraRootView`:
+/// Layout contract with `CaptureWorkspaceView`:
 /// - Fills the full page frame (same size as the camera and audio pages).
 /// - The fixed `MediaModeToggle` overlay sits above this view in the Z-stack and
 ///   always remains interactive; this view must NOT place anything above the
@@ -20,7 +20,10 @@ struct DescribeInputView: View {
     @FocusState private var isTextFieldFocused: Bool
     @Environment(SpeechManager.self) private var speechManager
 
-    var promptManager: DescribePromptManager
+    let coordinator: CaptureActionCoordinator
+
+    @State private var promptManager = DescribePromptManager()
+    @State private var isDescribeQuestionsSheetPresented: Bool = false
 
     // MARK: - Dictation state
 
@@ -228,17 +231,57 @@ struct DescribeInputView: View {
             .onChange(of: captureMode) { _, newMode in
                 if newMode != .describe {
                     isTextFieldFocused = false
-                    dictationTask?.cancel()
-                    dictationTask = nil
+                    stopDictation()
                     inferenceDebounceTask?.cancel()
                     inferenceDebounceTask = nil
                 }
             }
+            .onChange(of: coordinator.isDictationRequested) { _, requested in
+                if requested {
+                    startDictation()
+                } else {
+                    stopDictation()
+                }
+            }
+            .onChange(of: coordinator.tocRequestID) { _, id in
+                if id != nil {
+                    isDescribeQuestionsSheetPresented = true
+                }
+            }
+        }
+        .sheet(isPresented: $isDescribeQuestionsSheetPresented) {
+            DescribeQuestionsSheet(
+                promptManager: promptManager
+            )
         }
         }
     }
 
     // MARK: - Helpers
+    
+    private func startDictation() {
+        let base = context.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        dictationTask = Task {
+            do {
+                try await speechManager.startDictation { transcribed in
+                    guard !transcribed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    context.freeText = base.isEmpty ? transcribed : base + " " + transcribed
+                }
+                // If dictation naturally ends (timeout/done), reset coordinator
+                coordinator.isDictationRequested = false
+            } catch {
+                coordinator.isDictationRequested = false
+            }
+        }
+    }
+    
+    private func stopDictation() {
+        guard dictationTask != nil || coordinator.isDictationRequested else { return }
+        speechManager.stopDictation()
+        dictationTask?.cancel()
+        dictationTask = nil
+        coordinator.isDictationRequested = false
+    }
 
     private func advanceQuestion() {
         let count = promptManager.activeQuestions.count

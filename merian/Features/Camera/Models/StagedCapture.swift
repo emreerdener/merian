@@ -8,7 +8,7 @@ let stagedImageCapacity = 2
 /// A unified staging container that holds every capture modality a user can combine
 /// before a single analysis submission.
 ///
-/// Replaces the four parallel image arrays previously held in `CameraViewModel`
+/// Replaces the four parallel image arrays previously held in `CaptureWorkspaceViewModel`
 /// (thumbnails, compressed inference data, display-quality data, and full-resolution
 /// originals) with one coherent value type, now represented by `[StagedImage]`. Any combination of modalities is valid:
 /// - images only (existing behaviour, up to 2)
@@ -17,7 +17,7 @@ let stagedImageCapacity = 2
 /// - audio only / audio + images / audio + description (reserved; wired in when
 ///   `AudioRecordingView` ships its recording pipeline)
 ///
-/// Always accessed from `@MainActor` via `CameraViewModel` — no `Sendable` conformance needed.
+/// Always accessed from `@MainActor` via `CaptureWorkspaceViewModel` — no `Sendable` conformance needed.
 struct StagedCapture {
 
     // MARK: - Modalities

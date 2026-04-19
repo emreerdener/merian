@@ -22,11 +22,11 @@ Features/
     │   └── ImageFileWrapper.swift
     ├── Utilities/          # Feature-local helpers (e.g. ImageCropProcessor)
     ├── ViewModels/         # @Observable @MainActor classes
-    │   ├── CameraViewModel.swift    # Primary ViewModel
+    │   ├── CaptureWorkspaceViewModel.swift    # Primary ViewModel
     │   ├── Capture.swift            # Extension with capture logic
     │   └── Analysis.swift           # Extension with analysis logic
     └── Views/              # SwiftUI View structs only
-        ├── CameraRootView.swift     # Root view, owns @State private var viewModel
+        ├── CaptureWorkspaceView.swift     # Root view, owns @State private var viewModel
         └── PostProcessing/
             └── ImageCropperView.swift
 ```
@@ -48,7 +48,7 @@ Features/
 ```swift
 @Observable
 @MainActor
-final class CameraViewModel {
+final class CaptureWorkspaceViewModel {
     // Dependencies — injected via AppDIContainer, not passed through views
     @ObservationIgnored let diContainer = AppDIContainer.shared
 
@@ -66,8 +66,8 @@ final class CameraViewModel {
 ### Instantiation in Views
 
 ```swift
-struct CameraRootView: View {
-    @State private var viewModel = CameraViewModel()
+struct CaptureWorkspaceView: View {
+    @State private var viewModel = CaptureWorkspaceViewModel()
     // ...
 }
 ```
@@ -107,10 +107,10 @@ func executeCapture() {
 
 | Element | Convention | Example |
 |---|---|---|
-| Feature root view | `<Feature>RootView` | `CameraRootView` |
-| Primary ViewModel | `<Feature>ViewModel` | `CameraViewModel`, `ScansManager` |
+| Feature root view | `<Feature>RootView` | `CaptureWorkspaceView` |
+| Primary ViewModel | `<Feature>ViewModel` | `CaptureWorkspaceViewModel`, `ScansManager` |
 | ViewModel extensions | Verb-noun grouping | `Capture.swift`, `Analysis.swift` |
-| Sheet/modal enum | `ActiveSheet` inside the ViewModel | `CameraViewModel.ActiveSheet` |
+| Sheet/modal enum | `ActiveSheet` inside the ViewModel | `CaptureWorkspaceViewModel.ActiveSheet` |
 | Reusable components | Descriptive noun | `ShutterButton`, `ScanThumbnail` |
 | View modifiers | Modifier suffix | `CropSheetModifier`, `ScansToolbarModifier` |
 | Local feature models | No suffix | `ImageFileWrapper`, `SearchableScan` |

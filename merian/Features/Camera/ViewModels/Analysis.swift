@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Vision
 
-extension CameraViewModel {
+extension CaptureWorkspaceViewModel {
 
     // MARK: - Submit Staged Capture
 

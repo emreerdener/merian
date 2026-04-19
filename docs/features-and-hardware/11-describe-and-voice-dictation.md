@@ -1,6 +1,6 @@
 # Describe Mode & Voice Dictation
 
-The Describe capture mode is the third page of `CameraRootView`'s horizontal pager. It allows users to identify a biological subject through free-text description or live voice dictation instead of a photograph, routing through the `/identify-describe` Supabase Edge function via `InferenceEngine.analyzeDescribe`.
+The Describe capture mode is the third page of `CaptureWorkspaceView`'s horizontal pager. It allows users to identify a biological subject through free-text description or live voice dictation instead of a photograph, routing through the `/identify-describe` Supabase Edge function via `InferenceEngine.analyzeDescribe`.
 
 ---
 
@@ -10,13 +10,13 @@ The Describe capture mode is the third page of `CameraRootView`'s horizontal pag
 
 `ObservationContext` is a `Codable, Equatable, Sendable` struct with a single `freeText: String` property and a computed `isEmpty` guard (trims whitespace). It is the value type that carries the user's input from the UI to `InferenceEngine`.
 
-`@State private var observationContext = ObservationContext()` lives in **`CameraRootView`**, not in `DescribeInputView`. This lift is required because `SpeechManager` writes `observationContext.freeText` from outside `DescribeInputView` during live dictation. `DescribeInputView` receives the context as `@Binding var context: ObservationContext`.
+`@State private var observationContext = ObservationContext()` lives in **`CaptureWorkspaceView`**, not in `DescribeInputView`. This lift is required because `SpeechManager` writes `observationContext.freeText` from outside `DescribeInputView` during live dictation. `DescribeInputView` receives the context as `@Binding var context: ObservationContext`.
 
 The context is intentionally not reset after submission, so users can swipe back to the Describe page and refine their input without losing their text.
 
-### Submission Routing (`CameraViewModel.submitDescribe`)
+### Submission Routing (`CaptureWorkspaceViewModel.submitDescribe`)
 
-`submitDescribe(observationContext:modelContext:)` is an extension on `CameraViewModel` in `DescribeAnalysis.swift`. It routes based on what else is staged:
+`submitDescribe(observationContext:modelContext:)` is an extension on `CaptureWorkspaceViewModel` in `DescribeAnalysis.swift`. It routes based on what else is staged:
 
 | Condition | Path |
 |---|---|
@@ -108,10 +108,10 @@ New funnel-state properties added alongside the existing `activeQuestionIndex` a
 
 Lives at `merian/Features/Describe/Views/DescribeInputView.swift`.
 
-**Layout contract**: fills the full page frame. The fixed `MediaModeToggle` overlay sits above it in the `CameraRootView` Z-stack and must remain interactive — no content above `safeAreaInsets.top + 64` pt.
+**Layout contract**: fills the full page frame. The fixed `MediaModeToggle` overlay sits above it in the `CaptureWorkspaceView` Z-stack and must remain interactive — no content above `safeAreaInsets.top + 64` pt.
 
 **Key properties**:
-- `@Binding var context: ObservationContext` — two-way binding to `CameraRootView`'s lifted state.
+- `@Binding var context: ObservationContext` — two-way binding to `CaptureWorkspaceView`'s lifted state.
 - `let onSubmit: (ObservationContext) -> Void` — called when the user taps "Identify" / "Add description".
 - `@FocusState private var isTextFieldFocused: Bool` — drives the text area border highlight and `.scrollDismissesKeyboard(.interactively)`.
 - `@State private var inferenceDebounceTask: Task<Void, Never>?` — holds the 1.5-second debounce task for keyword-based funnel auto-activation.
@@ -142,7 +142,7 @@ The tag scroll view carries `.id("tags_scroll_\(promptManager.activeQuestionInde
 
 ## 4. `SpeechManager`
 
-Lives at `merian/Features/Describe/Managers/SpeechManager.swift`. Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and distributed via `.environment(container.speechManager)` in `DIContainerModifier.body()`. Accessed in `CameraRootView` as `@Environment(SpeechManager.self) var speechManager`.
+Lives at `merian/Features/Describe/Managers/SpeechManager.swift`. Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and distributed via `.environment(container.speechManager)` in `DIContainerModifier.body()`. Accessed in `CaptureWorkspaceView` as `@Environment(SpeechManager.self) var speechManager`.
 
 ### Class declaration
 
@@ -158,7 +158,7 @@ Lives at `merian/Features/Describe/Managers/SpeechManager.swift`. Registered as 
 struct PermissionError: LocalizedError { ... }
 ```
 
-Thrown exclusively when speech recognition authorization or microphone permission is denied. The `LocalizedError` description is "Microphone access required. Check Settings." — surfaced at the `CameraRootView` call site as `viewModel.offlineToastMessage`.
+Thrown exclusively when speech recognition authorization or microphone permission is denied. The `LocalizedError` description is "Microphone access required. Check Settings." — surfaced at the `CaptureWorkspaceView` call site as `viewModel.offlineToastMessage`.
 
 ### `startDictation` lifecycle
 
@@ -200,7 +200,7 @@ Both `stop()` and `removeTap(onBus:)` are called **unconditionally**. This preve
 
 ---
 
-## 5. `CameraRootView` Dictation Wiring
+## 5. `CaptureWorkspaceView` Dictation Wiring
 
 ### State additions
 
@@ -308,6 +308,6 @@ Permission requests happen inside `startDictation` — not at app launch or onbo
 
 ## 8. Swift 6 Concurrency
 
-`SpeechManager` is `@MainActor`. All stored properties (`isRecording`, `audioEngine`, `recognitionRequest`, `recognitionTask`) are `@MainActor`-isolated. The `onResult` callback is typed `@MainActor @escaping (String) -> Void` — this guarantees the closure (which captures `@MainActor`-isolated `@State` from `CameraRootView`) executes on `@MainActor` without a `@Sendable` actor-crossing, eliminating Swift 6 strict concurrency warnings at the capture site.
+`SpeechManager` is `@MainActor`. All stored properties (`isRecording`, `audioEngine`, `recognitionRequest`, `recognitionTask`) are `@MainActor`-isolated. The `onResult` callback is typed `@MainActor @escaping (String) -> Void` — this guarantees the closure (which captures `@MainActor`-isolated `@State` from `CaptureWorkspaceView`) executes on `@MainActor` without a `@Sendable` actor-crossing, eliminating Swift 6 strict concurrency warnings at the capture site.
 
 The `AVAudioEngine` tap callback (`installTap`) fires on a private audio thread and appends buffers to `recognitionRequest` — this is safe because `SFSpeechAudioBufferRecognitionRequest.append(_:)` is documented as thread-safe. The recognition result handler dispatches back to `@MainActor` via `Task { @MainActor [weak self] in ... }`.

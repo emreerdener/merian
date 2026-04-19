@@ -42,7 +42,7 @@ Triggered when `scenePhase == .inactive` (app switcher, incoming call overlay, s
 
 Triggered when `scenePhase == .background`.
 
-Posts `.appDidEnterBackgroundPhase` via `AppEventPublisher` — consumed by `CameraViewModel` to call `resetModalsForBackground()`.
+Posts `.appDidEnterBackgroundPhase` via `AppEventPublisher` — consumed by `CaptureWorkspaceViewModel` to call `resetModalsForBackground()`.
 
 **Why sheets close on background (not inactive):**
 The iOS scene lifecycle distinguishes two classes of interruption:
@@ -51,9 +51,9 @@ The iOS scene lifecycle distinguishes two classes of interruption:
 
 Firing `resetModalsForBackground` only on `.background` means the insight sheet survives the limited photo library prompt uninterrupted, while still closing correctly when the user genuinely leaves the app.
 
-#### `CameraViewModel` background reset policy
+#### `CaptureWorkspaceViewModel` background reset policy
 
-`CameraViewModel.resetModalsForBackground()` handles the background notification with selective state preservation:
+`CaptureWorkspaceViewModel.resetModalsForBackground()` handles the background notification with selective state preservation:
 
 **Always reset (unconditionally):**
 - `activeSheet`, `imageToCrop`, `editingCropIndex` — sheets hold UI locks and must not reopen stale.
@@ -64,10 +64,10 @@ Firing `resetModalsForBackground` only on `.background` means the insight sheet 
 
 To add new interrupt-sensitive states in the future, add a condition to `shouldPreserveStagingOnBackground` — the wipe path is already gated on it.
 
-**Scan durability note:** This handler is a no-op for scan durability. Scans are made durable at submission time in `CameraViewModel.submitActiveScan` — the background URLSession upload is dispatched while the app is still in the foreground, before any async boundary is crossed. It does not cancel inference, enqueue captures, or modify `InferenceEngine` state.
+**Scan durability note:** This handler is a no-op for scan durability. Scans are made durable at submission time in `CaptureWorkspaceViewModel.submitActiveScan` — the background URLSession upload is dispatched while the app is still in the foreground, before any async boundary is crossed. It does not cancel inference, enqueue captures, or modify `InferenceEngine` state.
 
 **Why the old rescue pattern was removed:**
-The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, `CameraRootView.onChange(of: activeSheet)`, and `InsightSheetView.onDisappear`. All three paths were unreliable for the same structural reason: `Task(priority: .background)` tasks can be starved by the cooperative scheduler before `urlSession.uploadTask(...).resume()` is ever called if the process suspends within milliseconds. The `isSyncing` guard in `syncPendingScans` also silently dropped the rescue if a prior sync was in-flight. See `docs/development-guides/11-swiftdata-and-api-gotchas.md` §8 for the full analysis.
+The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, `CaptureWorkspaceView.onChange(of: activeSheet)`, and `InsightSheetView.onDisappear`. All three paths were unreliable for the same structural reason: `Task(priority: .background)` tasks can be starved by the cooperative scheduler before `urlSession.uploadTask(...).resume()` is ever called if the process suspends within milliseconds. The `isSyncing` guard in `syncPendingScans` also silently dropped the rescue if a prior sync was in-flight. See `docs/development-guides/11-swiftdata-and-api-gotchas.md` §8 for the full analysis.
 
 ---
 

@@ -33,9 +33,9 @@ struct MainOverlayView: View {
 }
 
 // MARK: - Binding Encoders
-extension Binding where Value == CameraViewModel.ActiveSheet? {
+extension Binding where Value == CaptureWorkspaceViewModel.ActiveSheet? {
     /// Ergonomically maps an optional active sheet enumeration directly into boolean bindings for standard SwiftUI UI elements
-    func mapped(to target: CameraViewModel.ActiveSheet) -> Binding<Bool> {
+    func mapped(to target: CaptureWorkspaceViewModel.ActiveSheet) -> Binding<Bool> {
         Binding<Bool>(
             get: { self.wrappedValue == target },
             set: { newValue in

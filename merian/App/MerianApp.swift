@@ -59,7 +59,7 @@ struct MerianApp: App {
         WindowGroup {
             Group {
                 if hasCompletedOnboarding {
-                    CameraRootView()
+                    CaptureWorkspaceView()
                 } else {
                     OnboardingView()
                 }

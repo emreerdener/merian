@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Placeholder content for the audio recording mode.
 /// All persistent controls (MediaModeToggle, capture button, tab bar) are rendered
-/// in CameraRootView's fixed overlay so they remain visible across both pages.
+/// in CaptureWorkspaceView's fixed overlay so they remain visible across both pages.
 struct AudioRecordingView: View {
     var body: some View {
         ZStack {

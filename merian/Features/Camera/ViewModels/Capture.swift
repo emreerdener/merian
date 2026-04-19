@@ -1,5 +1,5 @@
 import SwiftUI
-extension CameraViewModel {
+extension CaptureWorkspaceViewModel {
     
     // MARK: - UI Coordination
     

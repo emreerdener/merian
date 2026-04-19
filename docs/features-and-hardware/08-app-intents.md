@@ -12,7 +12,7 @@ When an Intent fires, it executes `AppState.shared.navigateTo(...)` or equivalen
 
 ### `IdentifyNatureIntent`
 **Phrase**: "Identify Nature", "Open Merian camera", "Scan biology with Merian"  
-**Behavior**: Immediately launches the application, prioritizes the `CameraRootView`, and prepares the `AVCaptureSession` layer.
+**Behavior**: Immediately launches the application, prioritizes the `CaptureWorkspaceView`, and prepares the `AVCaptureSession` layer.
 - By setting `openAppWhenRun = true`, the Intent explicitly forces the OS to pull the app out of the background to provide a visual viewfinder.
 - Triggers a tactile `HapticManager.shared.triggerFocusSnap()` upon execution.
 

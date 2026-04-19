@@ -74,7 +74,7 @@ var hasCompletedOnboarding: Bool {
 }
 ```
 
-`MerianApp.swift` reads this flag via `@AppStorage("hasCompletedOnboarding")` to decide whether to show `OnboardingView` or the main `CameraRootView`. Once `completeOnboarding()` is called, the app never shows onboarding again (unless `UserDefaults` is reset via a hard reinstall).
+`MerianApp.swift` reads this flag via `@AppStorage("hasCompletedOnboarding")` to decide whether to show `OnboardingView` or the main `CaptureWorkspaceView`. Once `completeOnboarding()` is called, the app never shows onboarding again (unless `UserDefaults` is reset via a hard reinstall).
 
 ---
 
@@ -92,4 +92,4 @@ Each permission step presents the rationale for the request before triggering th
 
 ## Re-entering from a Deep Link
 
-If the app receives a deep link (e.g. a push notification tap routing to an `InsightSheet`) while onboarding is incomplete, the deep link is discarded. `CameraViewModel` observes `NSNotification.Name("AppDidEnterActivePhaseWithScan")` but its handler checks `diContainer.offlineQueueManager.modelContext` — which is nil until `ScanRepository.configure(with:)` runs during post-onboarding startup.
+If the app receives a deep link (e.g. a push notification tap routing to an `InsightSheet`) while onboarding is incomplete, the deep link is discarded. `CaptureWorkspaceViewModel` observes `NSNotification.Name("AppDidEnterActivePhaseWithScan")` but its handler checks `diContainer.offlineQueueManager.modelContext` — which is nil until `ScanRepository.configure(with:)` runs during post-onboarding startup.

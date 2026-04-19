@@ -7,7 +7,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `SpeechManager`
 - `@MainActor @Observable final class` living at `merian/Features/Describe/Managers/SpeechManager.swift`, registered in `AppDIContainer` and distributed to the view hierarchy via `DIContainerModifier`.
 - Owns the full `AVAudioEngine` + `SFSpeechRecognizer` pipeline for live voice dictation on the Describe page.
-- **`isRecording: Bool`** — the single source of truth for dictation state. Drives the `CaptureButton` pulse animation and the `onTranscribe` stop-path guard in `CameraRootView`. Never set to `true` until `audioEngine.start()` succeeds; reset to `false` in all failure and teardown paths.
+- **`isRecording: Bool`** — the single source of truth for dictation state. Drives the `CaptureButton` pulse animation and the `onTranscribe` stop-path guard in `CaptureWorkspaceView`. Never set to `true` until `audioEngine.start()` succeeds; reset to `false` in all failure and teardown paths.
 - **`startDictation(onResult: @MainActor @escaping (String) -> Void) async throws`**:
   - Initializes `SFSpeechRecognizer()` and silently no-ops if the recognizer is `nil` or `!isAvailable` (unsupported locale — no user-visible error).
   - Requests `SFSpeechRecognizer` authorization and microphone permission (`AVAudioApplication.requestRecordPermission()`) via `withCheckedContinuation`. Throws `PermissionError` on denial; caller surfaces this via `viewModel.offlineToastMessage`.
@@ -17,7 +17,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **`stopDictation()`** — delegates entirely to `teardownAudioEngine()` then sets `isRecording = false`. Safe to call when the engine was never started.
 - **`teardownAudioEngine()` (private)** — calls `audioEngine.stop()` and `audioEngine.inputNode.removeTap(onBus: 0)` **unconditionally** (both are no-ops if not running / no tap installed). This prevents an orphaned tap crash when `start()` throws after `installTap` has already been called. Ends and nils the recognition request and task, then deactivates the audio session.
 - **Auto-termination**: The `SFSpeechRecognitionTask` result handler dispatches back to `@MainActor` via `Task { @MainActor [weak self] in ... }`. When `error != nil || result.isFinal == true`, it calls `stopDictation()` internally — the user does not need to tap the mic again to stop a session that the system ended (e.g. 60-second silence timeout).
-- **`PermissionError`** — a `LocalizedError` struct defined in the same file. Thrown exclusively on permission denial, caught by `catch is PermissionError` at the `CameraRootView` call site for toast display. All other throws (hardware faults, `AVAudioEngine` start failure) are silently swallowed at the call site since no user-actionable recovery path exists.
+- **`PermissionError`** — a `LocalizedError` struct defined in the same file. Thrown exclusively on permission denial, caught by `catch is PermissionError` at the `CaptureWorkspaceView` call site for toast display. All other throws (hardware faults, `AVAudioEngine` start failure) are silently swallowed at the call site since no user-actionable recovery path exists.
 
 ### `CameraManager`
 - Abstracts AVFoundation via `AVCaptureDevice.DiscoverySession`, preferring `.builtInTripleCamera` on Pro devices for optical zoom support, falling back to `.builtInLiDARDepthCamera`, `.builtInDualCamera`, `.builtInDualWideCamera`, and `.builtInWideAngleCamera` in that order. Depth data via `AVCaptureDepthDataOutput` is attached conditionally and works with any device in the list that supports it.
@@ -128,7 +128,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `MerianConfig`
 - Centralized enum (`Core/Utilities/MerianConfig.swift`) holding all policy constants for the data and AI layers.
 - A policy change requires exactly one edit, with no risk of values diverging across files.
-- Referenced by `OfflineQueueManager`, `ScanRepository` (`HistoricalDatabaseActor`), `ArchiveManager`, `CameraViewModel`, and `InferenceEngine`.
+- Referenced by `OfflineQueueManager`, `ScanRepository` (`HistoricalDatabaseActor`), `ArchiveManager`, `CaptureWorkspaceViewModel`, and `InferenceEngine`.
 
 | Constant | Value | Consumer |
 |---|---|---|
@@ -140,7 +140,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 | `diskSpaceThreshold` | 500 MB | `ArchiveManager` |
 | `archiveRescueWindowStartDays` | 80 | `ArchiveManager` |
 | `archiveRescueWindowEndDays` | 88 | `ArchiveManager` |
-| `imageCompressionQuality` | 0.85 | `Capture`, `CameraViewModel` |
+| `imageCompressionQuality` | 0.85 | `Capture`, `CaptureWorkspaceViewModel` |
 | `visionConfidenceThreshold` | 0.65 | `InferenceEngine` (Vision pre-classifier) |
 | `visionConfidenceMargin` | 0.15 | `InferenceEngine` (margin guard vs. second-best) |
 | `scanningPhaseSubjectDelayNs` | 1.5 s | `InferenceEngine` (delay before subject-specific phrases replace generic series) |
@@ -155,7 +155,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 |---|---|---|
 | `hasUnseenScan` | `"hasUnseenScan"` | `MainTabBar` (read), `Analysis` (write — guarded: only written when `activeSheet != .insight`, preventing a false-positive indicator while the user is actively viewing the result), `CameraSheetRouter` (clear) |
 | `isPushNotificationsEnabled` | `"isPushNotificationsEnabled"` | `NotificationSettingsView`, `PushNotificationManager`, `InferenceEngine`, `OfflineQueueManager+URLSession` |
-| `suppressInferenceBanners` | `"suppressInferenceBanners"` | `CameraViewModel` (write), `PushNotificationManager` (read) |
+| `suppressInferenceBanners` | `"suppressInferenceBanners"` | `CaptureWorkspaceViewModel` (write), `PushNotificationManager` (read) |
 | `isLiveInferencePaused` | `"isLiveInferencePaused"` | `CameraSettingsView`, `CameraManager` |
 | `invertZoomDirection` | `"invertZoomDirection"` | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView` |
 | `zoomSideLeft` | `"zoomSideLeft"` | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView` |
@@ -211,12 +211,12 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `AppEventPublisher`
 - Lives at `Core/Utilities/AppEventPublisher.swift`. `@MainActor final class` with a `PassthroughSubject<AppEvent, Never>` publisher and a `static let shared` singleton.
 - Replaces `NotificationCenter` broadcasts with strongly-typed `AppEvent` cases:
-  - `.triggerPaywall` — dispatched when the scan quota is exhausted; `CameraRootView` listens and presents `PaywallView`.
+  - `.triggerPaywall` — dispatched when the scan quota is exhausted; `CaptureWorkspaceView` listens and presents `PaywallView`.
   - `.appDidEnterActivePhaseWithScan(scanId:)` — dispatched from a push notification tap to deep-link to a specific scan's insight sheet.
   - `.appDidEnterBackgroundPhase` — dispatched when the app enters the background phase; insight sheet dismissal and inference teardown listen here. Fires on background (not inactive) so system overlays (e.g. the photo library access prompt) do not inadvertently close the sheet.
   - `.requestIdentifyNatureIntent` — dispatched by Siri/OS App Intents to jump to the camera viewfinder.
   - `.requestRecallLastFindIntent` — dispatched by Siri/OS App Intents to open the last scan's insight sheet.
-  - `.triggerRefinement(record:)` — dispatched from `BiologicalView` when the user requests re-inference on an existing scan with supplementary images; `CameraRootView` listens via `AppEventPublisher.shared.publisher.sink`.
+  - `.triggerRefinement(record:)` — dispatched from `BiologicalView` when the user requests re-inference on an existing scan with supplementary images; `CaptureWorkspaceView` listens via `AppEventPublisher.shared.publisher.sink`.
 - Registered in `AppDIContainer` as `var appEventPublisher = AppEventPublisher()`. **Not environment-injected** — call sites access it via `AppDIContainer.shared.appEventPublisher` or `AppEventPublisher.shared` directly.
 
 ### `CircuitBreakerManager`
