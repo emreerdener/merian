@@ -37,7 +37,7 @@ let guidedQuestions: [GuidedQuestion] = [
             .init(tagId: "subj_mush", label: "Mushroom", aiText: "a mushroom or fungus", defaultWeight: 50, imageName: "desc_mushrooms"),
             .init(tagId: "subj_mamm", label: "Mammal", aiText: "a mammal", defaultWeight: 40, imageName: "desc_mouse"),
             .init(tagId: "subj_fish", label: "Fish", aiText: "a fish or aquatic creature", defaultWeight: 30, imageName: "desc_fish"),
-            .init(tagId: "subj_othr", label: "Other", aiText: "an unlisted subject", defaultWeight: 20, imageName: "desc_worm")
+            .init(tagId: "subj_othr", label: "Other", aiText: "", defaultWeight: 20, imageName: "desc_worm")
         ]
     ),
     

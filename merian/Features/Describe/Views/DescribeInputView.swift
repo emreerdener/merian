@@ -158,6 +158,7 @@ struct DescribeInputView: View {
                         .padding(.horizontal, 20)
                         .animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
                     }
+                    .id("tags_scroll_\(promptManager.activeQuestionIndex)")
                     .padding(.bottom, 16)
 
                     // MARK: Text Area
@@ -268,34 +269,38 @@ struct DescribeInputView: View {
             
             // Try to gracefully remove the text insertion
             let insertion = tag.aiText
-            let capped = insertion.prefix(1).uppercased() + insertion.dropFirst()
-            var text = context.freeText
-            
-            if let range = text.range(of: capped + ".") {
-                text.removeSubrange(range)
-            } else if let range = text.range(of: ", " + insertion) {
-                text.removeSubrange(range)
-            } else if let range = text.range(of: insertion) {
-                text.removeSubrange(range)
-            } else if let range = text.range(of: capped) {
-                text.removeSubrange(range)
+            if !insertion.isEmpty {
+                let capped = insertion.prefix(1).uppercased() + insertion.dropFirst()
+                var text = context.freeText
+                
+                if let range = text.range(of: capped + ".") {
+                    text.removeSubrange(range)
+                } else if let range = text.range(of: ", " + insertion) {
+                    text.removeSubrange(range)
+                } else if let range = text.range(of: insertion) {
+                    text.removeSubrange(range)
+                } else if let range = text.range(of: capped) {
+                    text.removeSubrange(range)
+                }
+                
+                context.freeText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            
-            context.freeText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return
         }
         
         let insertion = tag.aiText
-        let trimmed = context.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            context.freeText = insertion.prefix(1).uppercased() + insertion.dropFirst()
-        } else {
-            let endsWithSentence = trimmed.hasSuffix(".") || trimmed.hasSuffix("!") || trimmed.hasSuffix("?")
-            if endsWithSentence {
-                let capped = insertion.prefix(1).uppercased() + insertion.dropFirst()
-                context.freeText = trimmed + " " + capped + "."
+        if !insertion.isEmpty {
+            let trimmed = context.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                context.freeText = insertion.prefix(1).uppercased() + insertion.dropFirst()
             } else {
-                context.freeText = trimmed + ", " + insertion
+                let endsWithSentence = trimmed.hasSuffix(".") || trimmed.hasSuffix("!") || trimmed.hasSuffix("?")
+                if endsWithSentence {
+                    let capped = insertion.prefix(1).uppercased() + insertion.dropFirst()
+                    context.freeText = trimmed + " " + capped + "."
+                } else {
+                    context.freeText = trimmed + ", " + insertion
+                }
             }
         }
         
