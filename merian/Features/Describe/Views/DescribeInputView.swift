@@ -129,20 +129,17 @@ struct DescribeInputView: View {
                                     }
                                 }) {
                                     if let imageName = tag.imageName {
-                                        VStack(spacing: 8) {
+                                        VStack(spacing: 4) {
                                             Image(imageName)
                                                 .resizable()
                                                 .scaledToFit()
-                                                .frame(width: 56, height: 56)
+                                                .frame(width: 44, height: 44)
                                             Text(tag.label)
                                                 .font(.subheadline.weight(.medium))
-                                                .multilineTextAlignment(.center)
-                                                .lineLimit(2)
+                                                .lineLimit(1)
                                         }
                                         .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
-                                        .frame(width: 104)
-                                        .padding(.vertical, 12)
-                                        .padding(.horizontal, 4)
+                                        .frame(width: 88, height: 88)
                                         .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
                                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                     } else {
