@@ -9,15 +9,15 @@ struct OverriddenView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
-                Image(systemName: "person.fill.checkmark")
-                    .foregroundColor(.indigo)
-                Text("Manual override")
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                Text("Your identification")
                     .font(.system(.headline))
-                    .foregroundColor(.indigo)
+                    .foregroundColor(.green)
                 Spacer()
                 Button("Undo", action: onUndo)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.indigo)
+                    .foregroundColor(.green)
                     .buttonStyle(.plain)
             }
 
@@ -36,11 +36,11 @@ struct OverriddenView: View {
             }
         }
         .padding(20)
-        .background(Color.indigo.opacity(0.1))
+        .background(Color.green.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color.indigo.opacity(0.2), lineWidth: 0.5)
+                .strokeBorder(Color.green.opacity(0.2), lineWidth: 0.5)
         )
     }
 }

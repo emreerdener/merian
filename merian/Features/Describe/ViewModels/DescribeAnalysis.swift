@@ -75,6 +75,7 @@ extension CameraViewModel {
 
         // Reset inference state synchronously so a previous result is never shown in the sheet.
         diContainer.inferenceEngine.prepareForNewScan()
+        diContainer.cameraManager.resetZoom()
 
         let isOnline = diContainer.offlineQueueManager.isOnline
 

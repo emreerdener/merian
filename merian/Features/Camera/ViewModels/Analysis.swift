@@ -55,6 +55,7 @@ extension CameraViewModel {
         stagedCapture.clearAll()
         baseRefinementRecord = nil
         preFetchTask = nil
+        diContainer.cameraManager.resetZoom()
 
         // 5. Generate a stable scanId shared by the queue record and live inference.
         let scanId = UUID().uuidString.lowercased()

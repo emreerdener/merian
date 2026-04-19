@@ -37,8 +37,7 @@ struct ConfidenceExplanationSheet: View {
 
     private var headerTitle: String {
         if isFlagged { return "Under review" }
-        if userIdentificationOverride != nil { return "Manual ID" }
-        if userConfirmedIdentification { return "Confirmed match" }
+        if userIdentificationOverride != nil || userConfirmedIdentification { return "Confirmed" }
         guard let score = confidenceScore else { return "Analysis" }
         let pct = Int(round(score * 100))
         return "\(pct)% confident"

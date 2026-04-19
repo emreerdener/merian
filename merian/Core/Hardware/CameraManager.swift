@@ -62,6 +62,7 @@ import UIKit
     // MARK: - Zoom
     private(set) var zoomFactor: CGFloat = 1.0
     private(set) var maxZoomFactor: CGFloat = 1.0
+    private(set) var nativeZoomFactor: CGFloat = 1.0
     /// Zoom factors at which the device physically switches lenses (e.g. [2.0, 6.0] on a triple-camera Pro).
     /// Populated after the session starts. Used by ZoomSliderView for tappable optical stop dots.
     private(set) var opticalZoomStops: [CGFloat] = []
@@ -277,6 +278,7 @@ import UIKit
                 self.isSessionRunning = true
                 self.maxZoomFactor = config.maxZoom
                 self.opticalZoomStops = config.stops
+                self.nativeZoomFactor = config.nativeZoom
                 self.zoomFactor = config.nativeZoom // Sync UI silently without ramping hardware away from its natural default
                 MerianLog.hardware.debug("Zoom: native=\(config.nativeZoom, privacy: .public), maxZoomFactor=\(config.maxZoom, privacy: .public), stops=\(config.stops, privacy: .public)")
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
@@ -502,6 +504,10 @@ import UIKit
                 MerianLog.hardware.debug("setZoom: lockForConfiguration failed: \(error, privacy: .private)")
             }
         }
+    }
+
+    func resetZoom() {
+        setZoom(factor: nativeZoomFactor)
     }
 
     func setFocusPoint(_ devicePoint: CGPoint) {
