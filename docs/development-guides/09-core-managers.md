@@ -23,12 +23,20 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - `@MainActor @Observable final class` at `merian/Core/Hardware/AudioCaptureManager.swift`, registered as `var audioCaptureManager = AudioCaptureManager()` in `AppDIContainer` and distributed via `DIContainerModifier`.
 - Owns the full `AVAudioEngine` bioacoustic recording pipeline for the `.audio` capture page.
 - **`isRecording: Bool`** — single source of truth for recording state. Set to `true` only after `audioEngine.start()` succeeds.
-- **`recordingProgress: Double`** — 0.0 → 1.0 over 12 seconds, driven by a 100-tick countdown Task (120 ms per tick).
-- **`spectrogramColumns: [SpectrogramColumn]`** — rolling 120-column display buffer fed by `SpectrogramActor` on each tap callback.
+- **`isPaused: Bool`** — engine is paused mid-recording (tap preserved, countdown halted). Can only be `true` when `isRecording` is also `true`.
+- **`recordingProgress: Double`** — 0.0 → 1.0 over 15 seconds, driven by a 100-tick countdown Task (150 ms per tick).
+- **`spectrogramColumns: [SpectrogramColumn]`** — rolling 180-column display buffer fed by `SpectrogramActor` on each tap callback.
 - **`snrLevel: SNRLevel`** — most recent SNR classification from `SpectrogramActor.snrLevel(from:)`.
-- **`audioFilePath: String?`** — set to the WAV filename when recording finishes; consumed and cleared by `CaptureWorkspaceView.onChange` → `submitAudio` → `reset()`.
-- **`startRecording() async throws`**: follows the same `Task.detached` AVAudioSession setup pattern as `SpeechManager.startDictation` to prevent `@MainActor` IPC deadlock against `mediaserverd`. Uses a `[weak manager]` capture in the inner `@MainActor` DSP-result Task to break the `AudioCaptureManager → audioEngine → inputNode → tap closure → manager` retain cycle.
-- **`cancelRecording()`** — cancels countdown task, tears down engine, deletes partial file from `tmp/`.
+- **`pendingPlaybackPath: String?`** — non-nil after recording finishes, before the user confirms or discards. Drives the review state UI.
+- **`playbackProgress: Double`** — 0.0 → 1.0 playhead position; preserved across play/stop cycles so `playPendingRecording()` resumes from the scrubbed position.
+- **`audioFilePath: String?`** — set to the WAV filename only when the user confirms via review UI; consumed and cleared by `CaptureWorkspaceView.onChange` → `submitAudio` → `reset()`.
+- **`startRecording() async throws`**: guards with `!isRecording && !isStartingRecording` (the `isStartingRecording` flag is set before any `await` to prevent a second call from slipping through the guard during the async permission + engine-setup window — this was the source of the `nullptr == Tap()` AVAudioEngine crash). Follows the same `Task.detached` AVAudioSession setup pattern as `SpeechManager.startDictation`. Writes **Int16 PCM WAV** via an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, ...)` to avoid the WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`) variant that `audio_spec/wav.ts` does not support. Uses `[weak manager]` capture in the inner `@MainActor` DSP-result Task to break the `AudioCaptureManager → audioEngine → inputNode → tap closure → manager` retain cycle.
+- **`pauseRecording()`** — cancels countdown, calls `audioEngine.pause()`, sets `isPaused = true`.
+- **`resumeRecording()`** — re-activates `AVAudioSession` in `Task.detached`, calls `audioEngine.start()`, rebuilds countdown from current `recordingProgress`.
+- **`stopRecordingEarly()`** — cancels countdown, calls `finishRecording()` — same end state as timer completion.
+- **`seekPlayback(to:)`** — seeks `AVAudioPlayer.currentTime` and updates `playbackProgress`; works while playing or stopped.
+- **`cancelRecording()`** — cancels countdown task, tears down engine, deletes partial file from `tmp/`, calls `discardPending()`.
+- **`discardPending()`** — deletes pending file if present, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks` — display state is cleared unconditionally (not gated on `pendingPlaybackPath`) so calling it before `startRecording()` also wipes the previous session's columns.
 - **`reset()`** — clears all state for the next session; call after `audioFilePath` has been consumed by `submitAudio`.
 - **Strict Requirement**: Never call `AVAudioSession.sharedInstance()` directly on `@MainActor`. All session configuration and teardown must run in `Task.detached` to avoid deadlock.
 

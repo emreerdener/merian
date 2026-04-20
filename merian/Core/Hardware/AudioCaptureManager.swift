@@ -94,8 +94,18 @@ final class AudioCaptureManager {
             let fmt = inputNode.outputFormat(forBus: 0)
             guard fmt.sampleRate > 0 else { throw AudioCaptureError.hardwareSampleRateZero }
 
-            // AVAudioFile is captured by the tap closure; closes when the tap is removed.
-            let file = try AVAudioFile(forWriting: fileURL, settings: fmt.settings)
+            // Write canonical Int16 PCM WAV regardless of the hardware's native Float32
+            // layout. AVAudioFile converts Float32→Int16 automatically on each write, and
+            // Int16 PCM (audioFormat=1) is the one format the audio-spec edge function's
+            // wav.ts parser handles unconditionally — avoiding the WAVEFORMATEXTENSIBLE
+            // (audioFormat=0xFFFE) WAV variant that non-interleaved Float32 can produce.
+            guard let int16Fmt = AVAudioFormat(
+                commonFormat: .pcmFormatInt16,
+                sampleRate: fmt.sampleRate,
+                channels: fmt.channelCount,
+                interleaved: true
+            ) else { throw AudioCaptureError.hardwareSampleRateZero }
+            let file = try AVAudioFile(forWriting: fileURL, settings: int16Fmt.settings)
 
             // Defensive removal: prevents the crash if a tap is somehow still installed
             // (e.g. rapid start→stop→start before the async engine setup fully completes).

@@ -1,6 +1,6 @@
 # Audio Listen Mode — Bioacoustic Capture Pipeline
 
-The Audio page is the second page of `CaptureWorkspaceView`'s horizontal pager. It records a 12-second ambient audio clip, runs a live spectrogram and SNR analysis on-device in real time, and submits the clip for bioacoustic species identification via the `audio_spec` Supabase Edge Function.
+The Audio page is the second page of `CaptureWorkspaceView`'s horizontal pager. It records a 15-second ambient audio clip, runs a live spectrogram and SNR analysis on-device in real time, and submits the clip for bioacoustic species identification via the `audio_spec` Supabase Edge Function.
 
 ---
 
@@ -68,12 +68,14 @@ Wrapped in `autoreleasepool` to prevent Obj-C `AVAudioPCMBuffer` objects from ac
 
 | Property | Type | Description |
 |---|---|---|
-| `isRecording` | `Bool` | Whether a recording session is active |
-| `recordingProgress` | `Double` | 0.0 → 1.0 over `maxDuration` (12 s) |
-| `spectrogramColumns` | `[SpectrogramColumn]` | Rolling display buffer (120 columns ≈ 10 s) |
+| `isRecording` | `Bool` | Whether a recording session is active (set `true` only after `audioEngine.start()` succeeds) |
+| `isPaused` | `Bool` | Whether the engine is paused mid-recording (tap preserved, countdown halted) |
+| `recordingProgress` | `Double` | 0.0 → 1.0 over `maxDuration` (15 s) |
+| `spectrogramColumns` | `[SpectrogramColumn]` | Rolling display buffer (180 columns ≈ 15 s) |
 | `snrLevel` | `SNRLevel` | Most recent noise level classification |
 | `pendingPlaybackPath` | `String?` | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`. |
 | `isPlaying` | `Bool` | Whether `AVAudioPlayer` is currently playing back a pending recording |
+| `playbackProgress` | `Double` | 0.0 → 1.0 playhead position during review playback; preserved across play/stop cycles for scrub-resume |
 | `audioFilePath` | `String?` | Non-nil only when the user explicitly confirms via the review UI. Setting this triggers `onChange(of: audioFilePath)` → `submitAudio`. |
 
 ### `startRecording() async throws`
@@ -81,22 +83,31 @@ Wrapped in `autoreleasepool` to prevent Obj-C `AVAudioPCMBuffer` objects from ac
 Mirrors `SpeechManager.startDictation`'s `Task.detached` pattern to prevent `@MainActor` IPC deadlock against `mediaserverd`:
 
 ```
+guard !isRecording, !isStartingRecording   ← re-entry guard (set before any await)
+    ↓
+discardPending()            ← clears leftover review state
 requestRecordPermission()   ← async, off main actor
     ↓ Task.isCancelled check
-teardownEngine()            ← clears any prior session
+teardownEngine()            ← clears any prior engine session
     ↓
 Task.detached {
     AVAudioSession.setCategory(.record, mode: .measurement)
     AVAudioSession.setActive(true)
-    inputNode.outputFormat(forBus: 0)   ← IPC: never call on @MainActor
-    AVAudioFile(forWriting: fileURL)    ← creates PCM WAV in tmp/
-    inputNode.installTap(...)           ← file write + DSP dispatch per buffer
+    inputNode.outputFormat(forBus: 0)     ← IPC: never call on @MainActor
+    AVAudioFormat(.pcmFormatInt16, ...)   ← canonical Int16 PCM — wav.ts compatible
+    AVAudioFile(forWriting: fileURL, settings: int16Fmt.settings)
+    inputNode.removeTap(onBus: 0)         ← defensive: prevents nullptr == Tap() crash
+    inputNode.installTap(...)             ← file write + DSP dispatch per buffer
     audioEngine.start()
 }.value
     ↓
 isRecording = true
-recordingTask = Task { 100 ticks × 0.12 s → finishRecording() }
+recordingTask = Task { 100 ticks × 0.15 s → finishRecording() }
 ```
+
+**Re-entry guard**: `isStartingRecording` is set to `true` before the first `await` (permission request) and cleared in `defer`. This prevents a second `startRecording()` call from slipping through the `!isRecording` guard during the async setup window — the condition that triggered the `nullptr == Tap()` AVAudioEngine crash.
+
+**WAV file format**: The recording uses an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate:, channels:, interleaved: true)` to write canonical Int16 PCM WAV (`audioFormat = 1`). Writing with the hardware's native `fmt.settings` may produce WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`) — a variant the `audio_spec/wav.ts` parser does not handle — causing 400 errors on submission. `AVAudioFile` converts Float32→Int16 automatically on each write.
 
 **Buffer tap (per 4096-frame buffer ≈ 85 ms)**:
 1. `file.write(from: buffer)` — synchronous PCM write to `AVAudioFile` on the audio thread.
@@ -106,36 +117,46 @@ The `[weak manager]` capture in the inner `@MainActor` task breaks the retain cy
 
 ### Teardown
 
-`teardownEngine()` calls `audioEngine.stop()` then `inputNode.removeTap(onBus: 0)` **unconditionally** (both are no-ops if already stopped) — identical to `SpeechManager.teardownAudioEngine()`. This prevents an orphaned-tap crash if `start()` throws after `installTap` has already been called. The `AVAudioSession` is deactivated asynchronously via `Task.detached` to avoid `mediaserverd` IPC blocking `@MainActor`.
+`teardownEngine()` calls `inputNode.removeTap(onBus: 0)` **first**, then `audioEngine.stop()` — both are no-ops if already stopped/untapped. Removing the tap before stopping prevents the audio thread from writing into a stopped engine and avoids AVAudioEngine assertion failures. The `AVAudioSession` is deactivated asynchronously via `Task.detached` to avoid `mediaserverd` IPC blocking `@MainActor`.
 
 ### Recording Lifecycle
 
 | Method | Effect |
 |---|---|
-| `startRecording()` | Acquires permission, calls `discardPending()` to clear leftover review state, spins up engine, starts 12 s countdown |
+| `startRecording()` | Guards with `!isRecording && !isStartingRecording`. Acquires permission, calls `discardPending()` to clear leftover review state, spins up engine, starts 15 s countdown |
+| `stopRecordingEarly()` | Cancels countdown task, calls `finishRecording()` — same end state as timer completion |
+| `pauseRecording()` | Cancels countdown task, calls `audioEngine.pause()`, sets `isPaused = true`, resets `snrLevel` |
+| `resumeRecording()` | Re-activates `AVAudioSession` in `Task.detached`, calls `audioEngine.start()`, sets `isPaused = false`, rebuilds countdown from `recordingProgress` |
 | `cancelRecording()` | Cancels countdown task, tears down engine, deletes partial file from `tmp/`, calls `discardPending()` to also clear review state |
 | `finishRecording()` (private) | Tears down engine, sets `pendingPlaybackPath = pendingFileName` — routes to review state instead of direct submission |
-| `playPendingRecording()` | Creates `AVAudioPlayer`, activates `.playback` session in `Task.detached`, sets `isPlaying = true`. Duration-based timer clears `isPlaying` at end-of-file; reference equality guards against stop→replay races. |
-| `stopPlayback()` | Stops `AVAudioPlayer`, clears `isPlaying` |
+| `playPendingRecording()` | Saves `resumeProgress = playbackProgress` (preserves scrubbed position), creates `AVAudioPlayer`, seeks to `duration * resumeProgress`, activates `.playback` session in `Task.detached`, sets `isPlaying = true`. Duration-based sleep (`remaining = duration * (1 - resumeProgress)`) clears `isPlaying` at end-of-file; reference equality guards against stop→replay races. |
+| `stopPlayback()` | Stops `AVAudioPlayer`, clears `isPlaying` and `playbackProgress` |
+| `seekPlayback(to:)` | Sets `audioPlayer.currentTime = duration * clamped` and updates `playbackProgress` — works while playing or stopped |
 | `confirmAndSubmit()` | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView` |
-| `discardPending()` | Stops playback, deletes file from `tmp/`, clears `pendingPlaybackPath`, `spectrogramColumns`, `snrLevel` |
+| `discardPending()` | Stops playback, deletes file from `tmp/` if `pendingPlaybackPath` is set, clears `pendingPlaybackPath`, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks` |
 | `reset()` | Calls `stopPlayback()`, cancels task, clears all published state including `pendingPlaybackPath`, calls `spectrogram.reset()` |
+
+**`discardPending()` clears display state unconditionally**: The spectrogram column clear and SNR reset run outside the `if let pendingPlaybackPath` branch so that calling `discardPending()` during an active recording (e.g. immediately before `startRecording()`) also wipes the previous session's visual state. The prior `guard let name = pendingPlaybackPath else { return }` early-exit pattern leaked these columns into the next recording's UI.
 
 **Submission state machine:**
 ```
-startRecording() → [recording] → finishRecording() → [review: pendingPlaybackPath set]
-                                                           ↓ confirmAndSubmit()
-                                                      [submitted: audioFilePath set]
-                                                           ↓ CaptureWorkspaceView.onChange → submitAudio + reset()
-                                                           
-                                       [review] → discardPending() → [idle]
+startRecording() → [recording] ──────────────────────────────────────── pauseRecording()
+                       ↓ timer / stopRecordingEarly()                          ↓
+                  finishRecording()                                       [paused] ── resumeRecording() → [recording]
+                       ↓
+                  [review: pendingPlaybackPath set]
+                       ↓ confirmAndSubmit()
+                  [submitted: audioFilePath set]
+                       ↓ CaptureWorkspaceView.onChange → submitAudio + reset()
+
+                  [review] → discardPending() → [idle]
 ```
 
 `CaptureWorkspaceView.onChange(of: audioCaptureManager.audioFilePath)` fires only when the user explicitly confirms; this replaces the previous auto-submit that fired immediately when recording finished.
 
 ### File Format
 
-Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` in the native `AVAudioEngine` input format (Float32 PCM at 48 kHz, typically mono on iPhone). `OfflineQueueManager.enqueueAudio` moves the file from `tmp/` to `URL.documentsDirectory` for persistence.
+Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` as **Int16 PCM WAV** (`audioFormat = 1`, interleaved) using an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: fmt.sampleRate, channels: fmt.channelCount, interleaved: true)`. The hardware's native Float32 format may produce WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`), which `audio_spec/wav.ts` does not support and returns 400. `AVAudioFile` performs the Float32→Int16 conversion automatically per write. `OfflineQueueManager.enqueueAudio` moves the file from `tmp/` to `URL.documentsDirectory` for persistence.
 
 ---
 
@@ -205,34 +226,43 @@ Until then, `submitAudio` routes all submissions through `enqueueAudio` and this
 
 **File**: `merian/Features/CaptureWorkspace/Modalities/Audio/Views/AudioRecordingView.swift`
 
-Full-screen content view for the `.audio` pager page. All persistent controls (capture button, `MediaModeToggle`, tab bar) live in `CaptureWorkspaceView`'s fixed overlay.
+Full-screen content view for the `.audio` pager page. All persistent controls (capture button, `MediaModeToggle`, tab bar, flanking action buttons) live in `CaptureWorkspaceView`'s fixed overlay layers.
 
 | State | Condition | Content |
 |---|---|---|
-| Idle | `!isRecording && pendingPlaybackPath == nil` | Centered waveform icon + "Tap the button below to start listening" |
-| Recording | `isRecording == true` | `SNRGaugeView` (top) · live `SpectrogramView` (middle, 240 pt) · progress ring + countdown (bottom) |
-| Review | `!isRecording && pendingPlaybackPath != nil` | "Review Recording" label (top) · static `SpectrogramView` (middle) · play/stop toggle (52pt SF Symbol) · Discard / Identify action buttons (bottom) |
+| Idle | `!isRecording && pendingPlaybackPath == nil` | Rotating carousel of animal illustration images (6 s crossfade interval) |
+| Recording / Review | `isRecording \|\| pendingPlaybackPath != nil` | Live or static `SpectrogramView` · `SNRGaugeView` below spectrogram (recording only) |
 
-**Review state**: The static spectrogram uses the same `spectrogramColumns` array captured during the recording — it shows the complete acoustic signature of the take before the user commits. The `CaptureControlBar` capture button is **disabled** while in review state (guarded by `audioCaptureManager.pendingPlaybackPath != nil`), preventing accidental new recordings from overwriting the pending clip.
+**Spectrogram sizing**: The spectrogram height is computed symmetrically from `composingCenter` (the vertical center of the composing area between `MediaModeToggle` and the control bar):
+```swift
+let centerY = proxy.size.height * composingCenter
+let halfHeight = min(centerY - 100, proxy.size.height - controlBarHeight - centerY - 88)
+let spectrogramHeight = max(180, halfHeight * 2)
+```
+This ensures the spectrogram clears the `MediaModeToggle` toolbar above and the tooltip hint zone above the FAB below. The view uses `.frame(width: proxy.size.width)` before `.position()` to correctly offer full width to the Canvas (`.position()` detaches from layout flow and would otherwise receive zero width from `maxWidth: .infinity`).
 
-The countdown ring uses `Circle.trim(from: 0, to: recordingProgress)` with `.animation(.linear(duration: 0.12))` matching the 120 ms tick interval of the `recordingTask`.
+**Review state — playhead**: A vertical scrub line overlays the spectrogram during review. It is visible only when `isPlaying || isScrubbing || playbackProgress > 0`. This means it appears only once the user has started playback or manually scrubbed — not by default when the recording first enters review. If the user scrubs the playhead away from the start position and stops, the playhead remains visible at the parked position. On full-clip playback completion, `playbackProgress` resets to 0 and the playhead disappears. A `DragGesture` on the spectrogram canvas drives `seekPlayback(to:)`, enabling scrub-to-any-position with live playhead tracking.
+
+The countdown ring uses `Circle.trim(from: 0, to: recordingProgress)` with `.animation(.linear(duration: 0.15))` matching the 150 ms tick interval of the `recordingTask`.
 
 ### `SpectrogramView`
 
 **File**: `merian/Features/CaptureWorkspace/Modalities/Audio/Views/SpectrogramView.swift`
 
-Canvas-based 2D spectrogram. Draws one vertical strip per `SpectrogramColumn`, left (oldest) to right (newest), with frequency increasing bottom-to-top (bin 0 = 80 Hz at bottom, bin 63 = 16 kHz at top).
+Canvas-based 2D spectrogram. Draws one vertical strip per `SpectrogramColumn`, left (oldest) to right (newest), with frequency increasing bottom-to-top (bin 0 = 80 Hz at bottom, bin 63 = 16 kHz at top). The canvas background is a fixed dark field (`Color(red: 0.06, green: 0.06, blue: 0.1)`) so the colormap's near-black low-magnitude cells blend seamlessly into the background.
 
-**Colormap** (5-stop inferno-style):
+**Column width**: `colWidth = size.width / CGFloat(columns.count)`. Dividing by the actual column count (not `columnCap`) ensures data always fills edge-to-edge regardless of whether the buffer is partially populated at early recording frames. At 44.1 kHz the engine produces ~161 columns at clip end — using `columnCap` (180) as the divisor would leave a ~40 px gap at the right edge.
+
+**Colormap** (5-stop inferno-style, no magnitude threshold — all values rendered):
 
 | Magnitude | Color |
 |---|---|
-| 0.0 – 0.2 | Black → dark blue |
+| 0.0 – 0.2 | Black → dark blue (`rgb(0, 0, 0.8t)`) |
 | 0.2 – 0.5 | Dark blue → cyan |
 | 0.5 – 0.75 | Cyan → yellow |
 | 0.75 – 1.0 | Yellow → white |
 
-Draws `columnCap × outputBinCount = 120 × 64 = 7,680` filled rects per frame. At 60fps this is ~460K path fills/second — acceptable for `Canvas` (no SwiftUI view allocations).
+Draws up to `columnCap × outputBinCount = 180 × 64 = 11,520` filled rects per frame. At 60fps this is ~690K path fills/second — acceptable for `Canvas` (no SwiftUI view allocations).
 
 ### `SNRGaugeView`
 
@@ -251,12 +281,20 @@ Rounded pill showing SNR level with a color-coded background and SF Symbol icon.
 
 ## 8. `CaptureControlBar` — Audio Button Wiring
 
-The `.audio` case of `CaptureButton.onAction` in `CaptureControlBar`:
+### Center capture button (`CaptureButton`)
+
+The `.audio` case of `CaptureButton.onAction` in `CaptureControlBar` implements a multi-state dispatch:
 
 ```swift
 case .audio:
-    if audioCaptureManager.isRecording {
-        audioCaptureManager.cancelRecording()
+    if audioCaptureManager.pendingPlaybackPath != nil {
+        audioCaptureManager.confirmAndSubmit()         // review → submit
+    } else if audioCaptureManager.isRecording {
+        if audioCaptureManager.isPaused {
+            audioCaptureManager.resumeRecording()      // paused → recording
+        } else {
+            audioCaptureManager.pauseRecording()       // recording → paused
+        }
     } else {
         Task {
             do { try await audioCaptureManager.startRecording() }
@@ -265,9 +303,32 @@ case .audio:
     }
 ```
 
-Errors (permission denied, hardware unavailable) surface via `offlineToastMessage` — consistent with `SpeechManager`'s permission error handling in the `.describe` path.
+Errors (permission denied, hardware unavailable) surface via `offlineToastMessage`.
 
-**Review state**: The `isSubmitDisabled` computation includes `(captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil)`. While the user is in the review state, the capture button is visually dimmed (`.opacity(0.5)`) and non-interactive (`.disabled(true)`). The review UI's "Identify" and "Discard" buttons in `AudioRecordingView` own the transition out of this state.
+### Center button visual state machine
+
+The `CaptureButton` inner fill and icon encode the **available action**, not the current state:
+
+| Condition | Fill | Icon | Meaning |
+|---|---|---|---|
+| Idle | Red | None | "Tap to record" |
+| Paused | Red | None | "Tap to resume" |
+| Recording (active) | Neutral (`.primary`) | `pause.fill` | "Tap to pause" |
+| Review | Neutral (`.primary`) | `↑` or `+` | "Tap to submit" |
+
+Red always means "tap here to start or resume recording." Neutral with a pause icon means "tap here to pause." The progress arc (red, sweeping clockwise) is hidden during review so the ring resets to a clean submit-button appearance.
+
+### Flanking buttons (left / right slots)
+
+| State | Left button | Right button |
+|---|---|---|
+| Idle | — | — |
+| Recording (active or paused) | `AudioDeleteButton` (trash — cancel + discard) | `AudioDoneButton` (checkmark — stop early → review) |
+| Review | `AudioDeleteButton` (trash — discard pending) | `AudioReviewPlayButton` (play/stop toggle) |
+
+`AudioDeleteButton` calls `cancelRecording()` while recording and `discardPending()` during review. `AudioDoneButton` calls `stopRecordingEarly()`. `AudioReviewPlayButton` toggles `playPendingRecording()` / `stopPlayback()`, showing `play.fill` or `stop.fill` with a `.symbolEffect(.replace)` transition.
+
+All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on `captureMode`, `isRecording`, and `pendingPlaybackPath`.
 
 ---
 
@@ -275,12 +336,16 @@ Errors (permission denied, hardware unavailable) surface via `offlineToastMessag
 
 | Trigger | Action |
 |---|---|
-| Swipe from `.audio` to another mode | `cancelRecording()` if recording or `pendingPlaybackPath != nil` — clears both recording and review state |
-| App backgrounds while `.audio` active | Same as above: `cancelRecording()` if recording or in review |
-| 12 s countdown completes | `finishRecording()` → sets `pendingPlaybackPath` → transitions to review state |
-| User taps "Identify" in review UI | `confirmAndSubmit()` → sets `audioFilePath` → `submitAudio` via `CaptureWorkspaceView.onChange` |
-| User taps "Discard" in review UI | `discardPending()` → returns to idle |
-| User taps capture button while recording | `cancelRecording()` |
+| Swipe from `.audio` to another mode | `cancelRecording()` if active or paused — clears engine, file, and review state |
+| App backgrounds while `.audio` active | Same: `cancelRecording()` if recording or paused |
+| 15 s countdown completes | `finishRecording()` → sets `pendingPlaybackPath` → transitions to review state |
+| User taps `AudioDoneButton` (checkmark) while recording | `stopRecordingEarly()` → same end state as countdown completion |
+| User taps center button while recording | `pauseRecording()` → engine paused, countdown halted |
+| User taps center button while paused | `resumeRecording()` → engine and countdown resumed from current progress |
+| User taps `AudioDeleteButton` while recording/paused | `cancelRecording()` → returns to idle |
+| User taps center button in review | `confirmAndSubmit()` → sets `audioFilePath` → `submitAudio` via `CaptureWorkspaceView.onChange` |
+| User taps `AudioDeleteButton` in review | `discardPending()` → returns to idle |
+| User taps `AudioReviewPlayButton` in review | Toggles `playPendingRecording()` / `stopPlayback()` |
 
 The camera session is **not** started when the user is on `.audio` (camera is stopped on `captureMode` change to `.audio`, same as `.describe`).
 
