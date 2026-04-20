@@ -24,6 +24,7 @@ struct CaptureControlBar: View {
 
     private var isRefining: Bool { viewModel.baseRefinementRecord != nil }
     private var imageCount: Int { viewModel.stagedCapture.images.count }
+    private var isAudioReview: Bool { captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil }
     // Mirror the ActiveScanToolbar capacity logic — includes isRefining so reanalysis
     // flows get the same two-slot limit as multi-capture without enabling multi-capture.
     private var capacityLimit: Int { (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1 }
@@ -81,7 +82,11 @@ struct CaptureControlBar: View {
                             viewModel.executeCapture()
                         case .audio:
                             if audioCaptureManager.isRecording {
-                                audioCaptureManager.cancelRecording()
+                                if audioCaptureManager.isPaused {
+                                    audioCaptureManager.resumeRecording()
+                                } else {
+                                    audioCaptureManager.pauseRecording()
+                                }
                             } else {
                                 Task {
                                     do {
@@ -131,8 +136,9 @@ struct CaptureControlBar: View {
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
-        .opacity(isKeyboardVisible ? 0 : 1)
-        .allowsHitTesting(!isKeyboardVisible)
+        .opacity((isKeyboardVisible || isAudioReview) ? 0 : 1)
+        .allowsHitTesting(!isKeyboardVisible && !isAudioReview)
+        .animation(.easeInOut(duration: 0.2), value: isAudioReview)
     }
 }
 
@@ -146,11 +152,35 @@ private struct CaptureButton: View {
     let willStageOnly: Bool
     let onAction: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(AudioCaptureManager.self) private var audioCaptureManager
+
+    private var outerRingColor: Color {
+        switch captureMode {
+        case .visual:   return .white
+        case .audio:    return colorScheme == .dark ? .white : Color(UIColor.label)
+        case .describe: return Color(UIColor.label)
+        }
+    }
+
+    private var isRecording: Bool { captureMode == .audio && audioCaptureManager.isRecording }
+    private var isPaused: Bool { captureMode == .audio && audioCaptureManager.isPaused }
+
     var body: some View {
         ZStack {
+            // Track ring — dims and thickens when recording to make room for the progress arc.
             Circle()
-                .stroke(captureMode == .visual ? Color.white : Color.primary, lineWidth: 1)
+                .stroke(outerRingColor.opacity(isRecording ? 0.25 : 1), lineWidth: isRecording ? 3 : 1)
                 .frame(width: 80, height: 80)
+                .animation(.easeInOut(duration: 0.2), value: isRecording)
+
+            // Progress arc — sweeps red clockwise for the duration of the recording.
+            Circle()
+                .trim(from: 0, to: isRecording ? audioCaptureManager.recordingProgress : 0)
+                .stroke(Color.red, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .frame(width: 80, height: 80)
+                .animation(.linear(duration: 0.12), value: audioCaptureManager.recordingProgress)
 
             ZStack {
                 Circle()
@@ -163,6 +193,11 @@ private struct CaptureButton: View {
                         .font(.system(size: 32))
                         .foregroundStyle(Color(UIColor.systemBackground))
                         .transition(.scale.combined(with: .opacity))
+                } else if isRecording {
+                    Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(.white)
+                        .contentTransition(.symbolEffect(.replace))
                 }
             }
         }

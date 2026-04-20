@@ -37,6 +37,7 @@ final class AudioCaptureManager {
     /// Drives the review state in AudioRecordingView.
     private(set) var pendingPlaybackPath: String?
     private(set) var isPlaying: Bool = false
+    private(set) var isPaused: Bool = false
 
     // MARK: Constants
 
@@ -137,6 +138,42 @@ final class AudioCaptureManager {
         }
     }
 
+    /// Pauses an active recording without discarding audio. Engine tap stays installed.
+    func pauseRecording() {
+        guard isRecording, !isPaused else { return }
+        recordingTask?.cancel()
+        recordingTask = nil
+        audioEngine.pause()
+        isPaused = true
+    }
+
+    /// Resumes a paused recording, rebuilding the countdown from current progress.
+    func resumeRecording() {
+        guard isRecording, isPaused else { return }
+        Task {
+            await Task.detached {
+                try? AVAudioSession.sharedInstance().setActive(true)
+            }.value
+            do {
+                try audioEngine.start()
+            } catch {
+                cancelRecording()
+                return
+            }
+            isPaused = false
+            let startTick = Int((recordingProgress * 100).rounded())
+            guard startTick < 100 else { finishRecording(); return }
+            recordingTask = Task { [weak self] in
+                for i in (startTick + 1)...100 {
+                    try? await Task.sleep(nanoseconds: 120_000_000)
+                    if Task.isCancelled { return }
+                    await MainActor.run { self?.recordingProgress = Double(i) / 100.0 }
+                }
+                await MainActor.run { self?.finishRecording() }
+            }
+        }
+    }
+
     /// Cancels an active recording and discards all audio state including any pending review.
     func cancelRecording() {
         recordingTask?.cancel()
@@ -144,6 +181,7 @@ final class AudioCaptureManager {
         teardownEngine()
         cleanupPendingFile()
         isRecording = false
+        isPaused = false
         recordingProgress = 0
         discardPending()
     }
@@ -154,6 +192,7 @@ final class AudioCaptureManager {
         recordingTask?.cancel()
         recordingTask = nil
         isRecording = false
+        isPaused = false
         recordingProgress = 0
         spectrogramColumns = []
         snrLevel = .clear
@@ -228,6 +267,7 @@ final class AudioCaptureManager {
         pendingPlaybackPath = pendingFileName
         pendingFileName = nil
         isRecording = false
+        isPaused = false
         recordingTask = nil
     }
 

@@ -46,7 +46,7 @@ struct AudioRecordingView: View {
     private var recordingContent: some View {
         VStack(spacing: 0) {
             SNRGaugeView(snrLevel: audioCaptureManager.snrLevel)
-                .padding(.top, 64)
+                .padding(.top, 120)
 
             Spacer()
 
@@ -60,32 +60,6 @@ struct AudioRecordingView: View {
             .padding(.horizontal, 20)
 
             Spacer()
-
-            progressRing
-                .padding(.bottom, 200)
-        }
-    }
-
-    private var progressRing: some View {
-        let totalSeconds = Int(AudioCaptureManager.maxDuration)
-        let elapsed = audioCaptureManager.recordingProgress * AudioCaptureManager.maxDuration
-        let remaining = max(0, totalSeconds - Int(elapsed))
-
-        return ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.15), lineWidth: 3)
-                .frame(width: 56, height: 56)
-
-            Circle()
-                .trim(from: 0, to: audioCaptureManager.recordingProgress)
-                .stroke(Color.red, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .frame(width: 56, height: 56)
-                .animation(.linear(duration: 0.12), value: audioCaptureManager.recordingProgress)
-
-            Text("\(remaining)")
-                .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white)
         }
     }
 
@@ -96,7 +70,7 @@ struct AudioRecordingView: View {
             Text("Review Recording")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.white.opacity(0.7))
-                .padding(.top, 64)
+                .padding(.top, 120)
 
             Spacer()
 

@@ -305,10 +305,18 @@ struct CaptureWorkspaceView: View {
             viewModel.submitStagedCapture(modelContext: modelContext)
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active && captureMode == .visual && viewModel.activeSheet == nil {
-                cameraManager.startSession()
+            if newPhase == .active {
+                if captureMode == .visual && viewModel.activeSheet == nil {
+                    cameraManager.startSession()
+                }
+                if captureMode == .audio && audioCaptureManager.isPaused {
+                    audioCaptureManager.resumeRecording()
+                }
             }
-            if (newPhase == .background || newPhase == .inactive) &&
+            if newPhase == .inactive && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
+                audioCaptureManager.pauseRecording()
+            }
+            if newPhase == .background &&
                (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil) {
                 audioCaptureManager.cancelRecording()
             }

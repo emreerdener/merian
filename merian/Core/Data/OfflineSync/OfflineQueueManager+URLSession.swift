@@ -373,10 +373,10 @@ extension OfflineQueueManager {
             // Describe-only scans (empty localImagePaths, non-nil context) route to /identify-describe.
             // Image scans (with or without a description) route to /identify.
             if let audioPath = extracted.audioFilePath {
-                // TODO: migrate to two-phase R2 upload so the WAV body is provided
+                // PENDING: migrate to two-phase R2 upload so the WAV body is provided
                 // via uploadTask(with:fromFile:) rather than httpBody on a background
                 // download task. See docs/system-architecture/07-background-inference-body-safe.md
-                MerianLog.data.warning("⚠️ [TODO] Audio inference dispatched with httpBody on background session — migrate to R2 two-phase path (see 07-background-inference-body-safe.md)")
+                MerianLog.data.warning("⚠️ [PENDING] Audio inference dispatched with httpBody on background session — migrate to R2 two-phase path (see 07-background-inference-body-safe.md)")
                 request = try await MerianNetworkClient.shared.buildAudioRequest(
                     audioFilePath: audioPath,
                     telemetry: finalTelemetry,
