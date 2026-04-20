@@ -29,7 +29,6 @@ struct DescribeInputView: View {
 
     @State private var dictationTask: Task<Void, Never>?
     @State private var inferenceDebounceTask: Task<Void, Never>?
-    @State private var sortedTags: [GuidedQuestion.Tag] = guidedQuestions[0].tags
 
     // MARK: - Derived
 
@@ -64,9 +63,8 @@ struct DescribeInputView: View {
                                               ? Color.primary
                                               : Color.primary.opacity(0.2))
                                         .frame(width: 6, height: 6)
-                                        .animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
                                 }
-                            }
+                            }.animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
 
                             Spacer()
 
@@ -86,84 +84,15 @@ struct DescribeInputView: View {
                             }
                         }
 
-                        // Heading text — full width, crossfades between questions.
-                        // We use a single Text view with an .id modifier to force
-                        // a transition when the active question changes, which is far
-                        // more reliable than the prior ZStack opacity workaround.
-                        Text(promptManager.activeQuestions[promptManager.activeQuestionIndex].prompt)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.primary)
-                            .id("prompt_\(promptManager.activeQuestionIndex)_\(promptManager.activeQuestions[promptManager.activeQuestionIndex].prompt.hashValue)")
-                            .transition(.opacity)
-                            .animation(.easeInOut(duration: 0.35), value: promptManager.activeQuestionIndex)
-                            .frame(maxWidth: .infinity, minHeight: 35, alignment: .topLeading)
-                    }
+                    // MARK: Question Header
+                    DescribePromptHeader(
+                        promptManager: promptManager,
+                        appendTag: appendTag,
+                        advanceQuestion: advanceQuestion
+                    )
+                    } // Closes VStack(alignment: .leading)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 8)
-
-                    // MARK: Contextual Quick Tags
-                    // Tags are scoped to the active question. Tapping inserts the optimized
-                    // aiText fragment into freeText.
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(sortedTags, id: \.self) { tag in
-                                let isSelectedFunnel = promptManager.activeQuestionIndex == 0 && tag.tagId == promptManager.activeSubjectId
-                                Button(action: {
-                                    HapticManager.shared.triggerSelectionPulse()
-                                    let indexBeforeAppend = promptManager.activeQuestionIndex
-                                    appendTag(tag)
-                                    
-                                    if isSelectedFunnel { return } // Avoid auto-advance if they are unselecting
-                                    
-                                    if !promptManager.interactedQuestionIndices.contains(indexBeforeAppend) {
-                                        promptManager.interactedQuestionIndices.insert(indexBeforeAppend)
-                                        
-                                        Task { @MainActor in
-                                            // Slight delay so the user witnesses the text append and haptic feedback
-                                            try? await Task.sleep(nanoseconds: 350_000_000)
-                                            guard !Task.isCancelled else { return }
-                                            
-                                            // Only advance if they haven't manually navigated away
-                                            if promptManager.activeQuestionIndex == indexBeforeAppend {
-                                                advanceQuestion()
-                                            }
-                                        }
-                                    }
-                                }) {
-                                    // Species Image Tags
-                                    if let imageName = tag.imageName {
-                                        VStack(spacing: 4) {
-                                            Image(imageName)
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(width: 64, height: 64)
-                                            Text(tag.label)
-                                                .font(.subheadline.weight(.medium))
-                                                .lineLimit(1)
-                                        }
-                                        .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
-                                        .frame(width: 96, height: 112)
-                                        .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
-                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                    } else {
-                                        Text(tag.label)
-                                            .font(.subheadline)
-                                            .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 10)
-                                            .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                                .transition(.opacity)
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
-                    }
-                    .id("tags_scroll_\(promptManager.activeQuestionIndex)")
-                    .padding(.bottom, 16)
 
                     // MARK: Text Area
                     ZStack(alignment: .topLeading) {
@@ -205,16 +134,9 @@ struct DescribeInputView: View {
                 .frame(minHeight: proxy.size.height)
             }
             .scrollDismissesKeyboard(.immediately)
-            .onAppear {
-                updateSortedTags(for: promptManager.activeQuestionIndex)
-            }
-            .onChange(of: promptManager.activeQuestionIndex) { _, newIndex in
-                updateSortedTags(for: newIndex)
-            }
             .onChange(of: context.freeText) { _, newText in
                 if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     promptManager.resetFunnel()
-                    updateSortedTags(for: promptManager.activeQuestionIndex)
                     return
                 }
                 guard !promptManager.isFunnelActive else {
@@ -229,7 +151,6 @@ struct DescribeInputView: View {
                     guard !promptManager.isFunnelActive else { return }
                     if let subjectId = SubjectKeywordMatcher.infer(from: newText) {
                         promptManager.activateFunnel(for: subjectId)
-                        updateSortedTags(for: promptManager.activeQuestionIndex)
                     }
                 }
             }
@@ -299,7 +220,6 @@ struct DescribeInputView: View {
         withAnimation(.easeInOut(duration: 0.4)) {
             promptManager.activeQuestionIndex = next
         }
-        updateSortedTags(for: next)
     }
 
     private func previousQuestion() {
@@ -309,7 +229,6 @@ struct DescribeInputView: View {
         withAnimation(.easeInOut(duration: 0.4)) {
             promptManager.activeQuestionIndex = prev
         }
-        updateSortedTags(for: prev)
     }
 
     /// Inserts the tag's optimized AI text fragment into freeText, maintaining
@@ -320,7 +239,6 @@ struct DescribeInputView: View {
         // Handle toggling off an active funnel
         if promptManager.activeQuestionIndex == 0 && promptManager.activeSubjectId == tag.tagId {
             promptManager.resetFunnel()
-            updateSortedTags(for: promptManager.activeQuestionIndex)
             
             // Try to gracefully remove the text insertion
             let insertion = tag.aiText
@@ -365,37 +283,101 @@ struct DescribeInputView: View {
                 if subjectFunnels[tag.tagId] != nil {
                     promptManager.resetFunnel()
                     promptManager.activateFunnel(for: tag.tagId)
-                    updateSortedTags(for: promptManager.activeQuestionIndex)
                 } else if promptManager.isFunnelActive {
                     promptManager.resetFunnel()
-                    updateSortedTags(for: promptManager.activeQuestionIndex)
                 }
             }
         }
     }
+}
+
+// MARK: - Subcomponents
+
+private struct DescribePromptHeader: View {
+    @Bindable var promptManager: DescribePromptManager
+    let appendTag: (GuidedQuestion.Tag) -> Void
+    let advanceQuestion: () -> Void
     
-    /// Computes the persistent, stable order of tags for the active view sequence
-    /// utilizing a tiered popularity override architecture natively bound to `UserDefaults`.
-    private func updateSortedTags(for index: Int) {
-        guard index >= 0 && index < promptManager.activeQuestions.count else { return }
-        
-        sortedTags = promptManager.activeQuestions[index].tags
+    private var sortedTags: [GuidedQuestion.Tag] {
+        guard promptManager.activeQuestionIndex >= 0 && promptManager.activeQuestionIndex < promptManager.activeQuestions.count else { return [] }
+        return promptManager.activeQuestions[promptManager.activeQuestionIndex].tags
             .enumerated()
             .sorted { a, b in
                 let freqA = DescribeTagTracker.shared.frequency(for: a.element.tagId)
                 let freqB = DescribeTagTracker.shared.frequency(for: b.element.tagId)
-                
-                // Tier 1: Historical behavioral engagement
                 if freqA != freqB { return freqA > freqB }
-                
-                // Tier 2: Forced general popularity baseline overrides
                 if a.element.defaultWeight != b.element.defaultWeight {
                     return a.element.defaultWeight > b.element.defaultWeight
                 }
-                
-                // Tier 3: Strict array insertion fallback (guarantees native structural stability)
                 return a.offset < b.offset
             }
             .map(\.element)
+    }
+    
+    var body: some View {
+        // Heading text
+        if promptManager.activeQuestions.indices.contains(promptManager.activeQuestionIndex) {
+            Text(promptManager.activeQuestions[promptManager.activeQuestionIndex].prompt)
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, minHeight: 35, alignment: .topLeading)
+                .padding(.bottom, 8)
+        }
+        
+        // Tags
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(sortedTags, id: \.self) { tag in
+                    let isSelectedFunnel = promptManager.activeQuestionIndex == 0 && tag.tagId == promptManager.activeSubjectId
+                    Button(action: {
+                        HapticManager.shared.triggerSelectionPulse()
+                        let indexBeforeAppend = promptManager.activeQuestionIndex
+                        appendTag(tag)
+                        
+                        if isSelectedFunnel { return } // Avoid auto-advance if they are unselecting
+                        
+                        if !promptManager.interactedQuestionIndices.contains(indexBeforeAppend) {
+                            promptManager.interactedQuestionIndices.insert(indexBeforeAppend)
+                            
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 350_000_000)
+                                guard !Task.isCancelled else { return }
+                                if promptManager.activeQuestionIndex == indexBeforeAppend {
+                                    advanceQuestion()
+                                }
+                            }
+                        }
+                    }) {
+                        if let imageName = tag.imageName {
+                            VStack(spacing: 4) {
+                                Image(imageName)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 64, height: 64)
+                                Text(tag.label)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
+                            .frame(width: 96, height: 112)
+                            .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        } else {
+                            Text(tag.label)
+                                .font(.subheadline)
+                                .foregroundStyle(isSelectedFunnel ? Color(UIColor.systemBackground) : .primary)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(isSelectedFunnel ? Color.primary : Color(UIColor.secondarySystemBackground))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
+        }
+        .padding(.bottom, 16)
     }
 }

@@ -3,22 +3,19 @@ import SwiftUI
 // MARK: - Describe Questions Table of Contents
 /// A modal sheet that presents the full table of contents for Describe-mode prompts.
 ///
-/// Users can select a specific question from the list, which immediately
-/// synchronizes with the `DescribePromptManager` to update the central UI block,
-/// acting as a quick-jump mechanism for the identification interview.
+/// Mutates `promptManager.activeQuestionIndex` directly via @Binding, which
+/// triggers a re-render of the parent `DescribeInputView` automatically.
 struct DescribeQuestionsSheet: View {
     @Environment(\.dismiss) private var dismiss
     var promptManager: DescribePromptManager
-    
+
     var body: some View {
         NavigationStack {
             List {
                 ForEach(Array(promptManager.activeQuestions.enumerated()), id: \.element.prompt) { idx, question in
                     Button(action: {
                         HapticManager.shared.triggerSelectionPulse()
-                        withAnimation(.easeInOut(duration: 0.4)) {
-                            promptManager.activeQuestionIndex = idx
-                        }
+                        promptManager.activeQuestionIndex = idx
                         dismiss()
                     }) {
                         HStack {

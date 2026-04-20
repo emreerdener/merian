@@ -17,7 +17,7 @@ struct CaptureWorkspaceView: View {
 
     // MARK: - View Model & State
     @State private var viewModel = CaptureWorkspaceViewModel()
-    
+
     @State private var coordinator = CaptureActionCoordinator()
     @State private var captureMode: CaptureMode
     @State private var observationContext = ObservationContext()

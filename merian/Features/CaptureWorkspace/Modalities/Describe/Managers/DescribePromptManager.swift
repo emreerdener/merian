@@ -1,39 +1,29 @@
+import Foundation
 import Observation
 
-/// A highly scoped state container responsible for tracking the currently
-/// active guided question across the Describe interface.
+/// State container for the Describe identification interview.
 ///
-/// Extracted as an `@Observable` class so the `DescribeInputView` and
-/// the `DescribeQuestionsSheet` can easily synchronize their states
-/// without complex, deeply-nested bindings.
-@Observable
-final class DescribePromptManager {
-    /// The index of the currently active guided question being displayed.
+/// Stored as @Observable so that DescribeInputView re-renders directly when any
+/// property changes — no parent re-render chain, no @Binding intermediary.
+/// CaptureWorkspaceView owns the single instance via @State and passes it by
+/// reference; mutations propagate instantly to every observing view.
+@Observable final class DescribePromptManager {
     var activeQuestionIndex: Int = 0
-    
-    /// Tracks which questions the user has already engaged with via Quick Tags.
-    /// Used locally to orchestrate one-time auto-progression to the next prompt.
     var interactedQuestionIndices: Set<Int> = []
-    
-    // MARK: - Funnel State
-    
     var activeSubjectId: String?
     var activeQuestions: [GuidedQuestion] = guidedQuestions
-    
-    var isFunnelActive: Bool { 
-        activeSubjectId != nil 
-    }
-    
+
+    var isFunnelActive: Bool { activeSubjectId != nil }
+
     func activateFunnel(for subjectId: String) {
         guard let funnel = subjectFunnels[subjectId] else { return }
         activeSubjectId = subjectId
-        // Append general weather/location telemetry and the final open-ended prompt
         let generalTelemetry = [guidedQuestions[1], guidedQuestions[2], guidedQuestions.last!]
         activeQuestions = [guidedQuestions[0]] + funnel + generalTelemetry
         interactedQuestionIndices = []
-        activeQuestionIndex = 1                            // advance past the subject question
+        activeQuestionIndex = 1
     }
-    
+
     func resetFunnel() {
         activeSubjectId = nil
         activeQuestions = guidedQuestions
