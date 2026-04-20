@@ -40,6 +40,8 @@ The workspace enforces this layout inside `merian/`:
 - **DO NOT** use scattered `@EnvironmentObject` implementations or rely heavily on SwiftUI environment scoping for heavy singletons.
 - **ALWAYS** use `AppDIContainer.shared` for injecting business logic. This protects the SwiftUI View lifecycle from massive memory redraw loops.
 - Pass required core managers (e.g., `let cameraManager: CameraManager`) into `Views` as `@Observable` bindings or `@ObservedObject` properties.
+- **iOS 17 `@Observable` Macro Dependency Loss**: Uncontrolled `@escaping` view layout wrappers (e.g. `GeometryReader`) can swallow Swift `@Observable` dependency tracking silently. If a nested `@Bindable` manager changes inside a structure but doesn't trigger UI updates, extract the dependency-reliant structure into a formal `private struct SomeSubcomponent: View`. This isolates the dependency boundary so that Swift invokes a clean dynamic observation connection specifically for that component.
+- **Computed `@Observable` Data Trees**: When relying on computed collections derived from `@Observable` managers (e.g., pulling a dynamic `tags` array depending on `activeQuestionIndex`), calculate the property natively **inside** the physical Component's scope that needs it, rather than computing it in the parent and injecting frozen arrays via `let` constants. This guarantees standard real-time UI synchronization between parent indices and structural filters.
 
 ## 4. Hardware and Performance Limits
 - iOS Background limitations severely constrain API requests. Any heavy file I/O operations must be decoupled via `Task.detached(priority: .background)`.

@@ -83,6 +83,7 @@ struct DescribeInputView: View {
                                 }
                             }
                         }
+                        .padding(.horizontal, 20)
 
                     // MARK: Question Header
                     DescribePromptHeader(
@@ -91,8 +92,6 @@ struct DescribeInputView: View {
                         advanceQuestion: advanceQuestion
                     )
                     } // Closes VStack(alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
 
                     // MARK: Text Area
                     ZStack(alignment: .topLeading) {
@@ -322,6 +321,7 @@ private struct DescribePromptHeader: View {
                 .fontWeight(.bold)
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, minHeight: 35, alignment: .topLeading)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 8)
         }
         
@@ -378,6 +378,7 @@ private struct DescribePromptHeader: View {
             }
             .animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
         }
+        .contentMargins(.horizontal, 20, for: .scrollContent)
         .padding(.bottom, 16)
     }
 }
