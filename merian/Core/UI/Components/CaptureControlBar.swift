@@ -133,6 +133,12 @@ struct CaptureControlBar: View {
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
             }
             .padding(.bottom, 140)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(key: CaptureBarHeightPreferenceKey.self, value: proxy.size.height)
+                }
+            }
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)

@@ -20,6 +20,7 @@ struct SettingsTabView: View {
     @State private var managePlanActive = false
     @State private var notificationSettingsActive = false
     @State private var cameraSettingsActive = false
+    @State private var audioRecordingSettingsActive = false
     @State private var captureModeOrderSettingsActive = false
     @State private var toastMessage: String?
 
@@ -32,6 +33,7 @@ struct SettingsTabView: View {
                     managePlanActive: $managePlanActive,
                     notificationSettingsActive: $notificationSettingsActive,
                     cameraSettingsActive: $cameraSettingsActive,
+                    audioRecordingSettingsActive: $audioRecordingSettingsActive,
                     captureModeOrderSettingsActive: $captureModeOrderSettingsActive
                 )
 
@@ -71,6 +73,9 @@ struct SettingsTabView: View {
             }
             .navigationDestination(isPresented: $cameraSettingsActive) {
                 CameraSettingsView()
+            }
+            .navigationDestination(isPresented: $audioRecordingSettingsActive) {
+                AudioRecordingSettingsView()
             }
             .navigationDestination(isPresented: $captureModeOrderSettingsActive) {
                 CaptureModeSettingsView()

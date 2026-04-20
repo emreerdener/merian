@@ -21,7 +21,6 @@ struct ViewfinderHints: View {
                     .background(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
                     .clipShape(Capsule())
-                    .padding(.bottom, 16)
                     .transition(.opacity)
             } else if vuiHintsAllowed && !vui.isOptimal {
                 Text(vui.currentHint.rawValue)
@@ -33,7 +32,6 @@ struct ViewfinderHints: View {
                     .background(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
                     .clipShape(Capsule())
-                    .padding(.bottom, 16)
                     .transition(.opacity)
             }
         }

@@ -7,6 +7,7 @@ struct MainOverlayView: View {
     var isRefining: Bool = false
 
     @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
+    @Environment(\.controlBarHeight) private var controlBarHeight
 
     // MARK: - Interface Layout
     var body: some View {
@@ -16,8 +17,8 @@ struct MainOverlayView: View {
             // MARK: - Dynamic Intelligence
             if activeScanImages.count < stagedImageCapacity {
                 ViewfinderHints(isRefining: isRefining)
-                    // Padding keeps hints above the fixed capture-bar + tab-bar overlay.
-                    .padding(.bottom, 250)
+                    // Padding keeps hints consistently above the dynamic capture-bar + tab-bar overlay.
+                    .padding(.bottom, controlBarHeight + 16)
                     .transition(.opacity)
             }
         }

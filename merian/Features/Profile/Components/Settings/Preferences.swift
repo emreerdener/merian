@@ -15,6 +15,7 @@ struct Preferences: View {
     @AppStorage("requiresScanConfirmation") private var requiresScanConfirmation: Bool = false
     @Binding var notificationSettingsActive: Bool
     @Binding var cameraSettingsActive: Bool
+    @Binding var audioRecordingSettingsActive: Bool
     @Binding var captureModeOrderSettingsActive: Bool
 
     var body: some View {
@@ -51,6 +52,16 @@ struct Preferences: View {
                     description: "Zoom controls, viewfinder hints, and capture preferences.",
                     icon: "camera.fill",
                     iconColor: .gray
+                )
+            }
+            
+            // MARK: - Audio Recording
+            Button { audioRecordingSettingsActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Audio Recording",
+                    description: "Microphone hints and tuning preferences.",
+                    icon: "mic.fill",
+                    iconColor: .purple
                 )
             }
             
@@ -346,6 +357,31 @@ struct CameraSettingsView: View {
                 CameraManager.shared.isLiveInferencePaused = !newValue
             }
         )
+    }
+}
+
+// MARK: - Audio Recording Settings
+
+struct AudioRecordingSettingsView: View {
+    @AppStorage("audioHintsEnabled") private var audioHintsEnabled: Bool = true
+
+    var body: some View {
+        List {
+            Section {
+                SettingsToggleRow(
+                    title: "Live audio hints",
+                    description: "Provides real-time mic placement suggestions while recording.",
+                    isOn: $audioHintsEnabled,
+                    icon: "waveform",
+                    iconColor: .purple
+                )
+            } header: {
+                Text("Feedback")
+            }
+        }
+        .environment(\.editMode, .constant(.active))
+        .navigationTitle("Audio")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

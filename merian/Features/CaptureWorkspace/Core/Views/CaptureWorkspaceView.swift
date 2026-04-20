@@ -26,6 +26,7 @@ struct CaptureWorkspaceView: View {
     /// The user-defined order for the capture tabs, physically defining the underlying ScrollView layout.
     @AppStorage(UserDefaultsKeys.captureModeOrder) private var captureModeOrderRaw: String = "visual,audio,describe"
     @State private var isKeyboardVisible: Bool = false
+    @State private var controlBarHeight: CGFloat = 250
     
     /// The safely deserialized sequence of capture modes governing the ScrollView array.
     private var orderedModes: [CaptureMode] { CaptureMode.userOrder(from: captureModeOrderRaw) }
@@ -244,6 +245,13 @@ struct CaptureWorkspaceView: View {
                 .allowsHitTesting(!isKeyboardVisible)
 
         } // ZStack
+        .environment(\.controlBarHeight, controlBarHeight)
+        .environment(\.composingCenter, viewModel.composingZoneVerticalCenter)
+        .onPreferenceChange(CaptureBarHeightPreferenceKey.self) { newHeight in
+            if newHeight > 0 { // Avoid zeroing out if the bar temporarily mounts/unmounts
+                controlBarHeight = newHeight
+            }
+        }
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
         .sheet(isPresented: $isStagedDescriptionSheetPresented) {
             StagedDescriptionSheet(
@@ -416,6 +424,36 @@ private struct ScrollBounceDisabler: UIViewRepresentable {
             }
         }
     }
+}
+
+// MARK: - Safe Area Synchronization
+struct CaptureBarHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 250
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+extension EnvironmentValues {
+    var controlBarHeight: CGFloat {
+        get { self[ControlBarHeightKey.self] }
+        set { self[ControlBarHeightKey.self] = newValue }
+    }
+}
+
+private struct ControlBarHeightKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 250
+}
+
+extension EnvironmentValues {
+    var composingCenter: CGFloat {
+        get { self[ComposingCenterKey.self] }
+        set { self[ComposingCenterKey.self] = newValue }
+    }
+}
+
+private struct ComposingCenterKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0.5
 }
 
 // End of CaptureWorkspaceView.swift

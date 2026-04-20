@@ -52,6 +52,7 @@ final class AudioCaptureManager {
     private var pendingFileName: String?
     private var recordingTask: Task<Void, Never>?
     private var audioPlayer: AVAudioPlayer?
+    private var snrHoldTicks: Int = 0
 
     // MARK: - Recording
 
@@ -107,7 +108,21 @@ final class AudioCaptureManager {
                         if manager.spectrogramColumns.count > AudioCaptureManager.columnCap {
                             manager.spectrogramColumns.removeFirst()
                         }
-                        manager.snrLevel = snr
+                        
+                        let severity: [SNRLevel: Int] = [.clear: 0, .caution: 1, .warning: 2, .clipping: 3]
+                        let currentSeverity = severity[manager.snrLevel] ?? 0
+                        let newSeverity = severity[snr] ?? 0
+                        
+                        if newSeverity > currentSeverity {
+                            manager.snrLevel = snr
+                            manager.snrHoldTicks = 24 // ~2 seconds at ~85ms per buffer slice
+                        } else if newSeverity == currentSeverity && newSeverity > 0 {
+                            manager.snrHoldTicks = 24
+                        } else if manager.snrHoldTicks > 0 {
+                            manager.snrHoldTicks -= 1
+                        } else {
+                            manager.snrLevel = snr
+                        }
                     }
                 }
             }
@@ -145,6 +160,8 @@ final class AudioCaptureManager {
         recordingTask = nil
         audioEngine.pause()
         isPaused = true
+        snrLevel = .clear
+        snrHoldTicks = 0
     }
 
     /// Resumes a paused recording, rebuilding the countdown from current progress.
@@ -196,6 +213,7 @@ final class AudioCaptureManager {
         recordingProgress = 0
         spectrogramColumns = []
         snrLevel = .clear
+        snrHoldTicks = 0
         audioFilePath = nil
         pendingPlaybackPath = nil
         pendingFileName = nil
@@ -256,6 +274,7 @@ final class AudioCaptureManager {
         pendingPlaybackPath = nil
         spectrogramColumns = []
         snrLevel = .clear
+        snrHoldTicks = 0
     }
 
     // MARK: - Private
