@@ -209,9 +209,9 @@ private struct CaptureButton: View {
 
     var body: some View {
         ZStack {
-            // Track ring — dims and thickens when recording to make room for the progress arc.
+            // Track ring — dims when recording to show the progress arc.
             Circle()
-                .stroke(outerRingColor.opacity(isRecording ? 0.25 : 1), lineWidth: isRecording ? 3 : 1)
+                .stroke(outerRingColor.opacity(isRecording ? 0.25 : 1), lineWidth: 1)
                 .frame(width: 80, height: 80)
                 .animation(.easeInOut(duration: 0.2), value: isRecording)
 
@@ -220,7 +220,7 @@ private struct CaptureButton: View {
             if !isAudioReview {
                 Circle()
                     .trim(from: 0, to: isRecording ? audioCaptureManager.recordingProgress : 0)
-                    .stroke(Color.red, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .stroke(Color.red, style: StrokeStyle(lineWidth: 1, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 80, height: 80)
                     .animation(.linear(duration: 0.12), value: audioCaptureManager.recordingProgress)
