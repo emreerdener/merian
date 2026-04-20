@@ -439,6 +439,9 @@ entrypoint = "./functions/merge-ghost-profile/index.ts"
 
 
 
+[functions.audio-spec]
+verify_jwt = false
+
 [functions.check-scan-status]
 verify_jwt = false
 
