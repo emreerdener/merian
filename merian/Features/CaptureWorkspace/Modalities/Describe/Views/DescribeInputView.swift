@@ -217,11 +217,16 @@ struct DescribeInputView: View {
                     updateSortedTags(for: promptManager.activeQuestionIndex)
                     return
                 }
-                guard !promptManager.isFunnelActive else { return }
+                guard !promptManager.isFunnelActive else {
+                    inferenceDebounceTask?.cancel()
+                    inferenceDebounceTask = nil
+                    return
+                }
                 inferenceDebounceTask?.cancel()
                 inferenceDebounceTask = Task {
                     try? await Task.sleep(for: .seconds(1.5))
                     guard !Task.isCancelled else { return }
+                    guard !promptManager.isFunnelActive else { return }
                     if let subjectId = SubjectKeywordMatcher.infer(from: newText) {
                         promptManager.activateFunnel(for: subjectId)
                         updateSortedTags(for: promptManager.activeQuestionIndex)
@@ -294,6 +299,7 @@ struct DescribeInputView: View {
         withAnimation(.easeInOut(duration: 0.4)) {
             promptManager.activeQuestionIndex = next
         }
+        updateSortedTags(for: next)
     }
 
     private func previousQuestion() {
@@ -303,6 +309,7 @@ struct DescribeInputView: View {
         withAnimation(.easeInOut(duration: 0.4)) {
             promptManager.activeQuestionIndex = prev
         }
+        updateSortedTags(for: prev)
     }
 
     /// Inserts the tag's optimized AI text fragment into freeText, maintaining
