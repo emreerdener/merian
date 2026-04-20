@@ -24,7 +24,6 @@ struct CaptureControlBar: View {
 
     private var isRefining: Bool { viewModel.baseRefinementRecord != nil }
     private var imageCount: Int { viewModel.stagedCapture.images.count }
-    private var isAudioReview: Bool { captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil }
     // Mirror the ActiveScanToolbar capacity logic — includes isRefining so reanalysis
     // flows get the same two-slot limit as multi-capture without enabling multi-capture.
     private var capacityLimit: Int { (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1 }
@@ -48,14 +47,26 @@ struct CaptureControlBar: View {
                     )
                     .opacity(captureMode == .visual ? (isAtCapacity ? 0.5 : 1) : 0)
                     .allowsHitTesting(captureMode == .visual && !isAtCapacity)
-                    
+
                     TableOfContentsButton(
                         onTap: { coordinator.tocRequestID = UUID() }
                     )
                     .opacity(captureMode == .describe ? 1 : 0)
                     .allowsHitTesting(captureMode == .describe)
+
+                    AudioDeleteButton(onTap: {
+                        if audioCaptureManager.isRecording {
+                            audioCaptureManager.cancelRecording()
+                        } else {
+                            audioCaptureManager.discardPending()
+                        }
+                    })
+                    .opacity(captureMode == .audio && (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil) ? 1 : 0)
+                    .allowsHitTesting(captureMode == .audio && (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil))
                 }
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
+                .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.isRecording)
+                .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.pendingPlaybackPath == nil)
 
                 Spacer()
 
@@ -71,7 +82,6 @@ struct CaptureControlBar: View {
                 // Describe also disabled while a refinement image is still loading.
                 let isSubmitDisabled: Bool = isAtCapacity
                     || (captureMode == .describe && viewModel.isStagingRefinement)
-                    || (captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil)
 
                 CaptureButton(
                     captureMode: captureMode,
@@ -81,7 +91,9 @@ struct CaptureControlBar: View {
                         case .visual:
                             viewModel.executeCapture()
                         case .audio:
-                            if audioCaptureManager.isRecording {
+                            if audioCaptureManager.pendingPlaybackPath != nil {
+                                audioCaptureManager.confirmAndSubmit()
+                            } else if audioCaptureManager.isRecording {
                                 if audioCaptureManager.isPaused {
                                     audioCaptureManager.resumeRecording()
                                 } else {
@@ -129,8 +141,18 @@ struct CaptureControlBar: View {
                     )
                     .opacity(captureMode == .describe ? 1 : 0)
                     .allowsHitTesting(captureMode == .describe)
+
+                    AudioDoneButton(onTap: { audioCaptureManager.stopRecordingEarly() })
+                        .opacity(captureMode == .audio && audioCaptureManager.isRecording ? 1 : 0)
+                        .allowsHitTesting(captureMode == .audio && audioCaptureManager.isRecording)
+
+                    AudioReviewPlayButton()
+                        .opacity(captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil ? 1 : 0)
+                        .allowsHitTesting(captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil)
                 }
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
+                .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.isRecording)
+                .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.pendingPlaybackPath == nil)
             }
             .padding(.bottom, 140)
             .background {
@@ -142,9 +164,8 @@ struct CaptureControlBar: View {
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
-        .opacity((isKeyboardVisible || isAudioReview) ? 0 : 1)
-        .allowsHitTesting(!isKeyboardVisible && !isAudioReview)
-        .animation(.easeInOut(duration: 0.2), value: isAudioReview)
+        .opacity(isKeyboardVisible ? 0 : 1)
+        .allowsHitTesting(!isKeyboardVisible)
     }
 }
 
@@ -171,6 +192,20 @@ private struct CaptureButton: View {
 
     private var isRecording: Bool { captureMode == .audio && audioCaptureManager.isRecording }
     private var isPaused: Bool { captureMode == .audio && audioCaptureManager.isPaused }
+    private var isAudioReview: Bool { captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil }
+
+    private var innerFill: Color {
+        switch captureMode {
+        case .visual:   return .white
+        case .describe: return Color.primary
+        case .audio:
+            // Red = "recording action available" (idle or paused → tap to record/resume).
+            // Neutral = "currently recording, tap to pause".
+            if isAudioReview { return Color.primary }
+            if isRecording && !isPaused { return Color.primary }
+            return Color.red
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -181,29 +216,33 @@ private struct CaptureButton: View {
                 .animation(.easeInOut(duration: 0.2), value: isRecording)
 
             // Progress arc — sweeps red clockwise for the duration of the recording.
-            Circle()
-                .trim(from: 0, to: isRecording ? audioCaptureManager.recordingProgress : 0)
-                .stroke(Color.red, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .frame(width: 80, height: 80)
-                .animation(.linear(duration: 0.12), value: audioCaptureManager.recordingProgress)
+            // Hidden during review so the ring resets to a clean submit-button appearance.
+            if !isAudioReview {
+                Circle()
+                    .trim(from: 0, to: isRecording ? audioCaptureManager.recordingProgress : 0)
+                    .stroke(Color.red, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 80, height: 80)
+                    .animation(.linear(duration: 0.12), value: audioCaptureManager.recordingProgress)
+            }
 
             ZStack {
                 Circle()
-                    .fill(captureMode == .audio ? Color.red : (captureMode == .describe ? Color.primary : Color.white))
+                    .fill(innerFill)
                     .frame(width: 72, height: 72)
-                    .animation(.easeInOut(duration: 0.25), value: captureMode)
+                    .animation(.easeInOut(duration: 0.25), value: isAudioReview)
+                    .animation(.easeInOut(duration: 0.2), value: isRecording && !isPaused)
 
-                if captureMode == .describe {
+                if captureMode == .describe || isAudioReview {
                     Image(systemName: willStageOnly ? "plus" : "arrow.up")
                         .font(.system(size: 32))
                         .foregroundStyle(Color(UIColor.systemBackground))
                         .transition(.scale.combined(with: .opacity))
-                } else if isRecording {
-                    Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                } else if isRecording && !isPaused {
+                    Image(systemName: "pause.fill")
                         .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(.white)
-                        .contentTransition(.symbolEffect(.replace))
+                        .foregroundStyle(Color(UIColor.systemBackground))
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
         }
@@ -281,5 +320,79 @@ private struct TableOfContentsButton: View {
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)
+    }
+}
+
+// MARK: - Audio Delete Button
+
+/// Discards the current recording and returns to idle state.
+private struct AudioDeleteButton: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.triggerMediumPulse()
+            onTap()
+        }) {
+            Image(systemName: "trash")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: 50, height: 50)
+                .background(.ultraThinMaterial, in: Circle())
+                .environment(\.colorScheme, .dark)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 32)
+    }
+}
+
+// MARK: - Audio Done Button
+
+/// Accepts the recording early and routes to review state.
+private struct AudioDoneButton: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.triggerFocusSnap()
+            onTap()
+        }) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 50, height: 50)
+                .background(.ultraThinMaterial, in: Circle())
+                .environment(\.colorScheme, .dark)
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 32)
+    }
+}
+
+// MARK: - Audio Review Play Button
+
+/// Plays or pauses the pending recording during the review state.
+private struct AudioReviewPlayButton: View {
+    @Environment(AudioCaptureManager.self) private var audioCaptureManager
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.triggerMediumPulse()
+            if audioCaptureManager.isPlaying {
+                audioCaptureManager.stopPlayback()
+            } else {
+                audioCaptureManager.playPendingRecording()
+            }
+        }) {
+            Image(systemName: audioCaptureManager.isPlaying ? "stop.fill" : "play.fill")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: 50, height: 50)
+                .background(.ultraThinMaterial, in: Circle())
+                .environment(\.colorScheme, .dark)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 32)
     }
 }

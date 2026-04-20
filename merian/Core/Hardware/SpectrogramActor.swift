@@ -116,7 +116,7 @@ actor SpectrogramActor {
         }
     }
 
-    /// Evaluates the SNR level for a processed column, updating the noise floor.
+    /// Evaluates the ambient noise level, identifying problematic environments without penalizing speech pauses.
     func snrLevel(from column: SpectrogramColumn) -> SNRLevel {
         if column.peak > 0.95 { return .clipping }
 
@@ -125,14 +125,20 @@ actor SpectrogramActor {
             noiseFloorHistory.removeFirst()
         }
 
+        // The "floor" is the minimum RMS over the trailing window — effectively
+        // stripping out transient speech/birds to find the raw room/environment noise.
         let floor = noiseFloorHistory.min() ?? column.rms
-        guard floor > 1e-8, column.rms > 1e-8 else { return .clear }
 
-        let snrDb = 20 * log10f(column.rms / floor)
-        switch snrDb {
-        case ..<10:   return .warning
-        case 10..<20: return .caution
-        default:      return .clear
+        // Absolute noise floor thresholds
+        // 0.08  (~ -22 dBFS) -> Heavy wind, traffic, severe interference
+        // 0.015 (~ -36 dBFS) -> Noticeable hum, fans, distant highway
+        if floor > 0.08 {
+            return .warning
+        } else if floor > 0.015 {
+            return .caution
+        } else {
+            // Room is quiet enough (< -36 dBFS)
+            return .clear
         }
     }
 

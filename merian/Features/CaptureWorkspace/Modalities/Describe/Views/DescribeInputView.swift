@@ -94,7 +94,7 @@ struct DescribeInputView: View {
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundStyle(.primary)
-                            .id("prompt_\(promptManager.activeQuestionIndex)")
+                            .id("prompt_\(promptManager.activeQuestionIndex)_\(promptManager.activeQuestions[promptManager.activeQuestionIndex].prompt.hashValue)")
                             .transition(.opacity)
                             .animation(.easeInOut(duration: 0.35), value: promptManager.activeQuestionIndex)
                             .frame(maxWidth: .infinity, minHeight: 35, alignment: .topLeading)
@@ -243,6 +243,12 @@ struct DescribeInputView: View {
                     stopDictation()
                 }
             }
+            .onChange(of: speechManager.isRecording) { _, isRecording in
+                if !isRecording && coordinator.isDictationRequested {
+                    // Sync the button state if the SpeechManager halts intrinsically (e.g., error/timeout)
+                    coordinator.isDictationRequested = false
+                }
+            }
             .onChange(of: coordinator.tocRequestID) { _, id in
                 if id != nil {
                     isDescribeQuestionsSheetPresented = true
@@ -267,8 +273,6 @@ struct DescribeInputView: View {
                     guard !transcribed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                     context.freeText = base.isEmpty ? transcribed : base + " " + transcribed
                 }
-                // If dictation naturally ends (timeout/done), reset coordinator
-                coordinator.isDictationRequested = false
             } catch {
                 coordinator.isDictationRequested = false
             }

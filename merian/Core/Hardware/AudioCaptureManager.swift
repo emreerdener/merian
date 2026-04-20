@@ -38,12 +38,13 @@ final class AudioCaptureManager {
     private(set) var pendingPlaybackPath: String?
     private(set) var isPlaying: Bool = false
     private(set) var isPaused: Bool = false
+    private(set) var playbackProgress: Double = 0
 
     // MARK: Constants
 
-    static let maxDuration: TimeInterval = 12
-    // Rolling display buffer: ~85 ms / column × 120 ≈ 10 s of visible history
-    static let columnCap = 120
+    static let maxDuration: TimeInterval = 15
+    // Full-clip buffer: ~85 ms / column × 180 ≈ 15 s of visible history
+    static let columnCap = 180
 
     // MARK: Private
 
@@ -52,12 +53,16 @@ final class AudioCaptureManager {
     private var pendingFileName: String?
     private var recordingTask: Task<Void, Never>?
     private var audioPlayer: AVAudioPlayer?
+    private var playbackProgressTask: Task<Void, Never>?
     private var snrHoldTicks: Int = 0
+    private var isStartingRecording: Bool = false
 
     // MARK: - Recording
 
     func startRecording() async throws {
-        guard !isRecording else { return }
+        guard !isRecording, !isStartingRecording else { return }
+        isStartingRecording = true
+        defer { isStartingRecording = false }
         // Clear any leftover review state before a fresh recording session.
         discardPending()
 
@@ -92,6 +97,9 @@ final class AudioCaptureManager {
             // AVAudioFile is captured by the tap closure; closes when the tap is removed.
             let file = try AVAudioFile(forWriting: fileURL, settings: fmt.settings)
 
+            // Defensive removal: prevents the crash if a tap is somehow still installed
+            // (e.g. rapid start→stop→start before the async engine setup fully completes).
+            inputNode.removeTap(onBus: 0)
             inputNode.installTap(onBus: 0, bufferSize: 4096, format: fmt) { buffer, _ in
                 // Sequential write from the audio thread — no concurrency hazard.
                 try? file.write(from: buffer)
@@ -142,15 +150,23 @@ final class AudioCaptureManager {
         isRecording = true
         recordingProgress = 0
 
-        // 100 ticks × 0.12 s = 12 s countdown
+        // 100 ticks × 0.15 s = 15 s countdown
         recordingTask = Task { [weak self] in
             for i in 1...100 {
-                try? await Task.sleep(nanoseconds: 120_000_000)
+                try? await Task.sleep(nanoseconds: 150_000_000)
                 if Task.isCancelled { return }
                 await MainActor.run { self?.recordingProgress = Double(i) / 100.0 }
             }
             await MainActor.run { self?.finishRecording() }
         }
+    }
+
+    /// Stops the recording early and routes directly to review state, same as timer completion.
+    func stopRecordingEarly() {
+        guard isRecording else { return }
+        recordingTask?.cancel()
+        recordingTask = nil
+        finishRecording()
     }
 
     /// Pauses an active recording without discarding audio. Engine tap stays installed.
@@ -182,7 +198,7 @@ final class AudioCaptureManager {
             guard startTick < 100 else { finishRecording(); return }
             recordingTask = Task { [weak self] in
                 for i in (startTick + 1)...100 {
-                    try? await Task.sleep(nanoseconds: 120_000_000)
+                    try? await Task.sleep(nanoseconds: 150_000_000)
                     if Task.isCancelled { return }
                     await MainActor.run { self?.recordingProgress = Double(i) / 100.0 }
                 }
@@ -231,30 +247,63 @@ final class AudioCaptureManager {
         guard let player = try? AVAudioPlayer(contentsOf: url) else { return }
         audioPlayer = player
         isPlaying = true
+        // Preserve scrubbed position so playback resumes from where the user left the playhead.
+        let resumeProgress = playbackProgress
 
         let capturedPlayer = player
+
+        // Poll currentTime at ~30 fps to drive the scrub line.
+        playbackProgressTask?.cancel()
+        playbackProgressTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 33_000_000)
+                guard let self, self.audioPlayer === capturedPlayer else { return }
+                let p = capturedPlayer.duration > 0 ? capturedPlayer.currentTime / capturedPlayer.duration : 0
+                self.playbackProgress = min(1, max(0, p))
+            }
+        }
+
         Task.detached { [weak self] in
             let session = AVAudioSession.sharedInstance()
             try? session.setCategory(.playback, mode: .default)
             try? session.setActive(true)
-            await MainActor.run { _ = capturedPlayer.play() }
+            await MainActor.run {
+                if resumeProgress > 0 {
+                    capturedPlayer.currentTime = capturedPlayer.duration * resumeProgress
+                }
+                _ = capturedPlayer.play()
+            }
 
             let duration = capturedPlayer.duration
-            try? await Task.sleep(nanoseconds: UInt64((duration + 0.3) * 1_000_000_000))
+            let remaining = duration * (1 - resumeProgress)
+            try? await Task.sleep(nanoseconds: UInt64((remaining + 0.3) * 1_000_000_000))
             // Reference equality guards against a stop → re-play race:
             // if the user stopped and started a new playback, audioPlayer is a different instance.
             await MainActor.run { [weak self] in
                 guard let self, self.audioPlayer === capturedPlayer else { return }
                 self.isPlaying = false
                 self.audioPlayer = nil
+                self.playbackProgress = 0
             }
         }
     }
 
     func stopPlayback() {
+        playbackProgressTask?.cancel()
+        playbackProgressTask = nil
         audioPlayer?.stop()
         audioPlayer = nil
         isPlaying = false
+        playbackProgress = 0
+    }
+
+    /// Seeks playback to a fractional position (0…1). Works while playing or paused.
+    func seekPlayback(to progress: Double) {
+        let clamped = max(0, min(1, progress))
+        if let player = audioPlayer {
+            player.currentTime = player.duration * clamped
+        }
+        playbackProgress = clamped
     }
 
     /// Moves from review → submission by setting `audioFilePath`.
@@ -268,10 +317,11 @@ final class AudioCaptureManager {
     /// Discards the pending recording and returns to idle state without submitting.
     func discardPending() {
         stopPlayback()
-        guard let name = pendingPlaybackPath else { return }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-        try? FileManager.default.removeItem(at: url)
-        pendingPlaybackPath = nil
+        if let name = pendingPlaybackPath {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: url)
+            pendingPlaybackPath = nil
+        }
         spectrogramColumns = []
         snrLevel = .clear
         snrHoldTicks = 0

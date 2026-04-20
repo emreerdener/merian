@@ -283,7 +283,9 @@ struct CaptureWorkspaceView: View {
         ))
         .onAppear {
             viewModel.updateNotificationSuppression()
-            cameraManager.startSession()
+            if captureMode == .visual {
+                cameraManager.startSession()
+            }
             photoLibraryManager.startObservingAndFetch()
             AppDIContainer.shared.environmentContextManager.validatePermissions()
             AppDIContainer.shared.environmentContextManager.startLiveLocationTracking()
@@ -317,23 +319,20 @@ struct CaptureWorkspaceView: View {
                 if captureMode == .visual && viewModel.activeSheet == nil {
                     cameraManager.startSession()
                 }
-                if captureMode == .audio && audioCaptureManager.isPaused {
-                    audioCaptureManager.resumeRecording()
-                }
+                // Intentionally do NOT auto-resume audio — user must tap to resume.
             }
             if newPhase == .inactive && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
                 audioCaptureManager.pauseRecording()
             }
-            if newPhase == .background &&
-               (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil) {
-                audioCaptureManager.cancelRecording()
+            if newPhase == .background && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
+                audioCaptureManager.pauseRecording()
             }
         }
         .onChange(of: captureMode) { _, newMode in
             HapticManager.shared.triggerSheetSpring()
 
-            if newMode != .audio && (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil) {
-                audioCaptureManager.cancelRecording()
+            if newMode != .audio && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
+                audioCaptureManager.pauseRecording()
             }
 
             if newMode == .audio || newMode == .describe {

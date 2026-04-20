@@ -11,8 +11,11 @@ struct SpectrogramView: View {
 
     var body: some View {
         Canvas { context, size in
+            // Dark canvas surface — spectrograms always render on a dark field.
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(red: 0.06, green: 0.06, blue: 0.1)))
+
             guard !columns.isEmpty else { return }
-            let colWidth  = size.width  / CGFloat(columnCap)
+            let colWidth  = size.width  / CGFloat(columns.count)
             let binHeight = size.height / CGFloat(SpectrogramActor.outputBinCount)
 
             for (ci, column) in columns.enumerated() {

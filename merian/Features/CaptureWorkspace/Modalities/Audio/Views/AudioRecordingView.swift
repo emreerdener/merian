@@ -17,30 +17,33 @@ struct AudioRecordingView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color.black.ignoresSafeArea()
+                Color(UIColor.systemBackground).ignoresSafeArea()
 
-                if audioCaptureManager.isRecording {
-                    recordingContent
+                let showSpectrogram = audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil
+
+                if showSpectrogram {
+                    let centerY = proxy.size.height * composingCenter
+                    let halfHeight = min(centerY - 100, proxy.size.height - controlBarHeight - centerY - 88)
+                    let spectrogramHeight = max(180, halfHeight * 2)
+                    spectrogramContent(height: spectrogramHeight)
+                        .frame(width: proxy.size.width)
                         .position(x: proxy.size.width / 2, y: proxy.size.height * composingCenter)
-                } else if audioCaptureManager.pendingPlaybackPath != nil {
-                    reviewContent
                 } else {
                     idleContent
                         .position(x: proxy.size.width / 2, y: proxy.size.height * composingCenter)
                 }
 
-            VStack {
-                Spacer()
-                
-                if audioCaptureManager.pendingPlaybackPath == nil {
-                    SNRGaugeView(snrLevel: audioCaptureManager.snrLevel)
-                        .padding(.bottom, controlBarHeight + 16)
+                VStack {
+                    Spacer()
+                    if !showSpectrogram || audioCaptureManager.pendingPlaybackPath == nil {
+                        SNRGaugeView(snrLevel: audioCaptureManager.snrLevel)
+                            .padding(.bottom, controlBarHeight + 16)
+                            .opacity(audioCaptureManager.isRecording ? 1 : 0)
+                    }
                 }
-            } // End VStack
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } // End ZStack
-        } // End GeometryReader
-        .environment(\.colorScheme, .dark)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
         .animation(.easeInOut(duration: 0.25), value: audioCaptureManager.isRecording)
         .animation(.easeInOut(duration: 0.25), value: audioCaptureManager.pendingPlaybackPath == nil)
     }
@@ -63,74 +66,47 @@ struct AudioRecordingView: View {
         }
     }
 
-    // MARK: - Recording
+    // MARK: - Spectrogram (recording + review)
 
-    private var recordingContent: some View {
-        VStack(spacing: 0) {
-            SpectrogramView(
-                columns: audioCaptureManager.spectrogramColumns,
-                columnCap: AudioCaptureManager.columnCap
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: 240)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal, 20)
-        }
-    }
+    @State private var isScrubbing = false
 
-    // MARK: - Review
+    private func spectrogramContent(height: CGFloat) -> some View {
+        let isReview = audioCaptureManager.pendingPlaybackPath != nil
+        return SpectrogramView(
+            columns: audioCaptureManager.spectrogramColumns,
+            columnCap: AudioCaptureManager.columnCap
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.15), lineWidth: 1))
+        .overlay {
+            if isReview {
+                GeometryReader { geo in
+                    // Scrub gesture layer
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    isScrubbing = true
+                                    audioCaptureManager.seekPlayback(to: Double(value.location.x / geo.size.width))
+                                }
+                                .onEnded { _ in isScrubbing = false }
+                        )
 
-    private var reviewContent: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            // Static spectrogram from the completed recording session
-            SpectrogramView(
-                columns: audioCaptureManager.spectrogramColumns,
-                columnCap: AudioCaptureManager.columnCap
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: 240)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal, 20)
-
-            Spacer()
-
-            Button {
-                if audioCaptureManager.isPlaying {
-                    audioCaptureManager.stopPlayback()
-                } else {
-                    audioCaptureManager.playPendingRecording()
+                    // Playhead — visible while playing/scrubbing, or when parked away from start
+                    if audioCaptureManager.isPlaying || isScrubbing || audioCaptureManager.playbackProgress > 0 {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.9))
+                            .frame(width: 2)
+                            .offset(x: max(0, min(geo.size.width - 2, geo.size.width * audioCaptureManager.playbackProgress)))
+                            .allowsHitTesting(false)
+                            .animation(isScrubbing ? nil : .linear(duration: 0.033), value: audioCaptureManager.playbackProgress)
+                    }
                 }
-            } label: {
-                Image(systemName: audioCaptureManager.isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 52))
-                    .foregroundStyle(.white)
-                    .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(.plain)
-            .padding(.bottom, 28)
-
-            HStack(spacing: 16) {
-                Button("Discard") {
-                    audioCaptureManager.discardPending()
-                }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.white.opacity(0.8))
-                .padding(.horizontal, 28)
-                .padding(.vertical, 14)
-                .background(.white.opacity(0.12), in: Capsule())
-
-                Button("Identify") {
-                    audioCaptureManager.confirmAndSubmit()
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.black)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 14)
-                .background(.white, in: Capsule())
-            }
-            .padding(.bottom, 200)
         }
+        .padding(.horizontal, 20)
     }
 }
