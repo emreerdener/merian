@@ -28,13 +28,12 @@ extension CaptureWorkspaceViewModel {
     func submitStagedCapture(modelContext: ModelContext) {
         guard !stagedCapture.images.isEmpty else {
             // No images — description-only path
-            if let audioFilePath = stagedCapture.audioFilePath {
-                submitAudio(audioFileName: audioFilePath, observationContext: stagedCapture.observationContext, modelContext: modelContext)
+            if let firstAudio = stagedCapture.audios.first {
+                submitAudio(audioFileName: firstAudio.filePath, observationContext: stagedCapture.observationContexts.first?.context, modelContext: modelContext)
                 stagedCapture.clearAll()
-            } else if let context = stagedCapture.observationContext, !context.isEmpty {
+            } else if let context = stagedCapture.observationContexts.first?.context, !context.isEmpty {
                 submitDescribeSolo(observationContext: context, modelContext: modelContext)
-                // Note: submitDescribeSolo handles its own clearAll currently where called natively, but 
-                // for consistency we'll clear it after. Actually, let's just clearAll in universal spot.
+                stagedCapture.clearAll()
             }
             return
         }
@@ -52,7 +51,7 @@ extension CaptureWorkspaceViewModel {
 
         // 3. Capture the context needed for inference before clearing the staging buffers.
         let capturedImages          = stagedCapture.images
-        let capturedObsContext      = stagedCapture.observationContext
+        let capturedObsContext      = stagedCapture.observationContexts.first?.context
         let capturedPreFetchTask    = preFetchTask
         let targetEradicationRecord = baseRefinementRecord
 

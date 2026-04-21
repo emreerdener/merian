@@ -255,19 +255,23 @@ struct CaptureWorkspaceView: View {
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
         .sheet(isPresented: $isStagedDescriptionSheetPresented) {
             StagedDescriptionSheet(
-                initialText: viewModel.stagedCapture.observationContext?.freeText ?? "",
+                initialText: viewModel.stagedCapture.observationContexts.first?.context.freeText ?? "",
                 onSave: { newText in
                     let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
                     if trimmed.isEmpty {
-                        viewModel.stagedCapture.observationContext = nil
+                        viewModel.stagedCapture.observationContexts.removeAll()
                     } else {
-                        var updatedContext = viewModel.stagedCapture.observationContext ?? ObservationContext()
+                        var updatedContext = viewModel.stagedCapture.observationContexts.first?.context ?? ObservationContext()
                         updatedContext.freeText = trimmed
-                        viewModel.stagedCapture.observationContext = updatedContext
+                        if viewModel.stagedCapture.observationContexts.isEmpty {
+                            viewModel.stagedCapture.observationContexts.append(StagedObservationContext(context: updatedContext))
+                        } else {
+                            viewModel.stagedCapture.observationContexts[0] = StagedObservationContext(context: updatedContext, addedAt: viewModel.stagedCapture.observationContexts[0].addedAt)
+                        }
                     }
                 },
                 onRemove: {
-                    viewModel.stagedCapture.observationContext = nil
+                    viewModel.stagedCapture.observationContexts.removeAll()
                 }
             )
         }
@@ -309,7 +313,7 @@ struct CaptureWorkspaceView: View {
 
             // Otherwise, auto-submit when the user hits their configured capacity limit
             let limit = (UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") || viewModel.baseRefinementRecord != nil) ? 2 : 1
-            let totalItems = count + (viewModel.stagedCapture.observationContext != nil ? 1 : 0)
+            let totalItems = count + viewModel.stagedCapture.observationContexts.count + viewModel.stagedCapture.audios.count
             guard totalItems >= limit else { return }
 
             viewModel.submitStagedCapture(modelContext: modelContext)
@@ -391,11 +395,10 @@ struct CaptureWorkspaceView: View {
             let willStageOnly = !viewModel.stagedCapture.images.isEmpty
                 || isMultiCaptureEnabled
                 || UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
-                || viewModel.stagedCapture.observationContext != nil
+                || !viewModel.stagedCapture.observationContexts.isEmpty
                 
             if willStageOnly {
-                viewModel.stagedCapture.audioFilePath = fileName
-                viewModel.stagedCapture.audioAddedAt = Date()
+                viewModel.stagedCapture.audios.append(StagedAudio(filePath: fileName))
             } else {
                 viewModel.submitAudio(audioFileName: fileName, modelContext: modelContext)
             }

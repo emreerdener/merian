@@ -24,10 +24,10 @@ struct QueuedScanContext: Identifiable, Equatable {
     let gpsLongitude: Double?
     
     /// A JSON-encoded verbatim snapshot of the `ObservationContext` associated with this queued scan.
-    let observationContextJSON: String?
+    let observationContextsJSON: [String]?
 
     /// Local file path to the audio recording associated with this scan.
-    let audioFilePath: String?
+    let audioFilePaths: [String]?
 
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.
     /// Must be called while the object is still alive (before any `context.delete()`).
@@ -41,7 +41,7 @@ struct QueuedScanContext: Identifiable, Equatable {
         self.gpsElevation = scan.gpsElevation
         self.gpsLatitude = scan.gpsLatitude
         self.gpsLongitude = scan.gpsLongitude
-        self.observationContextJSON = scan.observationContextJSON
-        self.audioFilePath = scan.audioFilePath
+        self.observationContextsJSON = scan.observationContextsJSON
+        self.audioFilePaths = scan.audioFilePaths
     }
 }

@@ -35,7 +35,7 @@ struct CaptureControlBar: View {
             // MARK: Capacity Evaluation
             // capacityLimit and imageCount come from struct-level computed properties
             // so they stay consistent between body and the photosPicker modifier below.
-            let totalStagedItems = imageCount + (viewModel.stagedCapture.observationContext != nil ? 1 : 0)
+            let totalStagedItems = imageCount + viewModel.stagedCapture.observationContexts.count + viewModel.stagedCapture.audios.count
             let isAtCapacity = totalStagedItems >= capacityLimit
 
             HStack(alignment: .bottom) {

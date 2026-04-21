@@ -14,8 +14,8 @@ private extension QueuedScanContext {
         gpsElevation: Double?,
         gpsLatitude: Double?,
         gpsLongitude: Double?,
-        observationContextJSON: String? = nil,
-        audioFilePath: String? = nil
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil
     ) {
         self.id = id
         self.localImagePaths = localImagePaths
@@ -26,8 +26,8 @@ private extension QueuedScanContext {
         self.gpsElevation = gpsElevation
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
-        self.observationContextJSON = observationContextJSON
-        self.audioFilePath = audioFilePath
+        self.observationContextsJSON = observationContextsJSON
+        self.audioFilePaths = audioFilePaths
     }
 
     static var preview: QueuedScanContext {
@@ -41,8 +41,8 @@ private extension QueuedScanContext {
             gpsElevation: 142,
             gpsLatitude: 37.8970,
             gpsLongitude: -122.5810,
-            observationContextJSON: nil,
-            audioFilePath: nil
+            observationContextsJSON: nil,
+            audioFilePaths: nil
         )
     }
 }

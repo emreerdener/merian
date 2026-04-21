@@ -63,8 +63,8 @@ extension OfflineQueueManager {
             locationName: telemetry.locationName,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
             scanState: .staged,
-            audioFilePath: audioFileName,
-            observationContextJSON: contextJSON
+            observationContextsJSON: contextJSON.map { [$0] },
+            audioFilePaths: [audioFileName]
         )
 
         guard let modelContext else {

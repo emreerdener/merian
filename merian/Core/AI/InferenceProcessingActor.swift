@@ -50,8 +50,8 @@ actor InferenceProcessingActor {
         compressedDatas: [Data],
         displayDatas: [Data] = [],
         skipImageRequirement: Bool = false,
-        observationContextJSON: String? = nil,
-        audioFilePath: String? = nil // Added for V38 schema
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil // Added for V38 schema
     ) async throws -> ParseAndSaveResult {
         let parsedWrapper: EdgeResponseWrapper
         do {
@@ -71,7 +71,7 @@ actor InferenceProcessingActor {
             gpsLongitude: telemetry.gpsLongitude
         )
         mappedData.zoomFactor = telemetry.zoomFactor.map { Double($0) }
-        mappedData.audioFilePath = audioFilePath
+        mappedData.audioFilePaths = audioFilePaths
 
         try Task.checkCancellation()
 
@@ -89,15 +89,15 @@ actor InferenceProcessingActor {
                 newDiscovery = await dbActor.saveLiveScanRecord(
                     mappedData: mappedData,
                     localImagePaths: savedPaths,
-                    observationContextJSON: observationContextJSON,
-                    audioFilePath: audioFilePath
+                    observationContextsJSON: observationContextsJSON,
+                    audioFilePaths: audioFilePaths
                 )
             } else {
                 // Describe path: no image data — save record with nil localImagePath.
                 newDiscovery = await dbActor.saveDescribeRecord(
                     mappedData: mappedData,
-                    observationContextJSON: observationContextJSON,
-                    audioFilePath: audioFilePath
+                    observationContextsJSON: observationContextsJSON,
+                    audioFilePaths: audioFilePaths
                 )
             }
         }

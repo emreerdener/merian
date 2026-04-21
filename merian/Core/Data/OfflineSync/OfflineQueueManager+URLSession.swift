@@ -185,8 +185,8 @@ extension OfflineQueueManager {
             container: extracted.container,
             originalTimestamp: extracted.originalTimestamp,
             description: extracted.description,
-            observationContextJSON: extracted.observationContextJSON,
-            audioFilePath: nil
+            observationContextsJSON: extracted.observationContextsJSON,
+            audioFilePaths: nil
         )
         await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
@@ -294,7 +294,7 @@ extension OfflineQueueManager {
         // The JSON was encoded at enqueue time to survive the actor boundary; decode it
         // here (main actor, synchronous) and render to plain text before passing to the
         // background inference path — keeping the dispatch site free of JSON decoding.
-        let description: String? = scan.observationContextJSON.flatMap { json in
+        let description: String? = scan.observationContextsJSON?.first.flatMap { json in
             guard let data = json.data(using: .utf8),
                   let context = try? JSONDecoder().decode(ObservationContext.self, from: data),
                   !context.isEmpty else { return nil }
@@ -308,8 +308,8 @@ extension OfflineQueueManager {
             container: container,
             originalTimestamp: scan.timestamp,
             description: description,
-            observationContextJSON: scan.observationContextJSON,
-            audioFilePath: scan.audioFilePath
+            observationContextsJSON: scan.observationContextsJSON,
+            audioFilePaths: scan.audioFilePaths
         )
     }
 
@@ -369,35 +369,22 @@ extension OfflineQueueManager {
         // via uploadRetryCount — the same contract as network-level failures.
         let request: URLRequest
         do {
-            // Audio scans route to /audio-spec via inline base64 WAV.
-            // Describe-only scans (empty localImagePaths, non-nil context) route to /identify-describe.
-            // Image scans (with or without a description) route to /identify.
-            if let audioPath = extracted.audioFilePath {
+            // All scans natively route through the unified /identify-multimodal endpoint, securely supporting arrays over legacy properties
+            let willRouteAudioBody = extracted.audioFilePaths?.isEmpty == false
+            if willRouteAudioBody {
                 // PENDING: migrate to two-phase R2 upload so the WAV body is provided
                 // via uploadTask(with:fromFile:) rather than httpBody on a background
                 // download task. See docs/system-architecture/07-background-inference-body-safe.md
                 MerianLog.data.warning("⚠️ [PENDING] Audio inference dispatched with httpBody on background session — migrate to R2 two-phase path (see 07-background-inference-body-safe.md)")
-                request = try await MerianNetworkClient.shared.buildAudioRequest(
-                    audioFilePath: audioPath,
-                    telemetry: finalTelemetry,
-                    clientScanId: scanId
-                )
-            } else if extracted.localImagePaths.isEmpty, let ctxJSON = extracted.observationContextJSON {
-                request = try await MerianNetworkClient.shared.buildDescribeRequest(
-                    description: extracted.description ?? "",
-                    observationContextJSON: ctxJSON,
-                    telemetry: finalTelemetry,
-                    clientScanId: scanId
-                )
-            } else {
-                request = try await MerianNetworkClient.shared.buildIdentifyRequest(
-                    r2ObjectKeys: extracted.r2Keys,
-                    telemetry: finalTelemetry,
-                    clientScanId: scanId,
-                    description: extracted.description,
-                    observationContextJSON: extracted.observationContextJSON
-                )
             }
+            request = try await MerianNetworkClient.shared.buildMultiModalRequest(
+                r2ObjectKeys: extracted.r2Keys,
+                base64ImageDatas: [], // Uploads rely purely on references through R2 object keys
+                audioFilePaths: extracted.audioFilePaths ?? [],
+                observationContextsJSON: extracted.observationContextsJSON ?? [],
+                telemetry: finalTelemetry,
+                clientScanId: scanId
+            )
         } catch {
             MerianLog.data.error("dispatchInferenceDownloadTask: failed to build request for \(scanId, privacy: .private): \(error, privacy: .private)")
             await handleInferenceRetry(scanId: scanId)
@@ -471,7 +458,7 @@ extension OfflineQueueManager {
             scanId: scanId,
             originalTimestamp: extracted.originalTimestamp,
             telemetry: extracted.telemetry,
-            observationContextJSON: extracted.observationContextJSON
+            observationContextsJSON: extracted.observationContextsJSON
         )
 
         // Delete the OfflineQueuedScan from the main ModelContext so @Query re-evaluates in

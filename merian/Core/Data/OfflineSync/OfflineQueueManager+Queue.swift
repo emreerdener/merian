@@ -104,7 +104,7 @@ extension OfflineQueueManager {
         for path in scan.localImagePaths {
             try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
         }
-        if let audioPath = scan.audioFilePath {
+        for audioPath in scan.audioFilePaths ?? [] {
             try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(audioPath))
         }
 
@@ -127,7 +127,7 @@ extension OfflineQueueManager {
         )
         // Only fetch the fields needed for disk cleanup and deletion — avoids loading all
         // telemetry columns into memory for potentially large backlogs of failed scans.
-        descriptor.propertiesToFetch = [\.localImagePaths, \.id, \.audioFilePath]
+        descriptor.propertiesToFetch = [\.localImagePaths, \.id, \.audioFilePaths]
         descriptor.fetchLimit = 500
         let documentsDirectory = URL.documentsDirectory
 
@@ -141,7 +141,7 @@ extension OfflineQueueManager {
                         MerianLog.data.debug("purgeSoftDeletedRecords: removeItem failed: \(error, privacy: .private)")
                     }
                 }
-                if let audioPath = scan.audioFilePath {
+                for audioPath in scan.audioFilePaths ?? [] {
                     try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(audioPath))
                 }
                 context.delete(scan)
@@ -290,8 +290,8 @@ extension OfflineQueueManager {
                         container: extracted.container,
                         originalTimestamp: extracted.originalTimestamp,
                         description: extracted.description,
-                        observationContextJSON: extracted.observationContextJSON,
-                        audioFilePath: nil
+                        observationContextsJSON: extracted.observationContextsJSON,
+                        audioFilePaths: nil
                     )
                 } else {
                     finalExtracted = extracted
@@ -354,7 +354,7 @@ extension OfflineQueueManager {
                         fileURLs: fileURLs,
                         telemetry: telemetry,
                         blurScore: blurScore,
-                        observationContextJSON: contextJSON
+                        observationContextsJSON: contextJSON.map { [$0] }
                     )
                 }
             } catch {
@@ -370,9 +370,9 @@ extension OfflineQueueManager {
     ///
     /// Describes carry no image files, so they enter the queue at `.staged` directly,
     /// bypassing the R2 upload phase entirely.  `replayInferenceStagedScans` picks them
-    /// up and dispatches a `/identify-describe` background download task when connectivity
+    /// up and dispatches a `/identify-multimodal` background download task when connectivity
     /// restores — routed by `dispatchInferenceDownloadTask` which detects the empty
-    /// `localImagePaths` and non-nil `observationContextJSON`.
+    /// `localImagePaths` and non-nil `observationContextsJSON`.
     ///
     /// Quota is consumed at enqueue time, mirroring `enqueueCapture`, so the scan slot
     /// is allocated before any async boundary is crossed.
@@ -418,7 +418,7 @@ extension OfflineQueueManager {
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
             scanState: .staged,
             stagedR2Keys: [],
-            observationContextJSON: contextJSON
+            observationContextsJSON: [contextJSON]
         )
 
         guard let modelContext else {
@@ -456,7 +456,7 @@ extension OfflineQueueManager {
         fileURLs: [URL],
         telemetry: CaptureTelemetry,
         blurScore: Double?,
-        observationContextJSON: String? = nil
+        observationContextsJSON: [String]? = nil
     ) {
         // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
         // Consuming here (not at upload time) prevents silent stalls when syncPendingScans fires
@@ -489,7 +489,7 @@ extension OfflineQueueManager {
             uvIndex: nil,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
             scanState: .pending,
-            observationContextJSON: observationContextJSON
+            observationContextsJSON: observationContextsJSON
         )
         
         guard let modelContext else {

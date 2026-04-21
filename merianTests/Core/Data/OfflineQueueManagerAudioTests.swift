@@ -48,7 +48,7 @@ struct OfflineQueueManagerAudioTests {
         let record = try context.fetch(descriptor).first
         #expect(record != nil, "enqueueAudio must create an OfflineQueuedScan")
         #expect(record?.queueState == .staged, "Audio scans must enter queue as .staged (no upload phase)")
-        #expect(record?.audioFilePath == fileName, "audioFilePath must match the recorded file name")
+        #expect(record?.audioFilePaths?.first == fileName, "audioFilePaths must contain the recorded file name")
         #expect(record?.localImagePaths.isEmpty == true, "Audio scans must have no image paths")
 
         // Clean up Documents copy
@@ -100,7 +100,7 @@ struct OfflineQueueManagerAudioTests {
             id: scanId,
             localImagePaths: [],
             scanState: .staged,
-            audioFilePath: fileName
+            audioFilePaths: [fileName]
         )
         context.insert(scan)
         try context.save()
@@ -142,7 +142,7 @@ struct OfflineQueueManagerAudioTests {
         let scan = OfflineQueuedScan(
             localImagePaths: [],
             scanState: .staged,
-            audioFilePath: fileName
+            audioFilePaths: [fileName]
         )
         context.insert(scan)
         try context.save()
@@ -190,7 +190,7 @@ struct OfflineQueueManagerAudioTests {
         let scan = OfflineQueuedScan(
             localImagePaths: [],
             scanState: .failed,
-            audioFilePath: fileName
+            audioFilePaths: [fileName]
         )
         context.insert(scan)
         try context.save()
@@ -212,5 +212,91 @@ struct OfflineQueueManagerAudioTests {
         #expect(purged, "purgeSoftDeletedRecords must remove .failed audio scan records")
         #expect(!FileManager.default.fileExists(atPath: destURL.path),
                 "purgeSoftDeletedRecords must delete the audio file from Documents")
+    }
+
+    // MARK: - Multi-path deletion
+
+    @Test func testDeleteQueuedScanRemovesAllAudioFilePaths() async throws {
+        let manager = OfflineQueueManager.shared
+        let context = try createInMemoryContext()
+
+        let originalContext = manager.modelContext
+        defer { manager.modelContext = originalContext }
+        manager.modelContext = context
+
+        let fileNames = ["\(UUID().uuidString).wav", "\(UUID().uuidString).wav"]
+        let destURLs = fileNames.map { URL.documentsDirectory.appendingPathComponent($0) }
+        for url in destURLs {
+            try Data(repeating: 0x00, count: 64).write(to: url)
+        }
+
+        let scanId = UUID().uuidString.lowercased()
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            localImagePaths: [],
+            scanState: .staged,
+            audioFilePaths: fileNames
+        )
+        context.insert(scan)
+        try context.save()
+
+        await manager.deleteQueuedScan(scanId: scanId)
+
+        for url in destURLs {
+            #expect(
+                !FileManager.default.fileExists(atPath: url.path),
+                "deleteQueuedScan must delete every path in audioFilePaths"
+            )
+        }
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        #expect((try? context.fetchCount(descriptor)) == 0,
+                "deleteQueuedScan must remove the SwiftData record")
+    }
+
+    @Test func testPurgeSoftDeletedRemovesAllAudioFilePaths() async throws {
+        let manager = OfflineQueueManager.shared
+        let context = try createInMemoryContext()
+
+        let originalContext = manager.modelContext
+        defer { manager.modelContext = originalContext }
+        manager.modelContext = context
+
+        let fileNames = ["\(UUID().uuidString).wav", "\(UUID().uuidString).wav"]
+        let destURLs = fileNames.map { URL.documentsDirectory.appendingPathComponent($0) }
+        for url in destURLs {
+            try Data(repeating: 0x00, count: 64).write(to: url)
+        }
+
+        let scan = OfflineQueuedScan(
+            localImagePaths: [],
+            scanState: .failed,
+            audioFilePaths: fileNames
+        )
+        context.insert(scan)
+        try context.save()
+
+        manager.purgeSoftDeletedRecords()
+
+        let id = scan.id
+        let deadline = Date().addingTimeInterval(3)
+        var purged = false
+        while Date() < deadline {
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == id })
+            if (try? context.fetchCount(descriptor)) == 0 {
+                purged = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        #expect(purged, "purgeSoftDeletedRecords must remove the SwiftData record")
+        for url in destURLs {
+            #expect(
+                !FileManager.default.fileExists(atPath: url.path),
+                "purgeSoftDeletedRecords must delete every path in audioFilePaths"
+            )
+        }
     }
 }

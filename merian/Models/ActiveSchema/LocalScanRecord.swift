@@ -97,14 +97,13 @@ public final class LocalScanRecord {
     // Changed to optional so SQLite lightweight migration can add the column correctly
     @Attribute public var userReviewStateRaw: String? = "unreviewed"
 
-    /// Raw JSON string of the structured `ObservationContext` staged by the user before submission.
-    /// Set once at scan creation; never mutated after.
-    /// `nil` for image-only scans or scans captured before V37.
-    @Attribute public var observationContextJSON: String?
+    /// Raw JSON array of structured `ObservationContext`s staged by the user before submission.
+    /// Replaced singular JSON string from V38.
+    @Attribute public var observationContextsJSON: [String]?
 
-    /// Local file path to the audio recording associated with this scan.
-    /// Added in SchemaV38.
-    @Attribute public var audioFilePath: String?
+    /// Local file paths to the audio recordings associated with this scan.
+    /// Added in SchemaV39 to support multi-modal captures.
+    @Attribute public var audioFilePaths: [String]?
 
     public var userReviewState: UserReviewState {
         get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
@@ -167,8 +166,8 @@ public final class LocalScanRecord {
         alternativeCommonNames: [String]? = nil,
         confirmedSpeciesId: String? = nil,
         userReviewStateRaw: String? = nil,
-        observationContextJSON: String? = nil,
-        audioFilePath: String? = nil
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil
     ) {
 
         self.id = id
@@ -232,7 +231,7 @@ public final class LocalScanRecord {
         self.alternativeCommonNames = alternativeCommonNames
         self.confirmedSpeciesId = confirmedSpeciesId
         self.userReviewStateRaw = userReviewStateRaw
-        self.observationContextJSON = observationContextJSON
-        self.audioFilePath = audioFilePath
+        self.observationContextsJSON = observationContextsJSON
+        self.audioFilePaths = audioFilePaths
     }
 }

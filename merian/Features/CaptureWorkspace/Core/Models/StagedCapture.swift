@@ -25,28 +25,24 @@ struct StagedCapture {
     /// Staged photographs. Capped at 2 — the same limit as the original image-only flow.
     var images: [StagedImage] = []
 
-    /// Reserved for an audio recording clip.
-    /// Populated when `AudioRecordingView` ships its recording pipeline.
-    var audioFilePath: String?
-    
-    /// Timestamp when the audio clip was staged, used for chronological sorting in the UI.
-    var audioAddedAt: Date?
+    /// File paths of staged audio recordings.
+    var audios: [StagedAudio] = []
 
-    /// Optional describe description staged from the Describe tab before submission.
-    var observationContext: ObservationContext?
+    /// Staged observation contexts from the Describe tab before submission.
+    var observationContexts: [StagedObservationContext] = []
     
-    /// Timestamp of the last describe submission to prevent rapid identical enqueueing.
+    /// Timestamp of the last submit action to prevent rapid duplicate enqueueing.
     var lastSubmitTime: CFAbsoluteTime?
 
     // MARK: - Derived State
 
     var isEmpty: Bool {
-        images.isEmpty && audioFilePath == nil && observationContext == nil
+        images.isEmpty && audios.isEmpty && observationContexts.isEmpty
     }
 
     /// True when more than one modality carries content — drives routing to the combined endpoint.
     var isMultiModal: Bool {
-        [!images.isEmpty, audioFilePath != nil, observationContext != nil]
+        [!images.isEmpty, !audios.isEmpty, !observationContexts.isEmpty]
             .filter { $0 }.count > 1
     }
 
@@ -55,10 +51,23 @@ struct StagedCapture {
     /// Resets all modalities atomically. Call before starting a new submission.
     mutating func clearAll() {
         images.removeAll()
-        audioFilePath = nil
-        audioAddedAt = nil
-        observationContext = nil
+        audios.removeAll()
+        observationContexts.removeAll()
     }
+}
+
+// MARK: - Modality Wrappers
+
+/// A staged audio recording track with its captured file path.
+struct StagedAudio {
+    let filePath: String
+    var addedAt: Date = Date()
+}
+
+/// A staged text observation context.
+struct StagedObservationContext {
+    let context: ObservationContext
+    var addedAt: Date = Date()
 }
 
 // MARK: - StagedImage

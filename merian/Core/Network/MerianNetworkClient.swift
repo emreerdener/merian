@@ -574,10 +574,6 @@ final class MerianNetworkClient {
         return request
     }
 
-    /// Posts a bioacoustic recording to the `/audio-spec` edge function and returns raw response data.
-    ///
-    /// WAV is read from Documents and sent inline as base64. The edge function performs
-    /// silence trimming, resampling, and Gemini identification server-side.
     func identifyAudio(
         audioFilePath: String,
         telemetry: CaptureTelemetry,
@@ -589,6 +585,138 @@ final class MerianNetworkClient {
             telemetry: telemetry,
             clientScanId: clientScanId ?? UUID().uuidString.lowercased(),
             observationContextJSON: observationContextJSON
+        )
+
+        guard let url = request.url, let bodyData = request.httpBody else {
+            throw MerianError.invalidURL
+        }
+
+        let (data, _) = try await performAuthenticatedRequest(url: url, method: "POST", body: bodyData, timeoutInterval: 90.0)
+        return data
+    }
+
+    // MARK: - Multi-Modal Identification
+
+    func buildMultiModalRequest(
+        r2ObjectKeys: [String] = [],
+        base64ImageDatas: [String] = [],
+        mimeType: String = "image/webp",
+        audioFilePaths: [String] = [],
+        observationContextsJSON: [String] = [],
+        telemetry: CaptureTelemetry,
+        clientScanId: String
+    ) async throws -> URLRequest {
+        let functionUrl = try endpointURL("identify-multimodal")
+
+        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let userId = (authUserId ?? deviceId).lowercased()
+        let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
+        let deviceTimeZone = TimeZone.current.identifier
+        let deviceRegion = Locale.current.region?.identifier
+
+        let captureDate: Date = telemetry.timestamp.flatMap {
+            DateUtilities.iso8601Formatter.date(from: $0)
+        } ?? Date()
+        let currentMonth = Calendar.current.component(.month, from: captureDate)
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let timeOfDay = formatter.string(from: captureDate)
+
+        let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
+        let capturedClientScanId = clientScanId
+
+        let capturedAudioPaths = audioFilePaths
+        let capturedContextsJSON = observationContextsJSON
+        let capturedTelemetry = telemetry
+
+        let bodyData = try await Task.detached(priority: .userInitiated) {
+            let observationContextsObjects: [[String: Any]] = capturedContextsJSON.compactMap { json in
+                guard let data = json.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                return obj
+            }
+            
+            var audioBase64s: [String] = []
+            for path in capturedAudioPaths {
+                let url = URL.documentsDirectory.appendingPathComponent(path)
+                if let wavData = try? Data(contentsOf: url) {
+                    audioBase64s.append(wavData.base64EncodedString())
+                }
+            }
+            try MerianNetworkClient.validateMultiModalPayloadBudget(
+                imageBase64s: base64ImageDatas,
+                audioBase64s: audioBase64s
+            )
+            
+            let isolatedPayload: [String: Any?] = [
+                "r2ObjectKeys": r2ObjectKeys.isEmpty ? nil : r2ObjectKeys,
+                "imageBase64s": base64ImageDatas.isEmpty ? nil : base64ImageDatas,
+                "audioBase64s": audioBase64s.isEmpty ? nil : audioBase64s,
+                "observation_contexts": observationContextsObjects.isEmpty ? nil : observationContextsObjects,
+                "user_id": userId,
+                "mimeType": "image/webp",
+                "depthScaleText": depthScaleText,
+                "zoomFactor": capturedTelemetry.zoomFactor.map { Double($0) },
+                "gpsLatitude": capturedTelemetry.gpsLatitude,
+                "gpsLongitude": capturedTelemetry.gpsLongitude,
+                "gpsElevation": capturedTelemetry.gpsElevation,
+                "semanticLocation": capturedTelemetry.locationName,
+                "weatherCondition": capturedTelemetry.weatherCondition,
+                "weatherTemperatureF": capturedTelemetry.weatherTemperatureF,
+                "deviceLocale": deviceLocale,
+                "deviceTimeZone": deviceTimeZone,
+                "deviceRegion": deviceRegion,
+                "currentMonth": currentMonth,
+                "timeOfDay": timeOfDay,
+                "timestamp": capturedTelemetry.timestamp,
+                "estimated_size_cm": capturedTelemetry.estimatedSizeCm,
+                "client_scan_id": capturedClientScanId
+            ]
+            return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+        }.value
+
+        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90.0)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
+        for (key, val) in authHeaders {
+            request.setValue(val, forHTTPHeaderField: key)
+        }
+
+        return request
+    }
+
+    /// Validates that the combined base64 image + audio payload fits the V8 isolator memory budget.
+    /// Exposed as `internal` so test targets can exercise budget boundaries without auth dependencies.
+    static func validateMultiModalPayloadBudget(imageBase64s: [String], audioBase64s: [String]) throws {
+        let totalSize = (imageBase64s + audioBase64s).reduce(0) { $0 + $1.utf8.count }
+        if totalSize > 3_600_000 {
+            throw MerianError.payloadTooLarge
+        }
+    }
+
+    func identifyMultiModal(
+        r2ObjectKeys: [String] = [],
+        base64ImageDatas: [String] = [],
+        mimeType: String = "image/webp",
+        audioFilePaths: [String] = [],
+        observationContextsJSON: [String] = [],
+        telemetry: CaptureTelemetry,
+        clientScanId: String? = nil
+    ) async throws -> Data {
+        let request = try await buildMultiModalRequest(
+            r2ObjectKeys: r2ObjectKeys,
+            base64ImageDatas: base64ImageDatas,
+            mimeType: mimeType,
+            audioFilePaths: audioFilePaths,
+            observationContextsJSON: observationContextsJSON,
+            telemetry: telemetry,
+            clientScanId: clientScanId ?? UUID().uuidString.lowercased()
         )
 
         guard let url = request.url, let bodyData = request.httpBody else {

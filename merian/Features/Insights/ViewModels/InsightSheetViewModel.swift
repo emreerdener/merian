@@ -15,7 +15,7 @@ final class InsightSheetViewModel {
     /// that exists before `onAppear` fires.
     init(queuedContext: QueuedScanContext? = nil) {
         self.queuedContext = queuedContext
-        if let jsonStr = queuedContext?.observationContextJSON, let data = jsonStr.data(using: .utf8) {
+        if let jsonStr = queuedContext?.observationContextsJSON?.first, let data = jsonStr.data(using: .utf8) {
             self.cachedHistoricObservationContext = try? JSONDecoder().decode(ObservationContext.self, from: data)
         }
     }
@@ -144,9 +144,9 @@ final class InsightSheetViewModel {
 
     /// Safely resolves the audio file path escalating top-down: offline queue snapshot, SQLite cache entity, and finally hot inference pipeline.
     var audioFilePath: String? {
-        if let queued = queuedContext { return queued.audioFilePath }
-        if let record = activeLocalRecord { return record.audioFilePath }
-        return inferenceEngine?.speciesData?.audioFilePath
+        if let queued = queuedContext { return queued.audioFilePaths?.first }
+        if let record = activeLocalRecord { return record.audioFilePaths?.first }
+        return inferenceEngine?.speciesData?.audioFilePaths?.first
     }
 
     var hasLive: Bool {
@@ -445,7 +445,7 @@ final class InsightSheetViewModel {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
-            if let jsonStr = record.observationContextJSON, let data = jsonStr.data(using: .utf8) {
+            if let jsonStr = record.observationContextsJSON?.first, let data = jsonStr.data(using: .utf8) {
                 self.cachedHistoricObservationContext = try? JSONDecoder().decode(ObservationContext.self, from: data)
             }
             markRecordViewedIfAppropriate(modelContext: modelContext)

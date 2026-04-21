@@ -7,7 +7,7 @@ extension CaptureWorkspaceViewModel {
 
     /// Routes the observation based on what else is staged.
     ///
-    /// - **Images staged**: stages the description into `stagedCapture.observationContext`
+    /// - **Images or Audios staged**: stages the description into `stagedCapture.observationContexts`
     ///   and delegates to `submitStagedCapture` → combined image + description path.
     /// - **No images staged**: solo description-only path via `submitDescribeSolo`.
     ///
@@ -30,9 +30,9 @@ extension CaptureWorkspaceViewModel {
         let isMultiCaptureEnabled = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled")
 
         if isMultiCaptureEnabled {
-            stagedCapture.observationContext = stagedContext
+            stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]
             let limit = 2 // Current capacity limit for multi-capture items
-            let totalItems = stagedCapture.images.count + 1
+            let totalItems = stagedCapture.images.count + stagedCapture.observationContexts.count + 1
             
             if !UserDefaults.standard.bool(forKey: "requiresScanConfirmation") && totalItems >= limit {
                 submitStagedCapture(modelContext: modelContext)
@@ -42,13 +42,13 @@ extension CaptureWorkspaceViewModel {
             if !stagedCapture.images.isEmpty {
                 // Images already staged — add the description to the toolbar without submitting.
                 // The ActiveScanToolbar's Identify button owns submission in this state.
-                stagedCapture.observationContext = stagedContext
+                stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]
                 return true
             } else {
                 if UserDefaults.standard.bool(forKey: "requiresScanConfirmation") {
                     // Stage as a solo node so the user confirms via Identify before submitting.
                     // submitStagedCapture routes description-only back through submitDescribeSolo.
-                    stagedCapture.observationContext = stagedContext
+                    stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]
                 } else {
                     let targetEradicationRecord = baseRefinementRecord
                     baseRefinementRecord = nil

@@ -96,7 +96,7 @@ struct ActiveScanToolbar: View {
         }
         .padding(.bottom, 24)
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.images.count)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.observationContext != nil)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: !stagedCapture.observationContexts.isEmpty)
         .task {
             if showTooltip {
                 ActiveScanToolbar.hasShownTooltipThisSession = true
@@ -256,11 +256,11 @@ extension ActiveScanToolbar {
         for (index, img) in stagedCapture.images.enumerated() {
             nodes.append(.image(uiImage: img.uiImage, index: index, addedAt: img.addedAt))
         }
-        if let obs = stagedCapture.observationContext, let date = obs.addedAt {
-            nodes.append(.description(addedAt: date))
+        for obs in stagedCapture.observationContexts {
+            nodes.append(.description(addedAt: obs.addedAt))
         }
-        if let _ = stagedCapture.audioFilePath, let date = stagedCapture.audioAddedAt {
-            nodes.append(.audio(addedAt: date))
+        for audio in stagedCapture.audios {
+            nodes.append(.audio(addedAt: audio.addedAt))
         }
         return nodes.sorted { $0.addedAt < $1.addedAt }
     }

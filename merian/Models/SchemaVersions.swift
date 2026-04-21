@@ -41,7 +41,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV35.self,
             MerianSchemaV36.self,
             MerianSchemaV37.self,
-            MerianSchemaV38.self
+            MerianSchemaV38.self,
+            MerianSchemaV39.self
         ]
     }
 
@@ -83,7 +84,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV34toV35,
             migrateV35toV36,
             migrateV36toV37,
-            migrateV37toV38
+            migrateV37toV38,
+            migrateV38toV39
         ]
     }
 
@@ -114,6 +116,64 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     static let migrateV37toV38 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV37.self,
         toVersion: MerianSchemaV38.self
+    )
+
+    nonisolated(unsafe) static var _v38LocalAudioBackfill: [String: [String]] = [:]
+    nonisolated(unsafe) static var _v38LocalContextBackfill: [String: [String]] = [:]
+    nonisolated(unsafe) static var _v38OfflineAudioBackfill: [String: [String]] = [:]
+    nonisolated(unsafe) static var _v38OfflineContextBackfill: [String: [String]] = [:]
+
+    static let migrateV38toV39 = MigrationStage.custom(
+        fromVersion: MerianSchemaV38.self,
+        toVersion: MerianSchemaV39.self,
+        willMigrate: { context in
+            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV38.LocalScanRecord>())
+            for scan in localScans {
+                if let audio = scan.audioFilePath {
+                    _v38LocalAudioBackfill[scan.id] = [audio]
+                }
+                if let ctx = scan.observationContextJSON {
+                    _v38LocalContextBackfill[scan.id] = [ctx]
+                }
+            }
+
+            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV38.OfflineQueuedScan>())
+            for scan in offlineScans {
+                if let audio = scan.audioFilePath {
+                    _v38OfflineAudioBackfill[scan.id] = [audio]
+                }
+                if let ctx = scan.observationContextJSON {
+                    _v38OfflineContextBackfill[scan.id] = [ctx]
+                }
+            }
+        },
+        didMigrate: { context in
+            let localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            for scan in localScans {
+                if let audio = _v38LocalAudioBackfill[scan.id] {
+                    scan.audioFilePaths = audio
+                }
+                if let ctx = _v38LocalContextBackfill[scan.id] {
+                    scan.observationContextsJSON = ctx
+                }
+            }
+
+            let offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            for scan in offlineScans {
+                if let audio = _v38OfflineAudioBackfill[scan.id] {
+                    scan.audioFilePaths = audio
+                }
+                if let ctx = _v38OfflineContextBackfill[scan.id] {
+                    scan.observationContextsJSON = ctx
+                }
+            }
+
+            try context.save()
+            _v38LocalAudioBackfill = [:]
+            _v38LocalContextBackfill = [:]
+            _v38OfflineAudioBackfill = [:]
+            _v38OfflineContextBackfill = [:]
+        }
     )
 
     // Temporary backfill storage for V32→V33 migration.

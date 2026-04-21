@@ -255,7 +255,7 @@ actor BackgroundDatabaseActor {
         scanId: String,
         originalTimestamp: Date,
         telemetry: CaptureTelemetry? = nil,
-        observationContextJSON: String? = nil
+        observationContextsJSON: [String]? = nil
     ) -> OfflineScanProcessingResult {
         var inferenceFailed = true
         var resolvedSpeciesName: String?
@@ -310,7 +310,7 @@ actor BackgroundDatabaseActor {
                     activeSpeciesId: activeSpeciesId,
                     originalTimestamp: originalTimestamp,
                     originalImagePaths: originalImagePaths,
-                    observationContextJSON: observationContextJSON
+                    observationContextsJSON: observationContextsJSON
                 )
                 
                 resultingScanId = recordId
@@ -384,7 +384,7 @@ actor BackgroundDatabaseActor {
         activeSpeciesId: String,
         originalTimestamp: Date,
         originalImagePaths: [String],
-        observationContextJSON: String? = nil
+        observationContextsJSON: [String]? = nil
     ) {
         var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
@@ -438,8 +438,8 @@ actor BackgroundDatabaseActor {
                 inferenceTier: mappedData.inferenceTier,
                 imageQualityScore: mappedData.imageQualityScore,
                 alternativeCommonNames: mappedData.alternativeCommonNames,
-                observationContextJSON: observationContextJSON,
-                audioFilePath: mappedData.audioFilePath
+                observationContextsJSON: observationContextsJSON,
+                audioFilePaths: mappedData.audioFilePaths
             )
             modelContext.insert(record)
         }
@@ -448,7 +448,7 @@ actor BackgroundDatabaseActor {
     // MARK: - Live Scan Recording
 
     /// Persists a real-time scan result to SwiftData on the actor thread.
-    func saveLiveScanRecord(mappedData: SpeciesData, localImagePaths: [String], observationContextJSON: String? = nil, audioFilePath: String? = nil) -> Bool {
+    func saveLiveScanRecord(mappedData: SpeciesData, localImagePaths: [String], observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) -> Bool {
         guard mappedData.confidenceScore > 0.0, let firstPath = localImagePaths.first else {
             return false
         }
@@ -515,8 +515,8 @@ actor BackgroundDatabaseActor {
             individualCount: mappedData.individualCount,
             ecologicalInteractions: mappedData.ecologicalInteractions,
             imageQualityScore: mappedData.imageQualityScore,
-            observationContextJSON: observationContextJSON,
-            audioFilePath: audioFilePath
+            observationContextsJSON: observationContextsJSON,
+            audioFilePaths: audioFilePaths
         )
         modelContext.insert(record)
         do {
@@ -534,7 +534,7 @@ actor BackgroundDatabaseActor {
     /// Mirrors `saveLiveScanRecord` but omits the `localImagePath` requirement. Describes are
     /// saved with `is_live_capture = false` and nil image paths so the library renders them
     /// without a thumbnail until reference images arrive via GBIF hydration.
-    func saveDescribeRecord(mappedData: SpeciesData, observationContextJSON: String? = nil, audioFilePath: String? = nil) -> Bool {
+    func saveDescribeRecord(mappedData: SpeciesData, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) -> Bool {
         guard mappedData.confidenceScore > 0.0 else { return false }
 
         let targetName = mappedData.scientificName
@@ -597,8 +597,8 @@ actor BackgroundDatabaseActor {
             individualCount: mappedData.individualCount,
             ecologicalInteractions: mappedData.ecologicalInteractions,
             imageQualityScore: nil,
-            observationContextJSON: observationContextJSON,
-            audioFilePath: audioFilePath
+            observationContextsJSON: observationContextsJSON,
+            audioFilePaths: audioFilePaths
         )
         modelContext.insert(record)
         do {

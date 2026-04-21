@@ -252,7 +252,7 @@ private struct GBIFMedia: Decodable {
     ///   - observationContext: Optional structured description staged alongside the photo.
     ///     When non-nil, `ObservationContext.serialized()` is appended as a text part in the
     ///     Gemini request and the raw JSON is forwarded as `observation_context` to the edge
-    ///     function and persisted in `LocalScanRecord.observationContextJSON`.
+    ///     function and persisted in `LocalScanRecord.observationContextsJSON`.
     func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, observationContext: ObservationContext? = nil, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
@@ -360,14 +360,15 @@ private struct GBIFMedia: Decodable {
                 let observationContextJSONString: String? = observationContext.flatMap { ctx in
                     (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
                 }
-                let resultData = try await client.analyzeSubject(
+                let observationContextsJSON: [String]? = observationContextJSONString.map { [$0] }
+                let resultData = try await client.identifyMultiModal(
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
+                    audioFilePaths: [],
+                    observationContextsJSON: observationContextsJSON ?? [],
                     telemetry: telemetry,
-                    clientScanId: scanId,
-                    description: observationContext?.serialized(),
-                    observationContextJSON: observationContextJSONString
+                    clientScanId: scanId
                 )
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
@@ -380,7 +381,7 @@ private struct GBIFMedia: Decodable {
                     modelContext: modelContext,
                     compressedDatas: compressedDatas,
                     displayDatas: capturedDisplayDatas,
-                    observationContextJSON: observationContextJSONString
+                    observationContextsJSON: observationContextsJSON
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery
@@ -677,14 +678,14 @@ private struct GBIFMedia: Decodable {
 
                 try Task.checkCancellation()
 
-                let resultData = try await MerianNetworkClient.shared.identifyDescribe(
-                    observationContext: observationContext,
+                let describeObsContextJSON: String? = (try? JSONEncoder().encode(observationContext))
+                    .flatMap { String(data: $0, encoding: .utf8) }
+
+                let resultData = try await MerianNetworkClient.shared.identifyMultiModal(
+                    observationContextsJSON: describeObsContextJSON.map { [$0] } ?? [],
                     telemetry: telemetry,
                     clientScanId: scanId
                 )
-
-                let describeObsContextJSON: String? = (try? JSONEncoder().encode(observationContext))
-                    .flatMap { String(data: $0, encoding: .utf8) }
                 let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
                     telemetry: telemetry,
@@ -692,7 +693,7 @@ private struct GBIFMedia: Decodable {
                     compressedDatas: [],
                     displayDatas: [],
                     skipImageRequirement: true,
-                    observationContextJSON: describeObsContextJSON
+                    observationContextsJSON: describeObsContextJSON.map { [$0] }
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery
@@ -888,11 +889,11 @@ private struct GBIFMedia: Decodable {
                     return (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
                 }
 
-                let resultData = try await MerianNetworkClient.shared.identifyAudio(
-                    audioFilePath: audioFileName,
+                let resultData = try await MerianNetworkClient.shared.identifyMultiModal(
+                    audioFilePaths: [audioFileName],
+                    observationContextsJSON: contextJSON.map { [$0] } ?? [],
                     telemetry: telemetry,
-                    clientScanId: scanId,
-                    observationContextJSON: contextJSON
+                    clientScanId: scanId
                 )
 
                 let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
@@ -902,7 +903,8 @@ private struct GBIFMedia: Decodable {
                     compressedDatas: [],
                     displayDatas: [],
                     skipImageRequirement: true,
-                    observationContextJSON: contextJSON
+                    observationContextsJSON: contextJSON.map { [$0] },
+                    audioFilePaths: [audioFileName]
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery

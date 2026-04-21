@@ -227,6 +227,43 @@ struct IdentifyResponse: Codable {
 
 ---
 
+## Deno `/identify-multimodal` Edge Node
+
+A unified identification pipeline that merges the capabilities of `/identify`, `/identify-sighting`, and `/audio-spec` into a single multi-modal entry point. Supports array-based compositions of images, audio, and descriptive context.
+
+### The JSON Request Payload (From Swift `OfflineQueueManager`)
+
+```json
+{
+  "r2ObjectKeys": [
+    "staging/A1B2C3D4.../uuid_image_1.webp"
+  ],
+  "audioR2Keys": [
+    "staging/A1B2C3D4.../uuid_audio_1.m4a"
+  ],
+  "imageBase64s": ["<base64>"],
+  "audioBase64s": ["<base64>"],
+  "user_id": "Supabase Auth UUID",
+  "gpsLatitude": 37.7749,
+  "gpsLongitude": -122.4194,
+  "deviceLocale": "en",
+  "timestamp": "2026-03-21T09:46:03.000Z",
+  "observation_contexts": [
+    {
+      "organism_class": "Bird",
+      "colors": ["blue"],
+      "free_text": "Heard rustling before spotting it"
+    }
+  ]
+}
+```
+
+- Features dynamic `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` execution if both `audioBase64s` and `imageBase64s` present.
+- Executes `processWAV` sequentially in Deno to enforce mono/16kHz processing to limit R2 storage footprint and Gemini context window consumption. 
+- The Edge Node resolves legacy endpoint constraints natively. Response schema is contiguous with `/identify`.
+
+
+
 ## Deno `/identify-sighting` Edge Node
 
 Performs AI identification for a **text-only sighting** — no image is submitted. The user supplies structured observation notes via `ObservationContext`; Gemini uses the description alone to identify the organism. This path is used by the Sighting feature (`BiologicalView` sighting sheet) when the user logs a past observation without a photo.

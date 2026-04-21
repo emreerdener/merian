@@ -8,6 +8,7 @@ public enum MerianError: LocalizedError, Equatable {
     case uploadFailed
     case invalidResponse
     case decodingFailed
+    case payloadTooLarge
     case httpError(statusCode: Int, message: String)
     case networkTimeout
 
@@ -27,6 +28,8 @@ public enum MerianError: LocalizedError, Equatable {
             return String(localized: "Received an invalid response from the server.")
         case .decodingFailed:
             return String(localized: "Failed to decode the response payload into the expected struct.")
+        case .payloadTooLarge:
+            return String(localized: "The combined size of the captured media is too large. Please remove a photo or audio recording and try again.")
         case .httpError(let statusCode, let message):
             return String(localized: "Network Error (\(statusCode)): \(message)")
         case .networkTimeout:

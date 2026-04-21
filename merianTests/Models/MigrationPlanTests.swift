@@ -11,6 +11,7 @@ import SwiftData
 ///  2. Disk migration — covers the case where a user upgrades from a prior schema version.
 ///     On iOS 26+, `NSCustomMigrationStage` validates all custom stages at migration time,
 ///     not just the one being applied. Any stage with equal from/to models crashes at that point.
+@Suite(.serialized)
 @MainActor
 struct MigrationPlanTests {
 
@@ -167,6 +168,104 @@ struct MigrationPlanTests {
         )
 
         // Clean up the temp file.
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    }
+
+    /// Simulates upgrading from V38 to V39 — verifies that the custom migration stage
+    /// correctly backfills the singular `audioFilePath`/`observationContextJSON` String?
+    /// columns into the new plural `audioFilePaths`/`observationContextsJSON` [String]? arrays.
+    ///
+    /// Zeroes the four `nonisolated(unsafe) static var` backfill dictionaries before and
+    /// after via `defer` to prevent false positives from other tests running in the same process.
+    @Test func migrationFromV38ToV39BackfillsArrayColumns() throws {
+        // Guard against stale backfill data from a prior test in the same process.
+        MerianMigrationPlan._v38LocalAudioBackfill = [:]
+        MerianMigrationPlan._v38LocalContextBackfill = [:]
+        MerianMigrationPlan._v38OfflineAudioBackfill = [:]
+        MerianMigrationPlan._v38OfflineContextBackfill = [:]
+        defer {
+            MerianMigrationPlan._v38LocalAudioBackfill = [:]
+            MerianMigrationPlan._v38LocalContextBackfill = [:]
+            MerianMigrationPlan._v38OfflineAudioBackfill = [:]
+            MerianMigrationPlan._v38OfflineContextBackfill = [:]
+        }
+
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v38migration_test.sqlite")
+
+        // Step 1 — create a V38 store with both model types carrying the singular fields.
+        let schema38 = Schema(versionedSchema: MerianSchemaV38.self)
+        let config38 = ModelConfiguration(schema: schema38, url: url)
+        let container38 = try ModelContainer(for: schema38, configurations: [config38])
+        let context38 = ModelContext(container38)
+
+        let localRecord = MerianSchemaV38.LocalScanRecord(
+            speciesId: "test-species",
+            scientificName: "Testus testus",
+            commonName: "Test Species",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown",
+            audioFilePath: "recording_abc.wav",
+            observationContextJSON: "{\"freeText\":\"Yellow wings\"}"
+        )
+        context38.insert(localRecord)
+
+        let offlineRecord = MerianSchemaV38.OfflineQueuedScan(
+            localImagePaths: [],
+            audioFilePath: "offline_recording.wav",
+            observationContextJSON: "{\"freeText\":\"Near water\"}"
+        )
+        context38.insert(offlineRecord)
+        try context38.save()
+
+        let capturedLocalId = localRecord.id
+        let capturedOfflineId = offlineRecord.id
+        _ = container38
+
+        // Step 2 — reopen with the full migration plan targeting V39 (CurrentSchema).
+        let schema39 = Schema(versionedSchema: CurrentSchema.self)
+        let config39 = ModelConfiguration(schema: schema39, url: url)
+        let container39 = try ModelContainer(
+            for: schema39,
+            migrationPlan: MerianMigrationPlan.self,
+            configurations: [config39]
+        )
+
+        // Step 3 — verify both models had their singular values backfilled into arrays.
+        let context39 = ModelContext(container39)
+
+        var localDescriptor = FetchDescriptor<LocalScanRecord>()
+        localDescriptor.fetchLimit = 500
+        let localScans = try context39.fetch(localDescriptor)
+        let migratedLocal = localScans.first { $0.id == capturedLocalId }
+        #expect(migratedLocal != nil, "LocalScanRecord must survive V38→V39 migration")
+        #expect(
+            migratedLocal?.audioFilePaths?.first == "recording_abc.wav",
+            "audioFilePath must be backfilled into audioFilePaths[0]"
+        )
+        #expect(
+            migratedLocal?.observationContextsJSON?.first == "{\"freeText\":\"Yellow wings\"}",
+            "observationContextJSON must be backfilled into observationContextsJSON[0]"
+        )
+
+        var offlineDescriptor = FetchDescriptor<OfflineQueuedScan>()
+        offlineDescriptor.fetchLimit = 500
+        let offlineScans = try context39.fetch(offlineDescriptor)
+        let migratedOffline = offlineScans.first { $0.id == capturedOfflineId }
+        #expect(migratedOffline != nil, "OfflineQueuedScan must survive V38→V39 migration")
+        #expect(
+            migratedOffline?.audioFilePaths?.first == "offline_recording.wav",
+            "OfflineQueuedScan.audioFilePath must be backfilled into audioFilePaths[0]"
+        )
+        #expect(
+            migratedOffline?.observationContextsJSON?.first == "{\"freeText\":\"Near water\"}",
+            "OfflineQueuedScan.observationContextJSON must be backfilled into observationContextsJSON[0]"
+        )
+
+        // Cleanup.
         try? FileManager.default.removeItem(at: url)
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))

@@ -309,6 +309,60 @@ struct MerianNetworkClientTests {
         let matched = unknownChain.contains { pinnedHashes.contains($0) }
         #expect(matched == false, "Chain-walk must reject when no cert in the chain is pinned")
     }
+
+    // MARK: - validateMultiModalPayloadBudget
+
+    @Test func budgetValidationPassesWhenUnderLimit() throws {
+        let smallImage = String(repeating: "A", count: 100_000)
+        let smallAudio = String(repeating: "B", count: 100_000)
+        try MerianNetworkClient.validateMultiModalPayloadBudget(
+            imageBase64s: [smallImage],
+            audioBase64s: [smallAudio]
+        )
+        // No throw — passes
+    }
+
+    @Test func budgetValidationPassesWhenBothArraysEmpty() throws {
+        try MerianNetworkClient.validateMultiModalPayloadBudget(imageBase64s: [], audioBase64s: [])
+    }
+
+    @Test func budgetValidationPassesAtExactLimit() throws {
+        // 3_600_000 bytes total — boundary value (> 3_600_000 throws, == does not)
+        let payload = String(repeating: "X", count: 3_600_000)
+        try MerianNetworkClient.validateMultiModalPayloadBudget(imageBase64s: [payload], audioBase64s: [])
+    }
+
+    @Test func budgetValidationThrowsOneByteOverLimit() {
+        let payload = String(repeating: "X", count: 3_600_001)
+        #expect(throws: MerianError.payloadTooLarge) {
+            try MerianNetworkClient.validateMultiModalPayloadBudget(imageBase64s: [payload], audioBase64s: [])
+        }
+    }
+
+    @Test func budgetValidationThrowsWhenImagesAloneExceedLimit() {
+        let largeImage = String(repeating: "Z", count: 4_000_000)
+        #expect(throws: MerianError.payloadTooLarge) {
+            try MerianNetworkClient.validateMultiModalPayloadBudget(imageBase64s: [largeImage], audioBase64s: [])
+        }
+    }
+
+    @Test func budgetValidationThrowsWhenCombinedImagesAndAudioExceedLimit() {
+        // Each 2 MB — combined 4 MB exceeds the 3.6 MB cap
+        let image = String(repeating: "I", count: 2_000_000)
+        let audio = String(repeating: "A", count: 2_000_000)
+        #expect(throws: MerianError.payloadTooLarge) {
+            try MerianNetworkClient.validateMultiModalPayloadBudget(imageBase64s: [image], audioBase64s: [audio])
+        }
+    }
+
+    @Test func budgetValidationAccumulatesAcrossMultipleImages() throws {
+        // Three images at 1 MB each = 3 MB — under limit
+        let image = String(repeating: "M", count: 1_000_000)
+        try MerianNetworkClient.validateMultiModalPayloadBudget(
+            imageBase64s: [image, image, image],
+            audioBase64s: []
+        )
+    }
 }
 
 private extension InputStream {

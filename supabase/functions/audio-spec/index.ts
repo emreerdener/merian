@@ -155,6 +155,8 @@ serve((req: Request) =>
     }
 
     // 2. Process audio: parse → mono → trim silence → resample → re-encode
+    // DUAL-MAINTENANCE: The WAV processing algorithm exists in both /audio-spec/index.ts and 
+    // /identify-multimodal/audio.ts. Any future changes must be applied to both.
     let base64Audio: string;
     try {
       const header = parseWavHeader(rawWavBuffer);

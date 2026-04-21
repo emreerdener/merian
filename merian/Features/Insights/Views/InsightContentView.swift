@@ -37,7 +37,7 @@ struct InsightContentView: View {
                     let activeIsProcessing = activeQueuedContext != nil ? false : viewModel.isProcessing
 
                     let hasDescription = activeObservationContext?.isEmpty == false
-                    let hasQueuedAudio = activeQueuedContext.flatMap { $0.audioFilePath }
+                    let hasQueuedAudio = activeQueuedContext.flatMap { $0.audioFilePaths?.first }
                         .map { FileManager.default.fileExists(atPath: $0) } ?? false
                     let activeTotalImages = (activeQueuedContext != nil 
                         ? (activeQueuedContext?.localImagePaths.count ?? 0) 
@@ -48,7 +48,7 @@ struct InsightContentView: View {
                         refUrls: viewModel.refUrls,
                         validHistoricImagePaths: activeValidPaths,
                         liveImageData: activeQueuedContext != nil ? nil : viewModel.liveImageData,
-                        audioFilePath: activeQueuedContext != nil ? activeQueuedContext?.audioFilePath : viewModel.audioFilePath,
+                        audioFilePath: activeQueuedContext != nil ? activeQueuedContext?.audioFilePaths?.first : viewModel.audioFilePath,
                         hasLive: activeHasLive,
                         liveCount: activeLiveCount,
                         totalImages: activeTotalImages,

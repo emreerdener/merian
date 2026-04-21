@@ -30,14 +30,13 @@ public final class OfflineQueuedScan {
     /// Eliminates auth-dependent key reconstruction at inference time.
     public var stagedR2Keys: [String]?
 
-    /// JSON-encoded `ObservationContext` serialized at enqueue time.
+    /// JSON-encoded `ObservationContext`s serialized at enqueue time.
     /// Preserved so the offline-retry path can reconstruct the full combined
-    /// image + description payload without requiring the user to re-enter details.
-    public var observationContextJSON: String?
+    /// multimodal payload without requiring the user to re-enter details.
+    public var observationContextsJSON: [String]?
 
-    /// Reserved for a companion audio recording.
-    /// Populated when `AudioRecordingView` ships its recording pipeline.
-    public var audioFilePath: String?
+    /// File paths to the audio recordings staged with this scan.
+    public var audioFilePaths: [String]?
 
     // MARK: - Typed accessor
 
@@ -66,8 +65,8 @@ public final class OfflineQueuedScan {
         zoomFactor: Double? = nil,
         scanState: ScanQueueState = .pending,
         stagedR2Keys: [String]? = nil,
-        observationContextJSON: String? = nil,
-        audioFilePath: String? = nil
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -88,7 +87,7 @@ public final class OfflineQueuedScan {
         self.zoomFactor = zoomFactor
         self.scanStateRaw = scanState.rawValue
         self.stagedR2Keys = stagedR2Keys
-        self.observationContextJSON = observationContextJSON
-        self.audioFilePath = audioFilePath
+        self.observationContextsJSON = observationContextsJSON
+        self.audioFilePaths = audioFilePaths
     }
 }
