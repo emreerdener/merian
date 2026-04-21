@@ -20,6 +20,29 @@ final class InsightSheetViewModel {
         }
     }
     
+    /// Wipes all memory-retained states that persist across SwiftUI sheet presentations since `activeSheet == .insight` evaluates to identical IDs natively.
+    func reset() {
+        showCelebration = false
+        showBottomBarTools = false
+        isCommonNameScrolledPast = false
+        isDescriptionSheetPresented = false
+        isFlagIssuePresented = false
+        isIdentificationFlagPresented = false
+        showDeleteConfirmation = false
+        showSaveSuccessAlert = false
+        showNewCollectionAlert = false
+        isCandidateSwipePresented = false
+        toastMessage = nil
+        preferredCommonName = nil
+        isNamePickerPresented = false
+        isSafariPresented = false
+        selectedWikiURL = nil
+        isSavingPhotos = false
+        activeLocalRecord = nil
+        queuedContext = nil
+        cachedHistoricObservationContext = nil
+    }
+    
     // MARK: - Internal Cached State
     /// An in-memory cache of the successfully decoded `ObservationContext` representing the user's text.
     /// Safely decoded exactly once within lifecycle mappings (`init` and `fetchLocalRecord`) to prevent
@@ -151,7 +174,7 @@ final class InsightSheetViewModel {
         let captureCount = hasLive ? liveCount : validHistoricImagePaths.count
         let refCount = refUrls.count + ((inferenceEngine?.isReferenceImageLoading == true && refUrls.isEmpty) ? 1 : 0)
         let hasDescription = observationContext?.isEmpty == false
-        let hasAudio = audioFilePath.map { FileManager.default.fileExists(atPath: $0) } ?? false
+        let hasAudio = audioFilePath.map { FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent($0).path) } ?? false
         
         return captureCount + refCount + (hasDescription ? 1 : 0) + (hasAudio ? 1 : 0)
     }

@@ -97,8 +97,11 @@ struct ImagesCarousel: View {
             pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
         }
 
-        if let audioPath = audioFilePath, FileManager.default.fileExists(atPath: audioPath) {
-            pages.append(AnyView(AudioPlaybackCarouselPage(filePath: audioPath)))
+        if let rawAudioPath = audioFilePath {
+            let fullAudioPath = URL.documentsDirectory.appendingPathComponent(rawAudioPath).path
+            if FileManager.default.fileExists(atPath: fullAudioPath) {
+                pages.append(AnyView(AudioPlaybackCarouselPage(filePath: fullAudioPath)))
+            }
         }
 
         for urlString in refUrls {

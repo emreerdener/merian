@@ -39,6 +39,9 @@ struct InsightSheetView: View {
                 
                 // MARK: Lifecycle Bindings
                 .onAppear {
+                    // Reset stale @State properties from previous presentations natively.
+                    viewModel.reset()
+
                     // Seed both references immediately so viewModel computed properties
                     // resolve on the first frame rather than waiting for InsightContentView's onAppear.
                     viewModel.inferenceEngine = inferenceEngine
