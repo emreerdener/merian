@@ -10,7 +10,7 @@ enum MerianSchemaV38: VersionedSchema {
     static var models: [any PersistentModel.Type] {
         [MerianSchemaV38.LocalScanRecord.self,
          MerianSchemaV38.OfflineQueuedScan.self,
-         ScanCollection.self, PendingCloudDeletionTask.self,
+         MerianSchemaV38.ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self]
     }
 }
@@ -51,7 +51,7 @@ extension MerianSchemaV38 {
         var weatherCondition: String?
         var weatherTemperatureF: Double?
 
-        var collections: [ScanCollection]? = []
+        var collections: [MerianSchemaV38.ScanCollection]? = []
 
         var similarSpecies: [String]?
         var lookalikesData: Data?
@@ -129,7 +129,7 @@ extension MerianSchemaV38 {
             locationName: String? = nil,
             weatherCondition: String? = nil,
             weatherTemperatureF: Double? = nil,
-            collections: [ScanCollection]? = [],
+            collections: [MerianSchemaV38.ScanCollection]? = [],
             similarSpecies: [String]? = nil,
             lookalikesData: Data? = nil,
             candidatesData: Data? = nil,
@@ -307,6 +307,27 @@ extension MerianSchemaV38 {
             self.stagedR2Keys = stagedR2Keys
             self.observationContextJSON = observationContextJSON
             self.audioFilePath = audioFilePath
+        }
+    }
+}
+
+// MARK: - Frozen ScanCollection snapshot for MerianSchemaV38
+extension MerianSchemaV38 {
+    @Model
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
+
+        @Relationship(inverse: \MerianSchemaV38.LocalScanRecord.collections) var scans: [MerianSchemaV38.LocalScanRecord]? = []
+
+        init(id: String = UUID().uuidString, name: String, createdAt: Date = Date(), isDeleted: Bool = false, scans: [MerianSchemaV38.LocalScanRecord]? = []) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
         }
     }
 }
