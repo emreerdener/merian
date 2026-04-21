@@ -30,6 +30,9 @@ extension CaptureWorkspaceViewModel {
             // No images — description-only path
             if let context = stagedCapture.observationContext, !context.isEmpty {
                 submitDescribeSolo(observationContext: context, modelContext: modelContext)
+            } else if let audioFilePath = stagedCapture.audioFilePath {
+                submitAudio(audioFileName: audioFilePath, modelContext: modelContext)
+                stagedCapture.clearAll()
             }
             return
         }
