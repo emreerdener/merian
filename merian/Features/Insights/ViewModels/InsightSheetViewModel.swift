@@ -112,13 +112,18 @@ final class InsightSheetViewModel {
         inferenceEngine?.activeImageData
     }
     
-    /// Safely resolves the user's textual input gracefully escalating exclusively from top-down layers: 
-    /// offline queue snapshot, SQLite cache entity, and finally passing down to the hot inference pipeline.
     var observationContext: ObservationContext? {
         if queuedContext != nil || activeLocalRecord != nil {
             return cachedHistoricObservationContext
         }
         return inferenceEngine?.activeObservationContext
+    }
+
+    /// Safely resolves the audio file path escalating top-down: offline queue snapshot, SQLite cache entity, and finally hot inference pipeline.
+    var audioFilePath: String? {
+        if let queued = queuedContext { return queued.audioFilePath }
+        if let record = activeLocalRecord { return record.audioFilePath }
+        return inferenceEngine?.speciesData?.audioFilePath
     }
 
     var hasLive: Bool {
@@ -146,8 +151,9 @@ final class InsightSheetViewModel {
         let captureCount = hasLive ? liveCount : validHistoricImagePaths.count
         let refCount = refUrls.count + ((inferenceEngine?.isReferenceImageLoading == true && refUrls.isEmpty) ? 1 : 0)
         let hasDescription = observationContext?.isEmpty == false
+        let hasAudio = audioFilePath.map { FileManager.default.fileExists(atPath: $0) } ?? false
         
-        return captureCount + refCount + (hasDescription ? 1 : 0)
+        return captureCount + refCount + (hasDescription ? 1 : 0) + (hasAudio ? 1 : 0)
     }
 
     // MARK: - Toolbar Capability Flags

@@ -37,15 +37,18 @@ struct InsightContentView: View {
                     let activeIsProcessing = activeQueuedContext != nil ? false : viewModel.isProcessing
 
                     let hasDescription = activeObservationContext?.isEmpty == false
+                    let hasQueuedAudio = activeQueuedContext.flatMap { $0.audioFilePath }
+                        .map { FileManager.default.fileExists(atPath: $0) } ?? false
                     let activeTotalImages = (activeQueuedContext != nil 
                         ? (activeQueuedContext?.localImagePaths.count ?? 0) 
-                        : viewModel.totalImages) + (activeQueuedContext != nil ? (hasDescription ? 1 : 0) : 0)
+                        : viewModel.totalImages) + (activeQueuedContext != nil ? (hasDescription ? 1 : 0) + (hasQueuedAudio ? 1 : 0) : 0)
 
                     ImagesCarousel(
                         scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
                         refUrls: viewModel.refUrls,
                         validHistoricImagePaths: activeValidPaths,
                         liveImageData: activeQueuedContext != nil ? nil : viewModel.liveImageData,
+                        audioFilePath: activeQueuedContext != nil ? activeQueuedContext?.audioFilePath : viewModel.audioFilePath,
                         hasLive: activeHasLive,
                         liveCount: activeLiveCount,
                         totalImages: activeTotalImages,

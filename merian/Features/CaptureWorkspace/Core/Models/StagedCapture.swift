@@ -28,6 +28,9 @@ struct StagedCapture {
     /// Reserved for an audio recording clip.
     /// Populated when `AudioRecordingView` ships its recording pipeline.
     var audioFilePath: String?
+    
+    /// Timestamp when the audio clip was staged, used for chronological sorting in the UI.
+    var audioAddedAt: Date?
 
     /// Optional describe description staged from the Describe tab before submission.
     var observationContext: ObservationContext?
@@ -53,6 +56,7 @@ struct StagedCapture {
     mutating func clearAll() {
         images.removeAll()
         audioFilePath = nil
+        audioAddedAt = nil
         observationContext = nil
     }
 }

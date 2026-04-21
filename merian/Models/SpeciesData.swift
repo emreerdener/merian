@@ -142,6 +142,9 @@ struct SpeciesData {
 
     /// True when the user swiped through all alternative candidates without making a selection.
     var alternativesExhausted: Bool = false
+
+    /// Local file path to the audio recording associated with this scan.
+    var audioFilePath: String?
 }
 
 // MARK: - Subject Classification
@@ -254,6 +257,7 @@ extension SpeciesData {
         self.userConfirmedIdentification = false
         self.isFlagged = false
         self.alternativesExhausted = false
+        self.audioFilePath = nil // Set by InferenceEngine or InferenceProcessingActor
     }
 }
 
@@ -303,7 +307,8 @@ extension SpeciesData {
         userIdentificationOverride: String? = nil,
         userConfirmedIdentification: Bool = false,
         isFlagged: Bool = false,
-        alternativesExhausted: Bool = false
+        alternativesExhausted: Bool = false,
+        audioFilePath: String? = nil
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -347,6 +352,7 @@ extension SpeciesData {
         self.userConfirmedIdentification = userConfirmedIdentification
         self.isFlagged = isFlagged
         self.alternativesExhausted = alternativesExhausted
+        self.audioFilePath = audioFilePath
     }
 }
 

@@ -172,7 +172,7 @@ _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.
 
 There is **no need** to update model references in `MerianApp.swift`, nor anywhere else in the application, because the entire app dynamically inherits `CurrentSchema` and the active global models natively.
 
-The current active schema is `MerianSchemaV37`. Added in V37: `LocalScanRecord.observationContextJSON` and `OfflineQueuedScan.observationContextJSON` (both `String?`, additive nullable — lightweight migration, no data transform).
+The current active schema is `MerianSchemaV38`. Added in V38: `LocalScanRecord.audioFilePath` (`String?`, additive nullable — lightweight migration, no data transform). Added in V37: `LocalScanRecord.observationContextJSON` and `OfflineQueuedScan.observationContextJSON` (both `String?`).
 
 **Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse` contains nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps `scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`) structs. `EdgeResponse` also contains a nested `IdentificationCandidate` struct (`scientific_name: String`, `confidence_score: Double`, `distinguishing_feature: String?`) and a `candidates: [IdentificationCandidate]?` field mapping the `/identify` response candidates array. `distinguishing_feature` is required in the Gemini schema and TypeScript types but optional in Swift (`String?`) for graceful decoding of pre-migration JSONB rows that have the two-field shape. `EdgeResponse` additionally contains a nested `ImageQuality` struct (`sharpness: Int?`, `framing: Int?`, `diagnostic_utility: Int?`, `overall_score: Int?`) and an `image_quality: ImageQuality?` field. When adding new fields to either Edge Function response, update both the TypeScript schema and the corresponding Swift `Codable` struct simultaneously.
 
@@ -262,6 +262,7 @@ Tracks locally synchronized species scans for the Scans library.
 - `captureDate`: Date? — Secondary date field distinct from `timestamp`. Stores the EXIF capture date from the original photo asset when available.
 - `inferenceTier`: String? — Records the Gemini model tier (`"flash"` or `"pro"`) used for this scan. Forwarded from the `/identify` response. Used by `InferenceEngine` to apply the correct confidence threshold for diagnostics display.
 - `hasBeenViewed`: Bool — Defaults to `true` on historical cloud-synced records. Set to `false` on newly inferred scans so the Scans library can display a "New" badge until the user opens the insight sheet.
+- `audioFilePath`: String? (Added in `MerianSchemaV38`. Local file path to the audio recording associated with this scan. `nil` for scans without audio or scans captured before V38. A lightweight migration (`migrateV37toV38`) handles the version bump.)
 
 ### `ScanCollection` (User Albums)
 

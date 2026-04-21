@@ -7,6 +7,7 @@ struct ImagesCarousel: View {
     let validHistoricImagePaths: [String]
     /// Live capture image data — populated only during an active camera pipeline.
     let liveImageData: Data?
+    let audioFilePath: String?
     let hasLive: Bool
     let liveCount: Int
     let totalImages: Int
@@ -94,6 +95,10 @@ struct ImagesCarousel: View {
         } else if hasDesc, let text = descriptionText {
             // Pure describe mode
             pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
+        }
+
+        if let audioPath = audioFilePath, FileManager.default.fileExists(atPath: audioPath) {
+            pages.append(AnyView(AudioPlaybackCarouselPage(filePath: audioPath)))
         }
 
         for urlString in refUrls {

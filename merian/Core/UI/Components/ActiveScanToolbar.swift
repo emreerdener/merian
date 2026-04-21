@@ -43,6 +43,12 @@ struct ActiveScanToolbar: View {
                             StagedDescriptionBadge()
                         }
                         .buttonStyle(.plain)
+                        
+                    case .audio:
+                        Button(action: {}) {
+                            StagedAudioBadge()
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 
@@ -225,11 +231,13 @@ extension ActiveScanToolbar {
 private enum StagedNode: Identifiable {
     case image(uiImage: UIImage, index: Int, addedAt: Date)
     case description(addedAt: Date)
+    case audio(addedAt: Date)
 
     var id: String {
         switch self {
         case .image(_, let index, _): return "img_\(index)"
         case .description: return "desc"
+        case .audio: return "audio"
         }
     }
     
@@ -237,6 +245,7 @@ private enum StagedNode: Identifiable {
         switch self {
         case .image(_, _, let d): return d
         case .description(let d): return d
+        case .audio(let d): return d
         }
     }
 }
@@ -250,6 +259,9 @@ extension ActiveScanToolbar {
         if let obs = stagedCapture.observationContext, let date = obs.addedAt {
             nodes.append(.description(addedAt: date))
         }
+        if let _ = stagedCapture.audioFilePath, let date = stagedCapture.audioAddedAt {
+            nodes.append(.audio(addedAt: date))
+        }
         return nodes.sorted { $0.addedAt < $1.addedAt }
     }
 }
@@ -259,6 +271,22 @@ extension ActiveScanToolbar {
 private struct StagedDescriptionBadge: View {
     var body: some View {
         Image(systemName: "text.alignleft")
+            .font(.system(size: 18, weight: .medium))
+            .foregroundStyle(Color(UIColor.systemBackground))
+            .frame(width: 48, height: 48)
+            .background(
+                Circle()
+                    .fill(Color.primary)
+            )
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
+    }
+}
+
+/// Compact badge that appears in the toolbar when an audio clip has been
+/// staged. Signals an audio modality submission to the user.
+private struct StagedAudioBadge: View {
+    var body: some View {
+        Image(systemName: "waveform")
             .font(.system(size: 18, weight: .medium))
             .foregroundStyle(Color(UIColor.systemBackground))
             .frame(width: 48, height: 48)

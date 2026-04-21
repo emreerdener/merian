@@ -387,7 +387,18 @@ struct CaptureWorkspaceView: View {
         }
         .onChange(of: audioCaptureManager.audioFilePath) { _, fileName in
             guard let fileName else { return }
-            viewModel.submitAudio(audioFileName: fileName, modelContext: modelContext)
+            
+            let willStageOnly = !viewModel.stagedCapture.images.isEmpty
+                || isMultiCaptureEnabled
+                || UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
+                || viewModel.stagedCapture.observationContext != nil
+                
+            if willStageOnly {
+                viewModel.stagedCapture.audioFilePath = fileName
+                viewModel.stagedCapture.audioAddedAt = Date()
+            } else {
+                viewModel.submitAudio(audioFileName: fileName, modelContext: modelContext)
+            }
             audioCaptureManager.reset()
         }
         .onPhysicalCameraShutter(

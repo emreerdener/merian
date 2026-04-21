@@ -102,6 +102,10 @@ public final class LocalScanRecord {
     /// `nil` for image-only scans or scans captured before V37.
     @Attribute public var observationContextJSON: String?
 
+    /// Local file path to the audio recording associated with this scan.
+    /// Added in SchemaV38.
+    @Attribute public var audioFilePath: String?
+
     public var userReviewState: UserReviewState {
         get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
         set { userReviewStateRaw = newValue.rawValue }
@@ -163,7 +167,8 @@ public final class LocalScanRecord {
         alternativeCommonNames: [String]? = nil,
         confirmedSpeciesId: String? = nil,
         userReviewStateRaw: String? = nil,
-        observationContextJSON: String? = nil
+        observationContextJSON: String? = nil,
+        audioFilePath: String? = nil
     ) {
 
         self.id = id
@@ -228,5 +233,6 @@ public final class LocalScanRecord {
         self.confirmedSpeciesId = confirmedSpeciesId
         self.userReviewStateRaw = userReviewStateRaw
         self.observationContextJSON = observationContextJSON
+        self.audioFilePath = audioFilePath
     }
 }
