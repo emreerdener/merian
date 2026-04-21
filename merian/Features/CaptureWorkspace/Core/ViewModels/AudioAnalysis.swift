@@ -16,7 +16,7 @@ extension CaptureWorkspaceViewModel {
     ///   fires `analyzeAudio` so the result appears without switching to another screen.
     ///
     /// Includes a 1.5 s debounce to prevent duplicate submissions on rapid taps.
-    func submitAudio(audioFileName: String, modelContext: ModelContext) {
+    func submitAudio(audioFileName: String, observationContext: ObservationContext? = nil, modelContext: ModelContext) {
         guard !audioFileName.isEmpty else { return }
 
         let now = CFAbsoluteTimeGetCurrent()
@@ -62,6 +62,7 @@ extension CaptureWorkspaceViewModel {
                 let enqueued = self.diContainer.offlineQueueManager.enqueueAudio(
                     audioFileName: audioFileName,
                     telemetry: telemetry,
+                    observationContext: observationContext,
                     scanId: scanId
                 )
                 guard enqueued else {
@@ -83,6 +84,7 @@ extension CaptureWorkspaceViewModel {
                     scanId: scanId,
                     audioFileName: audioFileName,
                     telemetry: telemetry,
+                    observationContext: observationContext,
                     modelContext: modelContext
                 )
             }

@@ -28,11 +28,13 @@ extension CaptureWorkspaceViewModel {
     func submitStagedCapture(modelContext: ModelContext) {
         guard !stagedCapture.images.isEmpty else {
             // No images — description-only path
-            if let context = stagedCapture.observationContext, !context.isEmpty {
-                submitDescribeSolo(observationContext: context, modelContext: modelContext)
-            } else if let audioFilePath = stagedCapture.audioFilePath {
-                submitAudio(audioFileName: audioFilePath, modelContext: modelContext)
+            if let audioFilePath = stagedCapture.audioFilePath {
+                submitAudio(audioFileName: audioFilePath, observationContext: stagedCapture.observationContext, modelContext: modelContext)
                 stagedCapture.clearAll()
+            } else if let context = stagedCapture.observationContext, !context.isEmpty {
+                submitDescribeSolo(observationContext: context, modelContext: modelContext)
+                // Note: submitDescribeSolo handles its own clearAll currently where called natively, but 
+                // for consistency we'll clear it after. Actually, let's just clearAll in universal spot.
             }
             return
         }

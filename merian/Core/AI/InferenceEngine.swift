@@ -837,6 +837,7 @@ private struct GBIFMedia: Decodable {
         scanId: String?,
         audioFileName: String,
         telemetry: CaptureTelemetry,
+        observationContext: ObservationContext? = nil,
         modelContext: ModelContext?
     ) {
         self.inferenceTask?.cancel()
@@ -853,7 +854,7 @@ private struct GBIFMedia: Decodable {
         self.isLookalikesLoading = false
         self.scanningPhaseText = "Listening..."
 
-        self.activeObservationContext = nil
+        self.activeObservationContext = observationContext
         self.activeScanId = scanId
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
@@ -882,10 +883,16 @@ private struct GBIFMedia: Decodable {
 
                 try Task.checkCancellation()
 
+                let contextJSON: String? = observationContext.flatMap { ctx in
+                    guard !ctx.isEmpty else { return nil }
+                    return (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
+                }
+
                 let resultData = try await MerianNetworkClient.shared.identifyAudio(
                     audioFilePath: audioFileName,
                     telemetry: telemetry,
-                    clientScanId: scanId
+                    clientScanId: scanId,
+                    observationContextJSON: contextJSON
                 )
 
                 let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
@@ -895,7 +902,7 @@ private struct GBIFMedia: Decodable {
                     compressedDatas: [],
                     displayDatas: [],
                     skipImageRequirement: true,
-                    observationContextJSON: nil
+                    observationContextJSON: contextJSON
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery

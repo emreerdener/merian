@@ -505,7 +505,8 @@ final class MerianNetworkClient {
     func buildAudioRequest(
         audioFilePath: String,
         telemetry: CaptureTelemetry,
-        clientScanId: String
+        clientScanId: String,
+        observationContextJSON: String? = nil
     ) async throws -> URLRequest {
         let functionUrl = try endpointURL("audio-spec")
 
@@ -528,11 +529,17 @@ final class MerianNetworkClient {
 
         let capturedTelemetry = telemetry
         let capturedScanId = clientScanId
+        let capturedObservationContextJSON = observationContextJSON
         let audioURL = URL.documentsDirectory.appendingPathComponent(audioFilePath)
 
         let bodyData = try await Task.detached(priority: .userInitiated) {
             let wavData = try Data(contentsOf: audioURL)
             let base64Audio = wavData.base64EncodedString()
+            let observationContextObject: [String: Any]? = capturedObservationContextJSON.flatMap { json in
+                guard let data = json.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+                return obj
+            }
             let isolatedPayload: [String: Any?] = [
                 "user_id": userId,
                 "audio_base64": base64Audio,
@@ -548,7 +555,8 @@ final class MerianNetworkClient {
                 "current_month": currentMonth,
                 "time_of_day": timeOfDay,
                 "timestamp": capturedTelemetry.timestamp,
-                "client_scan_id": capturedScanId
+                "client_scan_id": capturedScanId,
+                "observation_context": observationContextObject
             ]
             return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
         }.value
@@ -573,12 +581,14 @@ final class MerianNetworkClient {
     func identifyAudio(
         audioFilePath: String,
         telemetry: CaptureTelemetry,
-        clientScanId: String? = nil
+        clientScanId: String? = nil,
+        observationContextJSON: String? = nil
     ) async throws -> Data {
         let request = try await buildAudioRequest(
             audioFilePath: audioFilePath,
             telemetry: telemetry,
-            clientScanId: clientScanId ?? UUID().uuidString.lowercased()
+            clientScanId: clientScanId ?? UUID().uuidString.lowercased(),
+            observationContextJSON: observationContextJSON
         )
 
         guard let url = request.url, let bodyData = request.httpBody else {

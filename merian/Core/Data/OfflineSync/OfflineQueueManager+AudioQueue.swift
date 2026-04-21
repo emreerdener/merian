@@ -19,7 +19,7 @@ extension OfflineQueueManager {
     /// The caller must not invoke `analyzeAudio` or clear UI state when `false` is returned.
     @MainActor
     @discardableResult
-    func enqueueAudio(audioFileName: String, telemetry: CaptureTelemetry, scanId: String? = nil) -> Bool {
+    func enqueueAudio(audioFileName: String, telemetry: CaptureTelemetry, observationContext: ObservationContext? = nil, scanId: String? = nil) -> Bool {
         guard !audioFileName.isEmpty else { return false }
 
         // Move tmp → Documents so the file outlives the OS temporary storage eviction window.
@@ -45,6 +45,11 @@ extension OfflineQueueManager {
             UsageManager.shared.consumeScan()
         }
 
+        let contextJSON: String? = observationContext.flatMap { ctx in
+            guard !ctx.isEmpty else { return nil }
+            return (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
+        }
+
         let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
         let scan = OfflineQueuedScan(
             id: resolvedScanId,
@@ -58,7 +63,8 @@ extension OfflineQueueManager {
             locationName: telemetry.locationName,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
             scanState: .staged,
-            audioFilePath: audioFileName
+            audioFilePath: audioFileName,
+            observationContextJSON: contextJSON
         )
 
         guard let modelContext else {
