@@ -257,6 +257,10 @@ serve((req: Request) =>
       candidates: parsedData.candidates,
       image_quality: parsedData.image_quality,
       ai_reasoning: parsedData.ai_reasoning,
+      insight_data: {
+        ai_reasoning: parsedData.ai_reasoning,
+        hazard_type: parsedData.hazard_type || "none"
+      },
       extracted_visual_traits: parsedData.extracted_visual_traits,
     };
 
