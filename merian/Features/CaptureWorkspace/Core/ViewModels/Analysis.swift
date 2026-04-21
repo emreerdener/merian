@@ -52,6 +52,7 @@ extension CaptureWorkspaceViewModel {
         // 3. Capture the context needed for inference before clearing the staging buffers.
         let capturedImages          = stagedCapture.images
         let capturedObsContext      = stagedCapture.observationContexts.first?.context
+        let capturedAudio           = stagedCapture.audios.first
         let capturedPreFetchTask    = preFetchTask
         let targetEradicationRecord = baseRefinementRecord
 
@@ -85,6 +86,7 @@ extension CaptureWorkspaceViewModel {
         )
         diContainer.offlineQueueManager.enqueueCapture(
             imageDatas: capturedImages.map(\.compressedData),
+            audioFilePath: capturedAudio?.filePath,
             telemetry: immediateTelemetry,
             blurScore: nil,
             scanId: scanId,
@@ -116,6 +118,7 @@ extension CaptureWorkspaceViewModel {
                     scanId: scanId,
                     imageDatas: capturedImages.map(\.compressedData),
                     displayDatas: capturedImages.map(\.displayData),
+                    audioFilePath: capturedAudio?.filePath,
                     telemetry: telemetry,
                     observationContext: capturedObsContext,   // non-nil when combined
                     modelContext: modelContext,

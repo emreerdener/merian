@@ -253,7 +253,7 @@ private struct GBIFMedia: Decodable {
     ///     When non-nil, `ObservationContext.serialized()` is appended as a text part in the
     ///     Gemini request and the raw JSON is forwarded as `observation_context` to the edge
     ///     function and persisted in `LocalScanRecord.observationContextsJSON`.
-    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], telemetry: CaptureTelemetry, observationContext: ObservationContext? = nil, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
+    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], audioFilePath: String? = nil, telemetry: CaptureTelemetry, observationContext: ObservationContext? = nil, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -365,7 +365,7 @@ private struct GBIFMedia: Decodable {
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
-                    audioFilePaths: [],
+                    audioFilePaths: audioFilePath.map { [$0] } ?? [],
                     observationContextsJSON: observationContextsJSON ?? [],
                     telemetry: telemetry,
                     clientScanId: scanId
@@ -381,7 +381,8 @@ private struct GBIFMedia: Decodable {
                     modelContext: modelContext,
                     compressedDatas: compressedDatas,
                     displayDatas: capturedDisplayDatas,
-                    observationContextsJSON: observationContextsJSON
+                    observationContextsJSON: observationContextsJSON,
+                    audioFilePaths: audioFilePath.map { [$0] }
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery

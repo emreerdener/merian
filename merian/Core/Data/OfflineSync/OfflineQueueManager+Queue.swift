@@ -323,6 +323,7 @@ extension OfflineQueueManager {
     ///   generated (used by callers that do not run a parallel live inference).
     func enqueueCapture(
         imageDatas: [Data],
+        audioFilePath: String? = nil,
         telemetry: CaptureTelemetry,
         blurScore: Double? = nil,
         scanId: String? = nil,
@@ -352,6 +353,7 @@ extension OfflineQueueManager {
                         scanId: resolvedScanId,
                         fileNames: fileNames,
                         fileURLs: fileURLs,
+                        audioFilePath: audioFilePath,
                         telemetry: telemetry,
                         blurScore: blurScore,
                         observationContextsJSON: contextJSON.map { [$0] }
@@ -454,6 +456,7 @@ extension OfflineQueueManager {
         scanId: String,
         fileNames: [String],
         fileURLs: [URL],
+        audioFilePath: String? = nil,
         telemetry: CaptureTelemetry,
         blurScore: Double?,
         observationContextsJSON: [String]? = nil
@@ -489,7 +492,8 @@ extension OfflineQueueManager {
             uvIndex: nil,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
             scanState: .pending,
-            observationContextsJSON: observationContextsJSON
+            observationContextsJSON: observationContextsJSON,
+            audioFilePaths: audioFilePath != nil ? [audioFilePath!] : nil
         )
         
         guard let modelContext else {

@@ -26,7 +26,7 @@ struct AudioPlaybackCarouselPage: View {
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
     @Environment(\.scenePhase) private var scenePhase
 
-    private var isPlaying: Bool { player?.isPlaying == true }
+    @State private var isPlaying: Bool = false
     private var isHardwareDisabled: Bool {
         speechManager.isRecording || audioCaptureManager.isRecording
     }
@@ -83,11 +83,13 @@ struct AudioPlaybackCarouselPage: View {
         }
         .onDisappear {
             player?.stop()
+            isPlaying = false
             restoreSession()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 player?.stop()
+                isPlaying = false
                 playbackProgress = 0.0
                 restoreSession()
             }
@@ -108,11 +110,13 @@ struct AudioPlaybackCarouselPage: View {
 
         if player.isPlaying {
             player.pause()
+            isPlaying = false
         } else {
             // Guarantee audio session is hot before play
             do {
                 try AVAudioSession.sharedInstance().setActive(true)
                 player.play()
+                isPlaying = true
             } catch {
                 MerianLog.general.debug("AudioPlaybackCarouselPage: session activation failed: \(error, privacy: .private)")
             }
@@ -153,7 +157,10 @@ struct AudioPlaybackCarouselPage: View {
             let playerURL = url
             let preparedPlayer: AVAudioPlayer? = try? await MainActor.run {
                 let p = try AVAudioPlayer(contentsOf: playerURL)
-                playerDelegate.onFinish = { playbackProgress = 0.0 }
+                playerDelegate.onFinish = {
+                    playbackProgress = 0.0
+                    isPlaying = false
+                }
                 p.delegate = playerDelegate
                 p.prepareToPlay()
                 return p
