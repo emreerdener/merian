@@ -146,7 +146,7 @@ final class InsightSheetViewModel {
     var audioFilePath: String? {
         if let queued = queuedContext { return queued.audioFilePaths?.first }
         if let record = activeLocalRecord { return record.audioFilePaths?.first }
-        return inferenceEngine?.speciesData?.audioFilePaths?.first
+        return inferenceEngine?.activeAudioFilePath ?? inferenceEngine?.speciesData?.audioFilePaths?.first
     }
 
     var hasLive: Bool {

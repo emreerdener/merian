@@ -32,6 +32,8 @@ extension CaptureWorkspaceViewModel {
 
         let isOnline = diContainer.offlineQueueManager.isOnline
 
+        diContainer.inferenceEngine.prepareForNewScan()
+
         Task {
             let resolvedContext = await capturedPreFetchTask?.value
             let cachedLocation = diContainer.environmentContextManager.lastKnownLocation

@@ -85,7 +85,7 @@ extension OfflineQueueManager {
 
     /// Explicitly deletes an offline queued scan immediately.
     /// Cancels any in-flight background uploads and purges the item from disk.
-    func deleteQueuedScan(scanId: String) async {
+    func deleteQueuedScan(scanId: String, explicitlyAdoptedAudioPaths: [String] = []) async {
         // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
         let allTasks = await backgroundSession.allTasks
         for task in allTasks {
@@ -104,7 +104,9 @@ extension OfflineQueueManager {
         for path in scan.localImagePaths {
             try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
         }
-        for audioPath in scan.audioFilePaths ?? [] {
+        let adoptedAudioPaths = Set(explicitlyAdoptedAudioPaths)
+
+        for audioPath in scan.audioFilePaths ?? [] where !adoptedAudioPaths.contains(audioPath) {
             try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(audioPath))
         }
 
@@ -348,6 +350,18 @@ extension OfflineQueueManager {
             guard let self else { return }
             do {
                 try self.writeImagesToDisk(imageDatas, urls: fileURLs)
+                
+                if let audioName = audioFilePath {
+                    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(audioName)
+                    let destURL = documentsDirectory.appendingPathComponent(audioName)
+                    if FileManager.default.fileExists(atPath: destURL.path) {
+                        try FileManager.default.removeItem(at: destURL)
+                    }
+                    if FileManager.default.fileExists(atPath: tempURL.path) {
+                        try FileManager.default.moveItem(at: tempURL, to: destURL)
+                    }
+                }
+                
                 await MainActor.run {
                     self.insertAndPersistRecord(
                         scanId: resolvedScanId,

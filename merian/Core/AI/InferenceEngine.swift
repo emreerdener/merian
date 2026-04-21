@@ -61,6 +61,7 @@ private struct GBIFMedia: Decodable {
     var scanningPhaseText: String = "Analyzing subject..."
     @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
     var activeImageData: Data?
+    var activeAudioFilePath: String?
     var validHistoricImagePaths: [String] = []
     var speciesData: SpeciesData?
     
@@ -219,6 +220,7 @@ private struct GBIFMedia: Decodable {
         self.speciesData = nil
         self.validHistoricImagePaths = []
         self.activeImageData = nil
+        self.activeAudioFilePath = nil
         self.activeObservationContext = nil
 
         // Clear telemetry so stale GPS/weather cannot bleed into the new scan's display.
@@ -277,6 +279,7 @@ private struct GBIFMedia: Decodable {
         self.activeScanId = scanId
         self.isProcessing = true
         self.activeImageData = displayDatas.first ?? imageDatas.first
+        self.activeAudioFilePath = audioFilePath
         self.validHistoricImagePaths = []
         self.speciesData = nil
         
@@ -456,7 +459,9 @@ private struct GBIFMedia: Decodable {
                     // idempotency guard detects the existing record and skips insertion.
                     if let scanId {
                         OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
-                        executeTrackedBackgroundTask { await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId) }
+                        executeTrackedBackgroundTask { [audioPathsToKeep = mappedData.audioFilePaths ?? []] in
+                            await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId, explicitlyAdoptedAudioPaths: audioPathsToKeep)
+                        }
                     }
 
                     // Schedule a local notification for inference complete.
@@ -643,12 +648,9 @@ private struct GBIFMedia: Decodable {
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
 
-        // Reset loading flags synchronously — same pattern as analyze().
-        self.isEnrichmentLoading = false
-        self.isLookalikesLoading = false
+        self.prepareForNewScan()
         self.scanningPhaseText = "Identifying describe..."
 
-        self.activeObservationContext = nil
         self.activeScanId = scanId
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
@@ -852,12 +854,12 @@ private struct GBIFMedia: Decodable {
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
 
-        self.isEnrichmentLoading = false
-        self.isLookalikesLoading = false
+        self.prepareForNewScan()
         self.scanningPhaseText = "Listening..."
 
         self.activeObservationContext = observationContext
         self.activeScanId = scanId
+        self.activeAudioFilePath = audioFileName
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
         self.activeElevation = telemetry.gpsElevation
@@ -935,8 +937,8 @@ private struct GBIFMedia: Decodable {
                     // for durability, so unlike describe, there is always a record to clean up.
                     if let scanId = ownedScanId {
                         OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
-                        executeTrackedBackgroundTask {
-                            await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId)
+                        executeTrackedBackgroundTask { [audioPathsToKeep = mappedData.audioFilePaths ?? []] in
+                            await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId, explicitlyAdoptedAudioPaths: audioPathsToKeep)
                         }
                     }
 
@@ -1331,8 +1333,7 @@ private struct GBIFMedia: Decodable {
                             let gbifSnapshot = enrichData.gbif_taxon_key
                             let taxonomySnapshot = enrichData.taxonomy
                             let altNamesSnapshot = enrichData.alternative_common_names
-                            self.enrichmentWriteTask?.cancel()
-                            self.enrichmentWriteTask = Task {
+                            Task {
                                 guard !Task.isCancelled else { return }
                                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                                 await dbActor.updateScanWithEnrichment(
@@ -1799,6 +1800,8 @@ private struct GBIFMedia: Decodable {
         self.isReferenceImageLoading = false
         self.speciesData = nil
         activeImageData = nil
+        activeAudioFilePath = nil
+        activeObservationContext = nil
         validHistoricImagePaths.removeAll()
         activeLatitude = nil
         activeLongitude = nil
@@ -1842,6 +1845,8 @@ private struct GBIFMedia: Decodable {
 
         self.activeScanId = record.id
         self.activeImageData = nil
+        self.activeAudioFilePath = record.audioFilePaths?.first
+        self.activeObservationContext = nil
         self.validHistoricImagePaths = []
 
         // Capture all non-Sendable model properties synchronously on @MainActor

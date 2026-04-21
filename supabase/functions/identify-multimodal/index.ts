@@ -204,7 +204,7 @@ serve((req: Request) =>
           systemInstruction: instructionToUse,
           temperature: 0.1,
           seed: 42,
-          maxOutputTokens: userTier === "pro" ? 8192 : 2048,
+          maxOutputTokens: 8192,
           thinkingConfig: userTier === "pro" ? { thinkingBudget: 5000 } : undefined,
           responseMimeType: "application/json",
           responseSchema: getMerianResponseSchema(diagnosticTrigger),
@@ -229,7 +229,7 @@ serve((req: Request) =>
     if (finishReason && finishReason !== "STOP" && finishReason !== "FINISH_REASON_UNSPECIFIED") {
       const isPermanent = finishReason === "SAFETY" || finishReason === "PROHIBITED_CONTENT";
       logStructuredError("multimodal/non_stop_finish", { user_id: user.id, finish_reason: finishReason });
-      return jsonResponse({ error: "AI processing error." }, isPermanent ? 400 : 503);
+      return jsonResponse({ error: `AI processing error (${finishReason}).` }, isPermanent ? 400 : 503);
     }
 
     let parsedData: MerianIdentification;
