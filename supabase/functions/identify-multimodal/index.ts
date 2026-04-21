@@ -10,7 +10,7 @@ import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
 
-import { MultimodalPayload, ClientPayload, IdentificationCandidate, MerianIdentification } from "./types.ts";
+import { MultimodalPayload, ClientPayload, MerianIdentification } from "./types.ts";
 import {
   upsertGhostUserIfMissing,
   fetchCachedSpecies,
@@ -157,7 +157,7 @@ serve((req: Request) =>
     const partsArray: Part[] = [];
     if (observation_contexts.length > 0) {
       const mergedContexts = observation_contexts.map(c => c.freeText).join("\\n");
-      partsArray.push({ text: \`Additional observation context from user:\\n\${mergedContexts}\` });
+      partsArray.push({ text: `Additional observation context from user:\n${mergedContexts}` });
     }
 
     for (const b64 of resolvedImageBase64s) {
@@ -169,18 +169,18 @@ serve((req: Request) =>
     }
 
     const telemetryItems = [
-      safeGpsLat != null && safeGpsLon != null ? \`GPS:\${safeGpsLat},\${safeGpsLon}\` : null,
-      gps_elevation != null ? \`Elev:\${gps_elevation}m\` : null,
-      semantic_location ? \`Loc:\${semantic_location}\` : null,
-      weather_condition ? \`Wx:\${weather_condition}\` : null,
-      weather_temperature_f != null ? \`Temp:\${weather_temperature_f}F\` : null,
-      device_locale ? \`Locale:\${device_locale}\` : null,
-      device_time_zone ? \`TZ:\${device_time_zone}\` : null,
-      device_region ? \`Region:\${device_region}\` : null,
-      current_month ? \`Month:\${current_month}\` : null,
-      time_of_day ? \`Time:\${time_of_day}\` : null,
+      safeGpsLat != null && safeGpsLon != null ? `GPS:${safeGpsLat},${safeGpsLon}` : null,
+      gps_elevation != null ? `Elev:${gps_elevation}m` : null,
+      semantic_location ? `Loc:${semantic_location}` : null,
+      weather_condition ? `Wx:${weather_condition}` : null,
+      weather_temperature_f != null ? `Temp:${weather_temperature_f}F` : null,
+      device_locale ? `Locale:${device_locale}` : null,
+      device_time_zone ? `TZ:${device_time_zone}` : null,
+      device_region ? `Region:${device_region}` : null,
+      current_month ? `Month:${current_month}` : null,
+      time_of_day ? `Time:${time_of_day}` : null,
     ].filter(Boolean).join(", ");
-    partsArray.push({ text: \`Context: \${telemetryItems || "no telemetry"}.\` });
+    partsArray.push({ text: `Context: ${telemetryItems || "no telemetry"}.` });
 
     if (partsArray.length === 1 && !observation_contexts.length) {
       return jsonResponse({ error: "At least one media element or description is required" }, 400);
@@ -194,7 +194,6 @@ serve((req: Request) =>
     let llmPromptTokens: number | null = null;
     let llmCandidateTokens: number | null = null;
     let llmThinkingTokens: number | null = null;
-    let llmCachedTokens: number | null = null;
     let llmTotalTokens: number | null = null;
 
     try {
@@ -236,7 +235,7 @@ serve((req: Request) =>
     let parsedData: MerianIdentification;
     try {
       parsedData = extractJson<MerianIdentification>(responseText);
-    } catch (parseErr) {
+    } catch {
       return jsonResponse({ error: "Processing Error: Malformed AI response." }, 422);
     }
 
@@ -287,6 +286,11 @@ serve((req: Request) =>
                  family: freshSpecies?.family || "Unknown",
                  genus: freshSpecies?.genus || "Unknown",
                  native_region: "Unknown",
+                 wikipedia_url: externalData.wikipediaUrl,
+                 wikipedia_overview: externalData.wikiExtract,
+                 gbif_taxon_key: externalData.gbifKey,
+                 reference_image_url: externalData.referenceImageUrl,
+                 alternative_common_names: externalData.alternativeCommonNames,
                },
                supabaseAdmin,
              );
@@ -331,12 +335,12 @@ serve((req: Request) =>
         );
         scanInserted = true;
         
-        trackPostHogEvent("scan_completed", {
-          distinct_id: user.id,
+        trackPostHogEvent(user.id, "scan_completed", {
           scan_id: generatedScanId,
           inference_tier: userTier === "pro" ? "pro" : "flash",
           is_identified: isIdentifiedBio,
           species_name: parsedData.scientific_name || null,
+          gemini_latency_ms: Date.now() - geminiStart,
         }).catch((e) => console.error("PostHog tracking failed:", e));
 
         if (isIdentifiedBio && parsedData.scientific_name) {

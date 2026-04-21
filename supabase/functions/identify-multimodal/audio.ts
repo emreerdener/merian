@@ -1,4 +1,4 @@
-import { encodeBase64, decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 /**
  * DUAL-MAINTENANCE: The WAV processing algorithm exists in both /audio-spec/index.ts and
@@ -201,7 +201,7 @@ export function encodeWav16(samples: Float32Array, sampleRate: number): Uint8Arr
   return bytes;
 }
 
-export async function processWAV(rawWavBuffer: ArrayBuffer): Promise<string> {
+export function processWAV(rawWavBuffer: ArrayBuffer): string {
   const header = parseWavHeader(rawWavBuffer);
   const interleaved = extractSamplesAsFloat32(rawWavBuffer, header);
   const mono = mixToMono(interleaved, header.numChannels);

@@ -8,6 +8,10 @@ final class PlayerDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable
     }
 }
 
+final class EOFBox: @unchecked Sendable {
+    var value = false
+}
+
 struct AudioPlaybackCarouselPage: View {
     let filePath: String
     
@@ -169,7 +173,7 @@ struct AudioPlaybackCarouselPage: View {
             
             while true {
                 var error: NSError?
-                var isEOF = false
+                let isEOF = EOFBox()
                 
                 let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
                     guard let inBuffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: inNumPackets) else {
@@ -183,14 +187,14 @@ struct AudioPlaybackCarouselPage: View {
                         return inBuffer
                     } catch {
                         outStatus.pointee = .endOfStream
-                        isEOF = true
+                        isEOF.value = true
                         return nil
                     }
                 }
                 
                 let status = converter.convert(to: buffer, error: &error, withInputFrom: inputBlock)
                 
-                if status == .error || status == .endOfStream || isEOF {
+                if status == .error || status == .endOfStream || isEOF.value {
                     break
                 }
                 
