@@ -239,7 +239,7 @@ private struct GBIFMedia: Decodable {
     ///     When non-nil, `ObservationContext.serialized()` is appended as a text part in the
     ///     Gemini request and the raw JSON is forwarded as `observation_context` to the edge
     ///     function and persisted in `LocalScanRecord.observationContextsJSON`.
-    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], audioFilePath: String? = nil, telemetry: CaptureTelemetry, observationContext: ObservationContext? = nil, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
+    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], audioFilePaths: [String]? = nil, telemetry: CaptureTelemetry, observationContext: ObservationContext? = nil, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -259,17 +259,20 @@ private struct GBIFMedia: Decodable {
         self.activeMedia = ActiveScanMedia()
         
         var newMediaItems: [MediaItem] = []
-        if let imageData = displayDatas.first ?? imageDatas.first {
-            newMediaItems.append(.liveImage(imageData))
+        let datasToUse = displayDatas.isEmpty ? imageDatas : displayDatas
+        for data in datasToUse {
+            newMediaItems.append(.liveImage(data))
         }
         if let ctx = observationContext {
             newMediaItems.append(.description(ctx))
         }
-        if let audioPath = audioFilePath {
-            let docsPath = URL.documentsDirectory.appendingPathComponent(audioPath).path
-            let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(audioPath).path
-            let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-            newMediaItems.append(.audio(resolvedPath))
+        if let audioPaths = audioFilePaths {
+            for audioPath in audioPaths {
+                let docsPath = URL.documentsDirectory.appendingPathComponent(audioPath).path
+                let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(audioPath).path
+                let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+                newMediaItems.append(.audio(resolvedPath))
+            }
         }
         self.activeMedia.items = newMediaItems
         
@@ -359,7 +362,7 @@ private struct GBIFMedia: Decodable {
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
-                    audioFilePaths: audioFilePath.map { [$0] } ?? [],
+                    audioFilePaths: audioFilePaths ?? [],
                     observationContextsJSON: observationContextsJSON ?? [],
                     telemetry: telemetry,
                     clientScanId: scanId
@@ -376,7 +379,7 @@ private struct GBIFMedia: Decodable {
                     compressedDatas: compressedDatas,
                     displayDatas: capturedDisplayDatas,
                     observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: audioFilePath.map { [$0] }
+                    audioFilePaths: audioFilePaths
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery

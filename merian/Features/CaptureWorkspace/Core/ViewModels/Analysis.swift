@@ -118,7 +118,7 @@ extension CaptureWorkspaceViewModel {
                     scanId: scanId,
                     imageDatas: capturedImages.map(\.compressedData),
                     displayDatas: capturedImages.map(\.displayData),
-                    audioFilePath: capturedAudio?.filePath,
+                    audioFilePaths: capturedAudio.map { [$0.filePath] },
                     telemetry: telemetry,
                     observationContext: capturedObsContext,   // non-nil when combined
                     modelContext: modelContext,
