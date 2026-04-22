@@ -411,11 +411,6 @@ extension OfflineQueueManager {
         scanId: String? = nil
     ) {
         guard !observationContext.isEmpty else { return }
-        guard let contextData = try? JSONEncoder().encode(observationContext),
-              let contextJSON = String(data: contextData, encoding: .utf8) else {
-            MerianLog.data.error("enqueueDescribe: failed to encode ObservationContext — describe not queued")
-            return
-        }
 
         if !RevenueCatManager.shared.isProActive {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {

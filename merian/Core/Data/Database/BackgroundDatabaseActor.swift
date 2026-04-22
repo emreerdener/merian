@@ -462,7 +462,6 @@ actor BackgroundDatabaseActor {
         }
     }
 
-
     private func buildCapturedMediaJSON(localImagePaths: [String]? = nil, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) -> String? {
         var mediaItems: [SerializedMediaItem] = []
         if let paths = localImagePaths {
@@ -487,11 +486,9 @@ actor BackgroundDatabaseActor {
 
     /// Persists a real-time scan result to SwiftData on the actor thread.
     func saveLiveScanRecord(mappedData: SpeciesData, localImagePaths: [String], observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) -> Bool {
-        guard mappedData.confidenceScore > 0.0, let firstPath = localImagePaths.first else {
+        guard mappedData.confidenceScore > 0.0, !localImagePaths.isEmpty else {
             return false
         }
-
-        let additionalPaths: [String]? = localImagePaths.count > 1 ? Array(localImagePaths.dropFirst()) : nil
 
         let targetName = mappedData.scientificName
         var fetchDescriptor = FetchDescriptor<LocalScanRecord>(
