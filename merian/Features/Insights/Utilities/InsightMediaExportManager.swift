@@ -90,7 +90,7 @@ final class InsightMediaExportManager {
     // MARK: - Batch Item Sharing
     func batchShareDiscovery(records: [LocalScanRecord], presentShareSheet: @escaping ([Any]) -> Void) {
         let payloads = records.map { scan -> SharePayload in
-            var path: String? = nil
+            var path: String?
             if let jsonStr = scan.capturedMediaJSON,
                let jsonData = jsonStr.data(using: .utf8),
                let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {

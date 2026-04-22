@@ -1,5 +1,5 @@
-import SwiftData
 import Foundation
+import SwiftData
 
 // MARK: - Migration Plan
 
@@ -199,8 +199,6 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
     )
 
-
-
     nonisolated(unsafe) static var _v39LocalMediaBackfill: [String: String] = [:]
     nonisolated(unsafe) static var _v39OfflineMediaBackfill: [String: String] = [:]
     nonisolated(unsafe) static var _v39LocalCoverBackfill: [String: String] = [:]
@@ -306,7 +304,6 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             _v39OfflineCoverBackfill = [:]
         }
     )
-
 
     // Temporary backfill storage for V32→V33 migration.
     // Captures the old Bool state before the column is dropped, then writes scanStateRaw in didMigrate.

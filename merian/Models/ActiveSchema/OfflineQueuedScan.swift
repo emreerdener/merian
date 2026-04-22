@@ -30,10 +30,6 @@ public final class OfflineQueuedScan {
     /// Eliminates auth-dependent key reconstruction at inference time.
     public var stagedR2Keys: [String]?
 
-    /// JSON-encoded `ObservationContext`s serialized at enqueue time.
-    /// Preserved so the offline-retry path can reconstruct the full combined
-    /// multimodal payload without requiring the user to re-enter details.
-
     // MARK: - Typed accessor
 
     public var queueState: ScanQueueState {

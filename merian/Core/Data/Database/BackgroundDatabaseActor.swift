@@ -462,6 +462,27 @@ actor BackgroundDatabaseActor {
         }
     }
 
+
+    private func buildCapturedMediaJSON(localImagePaths: [String]? = nil, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) -> String? {
+        var mediaItems: [SerializedMediaItem] = []
+        if let paths = localImagePaths {
+            for path in paths { mediaItems.append(.image(path)) }
+        }
+        if let contexts = observationContextsJSON {
+            for ctxStr in contexts {
+                if let data = ctxStr.data(using: .utf8),
+                   let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
+                    mediaItems.append(.description(ctx))
+                }
+            }
+        }
+        if let audios = audioFilePaths {
+            for path in audios { mediaItems.append(.audio(path)) }
+        }
+        guard !mediaItems.isEmpty else { return nil }
+        return (try? JSONEncoder().encode(mediaItems)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
     // MARK: - Live Scan Recording
 
     /// Persists a real-time scan result to SwiftData on the actor thread.
@@ -489,6 +510,8 @@ actor BackgroundDatabaseActor {
         let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
         let isNewDiscovery = existingRecords.isEmpty
 
+        let capturedMediaJSON = buildCapturedMediaJSON(localImagePaths: localImagePaths, observationContextsJSON: observationContextsJSON, audioFilePaths: audioFilePaths)
+
         let record = LocalScanRecord(
             id: mappedData.scanId ?? UUID().uuidString,
             speciesId: activeSpeciesId,
@@ -496,6 +519,8 @@ actor BackgroundDatabaseActor {
             commonName: mappedData.commonName,
             timestamp: Date(),
             captureDate: Date(), // Live captures always match current time
+            capturedMediaJSON: capturedMediaJSON,
+            coverImagePath: localImagePaths.first,
             semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
             hazardType: mappedData.insightData.hazardType,
             isBiological: mappedData.isBiological,
@@ -567,6 +592,8 @@ actor BackgroundDatabaseActor {
         let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
         let isNewDiscovery = existingRecords.isEmpty
 
+        let capturedMediaJSON = buildCapturedMediaJSON(observationContextsJSON: observationContextsJSON, audioFilePaths: audioFilePaths)
+
         let record = LocalScanRecord(
             id: mappedData.scanId ?? UUID().uuidString,
             speciesId: activeSpeciesId,
@@ -574,6 +601,7 @@ actor BackgroundDatabaseActor {
             commonName: mappedData.commonName,
             timestamp: Date(),
             captureDate: Date(),
+            capturedMediaJSON: capturedMediaJSON,
             semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
             hazardType: mappedData.insightData.hazardType,
             isBiological: mappedData.isBiological,

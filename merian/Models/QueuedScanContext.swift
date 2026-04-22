@@ -22,7 +22,6 @@ struct QueuedScanContext: Identifiable, Equatable {
     let gpsElevation: Double?
     let gpsLatitude: Double?
     let gpsLongitude: Double?
-    
 
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.
     /// Must be called while the object is still alive (before any `context.delete()`).

@@ -291,8 +291,8 @@ extension OfflineQueueManager {
         telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
 
         var localImagePaths: [String] = []
-        var observationContextsJSON: [String]? = nil
-        var audioFilePaths: [String]? = nil
+        var observationContextsJSON: [String]?
+        var audioFilePaths: [String]?
         
         if let jsonStr = scan.capturedMediaJSON,
            let jsonData = jsonStr.data(using: .utf8),

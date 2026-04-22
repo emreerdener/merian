@@ -11,7 +11,7 @@ enum MerianSchemaV39: VersionedSchema {
 
     static var models: [any PersistentModel.Type] {
         [MerianSchemaV39.LocalScanRecord.self, MerianSchemaV39.OfflineQueuedScan.self,
-         ScanCollection.self, PendingCloudDeletionTask.self,
+         MerianSchemaV39.ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self]
     }
 }
@@ -54,7 +54,7 @@ extension MerianSchemaV39 {
         var weatherCondition: String?
         var weatherTemperatureF: Double?
 
-        var collections: [ScanCollection]? = []
+        var collections: [MerianSchemaV39.ScanCollection]? = []
 
         var similarSpecies: [String]?
         var lookalikesData: Data?
@@ -253,8 +253,6 @@ extension MerianSchemaV39 {
         }
     }
 
-
-
     @Model
     final class OfflineQueuedScan {
         @Attribute(.unique) var id: String
@@ -345,5 +343,25 @@ extension MerianSchemaV39 {
             self.audioFilePaths = audioFilePaths
         }
     }
+}
 
+// MARK: - Frozen ScanCollection snapshot for MerianSchemaV39
+extension MerianSchemaV39 {
+    @Model
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
+
+        @Relationship(inverse: \MerianSchemaV39.LocalScanRecord.collections) var scans: [MerianSchemaV39.LocalScanRecord]? = []
+
+        init(id: String = UUID().uuidString, name: String, createdAt: Date = Date(), isDeleted: Bool = false, scans: [MerianSchemaV39.LocalScanRecord]? = []) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
+    }
 }

@@ -100,7 +100,6 @@ public final class LocalScanRecord {
     /// Replaced singular JSON string from V38.
     @Attribute public var observationContextsJSON: [String]?
 
-
     public var userReviewState: UserReviewState {
         get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
         set { userReviewStateRaw = newValue.rawValue }

@@ -275,6 +275,7 @@ private struct GBIFMedia: Decodable {
         
         self.speciesData = nil
 
+        self.activeScanId = scanId
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
         self.activeElevation = telemetry.gpsElevation

@@ -160,7 +160,6 @@ final class InsightSheetViewModel {
         return activeMedia.totalItems
     }
 
-
     // MARK: - Toolbar Capability Flags
 
     var isReviewLocked: Bool {
@@ -172,7 +171,7 @@ final class InsightSheetViewModel {
     var canReanalyze: Bool {
         guard queuedContext == nil else { return false }
         if isReviewLocked { return false }
-        guard let record = activeLocalRecord else { return false }
+        guard activeLocalRecord != nil else { return false }
         return true
     }
 
