@@ -5,9 +5,14 @@ import SwiftUI
 /// Canvas-based 2D scrolling spectrogram. Renders a column-per-FFT-window strip from
 /// left (oldest) to right (newest), with frequency increasing bottom-to-top.
 /// Uses a 5-stop inferno-style colormap: black → blue → cyan → yellow → white.
-struct SpectrogramView: View {
+struct SpectrogramView: View, Equatable {
     let columns: [SpectrogramColumn]
     let columnCap: Int
+
+    static func == (lhs: SpectrogramView, rhs: SpectrogramView) -> Bool {
+        // Fast-path equality check. We only append columns, so count is sufficient.
+        lhs.columns.count == rhs.columns.count && lhs.columnCap == rhs.columnCap
+    }
 
     var body: some View {
         Canvas { context, size in

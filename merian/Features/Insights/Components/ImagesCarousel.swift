@@ -3,25 +3,12 @@ import SwiftUI
 struct ImagesCarousel: View {
     // MARK: - Properties
     let scanId: String?
-    let refUrls: [String]
-    let validHistoricImagePaths: [String]
-    /// Live capture image data — populated only during an active camera pipeline.
-    let liveImageData: Data?
-    let audioFilePath: String?
-    let hasLive: Bool
-    let liveCount: Int
-    let totalImages: Int
+    let activeMedia: ActiveScanMedia
     /// Whether inference is currently in progress. Controls the dimming overlay.
     let isProcessing: Bool
-    /// True while background hydration is fetching reference imagery
-    let isReferenceImageLoading: Bool
     /// Called when a carousel image fails to load. The caller decides whether to
     /// propagate the failure to the engine (live path) or swallow it (queued path).
     let onImageFailure: (String) -> Void
-    
-    /// An optional, trimmed plaintext payload explicitly tracking the user's input context.
-    /// Explicitly drives the instantiation of the `DescriptionTextCarouselPage` node natively within layout.
-    let descriptionText: String?
     
     /// Triggers exclusively when tapping the interactive textual subcomponent.
     let onDescriptionTap: (() -> Void)?
@@ -32,9 +19,9 @@ struct ImagesCarousel: View {
     // MARK: - Body
     var body: some View {
         Group {
-            if totalImages > 0 {
+            if activeMedia.totalItems > 0 {
                 NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
-                    // scanId only — totalImages changes async when validHistoricImagePaths resolves.
+                    // scanId only — activeMedia.totalItems changes async when validHistoricImagePaths resolves.
                     // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
                     .id(scanId ?? "null")
                     .ignoresSafeArea(.all, edges: .top)
@@ -61,7 +48,7 @@ struct ImagesCarousel: View {
                     .ignoresSafeArea(.all, edges: .top)
             }
         }
-        .animation(.easeInOut(duration: 0.4), value: totalImages > 0)
+        .animation(.easeInOut(duration: 0.4), value: activeMedia.totalItems > 0)
     }
 
     // MARK: - Page Construction
@@ -70,17 +57,12 @@ struct ImagesCarousel: View {
     /// already loading in the background before the user reaches them.
     private var carouselPages: [AnyView] {
         var pages: [AnyView] = []
-        let hasDesc = descriptionText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-
-        if hasLive {
-            if let data = liveImageData {
+        
+        for item in activeMedia.items {
+            switch item {
+            case .liveImage(let data):
                 pages.append(AnyView(LiveCapturePageView(data: data)))
-                if hasDesc, let text = descriptionText {
-                    pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
-                }
-            }
-        } else if !validHistoricImagePaths.isEmpty {
-            for (idx, path) in validHistoricImagePaths.enumerated() {
+            case .image(let path):
                 pages.append(AnyView(
                     AsyncLocalImageView(
                         path: path,
@@ -88,33 +70,16 @@ struct ImagesCarousel: View {
                         onImageLoadFailed: { handleImageFailure(identifier: path) }
                     )
                 ))
-                if idx == 0 && hasDesc, let text = descriptionText {
-                    pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
-                }
+            case .description(let context):
+                pages.append(AnyView(DescriptionTextCarouselPage(text: context.serialized(), onTap: onDescriptionTap)))
+            case .audio(let resolvedPath):
+                pages.append(AnyView(AudioPlaybackCarouselPage(filePath: resolvedPath)))
             }
-        } else if hasDesc, let text = descriptionText {
-            // Pure describe mode
-            pages.append(AnyView(DescriptionTextCarouselPage(text: text, onTap: onDescriptionTap)))
-        }
-
-        if let rawAudioPath = audioFilePath {
-            let fullAudioPath = URL.documentsDirectory.appendingPathComponent(rawAudioPath).path
-            if FileManager.default.fileExists(atPath: fullAudioPath) {
-                pages.append(AnyView(AudioPlaybackCarouselPage(filePath: fullAudioPath)))
-            }
-        }
-
-        for urlString in refUrls {
-            pages.append(AnyView(
-                AsyncLocalImageView(
-                    path: nil,
-                    fallbackImageUrl: urlString,
-                    onImageLoadFailed: { handleImageFailure(identifier: urlString) }
-                )
-            ))
         }
         
-        if refUrls.isEmpty && isReferenceImageLoading {
+        switch activeMedia.referenceState {
+        case .empty: break
+        case .loading:
             pages.append(AnyView(
                 ZStack {
                     Color(uiColor: .systemGray6)
@@ -123,6 +88,16 @@ struct ImagesCarousel: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             ))
+        case .loaded(let urls):
+            for urlString in urls {
+                pages.append(AnyView(
+                    AsyncLocalImageView(
+                        path: nil,
+                        fallbackImageUrl: urlString,
+                        onImageLoadFailed: { handleImageFailure(identifier: urlString) }
+                    )
+                ))
+            }
         }
         
         return pages
@@ -130,10 +105,10 @@ struct ImagesCarousel: View {
 
     // MARK: - Action Handlers
     private func handleImageFailure(identifier: String) {
-        if totalImages > 1 {
+        if activeMedia.totalItems > 1 {
             onImageFailure(identifier)
-            if selectedIndex >= totalImages - 1 {
-                selectedIndex = max(0, totalImages - 2)
+            if selectedIndex >= activeMedia.totalItems - 1 {
+                selectedIndex = max(0, activeMedia.totalItems - 2)
             }
         }
     }
@@ -334,9 +309,9 @@ private extension ImagesCarousel {
     @ViewBuilder
     var paginationDots: some View {
         ZStack {
-            if totalImages > 1 {
+            if activeMedia.totalItems > 1 {
                 HStack(spacing: 8) {
-                    ForEach(0..<totalImages, id: \.self) { index in
+                    ForEach(0..<activeMedia.totalItems, id: \.self) { index in
                         Circle()
                             .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.4))
                             .frame(width: 6, height: 6)
@@ -355,7 +330,7 @@ private extension ImagesCarousel {
                 ))
             }
         }
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: totalImages)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: activeMedia.totalItems)
     }
 }
 

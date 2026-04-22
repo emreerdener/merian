@@ -37,7 +37,15 @@ actor BackgroundDatabaseActor {
             MerianLog.data.error("fetchPendingScans: fetch failed: \(error, privacy: .private)")
             return []
         }
-        return pending.map { PendingScanPayload(id: $0.id, localImagePaths: $0.localImagePaths) }
+        return pending.map { scan in
+            var paths: [String] = []
+            if let jsonStr = scan.capturedMediaJSON,
+               let jsonData = jsonStr.data(using: .utf8),
+               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                paths = items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
+            }
+            return PendingScanPayload(id: scan.id, localImagePaths: paths)
+        }
     }
 
     // MARK: - State Transitions
@@ -400,7 +408,6 @@ actor BackgroundDatabaseActor {
                 commonName: mappedData.commonName,
                 timestamp: Date(),
                 captureDate: originalTimestamp,
-                localImagePath: originalImagePaths.first,
                 semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
                 hazardType: mappedData.insightData.hazardType,
                 isBiological: mappedData.isBiological,
@@ -409,7 +416,6 @@ actor BackgroundDatabaseActor {
                 ecologyType: mappedData.ecologyType,
                 wikipediaUrl: mappedData.wikipediaUrl,
                 referenceImageUrl: mappedData.referenceImageUrl,
-                additionalImagePaths: originalImagePaths.count > 1 ? Array(originalImagePaths.dropFirst()) : nil,
                 confidenceScore: mappedData.confidenceScore,
                 taxonomyKingdom: mappedData.taxonomy?.kingdom,
                 taxonomyPhylum: mappedData.taxonomy?.phylum,
@@ -438,9 +444,20 @@ actor BackgroundDatabaseActor {
                 inferenceTier: mappedData.inferenceTier,
                 imageQualityScore: mappedData.imageQualityScore,
                 alternativeCommonNames: mappedData.alternativeCommonNames,
-                observationContextsJSON: observationContextsJSON,
-                audioFilePaths: mappedData.audioFilePaths
-            )
+                )
+            var serializedItems: [SerializedMediaItem] = originalImagePaths.map { .image($0) }
+            if let contexts = observationContextsJSON {
+                for ctxStr in contexts {
+                    if let data = ctxStr.data(using: .utf8), let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
+                        serializedItems.append(.description(ctx))
+                    }
+                }
+            }
+            if let audios = mappedData.audioFilePaths {
+                for audio in audios { serializedItems.append(.audio(audio)) }
+            }
+            record.capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
+            record.coverImagePath = originalImagePaths.first
             modelContext.insert(record)
         }
     }
@@ -479,7 +496,6 @@ actor BackgroundDatabaseActor {
             commonName: mappedData.commonName,
             timestamp: Date(),
             captureDate: Date(), // Live captures always match current time
-            localImagePath: firstPath,
             semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
             hazardType: mappedData.insightData.hazardType,
             isBiological: mappedData.isBiological,
@@ -488,7 +504,6 @@ actor BackgroundDatabaseActor {
             ecologyType: mappedData.ecologyType,
             wikipediaUrl: mappedData.wikipediaUrl,
             referenceImageUrl: mappedData.referenceImageUrl,
-            additionalImagePaths: additionalPaths,
             confidenceScore: mappedData.confidenceScore,
             taxonomyKingdom: mappedData.taxonomy?.kingdom,
             taxonomyPhylum: mappedData.taxonomy?.phylum,
@@ -514,9 +529,7 @@ actor BackgroundDatabaseActor {
             reproductiveCondition: mappedData.reproductiveCondition,
             individualCount: mappedData.individualCount,
             ecologicalInteractions: mappedData.ecologicalInteractions,
-            imageQualityScore: mappedData.imageQualityScore,
-            observationContextsJSON: observationContextsJSON,
-            audioFilePaths: audioFilePaths
+            imageQualityScore: mappedData.imageQualityScore
         )
         modelContext.insert(record)
         do {
@@ -561,7 +574,6 @@ actor BackgroundDatabaseActor {
             commonName: mappedData.commonName,
             timestamp: Date(),
             captureDate: Date(),
-            localImagePath: nil,
             semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
             hazardType: mappedData.insightData.hazardType,
             isBiological: mappedData.isBiological,
@@ -570,7 +582,6 @@ actor BackgroundDatabaseActor {
             ecologyType: mappedData.ecologyType,
             wikipediaUrl: mappedData.wikipediaUrl,
             referenceImageUrl: mappedData.referenceImageUrl,
-            additionalImagePaths: nil,
             confidenceScore: mappedData.confidenceScore,
             taxonomyKingdom: mappedData.taxonomy?.kingdom,
             taxonomyPhylum: mappedData.taxonomy?.phylum,
@@ -596,9 +607,7 @@ actor BackgroundDatabaseActor {
             reproductiveCondition: mappedData.reproductiveCondition,
             individualCount: mappedData.individualCount,
             ecologicalInteractions: mappedData.ecologicalInteractions,
-            imageQualityScore: nil,
-            observationContextsJSON: observationContextsJSON,
-            audioFilePaths: audioFilePaths
+            imageQualityScore: nil
         )
         modelContext.insert(record)
         do {

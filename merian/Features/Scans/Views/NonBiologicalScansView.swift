@@ -3,7 +3,7 @@ import SwiftUI
 
 struct NonBiologicalScansView: View {
     // MARK: - State Dependencies
-    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false || $0.commonName == "Unknown Subject" }, sort: \.timestamp, order: .reverse) private var nonBioRecords: [LocalScanRecord]
+    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false }, sort: \.timestamp, order: .reverse) private var nonBioRecords: [LocalScanRecord]
     
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) var inferenceEngine
@@ -151,7 +151,12 @@ struct NonBiologicalScansView: View {
     private func clearAllNonBiologicalScans() {
         isClearingAll = true
         let payloads = nonBioRecords.map { scan in
-            let paths = [scan.localImagePath].compactMap { $0 } + (scan.additionalImagePaths ?? [])
+            var paths: [String] = []
+            if let jsonStr = scan.capturedMediaJSON,
+               let jsonData = jsonStr.data(using: .utf8),
+               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                paths = items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
+            }
             return BackgroundDatabaseActor.ScanErasurePayload(id: scan.id, imagePaths: paths)
         }
         let container = modelContext.container
@@ -179,12 +184,6 @@ struct NonBiologicalScansView: View {
         activeRecord.isBiological = true
         activeRecord.ecologyType = "unknown"
         activeRecord.aiReasoning = nil
-        
-        // Crucially mutates the semantic bounds to escape the `commonName == "Unknown Subject"` queries
-        // which inherently routes it completely out of the Non-Bio collection and straight into the Main Scans Library!
-        if activeRecord.commonName == "Unknown subject" {
-            activeRecord.commonName = "Unidentified specimen"
-        }
         
         do {
             try modelContext.save()

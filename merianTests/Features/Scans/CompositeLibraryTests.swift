@@ -41,11 +41,11 @@ struct CompositeLibraryTests {
         #expect(scan.queueState == .pending, "New scans must default to .pending so they are picked up by the next syncPendingScans pass")
     }
 
-    // MARK: - Test 3: localImagePaths defaults to empty array
+    // MARK: - Test 3: coverImagePath defaults to nil
 
-    @Test func testLocalImagePathsDefaultsToEmpty() throws {
+    @Test func testCoverImagePathDefaultsToNil() throws {
         let scan = OfflineQueuedScan()
-        #expect(scan.localImagePaths.isEmpty, "localImagePaths must default to [] so ScanThumbnail receives nil gracefully")
+        #expect(scan.coverImagePath == nil, "coverImagePath must default to nil so ScanThumbnail receives nil gracefully")
     }
 
     // MARK: - Test 3: scanStateRaw < 5 predicate excludes tombstoned (.failed) scans

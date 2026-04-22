@@ -19,7 +19,7 @@ struct AppLifecycleManagerTests {
 
         // Scan fully uploaded to R2 but inference was interrupted before completion.
         let stuck = OfflineQueuedScan(
-            localImagePaths: ["stuck.webp"],
+            capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("stuck.webp")]), encoding: .utf8),
             scanState: .staged,
             stagedR2Keys: ["staging/test-user/stuck.webp"]
         )

@@ -101,13 +101,23 @@ extension OfflineQueueManager {
         guard let scan = (try? context.fetch(descriptor))?.first else { return }
 
         let documentsDirectory = URL.documentsDirectory
-        for path in scan.localImagePaths {
-            try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
-        }
         let adoptedAudioPaths = Set(explicitlyAdoptedAudioPaths)
-
-        for audioPath in scan.audioFilePaths ?? [] where !adoptedAudioPaths.contains(audioPath) {
-            try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(audioPath))
+        
+        if let jsonStr = scan.capturedMediaJSON,
+           let jsonData = jsonStr.data(using: .utf8),
+           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+            for item in items {
+                switch item {
+                case .image(let path):
+                    try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
+                case .audio(let path):
+                    if !adoptedAudioPaths.contains(path) {
+                        try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
+                    }
+                case .description:
+                    break
+                }
+            }
         }
 
         context.delete(scan)
@@ -129,22 +139,24 @@ extension OfflineQueueManager {
         )
         // Only fetch the fields needed for disk cleanup and deletion — avoids loading all
         // telemetry columns into memory for potentially large backlogs of failed scans.
-        descriptor.propertiesToFetch = [\.localImagePaths, \.id, \.audioFilePaths]
+        descriptor.propertiesToFetch = [\.capturedMediaJSON, \.id]
         descriptor.fetchLimit = 500
         let documentsDirectory = URL.documentsDirectory
 
         do {
             let failedScans = try context.fetch(descriptor)
             for scan in failedScans {
-                for path in scan.localImagePaths {
-                    do {
-                        try FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
-                    } catch {
-                        MerianLog.data.debug("purgeSoftDeletedRecords: removeItem failed: \(error, privacy: .private)")
+                if let jsonStr = scan.capturedMediaJSON,
+                   let jsonData = jsonStr.data(using: .utf8),
+                   let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                    for item in items {
+                        switch item {
+                        case .image(let path), .audio(let path):
+                            try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
+                        case .description:
+                            break
+                        }
                     }
-                }
-                for audioPath in scan.audioFilePaths ?? [] {
-                    try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(audioPath))
                 }
                 context.delete(scan)
             }
@@ -414,10 +426,15 @@ extension OfflineQueueManager {
         }
 
         let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
+        let serializedItems: [SerializedMediaItem] = [
+            .description(observationContext)
+        ]
+        let capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
+        
         let scan = OfflineQueuedScan(
             id: resolvedScanId,
             timestamp: Date(),
-            localImagePaths: [],
+            capturedMediaJSON: capturedMediaJSON,
             gpsLatitude: telemetry.gpsLatitude,
             gpsLongitude: telemetry.gpsLongitude,
             gpsElevation: telemetry.gpsElevation,
@@ -433,8 +450,7 @@ extension OfflineQueueManager {
             uvIndex: nil,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
             scanState: .staged,
-            stagedR2Keys: [],
-            observationContextsJSON: [contextJSON]
+            stagedR2Keys: []
         )
 
         guard let modelContext else {
@@ -487,10 +503,22 @@ extension OfflineQueueManager {
             UsageManager.shared.consumeScan()
         }
 
+        var serializedItems: [SerializedMediaItem] = []
+        for name in fileNames { serializedItems.append(.image(name)) }
+        if let audio = audioFilePath { serializedItems.append(.audio(audio)) }
+        if let contexts = observationContextsJSON {
+            for ctxStr in contexts {
+                if let data = ctxStr.data(using: .utf8), let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
+                    serializedItems.append(.description(ctx))
+                }
+            }
+        }
+        let capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
+        
         let scan = OfflineQueuedScan(
             id: scanId,
             timestamp: Date(),
-            localImagePaths: fileNames,
+            capturedMediaJSON: capturedMediaJSON,
             gpsLatitude: telemetry.gpsLatitude,
             gpsLongitude: telemetry.gpsLongitude,
             gpsElevation: telemetry.gpsElevation,
@@ -505,9 +533,7 @@ extension OfflineQueueManager {
             relativeHumidity: nil,
             uvIndex: nil,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
-            scanState: .pending,
-            observationContextsJSON: observationContextsJSON,
-            audioFilePaths: audioFilePath != nil ? [audioFilePath!] : nil
+            scanState: .pending
         )
         
         guard let modelContext else {

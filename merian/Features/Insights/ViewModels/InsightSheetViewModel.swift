@@ -15,8 +15,22 @@ final class InsightSheetViewModel {
     /// that exists before `onAppear` fires.
     init(queuedContext: QueuedScanContext? = nil) {
         self.queuedContext = queuedContext
-        if let jsonStr = queuedContext?.observationContextsJSON?.first, let data = jsonStr.data(using: .utf8) {
-            self.cachedHistoricObservationContext = try? JSONDecoder().decode(ObservationContext.self, from: data)
+        if let jsonStr = queuedContext?.capturedMediaJSON,
+           let jsonData = jsonStr.data(using: .utf8),
+           let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+            var items: [MediaItem] = []
+            for serialized in serializedItems {
+                switch serialized {
+                case .image(let path): items.append(.image(path))
+                case .audio(let path):
+                    let docsPath = URL.documentsDirectory.appendingPathComponent(path).path
+                    let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(path).path
+                    let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+                    items.append(.audio(resolvedPath))
+                case .description(let ctx): items.append(.description(ctx))
+                }
+            }
+            self.cachedActiveMedia = ActiveScanMedia(items: items)
         }
     }
     
@@ -40,14 +54,14 @@ final class InsightSheetViewModel {
         isSavingPhotos = false
         activeLocalRecord = nil
         queuedContext = nil
-        cachedHistoricObservationContext = nil
+        cachedActiveMedia = nil
     }
     
     // MARK: - Internal Cached State
-    /// An in-memory cache of the successfully decoded `ObservationContext` representing the user's text.
+    /// An in-memory cache of the successfully decoded `ActiveScanMedia` representing the user's media.
     /// Safely decoded exactly once within lifecycle mappings (`init` and `fetchLocalRecord`) to prevent
     /// main-thread thrashing on layout changes where the framework routinely interrogates boundary sizes.
-    private var cachedHistoricObservationContext: ObservationContext?
+    private var cachedActiveMedia: ActiveScanMedia?
     
     // MARK: - Interface State
     var showCelebration = false
@@ -74,6 +88,10 @@ final class InsightSheetViewModel {
     /// Controls the name-picker bottom sheet.
     var isNamePickerPresented: Bool = false
     
+    var hasUserPhotos: Bool {
+        !activeMedia.imagePathsForUpload.isEmpty || activeMedia.liveImageData != nil
+    }
+
     // MARK: - Navigation State
     var isSafariPresented = false
     var selectedWikiURL: URL?
@@ -124,60 +142,24 @@ final class InsightSheetViewModel {
             .filter { !$0.isEmpty } ?? []
     }
 
-    var validHistoricImagePaths: [String] {
-        if let ctx = queuedContext { return ctx.localImagePaths }
-        return inferenceEngine?.validHistoricImagePaths ?? []
-    }
-
-    /// Live capture image data for the carousel — mirrors `InferenceEngine.activeImageData`.
-    /// Routed through the viewModel so `ImagesCarousel` has no direct engine dependency.
-    var liveImageData: Data? {
-        inferenceEngine?.activeImageData
+    var activeMedia: ActiveScanMedia {
+        if queuedContext != nil || activeLocalRecord != nil {
+            return cachedActiveMedia ?? ActiveScanMedia()
+        }
+        return inferenceEngine?.activeMedia ?? ActiveScanMedia()
     }
     
     var observationContext: ObservationContext? {
-        if queuedContext != nil || activeLocalRecord != nil {
-            return cachedHistoricObservationContext
+        for item in activeMedia.items {
+            if case .description(let ctx) = item { return ctx }
         }
-        return inferenceEngine?.activeObservationContext
-    }
-
-    /// Safely resolves the audio file path escalating top-down: offline queue snapshot, SQLite cache entity, and finally hot inference pipeline.
-    var audioFilePath: String? {
-        if let queued = queuedContext { return queued.audioFilePaths?.first }
-        if let record = activeLocalRecord { return record.audioFilePaths?.first }
-        return inferenceEngine?.activeAudioFilePath ?? inferenceEngine?.speciesData?.audioFilePaths?.first
-    }
-
-    var hasLive: Bool {
-        guard queuedContext == nil else { return false }
-        return liveImageData != nil && validHistoricImagePaths.isEmpty
+        return nil
     }
     
-    var hasUserPhotos: Bool {
-        if let queued = queuedContext {
-            return !queued.localImagePaths.isEmpty
-        }
-        return hasLive ? (liveImageData != nil) : !validHistoricImagePaths.isEmpty
-    }
-
-    var liveCount: Int {
-        guard queuedContext == nil else { return 0 }
-        return hasLive ? 1 : 0
-    }
-
     var totalImages: Int {
-        // carouselPages uses hasLive as an exclusive branch: when live data is present it
-        // shows liveImageData and skips validHistoricImagePaths (they are the same image
-        // written to disk — showing both would duplicate the capture). Must mirror that logic
-        // here or totalImages overcounts and produces unreachable pagination dots.
-        let captureCount = hasLive ? liveCount : validHistoricImagePaths.count
-        let refCount = refUrls.count + ((inferenceEngine?.isReferenceImageLoading == true && refUrls.isEmpty) ? 1 : 0)
-        let hasDescription = observationContext?.isEmpty == false
-        let hasAudio = audioFilePath.map { FileManager.default.fileExists(atPath: URL.documentsDirectory.appendingPathComponent($0).path) } ?? false
-        
-        return captureCount + refCount + (hasDescription ? 1 : 0) + (hasAudio ? 1 : 0)
+        return activeMedia.totalItems
     }
+
 
     // MARK: - Toolbar Capability Flags
 
@@ -190,8 +172,8 @@ final class InsightSheetViewModel {
     var canReanalyze: Bool {
         guard queuedContext == nil else { return false }
         if isReviewLocked { return false }
-        guard let record = activeLocalRecord, !(record.localImagePath?.starts(with: "http") == true) else { return false }
-        return (record.additionalImagePaths ?? []).isEmpty
+        guard let record = activeLocalRecord else { return false }
+        return true
     }
 
     var canReviewAlternatives: Bool {
@@ -362,8 +344,8 @@ final class InsightSheetViewModel {
         guard !isSavingPhotos else { return }
         isSavingPhotos = true
         
-        let liveData = inferenceEngine.activeImageData
-        let validPaths = inferenceEngine.validHistoricImagePaths
+        let liveData = inferenceEngine.activeMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
+        let validPaths = inferenceEngine.activeMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
         let refUrls = inferenceEngine.speciesData?.referenceImageUrl
         
         InsightMediaExportManager.shared.saveUserPhotos(
@@ -382,8 +364,8 @@ final class InsightSheetViewModel {
     func shareDiscovery(inferenceEngine: InferenceEngine) {
         let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
         let scientificName = inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy"
-        let liveData = inferenceEngine.activeImageData
-        let historicPath = inferenceEngine.validHistoricImagePaths.first
+        let liveData = inferenceEngine.activeMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
+        let historicPath = inferenceEngine.activeMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }.first
         let refUrls = inferenceEngine.speciesData?.referenceImageUrl
         
         InsightMediaExportManager.shared.shareDiscovery(
@@ -445,8 +427,22 @@ final class InsightSheetViewModel {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
-            if let jsonStr = record.observationContextsJSON?.first, let data = jsonStr.data(using: .utf8) {
-                self.cachedHistoricObservationContext = try? JSONDecoder().decode(ObservationContext.self, from: data)
+            if let jsonStr = record.capturedMediaJSON,
+               let jsonData = jsonStr.data(using: .utf8),
+               let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                var items: [MediaItem] = []
+                for serialized in serializedItems {
+                    switch serialized {
+                    case .image(let path): items.append(.image(path))
+                    case .audio(let path):
+                    let docsPath = URL.documentsDirectory.appendingPathComponent(path).path
+                    let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(path).path
+                    let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+                    items.append(.audio(resolvedPath))
+                    case .description(let ctx): items.append(.description(ctx))
+                    }
+                }
+                self.cachedActiveMedia = ActiveScanMedia(items: items)
             }
             markRecordViewedIfAppropriate(modelContext: modelContext)
         }

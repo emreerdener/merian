@@ -280,7 +280,17 @@ actor ArchiveDatabaseActor {
                 
                 try FileManager.default.moveItem(at: tempURL, to: fileURL)
                 
-                record.localImagePath = filename
+                if let jsonStr = record.capturedMediaJSON,
+                   let jsonData = jsonStr.data(using: .utf8),
+                   var items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                    for i in 0..<items.count {
+                        if case .image(let path) = items[i], path == firstString {
+                            items[i] = .image(filename)
+                        }
+                    }
+                    record.capturedMediaJSON = try? String(data: JSONEncoder().encode(items), encoding: .utf8)
+                }
+                
                 record.isLocallyArchived = true
                 // Save after each successful rescue so progress is preserved
                 // if the app is terminated before the loop finishes.

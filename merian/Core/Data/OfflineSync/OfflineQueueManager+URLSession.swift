@@ -290,11 +290,34 @@ extension OfflineQueueManager {
         )
         telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
 
-        // Reconstruct the serialized description for combined image+description scans.
-        // The JSON was encoded at enqueue time to survive the actor boundary; decode it
-        // here (main actor, synchronous) and render to plain text before passing to the
-        // background inference path — keeping the dispatch site free of JSON decoding.
-        let description: String? = scan.observationContextsJSON?.first.flatMap { json in
+        var localImagePaths: [String] = []
+        var observationContextsJSON: [String]? = nil
+        var audioFilePaths: [String]? = nil
+        
+        if let jsonStr = scan.capturedMediaJSON,
+           let jsonData = jsonStr.data(using: .utf8),
+           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+            
+            var contexts: [String] = []
+            var audio: [String] = []
+            
+            for item in items {
+                switch item {
+                case .image(let path):
+                    localImagePaths.append(path)
+                case .audio(let path):
+                    audio.append(path)
+                case .description(let ctx):
+                    if let d = try? JSONEncoder().encode(ctx), let s = String(data: d, encoding: .utf8) {
+                        contexts.append(s)
+                    }
+                }
+            }
+            if !contexts.isEmpty { observationContextsJSON = contexts }
+            if !audio.isEmpty { audioFilePaths = audio }
+        }
+
+        let description: String? = observationContextsJSON?.first.flatMap { json in
             guard let data = json.data(using: .utf8),
                   let context = try? JSONDecoder().decode(ObservationContext.self, from: data),
                   !context.isEmpty else { return nil }
@@ -303,13 +326,13 @@ extension OfflineQueueManager {
 
         return ExtractedScanData(
             telemetry: telemetry,
-            localImagePaths: scan.localImagePaths,
+            localImagePaths: localImagePaths,
             r2Keys: scan.stagedR2Keys ?? [],
             container: container,
             originalTimestamp: scan.timestamp,
             description: description,
-            observationContextsJSON: scan.observationContextsJSON,
-            audioFilePaths: scan.audioFilePaths
+            observationContextsJSON: observationContextsJSON,
+            audioFilePaths: audioFilePaths
         )
     }
 

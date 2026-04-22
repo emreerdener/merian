@@ -1,4 +1,17 @@
 import SwiftData
+import Foundation
+
+// MARK: - Migration Plan
+
+enum MerianSchemaV40: VersionedSchema {
+    static var versionIdentifier = Schema.Version(40, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self, OfflineQueuedScan.self,
+         ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self]
+    }
+}
 
 // MARK: - Migration Plan
 enum MerianMigrationPlan: SchemaMigrationPlan {
@@ -42,7 +55,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV36.self,
             MerianSchemaV37.self,
             MerianSchemaV38.self,
-            MerianSchemaV39.self
+            MerianSchemaV39.self,
+            MerianSchemaV40.self
         ]
     }
 
@@ -85,7 +99,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV35toV36,
             migrateV36toV37,
             migrateV37toV38,
-            migrateV38toV39
+            migrateV38toV39,
+            migrateV39toV40
         ]
     }
 
@@ -122,6 +137,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     nonisolated(unsafe) static var _v38LocalContextBackfill: [String: [String]] = [:]
     nonisolated(unsafe) static var _v38OfflineAudioBackfill: [String: [String]] = [:]
     nonisolated(unsafe) static var _v38OfflineContextBackfill: [String: [String]] = [:]
+    nonisolated(unsafe) static var _v38LocalAdditionalImagesBackfill: [String: [String]] = [:]
+    nonisolated(unsafe) static var _v38LocalSemanticTagsBackfill: [String: [String]] = [:]
+    nonisolated(unsafe) static var _v38OfflineLocalImagesBackfill: [String: [String]] = [:]
 
     static let migrateV38toV39 = MigrationStage.custom(
         fromVersion: MerianSchemaV38.self,
@@ -135,6 +153,10 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 if let ctx = scan.observationContextJSON {
                     _v38LocalContextBackfill[scan.id] = [ctx]
                 }
+                if let images = scan.additionalImagePaths {
+                    _v38LocalAdditionalImagesBackfill[scan.id] = images
+                }
+                _v38LocalSemanticTagsBackfill[scan.id] = scan.semanticTags
             }
 
             let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV38.OfflineQueuedScan>())
@@ -145,10 +167,11 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 if let ctx = scan.observationContextJSON {
                     _v38OfflineContextBackfill[scan.id] = [ctx]
                 }
+                _v38OfflineLocalImagesBackfill[scan.id] = scan.localImagePaths
             }
         },
         didMigrate: { context in
-            let localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
             for scan in localScans {
                 if let audio = _v38LocalAudioBackfill[scan.id] {
                     scan.audioFilePaths = audio
@@ -158,7 +181,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
 
-            let offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
             for scan in offlineScans {
                 if let audio = _v38OfflineAudioBackfill[scan.id] {
                     scan.audioFilePaths = audio
@@ -175,6 +198,115 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             _v38OfflineContextBackfill = [:]
         }
     )
+
+
+
+    nonisolated(unsafe) static var _v39LocalMediaBackfill: [String: String] = [:]
+    nonisolated(unsafe) static var _v39OfflineMediaBackfill: [String: String] = [:]
+    nonisolated(unsafe) static var _v39LocalCoverBackfill: [String: String] = [:]
+    nonisolated(unsafe) static var _v39OfflineCoverBackfill: [String: String] = [:]
+
+    static let migrateV39toV40 = MigrationStage.custom(
+
+        fromVersion: MerianSchemaV39.self,
+        toVersion: MerianSchemaV40.self,
+        willMigrate: { context in
+            // V39 to V40: backfill capturedMediaJSON
+            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
+            for scan in localScans {
+                var items: [SerializedMediaItem] = []
+                
+                // Historical best-approximation sequence: Image -> Description -> Audio
+                if let localPath = scan.localImagePath {
+                    items.append(.image(localPath))
+                }
+                for path in scan.additionalImagePaths ?? [] {
+                    items.append(.image(path))
+                }
+                
+                if let contextsJSON = scan.observationContextsJSON {
+                    for ctxJSON in contextsJSON {
+                        if let data = ctxJSON.data(using: .utf8),
+                           let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
+                            items.append(.description(ctx))
+                        }
+                    }
+                }
+                
+                for audioPath in scan.audioFilePaths ?? [] {
+                    items.append(.audio(audioPath))
+                }
+                
+                if let data = try? JSONEncoder().encode(items) {
+                    _v39LocalMediaBackfill[scan.id] = String(data: data, encoding: .utf8)
+                }
+                if let firstImage = items.first(where: { if case .image = $0 { return true } else { return false } }) {
+                    if case .image(let path) = firstImage {
+                        _v39LocalCoverBackfill[scan.id] = path
+                    }
+                }
+            }
+
+            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
+            for scan in offlineScans {
+                var items: [SerializedMediaItem] = []
+                
+                for path in scan.localImagePaths {
+                    items.append(.image(path))
+                }
+                
+                if let contextsJSON = scan.observationContextsJSON {
+                    for ctxJSON in contextsJSON {
+                        if let data = ctxJSON.data(using: .utf8),
+                           let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
+                            items.append(.description(ctx))
+                        }
+                    }
+                }
+                
+                for audioPath in scan.audioFilePaths ?? [] {
+                    items.append(.audio(audioPath))
+                }
+                
+                if let data = try? JSONEncoder().encode(items) {
+                    _v39OfflineMediaBackfill[scan.id] = String(data: data, encoding: .utf8)
+                }
+                if let firstImage = items.first(where: { if case .image = $0 { return true } else { return false } }) {
+                    if case .image(let path) = firstImage {
+                        _v39OfflineCoverBackfill[scan.id] = path
+                    }
+                }
+            }
+        },
+        didMigrate: { context in
+            let localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            for scan in localScans {
+                if let json = _v39LocalMediaBackfill[scan.id] {
+                    scan.capturedMediaJSON = json
+                    scan.coverImagePath = _v39LocalCoverBackfill[scan.id]
+                } else {
+                    scan.capturedMediaJSON = "[]"
+                }
+            }
+            
+            let offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            for scan in offlineScans {
+                if let json = _v39OfflineMediaBackfill[scan.id] {
+                    scan.capturedMediaJSON = json
+                    scan.coverImagePath = _v39OfflineCoverBackfill[scan.id]
+                } else {
+                    scan.capturedMediaJSON = "[]"
+                }
+            }
+            
+            try context.save()
+            _v39LocalMediaBackfill = [:]
+            _v39OfflineMediaBackfill = [:]
+            _v39LocalCoverBackfill = [:]
+            _v39OfflineCoverBackfill = [:]
+        }
+    )
+
 
     // Temporary backfill storage for V32→V33 migration.
     // Captures the old Bool state before the column is dropped, then writes scanStateRaw in didMigrate.

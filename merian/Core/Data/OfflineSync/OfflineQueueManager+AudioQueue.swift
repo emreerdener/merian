@@ -45,26 +45,33 @@ extension OfflineQueueManager {
             UsageManager.shared.consumeScan()
         }
 
-        let contextJSON: String? = observationContext.flatMap { ctx in
-            guard !ctx.isEmpty else { return nil }
-            return (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
+        var serializedItems: [SerializedMediaItem] = [.audio(audioFileName)]
+        if let ctx = observationContext, !ctx.isEmpty {
+            serializedItems.append(.description(ctx))
         }
+        let capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
 
         let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
         let scan = OfflineQueuedScan(
             id: resolvedScanId,
             timestamp: Date(),
-            localImagePaths: [],
+            capturedMediaJSON: capturedMediaJSON,
             gpsLatitude: telemetry.gpsLatitude,
             gpsLongitude: telemetry.gpsLongitude,
             gpsElevation: telemetry.gpsElevation,
             weatherCondition: telemetry.weatherCondition,
             weatherTemperatureF: telemetry.weatherTemperatureF,
+            blurScore: nil,
+            subjectDistanceInMeters: nil,
             locationName: telemetry.locationName,
+            isFlashFired: nil,
+            cameraPitchDegrees: nil,
+            compassHeading: nil,
+            relativeHumidity: nil,
+            uvIndex: nil,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
             scanState: .staged,
-            observationContextsJSON: contextJSON.map { [$0] },
-            audioFilePaths: [audioFileName]
+            stagedR2Keys: []
         )
 
         guard let modelContext else {

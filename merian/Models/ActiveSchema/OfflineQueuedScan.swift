@@ -5,7 +5,7 @@ import SwiftData
 public final class OfflineQueuedScan {
     @Attribute(.unique) public var id: String
     public var timestamp: Date
-    public var localImagePaths: [String]
+    public var capturedMediaJSON: String?
 
     public var gpsLatitude: Double?
     public var gpsLongitude: Double?
@@ -33,10 +33,6 @@ public final class OfflineQueuedScan {
     /// JSON-encoded `ObservationContext`s serialized at enqueue time.
     /// Preserved so the offline-retry path can reconstruct the full combined
     /// multimodal payload without requiring the user to re-enter details.
-    public var observationContextsJSON: [String]?
-
-    /// File paths to the audio recordings staged with this scan.
-    public var audioFilePaths: [String]?
 
     // MARK: - Typed accessor
 
@@ -45,10 +41,13 @@ public final class OfflineQueuedScan {
         set { scanStateRaw = newValue.rawValue }
     }
 
+    @Attribute public var coverImagePath: String?
+
     public init(
         id: String = UUID().uuidString,
         timestamp: Date = Date(),
-        localImagePaths: [String] = [],
+        capturedMediaJSON: String? = nil,
+        coverImagePath: String? = nil,
         gpsLatitude: Double? = nil,
         gpsLongitude: Double? = nil,
         gpsElevation: Double? = nil,
@@ -64,13 +63,12 @@ public final class OfflineQueuedScan {
         uvIndex: Int? = nil,
         zoomFactor: Double? = nil,
         scanState: ScanQueueState = .pending,
-        stagedR2Keys: [String]? = nil,
-        observationContextsJSON: [String]? = nil,
-        audioFilePaths: [String]? = nil
+        stagedR2Keys: [String]? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
-        self.localImagePaths = localImagePaths
+        self.capturedMediaJSON = capturedMediaJSON
+        self.coverImagePath = coverImagePath
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
         self.gpsElevation = gpsElevation
@@ -87,7 +85,5 @@ public final class OfflineQueuedScan {
         self.zoomFactor = zoomFactor
         self.scanStateRaw = scanState.rawValue
         self.stagedR2Keys = stagedR2Keys
-        self.observationContextsJSON = observationContextsJSON
-        self.audioFilePaths = audioFilePaths
     }
 }

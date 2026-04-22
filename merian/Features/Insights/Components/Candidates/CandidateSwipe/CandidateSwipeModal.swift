@@ -324,12 +324,12 @@ extension CandidateSwipeModal {
         ZStack {
             Color(.secondarySystemBackground)
             
-            if let data = inferenceEngine.activeImageData,
+            if let data = inferenceEngine.activeMedia.liveImageData,
                let uiImage = UIImage(data: data) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-            } else if let path = inferenceEngine.validHistoricImagePaths.first {
+            } else if let path = inferenceEngine.activeMedia.imagePathsForUpload.first {
                 AsyncLocalImageView(
                     path: path,
                     fallbackImageUrl: nil,

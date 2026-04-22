@@ -17,9 +17,21 @@ struct BiologicalView: View {
         guard let scanIdStr = inferenceEngine.speciesData?.scanId else { return nil }
         return {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
-            guard let record = try? viewModel.activeLocalRecord?.modelContext?.fetch(descriptor).first ?? viewModel.activeLocalRecord,
-                  !(record.localImagePath?.starts(with: "http") == true),
-                  (record.additionalImagePaths ?? []).isEmpty else { return }
+            guard let record = try? viewModel.activeLocalRecord?.modelContext?.fetch(descriptor).first ?? viewModel.activeLocalRecord else { return }
+            
+            var hasCloudImage = false
+            var imageCount = 0
+            if let jsonStr = record.capturedMediaJSON,
+               let jsonData = jsonStr.data(using: .utf8),
+               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                for item in items {
+                    if case .image(let path) = item {
+                        imageCount += 1
+                        if path.starts(with: "http") { hasCloudImage = true }
+                    }
+                }
+            }
+            guard !hasCloudImage, imageCount <= 1 else { return }
             
             HapticManager.shared.triggerSelectionPulse()
             AppEventPublisher.shared.send(.triggerRefinement(record: record))
@@ -140,9 +152,14 @@ struct BiologicalView: View {
     
                 // MARK: - Spatiotemporal Context
                 let imageCount: Int = {
-                    if inferenceEngine.activeImageData != nil { return 1 }
-                    let extras = viewModel.activeLocalRecord?.additionalImagePaths ?? []
-                    return 1 + extras.count
+                    if inferenceEngine.activeMedia.liveImageData != nil { return 1 }
+                    var c = 0
+                    if let jsonStr = viewModel.activeLocalRecord?.capturedMediaJSON,
+                       let jsonData = jsonStr.data(using: .utf8),
+                       let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                        c = items.filter { if case .image = $0 { return true } else { return false } }.count
+                    }
+                    return max(1, c)
                 }()
                 ScanInformationCard(
                     speciesData: inferenceEngine.speciesData,

@@ -60,15 +60,8 @@ private struct GBIFMedia: Decodable {
     var isProcessing: Bool = false
     var scanningPhaseText: String = "Analyzing subject..."
     @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
-    var activeImageData: Data?
-    var activeAudioFilePath: String?
-    var validHistoricImagePaths: [String] = []
+    var activeMedia = ActiveScanMedia()
     var speciesData: SpeciesData?
-    
-    /// Holds the user's staged textual description natively during the active live asynchronous
-    /// taxonomy pipeline evaluation. Defensively cleared upfront during `prepareForNewScan` and `analyze`.
-    var activeObservationContext: ObservationContext?
-
     // MARK: - Environmental Telemetry State
     private(set) var activeLatitude: Double?
     private(set) var activeLongitude: Double?
@@ -86,9 +79,7 @@ private struct GBIFMedia: Decodable {
     var isEnrichmentLoading: Bool = false
     /// True while the "lookalikes" scope call (similar species cards) is in flight.
     var isLookalikesLoading: Bool = false
-    /// True while the "reference image" scope call (GBIF imagery) is in flight after inference finishes without one.
-    var isReferenceImageLoading: Bool = false
-
+    // isReferenceImageLoading has been removed. Use activeMedia.referenceState.
     // MARK: - Background Rescue State
     @ObservationIgnored private var wikiFetchAttemptedIds: Set<String> = []
     /// Shared cap for all session-scoped deduplication sets. Matches `wikiFetchAttemptedIds` so
@@ -213,15 +204,8 @@ private struct GBIFMedia: Decodable {
         self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
-        self.isReferenceImageLoading = false
-        self.enrichmentRateLimitedUntil = nil
-
-        // Clear the previous scan's result and image data.
         self.speciesData = nil
-        self.validHistoricImagePaths = []
-        self.activeImageData = nil
-        self.activeAudioFilePath = nil
-        self.activeObservationContext = nil
+        self.activeMedia = ActiveScanMedia()
 
         // Clear telemetry so stale GPS/weather cannot bleed into the new scan's display.
         self.activeLatitude = nil
@@ -272,18 +256,24 @@ private struct GBIFMedia: Decodable {
         // pipeline has already set these flags to true, prematurely clearing the skeletons.
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
-        self.isReferenceImageLoading = false
-        self.scanningPhaseText = "Analyzing subject..."
-
-        self.activeObservationContext = nil
-        self.activeScanId = scanId
-        self.isProcessing = true
-        self.activeImageData = displayDatas.first ?? imageDatas.first
-        self.activeAudioFilePath = audioFilePath
-        self.validHistoricImagePaths = []
-        self.speciesData = nil
+        self.activeMedia = ActiveScanMedia()
         
-        self.activeObservationContext = observationContext
+        var newMediaItems: [MediaItem] = []
+        if let imageData = displayDatas.first ?? imageDatas.first {
+            newMediaItems.append(.liveImage(imageData))
+        }
+        if let ctx = observationContext {
+            newMediaItems.append(.description(ctx))
+        }
+        if let audioPath = audioFilePath {
+            let docsPath = URL.documentsDirectory.appendingPathComponent(audioPath).path
+            let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(audioPath).path
+            let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+            newMediaItems.append(.audio(resolvedPath))
+        }
+        self.activeMedia.items = newMediaItems
+        
+        self.speciesData = nil
 
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
@@ -432,8 +422,21 @@ private struct GBIFMedia: Decodable {
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()
-                        // Retain validHistoricImagePaths so the Carousel doesn't structurally tear down the LiveCapturePageView component.
-                        self.validHistoricImagePaths = savedImagePaths
+                        
+                        // Transform the liveImage item into historical persisted image items
+                        // so the carousel structurally swaps to AsyncLocalImageView components natively.
+                        var updatedItems: [MediaItem] = []
+                        for path in savedImagePaths {
+                            updatedItems.append(.image(path))
+                        }
+                        
+                        // Preserve description and audio by filtering out .liveImage
+                        let preservedItems = self.activeMedia.items.filter { item in
+                            if case .liveImage = item { return false }
+                            return true
+                        }
+                        self.activeMedia.items = updatedItems + preservedItems
+                        
                         self.speciesData = mappedData
                     }
 
@@ -502,12 +505,14 @@ private struct GBIFMedia: Decodable {
                             defer {
                                 Task { @MainActor [weak self] in
                                     if self?.speciesData?.scanId == capturedScanId {
-                                        self?.isReferenceImageLoading = false
+                                        if self?.activeMedia.referenceState == .loading {
+                                            self?.activeMedia.referenceState = .empty
+                                        }
                                     }
                                 }
                             }
                             if willFetchGBIF {
-                                await MainActor.run { self.isReferenceImageLoading = true }
+                                await MainActor.run { self.activeMedia.referenceState = .loading }
                             }
                             
                             // Gate enrichment at the species level — habitat, lookalikes, and taxonomy
@@ -659,8 +664,7 @@ private struct GBIFMedia: Decodable {
         self.activeWeatherCondition = telemetry.weatherCondition
         self.activeTemperatureF = telemetry.weatherTemperatureF
         
-        self.activeObservationContext = observationContext
-
+        self.activeMedia = ActiveScanMedia(items: [.description(observationContext)])
         let ownedScanId = scanId
 
         self.inferenceTask = Task { [weak self] in
@@ -857,9 +861,13 @@ private struct GBIFMedia: Decodable {
         self.prepareForNewScan()
         self.scanningPhaseText = "Listening..."
 
-        self.activeObservationContext = observationContext
         self.activeScanId = scanId
-        self.activeAudioFilePath = audioFileName
+        var items: [MediaItem] = []
+        if let ctx = observationContext {
+            items.append(.description(ctx))
+        }
+        items.append(.audio(audioFileName))
+        self.activeMedia = ActiveScanMedia(items: items)
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
         self.activeElevation = telemetry.gpsElevation
@@ -1797,12 +1805,8 @@ private struct GBIFMedia: Decodable {
         self.scanningPhaseText = "Analyzing subject..."
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
-        self.isReferenceImageLoading = false
         self.speciesData = nil
-        activeImageData = nil
-        activeAudioFilePath = nil
-        activeObservationContext = nil
-        validHistoricImagePaths.removeAll()
+        self.activeMedia = ActiveScanMedia()
         activeLatitude = nil
         activeLongitude = nil
         activeElevation = nil
@@ -1812,9 +1816,17 @@ private struct GBIFMedia: Decodable {
     }
 
     /// Removes an invalid image URL from the carousel and from the stored `referenceImageUrl` field.
-    func dropInvalidCarouselImage(_ urlStr: String) {
-        if let idx = self.validHistoricImagePaths.firstIndex(of: urlStr) {
-            self.validHistoricImagePaths.remove(at: idx)
+    func dropInvalidCarouselImage(_ identifier: String) {
+        // Attempt to remove from items
+        self.activeMedia.items.removeAll { item in
+            if case .image(let path) = item, path == identifier { return true }
+            return false
+        }
+        
+        // Attempt to remove from referenceState
+        if case .loaded(var urls) = self.activeMedia.referenceState {
+            urls.removeAll { $0 == identifier }
+            self.activeMedia.referenceState = .loaded(urls)
         }
 
         if var updated = self.speciesData, let currentRef = updated.referenceImageUrl {
@@ -1822,7 +1834,7 @@ private struct GBIFMedia: Decodable {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
 
-            if let idx = parts.firstIndex(of: urlStr) {
+            if let idx = parts.firstIndex(of: identifier) {
                 parts.remove(at: idx)
                 let joined = parts.joined(separator: ",")
                 updated.referenceImageUrl = joined.isEmpty ? nil : joined
@@ -1844,16 +1856,24 @@ private struct GBIFMedia: Decodable {
         gbifHydrationTask?.cancel()
 
         self.activeScanId = record.id
-        self.activeImageData = nil
-        self.activeAudioFilePath = record.audioFilePaths?.first
-        self.activeObservationContext = nil
-        self.validHistoricImagePaths = []
-
-        // Capture all non-Sendable model properties synchronously on @MainActor
-        // before crossing any concurrency boundary.
-        var imagePaths: [String] = []
-        if let localPath = record.localImagePath { imagePaths.append(localPath) }
-        if let extras = record.additionalImagePaths { imagePaths.append(contentsOf: extras) }
+        self.activeMedia = ActiveScanMedia()
+        
+        if let jsonString = record.capturedMediaJSON,
+           let jsonData = jsonString.data(using: .utf8),
+           let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+            
+            self.activeMedia.items = serializedItems.map { serialized in
+                switch serialized {
+                case .image(let path): return .image(path)
+                case .audio(let path):
+                    let docsPath = URL.documentsDirectory.appendingPathComponent(path).path
+                    let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(path).path
+                    let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+                    return .audio(resolvedPath)
+                case .description(let ctx): return .description(ctx)
+                }
+            }
+        }
 
         let lookalikesJsonData: Data? = record.lookalikesData
         let lookalikesLegacyArray: [String]? = record.similarSpecies
@@ -1953,9 +1973,15 @@ private struct GBIFMedia: Decodable {
             guard let self else { return }
 
             // Step 1: Validate image paths (I/O-bound).
-            let validPaths = await FileIOActor.shared.validPaths(from: imagePaths)
+            var paths: [String] = []
+            if let jsonStr = record.capturedMediaJSON,
+               let jsonData = jsonStr.data(using: .utf8),
+               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                paths = items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
+            }
+            let validPaths = await FileIOActor.shared.validPaths(from: paths)
             guard !Task.isCancelled else { return }
-            self.validHistoricImagePaths = validPaths
+            self.activeMedia.referenceState = .loaded(validPaths)
 
             // Step 2: Resolve similar species and decode candidates off @MainActor (CPU-bound).
             // similarSpecies reuses the pre-decoded result from the gate check above —

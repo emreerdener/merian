@@ -88,7 +88,6 @@ struct ScanCollectionTests {
             scientificName: "Testus buggus",
             commonName: "Test Bug",
             timestamp: Date(),
-            localImagePath: nil,
             semanticTags: [],
             hazardType: "none",
             isBiological: true,

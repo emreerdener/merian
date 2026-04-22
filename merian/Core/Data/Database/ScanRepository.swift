@@ -192,8 +192,11 @@ final class ScanRepository {
     func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) {
         // Collect image paths before deleting the record.
         var imagesToErase: [String] = []
-        if let primaryPath = record.localImagePath { imagesToErase.append(primaryPath) }
-        if let extras = record.additionalImagePaths { imagesToErase.append(contentsOf: extras) }
+        if let jsonStr = record.capturedMediaJSON,
+           let jsonData = jsonStr.data(using: .utf8),
+           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+            imagesToErase.append(contentsOf: items.compactMap { if case .image(let p) = $0 { return p } else { return nil } })
+        }
 
         // 1. Tombstone any in-flight upload.
         offlineQueue.softDeleteQueuedScan(scanId: record.id)
@@ -418,11 +421,20 @@ actor HistoricalDatabaseActor {
                 let additionalUrls = res.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
                 let dictRefImage = res.species_dictionary?.reference_image_url
 
-                if existing.localImagePath == nil && rawR2Image != nil {
-                    existing.localImagePath = rawR2Image; chunkDidUpdate = true
+                var paths: [String] = []
+                if let jsonStr = existing.capturedMediaJSON,
+                   let jsonData = jsonStr.data(using: .utf8),
+                   let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                    paths = items.compactMap { if case .image(let p) = $0 { return p } else { return nil } }
                 }
-                if existing.additionalImagePaths == nil && additionalUrls != nil {
-                    existing.additionalImagePaths = additionalUrls; chunkDidUpdate = true
+                if paths.isEmpty {
+                    var newItems: [SerializedMediaItem] = []
+                    if let rawR2Image { newItems.append(.image(rawR2Image)) }
+                    if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image($0) }) }
+                    if !newItems.isEmpty {
+                        existing.capturedMediaJSON = try? String(data: JSONEncoder().encode(newItems), encoding: .utf8)
+                        chunkDidUpdate = true
+                    }
                 }
                 if existing.referenceImageUrl != dictRefImage {
                     existing.referenceImageUrl = dictRefImage; chunkDidUpdate = true
@@ -558,7 +570,6 @@ actor HistoricalDatabaseActor {
                 commonName: cName,
                 timestamp: parsedDate,
                 captureDate: exifDate,
-                localImagePath: rawR2Image,
                 semanticTags: semanticTags,
                 hazardType: dict?.hazard_type ?? "none",
                 isBiological: true,
@@ -568,7 +579,6 @@ actor HistoricalDatabaseActor {
                 wikipediaUrl: dict?.wikipedia_url,
                 wikipediaOverview: wikiExtract,
                 referenceImageUrl: dict?.reference_image_url,
-                additionalImagePaths: additionalUrls,
                 confidenceScore: scan.ai_confidence_score,
                 isLocallyArchived: false,
                 taxonomyKingdom: dict?.kingdom,
@@ -599,6 +609,13 @@ actor HistoricalDatabaseActor {
                 userConfirmedIdentification: scan.user_confirmed_identification ?? false,
                 imageQualityScore: scan.image_quality_score
             )
+            
+            var newItems: [SerializedMediaItem] = []
+            if let primary = rawR2Image { newItems.append(.image(primary)) }
+            if let urls = additionalUrls { newItems.append(contentsOf: urls.map { .image($0) }) }
+            // Note: Cloud dictionary might have audio file paths or observation contexts depending on the API mapping,
+            // but the original code did not pass them here, so we only handle images.
+            record.capturedMediaJSON = try? String(data: JSONEncoder().encode(newItems), encoding: .utf8)
 
             modelContext.insert(record)
 
@@ -659,7 +676,7 @@ actor HistoricalDatabaseActor {
             // A reliable heuristic: if the image path is local (doesn't start with http/https), it hasn't synced yet.
             if let currentScans = col.scans {
                 for scan in currentScans where !remoteScanIds.contains(scan.id) {
-                    let isSynced = scan.localImagePath?.starts(with: "http") == true || scan.localImagePath?.starts(with: "https") == true || scan.localImagePath == nil
+                    let isSynced = scan.coverImagePath?.starts(with: "http") == true || scan.coverImagePath?.starts(with: "https") == true || scan.coverImagePath == nil
                     if isSynced {
                         // Drive the removal from the inverse side
                         scan.collections?.removeAll(where: { $0.id == col.id })

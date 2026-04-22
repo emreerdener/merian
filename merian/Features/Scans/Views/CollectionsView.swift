@@ -143,7 +143,7 @@ struct CollectionsView: View {
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)
         .task {
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.isBiological == false || $0.commonName == "Unknown Subject" })
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.isBiological == false })
             if let count = try? modelContext.fetchCount(descriptor) {
                 nonBioCount = count
             }

@@ -8,7 +8,7 @@ struct CollectionCard: View {
         ZStack {
             if let firstScan = collection.scans?.first {
                 GeometryReader { geo in
-                    ScanThumbnail(imagePath: firstScan.localImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
+                    ScanThumbnail(imagePath: firstScan.coverImagePath, fallbackImageUrl: firstScan.referenceImageUrl)
                         .frame(width: geo.size.width, height: geo.size.width)
                         .clipped()
                 }

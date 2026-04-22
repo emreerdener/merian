@@ -57,6 +57,7 @@ struct AudioPlaybackCarouselPage: View {
             } else {
                 GeometryReader { proxy in
                     SpectrogramView(columns: columns, columnCap: columns.count)
+                        .equatable()
                         .allowsHitTesting(false)
                         .overlay(alignment: .leading) {
                             Rectangle()
@@ -98,7 +99,7 @@ struct AudioPlaybackCarouselPage: View {
             await decodeAudio()
         }
         .onReceive(timer) { _ in
-            guard let player = player, player.isPlaying else { return }
+            guard let player = player, player.isPlaying, player.duration > 0 else { return }
             playbackProgress = player.currentTime / player.duration
         }
     }

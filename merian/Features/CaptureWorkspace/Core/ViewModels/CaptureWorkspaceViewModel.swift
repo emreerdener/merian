@@ -246,7 +246,7 @@ final class CaptureWorkspaceViewModel {
         self.activeSheet = nil
         self.requestedCaptureMode = .describe
         
-        guard let localPath = record.localImagePath,
+        guard let localPath = record.coverImagePath,
               !localPath.starts(with: "http") else { return }
 
         self.isStagingRefinement = true

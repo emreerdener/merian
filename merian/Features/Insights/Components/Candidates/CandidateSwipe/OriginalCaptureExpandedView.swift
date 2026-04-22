@@ -10,7 +10,7 @@ struct OriginalCaptureExpandedView: View {
             Color.black.ignoresSafeArea()
             
             Group {
-                if let imageData = inferenceEngine.activeImageData {
+                if let imageData = inferenceEngine.activeMedia.liveImageData {
                     if let img = decodedImage {
                         ZoomableScrollView {
                             Image(uiImage: img)
@@ -26,7 +26,7 @@ struct OriginalCaptureExpandedView: View {
                                 decodedImage = img
                             }
                     }
-                } else if let path = inferenceEngine.validHistoricImagePaths.first {
+                } else if let path = inferenceEngine.activeMedia.imagePathsForUpload.first {
                     ZoomableScrollView {
                         AsyncLocalImageView(
                             path: path,

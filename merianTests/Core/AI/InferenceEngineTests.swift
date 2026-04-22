@@ -102,7 +102,6 @@ struct InferenceEngineTests {
             speciesId: "species_abc",
             scientificName: "Danaus plexippus",
             commonName: "Monarch Butterfly",
-            localImagePath: "monarch.jpg",
             semanticTags: ["butterfly", "insect"],
             hazardType: "poisonous",
             isBiological: true,
@@ -111,7 +110,6 @@ struct InferenceEngineTests {
             ecologyType: "Terrestrial",
             wikipediaUrl: "https://en.wikipedia.org/wiki/Monarch_butterfly",
             referenceImageUrl: "https://example.com/monarch.jpg",
-            additionalImagePaths: ["monarch2.jpg"],
             confidenceScore: 0.99,
             taxonomyKingdom: "Animalia",
             taxonomyPhylum: "Arthropoda",
@@ -160,7 +158,6 @@ struct InferenceEngineTests {
             speciesId: "species_xyz",
             scientificName: "Procyon lotor",
             commonName: "Raccoon",
-            localImagePath: nil,
             semanticTags: ["raccoon"],
             hazardType: "none",
             isBiological: true,
@@ -200,7 +197,6 @@ struct InferenceEngineTests {
             speciesId: "species_xyz",
             scientificName: "Procyon lotor",
             commonName: "Raccoon",
-            localImagePath: nil,
             semanticTags: ["raccoon"],
             hazardType: "none",
             isBiological: true,
@@ -902,7 +898,7 @@ struct InferenceEngineTests {
         }
         """.data(using: .utf8)!
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-        MockURLProtocol.mockEndpoints["/identify"] = { _ in (mockResponse, successJSON) }
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { _ in (mockResponse, successJSON) }
 
         let sessionConfig = URLSessionConfiguration.ephemeral
         sessionConfig.protocolClasses = [MockURLProtocol.self]

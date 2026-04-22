@@ -47,7 +47,7 @@ struct ImageDownsamplerTests {
         let requestedSafeMaxDimension: CGFloat = 300.0
         
         // Act: Funnel the 4000x4000 raw Data footprint securely through our explicit native decoupling boundary
-        let downsampledCGImage = await ImageDownsampler.shared.downsample(data: massiveDataBuffer, maxSize: requestedSafeMaxDimension)
+        let downsampledCGImage = ImageDownsampler.downsample(data: massiveDataBuffer, maxSize: requestedSafeMaxDimension)
         
         // Assert: Ensure it did not crash natively and securely returned the CF object
         #expect(downsampledCGImage != nil, "ImageDownsampler MUST extract the raw CGImage without dropping bounds unexpectedly")

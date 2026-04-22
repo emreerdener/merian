@@ -6,7 +6,7 @@ struct OriginalCapturePiPView: View {
 
     var body: some View {
         Group {
-            if let imageData = inferenceEngine.activeImageData {
+            if let imageData = inferenceEngine.activeMedia.liveImageData {
                 if let img = decodedImage {
                     Image(uiImage: img)
                         .resizable()
@@ -29,7 +29,7 @@ struct OriginalCapturePiPView: View {
                             decodedImage = img
                         }
                 }
-            } else if let path = inferenceEngine.validHistoricImagePaths.first {
+            } else if let path = inferenceEngine.activeMedia.imagePathsForUpload.first {
                 AsyncLocalImageView(
                     path: path,
                     fallbackImageUrl: nil,

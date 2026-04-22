@@ -9,7 +9,7 @@ public final class LocalScanRecord {
     public var commonName: String
     public var timestamp: Date
     public var captureDate: Date?
-    public var localImagePath: String?
+    public var capturedMediaJSON: String?
 
     public var semanticTags: [String]
     /// Hazard classification returned by the AI. One of: "none" | "poisonous" | "venomous" | "allergenic" | "irritant".
@@ -22,7 +22,6 @@ public final class LocalScanRecord {
     /// Wikipedia summary paragraph for this species. Cached from the Wikipedia REST API.
     @Attribute(originalName: "wikipediaExtract") public var wikipediaOverview: String?
     public var referenceImageUrl: String?
-    public var additionalImagePaths: [String]?
     public var confidenceScore: Double?
     @Attribute public var isLocallyArchived: Bool = false
 
@@ -101,14 +100,13 @@ public final class LocalScanRecord {
     /// Replaced singular JSON string from V38.
     @Attribute public var observationContextsJSON: [String]?
 
-    /// Local file paths to the audio recordings associated with this scan.
-    /// Added in SchemaV39 to support multi-modal captures.
-    @Attribute public var audioFilePaths: [String]?
 
     public var userReviewState: UserReviewState {
         get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
         set { userReviewStateRaw = newValue.rawValue }
     }
+
+    @Attribute public var coverImagePath: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -117,7 +115,8 @@ public final class LocalScanRecord {
         commonName: String,
         timestamp: Date = Date(),
         captureDate: Date? = nil,
-        localImagePath: String? = nil,
+        capturedMediaJSON: String? = nil,
+        coverImagePath: String? = nil,
         semanticTags: [String] = [],
         hazardType: String = "none",
         isBiological: Bool = true,
@@ -127,7 +126,6 @@ public final class LocalScanRecord {
         wikipediaUrl: String? = nil,
         wikipediaOverview: String? = nil,
         referenceImageUrl: String? = nil,
-        additionalImagePaths: [String]? = nil,
         confidenceScore: Double? = nil,
         isLocallyArchived: Bool = false,
         taxonomyKingdom: String? = nil,
@@ -166,8 +164,7 @@ public final class LocalScanRecord {
         alternativeCommonNames: [String]? = nil,
         confirmedSpeciesId: String? = nil,
         userReviewStateRaw: String? = nil,
-        observationContextsJSON: [String]? = nil,
-        audioFilePaths: [String]? = nil
+
     ) {
 
         self.id = id
@@ -176,7 +173,8 @@ public final class LocalScanRecord {
         self.commonName = commonName
         self.timestamp = timestamp
         self.captureDate = captureDate
-        self.localImagePath = localImagePath
+        self.capturedMediaJSON = capturedMediaJSON
+        self.coverImagePath = coverImagePath
         self.semanticTags = semanticTags
         self.hazardType = hazardType
         self.isBiological = isBiological
@@ -186,7 +184,6 @@ public final class LocalScanRecord {
         self.wikipediaUrl = wikipediaUrl
         self.wikipediaOverview = wikipediaOverview
         self.referenceImageUrl = referenceImageUrl
-        self.additionalImagePaths = additionalImagePaths
         self.confidenceScore = confidenceScore
         self.isLocallyArchived = isLocallyArchived
 
@@ -231,7 +228,5 @@ public final class LocalScanRecord {
         self.alternativeCommonNames = alternativeCommonNames
         self.confirmedSpeciesId = confirmedSpeciesId
         self.userReviewStateRaw = userReviewStateRaw
-        self.observationContextsJSON = observationContextsJSON
-        self.audioFilePaths = audioFilePaths
     }
 }

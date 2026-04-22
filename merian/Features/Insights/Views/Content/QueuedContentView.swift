@@ -6,7 +6,7 @@ private extension QueuedScanContext {
     /// Debug-only memberwise initialiser — avoids constructing a live SwiftData model in previews.
     init(
         id: String,
-        localImagePaths: [String],
+        capturedMediaJSON: String? = nil,
         timestamp: Date,
         locationName: String?,
         weatherTemperatureF: Double?,
@@ -14,11 +14,9 @@ private extension QueuedScanContext {
         gpsElevation: Double?,
         gpsLatitude: Double?,
         gpsLongitude: Double?,
-        observationContextsJSON: [String]? = nil,
-        audioFilePaths: [String]? = nil
     ) {
         self.id = id
-        self.localImagePaths = localImagePaths
+        self.capturedMediaJSON = capturedMediaJSON
         self.timestamp = timestamp
         self.locationName = locationName
         self.weatherTemperatureF = weatherTemperatureF
@@ -26,14 +24,12 @@ private extension QueuedScanContext {
         self.gpsElevation = gpsElevation
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
-        self.observationContextsJSON = observationContextsJSON
-        self.audioFilePaths = audioFilePaths
     }
 
     static var preview: QueuedScanContext {
         QueuedScanContext(
             id: "preview-id",
-            localImagePaths: [],
+            capturedMediaJSON: nil,
             timestamp: Date(),
             locationName: "Muir Woods, CA",
             weatherTemperatureF: 61,
@@ -41,8 +37,6 @@ private extension QueuedScanContext {
             gpsElevation: 142,
             gpsLatitude: 37.8970,
             gpsLongitude: -122.5810,
-            observationContextsJSON: nil,
-            audioFilePaths: nil
         )
     }
 }

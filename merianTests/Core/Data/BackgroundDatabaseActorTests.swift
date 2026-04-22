@@ -20,7 +20,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let queuedScan = OfflineQueuedScan(localImagePaths: ["isolation_1.jpg", "isolation_2.jpg"])
+        let queuedScan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("isolation_1.jpg"), SerializedMediaItem.image("isolation_2.jpg")]), encoding: .utf8))
         context.insert(queuedScan)
         try context.save()
 
@@ -139,11 +139,11 @@ struct BackgroundDatabaseActorTests {
         let context = ModelContext(container)
 
         // Only .pending scans should be fetched for upload dispatch.
-        let pending    = OfflineQueuedScan(localImagePaths: ["pending.webp"],    scanState: .pending)
-        let uploading  = OfflineQueuedScan(localImagePaths: ["uploading.webp"],  scanState: .uploading)
-        let staged     = OfflineQueuedScan(localImagePaths: ["staged.webp"],     scanState: .staged)
-        let inferencing = OfflineQueuedScan(localImagePaths: ["inferencing.webp"], scanState: .inferencing)
-        let failed     = OfflineQueuedScan(localImagePaths: ["failed.webp"],     scanState: .failed)
+        let pending    = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("pending.webp")]), encoding: .utf8),    scanState: .pending)
+        let uploading  = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("uploading.webp")]), encoding: .utf8),  scanState: .uploading)
+        let staged     = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("staged.webp")]), encoding: .utf8),     scanState: .staged)
+        let inferencing = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("inferencing.webp")]), encoding: .utf8), scanState: .inferencing)
+        let failed     = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("failed.webp")]), encoding: .utf8),     scanState: .failed)
 
         for scan in [pending, uploading, staged, inferencing, failed] {
             context.insert(scan)
@@ -209,7 +209,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["claim.webp"], scanState: .staged)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("claim.webp")]), encoding: .utf8), scanState: .staged)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -232,7 +232,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["already.webp"], scanState: .inferencing)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("already.webp")]), encoding: .utf8), scanState: .inferencing)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -252,7 +252,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["pending.webp"], scanState: .pending)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("pending.webp")]), encoding: .utf8), scanState: .pending)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -273,7 +273,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["dead.webp"], scanState: .failed)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("dead.webp")]), encoding: .utf8), scanState: .failed)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -294,7 +294,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["race.webp"], scanState: .staged)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("race.webp")]), encoding: .utf8), scanState: .staged)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -313,7 +313,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["retry.webp"], scanState: .inferencing)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("retry.webp")]), encoding: .utf8), scanState: .inferencing)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -334,7 +334,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["tombstoned.webp"], scanState: .failed)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("tombstoned.webp")]), encoding: .utf8), scanState: .failed)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -353,7 +353,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["pending.webp"], scanState: .pending)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("pending.webp")]), encoding: .utf8), scanState: .pending)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -374,7 +374,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["img.webp"], scanState: .uploading)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("img.webp")]), encoding: .utf8), scanState: .uploading)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -398,7 +398,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["dead.webp"], scanState: .failed)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("dead.webp")]), encoding: .utf8), scanState: .failed)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -419,7 +419,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["pending.webp"], scanState: .pending)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("pending.webp")]), encoding: .utf8), scanState: .pending)
         context.insert(scan)
         try context.save()
         let scanId = scan.id
@@ -441,10 +441,10 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let pending    = OfflineQueuedScan(localImagePaths: ["p.webp"], scanState: .pending)
-        let uploading  = OfflineQueuedScan(localImagePaths: ["u.webp"], scanState: .uploading)
-        let staged     = OfflineQueuedScan(localImagePaths: ["s.webp"], scanState: .staged)
-        let failed     = OfflineQueuedScan(localImagePaths: ["f.webp"], scanState: .failed)
+        let pending    = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("p.webp")]), encoding: .utf8), scanState: .pending)
+        let uploading  = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("u.webp")]), encoding: .utf8), scanState: .uploading)
+        let staged     = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("s.webp")]), encoding: .utf8), scanState: .staged)
+        let failed     = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("f.webp")]), encoding: .utf8), scanState: .failed)
 
         for scan in [pending, uploading, staged, failed] { context.insert(scan) }
         try context.save()
@@ -469,9 +469,9 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let orphan = OfflineQueuedScan(localImagePaths: ["orphan.webp"], scanState: .uploading)
-        let active = OfflineQueuedScan(localImagePaths: ["active.webp"], scanState: .uploading)
-        let pending = OfflineQueuedScan(localImagePaths: ["pending.webp"], scanState: .pending)
+        let orphan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("orphan.webp")]), encoding: .utf8), scanState: .uploading)
+        let active = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("active.webp")]), encoding: .utf8), scanState: .uploading)
+        let pending = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("pending.webp")]), encoding: .utf8), scanState: .pending)
 
         for scan in [orphan, active, pending] { context.insert(scan) }
         try context.save()
@@ -494,8 +494,8 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan1 = OfflineQueuedScan(localImagePaths: ["a.webp"], scanState: .uploading)
-        let scan2 = OfflineQueuedScan(localImagePaths: ["b.webp"], scanState: .uploading)
+        let scan1 = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("a.webp")]), encoding: .utf8), scanState: .uploading)
+        let scan2 = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("b.webp")]), encoding: .utf8), scanState: .uploading)
 
         context.insert(scan1)
         context.insert(scan2)
@@ -518,10 +518,10 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let inf1   = OfflineQueuedScan(localImagePaths: ["i1.webp"], scanState: .inferencing)
-        let inf2   = OfflineQueuedScan(localImagePaths: ["i2.webp"], scanState: .inferencing)
-        let staged = OfflineQueuedScan(localImagePaths: ["s.webp"],  scanState: .staged)
-        let failed = OfflineQueuedScan(localImagePaths: ["f.webp"],  scanState: .failed)
+        let inf1   = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("i1.webp")]), encoding: .utf8), scanState: .inferencing)
+        let inf2   = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("i2.webp")]), encoding: .utf8), scanState: .inferencing)
+        let staged = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("s.webp")]), encoding: .utf8),  scanState: .staged)
+        let failed = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("f.webp")]), encoding: .utf8),  scanState: .failed)
 
         for scan in [inf1, inf2, staged, failed] { context.insert(scan) }
         try context.save()
@@ -547,7 +547,7 @@ struct BackgroundDatabaseActorTests {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
 
-        let scan = OfflineQueuedScan(localImagePaths: ["lifecycle.webp"], scanState: .pending)
+        let scan = OfflineQueuedScan(capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("lifecycle.webp")]), encoding: .utf8), scanState: .pending)
         context.insert(scan)
         try context.save()
         let scanId = scan.id

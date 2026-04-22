@@ -31,7 +31,7 @@ struct OfflineQueuedScanDeletionTests {
         let queuedScan = OfflineQueuedScan(
             id: scanId,
             timestamp: Date(),
-            localImagePaths: [mockImagePath]
+            capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image(mockImagePath)]), encoding: .utf8)
         )
         
         ctx.insert(queuedScan)
@@ -72,7 +72,7 @@ struct OfflineQueuedScanDeletionTests {
         let queuedScan = OfflineQueuedScan(
             id: scanId,
             timestamp: Date(),
-            localImagePaths: []
+            capturedMediaJSON: nil
         )
         
         ctx.insert(queuedScan)

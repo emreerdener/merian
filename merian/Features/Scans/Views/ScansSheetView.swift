@@ -12,7 +12,7 @@ struct ScansSheetView: View {
 
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var rawRecords: [LocalScanRecord]
     private var allRecords: [LocalScanRecord] {
-        rawRecords.filter { $0.isBiological == true && $0.commonName != "Unknown Subject" }
+        rawRecords.filter { $0.isBiological == true }
     }
     @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) private var collections: [ScanCollection]
 
@@ -162,7 +162,7 @@ struct ScansSheetView: View {
     /// screen (6 rows × 3 columns on the largest supported iPhone) with no gray placeholders.
     private func prefetchLeadingThumbnails(from records: [LocalScanRecord]) {
         let slice = records.prefix(18).map {
-            (imagePath: $0.localImagePath, fallbackUrl: $0.referenceImageUrl)
+            (imagePath: $0.coverImagePath, fallbackUrl: $0.referenceImageUrl)
         }
         LocalImageLoader.shared.prefetch(records: Array(slice), maxDimension: prefetchThumbnailSize)
     }
@@ -188,7 +188,7 @@ struct ScansSheetView: View {
         )
         let fetched = (try? modelContext.fetch(descriptor)) ?? []
         queuedScans = fetched.map {
-            QueuedScanSnapshot(id: $0.id, imagePath: $0.localImagePaths.first, timestamp: $0.timestamp)
+            QueuedScanSnapshot(id: $0.id, imagePath: $0.coverImagePath, timestamp: $0.timestamp)
         }
     }
 
@@ -199,7 +199,7 @@ struct ScansSheetView: View {
     /// completed scan tile appears at the same time the pending overlay disappears.
     private func syncStateFromStore() {
         let descriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate<LocalScanRecord> { $0.isBiological == true && $0.commonName != "Unknown Subject" },
+            predicate: #Predicate<LocalScanRecord> { $0.isBiological == true },
             sortBy: [SortDescriptor(\LocalScanRecord.timestamp, order: .reverse)]
         )
         searchManager.allScans = (try? modelContext.fetch(descriptor)) ?? []

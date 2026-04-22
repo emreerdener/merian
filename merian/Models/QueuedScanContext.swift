@@ -14,7 +14,7 @@ import Foundation
 /// the `OfflineQueuedScan` model's properties, so no re-evaluation happens on deletion.
 struct QueuedScanContext: Identifiable, Equatable {
     let id: String
-    let localImagePaths: [String]
+    let capturedMediaJSON: String?
     let timestamp: Date
     let locationName: String?
     let weatherTemperatureF: Double?
@@ -23,17 +23,12 @@ struct QueuedScanContext: Identifiable, Equatable {
     let gpsLatitude: Double?
     let gpsLongitude: Double?
     
-    /// A JSON-encoded verbatim snapshot of the `ObservationContext` associated with this queued scan.
-    let observationContextsJSON: [String]?
-
-    /// Local file path to the audio recording associated with this scan.
-    let audioFilePaths: [String]?
 
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.
     /// Must be called while the object is still alive (before any `context.delete()`).
     init(from scan: OfflineQueuedScan) {
         self.id = scan.id
-        self.localImagePaths = scan.localImagePaths
+        self.capturedMediaJSON = scan.capturedMediaJSON
         self.timestamp = scan.timestamp
         self.locationName = scan.locationName
         self.weatherTemperatureF = scan.weatherTemperatureF
@@ -41,7 +36,5 @@ struct QueuedScanContext: Identifiable, Equatable {
         self.gpsElevation = scan.gpsElevation
         self.gpsLatitude = scan.gpsLatitude
         self.gpsLongitude = scan.gpsLongitude
-        self.observationContextsJSON = scan.observationContextsJSON
-        self.audioFilePaths = scan.audioFilePaths
     }
 }

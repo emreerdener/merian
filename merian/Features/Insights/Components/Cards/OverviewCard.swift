@@ -40,7 +40,7 @@ struct OverviewCard: View {
             let lifeStage = data.lifeStage.flatMap { $0 == "unknown" ? nil : capitalizeFirstLetter($0) }
             let reproduction = data.reproductiveCondition.flatMap { $0 == "not_applicable" ? nil : capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }
             
-            let hasOriginalImage = inferenceEngine.activeImageData != nil || !inferenceEngine.validHistoricImagePaths.isEmpty
+            let hasOriginalImage = inferenceEngine.activeMedia.liveImageData != nil || !inferenceEngine.activeMedia.imagePathsForUpload.isEmpty
             
             let colors: String? = {
                 guard hasOriginalImage, let raw = data.colors, !raw.isEmpty else { return nil }

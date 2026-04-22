@@ -30,35 +30,36 @@ struct InsightContentView: View {
                     let bleedBuffer: CGFloat = 50 
                     
                     let activeQueuedContext = viewModel.queuedContext ?? queuedScan
-                    let activeObservationContext = viewModel.observationContext
-                    let activeValidPaths = activeQueuedContext?.localImagePaths ?? viewModel.validHistoricImagePaths
-                    let activeHasLive = activeQueuedContext != nil ? false : viewModel.hasLive
-                    let activeLiveCount = activeQueuedContext != nil ? 0 : viewModel.liveCount
                     let activeIsProcessing = activeQueuedContext != nil ? false : viewModel.isProcessing
 
-                    let hasDescription = activeObservationContext?.isEmpty == false
-                    let hasQueuedAudio = activeQueuedContext.flatMap { $0.audioFilePaths?.first }
-                        .map { FileManager.default.fileExists(atPath: $0) } ?? false
-                    let activeTotalImages = (activeQueuedContext != nil 
-                        ? (activeQueuedContext?.localImagePaths.count ?? 0) 
-                        : viewModel.totalImages) + (activeQueuedContext != nil ? (hasDescription ? 1 : 0) + (hasQueuedAudio ? 1 : 0) : 0)
+                    let activeMedia: ActiveScanMedia = {
+                        if let queued = activeQueuedContext {
+                            var items: [MediaItem] = []
+                            if let jsonStr = queued.capturedMediaJSON,
+                               let jsonData = jsonStr.data(using: .utf8),
+                               let serialized = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                                for s in serialized {
+                                    switch s {
+                                    case .image(let path): items.append(.image(path))
+                                    case .audio(let path): items.append(.audio(path))
+                                    case .description(let ctx): items.append(.description(ctx))
+                                    }
+                                }
+                            }
+                            return ActiveScanMedia(items: items)
+                        } else {
+                            return viewModel.activeMedia
+                        }
+                    }()
 
                     ImagesCarousel(
                         scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
-                        refUrls: viewModel.refUrls,
-                        validHistoricImagePaths: activeValidPaths,
-                        liveImageData: activeQueuedContext != nil ? nil : viewModel.liveImageData,
-                        audioFilePath: activeQueuedContext != nil ? activeQueuedContext?.audioFilePaths?.first : viewModel.audioFilePath,
-                        hasLive: activeHasLive,
-                        liveCount: activeLiveCount,
-                        totalImages: activeTotalImages,
+                        activeMedia: activeMedia,
                         isProcessing: activeIsProcessing,
-                        isReferenceImageLoading: activeQueuedContext != nil ? false : (inferenceEngine.isReferenceImageLoading),
                         onImageFailure: { path in
                             guard activeQueuedContext == nil else { return }
                             inferenceEngine.dropInvalidCarouselImage(path)
                         },
-                        descriptionText: hasDescription ? activeObservationContext?.freeText : nil,
                         onDescriptionTap: { viewModel.isDescriptionSheetPresented = true }
                     )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)

@@ -179,17 +179,24 @@ struct MigrationPlanTests {
     ///
     /// Zeroes the four `nonisolated(unsafe) static var` backfill dictionaries before and
     /// after via `defer` to prevent false positives from other tests running in the same process.
-    @Test func migrationFromV38ToV39BackfillsArrayColumns() throws {
+
+    @Test func testFullMigrationV38ToV40() throws {
         // Guard against stale backfill data from a prior test in the same process.
         MerianMigrationPlan._v38LocalAudioBackfill = [:]
         MerianMigrationPlan._v38LocalContextBackfill = [:]
         MerianMigrationPlan._v38OfflineAudioBackfill = [:]
         MerianMigrationPlan._v38OfflineContextBackfill = [:]
+        MerianMigrationPlan._v38LocalAdditionalImagesBackfill = [:]
+        MerianMigrationPlan._v38LocalSemanticTagsBackfill = [:]
+        MerianMigrationPlan._v38OfflineLocalImagesBackfill = [:]
         defer {
             MerianMigrationPlan._v38LocalAudioBackfill = [:]
             MerianMigrationPlan._v38LocalContextBackfill = [:]
             MerianMigrationPlan._v38OfflineAudioBackfill = [:]
             MerianMigrationPlan._v38OfflineContextBackfill = [:]
+            MerianMigrationPlan._v38LocalAdditionalImagesBackfill = [:]
+            MerianMigrationPlan._v38LocalSemanticTagsBackfill = [:]
+            MerianMigrationPlan._v38OfflineLocalImagesBackfill = [:]
         }
 
         let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v38migration_test.sqlite")
@@ -208,15 +215,17 @@ struct MigrationPlanTests {
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "unknown",
-            audioFilePath: "recording_abc.wav",
-            observationContextJSON: "{\"freeText\":\"Yellow wings\"}"
+            observationContextJSON: "{\"freeText\":\"Yellow wings\"}",
+            audioFilePath: "recording_abc.wav"
         )
+        localRecord.additionalImagePaths = ["extra1.webp"]
+        localRecord.localImagePath = "main_image.webp"
         context38.insert(localRecord)
 
         let offlineRecord = MerianSchemaV38.OfflineQueuedScan(
-            localImagePaths: [],
-            audioFilePath: "offline_recording.wav",
-            observationContextJSON: "{\"freeText\":\"Near water\"}"
+            localImagePaths: ["offline_img1.webp"],
+            observationContextJSON: "{\"freeText\":\"Near water\"}",
+            audioFilePath: "offline_recording.wav"
         )
         context38.insert(offlineRecord)
         try context38.save()
@@ -225,45 +234,173 @@ struct MigrationPlanTests {
         let capturedOfflineId = offlineRecord.id
         _ = container38
 
-        // Step 2 — reopen with the full migration plan targeting V39 (CurrentSchema).
-        let schema39 = Schema(versionedSchema: CurrentSchema.self)
-        let config39 = ModelConfiguration(schema: schema39, url: url)
-        let container39 = try ModelContainer(
-            for: schema39,
+        // Step 2 — reopen with the full migration plan targeting V40 (CurrentSchema).
+        let schema40 = Schema(versionedSchema: CurrentSchema.self)
+        let config40 = ModelConfiguration(schema: schema40, url: url)
+        let container40 = try ModelContainer(
+            for: schema40,
             migrationPlan: MerianMigrationPlan.self,
-            configurations: [config39]
+            configurations: [config40]
         )
 
-        // Step 3 — verify both models had their singular values backfilled into arrays.
-        let context39 = ModelContext(container39)
+        // Step 3 — verify both models migrated to V40 correctly.
+        let context40 = ModelContext(container40)
 
         var localDescriptor = FetchDescriptor<LocalScanRecord>()
         localDescriptor.fetchLimit = 500
-        let localScans = try context39.fetch(localDescriptor)
+        let localScans = try context40.fetch(localDescriptor)
         let migratedLocal = localScans.first { $0.id == capturedLocalId }
-        #expect(migratedLocal != nil, "LocalScanRecord must survive V38→V39 migration")
+        #expect(migratedLocal != nil, "LocalScanRecord must survive V38→V40 migration")
         #expect(
-            migratedLocal?.audioFilePaths?.first == "recording_abc.wav",
-            "audioFilePath must be backfilled into audioFilePaths[0]"
+            migratedLocal?.capturedMediaJSON?.contains("recording_abc.wav") == true,
+            "capturedMediaJSON must contain audioFilePath"
         )
         #expect(
-            migratedLocal?.observationContextsJSON?.first == "{\"freeText\":\"Yellow wings\"}",
-            "observationContextJSON must be backfilled into observationContextsJSON[0]"
+            migratedLocal?.capturedMediaJSON?.contains("Yellow wings") == true,
+            "capturedMediaJSON must contain observationContextJSON"
+        )
+        #expect(
+            migratedLocal?.capturedMediaJSON?.contains("extra1.webp") == true,
+            "capturedMediaJSON must contain additionalImagePaths"
+        )
+        #expect(
+            migratedLocal?.capturedMediaJSON?.contains("main_image.webp") == true,
+            "capturedMediaJSON must contain main_image.webp"
         )
 
         var offlineDescriptor = FetchDescriptor<OfflineQueuedScan>()
         offlineDescriptor.fetchLimit = 500
-        let offlineScans = try context39.fetch(offlineDescriptor)
+        let offlineScans = try context40.fetch(offlineDescriptor)
         let migratedOffline = offlineScans.first { $0.id == capturedOfflineId }
-        #expect(migratedOffline != nil, "OfflineQueuedScan must survive V38→V39 migration")
+        #expect(migratedOffline != nil, "OfflineQueuedScan must survive V38→V40 migration")
         #expect(
-            migratedOffline?.audioFilePaths?.first == "offline_recording.wav",
-            "OfflineQueuedScan.audioFilePath must be backfilled into audioFilePaths[0]"
+            migratedOffline?.capturedMediaJSON?.contains("offline_recording.wav") == true,
+            "capturedMediaJSON must contain audioFilePath"
         )
         #expect(
-            migratedOffline?.observationContextsJSON?.first == "{\"freeText\":\"Near water\"}",
-            "OfflineQueuedScan.observationContextJSON must be backfilled into observationContextsJSON[0]"
+            migratedOffline?.capturedMediaJSON?.contains("Near water") == true,
+            "capturedMediaJSON must contain observationContextJSON"
         )
+        #expect(
+            migratedOffline?.capturedMediaJSON?.contains("offline_img1.webp") == true,
+            "capturedMediaJSON must contain localImagePaths"
+        )
+
+        // Cleanup.
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    }
+    @Test func testFullMigrationV39ToV40BackfillsMediaJSON() throws {
+        // Ensures cleanup of static state between runs.
+        defer {
+            MerianMigrationPlan._v39LocalMediaBackfill = [:]
+            MerianMigrationPlan._v39OfflineMediaBackfill = [:]
+            MerianMigrationPlan._v39LocalCoverBackfill = [:]
+            MerianMigrationPlan._v39OfflineCoverBackfill = [:]
+        }
+
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v39migration_test.sqlite")
+
+        // Step 1 — create a V39 store with plural fields populated.
+        let schema39 = Schema(versionedSchema: MerianSchemaV39.self)
+        let config39 = ModelConfiguration(schema: schema39, url: url)
+        let container39 = try ModelContainer(for: schema39, configurations: [config39])
+        let context39 = ModelContext(container39)
+
+        let localRecord = MerianSchemaV39.LocalScanRecord(
+            speciesId: "test-species",
+            scientificName: "Testus testus",
+            commonName: "Test Species",
+            localImagePath: "main_image.webp",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown",
+            additionalImagePaths: ["extra1.webp", "extra2.webp"],
+            observationContextsJSON: ["{\"freeText\":\"Yellow wings\"}"]
+        )
+        // Set audioFilePaths manually since init doesn't take it in V39 snapshot
+        localRecord.audioFilePaths = ["recording_abc.wav"]
+        context39.insert(localRecord)
+
+        let offlineRecord = MerianSchemaV39.OfflineQueuedScan(
+            localImagePaths: ["offline_main.webp", "offline_extra.webp"],
+            observationContextsJSON: ["{\"freeText\":\"Near water\"}"]
+        )
+        // Set audioFilePaths manually
+        offlineRecord.audioFilePaths = ["offline_recording.wav"]
+        context39.insert(offlineRecord)
+        try context39.save()
+
+        let capturedLocalId = localRecord.id
+        let capturedOfflineId = offlineRecord.id
+        _ = container39
+
+        // Step 2 — reopen with the full migration plan targeting V40 (CurrentSchema).
+        let schema40 = Schema(versionedSchema: CurrentSchema.self)
+        let config40 = ModelConfiguration(schema: schema40, url: url)
+        let container40 = try ModelContainer(
+            for: schema40,
+            migrationPlan: MerianMigrationPlan.self,
+            configurations: [config40]
+        )
+
+        // Step 3 — verify both models had their arrays consolidated into capturedMediaJSON.
+        let context40 = ModelContext(container40)
+
+        var localDescriptor = FetchDescriptor<LocalScanRecord>()
+        localDescriptor.fetchLimit = 500
+        let localScans = try context40.fetch(localDescriptor)
+        let migratedLocal = localScans.first { $0.id == capturedLocalId }
+        
+        #expect(migratedLocal != nil, "LocalScanRecord must survive V39→V40 migration")
+        
+        // Assert coverImagePath is the first image
+        #expect(migratedLocal?.coverImagePath == "main_image.webp", "coverImagePath must be the first image")
+        
+        // Decode JSON and verify structure and order
+        if let jsonStr = migratedLocal?.capturedMediaJSON,
+           let jsonData = jsonStr.data(using: String.Encoding.utf8),
+           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+            #expect(items.count == 5, "Should have 5 items: 1 main image, 2 extra images, 1 description, 1 audio")
+            
+            if items.count == 5 {
+                if case .image(let path) = items[0] { #expect(path == "main_image.webp") } else { Issue.record("Item 0 not image") }
+                if case .image(let path) = items[1] { #expect(path == "extra1.webp") } else { Issue.record("Item 1 not image") }
+                if case .image(let path) = items[2] { #expect(path == "extra2.webp") } else { Issue.record("Item 2 not image") }
+                if case .description(let ctx) = items[3] { #expect(ctx.freeText == "Yellow wings") } else { Issue.record("Item 3 not description") }
+                if case .audio(let path) = items[4] { #expect(path == "recording_abc.wav") } else { Issue.record("Item 4 not audio") }
+            }
+        } else {
+            Issue.record("Failed to decode capturedMediaJSON for migratedLocal")
+        }
+
+        var offlineDescriptor = FetchDescriptor<OfflineQueuedScan>()
+        offlineDescriptor.fetchLimit = 500
+        let offlineScans = try context40.fetch(offlineDescriptor)
+        let migratedOffline = offlineScans.first { $0.id == capturedOfflineId }
+        
+        #expect(migratedOffline != nil, "OfflineQueuedScan must survive V39→V40 migration")
+        
+        // Assert coverImagePath is the first image
+        #expect(migratedOffline?.coverImagePath == "offline_main.webp", "coverImagePath must be the first image")
+        
+        // Decode JSON and verify structure and order
+        if let jsonStr = migratedOffline?.capturedMediaJSON,
+           let jsonData = jsonStr.data(using: String.Encoding.utf8),
+           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+            #expect(items.count == 4, "Should have 4 items: 2 images, 1 description, 1 audio")
+            
+            if items.count == 4 {
+                if case .image(let path) = items[0] { #expect(path == "offline_main.webp") } else { Issue.record("Item 0 not image") }
+                if case .image(let path) = items[1] { #expect(path == "offline_extra.webp") } else { Issue.record("Item 1 not image") }
+                if case .description(let ctx) = items[2] { #expect(ctx.freeText == "Near water") } else { Issue.record("Item 2 not description") }
+                if case .audio(let path) = items[3] { #expect(path == "offline_recording.wav") } else { Issue.record("Item 3 not audio") }
+            }
+        } else {
+            Issue.record("Failed to decode capturedMediaJSON for migratedOffline")
+        }
 
         // Cleanup.
         try? FileManager.default.removeItem(at: url)

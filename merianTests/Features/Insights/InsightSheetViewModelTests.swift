@@ -104,7 +104,7 @@ struct InsightSheetViewModelTests {
         viewModel.inferenceEngine = engine
         
         // Base state: 1 live captured image, no reference image yet
-        engine.activeImageData = Data()
+        engine.activeMedia = ActiveScanMedia(items: [.liveImage(Data())], referenceState: .empty)
         engine.speciesData = SpeciesData(
             scanId: "load_test",
             commonName: "Test",
@@ -121,14 +121,35 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.totalImages == 1, "Should count 1 live image only when not loading")
         
         // Toggle hydration flag
-        engine.isReferenceImageLoading = true
-        #expect(viewModel.totalImages == 2, "Should append +1 for the loading skeleton while refUrls is empty")
+        engine.activeMedia.referenceState = .loading
+        #expect(viewModel.totalImages == 2, "Should append +1 for the loading skeleton")
         
         // Simulate network resolving and injecting a URL while task clears
-        engine.speciesData?.referenceImageUrl = "https://example.com/gbif.jpg"
-        #expect(viewModel.totalImages == 2, "Should count the real URL and drop skeleton to avoid double-counting even if loading flag lingers")
+        engine.activeMedia.referenceState = .loaded(["https://example.com/gbif.jpg"])
+        #expect(viewModel.totalImages == 2, "Should count the real URL and drop skeleton")
         
-        engine.isReferenceImageLoading = false
+        engine.activeMedia.referenceState = .loaded(["https://example.com/gbif.jpg"])
         #expect(viewModel.totalImages == 2, "Final state should remain 2 after task cleanup")
+    }
+
+    @Test func testHasLiveRetainsStatePostInference() async throws {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        viewModel.inferenceEngine = engine
+        
+        // 1. Simulate initial live capture state
+        engine.activeMedia = ActiveScanMedia(items: [.liveImage(Data())])
+        #expect(viewModel.activeMedia.liveImageData != nil, "hasLive should be true when activeImageData is present")
+        
+        // 2. Simulate background task populating validHistoricImagePaths (the previous bug trigger)
+        engine.activeMedia.items.append(.image("sandbox/UUID.webp"))
+        
+        // 3. Assert the Carousel structural teardown is prevented
+        #expect(viewModel.activeMedia.liveImageData != nil, "hasLive MUST remain true even when valid paths are populated to prevent LiveCapturePageView from tearing down and causing image disappearance")
+        
+        // 4. Verify queued scans still correctly override to false
+        let queuedScan = OfflineQueuedScan(id: "offline", capturedMediaJSON: try! String(data: JSONEncoder().encode([SerializedMediaItem.image("test.webp")]), encoding: .utf8))
+        viewModel.queuedContext = QueuedScanContext(from: queuedScan)
+        #expect(viewModel.activeMedia.liveImageData == nil, "hasLive should evaluate to false when viewing a queued scan")
     }
 }
