@@ -89,14 +89,7 @@ struct Preferences: View {
                 hardwareOrchestrator.evaluateConstraints()
             }
 
-            // MARK: - System Haptics
-            SettingsToggleRow(
-                title: "System haptics",
-                description: "Tactile feedback on zoom ticks, captures, and key interactions.",
-                isOn: $isHapticsEnabled,
-                icon: "waveform",
-                iconColor: .pink
-            )
+           
         } header: {
             Text("Capture behavior")
         }
@@ -124,6 +117,8 @@ struct Preferences: View {
                 )
             }
 
+
+
             // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
                 SettingsNavigationRow(
@@ -133,6 +128,15 @@ struct Preferences: View {
                     iconColor: .red
                 )
             }
+
+            // MARK: - System Haptics
+            SettingsToggleRow(
+                title: "System haptics",
+                description: "Tactile feedback on zoom ticks, captures, and key interactions.",
+                isOn: $isHapticsEnabled,
+                icon: "waveform",
+                iconColor: .pink
+            )
 
             // MARK: - Geoprivacy
             NavigationLink {
