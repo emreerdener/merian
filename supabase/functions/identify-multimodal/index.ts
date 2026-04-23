@@ -243,6 +243,37 @@ serve((req: Request) =>
       parsedData.candidates = parsedData.candidates.slice(0, 5);
     }
 
+    let referenceImageUrl: string | null = null;
+    let wikipediaUrl: string | null = null;
+    let wikipediaOverview: string | null = null;
+    let alternativeCommonNames: string[] | null = null;
+
+    const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
+    let cachedSpecies: any = null;
+    let externalData: any = null;
+
+    if (isIdentifiedBio) {
+      try {
+        cachedSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
+        if (cachedSpecies?.kingdom) {
+          referenceImageUrl = cachedSpecies.reference_image_url;
+          wikipediaUrl = cachedSpecies.wikipedia_url;
+          wikipediaOverview = cachedSpecies.wikipedia_overview;
+          alternativeCommonNames = cachedSpecies.alternative_common_names;
+        } else {
+          externalData = await fetchExternalEnrichment(parsedData.scientific_name!);
+          if (externalData) {
+            referenceImageUrl = externalData.referenceImageUrl;
+            wikipediaUrl = externalData.wikipediaUrl;
+            wikipediaOverview = externalData.wikiExtract;
+            alternativeCommonNames = externalData.alternativeCommonNames;
+          }
+        }
+      } catch (err) {
+        console.error("Synchronous enrichment error:", err);
+      }
+    }
+
     const payloadReadyForClient: ClientPayload = {
       scan_id: generatedScanId,
       is_biological_subject: parsedData.is_biological_subject,
@@ -262,6 +293,10 @@ serve((req: Request) =>
         hazard_type: parsedData.hazard_type || "none"
       },
       extracted_visual_traits: parsedData.extracted_visual_traits,
+      reference_image_url: referenceImageUrl,
+      wikipedia_url: wikipediaUrl,
+      wikipedia_overview: wikipediaOverview,
+      alternative_common_names: alternativeCommonNames,
     };
 
     const runBackgroundIngestion = async () => {
@@ -270,14 +305,10 @@ serve((req: Request) =>
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
         let speciesId: string | null = null;
         
-        const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
-        
         if (isIdentifiedBio) {
-          const cachedSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
           if (cachedSpecies?.kingdom) {
             speciesId = cachedSpecies.id;
-          } else {
-             const externalData = await fetchExternalEnrichment(parsedData.scientific_name!);
+          } else if (externalData) {
              const freshSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
              const upsertedId = await upsertSpeciesDictionary(
                {
@@ -299,6 +330,8 @@ serve((req: Request) =>
                supabaseAdmin,
              );
              speciesId = upsertedId || freshSpecies?.id || null;
+          } else {
+             speciesId = cachedSpecies?.id || null;
           }
         }
         
