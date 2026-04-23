@@ -23,6 +23,17 @@ final class AppLifecycleManager {
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()
         
+        // Evaluate session timeout: if the app has been in the background for more than 5 minutes,
+        // snap the UI back to a clean camera state.
+        let lastBackgrounded = UserDefaults.standard.double(forKey: "lastBackgroundedDate")
+        if lastBackgrounded > 0 {
+            let elapsed = Date().timeIntervalSince1970 - lastBackgrounded
+            if elapsed > 300 { // 5 minutes
+                container.appEventPublisher.send(.appDidResumeAfterTimeout)
+            }
+            UserDefaults.standard.set(0.0, forKey: "lastBackgroundedDate")
+        }
+        
         // Force cross-process AppStorage reconciliation. 
         // UserDefaults updates made by the BackgroundDatabaseActor while suspended
         // are not always natively observed by SwiftUI @AppStorage properties upon resume.
@@ -80,9 +91,7 @@ final class AppLifecycleManager {
 
     /// Handles application transition to background.
     func handleBackgroundPhase() {
-        // Notify observers (e.g. CaptureWorkspaceViewModel) to dismiss sheets and reset modal state.
-        // Fired here rather than on inactive so that system overlays (limited photo library
-        // prompt, system alerts) do not inadvertently close the insight sheet.
-        container.appEventPublisher.send(.appDidEnterBackgroundPhase)
+        // Record the exact time the app entered the background to evaluate session timeouts upon wake.
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastBackgroundedDate")
     }
 }

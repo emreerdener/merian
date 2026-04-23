@@ -75,8 +75,12 @@ final class CaptureWorkspaceViewModel {
             .receive(on: RunLoop.main)
             .sink { [weak self] event in
                 switch event {
-                case .appDidEnterBackgroundPhase:
-                    self?.resetModalsForBackground()
+                case .appDidResumeAfterTimeout:
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        self?.resetModalsForSessionTimeout()
+                    }
                 case .triggerPaywall:
                     self?.activeSheet = .paywall
                 case .appDidEnterActivePhaseWithScan(let scanId):
@@ -103,8 +107,8 @@ final class CaptureWorkspaceViewModel {
         !stagedCapture.isEmpty
     }
 
-    private func resetModalsForBackground() {
-        // Sheets and crop state always close — they hold UI locks and must not reopen stale.
+    private func resetModalsForSessionTimeout() {
+        // Clear all sheets and UI modals instantly when the session times out
         activeSheet = nil
         imageToCrop = nil
         editingCropIndex = nil
