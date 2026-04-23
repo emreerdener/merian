@@ -22,26 +22,13 @@ struct Preferences: View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
         
         Section {
-
-            // MARK: - Theme
-            VStack(alignment: .leading, spacing: 8) {                   
-                    Picker("Theme", selection: $themeMode) {
-                        ForEach(ThemeMode.allCases) { mode in
-                            Text(mode.rawValue)
-                                .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-            }
-            .padding(.vertical, 4)
-
-               // MARK: - Upgrades
-            Button { managePlanActive = true } label: {
+            // MARK: - Sections
+            Button { captureModeOrderSettingsActive = true } label: {
                 SettingsNavigationRow(
-                    title: "Upgrade",
-                    description: "Upgrade or manage your active subscription tier.",
-                    icon: "bag.fill",
-                    iconColor: .orange
+                    title: "Sections",
+                    description: "Reorder capture sections and choose your default launch mode.",
+                    icon: "rectangle.split.3x1.fill",
+                    iconColor: .yellow
                 )
             }
 
@@ -58,33 +45,17 @@ struct Preferences: View {
             // MARK: - Audio Recording
             Button { audioRecordingSettingsActive = true } label: {
                 SettingsNavigationRow(
-                    title: "Audio Recording",
+                    title: "Audio recording",
                     description: "Microphone hints and tuning preferences.",
                     icon: "mic.fill",
                     iconColor: .purple
                 )
             }
-            
-            // MARK: - Sections
-            Button { captureModeOrderSettingsActive = true } label: {
-                SettingsNavigationRow(
-                    title: "Sections",
-                    description: "Reorder capture sections and choose your default launch mode.",
-                    icon: "rectangle.split.3x1.fill",
-                    iconColor: .yellow
-                )
-            }
-           
-            // MARK: - Push Notifications
-            Button { notificationSettingsActive = true } label: {
-                SettingsNavigationRow(
-                    title: "Notifications",
-                    description: "Configure alerts for new discoveries and achievement milestones.",
-                    icon: "bell.fill",
-                    iconColor: .red
-                )
-            }
-
+        } header: {
+            Text("Capture setup")
+        }
+        
+        Section {
             // MARK: - Multi-Capture Scans
             SettingsToggleRow(
                 title: "Multi-capture mode",
@@ -126,6 +97,44 @@ struct Preferences: View {
                 icon: "waveform",
                 iconColor: .pink
             )
+        } header: {
+            Text("Capture behavior")
+        }
+
+         // MARK: - Theme
+            VStack(alignment: .leading, spacing: 8) {                   
+                Picker("Theme", selection: $themeMode) {
+                    ForEach(ThemeMode.allCases) { mode in
+                        Text(mode.rawValue)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .padding(.vertical, 4)
+
+        Section {
+            // MARK: - Upgrades
+            Button { managePlanActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Upgrade",
+                    description: "Upgrade or manage your active subscription tier.",
+                    icon: "bag.fill",
+                    iconColor: .orange
+                )
+            }
+
+           
+           
+            // MARK: - Push Notifications
+            Button { notificationSettingsActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Notifications",
+                    description: "Configure alerts for new discoveries and achievement milestones.",
+                    icon: "bell.fill",
+                    iconColor: .red
+                )
+            }
 
             // MARK: - Geoprivacy
             NavigationLink {
@@ -151,7 +160,7 @@ struct Preferences: View {
                 .padding(.vertical, 4)
             }
         } header: {
-            Text("Preferences")
+            Text("Account & app")
         }
 
         #if DEBUG

@@ -74,7 +74,7 @@ struct CollectionDetailView: View {
             InsightSheetView(isPresented: Binding(
                 get: { selectedScanForInsight != nil },
                 set: { if !$0 { selectedScanForInsight = nil } }
-            ))
+            ), inferenceEngine: inferenceEngine)
         }
         .sheet(isPresented: $showScanSelection) {
             SelectMultipleScansView(collection: collection)

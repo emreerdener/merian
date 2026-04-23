@@ -22,6 +22,7 @@ struct ScansSheetModifiers: ViewModifier {
     let modelContext: ModelContext
     let onBatchDelete: () -> Void
     var onCollectionCreated: ((ScanCollection) -> Void)?
+    @Environment(InferenceEngine.self) var inferenceEngine
     
     func body(content: Content) -> some View {
         content
@@ -39,7 +40,7 @@ struct ScansSheetModifiers: ViewModifier {
                 InsightSheetView(isPresented: Binding(
                     get: { selectedScanForInsight != nil },
                     set: { if !$0 { selectedScanForInsight = nil } }
-                ))
+                ), inferenceEngine: inferenceEngine)
             }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: activeTab == .library ? "Search keywords, habitats, colors..." : "Search collections...")

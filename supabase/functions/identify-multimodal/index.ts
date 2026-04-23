@@ -10,7 +10,7 @@ import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
 
-import { MultimodalPayload, ClientPayload, MerianIdentification } from "./types.ts";
+import { MultimodalPayload, ClientPayload, MerianIdentification, CachedSpeciesRow } from "./types.ts";
 import {
   upsertGhostUserIfMissing,
   fetchCachedSpecies,
@@ -249,8 +249,8 @@ serve((req: Request) =>
     let alternativeCommonNames: string[] | null = null;
 
     const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
-    let cachedSpecies: any = null;
-    let externalData: any = null;
+    let cachedSpecies: CachedSpeciesRow | null = null;
+    let externalData: Awaited<ReturnType<typeof fetchExternalEnrichment>> | null = null;
 
     if (isIdentifiedBio) {
       try {

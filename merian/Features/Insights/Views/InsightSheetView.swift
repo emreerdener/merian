@@ -19,10 +19,10 @@ struct InsightSheetView: View {
 
     // Seed queuedContext at @State initialization time so contentMode resolves
     // to .queued on the very first render, before onAppear fires.
-    init(isPresented: Binding<Bool>, queuedScan: QueuedScanContext? = nil) {
+    init(isPresented: Binding<Bool>, queuedScan: QueuedScanContext? = nil, inferenceEngine: InferenceEngine? = nil) {
         _isPresented = isPresented
         self.queuedScan = queuedScan
-        _viewModel = State(initialValue: InsightSheetViewModel(queuedContext: queuedScan))
+        _viewModel = State(initialValue: InsightSheetViewModel(queuedContext: queuedScan, inferenceEngine: inferenceEngine))
     }
     
     // MARK: - Data Layer

@@ -4,6 +4,7 @@ struct CameraSheetRouter: ViewModifier {
     @Bindable var viewModel: CaptureWorkspaceViewModel
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @State private var showNotificationPrompt = false
+    @Environment(InferenceEngine.self) var inferenceEngine
     
     func body(content: Content) -> some View {
         content
@@ -24,7 +25,7 @@ struct CameraSheetRouter: ViewModifier {
                                     }
                                 } 
                             }
-                        ))
+                        ), inferenceEngine: inferenceEngine)
                         .onAppear {
                             UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
                             PushNotificationManager.shared.setBadgeCount(0)

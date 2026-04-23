@@ -1145,7 +1145,9 @@ private struct GBIFMedia: Decodable {
             // Mark as attempted only on success — transient failures (timeout, 404) remain retryable.
             wikiFetchAttemptedIds.insert(species)
 
+            var imageUrlToPersist = imageUrl
             await MainActor.run {
+                MerianLog.general.debug("Wikipedia hydration returned imageUrl: \(imageUrl ?? "nil", privacy: .public)")
                 // Individual optional-chain mutations (self.speciesData?.field = x) do not
                 // reliably fire @Observable notifications for struct value types; a single
                 // full-value replacement is the only guaranteed trigger.
@@ -1153,7 +1155,15 @@ private struct GBIFMedia: Decodable {
                     updated.wikipediaOverview = descriptionText
                     updated.wikipediaUrl = webUrl
                     if let img = imageUrl, !img.isEmpty {
-                        updated.referenceImageUrl = img
+                        var currentUrls = updated.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
+                        if !currentUrls.contains(img) {
+                            currentUrls.insert(img, at: 0)
+                        }
+                        let capped = Array(currentUrls.prefix(5))
+                        updated.referenceImageUrl = capped.joined(separator: ",")
+                        self.activeMedia.referenceState = .loaded(capped)
+                        imageUrlToPersist = updated.referenceImageUrl // Overwrite imageUrl so updateScanWithWikipedia writes the joined string
+                        MerianLog.general.debug("Wiki hydration applied. New state: \(capped, privacy: .public)")
                     }
                     self.speciesData = updated
                 }
@@ -1166,7 +1176,7 @@ private struct GBIFMedia: Decodable {
                 // wiki write cannot touch a record that is no longer active.
                 executeTrackedBackgroundTask {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: imageUrl)
+                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: imageUrlToPersist)
                 }
             }
         } catch {
@@ -1227,6 +1237,7 @@ private struct GBIFMedia: Decodable {
                 return urls
             }.value
 
+            MerianLog.general.debug("GBIF hydration returned \(newUrls.count, privacy: .public) URLs: \(newUrls, privacy: .public)")
             guard !newUrls.isEmpty else { return }
 
             // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
@@ -1245,6 +1256,7 @@ private struct GBIFMedia: Decodable {
                 let capped = Array(currentUrls.prefix(5))
                 updated.referenceImageUrl = capped.joined(separator: ",")
                 persistUrls = updated.referenceImageUrl
+                self.activeMedia.referenceState = .loaded(capped)
                 // Single full-value replacement — see fetchAndApplyEnrichment comment.
                 self.speciesData = updated
             }
@@ -1830,6 +1842,7 @@ private struct GBIFMedia: Decodable {
 
     /// Removes an invalid image URL from the carousel and from the stored `referenceImageUrl` field.
     func dropInvalidCarouselImage(_ identifier: String) {
+        MerianLog.general.debug("Dropping invalid carousel image: \(identifier, privacy: .public)")
         // Attempt to remove from items
         self.activeMedia.items.removeAll { item in
             if case .image(let path) = item, path == identifier { return true }
@@ -1839,7 +1852,8 @@ private struct GBIFMedia: Decodable {
         // Attempt to remove from referenceState
         if case .loaded(var urls) = self.activeMedia.referenceState {
             urls.removeAll { $0 == identifier }
-            self.activeMedia.referenceState = .loaded(urls)
+            self.activeMedia.referenceState = urls.isEmpty ? .empty : .loaded(urls)
+            MerianLog.general.debug("New referenceState after drop: \(urls, privacy: .public)")
         }
 
         if var updated = self.speciesData, let currentRef = updated.referenceImageUrl {
@@ -1995,7 +2009,8 @@ private struct GBIFMedia: Decodable {
             let validPaths = await FileIOActor.shared.validPaths(from: paths)
             guard !Task.isCancelled else { return }
             let refUrls = record.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
-            self.activeMedia.referenceState = refUrls.isEmpty ? .empty : .loaded(refUrls)
+            let shouldLoadImages = recordIsBiological && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)
+            self.activeMedia.referenceState = shouldLoadImages ? .loading : (refUrls.isEmpty ? .empty : .loaded(refUrls))
 
             // Step 2: Resolve similar species and decode candidates off @MainActor (CPU-bound).
             // similarSpecies reuses the pre-decoded result from the gate check above —

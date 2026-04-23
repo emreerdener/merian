@@ -13,8 +13,9 @@ final class InsightSheetViewModel {
     /// via `State(initialValue:)`, ensuring `contentMode` resolves to `.queued` on the
     /// very first SwiftUI render rather than defaulting to `.analyzing` during the nil-window
     /// that exists before `onAppear` fires.
-    init(queuedContext: QueuedScanContext? = nil) {
+    init(queuedContext: QueuedScanContext? = nil, inferenceEngine: InferenceEngine? = nil) {
         self.queuedContext = queuedContext
+        self.inferenceEngine = inferenceEngine
         if let jsonStr = queuedContext?.capturedMediaJSON {
             self.cachedActiveMedia = Self.decodeActiveMedia(from: jsonStr)
         }
@@ -105,7 +106,7 @@ final class InsightSheetViewModel {
     }
 
     var activeMedia: ActiveScanMedia {
-        if queuedContext != nil || activeLocalRecord != nil {
+        if queuedContext != nil {
             return cachedActiveMedia ?? ActiveScanMedia()
         }
         return inferenceEngine?.activeMedia ?? ActiveScanMedia()

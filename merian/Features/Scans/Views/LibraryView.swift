@@ -159,7 +159,7 @@ struct LibraryView: View {
             }) {
                 // Pass the current context — may become nil mid-session when the scan
                 // completes and InsightSheetView transitions internally to results.
-                InsightSheetView(isPresented: $isQueuedSheetPresented, queuedScan: scanToManage)
+                InsightSheetView(isPresented: $isQueuedSheetPresented, queuedScan: scanToManage, inferenceEngine: inferenceEngine)
             }
             .onChange(of: queuedScans.map(\.id)) { _, newIds in
                 guard let managed = scanToManage, !newIds.contains(managed.id) else { return }
