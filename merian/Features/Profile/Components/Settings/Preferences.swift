@@ -101,8 +101,6 @@ struct Preferences: View {
             Text("Capture behavior")
         }
 
-         
-
         Section {
             // MARK: - Theme
             VStack(alignment: .leading, spacing: 8) {                   
@@ -126,8 +124,6 @@ struct Preferences: View {
                 )
             }
 
-           
-           
             // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
                 SettingsNavigationRow(

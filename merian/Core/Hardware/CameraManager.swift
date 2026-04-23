@@ -568,9 +568,15 @@ import UIKit
 
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         let isPaused = stateLock.withLock { activeInferencePaused }
-        if isPaused { return }
+        if isPaused {
+            CMSampleBufferInvalidate(sampleBuffer)
+            return
+        }
 
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            CMSampleBufferInvalidate(sampleBuffer)
+            return
+        }
 
         // Throttle on the background queue before jumping to the main thread —
         // reduces context switches from 60fps to ~3fps and saves battery.
@@ -580,7 +586,10 @@ import UIKit
             lastCaptureTime = now
             return true
         }
-        if !shouldProcess { return }
+        if !shouldProcess {
+            CMSampleBufferInvalidate(sampleBuffer)
+            return
+        }
 
         // Calculate luma brightness and std dev via Accelerate histogram — avoids manual byte-stride loops.
         var brightness: Float = 1.0
@@ -630,6 +639,8 @@ import UIKit
                 }
             }
         }
+
+        CMSampleBufferInvalidate(sampleBuffer)
 
         Task { @MainActor in
             guard !self.isLiveInferencePaused else { return }

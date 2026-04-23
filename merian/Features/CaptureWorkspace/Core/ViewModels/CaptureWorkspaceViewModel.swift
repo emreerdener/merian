@@ -341,4 +341,44 @@ final class CaptureWorkspaceViewModel {
         let isActivelyWatchingScan = activeSheet == .insight
         UserDefaults.standard.set(isActivelyWatchingScan, forKey: "suppressInferenceBanners")
     }
+
+    // MARK: - Workspace State Coordination
+
+    func handleScenePhaseChange(
+        _ newPhase: ScenePhase,
+        captureMode: CaptureMode,
+        cameraManager: CameraManager,
+        audioCaptureManager: AudioCaptureManager
+    ) {
+        if newPhase == .active {
+            if captureMode == .visual && self.activeSheet == nil {
+                cameraManager.startSession()
+            }
+        }
+        if newPhase == .inactive && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
+            audioCaptureManager.pauseRecording()
+        }
+        if newPhase == .background && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
+            audioCaptureManager.pauseRecording()
+        }
+    }
+
+    func handleCaptureModeChange(
+        _ newMode: CaptureMode,
+        scenePhase: ScenePhase,
+        cameraManager: CameraManager,
+        audioCaptureManager: AudioCaptureManager
+    ) {
+        HapticManager.shared.triggerSheetSpring()
+
+        if newMode != .audio && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
+            audioCaptureManager.pauseRecording()
+        }
+
+        if newMode == .audio || newMode == .describe {
+            cameraManager.stopSession()
+        } else if scenePhase == .active && self.activeSheet == nil {
+            cameraManager.startSession()
+        }
+    }
 }

@@ -161,27 +161,7 @@ struct CaptureWorkspaceView: View {
                 }
                 .ignoresSafeArea()
 
-                // MARK: Fixed Overlay — Action Toasts
-                if let toast = viewModel.offlineToastMessage {
-                    VStack {
-                        ToastBanner(onDismiss: { viewModel.offlineToastMessage = nil }) {
-                            Text(toast)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                        }
-                        .padding(.top, 16)
-                        Spacer()
-                    }
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(100)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
-                            if viewModel.offlineToastMessage == toast {
-                                withAnimation { viewModel.offlineToastMessage = nil }
-                            }
-                        }
-                    }
-                }
+
 
                 // MARK: Fixed Overlay — Mode Toggle (top)
                 if viewModel.stagedCapture.images.count < stagedImageCapacity {
@@ -245,6 +225,13 @@ struct CaptureWorkspaceView: View {
                 .allowsHitTesting(!isKeyboardVisible)
 
         } // ZStack
+        .merianSystemFeedback(
+            toastMessage: Binding(
+                get: { viewModel.offlineToastMessage },
+                set: { viewModel.offlineToastMessage = $0 }
+            ),
+            toastAlignment: .top
+        )
         .environment(\.controlBarHeight, controlBarHeight)
         .environment(\.composingCenter, viewModel.composingZoneVerticalCenter)
         .onPreferenceChange(CaptureBarHeightPreferenceKey.self) { newHeight in
@@ -327,34 +314,20 @@ struct CaptureWorkspaceView: View {
             viewModel.submitStagedCapture(modelContext: modelContext)
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                if captureMode == .visual && viewModel.activeSheet == nil {
-                    cameraManager.startSession()
-                }
-                // Intentionally do NOT auto-resume audio — user must tap to resume.
-            }
-            if newPhase == .inactive && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
-                audioCaptureManager.pauseRecording()
-            }
-            if newPhase == .background && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
-                audioCaptureManager.pauseRecording()
-            }
+            viewModel.handleScenePhaseChange(
+                newPhase,
+                captureMode: captureMode,
+                cameraManager: cameraManager,
+                audioCaptureManager: audioCaptureManager
+            )
         }
         .onChange(of: captureMode) { _, newMode in
-            HapticManager.shared.triggerSheetSpring()
-
-            if newMode != .audio && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
-                audioCaptureManager.pauseRecording()
-            }
-
-            if newMode == .audio || newMode == .describe {
-                cameraManager.stopSession()
-            } else if scenePhase == .active && viewModel.activeSheet == nil {
-                // Only start the camera if the app is fully active and not occluded by a sheet.
-                // Guarding this prevents deadlocking the hardware queue if the mode shifts
-                // while the app is suspending (e.g., closing a full-screen sheet on background).
-                cameraManager.startSession()
-            }
+            viewModel.handleCaptureModeChange(
+                newMode,
+                scenePhase: scenePhase,
+                cameraManager: cameraManager,
+                audioCaptureManager: audioCaptureManager
+            )
         }
 
         .onChange(of: viewModel.activeSheet) { _, newSheet in

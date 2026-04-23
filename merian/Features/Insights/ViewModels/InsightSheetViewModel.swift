@@ -17,7 +17,12 @@ final class InsightSheetViewModel {
         self.queuedContext = queuedContext
         self.inferenceEngine = inferenceEngine
         if let jsonStr = queuedContext?.capturedMediaJSON {
-            self.cachedActiveMedia = Self.decodeActiveMedia(from: jsonStr)
+            Task.detached(priority: .userInitiated) { [weak self] in
+                let decoded = Self.decodeActiveMedia(from: jsonStr)
+                await MainActor.run {
+                    self?.cachedActiveMedia = decoded
+                }
+            }
         }
     }
 
@@ -128,6 +133,7 @@ final class InsightSheetViewModel {
     /// Resolves the ActiveScanMedia for the view, correctly prioritizing a live passed-in queuedScan context.
     func resolvedMedia(for explicitQueuedScan: QueuedScanContext?) -> ActiveScanMedia {
         if let queued = explicitQueuedScan ?? queuedContext {
+            if let cached = cachedActiveMedia { return cached }
             if let jsonStr = queued.capturedMediaJSON,
                let decoded = Self.decodeActiveMedia(from: jsonStr) {
                 return decoded
@@ -400,11 +406,18 @@ final class InsightSheetViewModel {
 // Removed createNewCollection as this logic was extracted into NewCollectionAlertModifier
 
     func fetchLocalRecord(for scanId: String, modelContext: ModelContext) {
+        guard activeLocalRecord?.id != scanId else { return }
+        
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
             if let jsonStr = record.capturedMediaJSON {
-                self.cachedActiveMedia = Self.decodeActiveMedia(from: jsonStr)
+                Task.detached(priority: .userInitiated) { [weak self] in
+                    let decoded = Self.decodeActiveMedia(from: jsonStr)
+                    await MainActor.run {
+                        self?.cachedActiveMedia = decoded
+                    }
+                }
             }
             markRecordViewedIfAppropriate(modelContext: modelContext)
         }

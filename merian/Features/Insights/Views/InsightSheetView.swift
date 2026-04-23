@@ -149,32 +149,13 @@ private extension InsightSheetView {
     
     @ViewBuilder
     var mainContentStack: some View {
-        ZStack(alignment: .top) {
-            InsightContentView(viewModel: viewModel, queuedScan: queuedScan)
-
-            if let message = viewModel.state.toastMessage {
-                ToastBanner(onDismiss: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        viewModel.state.toastMessage = nil
-                    }
-                }) {
-                    Text(message)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 60)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(100)
-            }
-
-            CelebrationBanner(
-                commonName: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject...",
-                showCelebration: $viewModel.state.showCelebration
+        InsightContentView(viewModel: viewModel, queuedScan: queuedScan)
+            .merianSystemFeedback(
+                toastMessage: $viewModel.state.toastMessage,
+                showCelebration: $viewModel.state.showCelebration,
+                commonNameForCelebration: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
             )
-        }
-        .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea(edges: .top)
     }
     
     @ToolbarContentBuilder
