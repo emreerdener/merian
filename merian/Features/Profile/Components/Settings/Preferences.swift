@@ -101,7 +101,10 @@ struct Preferences: View {
             Text("Capture behavior")
         }
 
-         // MARK: - Theme
+         
+
+        Section {
+            // MARK: - Theme
             VStack(alignment: .leading, spacing: 8) {                   
                 Picker("Theme", selection: $themeMode) {
                     ForEach(ThemeMode.allCases) { mode in
@@ -112,8 +115,7 @@ struct Preferences: View {
                 .pickerStyle(.segmented)
             }
             .padding(.vertical, 4)
-
-        Section {
+            
             // MARK: - Upgrades
             Button { managePlanActive = true } label: {
                 SettingsNavigationRow(
