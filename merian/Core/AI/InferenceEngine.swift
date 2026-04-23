@@ -442,6 +442,9 @@ private struct GBIFMedia: Decodable {
                         self.activeMedia.items = updatedItems + preservedItems
                         
                         self.speciesData = mappedData
+                        if let refs = mappedData.referenceImageUrl?.components(separatedBy: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }), !refs.isEmpty {
+                            self.activeMedia.referenceState = .loaded(refs)
+                        }
                     }
 
                     // Live inference succeeded — flush the queued scan record synchronously
@@ -744,6 +747,9 @@ private struct GBIFMedia: Decodable {
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()
                         self.speciesData = mappedData
+                        if let refs = mappedData.referenceImageUrl?.components(separatedBy: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }), !refs.isEmpty {
+                            self.activeMedia.referenceState = .loaded(refs)
+                        }
                         // No validHistoricImagePaths — describes have no captured image.
                     }
 
@@ -942,6 +948,9 @@ private struct GBIFMedia: Decodable {
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()
                         self.speciesData = mappedData
+                        if let refs = mappedData.referenceImageUrl?.components(separatedBy: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }), !refs.isEmpty {
+                            self.activeMedia.referenceState = .loaded(refs)
+                        }
                     }
 
                     // Flush the offline queue record so the background replay cycle doesn't
@@ -1985,7 +1994,8 @@ private struct GBIFMedia: Decodable {
             }
             let validPaths = await FileIOActor.shared.validPaths(from: paths)
             guard !Task.isCancelled else { return }
-            self.activeMedia.referenceState = .loaded(validPaths)
+            let refUrls = record.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
+            self.activeMedia.referenceState = refUrls.isEmpty ? .empty : .loaded(refUrls)
 
             // Step 2: Resolve similar species and decode candidates off @MainActor (CPU-bound).
             // similarSpecies reuses the pre-decoded result from the gate check above —
