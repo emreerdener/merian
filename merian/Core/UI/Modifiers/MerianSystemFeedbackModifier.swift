@@ -6,7 +6,7 @@ struct MerianSystemFeedbackModifier: ViewModifier {
     var commonNameForCelebration: String
     var toastAlignment: Alignment
 
-    func body(content: Content) -> View {
+    func body(content: Content) -> some View {
         ZStack(alignment: .top) {
             content
 

@@ -161,8 +161,6 @@ struct CaptureWorkspaceView: View {
                 }
                 .ignoresSafeArea()
 
-
-
                 // MARK: Fixed Overlay — Mode Toggle (top)
                 if viewModel.stagedCapture.images.count < stagedImageCapacity {
                     VStack {

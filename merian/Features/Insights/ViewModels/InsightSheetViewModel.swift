@@ -465,7 +465,7 @@ final class InsightSheetViewModel {
     // MARK: - Media Resolution Pipeline
 
     /// Single unified pipeline to decode and validate `ActiveScanMedia` from a stored JSON string.
-    static func decodeActiveMedia(from jsonStr: String) -> ActiveScanMedia? {
+    nonisolated static func decodeActiveMedia(from jsonStr: String) -> ActiveScanMedia? {
         guard let jsonData = jsonStr.data(using: .utf8),
               let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) else {
             return nil
