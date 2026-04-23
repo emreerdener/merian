@@ -61,7 +61,7 @@ struct InsightSheetView: View {
                 .task {
                     try? await Task.sleep(nanoseconds: 350_000_000)
                     withAnimation(.easeIn(duration: 0.2)) {
-                        viewModel.showBottomBarTools = true
+                        viewModel.state.showBottomBarTools = true
                     }
                 }
                 .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
@@ -94,12 +94,12 @@ struct InsightSheetView: View {
                         viewModel.loadPreferredCommonName(for: scientificName)
                     }
                 }
-                .task(id: viewModel.toastMessage) {
-                    if viewModel.toastMessage != nil {
+                .task(id: viewModel.state.toastMessage) {
+                    if viewModel.state.toastMessage != nil {
                         do {
                             try await Task.sleep(nanoseconds: 2_500_000_000)
                             withAnimation(.easeInOut(duration: 0.2)) {
-                                viewModel.toastMessage = nil
+                                viewModel.state.toastMessage = nil
                             }
                         } catch { } // absorb CancellationError elegantly
                     }
@@ -110,7 +110,7 @@ struct InsightSheetView: View {
         .presentationDragIndicator(.hidden)
         
         // Dialogs
-        .alert("Delete scan?", isPresented: $viewModel.showDeleteConfirmation) {
+        .alert("Delete scan?", isPresented: $viewModel.state.showDeleteConfirmation) {
             Button(queuedScan != nil ? "Cancel upload & delete" : "Delete scan permanently", role: .destructive) {
                 if let queued = queuedScan {
                     Task { await offlineQueueManager.deleteQueuedScan(scanId: queued.id) }
@@ -125,19 +125,19 @@ struct InsightSheetView: View {
                 ? "Are you sure you want to cancel this upload? The scan will be permanently deleted from your device."
                 : "Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
-        .alert("Photos saved", isPresented: $viewModel.showSaveSuccessAlert) {
+        .alert("Photos saved", isPresented: $viewModel.state.showSaveSuccessAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Your photos have been securely saved to your camera roll.")
         }
         .newCollectionAlert(
-            isPresented: $viewModel.showNewCollectionAlert,
-            newCollectionName: $viewModel.newCollectionName,
+            isPresented: $viewModel.state.showNewCollectionAlert,
+            newCollectionName: $viewModel.state.newCollectionName,
             modelContext: modelContext,
             relatedRecord: viewModel.activeLocalRecord,
             onCreated: { collection in
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    viewModel.toastMessage = "Created \(collection.name) and added scan"
+                    viewModel.state.toastMessage = "Created \(collection.name) and added scan"
                 }
             }
         )
@@ -152,10 +152,10 @@ private extension InsightSheetView {
         ZStack(alignment: .top) {
             InsightContentView(viewModel: viewModel, queuedScan: queuedScan)
 
-            if let message = viewModel.toastMessage {
+            if let message = viewModel.state.toastMessage {
                 ToastBanner(onDismiss: {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        viewModel.toastMessage = nil
+                        viewModel.state.toastMessage = nil
                     }
                 }) {
                     Text(message)
@@ -171,7 +171,7 @@ private extension InsightSheetView {
 
             CelebrationBanner(
                 commonName: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject...",
-                showCelebration: $viewModel.showCelebration
+                showCelebration: $viewModel.state.showCelebration
             )
         }
         .ignoresSafeArea(edges: .top)
@@ -184,7 +184,7 @@ private extension InsightSheetView {
         if queuedScan != nil {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
-                    viewModel.showDeleteConfirmation = true
+                    viewModel.state.showDeleteConfirmation = true
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 16, weight: .bold))
@@ -195,10 +195,10 @@ private extension InsightSheetView {
 
         TopToolbar(
             commonName: viewModel.resolvedHeaderTitle,
-            isCommonNameScrolledPast: viewModel.isCommonNameScrolledPast,
-            isIdentificationFlagPresented: $viewModel.isIdentificationFlagPresented,
-            isSavingPhotos: $viewModel.isSavingPhotos,
-            showDeleteConfirmation: $viewModel.showDeleteConfirmation,
+            isCommonNameScrolledPast: viewModel.state.isCommonNameScrolledPast,
+            isIdentificationFlagPresented: $viewModel.state.isIdentificationFlagPresented,
+            isSavingPhotos: $viewModel.state.isSavingPhotos,
+            showDeleteConfirmation: $viewModel.state.showDeleteConfirmation,
             hasUserPhotos: viewModel.hasUserPhotos,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
             onReanalyze: viewModel.canReanalyze ? {
@@ -208,7 +208,7 @@ private extension InsightSheetView {
                 }
             } : nil,
             onReviewAlternatives: viewModel.canReviewAlternatives ? {
-                viewModel.isCandidateSwipePresented = true
+                viewModel.state.isCandidateSwipePresented = true
             } : nil,
             onConfirmIdentification: viewModel.canConfirm ? {
                 HapticManager.shared.triggerSuccessPulse()
@@ -219,13 +219,13 @@ private extension InsightSheetView {
         )
 
         InsightBottomToolbar(
-            showBottomBarTools: viewModel.showBottomBarTools && !viewModel.isProcessing,
+            showBottomBarTools: viewModel.state.showBottomBarTools && !viewModel.isProcessing,
             collections: collections,
             activeLocalRecord: viewModel.activeLocalRecord,
             toggleScanInCollection: { collection in
                 viewModel.toggleScanInCollection(collection, modelContext: modelContext)
             },
-            showNewCollectionAlert: $viewModel.showNewCollectionAlert,
+            showNewCollectionAlert: $viewModel.state.showNewCollectionAlert,
             shareDiscovery: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) }
         )
     }

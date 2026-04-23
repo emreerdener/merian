@@ -60,10 +60,12 @@ struct AudioPlaybackCarouselPage: View {
                         .equatable()
                         .allowsHitTesting(false)
                         .overlay(alignment: .leading) {
-                            Rectangle()
-                                .fill(Color.white)
-                                .frame(width: 2)
-                                .offset(x: proxy.size.width * playbackProgress)
+                            if isPlaying || playbackProgress > 0 {
+                                Rectangle()
+                                    .fill(Color.white)
+                                    .frame(width: 2)
+                                    .offset(x: proxy.size.width * playbackProgress)
+                            }
                         }
                 }
                 .padding(.horizontal, 24) // Match SpectrogramView safe bounds
@@ -142,7 +144,9 @@ struct AudioPlaybackCarouselPage: View {
         guard let prev = previousSessionCategory else { return }
         let opts = previousSessionCategoryOptions ?? []
         do {
-            try AVAudioSession.sharedInstance().setCategory(prev, options: opts)
+            let session = AVAudioSession.sharedInstance()
+            try session.setActive(false, options: .notifyOthersOnDeactivation)
+            try session.setCategory(prev, options: opts)
         } catch {
             MerianLog.general.debug("AudioPlaybackCarouselPage: session restore failed: \(error, privacy: .private)")
         }

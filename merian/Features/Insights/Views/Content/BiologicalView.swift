@@ -60,11 +60,11 @@ struct BiologicalView: View {
                 },
                 alternativeCommonNames: viewModel.displayAlternativeCommonNames,
                 onAlternativeNamesTap: {
-                    viewModel.isNamePickerPresented = true
+                    viewModel.state.isNamePickerPresented = true
                 }
             )
             .cardEntrance(index: 0)
-            .sheet(isPresented: $viewModel.isNamePickerPresented) {
+            .sheet(isPresented: $viewModel.state.isNamePickerPresented) {
                 NamePickerSheet(
                     allNames: viewModel.allNamesForPicker,
                     activeName: viewModel.resolvedHeaderTitle,
@@ -72,7 +72,7 @@ struct BiologicalView: View {
                         if let scientificName = inferenceEngine.speciesData?.scientificName {
                             viewModel.setPreferredCommonName(chosen, for: scientificName)
                         }
-                        viewModel.isNamePickerPresented = false
+                        viewModel.state.isNamePickerPresented = false
                     }
                 )
                 .presentationDetents([.medium])
@@ -104,8 +104,8 @@ struct BiologicalView: View {
                         aiScientificName: primaryAIName,
                         inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                         confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
-                        onFlagIssue: { viewModel.isIdentificationFlagPresented = true },
-                        onMatchConfirmed: { viewModel.toastMessage = "Match confirmed" },
+                        onFlagIssue: { viewModel.state.isIdentificationFlagPresented = true },
+                        onMatchConfirmed: { viewModel.state.toastMessage = "Match confirmed" },
                         onRefineScan: refinementAction
                     )
                     .cardEntrance(index: 3)

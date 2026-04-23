@@ -15,93 +15,55 @@ final class InsightSheetViewModel {
     /// that exists before `onAppear` fires.
     init(queuedContext: QueuedScanContext? = nil) {
         self.queuedContext = queuedContext
-        if let jsonStr = queuedContext?.capturedMediaJSON,
-           let jsonData = jsonStr.data(using: .utf8),
-           let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-            var items: [MediaItem] = []
-            for serialized in serializedItems {
-                switch serialized {
-                case .image(let path): items.append(.image(path))
-                case .audio(let path):
-                    let docsPath = URL.documentsDirectory.appendingPathComponent(path).path
-                    let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(path).path
-                    let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-                    items.append(.audio(resolvedPath))
-                case .description(let ctx): items.append(.description(ctx))
-                }
-            }
-            self.cachedActiveMedia = ActiveScanMedia(items: items)
+        if let jsonStr = queuedContext?.capturedMediaJSON {
+            self.cachedActiveMedia = Self.decodeActiveMedia(from: jsonStr)
         }
     }
-    
+
     /// Wipes all memory-retained states that persist across SwiftUI sheet presentations since `activeSheet == .insight` evaluates to identical IDs natively.
     func reset() {
-        showCelebration = false
-        showBottomBarTools = false
-        isCommonNameScrolledPast = false
-        isDescriptionSheetPresented = false
-        isFlagIssuePresented = false
-        isIdentificationFlagPresented = false
-        showDeleteConfirmation = false
-        showSaveSuccessAlert = false
-        showNewCollectionAlert = false
-        isCandidateSwipePresented = false
-        toastMessage = nil
-        preferredCommonName = nil
-        isNamePickerPresented = false
-        isSafariPresented = false
-        selectedWikiURL = nil
-        isSavingPhotos = false
+        state = UIState()
         activeLocalRecord = nil
         queuedContext = nil
         cachedActiveMedia = nil
     }
-    
+
     // MARK: - Internal Cached State
     /// An in-memory cache of the successfully decoded `ActiveScanMedia` representing the user's media.
     /// Safely decoded exactly once within lifecycle mappings (`init` and `fetchLocalRecord`) to prevent
     /// main-thread thrashing on layout changes where the framework routinely interrogates boundary sizes.
     private var cachedActiveMedia: ActiveScanMedia?
-    
+
     // MARK: - Interface State
-    var showCelebration = false
-    var showBottomBarTools = false
-    var isCommonNameScrolledPast = false
-    
-    /// Indicates whether the `InsightDescriptionSheet` is currently covering the insight router organically.
-    var isDescriptionSheetPresented = false
+    struct UIState: Equatable {
+        var showCelebration = false
+        var showBottomBarTools = false
+        var isCommonNameScrolledPast = false
+        var isDescriptionSheetPresented = false
+        var isFlagIssuePresented = false
+        var isIdentificationFlagPresented = false
+        var showDeleteConfirmation = false
+        var showSaveSuccessAlert = false
+        var showNewCollectionAlert = false
+        var isCandidateSwipePresented = false
+        var toastMessage: String?
+        var newCollectionName = ""
+        var preferredCommonName: String?
+        var isNamePickerPresented = false
+        var isSafariPresented = false
+        var selectedWikiURL: URL?
+        var isSavingPhotos = false
+    }
 
-    // MARK: - Alert & Modal Flags
-    var isFlagIssuePresented = false
-    var isIdentificationFlagPresented = false
-    var showDeleteConfirmation = false
-    var showSaveSuccessAlert = false
-    var showNewCollectionAlert = false
-    var isCandidateSwipePresented = false
-    var toastMessage: String?
-    var newCollectionName = ""
+    var state = UIState()
 
-    // MARK: - Name Preference State
-    /// User's chosen display name for the current species, persisted in UserDefaults.
-    /// Nil means no override — the canonical `commonName` from the DB is used.
-    var preferredCommonName: String?
-    /// Controls the name-picker bottom sheet.
-    var isNamePickerPresented: Bool = false
-    
     var hasUserPhotos: Bool {
         !activeMedia.imagePathsForUpload.isEmpty || activeMedia.liveImageData != nil
     }
 
-    // MARK: - Navigation State
-    var isSafariPresented = false
-    var selectedWikiURL: URL?
-    
-    // MARK: - Hardware Tasks
-    var isSavingPhotos = false
-    
     // MARK: - SwiftData Status
     var activeLocalRecord: LocalScanRecord?
-    
+
     // MARK: - Image Engine Dependencies
     var inferenceEngine: InferenceEngine?
 
@@ -148,16 +110,30 @@ final class InsightSheetViewModel {
         }
         return inferenceEngine?.activeMedia ?? ActiveScanMedia()
     }
-    
+
     var observationContext: ObservationContext? {
         for item in activeMedia.items {
             if case .description(let ctx) = item { return ctx }
         }
         return nil
     }
-    
+
     var totalImages: Int {
         return activeMedia.totalItems
+    }
+
+    // MARK: - View Binding Helpers
+
+    /// Resolves the ActiveScanMedia for the view, correctly prioritizing a live passed-in queuedScan context.
+    func resolvedMedia(for explicitQueuedScan: QueuedScanContext?) -> ActiveScanMedia {
+        if let queued = explicitQueuedScan ?? queuedContext {
+            if let jsonStr = queued.capturedMediaJSON,
+               let decoded = Self.decodeActiveMedia(from: jsonStr) {
+                return decoded
+            }
+            return ActiveScanMedia()
+        }
+        return activeMedia
     }
 
     // MARK: - Toolbar Capability Flags
@@ -221,7 +197,7 @@ final class InsightSheetViewModel {
         guard let species = inferenceEngine?.speciesData else {
             return "Scanning subject..."
         }
-        if let preferred = preferredCommonName, !preferred.isEmpty {
+        if let preferred = state.preferredCommonName, !preferred.isEmpty {
             return preferred
         }
         let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -259,22 +235,22 @@ final class InsightSheetViewModel {
     var headerSubtitle: String {
         inferenceEngine?.speciesData?.scientificName ?? "Awaiting taxonomy"
     }
-    
+
     var hazardType: String {
         inferenceEngine?.speciesData?.insightData.hazardType ?? "none"
     }
 
     var isHazardous: Bool { hazardType != "none" }
-    
+
     var headerParagraphs: [String] {
         guard let species = inferenceEngine?.speciesData, !species.insightData.aiReasoning.isEmpty else { return [] }
         return species.insightData.aiReasoning
             .components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     }
-    
+
     // MARK: - Layout Computations
-    
+
     /// Evaluates dynamic coordinate thresholds actively against negative scroll intersections, routing structural top-bar offsets.
     func evaluateScrollOffset(minY: CGFloat) {
         guard minY != .infinity else { return }
@@ -282,16 +258,16 @@ final class InsightSheetViewModel {
         // When its bottom edge dips below the native sheet NavigationBar (44pt), it has "scrolled past" fully offscreen.
         let threshold: CGFloat = 44
         let isPast = minY < threshold
-        
-        if isCommonNameScrolledPast != isPast {
+
+        if state.isCommonNameScrolledPast != isPast {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                isCommonNameScrolledPast = isPast
+                state.isCommonNameScrolledPast = isPast
             }
         }
     }
-    
+
     // MARK: - Lifecycle Handlers
-    
+
     func evaluateVoiceOverAndCelebration(inferenceEngine: InferenceEngine) {
         let hazardType = inferenceEngine.speciesData?.insightData.hazardType ?? "none"
         let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
@@ -308,20 +284,20 @@ final class InsightSheetViewModel {
             let announcement = hazardWarning.isEmpty ? commonName : "\(commonName). \(hazardWarning)"
             UIAccessibility.post(notification: .announcement, argument: announcement)
         }
-        
+
         if let data = inferenceEngine.speciesData, data.isNewDiscovery {
             let lowerName = data.commonName.lowercased()
             if data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object" {
-                showCelebration = true
+                state.showCelebration = true
             }
         }
     }
-    
+
     func evaluateProcessingCompletion(isStillProcessing: Bool, inferenceEngine: InferenceEngine, modelContext: ModelContext) {
         guard !isStillProcessing else { return }
-        
+
         markRecordViewedIfAppropriate(modelContext: modelContext)
-        
+
         // The sheet was opened before inference completed, so onAppear saw nil speciesData.
         // Re-evaluate celebration and VoiceOver now that data has arrived.
         evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
@@ -336,37 +312,37 @@ final class InsightSheetViewModel {
             }
         }
     }
-    
+
     // MARK: - Media & Share Exports
-    
+
     func saveUserPhotos(inferenceEngine: InferenceEngine) {
-        guard !isSavingPhotos else { return }
-        isSavingPhotos = true
-        
+        guard !state.isSavingPhotos else { return }
+        state.isSavingPhotos = true
+
         let liveData = inferenceEngine.activeMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
         let validPaths = inferenceEngine.activeMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
         let refUrls = inferenceEngine.speciesData?.referenceImageUrl
-        
+
         InsightMediaExportManager.shared.saveUserPhotos(
             liveData: liveData,
             validPaths: validPaths,
             referenceImageUrl: refUrls
         ) { photosSaved in
-            self.isSavingPhotos = false
+            self.state.isSavingPhotos = false
             if photosSaved > 0 {
                 HapticManager.shared.triggerSuccessPulse()
-                self.showSaveSuccessAlert = true
+                self.state.showSaveSuccessAlert = true
             }
         }
     }
-    
+
     func shareDiscovery(inferenceEngine: InferenceEngine) {
         let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
         let scientificName = inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy"
         let liveData = inferenceEngine.activeMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
         let historicPath = inferenceEngine.activeMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }.first
         let refUrls = inferenceEngine.speciesData?.referenceImageUrl
-        
+
         InsightMediaExportManager.shared.shareDiscovery(
             commonName: commonName,
             scientificName: scientificName,
@@ -378,75 +354,61 @@ final class InsightSheetViewModel {
             }
         )
     }
-    
+
 // Removed presentShareSheet as this logic was extracted into ShareSheetUtility
-    
+
     // MARK: - SwiftData Operations
-    
+
     func eradicateCurrentScan(modelContext: ModelContext, inferenceEngine: InferenceEngine, dismiss: DismissAction) {
         guard let targetId = inferenceEngine.speciesData?.scanId else { return }
-        
+
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == targetId })
         let records = (try? modelContext.fetch(descriptor)) ?? []
-        
+
         if let record = records.first {
             HapticManager.shared.triggerErrorThump()
             ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
             dismiss()
         }
     }
-    
+
     func toggleScanInCollection(_ collection: ScanCollection, modelContext: ModelContext) {
         guard let record = activeLocalRecord else { return }
-        
+
         var updatedCollections = record.collections ?? []
-        
+
         if updatedCollections.contains(where: { $0.id == collection.id }) {
             updatedCollections.removeAll(where: { $0.id == collection.id })
             record.collections = updatedCollections
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                toastMessage = "Removed from \(collection.name)"
+                state.toastMessage = "Removed from \(collection.name)"
             }
         } else {
             updatedCollections.append(collection)
             record.collections = updatedCollections
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                toastMessage = "Added to \(collection.name)"
+                state.toastMessage = "Added to \(collection.name)"
             }
         }
-        
+
         try? modelContext.save()
         OfflineQueueManager.shared.enqueueCollectionSync()
         HapticManager.shared.triggerSelectionPulse()
     }
-    
+
 // Removed createNewCollection as this logic was extracted into NewCollectionAlertModifier
-    
+
     func fetchLocalRecord(for scanId: String, modelContext: ModelContext) {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
-            if let jsonStr = record.capturedMediaJSON,
-               let jsonData = jsonStr.data(using: .utf8),
-               let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                var items: [MediaItem] = []
-                for serialized in serializedItems {
-                    switch serialized {
-                    case .image(let path): items.append(.image(path))
-                    case .audio(let path):
-                    let docsPath = URL.documentsDirectory.appendingPathComponent(path).path
-                    let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(path).path
-                    let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-                    items.append(.audio(resolvedPath))
-                    case .description(let ctx): items.append(.description(ctx))
-                    }
-                }
-                self.cachedActiveMedia = ActiveScanMedia(items: items)
+            if let jsonStr = record.capturedMediaJSON {
+                self.cachedActiveMedia = Self.decodeActiveMedia(from: jsonStr)
             }
             markRecordViewedIfAppropriate(modelContext: modelContext)
         }
     }
-    
+
     func markRecordViewedIfAppropriate(modelContext: ModelContext) {
         guard let record = activeLocalRecord else { return }
         if !record.hasBeenViewed && (inferenceEngine?.isProcessing == false) {
@@ -460,7 +422,7 @@ final class InsightSheetViewModel {
     /// Loads the user's preferred common name for the given scientific name from UserDefaults.
     /// Call this whenever a new species is presented so `resolvedHeaderTitle` reflects the preference.
     func loadPreferredCommonName(for scientificName: String) {
-        preferredCommonName = UserDefaults.standard.string(
+        state.preferredCommonName = UserDefaults.standard.string(
             forKey: UserDefaultsKeys.speciesPreferredNamePrefix + scientificName
         )
     }
@@ -469,9 +431,9 @@ final class InsightSheetViewModel {
     /// so `resolvedHeaderTitle` recomputes without requiring a re-fetch.
     func setPreferredCommonName(_ name: String, for scientificName: String) {
         UserDefaults.standard.set(name, forKey: UserDefaultsKeys.speciesPreferredNamePrefix + scientificName)
-        preferredCommonName = name
+        state.preferredCommonName = name
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            toastMessage = "Preferred name set to \"\(name)\""
+            state.toastMessage = "Preferred name set to \"\(name)\""
         }
         HapticManager.shared.triggerSelectionPulse()
     }
@@ -479,10 +441,37 @@ final class InsightSheetViewModel {
     /// Removes the stored preference, reverting the headline to the canonical DB common name.
     func clearPreferredCommonName(for scientificName: String) {
         UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.speciesPreferredNamePrefix + scientificName)
-        preferredCommonName = nil
+        state.preferredCommonName = nil
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            toastMessage = "Reverted to default name"
+            state.toastMessage = "Reverted to default name"
         }
         HapticManager.shared.triggerSelectionPulse()
+    }
+
+    // MARK: - Media Resolution Pipeline
+
+    /// Single unified pipeline to decode and validate `ActiveScanMedia` from a stored JSON string.
+    static func decodeActiveMedia(from jsonStr: String) -> ActiveScanMedia? {
+        guard let jsonData = jsonStr.data(using: .utf8),
+              let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) else {
+            return nil
+        }
+        var items: [MediaItem] = []
+        for serialized in serializedItems {
+            switch serialized {
+            case .image(let path):
+                items.append(.image(path))
+            case .audio(let path):
+                // Prefer the persistent Documents directory copy. Fall back to temp directory only if missing.
+                // (Files should be natively migrated to Documents via FileIOActor during scan completion).
+                let docsPath = URL.documentsDirectory.appendingPathComponent(path).path
+                let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(path).path
+                let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+                items.append(.audio(resolvedPath))
+            case .description(let ctx):
+                items.append(.description(ctx))
+            }
+        }
+        return ActiveScanMedia(items: items)
     }
 }

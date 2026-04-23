@@ -67,4 +67,41 @@ public actor FileIOActor {
             }
         }
     }
+    
+    /// Copies an audio file from NSTemporaryDirectory to the persistent Documents directory, returning the new stable filename.
+    public func persistAudioFile(tempPath: String) -> String? {
+        let sourceURL = URL(fileURLWithPath: tempPath)
+        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+            MerianLog.data.error("FileIOActor: Cannot persist audio, file missing at \(tempPath, privacy: .public)")
+            return nil
+        }
+        
+        let docs = URL.documentsDirectory
+        let filename = "\(UUID().uuidString)_audio.wav" // Canonical .wav extension
+        let destinationURL = docs.appendingPathComponent(filename)
+        
+        do {
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            // Cleanup the original temp file since it is now safely copied
+            try? FileManager.default.removeItem(at: sourceURL)
+            return filename
+        } catch {
+            MerianLog.data.error("FileIOActor: Failed persisting audio file: \(error, privacy: .private)")
+            return nil
+        }
+    }
+    
+    /// Purges an array of physical Sandboxed audio files cleanly.
+    public func deleteAudioFiles(at filenames: [String]) {
+        let docs = URL.documentsDirectory
+        for path in filenames {
+            // Check if it's an absolute path (legacy or temp) or a relative filename
+            let targetURL = path.hasPrefix("/") ? URL(fileURLWithPath: path) : docs.appendingPathComponent(path)
+            do {
+                try FileManager.default.removeItem(at: targetURL)
+            } catch {
+                MerianLog.data.debug("FileIOActor: Failed dropping audio file \(path, privacy: .private): \(error, privacy: .private)")
+            }
+        }
+    }
 }

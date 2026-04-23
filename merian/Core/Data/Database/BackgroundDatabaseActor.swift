@@ -264,7 +264,7 @@ actor BackgroundDatabaseActor {
         originalTimestamp: Date,
         telemetry: CaptureTelemetry? = nil,
         observationContextsJSON: [String]? = nil
-    ) -> OfflineScanProcessingResult {
+    ) async -> OfflineScanProcessingResult {
         var inferenceFailed = true
         var resolvedSpeciesName: String?
         var finalIsNewDiscovery = false
@@ -312,7 +312,7 @@ actor BackgroundDatabaseActor {
                 let recordId = mappedData.scanId ?? scanId
                 
                 // --- Step 3: Atomic Record Insertion ---
-                insertLocalScanRecordIfMissing(
+                await insertLocalScanRecordIfMissing(
                     mappedData: mappedData,
                     recordId: recordId,
                     activeSpeciesId: activeSpeciesId,
@@ -385,143 +385,29 @@ actor BackgroundDatabaseActor {
         return (activeSpeciesId, isNewDiscovery)
     }
 
-    /// Idempotently inserts a new LocalScanRecord.
-    private func insertLocalScanRecordIfMissing(
-        mappedData: SpeciesData,
+    /// Shared helper to map SpeciesData into a LocalScanRecord, preventing 120+ lines of duplication.
+    private func buildScanRecord(
+        from mappedData: SpeciesData,
         recordId: String,
-        activeSpeciesId: String,
-        originalTimestamp: Date,
-        originalImagePaths: [String],
-        observationContextsJSON: [String]? = nil
-    ) {
-        var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
-        )
-        existingIdDescriptor.fetchLimit = 1
-        let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
-
-        if !alreadyExists {
-            let record = LocalScanRecord(
-                id: recordId,
-                speciesId: activeSpeciesId,
-                scientificName: mappedData.scientificName,
-                commonName: mappedData.commonName,
-                timestamp: Date(),
-                captureDate: originalTimestamp,
-                semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
-                hazardType: mappedData.insightData.hazardType,
-                isBiological: mappedData.isBiological,
-                isLiveCapture: mappedData.isLiveCapture,
-                isInvasive: mappedData.isInvasive,
-                ecologyType: mappedData.ecologyType,
-                wikipediaUrl: mappedData.wikipediaUrl,
-                referenceImageUrl: mappedData.referenceImageUrl,
-                confidenceScore: mappedData.confidenceScore,
-                taxonomyKingdom: mappedData.taxonomy?.kingdom,
-                taxonomyPhylum: mappedData.taxonomy?.phylum,
-                taxonomyClass: mappedData.taxonomy?.className,
-                taxonomyOrder: mappedData.taxonomy?.order,
-                taxonomyFamily: mappedData.taxonomy?.family,
-                taxonomyGenus: mappedData.taxonomy?.genus,
-                locationName: mappedData.locationName,
-                weatherCondition: mappedData.weatherCondition,
-                weatherTemperatureF: mappedData.weatherTemperatureF,
-                similarSpecies: mappedData.similarSpecies?.lookalikes,
-                candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
-                iucnRedListStatus: mappedData.iucnRedListStatus,
-                gpsLatitude: mappedData.gpsLatitude,
-                gpsLongitude: mappedData.gpsLongitude,
-                gpsElevation: mappedData.gpsElevation,
-                zoomFactor: mappedData.zoomFactor,
-                aiReasoning: mappedData.aiReasoning,
-                habitatDescription: mappedData.habitatDescription,
-                gbifTaxonKey: mappedData.gbifTaxonKey,
-                estimatedSizeCm: mappedData.estimatedSizeCm,
-                lifeStage: mappedData.lifeStage,
-                reproductiveCondition: mappedData.reproductiveCondition,
-                individualCount: mappedData.individualCount,
-                ecologicalInteractions: mappedData.ecologicalInteractions,
-                inferenceTier: mappedData.inferenceTier,
-                imageQualityScore: mappedData.imageQualityScore,
-                alternativeCommonNames: mappedData.alternativeCommonNames,
-                )
-            var serializedItems: [SerializedMediaItem] = originalImagePaths.map { .image($0) }
-            if let contexts = observationContextsJSON {
-                for ctxStr in contexts {
-                    if let data = ctxStr.data(using: .utf8), let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
-                        serializedItems.append(.description(ctx))
-                    }
-                }
-            }
-            if let audios = mappedData.audioFilePaths {
-                for audio in audios { serializedItems.append(.audio(audio)) }
-            }
-            record.capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
-            record.coverImagePath = originalImagePaths.first
-            modelContext.insert(record)
-        }
-    }
-
-    private func buildCapturedMediaJSON(localImagePaths: [String]? = nil, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) -> String? {
-        var mediaItems: [SerializedMediaItem] = []
-        if let paths = localImagePaths {
-            for path in paths { mediaItems.append(.image(path)) }
-        }
-        if let contexts = observationContextsJSON {
-            for ctxStr in contexts {
-                if let data = ctxStr.data(using: .utf8),
-                   let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
-                    mediaItems.append(.description(ctx))
-                }
-            }
-        }
-        if let audios = audioFilePaths {
-            for path in audios { mediaItems.append(.audio(path)) }
-        }
-        guard !mediaItems.isEmpty else { return nil }
-        return (try? JSONEncoder().encode(mediaItems)).flatMap { String(data: $0, encoding: .utf8) }
-    }
-
-    // MARK: - Live Scan Recording
-
-    /// Persists a real-time scan result to SwiftData on the actor thread.
-    func saveLiveScanRecord(mappedData: SpeciesData, localImagePaths: [String], observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) -> Bool {
-        guard mappedData.confidenceScore > 0.0, !localImagePaths.isEmpty else {
-            return false
-        }
-
-        let targetName = mappedData.scientificName
-        var fetchDescriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.scientificName == targetName }
-        )
-        fetchDescriptor.fetchLimit = 1
-        fetchDescriptor.propertiesToFetch = [\.speciesId]
-        let existingRecords: [LocalScanRecord]
-        do {
-            existingRecords = try modelContext.fetch(fetchDescriptor)
-        } catch {
-            MerianLog.data.debug("saveLiveScanRecord: species lookup failed: \(error, privacy: .private)")
-            existingRecords = []
-        }
-
-        let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
-        let isNewDiscovery = existingRecords.isEmpty
-
-        let capturedMediaJSON = buildCapturedMediaJSON(localImagePaths: localImagePaths, observationContextsJSON: observationContextsJSON, audioFilePaths: audioFilePaths)
-
-        let record = LocalScanRecord(
-            id: mappedData.scanId ?? UUID().uuidString,
-            speciesId: activeSpeciesId,
+        speciesId: String,
+        captureDate: Date,
+        capturedMediaJSON: String? = nil,
+        coverImagePath: String? = nil,
+        isLiveCapture: Bool
+    ) -> LocalScanRecord {
+        return LocalScanRecord(
+            id: recordId,
+            speciesId: speciesId,
             scientificName: mappedData.scientificName,
             commonName: mappedData.commonName,
             timestamp: Date(),
-            captureDate: Date(), // Live captures always match current time
+            captureDate: captureDate,
             capturedMediaJSON: capturedMediaJSON,
-            coverImagePath: localImagePaths.first,
-            semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
+            coverImagePath: coverImagePath,
+            semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
             hazardType: mappedData.insightData.hazardType,
             isBiological: mappedData.isBiological,
-            isLiveCapture: mappedData.isLiveCapture,
+            isLiveCapture: isLiveCapture,
             isInvasive: mappedData.isInvasive,
             ecologyType: mappedData.ecologyType,
             wikipediaUrl: mappedData.wikipediaUrl,
@@ -551,7 +437,129 @@ actor BackgroundDatabaseActor {
             reproductiveCondition: mappedData.reproductiveCondition,
             individualCount: mappedData.individualCount,
             ecologicalInteractions: mappedData.ecologicalInteractions,
-            imageQualityScore: mappedData.imageQualityScore
+            inferenceTier: mappedData.inferenceTier,
+            imageQualityScore: mappedData.imageQualityScore,
+            alternativeCommonNames: mappedData.alternativeCommonNames
+        )
+    }
+
+    /// Idempotently inserts a new LocalScanRecord.
+    private func insertLocalScanRecordIfMissing(
+        mappedData: SpeciesData,
+        recordId: String,
+        activeSpeciesId: String,
+        originalTimestamp: Date,
+        originalImagePaths: [String],
+        observationContextsJSON: [String]? = nil
+    ) async {
+        var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
+        )
+        existingIdDescriptor.fetchLimit = 1
+        let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
+
+        if !alreadyExists {
+            var serializedItems: [SerializedMediaItem] = originalImagePaths.map { .image($0) }
+            if let contexts = observationContextsJSON {
+                for ctxStr in contexts {
+                    if let data = ctxStr.data(using: .utf8), let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
+                        serializedItems.append(.description(ctx))
+                    }
+                }
+            }
+            if let audios = mappedData.audioFilePaths {
+                for tempPath in audios {
+                    if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: tempPath) {
+                        serializedItems.append(.audio(persistedPath))
+                    }
+                }
+            }
+            let capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
+            
+            let record = buildScanRecord(
+                from: mappedData,
+                recordId: recordId,
+                speciesId: activeSpeciesId,
+                captureDate: originalTimestamp,
+                capturedMediaJSON: capturedMediaJSON,
+                coverImagePath: originalImagePaths.first,
+                isLiveCapture: mappedData.isLiveCapture
+            )
+
+            modelContext.insert(record)
+        }
+    }
+
+    private func buildCapturedMediaJSON(localImagePaths: [String]? = nil, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) async -> String? {
+        var mediaItems: [SerializedMediaItem] = []
+        if let paths = localImagePaths {
+            for path in paths { mediaItems.append(.image(path)) }
+        }
+        if let contexts = observationContextsJSON {
+            for ctxStr in contexts {
+                if let data = ctxStr.data(using: .utf8),
+                   let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
+                    mediaItems.append(.description(ctx))
+                }
+            }
+        }
+        if let audios = audioFilePaths {
+            for tempPath in audios {
+                if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: tempPath) {
+                    mediaItems.append(.audio(persistedPath))
+                }
+            }
+        }
+        guard !mediaItems.isEmpty else { return nil }
+        return (try? JSONEncoder().encode(mediaItems)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    // MARK: - Live Scan Recording
+
+    /// Persists a real-time scan result to SwiftData on the actor thread.
+    func saveLiveScanRecord(mappedData: SpeciesData, localImagePaths: [String], observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) async -> Bool {
+        guard mappedData.confidenceScore > 0.0, !localImagePaths.isEmpty else {
+            return false
+        }
+
+        let targetName = mappedData.scientificName
+        var fetchDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.scientificName == targetName }
+        )
+        fetchDescriptor.fetchLimit = 1
+        fetchDescriptor.propertiesToFetch = [\.speciesId]
+        let existingRecords: [LocalScanRecord]
+        do {
+            existingRecords = try modelContext.fetch(fetchDescriptor)
+        } catch {
+            MerianLog.data.debug("saveLiveScanRecord: species lookup failed: \(error, privacy: .private)")
+            existingRecords = []
+        }
+
+        let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
+        let isNewDiscovery = existingRecords.isEmpty
+
+        let capturedMediaJSON = await buildCapturedMediaJSON(localImagePaths: localImagePaths, observationContextsJSON: observationContextsJSON, audioFilePaths: audioFilePaths)
+
+        let recordId = mappedData.scanId ?? UUID().uuidString
+        
+        // Prevent duplicate insertion collisions or silent drops from offline queue background races.
+        // If the offline queue already inserted a skeleton/partial record, purge it so the 
+        // comprehensive live inference result (which correctly includes audio paths) takes over.
+        var collisionDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == recordId })
+        collisionDescriptor.fetchLimit = 1
+        if let existing = (try? modelContext.fetch(collisionDescriptor))?.first {
+            modelContext.delete(existing)
+        }
+
+        let record = buildScanRecord(
+            from: mappedData,
+            recordId: recordId,
+            speciesId: activeSpeciesId,
+            captureDate: Date(), // Live captures always match current time
+            capturedMediaJSON: capturedMediaJSON,
+            coverImagePath: localImagePaths.first,
+            isLiveCapture: mappedData.isLiveCapture
         )
         modelContext.insert(record)
         do {
@@ -569,7 +577,7 @@ actor BackgroundDatabaseActor {
     /// Mirrors `saveLiveScanRecord` but omits the `localImagePath` requirement. Describes are
     /// saved with `is_live_capture = false` and nil image paths so the library renders them
     /// without a thumbnail until reference images arrive via GBIF hydration.
-    func saveDescribeRecord(mappedData: SpeciesData, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) -> Bool {
+    func saveDescribeRecord(mappedData: SpeciesData, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) async -> Bool {
         guard mappedData.confidenceScore > 0.0 else { return false }
 
         let targetName = mappedData.scientificName
@@ -589,50 +597,23 @@ actor BackgroundDatabaseActor {
         let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
         let isNewDiscovery = existingRecords.isEmpty
 
-        let capturedMediaJSON = buildCapturedMediaJSON(observationContextsJSON: observationContextsJSON, audioFilePaths: audioFilePaths)
+        let capturedMediaJSON = await buildCapturedMediaJSON(observationContextsJSON: observationContextsJSON, audioFilePaths: audioFilePaths)
 
-        let record = LocalScanRecord(
-            id: mappedData.scanId ?? UUID().uuidString,
+        let recordId = mappedData.scanId ?? UUID().uuidString
+        var collisionDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == recordId })
+        collisionDescriptor.fetchLimit = 1
+        if let existing = (try? modelContext.fetch(collisionDescriptor))?.first {
+            modelContext.delete(existing)
+        }
+
+        let record = buildScanRecord(
+            from: mappedData,
+            recordId: recordId,
             speciesId: activeSpeciesId,
-            scientificName: mappedData.scientificName,
-            commonName: mappedData.commonName,
-            timestamp: Date(),
             captureDate: Date(),
             capturedMediaJSON: capturedMediaJSON,
-            semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []),
-            hazardType: mappedData.insightData.hazardType,
-            isBiological: mappedData.isBiological,
-            isLiveCapture: false,
-            isInvasive: mappedData.isInvasive,
-            ecologyType: mappedData.ecologyType,
-            wikipediaUrl: mappedData.wikipediaUrl,
-            referenceImageUrl: mappedData.referenceImageUrl,
-            confidenceScore: mappedData.confidenceScore,
-            taxonomyKingdom: mappedData.taxonomy?.kingdom,
-            taxonomyPhylum: mappedData.taxonomy?.phylum,
-            taxonomyClass: mappedData.taxonomy?.className,
-            taxonomyOrder: mappedData.taxonomy?.order,
-            taxonomyFamily: mappedData.taxonomy?.family,
-            taxonomyGenus: mappedData.taxonomy?.genus,
-            locationName: mappedData.locationName,
-            weatherCondition: mappedData.weatherCondition,
-            weatherTemperatureF: mappedData.weatherTemperatureF,
-            similarSpecies: mappedData.similarSpecies?.lookalikes,
-            candidatesData: mappedData.candidates.flatMap { try? JSONEncoder().encode($0) },
-            iucnRedListStatus: mappedData.iucnRedListStatus,
-            gpsLatitude: mappedData.gpsLatitude,
-            gpsLongitude: mappedData.gpsLongitude,
-            gpsElevation: mappedData.gpsElevation,
-            zoomFactor: nil,
-            aiReasoning: mappedData.aiReasoning,
-            habitatDescription: mappedData.habitatDescription,
-            gbifTaxonKey: mappedData.gbifTaxonKey,
-            estimatedSizeCm: nil,
-            lifeStage: mappedData.lifeStage,
-            reproductiveCondition: mappedData.reproductiveCondition,
-            individualCount: mappedData.individualCount,
-            ecologicalInteractions: mappedData.ecologicalInteractions,
-            imageQualityScore: nil
+            coverImagePath: nil,
+            isLiveCapture: false
         )
         modelContext.insert(record)
         do {

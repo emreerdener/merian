@@ -11,46 +11,28 @@ struct InsightContentView: View {
     /// the current struct value — unaffected by the `@State` initialization timing issue
     /// where `.sheet(isPresented:)` pre-evaluates the body with `scanToManage = nil`.
     var queuedScan: QueuedScanContext?
-    
+
     // MARK: - Layout Constants
     private let overlapRadius: CGFloat = 32
     private let imageSize: CGFloat = UIScreen.main.bounds.width
-    
+
     // MARK: - View
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 0) {
-                
+
                 // 1. DYNAMIC STRETCHY CAROUSEL HEADER
                 // Embeds firmly inside the native ScrollView to bypass NavigationStack safe area clipping perfectly.
                 GeometryReader { proxy in
                     let scrollY = proxy.frame(in: .named("InsightScrollSpace")).minY
                     // MASSIVE FIX: The 'bleedBuffer' forces the image to natively render 50px taller and shifted 50px upward out of viewport.
                     // This creates a physical pixel bridge seamlessly masking `TabView` vertical pan-gesture framework synchronization tearing.
-                    let bleedBuffer: CGFloat = 50 
-                    
+                    let bleedBuffer: CGFloat = 50
+
                     let activeQueuedContext = viewModel.queuedContext ?? queuedScan
                     let activeIsProcessing = activeQueuedContext != nil ? false : viewModel.isProcessing
 
-                    let activeMedia: ActiveScanMedia = {
-                        if let queued = activeQueuedContext {
-                            var items: [MediaItem] = []
-                            if let jsonStr = queued.capturedMediaJSON,
-                               let jsonData = jsonStr.data(using: .utf8),
-                               let serialized = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                                for s in serialized {
-                                    switch s {
-                                    case .image(let path): items.append(.image(path))
-                                    case .audio(let path): items.append(.audio(path))
-                                    case .description(let ctx): items.append(.description(ctx))
-                                    }
-                                }
-                            }
-                            return ActiveScanMedia(items: items)
-                        } else {
-                            return viewModel.activeMedia
-                        }
-                    }()
+                    let activeMedia = viewModel.resolvedMedia(for: queuedScan)
 
                     ImagesCarousel(
                         scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
@@ -60,7 +42,7 @@ struct InsightContentView: View {
                             guard activeQueuedContext == nil else { return }
                             inferenceEngine.dropInvalidCarouselImage(path)
                         },
-                        onDescriptionTap: { viewModel.isDescriptionSheetPresented = true }
+                        onDescriptionTap: { viewModel.state.isDescriptionSheetPresented = true }
                     )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
@@ -69,9 +51,9 @@ struct InsightContentView: View {
                 .frame(height: imageSize)
                 .ignoresSafeArea(.all, edges: .top) // Ensure the entire geometry wrapper bypasses top safe area
                 .zIndex(0)
-                
+
                 // 2. OVERLAPPING BOTTOM SHEET CONTENT
-                contentCards
+                InsightContentRouterView(viewModel: viewModel, queuedScan: queuedScan)
                     .padding(.top, overlapRadius)
                     .frame(maxWidth: .infinity)
                     .background(contentSheetBackground)
@@ -86,43 +68,43 @@ struct InsightContentView: View {
         .ignoresSafeArea(.container, edges: .top)
         .contentMargins(.top, 0, for: .scrollContent) // CRITICAL: Eradicates hidden iOS 17 interior scroll canvas offsets!
         .textSelection(.enabled)
-        
+
         // Data Mapping Override
         .onAppear {
             viewModel.inferenceEngine = inferenceEngine
         }
-        
+
         // Modal Routings
-        .sheet(isPresented: $viewModel.isSafariPresented) {
-            if let safeUrl = viewModel.selectedWikiURL {
+        .sheet(isPresented: $viewModel.state.isSafariPresented) {
+            if let safeUrl = viewModel.state.selectedWikiURL {
                 SafariView(url: safeUrl)
                     .ignoresSafeArea()
             }
         }
-        .sheet(isPresented: $viewModel.isFlagIssuePresented) {
+        .sheet(isPresented: $viewModel.state.isFlagIssuePresented) {
             if let scanId = inferenceEngine.speciesData?.scanId {
                 ReportInsightView(scanId: scanId) {
-                    withAnimation { viewModel.toastMessage = "Report submitted. Thanks!" }
+                    withAnimation { viewModel.state.toastMessage = "Report submitted. Thanks!" }
                 }
             }
         }
-        .sheet(isPresented: $viewModel.isIdentificationFlagPresented) {
+        .sheet(isPresented: $viewModel.state.isIdentificationFlagPresented) {
             if let scanId = inferenceEngine.speciesData?.scanId {
                 FlagIdentificationModal(scanId: scanId) {
-                    withAnimation { viewModel.toastMessage = "Report submitted. Thanks!" }
+                    withAnimation { viewModel.state.toastMessage = "Report submitted. Thanks!" }
                 }
                 .presentationDetents([.height(400)])
             }
         }
-        .sheet(isPresented: $viewModel.isCandidateSwipePresented) {
+        .sheet(isPresented: $viewModel.state.isCandidateSwipePresented) {
             if let speciesData = inferenceEngine.speciesData {
                 CandidateSwipeModal(
-                    isPresented: $viewModel.isCandidateSwipePresented,
+                    isPresented: $viewModel.state.isCandidateSwipePresented,
                     candidates: speciesData.candidates ?? [],
                     aiScientificName: speciesData.scientificName,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                     onConfirmOriginal: { Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) } },
-                    onFlagIssue: { viewModel.isIdentificationFlagPresented = true },
+                    onFlagIssue: { viewModel.state.isIdentificationFlagPresented = true },
                     onRefineScan: {
                         guard let scanIdStr = speciesData.scanId else { return }
                         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
@@ -134,7 +116,7 @@ struct InsightContentView: View {
                 )
             }
         }
-        .sheet(isPresented: $viewModel.isDescriptionSheetPresented) {
+        .sheet(isPresented: $viewModel.state.isDescriptionSheetPresented) {
             if let context = viewModel.observationContext {
                 InsightDescriptionSheet(text: context.freeText)
             }
@@ -144,61 +126,6 @@ struct InsightContentView: View {
 
 // MARK: - Subcomponents
 private extension InsightContentView {
-    
-    /// The conditional routing layout parsing Insight structural parameters dynamically.
-    @ViewBuilder
-    var contentCards: some View {
-        VStack(alignment: .leading, spacing: 16) {
-
-            ZStack(alignment: .top) {
-                switch viewModel.contentMode {
-                case .analyzing:
-                    // Guard: `queuedScan` (view-level property) is non-nil when this sheet is
-                    // presenting a queued scan — we're just in the nil-window before onAppear
-                    // sets `viewModel.queuedContext`. Show QueuedContentView immediately instead
-                    // of the transient analyzing skeleton.
-                    if let ctx = queuedScan {
-                        QueuedContentView(queuedContext: ctx)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            .background(Color(uiColor: .systemBackground))
-                            .transition(.opacity)
-                    } else {
-                        AnalyzingContentView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            .background(Color(uiColor: .systemBackground))
-                            .transition(.opacity)
-                    }
-                case .queued:
-                    if let ctx = viewModel.queuedContext ?? queuedScan {
-                        QueuedContentView(queuedContext: ctx)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                            .background(Color(uiColor: .systemBackground))
-                            .transition(.opacity)
-                    }
-                case .nonBiological:
-                    if let speciesData = inferenceEngine.speciesData {
-                        NonBiologicalView(
-                            species: speciesData,
-                            commonName: speciesData.commonName.capitalized,
-                            timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
-                        )
-                        .transition(.opacity)
-                    }
-                case .biological:
-                    BiologicalView(
-                        viewModel: viewModel,
-                        isSafariPresented: $viewModel.isSafariPresented,
-                        selectedWikiURL: $viewModel.selectedWikiURL,
-                        timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
-                    )
-                    .transition(.opacity)
-                }
-            }
-
-            Spacer(minLength: 40)
-        }
-        .animation(.easeInOut(duration: 0.35), value: viewModel.contentMode)
-    }
 
     /// The rounded white background encapsulating the structural content cards smoothly.
     @ViewBuilder
