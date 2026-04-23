@@ -38,7 +38,27 @@ struct MerianApp: App {
             container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
             AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            MerianLog.general.error("CRITICAL: Failed to initialize ModelContainer. Error: \(error.localizedDescription)")
+            
+            // Attempt to recover by wiping the corrupted store
+            let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
+            do {
+                if FileManager.default.fileExists(atPath: storeURL.path) {
+                    try? FileManager.default.removeItem(at: storeURL)
+                    let shmURL = URL(fileURLWithPath: storeURL.path + "-shm")
+                    try? FileManager.default.removeItem(at: shmURL)
+                    let walURL = URL(fileURLWithPath: storeURL.path + "-wal")
+                    try? FileManager.default.removeItem(at: walURL)
+                }
+                
+                let schema = Schema(versionedSchema: CurrentSchema.self)
+                let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+                container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
+                AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
+                MerianLog.general.error("RECOVERY: Successfully recreated an empty ModelContainer after wiping corrupted store.")
+            } catch let recoveryError {
+                fatalError("Could not recover ModelContainer. Initial error: \(error), Recovery error: \(recoveryError)")
+            }
         }
         
         // Initialize telemetry synchronously — just stores config, safe on main thread.

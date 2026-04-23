@@ -145,7 +145,12 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         fromVersion: MerianSchemaV38.self,
         toVersion: MerianSchemaV39.self,
         willMigrate: { context in
-            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV38.LocalScanRecord>())
+            var localScans: [MerianSchemaV38.LocalScanRecord] = []
+            do {
+                localScans = try context.fetch(FetchDescriptor<MerianSchemaV38.LocalScanRecord>())
+            } catch {
+                MerianLog.general.error("Migration V38->V39 willMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
+            }
             for scan in localScans {
                 if let audio = scan.audioFilePath {
                     _v38LocalAudioBackfill[scan.id] = [audio]
@@ -159,7 +164,12 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 _v38LocalSemanticTagsBackfill[scan.id] = scan.semanticTags
             }
 
-            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV38.OfflineQueuedScan>())
+            var offlineScans: [MerianSchemaV38.OfflineQueuedScan] = []
+            do {
+                offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV38.OfflineQueuedScan>())
+            } catch {
+                MerianLog.general.error("Migration V38->V39 willMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
+            }
             for scan in offlineScans {
                 if let audio = scan.audioFilePath {
                     _v38OfflineAudioBackfill[scan.id] = [audio]
@@ -171,7 +181,12 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             }
         },
         didMigrate: { context in
-            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
+            var localScans: [MerianSchemaV39.LocalScanRecord] = []
+            do {
+                localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
+            } catch {
+                MerianLog.general.error("Migration V38->V39 didMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
+            }
             for scan in localScans {
                 if let audio = _v38LocalAudioBackfill[scan.id] {
                     scan.audioFilePaths = audio
@@ -181,7 +196,12 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
 
-            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
+            var offlineScans: [MerianSchemaV39.OfflineQueuedScan] = []
+            do {
+                offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
+            } catch {
+                MerianLog.general.error("Migration V38->V39 didMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
+            }
             for scan in offlineScans {
                 if let audio = _v38OfflineAudioBackfill[scan.id] {
                     scan.audioFilePaths = audio
@@ -191,7 +211,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
 
-            try context.save()
+            try? context.save()
             _v38LocalAudioBackfill = [:]
             _v38LocalContextBackfill = [:]
             _v38OfflineAudioBackfill = [:]
@@ -210,7 +230,12 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         toVersion: MerianSchemaV40.self,
         willMigrate: { context in
             // V39 to V40: backfill capturedMediaJSON
-            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
+            var localScans: [MerianSchemaV39.LocalScanRecord] = []
+            do {
+                localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
+            } catch {
+                MerianLog.general.error("Migration V39->V40 willMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
+            }
             for scan in localScans {
                 var items: [SerializedMediaItem] = []
                 
@@ -245,7 +270,12 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
 
-            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
+            var offlineScans: [MerianSchemaV39.OfflineQueuedScan] = []
+            do {
+                offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
+            } catch {
+                MerianLog.general.error("Migration V39->V40 willMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
+            }
             for scan in offlineScans {
                 var items: [SerializedMediaItem] = []
                 
@@ -277,7 +307,12 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             }
         },
         didMigrate: { context in
-            let localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            var localScans: [LocalScanRecord] = []
+            do {
+                localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            } catch {
+                MerianLog.general.error("Migration V39->V40 didMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
+            }
             for scan in localScans {
                 if let json = _v39LocalMediaBackfill[scan.id] {
                     scan.capturedMediaJSON = json
@@ -287,7 +322,12 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
             
-            let offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            var offlineScans: [OfflineQueuedScan] = []
+            do {
+                offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            } catch {
+                MerianLog.general.error("Migration V39->V40 didMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
+            }
             for scan in offlineScans {
                 if let json = _v39OfflineMediaBackfill[scan.id] {
                     scan.capturedMediaJSON = json
@@ -297,7 +337,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
             
-            try context.save()
+            try? context.save()
             _v39LocalMediaBackfill = [:]
             _v39OfflineMediaBackfill = [:]
             _v39LocalCoverBackfill = [:]
