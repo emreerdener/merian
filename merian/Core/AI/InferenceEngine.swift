@@ -876,7 +876,12 @@ private struct GBIFMedia: Decodable {
         if let ctx = observationContext {
             items.append(.description(ctx))
         }
-        items.append(.audio(audioFileName))
+        
+        let docsPath = URL.documentsDirectory.appendingPathComponent(audioFileName).path
+        let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(audioFileName).path
+        let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+        items.append(.audio(resolvedPath))
+        
         self.activeMedia = ActiveScanMedia(items: items)
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
