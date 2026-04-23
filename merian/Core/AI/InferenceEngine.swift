@@ -1174,7 +1174,7 @@ private struct GBIFMedia: Decodable {
                 // Route through executeTrackedBackgroundTask: bounded by the cap and
                 // cancelled by prepareForNewScan() / cancelActiveRequest() so a stale
                 // wiki write cannot touch a record that is no longer active.
-                executeTrackedBackgroundTask {
+                executeTrackedBackgroundTask { [imageUrlToPersist] in
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
                     await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: imageUrlToPersist)
                 }
@@ -1214,7 +1214,7 @@ private struct GBIFMedia: Decodable {
         guard let url = URL(string: "https://api.gbif.org/v1/occurrence/search?taxonKey=\(taxonKey)&mediaType=StillImage&limit=4") else { return }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 4.0
+        request.timeoutInterval = 10.0
 
         do {
             let (data, response) = try await InferenceEngine.externalAPISession.data(for: request)
@@ -1999,14 +1999,7 @@ private struct GBIFMedia: Decodable {
         historicHydrationTask = Task { [weak self] in
             guard let self else { return }
 
-            // Step 1: Validate image paths (I/O-bound).
-            var paths: [String] = []
-            if let jsonStr = record.capturedMediaJSON,
-               let jsonData = jsonStr.data(using: .utf8),
-               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                paths = items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
-            }
-            let validPaths = await FileIOActor.shared.validPaths(from: paths)
+            // Step 1: Determine initial reference image loading state.
             guard !Task.isCancelled else { return }
             let refUrls = record.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
             let shouldLoadImages = recordIsBiological && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)

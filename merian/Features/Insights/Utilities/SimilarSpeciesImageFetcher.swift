@@ -64,7 +64,7 @@ final class SimilarSpeciesImageFetcher {
                       let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/summary/\(encoded)")
                 else { return nil }
                 var request = URLRequest(url: url)
-                request.timeoutInterval = 5.0
+                request.timeoutInterval = 10.0
                 request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
                 guard let (data, response) = try? await SimilarSpeciesImageFetcher.externalAPISession.data(for: request),
                       let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
@@ -78,7 +78,7 @@ final class SimilarSpeciesImageFetcher {
                       let url = URL(string: "https://api.gbif.org/v1/occurrence/search?scientificName=\(encoded)&mediaType=StillImage&limit=5")
                 else { return [] }
                 var request = URLRequest(url: url)
-                request.timeoutInterval = 5.0
+                request.timeoutInterval = 10.0
                 guard let (data, response) = try? await SimilarSpeciesImageFetcher.externalAPISession.data(for: request),
                       let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 200,
                       let decoded = try? JSONDecoder().decode(FetcherGBIFMediaResponse.self, from: data),

@@ -25,7 +25,7 @@ struct ObservationContext: Codable, Equatable, Sendable {
     func serialized() -> String {
         let trimmed = freeText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
-            return "Notes: \(trimmed)"
+            return "\(trimmed)"
         }
         return ""
     }
