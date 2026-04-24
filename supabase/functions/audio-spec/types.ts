@@ -20,7 +20,7 @@ export interface AudioClientRequest {
   device_locale?: string | null;
   device_time_zone?: string | null;
   device_region?: string | null;
-  current_month?: string | null;
+  current_month?: number | null;
   time_of_day?: string | null;
 }
 

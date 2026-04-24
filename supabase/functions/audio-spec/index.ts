@@ -36,6 +36,23 @@ const TARGET_SAMPLE_RATE = 16_000;
 // Gemini confidence threshold below which candidates are forwarded to the iOS client.
 const DIAGNOSTIC_TRIGGER = 0.95;
 
+function normalizeCurrentMonth(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const month = Math.trunc(value);
+    return month >= 1 && month <= 12 ? month : undefined;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{1,2}$/.test(trimmed)) {
+      const month = Number(trimmed);
+      return month >= 1 && month <= 12 ? month : undefined;
+    }
+  }
+
+  return undefined;
+}
+
 const BIOACOUSTIC_SYSTEM_INSTRUCTION = `# Role
 You are a world-class bioacoustic field biologist with expertise in identifying species from their acoustic signatures across all taxa: birds, insects, frogs, mammals, and other wildlife.
 
@@ -111,6 +128,7 @@ serve((req: Request) =>
       current_month,
       time_of_day,
     } = body;
+    const normalizedCurrentMonth = normalizeCurrentMonth(current_month);
 
     // GPS range validation — out-of-bounds values are sanitised to null (same policy as identify).
     const safeGpsLat: number | null =
@@ -192,7 +210,7 @@ serve((req: Request) =>
       device_locale ? `Locale:${device_locale}` : null,
       device_time_zone ? `TZ:${device_time_zone}` : null,
       device_region ? `Region:${device_region}` : null,
-      current_month ? `Month:${current_month}` : null,
+      normalizedCurrentMonth != null ? `Month:${normalizedCurrentMonth}` : null,
       time_of_day ? `Time:${time_of_day}` : null,
     ].filter(Boolean).join(", ");
 
@@ -444,7 +462,7 @@ serve((req: Request) =>
             weather_temperature_f: weather_temperature_f ?? undefined,
             semantic_location: semantic_location ?? undefined,
             device_locale: device_locale ?? undefined,
-            current_month: current_month ?? undefined,
+            current_month: normalizedCurrentMonth ?? null,
             time_of_day: time_of_day ?? undefined,
             ai_reasoning: parsedData.ai_reasoning ?? null,
             extracted_visual_traits: [],

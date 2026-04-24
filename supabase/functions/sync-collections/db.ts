@@ -1,5 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { SyncCollectionPayload, MembershipRow } from "./types.ts";
+import { MembershipRow, SyncCollectionPayload } from "./types.ts";
 
 /// Queries the collections table for any incoming IDs that are already owned by a
 /// different user. Returns a filtered copy of `collections` that contains only rows
@@ -53,7 +53,9 @@ export async function deleteCollections(
   if (explicitDeleteError) {
     // Throw so the caller gets a 500 rather than a silent success — collections the
     // user intended to delete must not silently remain in the DB.
-    throw new Error(`Collection deletion failed: ${explicitDeleteError.message}`);
+    throw new Error(
+      `Collection deletion failed: ${explicitDeleteError.message}`,
+    );
   }
 }
 
@@ -63,41 +65,54 @@ export async function upsertCollectionsAndFetchMemberships(
   ownedIds: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<MembershipRow[]> {
-  // Both ownedCollections and ownedIds are pre-filtered by filterOwnedCollections in
-  // the controller — no additional IDOR check needed here.
-  const [upsertResult, existingMembershipsResult] = await Promise.all([
-    ownedCollections.length > 0
-      ? supabaseAdmin.from("collections").upsert(
-          ownedCollections.map((c) => ({
-            id: c.id,
-            user_id: userId,
-            name: c.name,
-            created_at: c.created_at,
-          })),
-          { onConflict: "id" },
-        )
-      : Promise.resolve({ error: null }),
-    ownedIds.length > 0
-      ? supabaseAdmin
-          .from("collection_scans")
-          .select("collection_id, scan_id")
-          .in("collection_id", ownedIds)
-          // MAX_COLLECTIONS=200 × MAX_SCAN_IDS_PER_COLLECTION=5000 = 1M worst-case rows.
-          // Cap conservatively — the delta computation below only needs existing DB state,
-          // not all rows, and a per-collection streaming refactor is the right long-term fix.
-          .limit(10000)
-          .returns<MembershipRow[]>()
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  if (ownedCollections.length > 0) {
+    const { error: upsertError } = await supabaseAdmin.from("collections")
+      .upsert(
+        ownedCollections.map((c) => ({
+          id: c.id,
+          user_id: userId,
+          name: c.name,
+          created_at: c.created_at,
+        })),
+        { onConflict: "id" },
+      );
 
-  if (upsertResult.error) {
-    // Throw so the controller returns 500 rather than a silent success — the iOS client
-    // must know when collections failed to persist so it can retry rather than treating
-    // the sync as confirmed.
-    throw new Error(`Batch collection upsert failed: ${upsertResult.error.message}`);
+    if (upsertError) {
+      throw new Error(`Batch collection upsert failed: ${upsertError.message}`);
+    }
   }
 
-  return existingMembershipsResult.data ?? [];
+  const existingMemberships: MembershipRow[] = [];
+  const pageSize = 1000;
+  for (const collectionId of ownedIds) {
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabaseAdmin
+        .from("collection_scans")
+        .select("collection_id, scan_id")
+        .eq("collection_id", collectionId)
+        .order("scan_id", { ascending: true })
+        .range(from, from + pageSize - 1)
+        .returns<MembershipRow[]>();
+
+      if (error) {
+        throw new Error(
+          `Membership fetch failed for collection ${collectionId}: ${error.message}`,
+        );
+      }
+      if (!data?.length) {
+        break;
+      }
+
+      existingMemberships.push(...data);
+      if (data.length < pageSize) {
+        break;
+      }
+      from += pageSize;
+    }
+  }
+
+  return existingMemberships;
 }
 
 export async function syncMembershipDelta(
@@ -136,8 +151,6 @@ export async function syncMembershipDelta(
     (m) => !desiredSet.has(membershipKey(m.collection_id, m.scan_id)),
   );
 
-  const membershipOps: Promise<unknown>[] = [];
-
   if (toRemove.length > 0) {
     const removeByCollection = new Map<string, string[]>();
     for (const m of toRemove) {
@@ -148,63 +161,65 @@ export async function syncMembershipDelta(
     }
 
     for (const [collectionId, scanIds] of removeByCollection) {
-      membershipOps.push(
-        Promise.resolve(
-          supabaseAdmin
-            .from("collection_scans")
-            .delete()
-            .eq("collection_id", collectionId)
-            .in("scan_id", scanIds),
-        ),
-      );
+      const deleteChunkSize = 200;
+      for (let i = 0; i < scanIds.length; i += deleteChunkSize) {
+        const chunk = scanIds.slice(i, i + deleteChunkSize);
+        const { error } = await supabaseAdmin
+          .from("collection_scans")
+          .delete()
+          .eq("collection_id", collectionId)
+          .in("scan_id", chunk);
+
+        if (error) {
+          throw new Error(`Membership delete failed: ${error.message}`);
+        }
+      }
     }
   }
 
   if (toAdd.length > 0) {
     const scanIdsToAdd = [...new Set(toAdd.map((m) => m.scan_id))];
+    const validScanIds = new Set<string>();
+    const validateChunkSize = 200;
 
-    const { data: validScans, error: validateError } = await supabaseAdmin
-      .from("scans")
-      .select("id")
-      .in("id", scanIdsToAdd)
-      .returns<{ id: string }[]>();
+    for (let i = 0; i < scanIdsToAdd.length; i += validateChunkSize) {
+      const chunk = scanIdsToAdd.slice(i, i + validateChunkSize);
+      const { data, error: validateError } = await supabaseAdmin
+        .from("scans")
+        .select("id")
+        .in("id", chunk)
+        .returns<{ id: string }[]>();
 
-    if (validateError) {
-      throw new Error(`Scan validation DB error: ${validateError.message}`);
+      if (validateError) {
+        throw new Error(`Scan validation DB error: ${validateError.message}`);
+      }
+      for (const row of data ?? []) {
+        validScanIds.add(row.id);
+      }
     }
 
-    const validScanIds = new Set(validScans?.map((s) => s.id) ?? []);
     const safeToAdd = toAdd.filter((m) => validScanIds.has(m.scan_id));
 
     if (safeToAdd.length > 0) {
-      membershipOps.push(
-        Promise.resolve(
-          supabaseAdmin.from("collection_scans").upsert(safeToAdd, {
+      const insertChunkSize = 1000;
+      for (let i = 0; i < safeToAdd.length; i += insertChunkSize) {
+        const chunk = safeToAdd.slice(i, i + insertChunkSize);
+        const { error } = await supabaseAdmin.from("collection_scans").upsert(
+          chunk,
+          {
             onConflict: "collection_id,scan_id",
             ignoreDuplicates: true,
-          }),
-        ),
-      );
+          },
+        );
+
+        if (error) {
+          throw new Error(`Membership insert failed: ${error.message}`);
+        }
+      }
     } else {
       console.warn(
         "Skipped adding collection mappings because none of the scan IDs exist in DB yet.",
       );
-    }
-  }
-
-  if (membershipOps.length > 0) {
-    const membershipResults = await Promise.allSettled(membershipOps);
-    const errors: string[] = [];
-    for (const r of membershipResults) {
-      if (r.status === "rejected") {
-        errors.push(`promise rejected: ${r.reason}`);
-      } else if (r.value && (r.value as { error: unknown }).error) {
-        const dbErr = (r.value as { error: { message?: string } }).error;
-        errors.push(`DB error: ${dbErr.message ?? JSON.stringify(dbErr)}`);
-      }
-    }
-    if (errors.length > 0) {
-      throw new Error(`Membership delta failed: ${errors.join("; ")}`);
     }
   }
 }

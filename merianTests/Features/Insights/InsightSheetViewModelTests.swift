@@ -18,13 +18,13 @@ struct InsightSheetViewModelTests {
 
     @Test func testEvaluateScrollOffset() {
         let viewModel = InsightSheetViewModel()
-        #expect(viewModel.isCommonNameScrolledPast == false)
+        #expect(viewModel.state.isCommonNameScrolledPast == false)
         
         viewModel.evaluateScrollOffset(minY: 40.0)
-        #expect(viewModel.isCommonNameScrolledPast == true)
+        #expect(viewModel.state.isCommonNameScrolledPast == true)
         
         viewModel.evaluateScrollOffset(minY: 60.0)
-        #expect(viewModel.isCommonNameScrolledPast == false)
+        #expect(viewModel.state.isCommonNameScrolledPast == false)
     }
 
     @Test func testToggleScanInCollection() async throws {
@@ -42,11 +42,11 @@ struct InsightSheetViewModelTests {
         
         viewModel.toggleScanInCollection(collection, modelContext: ctx)
         #expect(record.collections?.contains(where: { $0.id == collection.id }) == true)
-        #expect(viewModel.toastMessage?.contains("Added to Favorites") == true)
+        #expect(viewModel.state.toastMessage?.contains("Added to Favorites") == true)
         
         viewModel.toggleScanInCollection(collection, modelContext: ctx)
         #expect(record.collections?.contains(where: { $0.id == collection.id }) == false)
-        #expect(viewModel.toastMessage?.contains("Removed from Favorites") == true)
+        #expect(viewModel.state.toastMessage?.contains("Removed from Favorites") == true)
     }
 
     @Test func testComputedHeaderProperties() async throws {

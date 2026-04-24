@@ -1,4 +1,4 @@
-import Foundation
+import Combine
 import ImageIO
 import SwiftData
 import SwiftUI
@@ -20,13 +20,13 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     var activeCategoryFilter: String = "All"
     var isSelectionMode: Bool = false
     var selectedScans: Set<String> = []
-    
+
     var sortOption: ScanSortOption = .newest {
         didSet { 
             if oldValue != sortOption { applySort() }
         }
     }
-    
+
     var collectionSortOption: ScanSortOption = .newest
     
     var collections: [ScanCollection] = []
@@ -45,14 +45,19 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     
     // MARK: - Static Bounds
     let maxBatchSelectionLimit = 20
-    
+
+    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+
     init() {
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("ScanRequiresSearchIndexUpdate"), object: nil, queue: .main) { [weak self] notification in
-            guard let scanId = notification.userInfo?["scanId"] as? String else { return }
-            Task { @MainActor [weak self] in
-                self?.forceReindex(scanId: scanId)
+        NotificationCenter.default.publisher(for: NSNotification.Name("ScanRequiresSearchIndexUpdate"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                guard let scanId = notification.userInfo?["scanId"] as? String else { return }
+                Task { @MainActor [weak self] in
+                    self?.forceReindex(scanId: scanId)
+                }
             }
-        }
+            .store(in: &cancellables)
     }
     
     // MARK: - Data Ingestion

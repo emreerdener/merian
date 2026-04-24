@@ -12,8 +12,8 @@ struct CropSheetModifier: ViewModifier {
                     initialScale: identItem.lastCropScale,
                     initialOffset: identItem.lastCropOffset,
                     onCrop: { croppedData, finalScale, finalOffset, displaySize in
-                        if let editIndex = viewModel.editingCropIndex,
-                           editIndex < viewModel.stagedCapture.images.count {
+                        let targetId = identItem.id
+                        if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
 
                             let existing = viewModel.stagedCapture.images[editIndex]
 
@@ -45,8 +45,8 @@ struct CropSheetModifier: ViewModifier {
                             // Runs off the main thread; display data updates asynchronously
                             // before the user can tap Submit.
                             let capturedDisplayData = existing.displayData
-                            let capturedIndex = editIndex
-                            Task {
+                            viewModel.activeCropTask?.cancel()
+                            viewModel.activeCropTask = Task {
                                 let displayCropped = await Task.detached {
                                     let src: UIImage? = autoreleasepool {
                                         guard let cgImage = ImageDownsampler.downsample(data: capturedDisplayData, maxSize: 2048) else { return nil }
@@ -64,10 +64,10 @@ struct CropSheetModifier: ViewModifier {
                                         maxPixelSize: nil
                                     )
                                 }.value
-                                guard !displayCropped.isEmpty,
-                                      capturedIndex < viewModel.stagedCapture.images.count else { return }
-                                let current = viewModel.stagedCapture.images[capturedIndex]
-                                viewModel.stagedCapture.images[capturedIndex] = StagedImage(
+                                guard !Task.isCancelled, !displayCropped.isEmpty,
+                                      let resolvedIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) else { return }
+                                let current = viewModel.stagedCapture.images[resolvedIndex]
+                                viewModel.stagedCapture.images[resolvedIndex] = StagedImage(
                                     compressedData: current.compressedData,
                                     displayData: displayCropped,
                                     uiImage: current.uiImage,
@@ -83,8 +83,9 @@ struct CropSheetModifier: ViewModifier {
                         viewModel.imageToCrop = nil
                     },
                     onDelete: {
-                        if let editIndex = viewModel.editingCropIndex,
-                           editIndex < viewModel.stagedCapture.images.count {
+                        let targetId = identItem.id
+                        viewModel.activeCropTask?.cancel()
+                        if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
                             viewModel.stagedCapture.images.remove(at: editIndex)
                         }
                         viewModel.editingCropIndex = nil

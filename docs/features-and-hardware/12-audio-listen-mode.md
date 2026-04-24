@@ -1,6 +1,6 @@
 # Audio Listen Mode — Bioacoustic Capture Pipeline
 
-The Audio page is the second page of `CaptureWorkspaceView`'s horizontal pager. It records a 15-second ambient audio clip, runs a live spectrogram and SNR analysis on-device in real time, and submits the clip for bioacoustic species identification via the `audio_spec` Supabase Edge Function.
+The Audio page is the second page of `CaptureWorkspaceView`'s horizontal pager. It records a 15-second ambient audio clip, runs a live spectrogram and SNR analysis on-device in real time, and submits the clip for bioacoustic species identification via the unified `/identify-multimodal` Supabase Edge Function.
 
 ---
 
@@ -107,11 +107,12 @@ recordingTask = Task { 100 ticks × 0.15 s → finishRecording() }
 
 **Re-entry guard**: `isStartingRecording` is set to `true` before the first `await` (permission request) and cleared in `defer`. This prevents a second `startRecording()` call from slipping through the `!isRecording` guard during the async setup window — the condition that triggered the `nullptr == Tap()` AVAudioEngine crash.
 
-**WAV file format**: The recording uses an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate:, channels:, interleaved: true)` to write canonical Int16 PCM WAV (`audioFormat = 1`). Writing with the hardware's native `fmt.settings` may produce WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`) — a variant the `audio_spec/wav.ts` parser does not handle — causing 400 errors on submission. `AVAudioFile` converts Float32→Int16 automatically on each write.
+**WAV file format**: The recording uses an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate:, channels:, interleaved: true)` to write canonical Int16 PCM WAV (`audioFormat = 1`). Writing with the hardware's native `fmt.settings` may produce WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`) — a variant the edge audio parsers do not handle — causing 400 errors on submission. `AVAudioFile` converts Float32→Int16 automatically on each write.
 
 **Buffer tap (per 4096-frame buffer ≈ 85 ms)**:
 1. `file.write(from: buffer)` — synchronous PCM write to `AVAudioFile` on the audio thread.
-2. `Task.detached { await actor.process(buffer:) → snrLevel → Task { @MainActor [weak self] in update UI } }` — DSP is actor-isolated; spawning detached prevents the audio thread from blocking on actor hops.
+2. `copyPCMBuffer(buffer)` copies the tap-owned PCM data synchronously, then yields it into a bounded `AsyncStream(bufferingNewest: 2)` so reused engine buffers never cross the async boundary.
+3. A detached DSP consumer drains that bounded stream, calls `SpectrogramActor.process(buffer:)`, derives the SNR level, and hops back to `@MainActor` only for the small UI update.
 
 The `[weak manager]` capture in the inner `@MainActor` task breaks the retain cycle: `AudioCaptureManager → audioEngine → inputNode → tap closure → manager`.
 
@@ -156,7 +157,7 @@ startRecording() → [recording] ───────────────�
 
 ### File Format
 
-Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` as **Int16 PCM WAV** (`audioFormat = 1`, interleaved) using an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: fmt.sampleRate, channels: fmt.channelCount, interleaved: true)`. The hardware's native Float32 format may produce WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`), which `audio_spec/wav.ts` does not support and returns 400. `AVAudioFile` performs the Float32→Int16 conversion automatically per write. `OfflineQueueManager.enqueueAudio` moves the file from `tmp/` to `URL.documentsDirectory` for persistence.
+Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` as **Int16 PCM WAV** (`audioFormat = 1`, interleaved) using an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: fmt.sampleRate, channels: fmt.channelCount, interleaved: true)`. The hardware's native Float32 format may produce WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`), which the edge audio parsers do not support and returns 400. `AVAudioFile` performs the Float32→Int16 conversion automatically per write. `OfflineQueueManager.enqueueAudio` moves the file from `tmp/` to `URL.documentsDirectory` for persistence.
 
 ---
 
@@ -201,7 +202,7 @@ updateUnsyncedItemCount()
 AppTelemetry.trackOfflineQueued()
 ```
 
-Audio-only `.staged` records are **skipped** by `replayInferenceStagedScans` via a `guard scan.audioFilePath == nil else { continue }` guard at the top of the dispatch loop. Without this guard, the existing image/describe replay pipeline would attempt to call the inference endpoint with empty `localImagePaths` and no `observationContextJSON`, producing a 400 error and eventually tombstoning the record. When `audio_spec` ships, a dedicated dispatch path in `replayInferenceStagedScans` will handle these records.
+Audio-only `.staged` records are replayed through the dedicated audio branch in `dispatchInferenceDownloadTask`. That branch calls `MerianNetworkClient.buildMultiModalRequest(...)`, reads the WAV from `Documents/`, base64-encodes it off the main actor, and sends it as `audioBase64s` to `/identify-multimodal`. The two-phase R2 audio path remains future work, not a prerequisite for replay.
 
 **Cleanup on delete**: Audio files stored in `Documents/` should be cleaned up when the `OfflineQueuedScan` is deleted. `deleteQueuedScan(scanId:)` iterates `scan.localImagePaths` for image cleanup; audio file cleanup should be added to that path when the full pipeline is wired.
 
@@ -211,12 +212,12 @@ Audio-only `.staged` records are **skipped** by `replayInferenceStagedScans` via
 
 **File**: `merian/Core/AI/InferenceEngine+Audio.swift`
 
-Stub ready for the `audio_spec` edge function. When the endpoint is live, this function will:
-1. Upload `Documents/<uuid>.wav` to Cloudflare R2 staging.
-2. Call the `audio_spec` Supabase Edge Function with the R2 key.
-3. Parse the `EdgeResponse` and call `InferenceProcessingActor.shared.parseAndSave`.
+`InferenceEngine.analyzeAudio(...)` is live. It mirrors the other scan entry points:
+1. Calls `OfflineQueueManager.enqueueAudio(...)` first so the WAV is durable in `Documents/`.
+2. Calls `MerianNetworkClient.identifyMultiModal(audioFilePaths:[...])`, which reads the WAV and sends it as `audioBase64s` to `/identify-multimodal`.
+3. Parses the JSON response and routes through `InferenceProcessingActor.shared.parseAndSave(...)`.
 
-Until then, `submitAudio` routes all submissions through `enqueueAudio` and this function is never called.
+Replay uses the same endpoint and payload shape through the offline queue’s dedicated audio branch.
 
 ---
 
@@ -369,53 +370,22 @@ The camera session is **not** started when the user is on `.audio` (camera is st
 
 ---
 
-## 12. `audio_spec` — Supabase Edge Function
+## 12. Audio Inference Backend
 
-**Files**: `supabase/functions/audio-spec/index.ts`, `db.ts`, `types.ts`, `wav.ts`
+**Primary endpoint**: `supabase/functions/identify-multimodal/index.ts`
 
-Follows the strict 3-file + helpers modular architecture defined in `docs/system-architecture/06-edge-modularization.md`.
+The active audio pipeline now routes through `/identify-multimodal`, not a standalone `/audio-spec` endpoint. The handler:
 
-### WAV Processing Pipeline (`wav.ts`)
+1. Accepts inline `audioBase64s` from both the live path and offline replay.
+2. Runs `processWAV(...)` to normalise the clip to mono 16 kHz WAV before Gemini ingestion.
+3. Chooses `BIOACOUSTIC_SYSTEM_INSTRUCTION` for audio-only requests or `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` when audio and images are combined.
+4. Reuses the same `_shared/identify` DB, threshold, and moderation primitives as the image pipeline.
 
-Before Gemini ingestion, the raw `AVAudioEngine` recording is normalised to mono 16 kHz 16-bit PCM:
-
-```
-R2 download (staging/{userId}/uuid.wav)
-    ↓ parseWavHeader()          — reads RIFF/WAVE header; supports PCM int16 (format=1) and IEEE float32 (format=3)
-    ↓ extractSamplesAsFloat32() — normalises samples to −1.0…+1.0 Float32
-    ↓ mixToMono()               — averages channels if stereo
-    ↓ trimSilence()             — 20 ms RMS windows, −42 dBFS threshold, 2-window pad
-    ↓ resampleLinear()          — 48 kHz → 16 kHz linear interpolation (~3× size reduction)
-    ↓ encodeWav16()             — 44-byte header + Int16 PCM WAV
-    ↓ encodeBase64()            — for Gemini inlineData
-```
-
-### Gemini Audio Call
-
-Uses `gemini-2.5-flash` with `inlineData: { mimeType: "audio/wav", data: base64Audio }` for bioacoustic species identification. Response schema matches `AudioIdentification` (no `image_quality` field; `life_stage` defaults to `"unknown"` in the DB insert).
-
-**Confidence threshold**: same `DIAGNOSTIC_TRIGGER = 0.95` as `identify`. Candidates are forwarded to the iOS client when `confidence_score < 0.95`.
-
-### Response Contract
-
-The `AudioClientPayload` type in `audio-spec/types.ts` is field-name compatible with the existing Swift `EdgeResponse` struct in `InferenceEdgeDTOs.swift` — the iOS client can decode audio-spec responses without changes.
-
-### Post-Identification Background Tasks (mirrors `identify`)
-
-1. `upsertGhostUserIfMissing` — ensures users FK constraint for scan insert
-2. Species cache hit/miss — `fetchCachedSpecies` → taxonomy enrichment via `fetchExternalEnrichment` on miss
-3. `insertScan` — upsert with `ignoreDuplicates: true` for idempotency; `image_storage_urls: []`, `blur_score: null`, `image_quality_score: null` for audio scans
-4. **R2 staging cleanup** — deletes `staging/{userId}/uuid.wav` after successful scan insert (fire-and-forget)
-5. Group tags Flash call — same as `identify`
-6. PostHog `AudioScanCompleted` event
-
-### IDOR Guard
-
-`audio_r2_key` must start with `staging/{user.id}/` — verified before the R2 download. Violations are logged via `logStructuredError("audio_spec/idor_attempt")` and return 403.
+For audio-only scans, `insertScan` persists `image_storage_urls: []` and the same scan metadata contract used elsewhere. There is no shipped `audio_r2_key` path in the current client contract.
 
 ### Error Status Semantics
 
-Mirrors `identify`: Gemini API failures → 503 (transient, iOS offline queue retries); malformed JSON → 422 (permanent, tombstone after `maxUploadRetries`); IDOR/bad params → 400/403.
+Mirrors the other inference endpoints: Gemini API failures → 503 (transient, iOS offline queue retries); malformed JSON → 422 (permanent, tombstone after `maxUploadRetries`); malformed audio payloads → 400.
 
 ---
 
@@ -423,11 +393,9 @@ Mirrors `identify`: Gemini API failures → 503 (transient, iOS offline queue re
 
 | Item | Status |
 |---|---|
-| `audio_spec` Supabase Edge Function | **Complete** — deploy via `supabase functions deploy audio-spec` |
-| `InferenceEngine.analyzeAudio` live path | **Complete** — in `InferenceEngine.swift`, mirrors `analyzeDescribe` |
-| iOS audio request via `audio_base64` inline | **Complete** — `MerianNetworkClient.buildAudioRequest` / `identifyAudio` |
-| `audio_spec` accepts `audio_base64` or `audio_r2_key` | **Complete** — inline base64 path in `index.ts` |
-| `deleteQueuedScan` audio file cleanup | **Complete** — cleans Documents WAV on delete |
-| `purgeSoftDeletedRecords` audio file cleanup | **Complete** — cleans Documents WAV on purge |
-| `replayInferenceStagedScans` audio dispatch path | **Complete** — routes via `buildAudioRequest` through `dispatchInferenceDownloadTask` |
-| Unit tests | **Complete** — `OfflineQueueManagerAudioTests.swift` (5 tests) |
+| `/identify-multimodal` audio path | **Complete** — live and replay audio route here |
+| `InferenceEngine.analyzeAudio` live path | **Complete** — in `InferenceEngine.swift` |
+| iOS audio request via inline `audioBase64s` | **Complete** — `MerianNetworkClient.buildMultiModalRequest` |
+| Offline replay audio dispatch path | **Complete** — dedicated audio branch in `dispatchInferenceDownloadTask` |
+| Two-phase R2 audio upload (`audio_r2_key`) | **Deferred** — documented in `07-background-inference-body-safe.md` as future work |
+| `deleteQueuedScan` / purge audio cleanup | **Complete** — cleans Documents WAV on delete/purge |

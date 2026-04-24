@@ -5,10 +5,15 @@ import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 import { requireParams } from "../_shared/http.ts";
+import {
+  CachedSpeciesRow,
+  ClientPayload,
+  MerianIdentification,
+  StaticSpeciesData,
+} from "../_shared/identify/types.ts";
 import { sanitizeScientificName } from "../identify/sanitize.ts";
 
-import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "../identify/types.ts";
-import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
+import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import { getDescribeSystemInstruction, getDescribeResponseSchema } from "./schema.ts";
 import {
   upsertGhostUserIfMissing,
@@ -28,6 +33,23 @@ const VALID_REPRODUCTIVE_CONDITIONS = new Set([
   "flowering", "fruiting", "budding", "vegetative", "sporing",
   "pregnant", "gravid", "mating", "spawning", "nesting", "dormant", "not_applicable",
 ]);
+
+function normalizeCurrentMonth(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const month = Math.trunc(value);
+    return month >= 1 && month <= 12 ? month : undefined;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{1,2}$/.test(trimmed)) {
+      const month = Number(trimmed);
+      return month >= 1 && month <= 12 ? month : undefined;
+    }
+  }
+
+  return undefined;
+}
 
 // Text-only model configs — no image parts, so thinking budgets are smaller.
 // Flash text calls for describes are less ambiguous than vision (the user already
@@ -128,6 +150,7 @@ serve((req: Request) =>
       client_scan_id,
       observation_context,
     } = body;
+    const normalizedCurrentMonth = normalizeCurrentMonth(currentMonth);
 
     if (typeof description !== "string" || description.trim().length === 0) {
       return jsonResponse({ error: "description must be a non-empty string." }, 400);
@@ -151,7 +174,7 @@ serve((req: Request) =>
     const promptText = buildObservationPrompt(description, {
       safeGpsLat, safeGpsLon, gpsElevation, semanticLocation,
       weatherCondition, weatherTemperatureF, deviceLocale,
-      deviceTimeZone, deviceRegion, currentMonth, timeOfDay,
+      deviceTimeZone, deviceRegion, currentMonth: normalizedCurrentMonth, timeOfDay,
     });
 
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
@@ -434,7 +457,7 @@ serve((req: Request) =>
             weather_temperature_f: weatherTemperatureF,
             semantic_location: semanticLocation,
             device_locale: deviceLocale,
-            current_month: currentMonth,
+            current_month: normalizedCurrentMonth ?? null,
             time_of_day: timeOfDay,
             ai_reasoning: parsedData.ai_reasoning ?? null,
             extracted_visual_traits: parsedData.extracted_visual_traits ?? [],

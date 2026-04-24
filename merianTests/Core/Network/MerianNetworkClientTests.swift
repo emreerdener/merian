@@ -310,6 +310,70 @@ struct MerianNetworkClientTests {
         #expect(matched == false, "Chain-walk must reject when no cert in the chain is pinned")
     }
 
+    // MARK: - buildMultiModalRequestBody
+
+    @Test func multimodalRequestBodyUsesActiveCamelCaseTelemetryContract() throws {
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: 1.3,
+            gpsLatitude: 37.7749,
+            gpsLongitude: -122.4194,
+            gpsElevation: 42.5,
+            locationName: "Zilker Park",
+            weatherCondition: "Partly Cloudy",
+            weatherTemperatureF: 68.0,
+            timeOfDay: nil,
+            timestamp: "2026-04-24T10:30:00.000Z",
+            zoomFactor: 2.0,
+            estimatedSizeCm: 11.5
+        )
+
+        let observationContextJSON = """
+        {"freeText":"Heard rustling before spotting it","addedAt":"2026-04-24T10:29:30.000Z"}
+        """
+
+        let bodyData = try MerianNetworkClient.buildMultiModalRequestBody(
+            r2ObjectKeys: ["staging/test-user/image.webp"],
+            base64ImageDatas: ["ZmFrZV9pbWFnZQ=="],
+            audioBase64s: ["ZmFrZV9hdWRpbw=="],
+            observationContextsJSON: [observationContextJSON],
+            userId: "test-user",
+            mimeType: "image/webp",
+            telemetry: telemetry,
+            deviceLocale: "en",
+            deviceTimeZone: "America/Chicago",
+            deviceRegion: "US",
+            currentMonth: 4,
+            timeOfDay: "10:30 AM",
+            depthScaleText: "1.3 meters",
+            clientScanId: "scan-123"
+        )
+
+        let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+
+        #expect(payload["gpsLatitude"] as? Double == 37.7749)
+        #expect(payload["gpsLongitude"] as? Double == -122.4194)
+        #expect(payload["gpsElevation"] as? Double == 42.5)
+        #expect(payload["semanticLocation"] as? String == "Zilker Park")
+        #expect(payload["weatherCondition"] as? String == "Partly Cloudy")
+        #expect(payload["deviceLocale"] as? String == "en")
+        #expect(payload["deviceTimeZone"] as? String == "America/Chicago")
+        #expect(payload["deviceRegion"] as? String == "US")
+        #expect(payload["currentMonth"] as? Int == 4)
+        #expect(payload["timeOfDay"] as? String == "10:30 AM")
+        #expect(payload["depthScaleText"] as? String == "1.3 meters")
+        #expect(payload["zoomFactor"] as? Double == 2.0)
+        #expect(payload["estimated_size_cm"] as? Double == 11.5)
+        #expect(payload["client_scan_id"] as? String == "scan-123")
+        #expect(payload["gps_latitude"] == nil)
+        #expect(payload["semantic_location"] == nil)
+
+        let contexts = try #require(payload["observation_contexts"] as? [[String: Any]])
+        #expect(contexts.count == 1)
+        #expect(contexts[0]["freeText"] as? String == "Heard rustling before spotting it")
+        #expect(contexts[0]["addedAt"] as? String == "2026-04-24T10:29:30.000Z")
+        #expect(contexts[0]["free_text"] == nil)
+    }
+
     // MARK: - validateMultiModalPayloadBudget
 
     @Test func budgetValidationPassesWhenUnderLimit() throws {

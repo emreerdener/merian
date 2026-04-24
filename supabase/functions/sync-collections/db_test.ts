@@ -7,16 +7,24 @@
 //
 // These tests mock the SupabaseClient interface to avoid live DB access.
 
-import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { syncMembershipDelta } from "./db.ts";
-import type { SyncCollectionPayload, MembershipRow } from "./types.ts";
+import {
+  assertEquals,
+  assertRejects,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  syncMembershipDelta,
+  upsertCollectionsAndFetchMemberships,
+} from "./db.ts";
+import type { MembershipRow, SyncCollectionPayload } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Minimal SupabaseClient mock helpers
 // ---------------------------------------------------------------------------
 
 /** Creates a PostgREST chain mock that resolves to the given result. */
-function makeChain(result: { data?: unknown; error?: { message: string } | null }) {
+function makeChain(
+  result: { data?: unknown; error?: { message: string } | null },
+) {
   const chain = {
     from: (_table: string) => chain,
     select: (..._args: unknown[]) => chain,
@@ -25,7 +33,8 @@ function makeChain(result: { data?: unknown; error?: { message: string } | null 
     delete: () => chain,
     upsert: (..._args: unknown[]) => chain,
     returns: (..._args: unknown[]) => Promise.resolve(result),
-    then: (resolve: (v: typeof result) => unknown) => Promise.resolve(result).then(resolve),
+    then: (resolve: (v: typeof result) => unknown) =>
+      Promise.resolve(result).then(resolve),
   };
   // Make the chain itself awaitable by adding a then method at the top level
   return {
@@ -37,7 +46,9 @@ function makeChain(result: { data?: unknown; error?: { message: string } | null 
 type MockChain = ReturnType<typeof makeChain>;
 
 /** Builds a minimal SupabaseClient mock. All query chains resolve using `defaultResult`. */
-function makeMockClient(defaultResult: { data?: unknown; error?: { message: string } | null }): {
+function makeMockClient(
+  defaultResult: { data?: unknown; error?: { message: string } | null },
+): {
   from: (table: string) => MockChain;
 } {
   return {
@@ -66,10 +77,11 @@ Deno.test("syncMembershipDelta throws when scan validation DB query fails", asyn
     from: (_table: string) => ({
       select: (..._args: unknown[]) => ({
         in: (..._args: unknown[]) => ({
-          returns: (..._args: unknown[]) => Promise.resolve({
-            data: null,
-            error: { message: "relation 'scans' does not exist" },
-          }),
+          returns: (..._args: unknown[]) =>
+            Promise.resolve({
+              data: null,
+              error: { message: "relation 'scans' does not exist" },
+            }),
         }),
       }),
       delete: () => ({
@@ -82,13 +94,14 @@ Deno.test("syncMembershipDelta throws when scan validation DB query fails", asyn
   const existingMemberships: MembershipRow[] = [];
 
   await assertRejects(
-    () => syncMembershipDelta(
-      [collection],
-      existingMemberships,
-      [collection.id],
-      // deno-lint-ignore no-explicit-any
-      errorClient as any,
-    ),
+    () =>
+      syncMembershipDelta(
+        [collection],
+        existingMemberships,
+        [collection.id],
+        // deno-lint-ignore no-explicit-any
+        errorClient as any,
+      ),
     Error,
     "Scan validation DB error",
     "syncMembershipDelta must throw — not swallow — scan validation failures",
@@ -108,7 +121,7 @@ Deno.test("syncMembershipDelta throws when a membership delete operation is reje
     name: "Collection to remove from",
     created_at: new Date().toISOString(),
     is_deleted: false,
-    scan_ids: [],  // desired: no scans
+    scan_ids: [], // desired: no scans
   };
 
   // Existing memberships has one entry that needs to be removed
@@ -124,9 +137,10 @@ Deno.test("syncMembershipDelta throws when a membership delete operation is reje
       }),
       delete: () => ({
         eq: (_col: string, _val: string) => ({
-          in: (_col: string, _vals: string[]) => Promise.resolve({
-            error: { message: "RLS policy denied delete" },
-          }),
+          in: (_col: string, _vals: string[]) =>
+            Promise.resolve({
+              error: { message: "RLS policy denied delete" },
+            }),
         }),
       }),
       upsert: (..._args: unknown[]) => Promise.resolve({ error: null }),
@@ -134,15 +148,16 @@ Deno.test("syncMembershipDelta throws when a membership delete operation is reje
   };
 
   await assertRejects(
-    () => syncMembershipDelta(
-      [collection],
-      existingMemberships,
-      [collectionId],
-      // deno-lint-ignore no-explicit-any
-      rejectClient as any,
-    ),
+    () =>
+      syncMembershipDelta(
+        [collection],
+        existingMemberships,
+        [collectionId],
+        // deno-lint-ignore no-explicit-any
+        rejectClient as any,
+      ),
     Error,
-    "Membership delta failed",
+    "Membership delete failed",
     "syncMembershipDelta must surface membership operation DB errors to the caller",
   );
 });
@@ -166,7 +181,11 @@ Deno.test("syncMembershipDelta resolves without throwing on success", async () =
 
   // Should not throw
   await syncMembershipDelta([collection], [], [collection.id], successClient);
-  assertEquals(true, true, "syncMembershipDelta must resolve cleanly when all operations succeed");
+  assertEquals(
+    true,
+    true,
+    "syncMembershipDelta must resolve cleanly when all operations succeed",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -183,5 +202,90 @@ Deno.test("syncMembershipDelta returns early when ownedIds is empty", async () =
 
   // deno-lint-ignore no-explicit-any
   await syncMembershipDelta([], [], [], neverCalledClient as any);
-  assertEquals(true, true, "syncMembershipDelta must return early for empty ownedIds without any DB access");
+  assertEquals(
+    true,
+    true,
+    "syncMembershipDelta must return early for empty ownedIds without any DB access",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// upsertCollectionsAndFetchMemberships — paginated membership fetch
+// ---------------------------------------------------------------------------
+
+Deno.test("upsertCollectionsAndFetchMemberships paginates memberships per collection", async () => {
+  const collectionId = crypto.randomUUID();
+  const rangesRequested: Array<[number, number]> = [];
+  let upsertCallCount = 0;
+
+  const client = {
+    from: (table: string) => {
+      if (table === "collections") {
+        return {
+          upsert: (..._args: unknown[]) => {
+            upsertCallCount += 1;
+            return Promise.resolve({ error: null });
+          },
+        };
+      }
+
+      if (table === "collection_scans") {
+        return {
+          select: (..._args: unknown[]) => ({
+            eq: (_column: string, value: string) => ({
+              order: (..._orderArgs: unknown[]) => ({
+                range: (from: number, to: number) => ({
+                  returns: (..._rangeArgs: unknown[]) => {
+                    rangesRequested.push([from, to]);
+                    if (value !== collectionId) {
+                      return Promise.resolve({ data: [], error: null });
+                    }
+                    if (from === 0) {
+                      return Promise.resolve({
+                        data: Array.from({ length: 1000 }, (_, index) => ({
+                          collection_id: collectionId,
+                          scan_id: `scan-${index}`,
+                        })),
+                        error: null,
+                      });
+                    }
+                    if (from === 1000) {
+                      return Promise.resolve({
+                        data: [{
+                          collection_id: collectionId,
+                          scan_id: "scan-1000",
+                        }],
+                        error: null,
+                      });
+                    }
+                    return Promise.resolve({ data: [], error: null });
+                  },
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+
+  const memberships = await upsertCollectionsAndFetchMemberships(
+    "user-1",
+    [{
+      id: collectionId,
+      name: "Paged Collection",
+      created_at: new Date().toISOString(),
+      is_deleted: false,
+      scan_ids: [],
+    }],
+    [collectionId],
+    // deno-lint-ignore no-explicit-any
+    client as any,
+  );
+
+  assertEquals(upsertCallCount, 1);
+  assertEquals(memberships.length, 1001);
+  assertEquals(rangesRequested, [[0, 999], [1000, 1999]]);
 });

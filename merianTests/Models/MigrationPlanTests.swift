@@ -182,21 +182,21 @@ struct MigrationPlanTests {
 
     @Test func testFullMigrationV38ToV40() throws {
         // Guard against stale backfill data from a prior test in the same process.
-        MerianMigrationPlan._v38LocalAudioBackfill = [:]
-        MerianMigrationPlan._v38LocalContextBackfill = [:]
-        MerianMigrationPlan._v38OfflineAudioBackfill = [:]
-        MerianMigrationPlan._v38OfflineContextBackfill = [:]
-        MerianMigrationPlan._v38LocalAdditionalImagesBackfill = [:]
-        MerianMigrationPlan._v38LocalSemanticTagsBackfill = [:]
-        MerianMigrationPlan._v38OfflineLocalImagesBackfill = [:]
+        MerianMigrationPlan._v38LocalAudioBackfill.removeAll()
+        MerianMigrationPlan._v38LocalContextBackfill.removeAll()
+        MerianMigrationPlan._v38OfflineAudioBackfill.removeAll()
+        MerianMigrationPlan._v38OfflineContextBackfill.removeAll()
+        MerianMigrationPlan._v38LocalAdditionalImagesBackfill.removeAll()
+        MerianMigrationPlan._v38LocalSemanticTagsBackfill.removeAll()
+        MerianMigrationPlan._v38OfflineLocalImagesBackfill.removeAll()
         defer {
-            MerianMigrationPlan._v38LocalAudioBackfill = [:]
-            MerianMigrationPlan._v38LocalContextBackfill = [:]
-            MerianMigrationPlan._v38OfflineAudioBackfill = [:]
-            MerianMigrationPlan._v38OfflineContextBackfill = [:]
-            MerianMigrationPlan._v38LocalAdditionalImagesBackfill = [:]
-            MerianMigrationPlan._v38LocalSemanticTagsBackfill = [:]
-            MerianMigrationPlan._v38OfflineLocalImagesBackfill = [:]
+            MerianMigrationPlan._v38LocalAudioBackfill.removeAll()
+            MerianMigrationPlan._v38LocalContextBackfill.removeAll()
+            MerianMigrationPlan._v38OfflineAudioBackfill.removeAll()
+            MerianMigrationPlan._v38OfflineContextBackfill.removeAll()
+            MerianMigrationPlan._v38LocalAdditionalImagesBackfill.removeAll()
+            MerianMigrationPlan._v38LocalSemanticTagsBackfill.removeAll()
+            MerianMigrationPlan._v38OfflineLocalImagesBackfill.removeAll()
         }
 
         let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v38migration_test.sqlite")
@@ -294,10 +294,10 @@ struct MigrationPlanTests {
     @Test func testFullMigrationV39ToV40BackfillsMediaJSON() throws {
         // Ensures cleanup of static state between runs.
         defer {
-            MerianMigrationPlan._v39LocalMediaBackfill = [:]
-            MerianMigrationPlan._v39OfflineMediaBackfill = [:]
-            MerianMigrationPlan._v39LocalCoverBackfill = [:]
-            MerianMigrationPlan._v39OfflineCoverBackfill = [:]
+            MerianMigrationPlan._v39LocalMediaBackfill.removeAll()
+            MerianMigrationPlan._v39OfflineMediaBackfill.removeAll()
+            MerianMigrationPlan._v39LocalCoverBackfill.removeAll()
+            MerianMigrationPlan._v39OfflineCoverBackfill.removeAll()
         }
 
         let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v39migration_test.sqlite")

@@ -112,6 +112,7 @@ private struct GBIFMedia: Decodable {
     /// Tracks the single async hydration task spawned after a live inference result so it can be
     /// cancelled if the user fires a new scan before Wikipedia/enrichment/GBIF finish.
     @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
+    @ObservationIgnored private var localClassificationTask: Task<Void, Never>?
     @ObservationIgnored private var backgroundWriteTasks = [UUID: Task<Void, Never>]()
     /// Hard cap on concurrent background write tasks. When reached, new submissions are dropped
     /// rather than allowed to stack — prevents OOM during rapid offline-queue replay where
@@ -194,6 +195,7 @@ private struct GBIFMedia: Decodable {
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask?.cancel()
         self.enrichmentWriteTask = nil
+        self.localClassificationTask?.cancel()
         self.phaseRotationTask?.cancel()
         for task in self.backgroundWriteTasks.values { task.cancel() }
         self.backgroundWriteTasks.removeAll()
@@ -247,6 +249,7 @@ private struct GBIFMedia: Decodable {
         self.historicHydrationTask = nil
         self.gbifHydrationTask?.cancel()
         self.enrichmentWriteTask?.cancel()
+        self.localClassificationTask?.cancel()
         self.phaseRotationTask?.cancel()
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
@@ -656,6 +659,7 @@ private struct GBIFMedia: Decodable {
         self.historicHydrationTask = nil
         self.gbifHydrationTask?.cancel()
         self.enrichmentWriteTask?.cancel()
+        self.localClassificationTask?.cancel()
         self.phaseRotationTask?.cancel()
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
@@ -847,7 +851,7 @@ private struct GBIFMedia: Decodable {
 
     // MARK: - Audio Inference
 
-    /// Fires the `audio_spec` edge function for bioacoustic species identification.
+    /// Fires the unified `/identify-multimodal` edge function for bioacoustic species identification.
     ///
     /// Mirrors `analyzeDescribe` structurally. Always called in parallel with
     /// `OfflineQueueManager.enqueueAudio` so the scan is durable on interruption.
@@ -1371,8 +1375,12 @@ private struct GBIFMedia: Decodable {
                             let gbifSnapshot = enrichData.gbif_taxon_key
                             let taxonomySnapshot = enrichData.taxonomy
                             let altNamesSnapshot = enrichData.alternative_common_names
-                            Task {
+                            self.executeTrackedBackgroundTask { [weak self] in
                                 guard !Task.isCancelled else { return }
+                                let shouldPersist = await MainActor.run { [weak self] in
+                                    self?.speciesData?.scanId == capturedScanId
+                                }
+                                guard shouldPersist else { return }
                                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                                 await dbActor.updateScanWithEnrichment(
                                     scanId: capturedScanId,
@@ -1431,7 +1439,12 @@ private struct GBIFMedia: Decodable {
                             if let context = modelContext {
                                 let container = context.container
                                 let entriesToEncode: [SimilarSpeciesEntry]? = mappedEntries
-                                Task {
+                                self.executeTrackedBackgroundTask { [weak self] in
+                                    guard !Task.isCancelled else { return }
+                                    let shouldPersist = await MainActor.run { [weak self] in
+                                        self?.speciesData?.scanId == capturedScanId
+                                    }
+                                    guard shouldPersist else { return }
                                     // Encode off @MainActor — JSONEncoder is CPU-bound.
                                     let encodedLookalikes: Data? = await Task.detached(priority: .utility) {
                                         entriesToEncode.flatMap { try? JSONEncoder().encode($0) }
@@ -1820,6 +1833,7 @@ private struct GBIFMedia: Decodable {
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.historicHydrationTask?.cancel()
+        self.localClassificationTask?.cancel()
         self.phaseRotationTask?.cancel()
         for task in self.backgroundWriteTasks.values { task.cancel() }
         self.backgroundWriteTasks.removeAll()
@@ -1891,20 +1905,8 @@ private struct GBIFMedia: Decodable {
         self.activeMedia = ActiveScanMedia()
         
         if let jsonString = record.capturedMediaJSON,
-           let jsonData = jsonString.data(using: .utf8),
-           let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-            
-            self.activeMedia.items = serializedItems.map { serialized in
-                switch serialized {
-                case .image(let path): return .image(path)
-                case .audio(let path):
-                    let docsPath = URL.documentsDirectory.appendingPathComponent(path).path
-                    let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(path).path
-                    let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-                    return .audio(resolvedPath)
-                case .description(let ctx): return .description(ctx)
-                }
-            }
+           let decoded = MediaJSONParser.parse(jsonString: jsonString) {
+            self.activeMedia = decoded
         }
 
         let lookalikesJsonData: Data? = record.lookalikesData
@@ -2095,28 +2097,26 @@ private struct GBIFMedia: Decodable {
 
         HapticManager.shared.triggerLightImpact(intensity: 0.3)
 
-        Task.detached(priority: .userInitiated) { [weak self] in
+        let ownedScanId = activeScanId
+        localClassificationTask?.cancel()
+        localClassificationTask = Task(priority: .userInitiated) { [weak self, ownedScanId] in
             guard let self else { return }
 
-            // Downsample once
-            guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 512) else {
-                return
-            }
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-
-            // ── Pass 1: Broad classification ─────────────────────────────────
-            let classifyReq = VNClassifyImageRequest()
-            autoreleasepool { try? handler.perform([classifyReq]) }
-            let observations = classifyReq.results ?? []
+            let specificPhrases = await Task.detached(priority: .userInitiated) {
+                guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 512) else {
+                    return Self.genericFallbackPhrases
+                }
+                let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+                let classifyReq = VNClassifyImageRequest()
+                autoreleasepool { try? handler.perform([classifyReq]) }
+                let observations = classifyReq.results ?? []
+                return Self.specificPhraseSeries(for: observations) ?? Self.genericFallbackPhrases
+            }.value
 
             guard !Task.isCancelled else { return }
-            
-            let specificPhrases = Self.specificPhraseSeries(for: observations) ?? Self.genericFallbackPhrases
-            
-            await MainActor.run { [weak self] in 
-                guard let self else { return }
-                self.startPhaseRotation(phrases: specificPhrases, startIndex: 0)
-            }
+            guard self.activeScanId == ownedScanId else { return }
+
+            self.startPhaseRotation(phrases: specificPhrases, startIndex: 0)
         }
     }
 

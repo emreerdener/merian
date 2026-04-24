@@ -17,17 +17,22 @@ final class InsightSheetViewModel {
         self.queuedContext = queuedContext
         self.inferenceEngine = inferenceEngine
         if let jsonStr = queuedContext?.capturedMediaJSON {
-            Task.detached(priority: .userInitiated) { [weak self] in
-                let decoded = Self.decodeActiveMedia(from: jsonStr)
-                await MainActor.run {
-                    self?.cachedActiveMedia = decoded
-                }
+            let capturedId = queuedContext?.id
+            mediaDecodeTask?.cancel()
+            mediaDecodeTask = Task { [weak self, capturedId] in
+                let decoded = await Task.detached(priority: .userInitiated) {
+                    MediaJSONParser.parse(jsonString: jsonStr)
+                }.value
+                guard let self, self.queuedContext?.id == capturedId else { return }
+                self.cachedActiveMedia = decoded
             }
         }
     }
 
     /// Wipes all memory-retained states that persist across SwiftUI sheet presentations since `activeSheet == .insight` evaluates to identical IDs natively.
     func reset() {
+        mediaDecodeTask?.cancel()
+        mediaDecodeTask = nil
         state = UIState()
         activeLocalRecord = nil
         queuedContext = nil
@@ -39,6 +44,7 @@ final class InsightSheetViewModel {
     /// Safely decoded exactly once within lifecycle mappings (`init` and `fetchLocalRecord`) to prevent
     /// main-thread thrashing on layout changes where the framework routinely interrogates boundary sizes.
     private var cachedActiveMedia: ActiveScanMedia?
+    private var mediaDecodeTask: Task<Void, Never>?
 
     // MARK: - Interface State
     struct UIState: Equatable {
@@ -135,7 +141,7 @@ final class InsightSheetViewModel {
         if let queued = explicitQueuedScan ?? queuedContext {
             if let cached = cachedActiveMedia { return cached }
             if let jsonStr = queued.capturedMediaJSON,
-               let decoded = Self.decodeActiveMedia(from: jsonStr) {
+               let decoded = MediaJSONParser.parse(jsonString: jsonStr) {
                 return decoded
             }
             return ActiveScanMedia()
@@ -411,13 +417,19 @@ final class InsightSheetViewModel {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
+            cachedActiveMedia = nil
             if let jsonStr = record.capturedMediaJSON {
-                Task.detached(priority: .userInitiated) { [weak self] in
-                    let decoded = Self.decodeActiveMedia(from: jsonStr)
-                    await MainActor.run {
-                        self?.cachedActiveMedia = decoded
-                    }
+                mediaDecodeTask?.cancel()
+                mediaDecodeTask = Task { [weak self, scanId] in
+                    let decoded = await Task.detached(priority: .userInitiated) {
+                        MediaJSONParser.parse(jsonString: jsonStr)
+                    }.value
+                    guard let self, self.activeLocalRecord?.id == scanId else { return }
+                    self.cachedActiveMedia = decoded
                 }
+            } else {
+                mediaDecodeTask?.cancel()
+                mediaDecodeTask = nil
             }
             markRecordViewedIfAppropriate(modelContext: modelContext)
         }
@@ -462,30 +474,4 @@ final class InsightSheetViewModel {
         HapticManager.shared.triggerSelectionPulse()
     }
 
-    // MARK: - Media Resolution Pipeline
-
-    /// Single unified pipeline to decode and validate `ActiveScanMedia` from a stored JSON string.
-    nonisolated static func decodeActiveMedia(from jsonStr: String) -> ActiveScanMedia? {
-        guard let jsonData = jsonStr.data(using: .utf8),
-              let serializedItems = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) else {
-            return nil
-        }
-        var items: [MediaItem] = []
-        for serialized in serializedItems {
-            switch serialized {
-            case .image(let path):
-                items.append(.image(path))
-            case .audio(let path):
-                // Prefer the persistent Documents directory copy. Fall back to temp directory only if missing.
-                // (Files should be natively migrated to Documents via FileIOActor during scan completion).
-                let docsPath = URL.documentsDirectory.appendingPathComponent(path).path
-                let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(path).path
-                let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-                items.append(.audio(resolvedPath))
-            case .description(let ctx):
-                items.append(.description(ctx))
-            }
-        }
-        return ActiveScanMedia(items: items)
-    }
 }

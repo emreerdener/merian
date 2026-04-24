@@ -1,5 +1,5 @@
 import { SafetyRating, Part, HarmCategory, HarmBlockThreshold } from "https://esm.sh/@google/genai@1.0.0";
-import { evaluateAndProcessPayload } from "./moderation.ts";
+import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
@@ -9,10 +9,10 @@ import { getTierForUser } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 
-import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "./types.ts";
-import { getSystemInstruction, getMerianResponseSchema } from "./schema.ts";
-import { FLASH_DIAGNOSTIC_TRIGGER, PRO_DIAGNOSTIC_TRIGGER, diagnosticTriggerForTier } from "./thresholds.ts";
-import { resolveImagePayloads } from "./media.ts";
+import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "../_shared/identify/types.ts";
+import { getSystemInstruction, getMerianResponseSchema } from "../_shared/identify/schema.ts";
+import { FLASH_DIAGNOSTIC_TRIGGER, PRO_DIAGNOSTIC_TRIGGER, diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
+import { resolveImagePayloads } from "../_shared/identify/media.ts";
 import { sanitizeScientificName } from "./sanitize.ts";
 import {
   upsertGhostUserIfMissing,
@@ -21,7 +21,8 @@ import {
   upsertSpeciesDictionary,
   insertScan,
   updateGroupTags,
-} from "./db.ts";
+} from "../_shared/identify/db.ts";
+import { hydratePayloadFromCachedSpecies } from "../_shared/identify/clientPayload.ts";
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
@@ -100,6 +101,23 @@ const VALID_REPRODUCTIVE_CONDITIONS = new Set([
   "pregnant", "gravid", "mating", "spawning", "nesting", "dormant", "not_applicable",
 ]);
 
+function normalizeCurrentMonth(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const month = Math.trunc(value);
+    return month >= 1 && month <= 12 ? month : undefined;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{1,2}$/.test(trimmed)) {
+      const month = Number(trimmed);
+      return month >= 1 && month <= 12 ? month : undefined;
+    }
+  }
+
+  return undefined;
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
@@ -131,6 +149,7 @@ serve((req: Request) =>
       description,
       observation_context,
     } = body;
+    const normalizedCurrentMonth = normalizeCurrentMonth(currentMonth);
 
     // Range-validate GPS coordinates — out-of-bounds values from a corrupted or
     // tampered payload are sanitised to null rather than rejecting the scan.
@@ -220,7 +239,7 @@ serve((req: Request) =>
       // Region (e.g. "US") adds country-level signal. Both require zero permissions.
       deviceTimeZone ? `TZ:${deviceTimeZone}` : null,
       deviceRegion ? `Region:${deviceRegion}` : null,
-      currentMonth ? `Month:${currentMonth}` : null,
+      normalizedCurrentMonth != null ? `Month:${normalizedCurrentMonth}` : null,
       timeOfDay ? `Time:${timeOfDay}` : null,
     ].filter(Boolean);
 
@@ -429,7 +448,7 @@ serve((req: Request) =>
       typeof client_scan_id === "string" && client_scan_id.length > 0
         ? client_scan_id
         : crypto.randomUUID();
-    const payloadReadyForClient: ClientPayload = {
+    let payloadReadyForClient: ClientPayload = {
       ...parsedData,
       scan_id: generatedScanId,
       inference_tier: userTier === "pro" ? "pro" : "flash",
@@ -489,75 +508,28 @@ serve((req: Request) =>
     if (isIdentifiedBio) {
       cachedSpecies = fetchedCachedSpecies;
 
-      let staticData: StaticSpeciesData = { hazard_type: "none" };
-
       if (cachedSpecies?.kingdom) {
         console.log(`Cache Hit: Generating payload from DB for ${parsedData.scientific_name}`);
-        staticData = {
-          taxonomy: {
-            kingdom: cachedSpecies.kingdom ?? "Unknown",
-            phylum: cachedSpecies.phylum ?? "Unknown",
-            class: cachedSpecies.class ?? "Unknown",
-            order: cachedSpecies.order ?? "Unknown",
-            family: cachedSpecies.family ?? "Unknown",
-            genus: cachedSpecies.genus ?? "Unknown",
-          },
-          iucn_red_list_status: cachedSpecies.iucn_red_list_status ?? "not_evaluated",
-          hazard_type: cachedSpecies.hazard_type || "none",
-          speciesHabitat: cachedSpecies.habitat_description ?? undefined,
-        };
         speciesId = cachedSpecies.id;
-        // On a cache hit, use the stored canonical English name so all scans of the same
-        // species display consistently — Gaillardia pulchella is always "Blanket Flower",
-        // not whichever synonym Gemini happened to prefer on this call. Fall back to the
-        // vision model's name only if no English entry exists yet (first cache miss that
-        // raced a concurrent scan and won the upsert before enrichment completed).
-        if (cachedSpecies.common_names?.en) {
-          payloadReadyForClient.common_name = cachedSpecies.common_names.en;
-        }
-        // Serve the full synonym list so the iOS client can display "Also known as…"
-        // and allow the user to choose their preferred regional name.
-        if (cachedSpecies.alternative_common_names?.length) {
-          // Strip the primary name from the synonym list in case it was written before
-          // deduplication was enforced at the edge — keeps the client list clean.
-          const primaryEn = (payloadReadyForClient.common_name ?? "").toLowerCase();
-          payloadReadyForClient.alternative_common_names = cachedSpecies.alternative_common_names.filter(
-            (n) => n.toLowerCase() !== primaryEn,
-          );
-        }
-        payloadReadyForClient.reference_image_url = cachedSpecies.reference_image_url;
-        payloadReadyForClient.wikipedia_url = cachedSpecies.wikipedia_url;
-        payloadReadyForClient.wikipedia_overview = cachedSpecies.wikipedia_overview;
-        if (cachedSpecies.group_tags?.length) {
-          payloadReadyForClient.group_tags = cachedSpecies.group_tags;
-        }
-        // gbif_taxon_key is available to all tiers — it is a deterministic REST-sourced
-        // lookup key, not AI-generated.
-        if (cachedSpecies.gbif_taxon_key != null) {
-          payloadReadyForClient.gbif_taxon_key = cachedSpecies.gbif_taxon_key;
-        }
+        payloadReadyForClient = hydratePayloadFromCachedSpecies(
+          {
+            ...payloadReadyForClient,
+            insight_data: {
+              ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
+              hazard_type: "none",
+            },
+          },
+          cachedSpecies,
+        );
       } else {
         // Cache Miss: taxonomy, IUCN, and species insights are not in the vision response.
         // DB enrichment (Flash text + GBIF/Wikipedia upsert) runs in the background task so
         // the next scan of the same species becomes a Cache Hit with full metadata.
         console.log(`Cache Miss: ${parsedData.scientific_name}. Background enrichment queued.`);
-      }
-
-      if (staticData.taxonomy) payloadReadyForClient.taxonomy = staticData.taxonomy;
-      if (staticData.iucn_red_list_status) {
-        payloadReadyForClient.iucn_red_list_status = staticData.iucn_red_list_status;
-      }
-
-      payloadReadyForClient.insight_data = {
-        ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
-        hazard_type: staticData.hazard_type,
-      };
-
-      // Species insights are sourced exclusively from the DB (Cache Hit) — never from the
-      // vision model. Served to all tiers when already stored; otherwise the client
-      // triggers a follow-up enrich-scan call to populate them.
-      if (staticData.speciesHabitat) {
-        payloadReadyForClient.species_insights = { habitat_description: staticData.speciesHabitat };
+        payloadReadyForClient.insight_data = {
+          ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
+          hazard_type: "none",
+        };
       }
     }
 
@@ -694,7 +666,7 @@ serve((req: Request) =>
             weather_temperature_f: weatherTemperatureF,
             semantic_location: semanticLocation,
             device_locale: deviceLocale,
-            current_month: currentMonth,
+            current_month: normalizedCurrentMonth ?? null,
             time_of_day: timeOfDay,
             depth_scale_text: depthScaleText,
             ai_reasoning: parsedData.ai_reasoning ?? null,
@@ -901,4 +873,3 @@ serve((req: Request) =>
     return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
   }),
 );
-

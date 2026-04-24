@@ -1,6 +1,6 @@
 # Safety & Moderation Pipeline
 
-Merian runs all user-submitted media through a two-layer moderation system before persisting any scan to the database. The system operates entirely within the `/identify` background ingestion task — it never blocks the HTTP response.
+Merian runs all user-submitted media through a two-layer moderation system before persisting any scan to the database. The shared implementation lives in `_shared/identify/moderation.ts` and is used by both `/identify` and `/identify-multimodal`. It never blocks the HTTP response.
 
 ## Architecture Overview
 
@@ -8,7 +8,7 @@ Merian runs all user-submitted media through a two-layer moderation system befor
 [Gemini Vision Response]
         │
         ▼
-[evaluateAndProcessPayload]  ← identify/moderation.ts
+[evaluateAndProcessPayload]  ← _shared/identify/moderation.ts
         │
         ├─ UNSAFE (SAFETY finish reason or HIGH/MEDIUM safety rating)
         │       │
@@ -42,7 +42,7 @@ Each unsafe media submission increments `users.abuse_strikes` in the Supabase `u
 | 1–2 | `DELETED_WARNING` | Staging image deleted, scan not persisted, no user-facing message |
 | 3+ | `SHADOWBANNED` | Same as above, plus `users.is_shadowbanned = true` |
 
-The strike counter is read and written via the Supabase service role in `moderation.ts`. The read uses `.select("abuse_strikes").eq("id", userId).single()` — if this query fails (e.g. `PGRST116` — no row found), the failure is logged but does not abort the strike write.
+The strike counter is read and written via the Supabase service role in `_shared/identify/moderation.ts`. The read uses `.select("abuse_strikes").eq("id", userId).single()`. `PGRST116` (no row found) falls back to `0`; any other read/write failure aborts moderation with `ERROR` so the caller never believes a strike was recorded when the DB write actually failed.
 
 ### Shadowban Behavior
 
@@ -80,7 +80,7 @@ The filename is derived from `r2ObjectKeys[i].split("/").pop()` when available; 
 
 ### Upload Failure Handling
 
-If an individual image upload fails (non-OK HTTP response), `moderation.ts` logs the error and continues to the next image rather than aborting. The scan is still inserted with a partial or empty `image_storage_urls` array. This is intentional — the scan record is more valuable than a retry loop that could block ingestion.
+If any image promotion step fails (non-OK direct upload, failed staging copy, or staging delete after copy), the shared moderation helper aborts the entire promotion batch and rolls back any already-promoted public objects from that batch before returning `ERROR`. The scan is not inserted with a partial `image_storage_urls` array.
 
 ### R2 Rollback on Scan Insert Failure
 

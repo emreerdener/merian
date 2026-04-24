@@ -1,6 +1,73 @@
 import Foundation
 import SwiftData
 
+// MARK: - Migration Scratchpad
+
+/// Thread-safe temporary storage for SwiftData migrations. `SchemaMigrationPlan` closures
+/// (`willMigrate`, `didMigrate`) are synchronous and non-isolated, requiring `Sendable` captures.
+final class MigrationScratchpad<V: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String: [String: V]] = [:]
+
+    subscript(namespace namespace: String, key key: String) -> V? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storage[namespace]?[key]
+        }
+        set {
+            lock.lock()
+            var namespaced = storage[namespace] ?? [:]
+            namespaced[key] = newValue
+            storage[namespace] = namespaced
+            lock.unlock()
+        }
+    }
+
+    func removeAll(namespace: String) {
+        lock.lock()
+        storage.removeValue(forKey: namespace)
+        lock.unlock()
+    }
+
+    func removeAll() {
+        lock.lock()
+        storage.removeAll()
+        lock.unlock()
+    }
+}
+
+final class MigrationScratchpadSet: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String: Set<String>] = [:]
+
+    func insert(_ value: String, namespace: String) {
+        lock.lock()
+        var namespaced = storage[namespace] ?? []
+        namespaced.insert(value)
+        storage[namespace] = namespaced
+        lock.unlock()
+    }
+
+    func contains(_ value: String, namespace: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage[namespace]?.contains(value) ?? false
+    }
+
+    func removeAll(namespace: String) {
+        lock.lock()
+        storage.removeValue(forKey: namespace)
+        lock.unlock()
+    }
+
+    func removeAll() {
+        lock.lock()
+        storage.removeAll()
+        lock.unlock()
+    }
+}
+
 // MARK: - Migration Plan
 
 enum MerianSchemaV40: VersionedSchema {
@@ -15,6 +82,13 @@ enum MerianSchemaV40: VersionedSchema {
 
 // MARK: - Migration Plan
 enum MerianMigrationPlan: SchemaMigrationPlan {
+    private static func migrationNamespace(for context: ModelContext) -> String {
+        context.container.configurations
+            .map { $0.url.standardizedFileURL.path }
+            .sorted()
+            .joined(separator: "|")
+    }
+
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV1.self,
@@ -133,18 +207,19 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         toVersion: MerianSchemaV38.self
     )
 
-    nonisolated(unsafe) static var _v38LocalAudioBackfill: [String: [String]] = [:]
-    nonisolated(unsafe) static var _v38LocalContextBackfill: [String: [String]] = [:]
-    nonisolated(unsafe) static var _v38OfflineAudioBackfill: [String: [String]] = [:]
-    nonisolated(unsafe) static var _v38OfflineContextBackfill: [String: [String]] = [:]
-    nonisolated(unsafe) static var _v38LocalAdditionalImagesBackfill: [String: [String]] = [:]
-    nonisolated(unsafe) static var _v38LocalSemanticTagsBackfill: [String: [String]] = [:]
-    nonisolated(unsafe) static var _v38OfflineLocalImagesBackfill: [String: [String]] = [:]
+    static let _v38LocalAudioBackfill = MigrationScratchpad<[String]>()
+    static let _v38LocalContextBackfill = MigrationScratchpad<[String]>()
+    static let _v38OfflineAudioBackfill = MigrationScratchpad<[String]>()
+    static let _v38OfflineContextBackfill = MigrationScratchpad<[String]>()
+    static let _v38LocalAdditionalImagesBackfill = MigrationScratchpad<[String]>()
+    static let _v38LocalSemanticTagsBackfill = MigrationScratchpad<[String]>()
+    static let _v38OfflineLocalImagesBackfill = MigrationScratchpad<[String]>()
 
     static let migrateV38toV39 = MigrationStage.custom(
         fromVersion: MerianSchemaV38.self,
         toVersion: MerianSchemaV39.self,
         willMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             var localScans: [MerianSchemaV38.LocalScanRecord] = []
             do {
                 localScans = try context.fetch(FetchDescriptor<MerianSchemaV38.LocalScanRecord>())
@@ -153,15 +228,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             }
             for scan in localScans {
                 if let audio = scan.audioFilePath {
-                    _v38LocalAudioBackfill[scan.id] = [audio]
+                    _v38LocalAudioBackfill[namespace: namespace, key: scan.id] = [audio]
                 }
                 if let ctx = scan.observationContextJSON {
-                    _v38LocalContextBackfill[scan.id] = [ctx]
+                    _v38LocalContextBackfill[namespace: namespace, key: scan.id] = [ctx]
                 }
                 if let images = scan.additionalImagePaths {
-                    _v38LocalAdditionalImagesBackfill[scan.id] = images
+                    _v38LocalAdditionalImagesBackfill[namespace: namespace, key: scan.id] = images
                 }
-                _v38LocalSemanticTagsBackfill[scan.id] = scan.semanticTags
+                _v38LocalSemanticTagsBackfill[namespace: namespace, key: scan.id] = scan.semanticTags
             }
 
             var offlineScans: [MerianSchemaV38.OfflineQueuedScan] = []
@@ -172,15 +247,16 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             }
             for scan in offlineScans {
                 if let audio = scan.audioFilePath {
-                    _v38OfflineAudioBackfill[scan.id] = [audio]
+                    _v38OfflineAudioBackfill[namespace: namespace, key: scan.id] = [audio]
                 }
                 if let ctx = scan.observationContextJSON {
-                    _v38OfflineContextBackfill[scan.id] = [ctx]
+                    _v38OfflineContextBackfill[namespace: namespace, key: scan.id] = [ctx]
                 }
-                _v38OfflineLocalImagesBackfill[scan.id] = scan.localImagePaths
+                _v38OfflineLocalImagesBackfill[namespace: namespace, key: scan.id] = scan.localImagePaths
             }
         },
         didMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             var localScans: [MerianSchemaV39.LocalScanRecord] = []
             do {
                 localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
@@ -188,10 +264,10 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 MerianLog.general.error("Migration V38->V39 didMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
             }
             for scan in localScans {
-                if let audio = _v38LocalAudioBackfill[scan.id] {
+                if let audio = _v38LocalAudioBackfill[namespace: namespace, key: scan.id] {
                     scan.audioFilePaths = audio
                 }
-                if let ctx = _v38LocalContextBackfill[scan.id] {
+                if let ctx = _v38LocalContextBackfill[namespace: namespace, key: scan.id] {
                     scan.observationContextsJSON = ctx
                 }
             }
@@ -203,32 +279,36 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 MerianLog.general.error("Migration V38->V39 didMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
             }
             for scan in offlineScans {
-                if let audio = _v38OfflineAudioBackfill[scan.id] {
+                if let audio = _v38OfflineAudioBackfill[namespace: namespace, key: scan.id] {
                     scan.audioFilePaths = audio
                 }
-                if let ctx = _v38OfflineContextBackfill[scan.id] {
+                if let ctx = _v38OfflineContextBackfill[namespace: namespace, key: scan.id] {
                     scan.observationContextsJSON = ctx
                 }
             }
 
             try? context.save()
-            _v38LocalAudioBackfill = [:]
-            _v38LocalContextBackfill = [:]
-            _v38OfflineAudioBackfill = [:]
-            _v38OfflineContextBackfill = [:]
+            _v38LocalAudioBackfill.removeAll(namespace: namespace)
+            _v38LocalContextBackfill.removeAll(namespace: namespace)
+            _v38OfflineAudioBackfill.removeAll(namespace: namespace)
+            _v38OfflineContextBackfill.removeAll(namespace: namespace)
+            _v38LocalAdditionalImagesBackfill.removeAll(namespace: namespace)
+            _v38LocalSemanticTagsBackfill.removeAll(namespace: namespace)
+            _v38OfflineLocalImagesBackfill.removeAll(namespace: namespace)
         }
     )
 
-    nonisolated(unsafe) static var _v39LocalMediaBackfill: [String: String] = [:]
-    nonisolated(unsafe) static var _v39OfflineMediaBackfill: [String: String] = [:]
-    nonisolated(unsafe) static var _v39LocalCoverBackfill: [String: String] = [:]
-    nonisolated(unsafe) static var _v39OfflineCoverBackfill: [String: String] = [:]
+    static let _v39LocalMediaBackfill = MigrationScratchpad<String>()
+    static let _v39OfflineMediaBackfill = MigrationScratchpad<String>()
+    static let _v39LocalCoverBackfill = MigrationScratchpad<String>()
+    static let _v39OfflineCoverBackfill = MigrationScratchpad<String>()
 
     static let migrateV39toV40 = MigrationStage.custom(
 
         fromVersion: MerianSchemaV39.self,
         toVersion: MerianSchemaV40.self,
         willMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             // V39 to V40: backfill capturedMediaJSON
             var localScans: [MerianSchemaV39.LocalScanRecord] = []
             do {
@@ -261,11 +341,11 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
                 
                 if let data = try? JSONEncoder().encode(items) {
-                    _v39LocalMediaBackfill[scan.id] = String(data: data, encoding: .utf8)
+                    _v39LocalMediaBackfill[namespace: namespace, key: scan.id] = String(data: data, encoding: .utf8)
                 }
                 if let firstImage = items.first(where: { if case .image = $0 { return true } else { return false } }) {
                     if case .image(let path) = firstImage {
-                        _v39LocalCoverBackfill[scan.id] = path
+                        _v39LocalCoverBackfill[namespace: namespace, key: scan.id] = path
                     }
                 }
             }
@@ -297,16 +377,17 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
                 
                 if let data = try? JSONEncoder().encode(items) {
-                    _v39OfflineMediaBackfill[scan.id] = String(data: data, encoding: .utf8)
+                    _v39OfflineMediaBackfill[namespace: namespace, key: scan.id] = String(data: data, encoding: .utf8)
                 }
                 if let firstImage = items.first(where: { if case .image = $0 { return true } else { return false } }) {
                     if case .image(let path) = firstImage {
-                        _v39OfflineCoverBackfill[scan.id] = path
+                        _v39OfflineCoverBackfill[namespace: namespace, key: scan.id] = path
                     }
                 }
             }
         },
         didMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             var localScans: [LocalScanRecord] = []
             do {
                 localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
@@ -314,9 +395,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 MerianLog.general.error("Migration V39->V40 didMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
             }
             for scan in localScans {
-                if let json = _v39LocalMediaBackfill[scan.id] {
+                if let json = _v39LocalMediaBackfill[namespace: namespace, key: scan.id] {
                     scan.capturedMediaJSON = json
-                    scan.coverImagePath = _v39LocalCoverBackfill[scan.id]
+                    scan.coverImagePath = _v39LocalCoverBackfill[namespace: namespace, key: scan.id]
                 } else {
                     scan.capturedMediaJSON = "[]"
                 }
@@ -329,32 +410,33 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 MerianLog.general.error("Migration V39->V40 didMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
             }
             for scan in offlineScans {
-                if let json = _v39OfflineMediaBackfill[scan.id] {
+                if let json = _v39OfflineMediaBackfill[namespace: namespace, key: scan.id] {
                     scan.capturedMediaJSON = json
-                    scan.coverImagePath = _v39OfflineCoverBackfill[scan.id]
+                    scan.coverImagePath = _v39OfflineCoverBackfill[namespace: namespace, key: scan.id]
                 } else {
                     scan.capturedMediaJSON = "[]"
                 }
             }
             
             try? context.save()
-            _v39LocalMediaBackfill = [:]
-            _v39OfflineMediaBackfill = [:]
-            _v39LocalCoverBackfill = [:]
-            _v39OfflineCoverBackfill = [:]
+            _v39LocalMediaBackfill.removeAll(namespace: namespace)
+            _v39OfflineMediaBackfill.removeAll(namespace: namespace)
+            _v39LocalCoverBackfill.removeAll(namespace: namespace)
+            _v39OfflineCoverBackfill.removeAll(namespace: namespace)
         }
     )
 
     // Temporary backfill storage for V32→V33 migration.
     // Captures the old Bool state before the column is dropped, then writes scanStateRaw in didMigrate.
-    nonisolated(unsafe) static var _scanStateBackfill: [String: Int] = [:]
+    static let _scanStateBackfill = MigrationScratchpad<Int>()
 
     static let migrateV32toV33 = MigrationStage.custom(
         fromVersion: MerianSchemaV32.self,
         toVersion: MerianSchemaV33.self,
         willMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             let scans = try context.fetch(FetchDescriptor<MerianSchemaV32.OfflineQueuedScan>())
-            _scanStateBackfill = Dictionary(uniqueKeysWithValues: scans.map { scan in
+            for scan in scans {
                 let state: Int
                 if scan.isDeleted {
                     state = ScanQueueState.failed.rawValue
@@ -363,18 +445,19 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 } else {
                     state = ScanQueueState.pending.rawValue
                 }
-                return (scan.id, state)
-            })
+                _scanStateBackfill[namespace: namespace, key: scan.id] = state
+            }
         },
         didMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             let scans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
             for scan in scans {
-                if let state = _scanStateBackfill[scan.id] {
+                if let state = _scanStateBackfill[namespace: namespace, key: scan.id] {
                     scan.scanStateRaw = state
                 }
             }
             try context.save()
-            _scanStateBackfill = [:]
+            _scanStateBackfill.removeAll(namespace: namespace)
         }
     )
 
@@ -437,53 +520,53 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         fromVersion: MerianSchemaV24.self,
         toVersion: MerianSchemaV25.self,
         willMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV24.LocalScanRecord>())
-            _diagnosticLookalikesBackfill = Dictionary(
-                uniqueKeysWithValues: allRecords
-                    .compactMap { record in
-                        guard let string = record.diagnosticLookalikeName, !string.isEmpty else { return nil }
-                        let array = string.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-                        return (record.id, array)
-                    }
-            )
+            for record in allRecords {
+                if let string = record.diagnosticLookalikeName, !string.isEmpty {
+                    let array = string.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                    _diagnosticLookalikesBackfill[namespace: namespace, key: record.id] = array
+                }
+            }
         },
         didMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV25.LocalScanRecord>())
             for record in allRecords {
-                if let array = _diagnosticLookalikesBackfill[record.id] {
+                if let array = _diagnosticLookalikesBackfill[namespace: namespace, key: record.id] {
                     record.diagnosticLookalikes = array
                 }
             }
             try context.save()
-            _diagnosticLookalikesBackfill = [:]
+            _diagnosticLookalikesBackfill.removeAll(namespace: namespace)
         }
     )
 
     // Temporary storage for preserving the lookalikes array when discarding diagnostic string columns for V26.
-    nonisolated(unsafe) static var _similarSpeciesBackfill: [String: [String]] = [:]
+    static let _similarSpeciesBackfill = MigrationScratchpad<[String]>()
 
     static let migrateV25toV26 = MigrationStage.custom(
         fromVersion: MerianSchemaV25.self,
         toVersion: MerianSchemaV26.self,
         willMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV25.LocalScanRecord>())
-            _similarSpeciesBackfill = Dictionary(
-                uniqueKeysWithValues: allRecords
-                    .compactMap { record in
-                        guard let lookalikes = record.diagnosticLookalikes, !lookalikes.isEmpty else { return nil }
-                        return (record.id, lookalikes)
-                    }
-            )
+            for record in allRecords {
+                if let lookalikes = record.diagnosticLookalikes, !lookalikes.isEmpty {
+                    _similarSpeciesBackfill[namespace: namespace, key: record.id] = lookalikes
+                }
+            }
         },
         didMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV26.LocalScanRecord>())
             for record in allRecords {
-                if let array = _similarSpeciesBackfill[record.id] {
+                if let array = _similarSpeciesBackfill[namespace: namespace, key: record.id] {
                     record.similarSpecies = array
                 }
             }
             try context.save()
-            _similarSpeciesBackfill = [:]
+            _similarSpeciesBackfill.removeAll(namespace: namespace)
         }
     )
 
@@ -558,30 +641,34 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     )
 
     // Temporary storage for passing poisonous IDs from willMigrate (V15 context) to didMigrate (V16 context).
-    nonisolated(unsafe) static var _poisonousIds: Set<String> = []
+    static let _poisonousIds = MigrationScratchpadSet()
 
     // Temporary storage for backfilling aiReasoning from insightDescription for pre-V16 records.
-    nonisolated(unsafe) static var _insightDescriptionBackfill: [String: String] = [:]
+    static let _insightDescriptionBackfill = MigrationScratchpad<String>()
 
     // Temporary storage for migrating diagnosticLookalikeName (comma-separated string) to diagnosticLookalikes (array) for pre-V25 records.
-    nonisolated(unsafe) static var _diagnosticLookalikesBackfill: [String: [String]] = [:]
+    static let _diagnosticLookalikesBackfill = MigrationScratchpad<[String]>()
 
     static let migrateV15toV16 = MigrationStage.custom(
         fromVersion: MerianSchemaV15.self,
         toVersion: MerianSchemaV16.self,
         willMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             // Read all records that were marked isPoisonous = true in V15.
             let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV15.LocalScanRecord>())
-            _poisonousIds = Set(allRecords.filter { $0.isPoisonous }.map { $0.id })
+            for record in allRecords where record.isPoisonous {
+                _poisonousIds.insert(record.id, namespace: namespace)
+            }
         },
         didMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             // Set hazardType = "poisonous" for the records that had isPoisonous = true.
             let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV16.LocalScanRecord>())
-            for record in allRecords where _poisonousIds.contains(record.id) {
+            for record in allRecords where _poisonousIds.contains(record.id, namespace: namespace) {
                 record.hazardType = "poisonous"
             }
             try context.save()
-            _poisonousIds = []
+            _poisonousIds.removeAll(namespace: namespace)
         }
     )
 
@@ -599,24 +686,26 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         fromVersion: MerianSchemaV16.self,
         toVersion: MerianSchemaV17.self,
         willMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             // Preserve insight descriptions for records that never had aiReasoning set.
             // insightDescription is removed in V17; copy its value into aiReasoning for continuity.
             let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV16.LocalScanRecord>())
-            _insightDescriptionBackfill = Dictionary(
-                uniqueKeysWithValues: allRecords
-                    .filter { $0.aiReasoning == nil && !$0.insightDescription.isEmpty }
-                    .map { ($0.id, $0.insightDescription) }
-            )
+            for record in allRecords {
+                if record.aiReasoning == nil && !record.insightDescription.isEmpty {
+                    _insightDescriptionBackfill[namespace: namespace, key: record.id] = record.insightDescription
+                }
+            }
         },
         didMigrate: { context in
+            let namespace = migrationNamespace(for: context)
             let allRecords = try context.fetch(FetchDescriptor<MerianSchemaV17.LocalScanRecord>())
             for record in allRecords {
-                if let description = _insightDescriptionBackfill[record.id] {
+                if let description = _insightDescriptionBackfill[namespace: namespace, key: record.id] {
                     record.aiReasoning = description
                 }
             }
             try context.save()
-            _insightDescriptionBackfill = [:]
+            _insightDescriptionBackfill.removeAll(namespace: namespace)
         }
     )
 }

@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 
 import { FeedScan } from "./types.ts";
-import { fetchBlockedUserIds, fetchDiscoveryFeed } from "./db.ts";
+import { fetchDiscoveryFeed } from "./db.ts";
 
 function sanitizeFeedData(feedData: FeedScan[]): FeedScan[] {
   return feedData.map((scan) => {
@@ -46,20 +46,10 @@ serve((req: Request) =>
       // Body is optional, defaults to 20
     }
 
-    // 1. Compute overfetch limit to accommodate potential post-query block filtering
-    const overFetchLimit = limit + Math.max(20, Math.ceil(limit * 0.2));
+    // Fetch the filtered feed directly via the RPC
+    const feedData = await fetchDiscoveryFeed(user.id, limit, supabaseAdmin);
 
-    // 2. Fetch block list and raw feed in parallel
-    const [blockedIds, rawFeed] = await Promise.all([
-      fetchBlockedUserIds(user.id, supabaseAdmin),
-      fetchDiscoveryFeed(user.id, overFetchLimit, supabaseAdmin),
-    ]);
-
-    // 3. Post-filter the feed to exclude blocked users
-    const excludedSet = new Set(blockedIds);
-    const feedData = rawFeed.filter(s => s.user_id != null && !excludedSet.has(s.user_id)).slice(0, limit);
-
-    // 4. Sanitize coordinates for Geoprivacy compliance
+    // Sanitize coordinates for Geoprivacy compliance
     const sanitizedFeedData = sanitizeFeedData(feedData);
 
     return jsonResponse({ data: sanitizedFeedData }, 200);

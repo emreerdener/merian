@@ -597,6 +597,60 @@ final class MerianNetworkClient {
 
     // MARK: - Multi-Modal Identification
 
+    static func buildMultiModalRequestBody(
+        r2ObjectKeys: [String] = [],
+        base64ImageDatas: [String] = [],
+        audioBase64s: [String] = [],
+        observationContextsJSON: [String] = [],
+        userId: String,
+        mimeType: String = "image/webp",
+        telemetry: CaptureTelemetry,
+        deviceLocale: String,
+        deviceTimeZone: String,
+        deviceRegion: String?,
+        currentMonth: Int,
+        timeOfDay: String,
+        depthScaleText: String?,
+        clientScanId: String
+    ) throws -> Data {
+        let observationContextsObjects: [[String: Any]] = observationContextsJSON.compactMap { json in
+            guard let data = json.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            return obj
+        }
+
+        try validateMultiModalPayloadBudget(
+            imageBase64s: base64ImageDatas,
+            audioBase64s: audioBase64s
+        )
+
+        let isolatedPayload: [String: Any?] = [
+            "r2ObjectKeys": r2ObjectKeys.isEmpty ? nil : r2ObjectKeys,
+            "imageBase64s": base64ImageDatas.isEmpty ? nil : base64ImageDatas,
+            "audioBase64s": audioBase64s.isEmpty ? nil : audioBase64s,
+            "observation_contexts": observationContextsObjects.isEmpty ? nil : observationContextsObjects,
+            "user_id": userId,
+            "mimeType": mimeType,
+            "depthScaleText": depthScaleText,
+            "zoomFactor": telemetry.zoomFactor.map { Double($0) },
+            "gpsLatitude": telemetry.gpsLatitude,
+            "gpsLongitude": telemetry.gpsLongitude,
+            "gpsElevation": telemetry.gpsElevation,
+            "semanticLocation": telemetry.locationName,
+            "weatherCondition": telemetry.weatherCondition,
+            "weatherTemperatureF": telemetry.weatherTemperatureF,
+            "deviceLocale": deviceLocale,
+            "deviceTimeZone": deviceTimeZone,
+            "deviceRegion": deviceRegion,
+            "currentMonth": currentMonth,
+            "timeOfDay": timeOfDay,
+            "timestamp": telemetry.timestamp,
+            "estimated_size_cm": telemetry.estimatedSizeCm,
+            "client_scan_id": clientScanId
+        ]
+        return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+    }
+
     func buildMultiModalRequest(
         r2ObjectKeys: [String] = [],
         base64ImageDatas: [String] = [],
@@ -631,14 +685,9 @@ final class MerianNetworkClient {
         let capturedAudioPaths = audioFilePaths
         let capturedContextsJSON = observationContextsJSON
         let capturedTelemetry = telemetry
+        let capturedMimeType = mimeType
 
         let bodyData = try await Task.detached(priority: .userInitiated) {
-            let observationContextsObjects: [[String: Any]] = capturedContextsJSON.compactMap { json in
-                guard let data = json.data(using: .utf8),
-                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-                return obj
-            }
-            
             var audioBase64s: [String] = []
             for path in capturedAudioPaths {
                 let url = URL.documentsDirectory.appendingPathComponent(path)
@@ -646,36 +695,22 @@ final class MerianNetworkClient {
                     audioBase64s.append(wavData.base64EncodedString())
                 }
             }
-            try MerianNetworkClient.validateMultiModalPayloadBudget(
-                imageBase64s: base64ImageDatas,
-                audioBase64s: audioBase64s
+            return try MerianNetworkClient.buildMultiModalRequestBody(
+                r2ObjectKeys: r2ObjectKeys,
+                base64ImageDatas: base64ImageDatas,
+                audioBase64s: audioBase64s,
+                observationContextsJSON: capturedContextsJSON,
+                userId: userId,
+                mimeType: capturedMimeType,
+                telemetry: capturedTelemetry,
+                deviceLocale: deviceLocale,
+                deviceTimeZone: deviceTimeZone,
+                deviceRegion: deviceRegion,
+                currentMonth: currentMonth,
+                timeOfDay: timeOfDay,
+                depthScaleText: depthScaleText,
+                clientScanId: capturedClientScanId
             )
-            
-            let isolatedPayload: [String: Any?] = [
-                "r2ObjectKeys": r2ObjectKeys.isEmpty ? nil : r2ObjectKeys,
-                "imageBase64s": base64ImageDatas.isEmpty ? nil : base64ImageDatas,
-                "audioBase64s": audioBase64s.isEmpty ? nil : audioBase64s,
-                "observation_contexts": observationContextsObjects.isEmpty ? nil : observationContextsObjects,
-                "user_id": userId,
-                "mimeType": "image/webp",
-                "depthScaleText": depthScaleText,
-                "zoomFactor": capturedTelemetry.zoomFactor.map { Double($0) },
-                "gpsLatitude": capturedTelemetry.gpsLatitude,
-                "gpsLongitude": capturedTelemetry.gpsLongitude,
-                "gpsElevation": capturedTelemetry.gpsElevation,
-                "semanticLocation": capturedTelemetry.locationName,
-                "weatherCondition": capturedTelemetry.weatherCondition,
-                "weatherTemperatureF": capturedTelemetry.weatherTemperatureF,
-                "deviceLocale": deviceLocale,
-                "deviceTimeZone": deviceTimeZone,
-                "deviceRegion": deviceRegion,
-                "currentMonth": currentMonth,
-                "timeOfDay": timeOfDay,
-                "timestamp": capturedTelemetry.timestamp,
-                "estimated_size_cm": capturedTelemetry.estimatedSizeCm,
-                "client_scan_id": capturedClientScanId
-            ]
-            return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
         }.value
 
         var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90.0)

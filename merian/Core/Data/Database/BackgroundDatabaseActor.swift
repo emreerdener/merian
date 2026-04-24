@@ -222,26 +222,27 @@ actor BackgroundDatabaseActor {
     /// from re-dispatching upload tasks for these scans after an app restart.
     func markScansAsUploading(scanIds: [String]) {
         guard !scanIds.isEmpty else { return }
-        let idSet = Set(scanIds)
         let pendingRaw   = ScanQueueState.pending.rawValue
         let uploadingRaw = ScanQueueState.uploading.rawValue
-        // Predicate-filter to .pending only — avoids loading tombstoned (.failed) and in-flight
-        // records into memory when the queue has accumulated a large backlog of failed scans.
-        // #Predicate cannot express "id IN set", so ID-set filtering still happens in memory,
-        // but the row count is now bounded by the number of pending scans (typically tiny).
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw == pendingRaw }
-        )
-        let scans: [OfflineQueuedScan]
-        do {
-            scans = try modelContext.fetch(descriptor).filter { idSet.contains($0.id) }
-        } catch {
-            MerianLog.data.debug("markScansAsUploading: fetch failed: \(error, privacy: .private)")
-            return
+
+        // Process in chunks to prevent unbounded memory loads and SQL IN-clause overflow.
+        let chunkSize = 50
+        for i in stride(from: 0, to: scanIds.count, by: chunkSize) {
+            let chunkEnd = min(i + chunkSize, scanIds.count)
+            let chunk = Array(scanIds[i..<chunkEnd])
+
+            // SwiftData safely supports array.contains in #Predicate for bounded chunks
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { chunk.contains($0.id) && $0.scanStateRaw == pendingRaw }
+            )
+
+            if let scans = try? modelContext.fetch(descriptor) {
+                for scan in scans {
+                    scan.scanStateRaw = uploadingRaw
+                }
+            }
         }
-        // All fetched scans are already .pending (predicate-guaranteed), so no per-scan state
-        // check is needed here. The predicate itself acts as the source-state guard.
-        for scan in scans { scan.scanStateRaw = uploadingRaw }
+
         do {
             try modelContext.save()
         } catch {

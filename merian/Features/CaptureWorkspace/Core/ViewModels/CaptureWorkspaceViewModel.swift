@@ -126,7 +126,7 @@ final class CaptureWorkspaceViewModel {
     private func handleDeepLinkRoute(scanId: String) {
         // SwiftData Context Access boundary seamlessly leveraging the shared queue context
         guard let context = diContainer.offlineQueueManager.modelContext else { return }
-        
+
         do {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
             if let record = (try context.fetch(descriptor)).first {
@@ -142,8 +142,10 @@ final class CaptureWorkspaceViewModel {
     
     func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext: ModelContext) {
         guard !newItems.isEmpty else { return }
+
+        let isPro = self.diContainer.revenueCatManager.isProActive
         
-        Task { [weak self] in
+        Task.detached(priority: .userInitiated) { [weak self, isPro] in
             guard let self = self else { return }
             
             let itemsToProcess = newItems
@@ -175,26 +177,15 @@ final class CaptureWorkspaceViewModel {
                         }
                     }
                     
-                    if self.diContainer.usageManager.canPerformScan(isProActive: self.diContainer.revenueCatManager.isProActive) {
+                    let canPerformScan = await MainActor.run { self.diContainer.usageManager.canPerformScan(isProActive: isPro) }
+                    if canPerformScan {
                         // Inference payload: tier-conditional longest edge — 768 px for Flash (free),
                         // 1024 px for Pro. Matches the camera shutter path for consistent token costs per tier.
-                        let inferenceCGImage = ImageDownsampler.downsample(url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: self.diContainer.revenueCatManager.isProActive))
+                        let inferenceCGImage = ImageDownsampler.downsample(url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: isPro))
 
                         if let cgImage = inferenceCGImage {
                             let rawImage = UIImage(cgImage: cgImage)
-                            let finalSafeData: Data = autoreleasepool {
-                                let renderData = NSMutableData()
-                                guard let destination =
-                                    CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
-                                    CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
-                                else { return Data() }
-                                let options: [CFString: Any] = [
-                                    kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
-                                ]
-                                CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
-                                guard CGImageDestinationFinalize(destination) else { return Data() }
-                                return Data(renderData)
-                            }
+                            let finalSafeData: Data = ImageCropProcessor.encode(cgImage) ?? Data()
 
                             // Display payload: 2048 px — written to disk so the insight sheet and
                             // scan library render crisp.
@@ -202,22 +193,17 @@ final class CaptureWorkspaceViewModel {
                                 guard let displayCGImage = ImageDownsampler.downsample(url: validUrl, maxSize: MerianConfig.displayImageMaxSize) else {
                                     return finalSafeData
                                 }
-                                let renderData = NSMutableData()
-                                guard let destination =
-                                    CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
-                                    CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
-                                else { return finalSafeData }
-                                let options: [CFString: Any] = [
-                                    kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality
-                                ]
-                                CGImageDestinationAddImage(destination, displayCGImage, options as CFDictionary)
-                                guard CGImageDestinationFinalize(destination) else { return finalSafeData }
-                                return Data(renderData)
+                                return ImageCropProcessor.encode(displayCGImage) ?? finalSafeData
                             }
 
                             guard !finalSafeData.isEmpty else { continue }
+                            let historicalContextSnapshot = historicalContext
                             await MainActor.run {
-                                let identifiable = IdentifiableImage(image: rawImage, environmentContext: historicalContext, isFromGallery: true)
+                                let identifiable = IdentifiableImage(
+                                    image: rawImage,
+                                    environmentContext: historicalContextSnapshot,
+                                    isFromGallery: true
+                                )
                                 self.stagedCapture.images.append(StagedImage(
                                     compressedData: finalSafeData,
                                     displayData: displaySafeData,
@@ -239,6 +225,8 @@ final class CaptureWorkspaceViewModel {
     }
     
     // MARK: - Manual Crop Routing
+    @ObservationIgnored var activeCropTask: Task<Void, Never>?
+
     func presentCrop(for index: Int) {
         guard index < stagedCapture.images.count else { return }
         self.editingCropIndex = index
@@ -256,7 +244,9 @@ final class CaptureWorkspaceViewModel {
         self.isStagingRefinement = true
         self.refinementStagingTask?.cancel()
 
-        self.refinementStagingTask = Task { [weak self] in
+        let isPro = self.diContainer.revenueCatManager.isProActive
+
+        self.refinementStagingTask = Task.detached(priority: .userInitiated) { [weak self, isPro] in
             guard let self = self else { return }
             // localImagePath stores a bare filename relative to the documents directory
             // (written by FileIOActor.writeTemporaryImages). Reconstruct the full URL
@@ -265,7 +255,6 @@ final class CaptureWorkspaceViewModel {
             
             do {
                 let rawData = try Data(contentsOf: fileURL)
-                let isPro = self.diContainer.revenueCatManager.isProActive
                 let inferenceSize = MerianConfig.inferenceImageMaxSize(isProActive: isPro)
                 
                 var inferenceData: Data?
@@ -273,13 +262,7 @@ final class CaptureWorkspaceViewModel {
                 
                 if let cgInference = ImageDownsampler.downsample(url: fileURL, maxSize: inferenceSize) {
                     rawImage = UIImage(cgImage: cgInference)
-                    inferenceData = autoreleasepool {
-                        let renderData = NSMutableData()
-                        guard let dest = CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
-                        CGImageDestinationAddImage(dest, cgInference, [kCGImageDestinationLossyCompressionQuality: MerianConfig.imageCompressionQuality] as CFDictionary)
-                        guard CGImageDestinationFinalize(dest) else { return nil }
-                        return Data(renderData)
-                    }
+                    inferenceData = ImageCropProcessor.encode(cgInference)
                 }
                 
                 let finalSafeData = inferenceData ?? rawData

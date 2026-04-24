@@ -1,6 +1,6 @@
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
-import { getR2Config } from "../_shared/aws.ts";
-import { jsonResponse } from "../_shared/edgeHandler.ts";
+import { getR2Config } from "../aws.ts";
+import { jsonResponse } from "../edgeHandler.ts";
 
 export async function resolveImagePayloads(
   r2ObjectKeys: string[] | undefined,

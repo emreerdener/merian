@@ -1,4 +1,4 @@
-// Re-export the shared response types from the identify function.
+// Re-export the shared response types from the canonical shared identify stack.
 // identify-describe returns the exact same ClientPayload so the iOS client
 // needs zero changes to parse describe results.
 export type {
@@ -8,7 +8,7 @@ export type {
   ClientPayload,
   CachedSpeciesRow,
   StaticSpeciesData,
-} from "../identify/types.ts";
+} from "../_shared/identify/types.ts";
 
 // ---------------------------------------------------------------------------
 // Describe-specific request shape

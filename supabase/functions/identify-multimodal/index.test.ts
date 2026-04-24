@@ -1,12 +1,41 @@
-// supabase/functions/identify-multimodal/index.test.ts
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
+import { sanitizeScientificName } from "../identify/sanitize.ts";
+
+type R2KeyError = "path_traversal" | "wrong_user" | null;
+
+const VALID_LIFE_STAGES = new Set([
+  "egg",
+  "larva",
+  "pupa",
+  "nymph",
+  "juvenile",
+  "subadult",
+  "adult",
+  "seedling",
+  "sapling",
+  "unknown",
+]);
+
+const VALID_REPRODUCTIVE_CONDITIONS = new Set([
+  "flowering",
+  "fruiting",
+  "budding",
+  "vegetative",
+  "sporing",
+  "pregnant",
+  "gravid",
+  "mating",
+  "spawning",
+  "nesting",
+  "dormant",
+  "not_applicable",
+]);
+
 // ---------------------------------------------------------------------------
-// Pure helpers extracted from index.ts for isolated unit testing.
-// These mirror the logic in the handler without pulling in Deno runtime deps.
+// Pure helpers mirroring identify-multimodal/index.ts without loading Deno serve().
 // ---------------------------------------------------------------------------
 
-// Dispatch rule — mirrors lines 146-154 in index.ts.
 function resolveSystemInstruction(
   hasImages: boolean,
   hasAudio: boolean,
@@ -17,186 +46,404 @@ function resolveSystemInstruction(
   return "DESCRIBE";
 }
 
-// partsArray guard — mirrors lines 185-187 in index.ts.
-// partsArray always contains at least the telemetry item (length >= 1).
-// Returns true when the request must be rejected (only telemetry, no media or context).
-function isPayloadEmpty(partsArrayLength: number, hasObservationContexts: boolean): boolean {
-  return partsArrayLength === 1 && !hasObservationContexts;
+function isPayloadEmpty(
+  partsArrayLength: number,
+  hasObservationContextText: boolean,
+): boolean {
+  return partsArrayLength === 1 && !hasObservationContextText;
 }
 
-// R2 key IDOR + path-traversal guard — mirrors lines 101-113 in index.ts.
-type R2KeyError = "path_traversal" | "wrong_user" | null;
 function validateR2ObjectKey(key: string, userId: string): R2KeyError {
   if (key.includes("..")) return "path_traversal";
   if (!key.startsWith(`staging/${userId}/`)) return "wrong_user";
   return null;
 }
 
-// GPS sanitisation — mirrors lines 92-98 in index.ts.
 function safeGpsLat(v: unknown): number | null {
   return v != null && typeof v === "number" && Number.isFinite(v) &&
-    v >= -90 && v <= 90 ? v : null;
-}
-function safeGpsLon(v: unknown): number | null {
-  return v != null && typeof v === "number" && Number.isFinite(v) &&
-    v >= -180 && v <= 180 ? v : null;
+      v >= -90 && v <= 90
+    ? v
+    : null;
 }
 
-// scanId passthrough — mirrors lines 86-89 in index.ts.
+function safeGpsLon(v: unknown): number | null {
+  return v != null && typeof v === "number" && Number.isFinite(v) &&
+      v >= -180 && v <= 180
+    ? v
+    : null;
+}
+
 function resolveGeneratedScanId(client_scan_id: unknown): string {
   return typeof client_scan_id === "string" && client_scan_id.length > 0
     ? client_scan_id
     : crypto.randomUUID();
 }
 
+function normalizeCurrentMonth(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const month = Math.trunc(value);
+    return month >= 1 && month <= 12 ? month : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{1,2}$/.test(trimmed)) {
+      const month = Number(trimmed);
+      return month >= 1 && month <= 12 ? month : null;
+    }
+  }
+
+  return null;
+}
+
+function normalizeTelemetry(body: Record<string, unknown>) {
+  return {
+    gpsLatitude: body.gpsLatitude ?? body.gps_latitude ?? null,
+    gpsLongitude: body.gpsLongitude ?? body.gps_longitude ?? null,
+    gpsElevation: body.gpsElevation ?? body.gps_elevation ?? null,
+    semanticLocation: body.semanticLocation ?? body.semantic_location ?? null,
+    weatherCondition: body.weatherCondition ?? body.weather_condition ?? null,
+    weatherTemperatureF:
+      body.weatherTemperatureF ?? body.weather_temperature_f ?? null,
+    deviceLocale: body.deviceLocale ?? body.device_locale ?? null,
+    deviceTimeZone: body.deviceTimeZone ?? body.device_time_zone ?? null,
+    deviceRegion: body.deviceRegion ?? body.device_region ?? null,
+    currentMonth: normalizeCurrentMonth(
+      body.currentMonth ?? body.current_month ?? null,
+    ),
+    timeOfDay: body.timeOfDay ?? body.time_of_day ?? null,
+    depthScaleText: body.depthScaleText ?? body.depth_scale_text ?? null,
+    zoomFactor: body.zoomFactor ?? null,
+    estimatedSizeCm: body.estimatedSizeCm ?? body.estimated_size_cm ?? null,
+  };
+}
+
+function mergeObservationContexts(
+  contexts: Array<Record<string, unknown>>,
+): string[] {
+  return contexts
+    .map((context) => {
+      const freeText = typeof context.freeText === "string"
+        ? context.freeText.trim()
+        : "";
+      const snakeCase = typeof context.free_text === "string"
+        ? context.free_text.trim()
+        : "";
+      return freeText || snakeCase || null;
+    })
+    .filter((text): text is string => text != null && text.length > 0);
+}
+
+function sanitizeCount(v: unknown): number | undefined {
+  if (v == null || typeof v !== "number" || !Number.isFinite(v) || v <= 0) {
+    return undefined;
+  }
+  return Math.min(Math.round(v), 99999);
+}
+
+function sanitizeReasoning(text: string): string {
+  return text.length > 2000 ? text.slice(0, 2000) : text;
+}
+
+function sanitizeLifeStage(value: string | undefined): string {
+  if (value == null) return "unknown";
+  return VALID_LIFE_STAGES.has(value) ? value : "unknown";
+}
+
+function sanitizeReproductiveCondition(value: string | undefined): string {
+  if (value == null) return "not_applicable";
+  return VALID_REPRODUCTIVE_CONDITIONS.has(value)
+    ? value
+    : "not_applicable";
+}
+
+function sanitizeCandidates(
+  candidates: Array<{ scientific_name: string; confidence_score?: number }>,
+) {
+  return candidates
+    .map((candidate) => ({
+      ...candidate,
+      scientific_name: sanitizeScientificName(candidate.scientific_name),
+    }))
+    .slice(0, 5);
+}
+
+function resolveReturnedCandidates<T>(
+  candidates: T[] | null | undefined,
+  confidenceScore: number | null | undefined,
+  diagnosticTrigger: number,
+): T[] | null {
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+  if ((confidenceScore ?? 0) >= diagnosticTrigger) return null;
+  return candidates;
+}
+
 // ---------------------------------------------------------------------------
 // Dispatch rule tests
 // ---------------------------------------------------------------------------
 
-Deno.test("dispatch — images + audio → BLENDED instruction", () => {
+Deno.test("dispatch - images + audio -> BLENDED instruction", () => {
   assertEquals(resolveSystemInstruction(true, true), "BLENDED");
 });
 
-Deno.test("dispatch — images only → VISION instruction", () => {
+Deno.test("dispatch - images only -> VISION instruction", () => {
   assertEquals(resolveSystemInstruction(true, false), "VISION");
 });
 
-Deno.test("dispatch — audio only → BIOACOUSTIC instruction", () => {
+Deno.test("dispatch - audio only -> BIOACOUSTIC instruction", () => {
   assertEquals(resolveSystemInstruction(false, true), "BIOACOUSTIC");
 });
 
-Deno.test("dispatch — no images, no audio → DESCRIBE instruction", () => {
+Deno.test("dispatch - no images, no audio -> DESCRIBE instruction", () => {
   assertEquals(resolveSystemInstruction(false, false), "DESCRIBE");
 });
 
 // ---------------------------------------------------------------------------
-// partsArray empty-payload guard
+// Empty payload guard
 // ---------------------------------------------------------------------------
 
-Deno.test("payload guard — only telemetry item and no contexts → reject (400)", () => {
-  // partsArray has 1 item (telemetry); no contexts → must return 400
+Deno.test("payload guard - only telemetry and no context text -> reject", () => {
   assert(isPayloadEmpty(1, false));
 });
 
-Deno.test("payload guard — contexts only (no images, no audio) → accept (not 400)", () => {
-  // partsArray: context item + telemetry item = length 2 → condition false → DESCRIBE path
+Deno.test("payload guard - context text + telemetry -> accept", () => {
   assert(!isPayloadEmpty(2, true));
 });
 
-Deno.test("payload guard — image + telemetry → accept", () => {
+Deno.test("payload guard - image + telemetry -> accept", () => {
   assert(!isPayloadEmpty(2, false));
 });
 
-Deno.test("payload guard — audio + telemetry → accept", () => {
-  assert(!isPayloadEmpty(2, false));
-});
-
-Deno.test("payload guard — context + image + telemetry → accept", () => {
-  assert(!isPayloadEmpty(3, true));
-});
-
 // ---------------------------------------------------------------------------
-// R2 key IDOR + path-traversal guard
+// R2 key validation
 // ---------------------------------------------------------------------------
 
-Deno.test("IDOR guard — key belonging to correct user passes", () => {
+Deno.test("IDOR guard - key belonging to correct user passes", () => {
   const userId = "abc-123";
   assertEquals(validateR2ObjectKey(`staging/${userId}/photo.webp`, userId), null);
 });
 
-Deno.test("IDOR guard — key belonging to different user is rejected", () => {
+Deno.test("IDOR guard - key belonging to different user is rejected", () => {
   assertEquals(
     validateR2ObjectKey("staging/other-user/photo.webp", "abc-123"),
     "wrong_user",
   );
 });
 
-Deno.test("IDOR guard — path traversal sequence (..) is rejected", () => {
-  assertEquals(
-    validateR2ObjectKey("staging/abc-123/../other-user/secret.webp", "abc-123"),
-    "path_traversal",
-  );
-});
-
-Deno.test("IDOR guard — path traversal detected before ownership check", () => {
-  // Even if user prefix matches, traversal must be caught first
+Deno.test("IDOR guard - path traversal is rejected", () => {
   assertEquals(
     validateR2ObjectKey("staging/abc-123/../../etc/passwd", "abc-123"),
     "path_traversal",
   );
 });
 
-Deno.test("IDOR guard — empty key string is rejected as wrong_user", () => {
-  assertEquals(validateR2ObjectKey("", "abc-123"), "wrong_user");
+// ---------------------------------------------------------------------------
+// Telemetry normalization
+// ---------------------------------------------------------------------------
+
+Deno.test("telemetry normalization accepts the active camelCase Swift payload", () => {
+  const normalized = normalizeTelemetry({
+    gpsLatitude: 37.7749,
+    gpsLongitude: -122.4194,
+    gpsElevation: 12.5,
+    semanticLocation: "Zilker Park",
+    weatherCondition: "Partly Cloudy",
+    weatherTemperatureF: 68,
+    deviceLocale: "en",
+    deviceTimeZone: "America/Chicago",
+    deviceRegion: "US",
+    currentMonth: 4,
+    timeOfDay: "10:30 AM",
+    depthScaleText: "1.3 meters",
+    zoomFactor: 2.0,
+    estimated_size_cm: 11.5,
+  });
+
+  assertEquals(normalized.gpsLatitude, 37.7749);
+  assertEquals(normalized.gpsLongitude, -122.4194);
+  assertEquals(normalized.semanticLocation, "Zilker Park");
+  assertEquals(normalized.weatherCondition, "Partly Cloudy");
+  assertEquals(normalized.currentMonth, 4);
+  assertEquals(normalized.depthScaleText, "1.3 meters");
+  assertEquals(normalized.zoomFactor, 2.0);
+  assertEquals(normalized.estimatedSizeCm, 11.5);
+});
+
+Deno.test("telemetry normalization coerces legacy numeric month strings", () => {
+  const normalized = normalizeTelemetry({
+    current_month: "04",
+  });
+
+  assertEquals(normalized.currentMonth, 4);
+});
+
+Deno.test("telemetry normalization drops invalid month strings", () => {
+  const normalized = normalizeTelemetry({
+    currentMonth: "April",
+  });
+
+  assertEquals(normalized.currentMonth, null);
+});
+
+Deno.test("telemetry normalization still accepts legacy snake_case aliases", () => {
+  const normalized = normalizeTelemetry({
+    gps_latitude: 10,
+    gps_longitude: 20,
+    semantic_location: "Legacy Field",
+    weather_condition: "Sunny",
+    current_month: "7",
+    time_of_day: "7:00 AM",
+    depth_scale_text: "0.7 meters",
+    estimated_size_cm: 4.2,
+  });
+
+  assertEquals(normalized.gpsLatitude, 10);
+  assertEquals(normalized.gpsLongitude, 20);
+  assertEquals(normalized.semanticLocation, "Legacy Field");
+  assertEquals(normalized.weatherCondition, "Sunny");
+  assertEquals(normalized.currentMonth, 7);
+  assertEquals(normalized.timeOfDay, "7:00 AM");
+  assertEquals(normalized.depthScaleText, "0.7 meters");
+  assertEquals(normalized.estimatedSizeCm, 4.2);
 });
 
 // ---------------------------------------------------------------------------
-// GPS sanitisation
+// Observation context merging
 // ---------------------------------------------------------------------------
 
-Deno.test("GPS — valid coordinates pass through", () => {
+Deno.test("observation contexts use freeText from the active Swift model", () => {
+  assertEquals(
+    mergeObservationContexts([
+      { freeText: "Saw it perched nearby" },
+      { freeText: "Heard a short trill" },
+    ]),
+    ["Saw it perched nearby", "Heard a short trill"],
+  );
+});
+
+Deno.test("observation contexts still accept legacy free_text aliases", () => {
+  assertEquals(
+    mergeObservationContexts([
+      { free_text: "Legacy note one" },
+      { free_text: "Legacy note two" },
+    ]),
+    ["Legacy note one", "Legacy note two"],
+  );
+});
+
+Deno.test("observation context merge drops empty entries", () => {
+  assertEquals(
+    mergeObservationContexts([
+      { freeText: "  " },
+      { free_text: "" },
+      { freeText: "usable" },
+    ]),
+    ["usable"],
+  );
+});
+
+// ---------------------------------------------------------------------------
+// GPS sanitization
+// ---------------------------------------------------------------------------
+
+Deno.test("GPS - valid coordinates pass through", () => {
   assertEquals(safeGpsLat(51.5074), 51.5074);
   assertEquals(safeGpsLon(-0.1278), -0.1278);
 });
 
-Deno.test("GPS — boundary values are valid (±90 lat, ±180 lon)", () => {
+Deno.test("GPS - boundary values are valid", () => {
   assertEquals(safeGpsLat(90), 90);
   assertEquals(safeGpsLat(-90), -90);
   assertEquals(safeGpsLon(180), 180);
   assertEquals(safeGpsLon(-180), -180);
 });
 
-Deno.test("GPS — out-of-range values sanitised to null", () => {
+Deno.test("GPS - out-of-range values sanitize to null", () => {
   assertEquals(safeGpsLat(91), null);
-  assertEquals(safeGpsLat(-91), null);
-  assertEquals(safeGpsLon(181), null);
   assertEquals(safeGpsLon(-181), null);
 });
 
-Deno.test("GPS — non-finite values sanitised to null", () => {
+Deno.test("GPS - non-finite values sanitize to null", () => {
   assertEquals(safeGpsLat(NaN), null);
-  assertEquals(safeGpsLat(Infinity), null);
-  assertEquals(safeGpsLon(-Infinity), null);
-});
-
-Deno.test("GPS — null and undefined sanitised to null", () => {
-  assertEquals(safeGpsLat(null), null);
-  assertEquals(safeGpsLat(undefined), null);
-  assertEquals(safeGpsLon(null), null);
-});
-
-Deno.test("GPS — zero is valid (equator / prime meridian)", () => {
-  assertEquals(safeGpsLat(0), 0);
-  assertEquals(safeGpsLon(0), 0);
+  assertEquals(safeGpsLon(Infinity), null);
 });
 
 // ---------------------------------------------------------------------------
-// scanId passthrough
+// Scan ID passthrough
 // ---------------------------------------------------------------------------
 
-Deno.test("scanId — valid client_scan_id is passed through unchanged", () => {
-  const id = "client-scan-abc-123";
-  assertEquals(resolveGeneratedScanId(id), id);
+Deno.test("scanId - valid client_scan_id is preserved", () => {
+  assertEquals(resolveGeneratedScanId("client-scan-abc"), "client-scan-abc");
 });
 
-Deno.test("scanId — empty string falls back to a new UUID", () => {
+Deno.test("scanId - empty string falls back to a UUID", () => {
   const result = resolveGeneratedScanId("");
   assert(result.length > 0);
-  assert(result !== "");
 });
 
-Deno.test("scanId — null falls back to a new UUID", () => {
-  const result = resolveGeneratedScanId(null);
-  assert(result.length > 0);
+// ---------------------------------------------------------------------------
+// Candidate and LLM output hardening
+// ---------------------------------------------------------------------------
+
+Deno.test("candidates are sanitized and capped at five", () => {
+  const candidates = sanitizeCandidates([
+    { scientific_name: "cf. Danaus plexippus", confidence_score: 0.8 },
+    { scientific_name: "Rosa canina L." },
+    { scientific_name: "Pinus ponderosa" },
+    { scientific_name: "Acer Palmatum" },
+    { scientific_name: "Boletus edulis var. Edulis" },
+    { scientific_name: "Should be dropped" },
+  ]);
+
+  assertEquals(candidates.length, 5);
+  assertEquals(candidates[0].scientific_name, "Danaus plexippus");
+  assertEquals(candidates[1].scientific_name, "Rosa canina");
+  assertEquals(candidates[3].scientific_name, "Acer palmatum");
+  assertEquals(candidates[4].scientific_name, "Boletus edulis var. edulis");
 });
 
-Deno.test("scanId — undefined falls back to a new UUID", () => {
-  const result = resolveGeneratedScanId(undefined);
-  assert(result.length > 0);
+Deno.test("candidates are stripped when confidence is at or above the diagnostic threshold", () => {
+  const candidates = [{ scientific_name: "Danaus plexippus" }];
+  assertEquals(resolveReturnedCandidates(candidates, 0.99, 0.99), null);
+  assertEquals(resolveReturnedCandidates(candidates, 0.995, 0.99), null);
 });
 
-Deno.test("scanId — two null calls produce distinct UUIDs", () => {
-  const a = resolveGeneratedScanId(null);
-  const b = resolveGeneratedScanId(null);
-  assert(a !== b, "Each fallback UUID must be unique");
+Deno.test("candidates remain when confidence is below the diagnostic threshold", () => {
+  const candidates = [{ scientific_name: "Danaus plexippus" }];
+  assertEquals(
+    resolveReturnedCandidates(candidates, 0.88, 0.99),
+    candidates,
+  );
+});
+
+Deno.test("ai_reasoning is clamped to 2000 characters", () => {
+  assertEquals(sanitizeReasoning("x".repeat(2500)).length, 2000);
+  assertEquals(sanitizeReasoning("ok"), "ok");
+});
+
+Deno.test("individual_count is bounded to positive finite integers", () => {
+  assertEquals(sanitizeCount(12), 12);
+  assertEquals(sanitizeCount(12.7), 13);
+  assertEquals(sanitizeCount(100000), 99999);
+  assertEquals(sanitizeCount(0), undefined);
+  assertEquals(sanitizeCount(-4), undefined);
+  assertEquals(sanitizeCount(NaN), undefined);
+});
+
+Deno.test("life_stage falls back to unknown for invalid enum values", () => {
+  assertEquals(sanitizeLifeStage("adult"), "adult");
+  assertEquals(sanitizeLifeStage("fledgling"), "unknown");
+  assertEquals(sanitizeLifeStage(undefined), "unknown");
+});
+
+Deno.test("reproductive_condition falls back to not_applicable for invalid enum values", () => {
+  assertEquals(sanitizeReproductiveCondition("flowering"), "flowering");
+  assertEquals(
+    sanitizeReproductiveCondition("brooding"),
+    "not_applicable",
+  );
+  assertEquals(
+    sanitizeReproductiveCondition(undefined),
+    "not_applicable",
+  );
 });

@@ -129,7 +129,7 @@ export interface AudioScanInsertRow {
   weather_temperature_f?: number;
   semantic_location?: string;
   device_locale?: string;
-  current_month?: string;
+  current_month?: number | null;
   time_of_day?: string;
   ai_reasoning?: string | null;
   extracted_visual_traits: string[];

@@ -45,7 +45,7 @@ All `Sendable` value types shared across the offline sync pipeline live in a sin
   1. `resolveSpeciesIdAndDiscoveryStatus()`: Decouples local species ID resolution and checks the global `LocalScanRecord` table to determine if the scan qualifies as a brand-new discovery for gamification hooks.
   2. `insertLocalScanRecordIfMissing(observationContextJSON:)`: Builds and stages the final `LocalScanRecord` (including `candidatesData`, `inferenceTier`, `imageQualityScore`, `alternativeCommonNames`, and `observationContextJSON`) into the context. `alternativeCommonNames` is sourced from `SpeciesData.alternativeCommonNames` — populated from GBIF vernacular names on the first scan of a species (via `_shared/external.ts`) and served from `species_dictionary.alternative_common_names` on Cache Hit. On save failure, `modelContext.rollback()` clears the pending insert and `resolvedSpeciesName`, `finalScanId`, and `speciesData` are all cleared so the caller avoids emitting ghost notifications or hydrating an engine that lacks a committed database UUID.
 - `saveLiveScanRecord(mappedData:localImagePaths:observationContextJSON:)` — persists a real-time scan result after live inference. Accepts `observationContextJSON: String? = nil` and writes it to `LocalScanRecord.observationContextJSON`. Persists `imageQualityScore` (Gemini's photographic quality score, 0–100) from `SpeciesData`. Unlike `blurScore` (ephemeral, live-only, never written to disk), `imageQualityScore` is stored permanently for future community reference-photo curation.
-- `saveSightingRecord(mappedData:observationContextJSON:)` — persists a sighting result after `/identify-sighting` inference (no local image files). Accepts `observationContextJSON: String? = nil` and writes it to `LocalScanRecord.observationContextJSON`.
+- `saveDescribeRecord(mappedData:observationContextsJSON:audioFilePaths:)` — persists text-only or audio-only results after `/identify-multimodal` inference when there are no local image files. Accepts structured observation context and optional audio file paths, and writes them into the resulting `LocalScanRecord`.
 
 *Enrichment and metadata:*
 - `updateScanWithOverride(scanId:override:confirmed:newConfirmedSpeciesId:userReviewState:)` — atomic persistence for user review states. Saves the explicit user Identification Override locally, captures truth signals, and synchronously persists the verified Edge taxonomy target directly into `confirmedSpeciesId` bridging the `userReviewState` explicitly.
@@ -219,7 +219,7 @@ Most `@ModelActor` actors are created ad-hoc (per operation) rather than stored 
 | Task | Actor to use |
 |---|---|
 | Save a live scan result | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextJSON:)` |
-| Save a sighting result (no image) | `BackgroundDatabaseActor` (ad-hoc) via `saveSightingRecord(mappedData:observationContextJSON:)` |
+| Save a text-only or audio-only result (no image) | `BackgroundDatabaseActor` (ad-hoc) via `saveDescribeRecord(mappedData:observationContextsJSON:audioFilePaths:)` |
 | Transition scan state for upload pipeline | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
 | Claim a scan for inference (`tryClaimForInference`) | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
 | Reset scan to `.staged` on transient failure | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |

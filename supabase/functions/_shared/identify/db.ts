@@ -1,5 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { hasTierCached, setTierCache } from "../_shared/tierCache.ts";
+import { hasTierCached, setTierCache } from "../tierCache.ts";
 import { CachedSpeciesRow, IdentificationCandidate } from "./types.ts";
 
 export async function upsertGhostUserIfMissing(
@@ -103,7 +103,7 @@ export interface ScanInsertRow {
   weather_temperature_f?: number;
   semantic_location?: string;
   device_locale?: string;
-  current_month?: string;
+  current_month?: number | null;
   time_of_day?: string;
   depth_scale_text?: string;
   ai_reasoning?: string | null;

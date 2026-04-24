@@ -195,10 +195,8 @@ actor ExportProcessingActor {
             
             for path in validPaths {
                 let url = URL.documentsDirectory.appendingPathComponent(path)
-                if let data = try? Data(contentsOf: url) {
-                    let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
-                    if success { photosSaved += 1 }
-                }
+                let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: url)
+                if success { photosSaved += 1 }
             }
             
             let refUrls = payload.referenceImageUrl?.components(separatedBy: ",").filter { !$0.isEmpty } ?? []
@@ -206,9 +204,10 @@ actor ExportProcessingActor {
                 let cleanStr = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
                 if cleanStr.contains("merian.app"), let url = URL(string: cleanStr) {
                     do {
-                        let (data, _) = try await ExportProcessingActor.mediaSession.data(from: url)
-                        let success = await PhotoLibraryManager.shared.saveImageManual(imageData: data)
+                        let (fileURL, _) = try await ExportProcessingActor.mediaSession.download(from: url)
+                        let success = await PhotoLibraryManager.shared.saveImageManual(fileURL: fileURL)
                         if success { photosSaved += 1 }
+                        try? FileManager.default.removeItem(at: fileURL)
                     } catch {
                         MerianLog.network.error("Failed to download R2 media asset: \(error, privacy: .private)")
                     }

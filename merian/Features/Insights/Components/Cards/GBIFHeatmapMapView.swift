@@ -62,7 +62,11 @@ struct GBIFHeatmapMapView: View {
               let url = URL(string: "https://api.gbif.org/v2/map/occurrence/density/0/0/0@2x.png?taxonKey=\(key)&style=classic.poly&bin=hex&hexPerTile=135")
         else { return nil }
         guard let (data, _) = try? await GBIFHeatmapMapView.externalAPISession.data(from: url) else { return nil }
-        return UIImage(data: data)
+
+        // Offload CPU-intensive image decompression from the MainActor
+        return await Task.detached(priority: .userInitiated) {
+            UIImage(data: data)
+        }.value
     }
 }
 

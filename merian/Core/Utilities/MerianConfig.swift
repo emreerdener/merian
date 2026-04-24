@@ -91,7 +91,7 @@ enum MerianConfig {
     /// Flash is fast but can be overconfident on edge cases. We enforce stricter
     /// thresholds here to ensure we don't confidently misidentify lookalikes.
     ///
-    /// **Server-side source of truth**: `supabase/functions/identify/thresholds.ts`
+    /// **Server-side source of truth**: `supabase/functions/_shared/identify/thresholds.ts`
     /// — FLASH_STRONG, FLASH_POSSIBLE, FLASH_DIAGNOSTIC_TRIGGER.
     /// Any change here must be mirrored there, and vice versa.
     static let flashConfidence = ConfidenceBands(
@@ -108,7 +108,7 @@ enum MerianConfig {
     /// An 85% from Pro is highly trustworthy, so we relax the UI thresholds to
     /// reward the premium user with a more decisive experience.
     ///
-    /// **Server-side source of truth**: `supabase/functions/identify/thresholds.ts`
+    /// **Server-side source of truth**: `supabase/functions/_shared/identify/thresholds.ts`
     /// — PRO_STRONG, PRO_POSSIBLE, PRO_DIAGNOSTIC_TRIGGER.
     /// Any change here must be mirrored there, and vice versa.
     static let proConfidence = ConfidenceBands(

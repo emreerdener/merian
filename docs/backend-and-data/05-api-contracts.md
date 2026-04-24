@@ -150,7 +150,7 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
   "// Cache Hit — sourced from species_dictionary.alternative_common_names (populated from GBIF vernacular names on first enrichment):": "",
   "alternative_common_names": ["Monarch", "Common Tiger"],
 
-  "// Present when confidence_score < diagnosticTrigger (0.99 both Flash and Pro — intentionally above strong threshold so Strong match scans still show candidates as escape hatch). Server strips to null at or above 0.99. See identify/thresholds.ts.": "",
+  "// Present when confidence_score < diagnosticTrigger (0.99 both Flash and Pro — intentionally above strong threshold so Strong match scans still show candidates as escape hatch). Server strips to null at or above 0.99. See _shared/identify/thresholds.ts.": "",
   "candidates": [
     { "scientific_name": "Limenitis archippus", "common_name": "Viceroy", "confidence_score": 0.71, "distinguishing_feature": "Hindwing black postmedian band broader and more irregular than Monarch" },
     { "scientific_name": "Danaus gilippus", "common_name": "Queen", "confidence_score": 0.58, "distinguishing_feature": "Forewing lacks white spots in the black apex band" }
@@ -158,19 +158,19 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
 }
 ```
 
-> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification and ecosystem measurement. Data-as-a-Service fields (`estimated_size_cm`, `life_stage`, `reproductive_condition`, `individual_count`, `ecological_interactions`) are fully generated on the primary pass avoiding any secondary inference loops. `extracted_visual_traits` executes a Micro-CoT pass before taxonomic grouping to anchor the model to reality and avoid visual pareidolia. `insight_data.ai_reasoning` is always present for biological subjects — it is the Gemini vision model's per-scan reasoning about the specific photo submitted and is unique per scan. **LLM field caps** (enforced in `index.ts` after scientific name sanitization): `colors`, `extracted_visual_traits`, and `ecological_interactions` are each truncated to a maximum of 10 items; `ai_reasoning` is truncated to 2000 characters; `individual_count` is validated as a positive integer ≤ 99999; the client-supplied `estimated_size_cm` is validated as a positive finite number ≤ 50000; the `candidates` array is capped at 5 items before `payloadReadyForClient` is built. **GPS range validation**: `gpsLatitude` and `gpsLongitude` from the request payload are validated against physical bounds (`−90 ≤ lat ≤ 90`, `−180 ≤ lon ≤ 180`). Out-of-range values are sanitised to `null` (carried as `safeGpsLat`/`safeGpsLon` throughout `index.ts`) rather than failing the request — location is supplementary and a bad coordinate must not abort identification. These bounds protect the V8 heap and downstream SQLite columns from unbounded LLM output. To guarantee this Micro-CoT happens linearly, both `extracted_visual_traits` and `ai_reasoning` are anchored at the top of the `getSchemaProperties` object, forcing Gemini to output them *before* classification. Ghost fields (`colors`, `regional_status_rationale`, `blur_score`) are stripped out entirely from both schema descriptors and prompts to decrease inference loops and token footprint. `blur_score` is computed mathematically from the required `sharpness` attribute down-stream. Schema objects are aggressively memoized locally (`schemaCache`) per-tier to bypass redundant V8 isolations. `taxonomy` and `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `gbif_taxon_key` is present on Cache Hit for **all tiers** — it is GBIF's deterministic species usage key (sourced from a REST call to `api.gbif.org`, not AI-generated) and powers the occurrence density heatmap in `BiologicalView` for free and Pro users alike. `species_insights` is present on Cache Hit for all tiers when `habitat_description` is already stored in `species_dictionary`. `alternative_common_names` is a `string[] | null` field present on Cache Hit. It contains all known English vernacular synonyms for the species beyond the primary `common_name`, sourced from the GBIF vernacular names endpoint (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) during the background enrichment pass that fires on the first Cache Miss for a species. The primary `common_name` value is excluded from this array (case-insensitive deduplication applied server-side). `null` on Cache Miss or when GBIF returned no additional names. On the iOS side, these alternatives are stored in `LocalScanRecord.alternativeCommonNames` (SwiftData V34) and presented in `InsightHeader` as a tappable "Also known as" line. `similar_species` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function unconditionally (Edge applies no confidence gate; the iOS client dynamically applies the tier-specific threshold in `BiologicalView` to decide display treatment). `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit (authoritative) or from the vision model on Cache Miss (stored in `species_dictionary` for future hits). The `hazard_type` column exists only on `species_dictionary`, not on `scans`. `candidates` is a **required field** in `merianResponseSchema` — Gemini always generates exactly 2 alternative species. `index.ts` calls `diagnosticTriggerForTier(tier)` from `identify/thresholds.ts` and sets `candidates = null` before sending the response and before the `scans` DB insert when `confidence_score >= diagnosticTrigger` (`0.99` for both Flash and Pro). This threshold is intentionally above the `strong` band on each tier (`0.95` Flash / `0.85` Pro), so Strong match scans (0.95–0.99) still reach the client with a full candidate list as an escape hatch for overconfident wrong IDs. Only scans at or above 0.99 have candidates stripped — every Possible, Weak, and Strong match scan carries alternatives for the verification UX. The server gate is the sole enforcement mechanism; the model is not asked to conditionally self-suppress. **Null confidence_score safety**: if Gemini unexpectedly returns a null `confidence_score` (malformed response), the gate falls back to `0.0` (not `1.0`) so that candidates are *preserved* — a scan with an unparseable confidence is exactly the scan where alternatives are most needed. Candidates are scan-specific (not species-level) and are persisted to `public.scans.candidates` (JSONB) and `LocalScanRecord.candidatesData` (Data blob, `MerianSchemaV28`).
+> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification and ecosystem measurement. Data-as-a-Service fields (`estimated_size_cm`, `life_stage`, `reproductive_condition`, `individual_count`, `ecological_interactions`) are fully generated on the primary pass avoiding any secondary inference loops. `extracted_visual_traits` executes a Micro-CoT pass before taxonomic grouping to anchor the model to reality and avoid visual pareidolia. `insight_data.ai_reasoning` is always present for biological subjects — it is the Gemini vision model's per-scan reasoning about the specific photo submitted and is unique per scan. **LLM field caps** (enforced in `index.ts` after scientific name sanitization): `colors`, `extracted_visual_traits`, and `ecological_interactions` are each truncated to a maximum of 10 items; `ai_reasoning` is truncated to 2000 characters; `individual_count` is validated as a positive integer ≤ 99999; the client-supplied `estimated_size_cm` is validated as a positive finite number ≤ 50000; the `candidates` array is capped at 5 items before `payloadReadyForClient` is built. **GPS range validation**: `gpsLatitude` and `gpsLongitude` from the request payload are validated against physical bounds (`−90 ≤ lat ≤ 90`, `−180 ≤ lon ≤ 180`). Out-of-range values are sanitised to `null` (carried as `safeGpsLat`/`safeGpsLon` throughout `index.ts`) rather than failing the request — location is supplementary and a bad coordinate must not abort identification. These bounds protect the V8 heap and downstream SQLite columns from unbounded LLM output. To guarantee this Micro-CoT happens linearly, both `extracted_visual_traits` and `ai_reasoning` are anchored at the top of the `getSchemaProperties` object, forcing Gemini to output them *before* classification. Ghost fields (`colors`, `regional_status_rationale`, `blur_score`) are stripped out entirely from both schema descriptors and prompts to decrease inference loops and token footprint. `blur_score` is computed mathematically from the required `sharpness` attribute down-stream. Schema objects are aggressively memoized locally (`schemaCache`) per-tier to bypass redundant V8 isolations. `taxonomy` and `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `gbif_taxon_key` is present on Cache Hit for **all tiers** — it is GBIF's deterministic species usage key (sourced from a REST call to `api.gbif.org`, not AI-generated) and powers the occurrence density heatmap in `BiologicalView` for free and Pro users alike. `species_insights` is present on Cache Hit for all tiers when `habitat_description` is already stored in `species_dictionary`. `alternative_common_names` is a `string[] | null` field present on Cache Hit. It contains all known English vernacular synonyms for the species beyond the primary `common_name`, sourced from the GBIF vernacular names endpoint (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) during the background enrichment pass that fires on the first Cache Miss for a species. The primary `common_name` value is excluded from this array (case-insensitive deduplication applied server-side). `null` on Cache Miss or when GBIF returned no additional names. On the iOS side, these alternatives are stored in `LocalScanRecord.alternativeCommonNames` (SwiftData V34) and presented in `InsightHeader` as a tappable "Also known as" line. `similar_species` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function unconditionally (Edge applies no confidence gate; the iOS client dynamically applies the tier-specific threshold in `BiologicalView` to decide display treatment). `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit (authoritative); on Cache Miss the live response currently defaults to `"none"` until later enrichment fills the richer species-level hazard metadata. The `hazard_type` column exists only on `species_dictionary`, not on `scans`. `candidates` is a **required field** in `merianResponseSchema` — Gemini always generates exactly 2 alternative species. `index.ts` calls `diagnosticTriggerForTier(tier)` from `_shared/identify/thresholds.ts` and sets `candidates = null` before sending the response and before the `scans` DB insert when `confidence_score >= diagnosticTrigger` (`0.99` for both Flash and Pro). This threshold is intentionally above the `strong` band on each tier (`0.95` Flash / `0.85` Pro), so Strong match scans (0.95–0.99) still reach the client with a full candidate list as an escape hatch for overconfident wrong IDs. Only scans at or above 0.99 have candidates stripped — every Possible, Weak, and Strong match scan carries alternatives for the verification UX. The server gate is the sole enforcement mechanism; the model is not asked to conditionally self-suppress. **Null confidence_score safety**: if Gemini unexpectedly returns a null `confidence_score` (malformed response), the gate falls back to `0.0` (not `1.0`) so that candidates are *preserved* — a scan with an unparseable confidence is exactly the scan where alternatives are most needed. Candidates are scan-specific (not species-level) and are persisted to `public.scans.candidates` (JSONB) and `LocalScanRecord.candidatesData` (Data blob, `MerianSchemaV28`).
 
 ### Background Ingestion & Media Moderation
 
 After the HTTP `200 OK` response is returned to the client, `runBackground` schedules asynchronous ingestion via `EdgeRuntime.waitUntil`. This background task handles:
 
 1. **Ghost user upsert** — ensures the `users` table row exists before the `scans` FK insert
-2. **Content moderation** (`identify/moderation.ts`) — evaluates Gemini safety ratings and promotes media from staging to public storage
+2. **Content moderation** (`_shared/identify/moderation.ts`) — evaluates Gemini safety ratings and promotes media from staging to public storage
 3. **Species dictionary enrichment** (Cache Miss only) — calls `fetchExternalEnrichment` for Wikipedia/GBIF data
 4. **`insertScan`** — writes the final scan row to `public.scans`
 5. **Group tags** — fires a background Flash call to populate `species_dictionary.group_tags` for first-time species
 
-**Media promotion**: Safe media is moved from `staging/{userId}/{filename}` to `public_uploads/{tier}/{userId}/{filename}` inside Cloudflare R2, and the CDN URL (`https://media.merian.app/public_uploads/...`) is stored in `scans.image_storage_urls`. For the `imageBase64s` path, the bytes are uploaded directly to the public destination without a staging step. Any R2 upload failure on the `imageBase64s` path throws immediately — this aborts the promotion of the entire batch and triggers the R2 rollback below, preventing the scan from being inserted with a partial image array. `scans.image_storage_urls` is written as `null` (not `[]`) when no images are successfully stored.
+**Media promotion**: Safe media is moved from `staging/{userId}/{filename}` to `public_uploads/{tier}/{userId}/{filename}` inside Cloudflare R2, and the CDN URL (`https://media.merian.app/public_uploads/...`) is stored in `scans.image_storage_urls`. For the `imageBase64s` path, the bytes are uploaded directly to the public destination without a staging step. Any promotion failure now aborts the entire batch and immediately rolls back any already-promoted public objects from that same batch before returning `ERROR`; scans are not inserted with partial image arrays.
 
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is deleted, `users.abuse_strikes` is incremented, and the scan is not inserted. At 3+ strikes `users.is_shadowbanned` is set to `true` and all future ingestion silently halts. See [Safety & Moderation](../development-guides/10-safety-and-moderation.md) for full details.
 
@@ -229,7 +229,7 @@ struct IdentifyResponse: Codable {
 
 ## Deno `/identify-multimodal` Edge Node
 
-A unified identification pipeline that merges the capabilities of `/identify`, `/identify-sighting`, and `/audio-spec` into a single multi-modal entry point. Supports array-based compositions of images, audio, and descriptive context.
+A unified identification pipeline that merges the capabilities of `/identify`, `/identify-describe`, and `/audio-spec` into a single multi-modal entry point. The current iOS client routes new inference traffic here. Supports array-based compositions of images, audio, and descriptive context.
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
@@ -238,35 +238,46 @@ A unified identification pipeline that merges the capabilities of `/identify`, `
   "r2ObjectKeys": [
     "staging/A1B2C3D4.../uuid_image_1.webp"
   ],
-  "audioR2Keys": [
-    "staging/A1B2C3D4.../uuid_audio_1.m4a"
-  ],
   "imageBase64s": ["<base64>"],
   "audioBase64s": ["<base64>"],
   "user_id": "Supabase Auth UUID",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
+  "gpsElevation": 42.5,
+  "semanticLocation": "Zilker Park",
+  "weatherCondition": "Partly Cloudy",
+  "weatherTemperatureF": 68.0,
   "deviceLocale": "en",
+  "deviceTimeZone": "America/Chicago",
+  "deviceRegion": "US",
+  "currentMonth": 4,
+  "timeOfDay": "10:30 AM",
+  "depthScaleText": "1.3 meters",
+  "zoomFactor": 2.0,
+  "estimated_size_cm": 11.5,
   "timestamp": "2026-03-21T09:46:03.000Z",
   "observation_contexts": [
     {
-      "organism_class": "Bird",
-      "colors": ["blue"],
-      "free_text": "Heard rustling before spotting it"
+      "freeText": "Heard rustling before spotting it",
+      "addedAt": "2026-03-21T09:45:20.000Z"
     }
   ]
 }
 ```
 
-- Features dynamic `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` execution if both `audioBase64s` and `imageBase64s` present.
-- Executes `processWAV` sequentially in Deno to enforce mono/16kHz processing to limit R2 storage footprint and Gemini context window consumption. 
-- The Edge Node resolves legacy endpoint constraints natively. Response schema is contiguous with `/identify`.
+- Features dynamic `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` execution if both `audioBase64s` and `imageBase64s` are present.
+- Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini ingestion.
+- Audio currently stays inline as `audioBase64s` on this path; there is no shipped `audioR2Keys` request field in the active client/server contract.
+- The canonical request contract is camelCase telemetry (`gpsLatitude`, `semanticLocation`, `deviceTimeZone`, etc.) plus `observation_contexts: [{ freeText, addedAt? }]`, matching `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS `ObservationContext` model.
+- The server still accepts legacy snake_case telemetry aliases (`gps_latitude`, `semantic_location`, `time_of_day`, etc.) and legacy `free_text` context keys so offline queue replays and older internal tooling do not break mid-migration.
+- Candidate handling now matches `/identify`: the response strips `candidates` when `confidence_score >= diagnosticTrigger`, enriches forwarded candidates with cached English common names when available, and schedules background enrichment for cache misses.
+- The multimodal background ingestion path shares the same `_shared/identify` DB, media, schema, threshold, and moderation primitives as `/identify`.
 
 
 
-## Deno `/identify-sighting` Edge Node
+## Text-Only Describe Path
 
-Performs AI identification for a **text-only sighting** — no image is submitted. The user supplies structured observation notes via `ObservationContext`; Gemini uses the description alone to identify the organism. This path is used by the Sighting feature (`BiologicalView` sighting sheet) when the user logs a past observation without a photo.
+The current app routes text-only observations through `/identify-multimodal` with `observation_contexts` populated and no images or audio attached. The legacy `/identify-describe` endpoint remains deployed, but it is no longer the primary client path.
 
 ### Request Payload
 
@@ -286,39 +297,34 @@ Performs AI identification for a **text-only sighting** — no image is submitte
   "currentMonth": 4,
   "timeOfDay": "10:30 AM",
   "timestamp": "2026-04-14T10:30:00.000Z",
-  "description": "Medium-sized bird, vivid blue upperparts, rust-orange breast, perched on fence post in suburban garden",
-  "observation_context": {
-    "organism_class": "Bird",
-    "colors": ["blue", "orange", "white"],
-    "size": "medium",
-    "habitats": ["suburban", "garden"],
-    "behaviors": ["perching", "singing"],
-    "markings": "rust-orange breast, white belly",
-    "textures": null,
-    "free_text": "Heard a clear flute-like song before spotting it"
-  }
+  "observation_contexts": [
+    {
+      "freeText": "Medium-sized bird, vivid blue upperparts, rust-orange breast, perched on fence post in suburban garden. Heard a clear flute-like song before spotting it.",
+      "addedAt": "2026-04-14T10:29:45.000Z"
+    }
+  ]
 }
 ```
 
-`client_scan_id` is generated by the iOS client and forwarded as `generatedScanId` to the edge function. `insertSightingScan` uses `onConflict: "id", ignoreDuplicates: true` — identical to the `/identify` path — so a replayed sighting request is a silent no-op at the DB layer.
+`client_scan_id` is generated by the iOS client and forwarded as `generatedScanId` to the edge function. The current multimodal text-only path inserts through the shared `insertScan` contract using the same idempotent scan ID semantics as image and audio requests.
 
-`description` is generated client-side by `ObservationContext.serialized()` and sent as the Gemini vision prompt text (no image inline data). `observation_context` is the full structured object, stored as `public.scans.user_observation_context` JSONB. Both are always present for sighting submissions (the iOS client guards on `observationContext.isEmpty` before allowing submission).
+The current iOS client does not send a top-level `description` field on this path. The edge function concatenates the `observation_contexts[*].freeText` entries into the multimodal prompt server-side. The first structured context object is also persisted to `public.scans.user_observation_context` for scan-level provenance. The iOS client guards on `ObservationContext.isEmpty` before allowing submission.
 
-`r2ObjectKeys` and `imageBase64s` are intentionally absent — there is no image in a sighting submission. `scans.image_storage_urls` is written as `null` by `insertSightingScan`.
+`r2ObjectKeys`, `imageBase64s`, and `audioBase64s` are intentionally absent — there is no media in a text-only submission. `scans.image_storage_urls` is written as an empty image array by the shared insert path because there is no promoted media to persist.
 
 ### Response Schema
 
-The response shape mirrors the `/identify` JSON response exactly. `scan_id` is returned as the DB UUID of the inserted sighting scan.
+The response shape mirrors the `/identify` / `/identify-multimodal` JSON response exactly. `scan_id` is returned as the scan UUID generated for that text-only request.
 
 ### IDOR & Auth
 
-The server extracts the user identity from the `Authorization: Bearer` JWT via `supabaseAdmin.auth.getUser()`. The `user_id` in the request body is ignored for auth purposes. `insertSightingScan` enforces `.eq("user_id", user.id)` to prevent cross-user data injection.
+The server extracts the user identity from the `Authorization: Bearer` JWT via `supabaseAdmin.auth.getUser()`. The `user_id` in the request body is ignored for auth purposes.
 
 ### Error Responses
 
 | Status | Body | Meaning |
 |---|---|---|
-| `400` | `{ "error": "Missing required fields." }` | `description` or `observation_context` absent |
+| `400` | `{ "error": "At least one media element or description is required" }` | No image, audio, or non-empty `observation_contexts[*].freeText` text was provided |
 | `400` | `{ "error": "AI processing error. Please try again." }` | Permanent Gemini safety / policy failure |
 | `422` | `{ "error": "Processing Error: Malformed AI response." }` | Gemini returned unparseable output |
 | `503` | `{ "error": "AI processing error. Please try again." }` | Transient Gemini failure |

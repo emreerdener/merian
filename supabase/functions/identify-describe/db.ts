@@ -1,6 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { hasTierCached, setTierCache } from "../_shared/tierCache.ts";
-import { CachedSpeciesRow, IdentificationCandidate } from "../identify/types.ts";
+import {
+  CachedSpeciesRow,
+  IdentificationCandidate,
+} from "../_shared/identify/types.ts";
 
 // Re-export from identify/db.ts where the logic is identical.
 // upsertGhostUserIfMissing, fetchCachedSpecies, upsertSpeciesDictionary,
@@ -13,7 +16,7 @@ export {
   upsertSpeciesDictionary,
   fetchCandidateCommonNames,
   updateGroupTags,
-} from "../identify/db.ts";
+} from "../_shared/identify/db.ts";
 
 export type { CachedSpeciesRow };
 
@@ -38,7 +41,7 @@ export interface DescribeScanInsertRow {
   weather_temperature_f?: number;
   semantic_location?: string;
   device_locale?: string;
-  current_month?: string;
+  current_month?: number | null;
   time_of_day?: string;
   ai_reasoning?: string | null;
   extracted_visual_traits: string[];

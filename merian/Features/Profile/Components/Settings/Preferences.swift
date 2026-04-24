@@ -89,7 +89,6 @@ struct Preferences: View {
                 hardwareOrchestrator.evaluateConstraints()
             }
 
-           
         } header: {
             Text("Capture behavior")
         }
@@ -106,7 +105,6 @@ struct Preferences: View {
                 .pickerStyle(.segmented)
             }
             .padding(.vertical, 4)
-            
             // MARK: - Upgrades
             Button { managePlanActive = true } label: {
                 SettingsNavigationRow(
@@ -116,8 +114,6 @@ struct Preferences: View {
                     iconColor: .orange
                 )
             }
-
-
 
             // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {

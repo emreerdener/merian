@@ -35,23 +35,23 @@ The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
 - **Oversharing Defense:** Only declare fields strictly consumed by the frontend; do not dump generic Postgres wildcard `*` objects out locally to the client natively.
 
 **Current key additions (as of V34):**
-- `identify/types.ts`: `ClientPayload` includes `alternative_common_names?: string[] | null`; `CachedSpeciesRow` includes `alternative_common_names: string[] | null` to mirror `species_dictionary`.
+- `_shared/identify/types.ts`: `ClientPayload` includes `alternative_common_names?: string[] | null`; `CachedSpeciesRow` includes `alternative_common_names: string[] | null` to mirror `species_dictionary`.
 - `enrich-scan/types.ts`: `CachedSpeciesData` includes `alternative_common_names: string[] | null`; read by `getCachedSpecies` and conditionally written by `updateSpeciesEnrichment`.
 - Both functions' `db.ts` files include `alternative_common_names` in their `SPECIES_SELECT`/select strings and upsert/update payloads. Any new column added to `species_dictionary` that is served to the client must be added to all four of these locations simultaneously. 
 
 ## 4. Threshold Constants (`thresholds.ts`)
 
-`supabase/functions/identify/thresholds.ts` is the **canonical source of truth** for confidence threshold values used across the `identify` pipeline:
+`supabase/functions/_shared/identify/thresholds.ts` is the **canonical source of truth** for confidence threshold values used across the `identify` pipeline:
 
 ```typescript
-export const FLASH_STRONG = 0.95;              // == FLASH_DIAGNOSTIC_TRIGGER
-export const FLASH_DIAGNOSTIC_TRIGGER = 0.95;
-export const PRO_STRONG = 0.85;                // == PRO_DIAGNOSTIC_TRIGGER
-export const PRO_DIAGNOSTIC_TRIGGER = 0.85;
+export const FLASH_STRONG = 0.95;
+export const FLASH_DIAGNOSTIC_TRIGGER = 0.99;
+export const PRO_STRONG = 0.85;
+export const PRO_DIAGNOSTIC_TRIGGER = 0.99;
 export function diagnosticTriggerForTier(tier: "pro" | "flash"): number
 ```
 
-`index.ts` imports `FLASH_DIAGNOSTIC_TRIGGER`, `PRO_DIAGNOSTIC_TRIGGER`, and `diagnosticTriggerForTier` from this file — model cache initialisation and the per-request strip logic both reference the same constants, eliminating drift. The iOS client mirrors these in `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`; comments in that file point back to `thresholds.ts` as the source of truth. Any threshold change must be applied in both places.
+`identify/index.ts`, `identify-multimodal/index.ts`, and `identify-describe/index.ts` import `diagnosticTriggerForTier` from this file so the candidate-strip gate cannot drift across inference entry points. The iOS client mirrors these in `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`; comments in that file point back to `thresholds.ts` as the source of truth. Any threshold change must be applied in both places.
 
 ## 5. Auxiliary Streams (`storage.ts`, `mail.ts`, `media.ts`, `moderation.ts`)
 
@@ -61,8 +61,9 @@ For exceptionally heavy or bespoke routing streams that violate the 10-second De
 
 **Structured error logging (`_shared/edgeHandler.ts`)**: In addition to `withEdgeHandler` and `runBackground`, `edgeHandler.ts` exports `logStructuredError(event, details)`. This emits `JSON.stringify({ event, ts, ...details })` to `console.error`. All Edge Functions must use `logStructuredError` for alertable operational failures (e.g. post-auth partial deletion, DB write failures that produce false-success responses) rather than plain `console.error` strings. Structured log lines are machine-parseable and can trigger alerting pipelines on the ops side.
 - **`mail.ts`**: Aggregates 3rd-party SaaS integrations like the `Resend` Node SDK for transactional email delivery.
-- **`media.ts`** (`identify/` only): Resolves the image payload for the Gemini vision call. Handles two paths — R2 key fetch (downloads staging objects serially to avoid heap spikes) and `imageBase64s` direct pass-through (validates size limits). Extracted from `index.ts` to keep the HTTP orchestrator lean and to isolate the heap-safety logic for independent testing.
-- **`moderation.ts`** (`identify/` only): Evaluates Gemini safety ratings, manages abuse strikes, and promotes safe media from `staging/` to `public_uploads/` in Cloudflare R2. Always runs inside `runBackground` — never on the critical HTTP path. See [Safety & Moderation](../development-guides/10-safety-and-moderation.md) for the full pipeline specification.
+- **`_shared/identify/media.ts`**: Resolves the image payload for the Gemini vision call. Handles two paths — R2 key fetch (downloads staging objects serially to avoid heap spikes) and `imageBase64s` direct pass-through (validates size limits). Shared by `identify` and `identify-multimodal`.
+- **`_shared/identify/clientPayload.ts`**: Normalizes cache-hit response hydration so `identify` and `identify-multimodal` return the same cached taxonomy, hazard, habitat, IUCN, GBIF, and synonym fields.
+- **`_shared/identify/moderation.ts`**: Evaluates Gemini safety ratings, manages abuse strikes, and promotes safe media from `staging/` to `public_uploads/` in Cloudflare R2. Always runs inside `runBackground` — never on the critical HTTP path. Shared by `identify` and `identify-multimodal`. See [Safety & Moderation](../development-guides/10-safety-and-moderation.md) for the full pipeline specification.
 
 ## Architectural Unification
 

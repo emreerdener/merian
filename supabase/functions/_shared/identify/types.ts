@@ -27,25 +27,105 @@ export interface MerianIdentification {
   individual_count?: number;
   ecological_interactions?: string[];
   candidates?: IdentificationCandidate[] | null;
-  image_quality: ImageQuality;
+  image_quality?: ImageQuality;
 }
 
-/** A single alternative species the model considered when confidence was below threshold. */
 export interface IdentificationCandidate {
   scientific_name: string;
-  /** Authoritative English common name sourced from species_dictionary. Absent on cache miss. */
   common_name?: string;
   confidence_score: number;
-  /** The single most important observable trait that distinguishes this candidate from the primary identification. */
   distinguishing_feature: string;
 }
 
-/** Photographic quality scores emitted by Gemini for every scan. */
 export interface ImageQuality {
-  sharpness: number;          // 1–10: focus and absence of motion blur
-  framing: number;            // 1–10: subject fully in frame and well-isolated
-  diagnostic_utility: number; // 1–10: taxonomic features clearly displayed
-  overall_score: number;      // 0–100: holistic encyclopedic reference quality
+  sharpness: number;
+  framing: number;
+  diagnostic_utility: number;
+  overall_score: number;
+}
+
+export interface ObservationContextDTO {
+  freeText?: string;
+  free_text?: string;
+  addedAt?: string;
+  added_at?: string;
+}
+
+export interface Payload {
+  user_id: string;
+  imageBase64?: string;
+  imageBase64s?: string[];
+  r2ObjectKeys?: string[];
+  gpsLatitude?: number | null;
+  gpsLongitude?: number | null;
+  gpsElevation?: number | null;
+  semanticLocation?: string;
+  weatherCondition?: string;
+  weatherTemperatureF?: number;
+  deviceLocale?: string;
+  deviceTimeZone?: string;
+  deviceRegion?: string;
+  currentMonth?: number | string;
+  timeOfDay?: string;
+  depthScaleText?: string;
+  zoomFactor?: number;
+  estimatedSizeCm?: number | null;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
+  gps_elevation?: number | null;
+  semantic_location?: string;
+  weather_condition?: string;
+  weather_temperature_f?: number;
+  device_locale?: string;
+  device_time_zone?: string;
+  device_region?: string;
+  current_month?: number | string;
+  time_of_day?: string;
+  estimated_size_cm?: number | null;
+  timestamp?: string;
+  client_scan_id?: string;
+  isIpad?: boolean;
+}
+
+export interface MultimodalPayload {
+  user_id: string;
+  imageBase64s?: string[];
+  audioBase64s?: string[];
+  observation_contexts?: ObservationContextDTO[];
+  r2ObjectKeys?: string[];
+
+  // Telemetry metadata
+  gpsLatitude?: number | null;
+  gpsLongitude?: number | null;
+  gpsElevation?: number | null;
+  semanticLocation?: string;
+  weatherCondition?: string;
+  weatherTemperatureF?: number;
+  deviceLocale?: string;
+  deviceTimeZone?: string;
+  deviceRegion?: string;
+  currentMonth?: number | string;
+  timeOfDay?: string;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
+  gps_elevation?: number | null;
+  semantic_location?: string;
+  weather_condition?: string;
+  weather_temperature_f?: number;
+  device_locale?: string;
+  device_time_zone?: string;
+  device_region?: string;
+  current_month?: number | string;
+  time_of_day?: string;
+  timestamp?: string;
+  client_scan_id?: string;
+  mimeType?: string;
+  depthScaleText?: string;
+  depth_scale_text?: string;
+  zoomFactor?: number;
+  estimatedSizeCm?: number | null;
+  estimated_size_cm?: number | null;
+  isIpad?: boolean;
 }
 
 export interface ClientPayload extends MerianIdentification {

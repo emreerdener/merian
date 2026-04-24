@@ -6,12 +6,12 @@ import SwiftData
 extension OfflineQueueManager {
 
     /// Persists a finished audio recording and inserts a `.staged` `OfflineQueuedScan` record
-    /// for background bioacoustic inference once the `audio_spec` edge function is deployed.
+    /// for background bioacoustic inference through the unified `/identify-multimodal` path.
     ///
     /// The audio file is moved from the `tmp` directory into `Documents` so it survives app
     /// restarts. The queue record carries `audioFilePath` in place of `observationContextJSON`
-    /// or `localImagePaths`, which causes `replayInferenceStagedScans` to skip it (audio scans
-    /// require a dedicated dispatch path, not the image/describe inference routes).
+    /// or `localImagePaths`, which routes replay through the dedicated audio branch in
+    /// `dispatchInferenceDownloadTask` rather than the image-only inference path.
     ///
     /// Quota is consumed at enqueue time, mirroring `enqueueCapture` and `enqueueDescribe`.
     /// Moves the finished audio recording to Documents and inserts a `.staged` queue record.
