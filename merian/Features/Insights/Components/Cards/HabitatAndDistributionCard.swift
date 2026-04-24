@@ -5,12 +5,7 @@ struct HabitatAndDistributionCard: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) private var inferenceEngine
 
-    @State private var isRetrying = false
     @State private var isPulsing = false
-    /// Tracks whether the single automatic retry attempt has already fired for this card instance.
-    /// Prevents an infinite loop: auto-retry fires once on first entry to the empty state, then
-    /// the manual Retry button is the only remaining escape hatch.
-    @State private var hasAutoRetried = false
 
     var body: some View {
         let habitatDescription = inferenceEngine.speciesData?.habitatDescription
@@ -66,8 +61,8 @@ struct HabitatAndDistributionCard: View {
                         .lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true)
 
-                } else if inferenceEngine.isEnrichmentLoading {
-                    // MARK: - LOADING STATE
+                } else {
+                    // MARK: - LOADING & AUTO-RETRY STATE
                     VStack(alignment: .leading, spacing: 12) {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(0..<3, id: \.self) { _ in
@@ -88,44 +83,26 @@ struct HabitatAndDistributionCard: View {
                             }
                         }
                     }
-
-                } else {
-                    // RETRY STATE — enrichment either failed or never completed.
-                    // Auto-retry fires once with a short delay so transient network errors
-                    // resolve without requiring user interaction. The manual button remains
-                    // as the escape hatch if the auto-retry also fails.
-                    VStack(spacing: 12) {
-                        Text("Habitat and distribution data couldn't be loaded.")
-                            .font(.subheadline)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 24)
-
-                        Button(action: {
-                            Task { await triggerEnrichment() }
-                        }) {
-                            HStack {
-                                if isRetrying {
-                                    ProgressView().tint(.white)
-                                } else {
-                                    Text("Retry").fontWeight(.semibold)
-                                }
-                            }
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.accentColor)
-                            .clipShape(Capsule())
-                        }
-                        .disabled(isRetrying)
-                    }
                     .task {
-                        guard !hasAutoRetried else { return }
-                        hasAutoRetried = true
-                        // 2-second delay: lets any still-in-flight initial enrichment call
-                        // settle before firing a redundant second request.
-                        try? await Task.sleep(for: .seconds(2))
-                        await triggerEnrichment()
+                        var retryCount = 0
+                        let maxRetries = 5
+                        
+                        while !Task.isCancelled && retryCount < maxRetries {
+                            if inferenceEngine.speciesData?.habitatDescription != nil { break }
+                            
+                            if !inferenceEngine.isEnrichmentLoading {
+                                // Exponential backoff: 2s, 4s, 8s, 16s, 32s
+                                let delay = pow(2.0, Double(retryCount + 1))
+                                try? await Task.sleep(for: .seconds(delay))
+                                guard !Task.isCancelled else { break }
+                                
+                                retryCount += 1
+                                await triggerEnrichment()
+                            } else {
+                                // Wait and poll again
+                                try? await Task.sleep(for: .seconds(1))
+                            }
+                        }
                     }
                 }
             }
@@ -138,10 +115,11 @@ struct HabitatAndDistributionCard: View {
 
     @MainActor
     private func triggerEnrichment() async {
-        isRetrying = true
-        defer { isRetrying = false }
-        await inferenceEngine.fetchAndApplyEnrichment(modelContext: modelContext)
-        HapticManager.shared.triggerSuccessPulse()
+        await inferenceEngine.fetchAndApplyEnrichment(
+            modelContext: modelContext,
+            needsMetadata: true,
+            needsLookalikes: false
+        )
     }
     
     // MARK: - View Helpers
