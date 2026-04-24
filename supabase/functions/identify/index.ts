@@ -9,7 +9,7 @@ import { getTierForUser } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 
-import { MerianIdentification, ClientPayload, CachedSpeciesRow, StaticSpeciesData } from "../_shared/identify/types.ts";
+import { MerianIdentification, ClientPayload, CachedSpeciesRow } from "../_shared/identify/types.ts";
 import { getSystemInstruction, getMerianResponseSchema } from "../_shared/identify/schema.ts";
 import { FLASH_DIAGNOSTIC_TRIGGER, PRO_DIAGNOSTIC_TRIGGER, diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import { resolveImagePayloads } from "../_shared/identify/media.ts";

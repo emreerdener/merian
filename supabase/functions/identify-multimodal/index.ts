@@ -123,7 +123,7 @@ serve((req: Request) =>
     const paramError = requireParams(rawBody, ["user_id"]);
     if (paramError) return paramError;
 
-    const payload = rawBody as unknown as MultimodalPayload;
+    const payload = rawBody as unknown as MultimodalPayload; // Trigger TS Language Server refresh
     const {
       client_scan_id,
       timestamp,

@@ -126,6 +126,7 @@ export interface MultimodalPayload {
   estimatedSizeCm?: number | null;
   estimated_size_cm?: number | null;
   isIpad?: boolean;
+  // Trigger TS Language Server refresh
 }
 
 export interface ClientPayload extends MerianIdentification {

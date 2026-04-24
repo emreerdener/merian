@@ -1154,8 +1154,7 @@ private struct GBIFMedia: Decodable {
             // Mark as attempted only on success — transient failures (timeout, 404) remain retryable.
             wikiFetchAttemptedIds.insert(species)
 
-            var imageUrlToPersist = imageUrl
-            await MainActor.run {
+            let imageUrlToPersist = await MainActor.run { () -> String? in
                 MerianLog.general.debug("Wikipedia hydration returned imageUrl: \(imageUrl ?? "nil", privacy: .public)")
                 // Individual optional-chain mutations (self.speciesData?.field = x) do not
                 // reliably fire @Observable notifications for struct value types; a single
@@ -1171,11 +1170,12 @@ private struct GBIFMedia: Decodable {
                         let capped = Array(currentUrls.prefix(5))
                         updated.referenceImageUrl = capped.joined(separator: ",")
                         self.activeMedia.referenceState = .loaded(capped)
-                        imageUrlToPersist = updated.referenceImageUrl // Overwrite imageUrl so updateScanWithWikipedia writes the joined string
                         MerianLog.general.debug("Wiki hydration applied. New state: \(capped, privacy: .public)")
                     }
                     self.speciesData = updated
+                    return updated.referenceImageUrl ?? imageUrl
                 }
+                return imageUrl
             }
 
             if let scanId = scanId, let context = modelContext {
