@@ -78,7 +78,7 @@ export async function fetchAndFormatScans(
       individual_count,
       ecological_interactions,
       ai_confidence_score,
-      species_dictionary (
+      species_dictionary!species_id (
         scientific_name,
         kingdom,
         phylum,

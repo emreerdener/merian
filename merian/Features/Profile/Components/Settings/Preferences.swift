@@ -21,6 +21,75 @@ struct Preferences: View {
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
         
+                Section {
+            // MARK: - Theme
+            VStack(alignment: .leading, spacing: 8) {                   
+                Picker("Theme", selection: $themeMode) {
+                    ForEach(ThemeMode.allCases) { mode in
+                        Text(mode.rawValue)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .padding(.vertical, 4)
+            // MARK: - Upgrades
+            Button { managePlanActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Upgrade",
+                    description: "Upgrade or manage your active subscription tier.",
+                    icon: "bag.fill",
+                    iconColor: .orange
+                )
+            }
+
+            // MARK: - Push Notifications
+            Button { notificationSettingsActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Notifications",
+                    description: "Configure alerts for new discoveries and achievement milestones.",
+                    icon: "bell.fill",
+                    iconColor: .red
+                )
+            }
+
+            // MARK: - System Haptics
+            SettingsToggleRow(
+                title: "System haptics",
+                description: "Tactile feedback on zoom ticks, captures, and key interactions.",
+                isOn: $isHapticsEnabled,
+                icon: "waveform",
+                iconColor: .pink
+            )
+
+            // MARK: - Geoprivacy
+            NavigationLink {
+                GeoprivacyPickerView(defaultGeoprivacy: $defaultGeoprivacy)
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "location.fill")
+                            .foregroundStyle(.blue)
+                            .font(.system(size: 17, weight: .medium))
+                            .frame(width: 24)
+                        Text("Geoprivacy")
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Text(defaultGeoprivacy.capitalized)
+                            .foregroundColor(.secondary)
+                    }
+                    Text("Control how precisely your location is recorded on each scan.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 36)
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text("Account & app")
+        }
+
+        
         Section {
             // MARK: - Sections
             Button { captureModeOrderSettingsActive = true } label: {
@@ -93,73 +162,7 @@ struct Preferences: View {
             Text("Capture behavior")
         }
 
-        Section {
-            // MARK: - Theme
-            VStack(alignment: .leading, spacing: 8) {                   
-                Picker("Theme", selection: $themeMode) {
-                    ForEach(ThemeMode.allCases) { mode in
-                        Text(mode.rawValue)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            .padding(.vertical, 4)
-            // MARK: - Upgrades
-            Button { managePlanActive = true } label: {
-                SettingsNavigationRow(
-                    title: "Upgrade",
-                    description: "Upgrade or manage your active subscription tier.",
-                    icon: "bag.fill",
-                    iconColor: .orange
-                )
-            }
 
-            // MARK: - Push Notifications
-            Button { notificationSettingsActive = true } label: {
-                SettingsNavigationRow(
-                    title: "Notifications",
-                    description: "Configure alerts for new discoveries and achievement milestones.",
-                    icon: "bell.fill",
-                    iconColor: .red
-                )
-            }
-
-            // MARK: - System Haptics
-            SettingsToggleRow(
-                title: "System haptics",
-                description: "Tactile feedback on zoom ticks, captures, and key interactions.",
-                isOn: $isHapticsEnabled,
-                icon: "waveform",
-                iconColor: .pink
-            )
-
-            // MARK: - Geoprivacy
-            NavigationLink {
-                GeoprivacyPickerView(defaultGeoprivacy: $defaultGeoprivacy)
-            } label: {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "location.fill")
-                            .foregroundStyle(.blue)
-                            .font(.system(size: 17, weight: .medium))
-                            .frame(width: 24)
-                        Text("Geoprivacy")
-                            .foregroundColor(.primary)
-                        Spacer()
-                        Text(defaultGeoprivacy.capitalized)
-                            .foregroundColor(.secondary)
-                    }
-                    Text("Control how precisely your location is recorded on each scan.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 36)
-                }
-                .padding(.vertical, 4)
-            }
-        } header: {
-            Text("Account & app")
-        }
 
         #if DEBUG
         Section {

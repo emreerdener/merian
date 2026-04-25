@@ -222,3 +222,15 @@ When an anonymous (guest) user signs up for a full account, their prior scan his
 2. `transferScans` — re-parents all `scans` rows from `ghost_id` to the authenticated `user.id`.
 3. `transferCollections` — re-parents all `collections` rows. **Must run before `purgeGhostUser`**: the `collections` table references `auth.users(id) ON DELETE CASCADE`, so deleting the ghost from `auth.users` would silently drop all collections if this step is skipped.
 4. `purgeGhostUser` — deletes the ghost from `auth.users` (cascades to `collections` and `export_jobs` — both already transferred or empty) and then explicitly deletes `public.users(ghost_id)`. The `public.users` row has no FK to `auth.users` and must be deleted manually; this cascade also cleans up any `flagged_reviews` and `user_blocks` tied to the ghost identity, which have no value after the merge.
+
+## Required Edge Function Secrets
+
+For a production deployment, the following secrets MUST be set in the Supabase Vault via the CLI (`supabase secrets set KEY=VALUE`):
+
+- **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and `gemini-2.5-pro` model inferences.
+- **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
+- **`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`**: Grants backend write access to the R2 Storage bucket.
+- **`REVENUECAT_WEBHOOK_SECRET`**: Constant-time verification string ensuring webhook triggers originate from RevenueCat.
+- **`RESEND_API_KEY`**: The API Key from Resend for sending transactional emails (like DwC-A exports).
+- **`RESEND_FROM_EMAIL`**: The verified sender domain (e.g., `exports@merian.app`). If absent, it falls back to Resend's testing domain `onboarding@resend.dev` which will FAIL unless sending to the developer's registered account.
+- **`DWC_A_SECRET_SALT`**: A high-entropy salt used to generate stable but anonymized IDs for global exports.

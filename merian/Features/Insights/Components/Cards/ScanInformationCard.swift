@@ -2,6 +2,8 @@ import MapKit
 import SwiftUI
 
 struct ScanInformationCard: View {
+    @Environment(ProfileViewModel.self) private var profileViewModel
+
     let speciesData: SpeciesData?
     var timestamp: Date?
     var imageCount: Int = 1
@@ -94,11 +96,21 @@ struct ScanInformationCard: View {
                     }
                     
                     // Map
-                    if let lat = lat, let lon = lon, lat >= -90 && lat <= 90, lon >= -180 && lon <= 180, !(lat == 0 && lon == 0) {
+                    let privacy = profileViewModel.defaultGeoprivacy
+                    if privacy != "private", let lat = lat, let lon = lon, lat >= -90 && lat <= 90, lon >= -180 && lon <= 180, !(lat == 0 && lon == 0) {
                         let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-                        Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)))) {
-                            Marker("Location", coordinate: coord)
-                                .tint(Color.accentColor)
+                        let isObscured = privacy == "obscured"
+                        let span = isObscured ? MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2) : MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        
+                        Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: span))) {
+                            if isObscured {
+                                MapCircle(center: coord, radius: CLLocationDistance(10000))
+                                    .foregroundStyle(Color.accentColor.opacity(0.3))
+                                    .stroke(Color.accentColor, lineWidth: 1)
+                            } else {
+                                Marker("Location", coordinate: coord)
+                                    .tint(Color.accentColor)
+                            }
                         }
                         .frame(height: 200)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
