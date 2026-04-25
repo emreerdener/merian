@@ -25,9 +25,13 @@ struct AudioRecordingView: View {
                     let centerY = proxy.size.height * composingCenter
                     let halfHeight = min(centerY - 100, proxy.size.height - controlBarHeight - centerY - 88)
                     let spectrogramHeight = max(180, halfHeight * 2)
-                    spectrogramContent(height: spectrogramHeight)
-                        .frame(width: proxy.size.width)
-                        .position(x: proxy.size.width / 2, y: proxy.size.height * composingCenter)
+                    
+                    VStack(spacing: 16) {
+                        timerBadge
+                        spectrogramContent(height: spectrogramHeight)
+                            .frame(width: proxy.size.width)
+                    }
+                    .position(x: proxy.size.width / 2, y: proxy.size.height * composingCenter)
                 } else {
                     idleContent
                         .position(x: proxy.size.width / 2, y: proxy.size.height * composingCenter)
@@ -46,6 +50,28 @@ struct AudioRecordingView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: audioCaptureManager.isRecording)
         .animation(.easeInOut(duration: 0.25), value: audioCaptureManager.pendingPlaybackPath == nil)
+    }
+
+    // MARK: - Timer Badge
+
+    private var timerBadge: some View {
+        let progress = audioCaptureManager.isRecording
+            ? audioCaptureManager.recordingProgress
+            : audioCaptureManager.playbackProgress
+        
+        let remainingSeconds = max(0, Int(ceil((1.0 - progress) * AudioCaptureManager.maxDuration)))
+        let timeString = "0:\(String(format: "%02d", remainingSeconds))"
+
+        return Text(timeString)
+            .font(.subheadline.monospacedDigit())
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+            .environment(\.colorScheme, .dark)
+            .clipShape(Capsule())
+            .transition(.opacity)
     }
 
     // MARK: - Idle

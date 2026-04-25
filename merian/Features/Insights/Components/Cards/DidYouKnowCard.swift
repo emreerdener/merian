@@ -92,12 +92,14 @@ struct DidYouKnowCard: View {
     }
 
     private func advance() {
+        HapticManager.shared.triggerSelectionPulse()
         withAnimation(.easeInOut(duration: 0.35)) {
             factManager.advance()
         }
     }
 
     private func retreat() {
+        HapticManager.shared.triggerSelectionPulse()
         withAnimation(.easeInOut(duration: 0.35)) {
             factManager.retreat()
         }
