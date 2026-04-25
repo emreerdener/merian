@@ -131,6 +131,12 @@ final class MerianNetworkClient {
         return url
     }
 
+    private func makeExploreDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }
+
     // MARK: - Authenticated Request Core
 
     private func performAuthenticatedRequest(
@@ -864,6 +870,73 @@ final class MerianNetworkClient {
         
         // This is a fast API call that just inserts a row and returns 200 OK.
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 15.0)
+    }
+
+    // MARK: - Explore
+
+    func getExploreFeed(limit: Int = 20, offset: Int = 0) async throws -> [ExplorePost] {
+        let functionUrl = try endpointURL("get-explore-feed")
+        let payload: [String: Any] = [
+            "limit": limit,
+            "offset": offset
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreFeedResponse.self, from: data).data
+    }
+
+    func getExploreComments(postId: String, limit: Int = 100, offset: Int = 0) async throws -> [ExploreComment] {
+        let functionUrl = try endpointURL("get-explore-comments")
+        let payload: [String: Any] = [
+            "post_id": postId,
+            "limit": limit,
+            "offset": offset
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreCommentsResponse.self, from: data).data
+    }
+
+    func shareScanToExplore(scanId: String) async throws -> ExploreShareResponse {
+        let functionUrl = try endpointURL("share-scan-to-explore")
+        let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreShareResponse.self, from: data)
+    }
+
+    func unshareExplorePost(postId: String) async throws {
+        let functionUrl = try endpointURL("unshare-explore-post")
+        let bodyData = try JSONSerialization.data(withJSONObject: ["post_id": postId])
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
+    func setExplorePostLike(postId: String, liked: Bool) async throws -> ExploreLikeResponse {
+        let functionUrl = try endpointURL("set-explore-post-like")
+        let payload: [String: Any] = [
+            "post_id": postId,
+            "liked": liked
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreLikeResponse.self, from: data)
+    }
+
+    func createExploreComment(postId: String, body: String) async throws -> ExploreCreateCommentResponse {
+        let functionUrl = try endpointURL("create-explore-comment")
+        let payload: [String: Any] = [
+            "post_id": postId,
+            "body": body
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreCreateCommentResponse.self, from: data)
+    }
+
+    func deleteExploreComment(commentId: String) async throws -> ExploreDeleteCommentResponse {
+        let functionUrl = try endpointURL("delete-explore-comment")
+        let bodyData = try JSONSerialization.data(withJSONObject: ["comment_id": commentId])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreDeleteCommentResponse.self, from: data)
     }
 
     // MARK: - Moderation

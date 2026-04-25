@@ -10,6 +10,7 @@ struct TopToolbar: ToolbarContent {
     @Binding var showDeleteConfirmation: Bool
     let hasUserPhotos: Bool
     let onSavePhotos: () -> Void
+    var onShareToExplore: (() -> Void)?
     var onReanalyze: (() -> Void)?
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
@@ -37,6 +38,14 @@ struct TopToolbar: ToolbarContent {
                     if hasUserPhotos {
                         Button(action: { onSavePhotos() }) {
                             Label("Download my photos", systemImage: "arrow.down.circle")
+                        }
+                    }
+
+                    if let onShareToExplore {
+                        Section("Explore") {
+                            Button(action: onShareToExplore) {
+                                Label("Share to Explore", systemImage: "safari")
+                            }
                         }
                     }
                     

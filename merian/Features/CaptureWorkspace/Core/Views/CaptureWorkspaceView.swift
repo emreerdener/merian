@@ -197,6 +197,7 @@ struct CaptureWorkspaceView: View {
 
                     if viewModel.stagedCapture.isEmpty {
                         MainTabBar(
+                            isExploreOpen: $viewModel.activeSheet.mapped(to: .explore),
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),
                             isUserProfileOpen: $viewModel.activeSheet.mapped(to: .profile)
                         )

@@ -66,6 +66,7 @@ final class InsightSheetViewModel {
         var isSafariPresented = false
         var selectedWikiURL: URL?
         var isSavingPhotos = false
+        var isSharingToExplore = false
     }
 
     var state = UIState()
@@ -176,6 +177,12 @@ final class InsightSheetViewModel {
         guard queuedContext == nil else { return false }
         guard let speciesData = inferenceEngine?.speciesData else { return false }
         return !speciesData.userConfirmedIdentification && speciesData.userIdentificationOverride == nil && !speciesData.isFlagged
+    }
+
+    var canShareToExplore: Bool {
+        guard queuedContext == nil else { return false }
+        guard let record = activeLocalRecord else { return false }
+        return record.isBiological
     }
 
     var isAlreadyFlagged: Bool {
@@ -367,6 +374,26 @@ final class InsightSheetViewModel {
                 ShareSheetUtility.present(items: items)
             }
         )
+    }
+
+    func shareToExplore() async {
+        guard canShareToExplore, let record = activeLocalRecord, !state.isSharingToExplore else { return }
+
+        state.isSharingToExplore = true
+        defer { state.isSharingToExplore = false }
+
+        do {
+            _ = try await MerianNetworkClient.shared.shareScanToExplore(scanId: record.id)
+            HapticManager.shared.triggerSuccessPulse()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.toastMessage = "Shared to Explore"
+            }
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
+        }
     }
 
 // Removed presentShareSheet as this logic was extracted into ShareSheetUtility

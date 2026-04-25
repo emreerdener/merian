@@ -462,3 +462,24 @@ entrypoint = "./functions/request-export-dwca/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/request-export-dwca/*.html" ]
+
+[functions.share-scan-to-explore]
+verify_jwt = false
+
+[functions.unshare-explore-post]
+verify_jwt = false
+
+[functions.get-explore-feed]
+verify_jwt = false
+
+[functions.get-explore-comments]
+verify_jwt = false
+
+[functions.set-explore-post-like]
+verify_jwt = false
+
+[functions.create-explore-comment]
+verify_jwt = false
+
+[functions.delete-explore-comment]
+verify_jwt = false

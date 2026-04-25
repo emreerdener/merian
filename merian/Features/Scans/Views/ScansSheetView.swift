@@ -254,6 +254,9 @@ private struct LibraryTabContent: View {
             onDelete: { scan in
                 scanToDelete = scan
                 showDeleteConfirmation = true
+            },
+            onShareToExplore: { scan in
+                Task { await searchManager.shareToExplore(scan: scan) }
             }
         )
     }

@@ -332,6 +332,17 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             showToast(message: "Saved \(savedCount) photo\(savedCount == 1 ? "" : "s") to your Camera Roll")
         }
     }
+
+    func shareToExplore(scan: LocalScanRecord) async {
+        do {
+            _ = try await MerianNetworkClient.shared.shareScanToExplore(scanId: scan.id)
+            HapticManager.shared.triggerSuccessPulse()
+            showToast(message: "Shared to Explore")
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            showToast(message: ExploreErrorFormatter.message(for: error))
+        }
+    }
     
     private func showToast(message: String) {
         withAnimation(.spring()) { toastMessage = message }

@@ -12,7 +12,7 @@ final class CaptureWorkspaceViewModel {
     
     // MARK: - Types
     enum ActiveSheet: String, Identifiable {
-        case insight, paywall, scans, profile
+        case insight, paywall, scans, profile, explore
         var id: String { rawValue }
     }
     

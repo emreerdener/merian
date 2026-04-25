@@ -2,12 +2,9 @@ import SwiftUI
 
 struct MainTabBar: View {
     // MARK: - Navigation Dependencies
+    @Binding var isExploreOpen: Bool
     @Binding var isScansOpen: Bool
     @Binding var isUserProfileOpen: Bool
-    
-    // MARK: - Component State
-    @State private var showComingSoon = false
-    @State private var tooltipTask: Task<Void, Never>?
     @AppStorage(UserDefaultsKeys.hasUnseenScan) private var hasUnseenScan: Bool = false
     
     // MARK: - Visual Layout
@@ -20,41 +17,8 @@ struct MainTabBar: View {
                 title: "Explore",
                 action: {
                     HapticManager.shared.triggerSheetSpring()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        showComingSoon = true
-                    }
-                    
-                    tooltipTask?.cancel()
-                    tooltipTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 2_000_000_000)
-                        if !Task.isCancelled {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                showComingSoon = false
-                            }
-                        }
-                    }
+                    isExploreOpen = true
                 }
-            )
-            .overlay(
-                Group {
-                    if showComingSoon {
-                        Text("Coming soon")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(Color.blue)
-                                    .shadow(color: .black.opacity(0.3), radius: 5, y: 3)
-                            )
-                            .offset(y: -45)
-                            .transition(.scale(scale: 0.5, anchor: .bottom).combined(with: .opacity))
-                            .zIndex(100)
-                    }
-                }
-                .allowsHitTesting(false)
             )
 
             // 2. Local Taxonomy Library

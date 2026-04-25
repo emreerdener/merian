@@ -21,6 +21,7 @@ struct LibraryView: View {
     var isSelected: ((LocalScanRecord) -> Bool)?
     let onSelect: (LocalScanRecord) -> Void
     let onDelete: (LocalScanRecord) -> Void
+    var onShareToExplore: ((LocalScanRecord) -> Void)?
 
     // MARK: - Component State
     @State private var toastMessage: String?
@@ -79,8 +80,8 @@ struct LibraryView: View {
                             queuedScans: queuedScans,
                             onSelect: onSelect,
                             onDelete: onDelete,
-                            isSelectionMode: isSelectionMode,
                             isSelected: isSelected,
+                            onAddScans: nil,
                             onQueuedScanTapped: { snapshot in
                                 // Fetch the live OfflineQueuedScan and immediately snapshot
                                 // it into QueuedScanContext — resolving all attribute faults
@@ -103,7 +104,19 @@ struct LibraryView: View {
                                         withAnimation { toastMessage = "Scan cancelled & deleted" }
                                     }
                                 }
-                            }
+                            },
+                            customMenuItems: { scan in
+                                Group {
+                                    if let onShareToExplore {
+                                        Button {
+                                            onShareToExplore(scan)
+                                        } label: {
+                                            Label("Share to Explore", systemImage: "safari")
+                                        }
+                                    }
+                                }
+                            },
+                            isSelectionMode: isSelectionMode
                         )
                     } else if searchManager.isFiltering {
                         Color.clear

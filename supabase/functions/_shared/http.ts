@@ -35,9 +35,11 @@ export function timingSafeCompare(a: string, b: string): boolean {
 }
 
 /**
- * Validates that all required fields are present and non-empty in the request body.
+ * Validates that all required fields are present and, for strings, non-empty in the request body.
  *
- * Returns a 400 `Response` if any field is missing or falsy, otherwise returns `null`
+ * Returns a 400 `Response` if any field is missing or null, or if a required string field
+ * is empty/whitespace-only. Boolean `false` and numeric `0` are treated as present.
+ * Otherwise returns `null`
  * so the caller can proceed.
  *
  * @example
@@ -48,7 +50,15 @@ export function requireParams(
   body: Record<string, unknown>,
   fields: string[],
 ): Response | null {
-  const missing = fields.filter((f) => !body[f]);
+  const missing = fields.filter((field) => {
+    if (!(field in body)) return true;
+
+    const value = body[field];
+    if (value === null || value === undefined) return true;
+    if (typeof value === "string" && value.trim().length === 0) return true;
+
+    return false;
+  });
   if (missing.length === 0) return null;
   return jsonResponse(
     {

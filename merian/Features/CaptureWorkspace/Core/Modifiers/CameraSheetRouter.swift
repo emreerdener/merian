@@ -34,6 +34,8 @@ struct CameraSheetRouter: ViewModifier {
                         PaywallView()
                     case .profile:
                         ProfileView()
+                    case .explore:
+                        ExploreView()
                     case .scans:
                         ScansSheetView(isInsightSheetOpen: Binding(
                             get: { viewModel.activeSheet == .insight },
