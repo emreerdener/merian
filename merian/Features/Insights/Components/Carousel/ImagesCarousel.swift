@@ -93,13 +93,6 @@ struct ImagesCarousel: View {
                     // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
                     .id(scanId ?? "null")
                     .ignoresSafeArea(.all, edges: .top)
-                    .overlay {
-                        if isProcessing {
-                            AnalyzingVisualEffectsView()
-                                .transition(.opacity)
-                        }
-                    }
-                    .animation(.easeInOut(duration: 1.2), value: isProcessing)
                     .overlay(alignment: .bottom) { paginationDots }
                     .overlay(alignment: .top) {
                         LinearGradient(

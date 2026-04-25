@@ -38,9 +38,13 @@ struct ConfidenceExplanationSheet: View {
         guard imageCount <= 1 else { return nil }
         
         return {
-            HapticManager.shared.triggerSelectionPulse()
-            AppEventPublisher.shared.send(.triggerRefinement(record: record))
-            dismiss()
+            if RevenueCatManager.shared.isProActive {
+                HapticManager.shared.triggerSelectionPulse()
+                AppEventPublisher.shared.send(.triggerRefinement(record: record))
+                dismiss()
+            } else {
+                showPaywall = true
+            }
         }
     }
 

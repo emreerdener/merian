@@ -58,6 +58,7 @@ final class InsightSheetViewModel {
         var showSaveSuccessAlert = false
         var showNewCollectionAlert = false
         var isCandidateSwipePresented = false
+        var showPaywall = false
         var toastMessage: String?
         var newCollectionName = ""
         var preferredCommonName: String?

@@ -31,6 +31,7 @@ struct CandidateSwipeModal: View {
     @State private var topCardIsDragging = false
     @State private var isDismissing = false
     @State private var confirmedCandidate: IdentificationCandidate?
+    @State private var showPaywall = false
 
     // MARK: - Constants
     
@@ -119,6 +120,9 @@ struct CandidateSwipeModal: View {
             if stack.isEmpty && !isDismissing && confirmedCandidate == nil {
                 inferenceEngine.markAlternativesExhausted()
             }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
 }
@@ -271,9 +275,13 @@ extension CandidateSwipeModal {
 
                 if let onRefineScan = onRefineScan {
                     SlideToConfirm(label: "Reanalyze species", onConfirm: {
-                        isDismissing = true
-                        onRefineScan()
-                        isPresented = false
+                        if RevenueCatManager.shared.isProActive {
+                            isDismissing = true
+                            onRefineScan()
+                            isPresented = false
+                        } else {
+                            showPaywall = true
+                        }
                     }, color: .orange)
                 }
 

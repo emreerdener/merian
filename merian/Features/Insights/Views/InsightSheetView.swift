@@ -141,6 +141,9 @@ struct InsightSheetView: View {
                 }
             }
         )
+        .sheet(isPresented: $viewModel.state.showPaywall) {
+            PaywallView()
+        }
     }
 }
 
@@ -183,9 +186,13 @@ private extension InsightSheetView {
             hasUserPhotos: viewModel.hasUserPhotos,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
             onReanalyze: viewModel.canReanalyze ? {
-                if let record = viewModel.activeLocalRecord {
-                    HapticManager.shared.triggerSelectionPulse()
-                    AppEventPublisher.shared.send(.triggerRefinement(record: record))
+                if RevenueCatManager.shared.isProActive {
+                    if let record = viewModel.activeLocalRecord {
+                        HapticManager.shared.triggerSelectionPulse()
+                        AppEventPublisher.shared.send(.triggerRefinement(record: record))
+                    }
+                } else {
+                    viewModel.state.showPaywall = true
                 }
             } : nil,
             onReviewAlternatives: viewModel.canReviewAlternatives ? {
