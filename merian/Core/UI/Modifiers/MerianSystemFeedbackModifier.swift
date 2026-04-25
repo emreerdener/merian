@@ -1,12 +1,12 @@
 import SwiftUI
 
-struct MerianSystemFeedbackModifier: ViewModifier {
+struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
     @Binding var toastMessage: String?
     @Binding var showCelebration: Bool
     var commonNameForCelebration: String
-    var toastAlignment: Alignment
+    var toastAlignment: SwiftUI.Alignment
 
-    func body(content: Content) -> some View {
+    func body(content: Content) -> some SwiftUI.View {
         ZStack(alignment: .top) {
             content
 
@@ -24,12 +24,12 @@ struct MerianSystemFeedbackModifier: ViewModifier {
                             .fontWeight(.medium)
                             .foregroundColor(.primary)
                     }
-                    .padding(toastAlignment == .top ? .top : .bottom, toastAlignment == .top ? 16 : 60)
+                    .padding(toastAlignment == .top ? Edge.Set.top : Edge.Set.bottom, toastAlignment == .top ? 16 : 60)
                     
                     if toastAlignment == .top { Spacer() }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .transition(.move(edge: toastAlignment == .top ? .top : .bottom).combined(with: .opacity))
+                .transition(.move(edge: toastAlignment == .top ? Edge.top : Edge.bottom).combined(with: .opacity))
                 .zIndex(100)
             }
 

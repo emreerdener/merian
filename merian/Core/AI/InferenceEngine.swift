@@ -1154,7 +1154,7 @@ private struct GBIFMedia: Decodable {
             // Mark as attempted only on success — transient failures (timeout, 404) remain retryable.
             wikiFetchAttemptedIds.insert(species)
 
-            let imageUrlToPersist = await MainActor.run { () -> String? in
+            let safeImageUrlToPersist = await MainActor.run { () -> String? in
                 MerianLog.general.debug("Wikipedia hydration returned imageUrl: \(imageUrl ?? "nil", privacy: .public)")
                 // Individual optional-chain mutations (self.speciesData?.field = x) do not
                 // reliably fire @Observable notifications for struct value types; a single
@@ -1183,9 +1183,9 @@ private struct GBIFMedia: Decodable {
                 // Route through executeTrackedBackgroundTask: bounded by the cap and
                 // cancelled by prepareForNewScan() / cancelActiveRequest() so a stale
                 // wiki write cannot touch a record that is no longer active.
-                executeTrackedBackgroundTask { [imageUrlToPersist] in
+                executeTrackedBackgroundTask { [safeImageUrlToPersist] in
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: imageUrlToPersist)
+                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: safeImageUrlToPersist)
                 }
             }
         } catch {

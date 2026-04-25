@@ -126,7 +126,7 @@ export interface MultimodalPayload {
   estimatedSizeCm?: number | null;
   estimated_size_cm?: number | null;
   isIpad?: boolean;
-  // Trigger TS Language Server refresh
+  // Trigger TS Language Server refresh - force Deno to read the updated camelCase types
 }
 
 export interface ClientPayload extends MerianIdentification {

@@ -791,3 +791,36 @@ GBIF image hydration continues to run unconditionally because it writes `referen
 ### WAL Flush Frequency (`MerianConfig.ingestCheckpointInterval`)
 
 The `ingestCheckpointInterval` constant (used by `HistoricalDatabaseActor` to determine how often to call `modelContext.save()` during bulk historical ingestion) was raised from 50 to 100. Halving the save frequency reduces SQLite WAL flush operations by 50% during initial historical sync-down. The trade-off is that an interrupted background task can roll back at most 100 records instead of 50 — an acceptable loss given that historical sync is fully resumable from the last committed page.
+
+### Resilient UI Polling (Skeleton Auto-Retry)
+
+When a background fetch fails (such as enrichment metadata failing to load due to a transient network drop), the traditional approach was to fall back to a manual "Retry" button. This required explicit user interaction.
+
+To eliminate manual user interaction while protecting against runaway background polling, the architecture relies on an **exponential backoff auto-retry loop** bound to the SwiftUI view lifecycle:
+
+```swift
+.task {
+    var retryCount = 0
+    let maxRetries = 5
+    
+    while !Task.isCancelled && retryCount < maxRetries {
+        if data != nil { break }
+        
+        if !isLoading {
+            let delay = pow(2.0, Double(retryCount + 1))
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { break }
+            
+            retryCount += 1
+            await triggerFetch()
+        } else {
+            try? await Task.sleep(for: .seconds(1))
+        }
+    }
+}
+```
+
+This ensures:
+1. **Zero memory leaks:** The `.task` modifier bounds the execution lifecycle to the view. When the view disappears, the task is automatically cancelled and destroyed.
+2. **Battery and API safety:** The `maxRetries` cap and the exponential backoff (e.g., 2s, 4s, 8s, 16s, 32s) prevent a permanently offline device from infinitely polling the network layer.
+3. **Seamless UX:** The UI remains in a silent "loading" skeleton state throughout the retry window, resolving automatically when connectivity restores without requiring a user tap.
