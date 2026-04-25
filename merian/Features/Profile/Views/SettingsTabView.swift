@@ -43,6 +43,9 @@ struct SettingsTabView: View {
                     exportUrl: $exportUrl,
                     onExportRequested: {
                         withAnimation { toastMessage = "Export requested. Check your email shortly." }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                            withAnimation { toastMessage = nil }
+                        }
                     }
                 )
 
