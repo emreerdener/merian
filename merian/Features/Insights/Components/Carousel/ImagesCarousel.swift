@@ -84,10 +84,18 @@ struct ImagesCarousel: View {
     // MARK: - State
     @State private var selectedIndex: Int = 0
 
+    // MARK: - Computed State
+    private var effectiveMedia: ActiveScanMedia {
+        if isProcessing {
+            return ActiveScanMedia(items: activeMedia.items, referenceState: .empty)
+        }
+        return activeMedia
+    }
+
     // MARK: - Body
     var body: some View {
         Group {
-            if activeMedia.totalItems > 0 {
+            if effectiveMedia.totalItems > 0 {
                 NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
                     // scanId only — activeMedia.totalItems changes async when validHistoricImagePaths resolves.
                     // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
@@ -114,7 +122,7 @@ struct ImagesCarousel: View {
     // MARK: - Page Construction
     private var carouselPages: [CarouselPageItem] {
         CarouselPageBuilder.buildPages(
-            for: activeMedia,
+            for: effectiveMedia,
             onImageFailure: { handleImageFailure(identifier: $0) },
             onDescriptionTap: onDescriptionTap
         )
@@ -122,7 +130,7 @@ struct ImagesCarousel: View {
 
     // MARK: - Action Handlers
     private func handleImageFailure(identifier: String) {
-        if activeMedia.totalItems > 1 {
+        if effectiveMedia.totalItems > 1 {
             onImageFailure(identifier)
         }
     }
@@ -134,9 +142,9 @@ private extension ImagesCarousel {
     @ViewBuilder
     var paginationDots: some View {
         ZStack {
-            if activeMedia.totalItems > 1 {
+            if effectiveMedia.totalItems > 1 {
                 HStack(spacing: 8) {
-                    ForEach(0..<activeMedia.totalItems, id: \.self) { index in
+                    ForEach(0..<effectiveMedia.totalItems, id: \.self) { index in
                         Circle()
                             .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.4))
                             .frame(width: 6, height: 6)
@@ -155,6 +163,6 @@ private extension ImagesCarousel {
                 ))
             }
         }
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: activeMedia.totalItems)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: effectiveMedia.totalItems)
     }
 }
