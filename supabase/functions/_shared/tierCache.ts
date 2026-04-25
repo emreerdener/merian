@@ -51,19 +51,30 @@ export async function getTierForUser(
 
   const { data } = await supabaseAdmin
     .from("users")
-    .select("subscription_tier")
+    .select("subscription_tier, created_at")
     .eq("id", userId)
     .maybeSingle();
 
   if (data) {
-    const tier = data.subscription_tier as string;
+    let tier = data.subscription_tier as string;
+    
+    if (tier !== "pro" && data.created_at) {
+      const createdAtDate = new Date(data.created_at);
+      const diffMs = Date.now() - createdAtDate.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      if (diffDays <= 7) {
+        tier = "pro";
+      }
+    }
+
     _cacheSet(userId, tier);
     return tier;
   }
 
   // Ghost user: intentionally not cached so the background task can detect
   // the missing row and trigger the users-table upsert before the scans FK insert.
-  return "free";
+  // We return "pro" because a ghost user is brand new and implicitly within the 7-day trial.
+  return "pro";
 }
 
 /**

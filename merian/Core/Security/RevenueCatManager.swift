@@ -13,6 +13,9 @@ import os
     // MARK: - State
 
     var isProActive: Bool = false
+    var isSubscribed: Bool = false
+    var trialDaysRemaining: Int? = nil
+    
     var currentOfferings: Offerings?
     var isFetchingOfferings: Bool = false
 
@@ -93,7 +96,14 @@ import os
         let isNaturalist = info.entitlements.all["Naturalist Tier"]?.isActive == true
         let is7DayPass   = info.entitlements.all["7_day_pass"]?.isActive == true
         let isPro        = info.entitlements.all["pro"]?.isActive == true
-        isProActive = isNaturalist || is7DayPass || isPro
+        
+        isSubscribed = isNaturalist || is7DayPass || isPro
+        
+        let diff = Calendar.current.dateComponents([.day], from: info.firstSeen, to: Date()).day ?? 0
+        let trialRemaining = max(0, 7 - diff)
+        self.trialDaysRemaining = trialRemaining
+        
+        isProActive = isSubscribed || (trialRemaining > 0)
     }
 
     /// Fetches available offerings for the paywall.

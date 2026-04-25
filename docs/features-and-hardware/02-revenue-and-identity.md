@@ -31,7 +31,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 - Controls Apple ecosystem entitlement bounds governing core app functionality.
 - Initializes via `.configure(withAPIKey:)`, pulling the active iOS `ProcessInfo` values mapped to `.xcconfig` secure layers.
 - Uses `logIn(currentAppUserID)` to bind the IDFV tracking string.
-- Evaluates `isProActive` via `.customerInfo()`, checking for active entitlements across `pro` and `7_day_pass` identifiers and updating SwiftUI state. The `PlanCard` observes this property in the Profile header, redrawing the subscription tier card to reflect the current state (e.g., Naturalist UNLIMITED SCANS vs Explorer 2 SCANS DAILY) and surfacing the `PaywallView` sheet.
+- Evaluates `isSubscribed` and `trialDaysRemaining` via `.customerInfo()`. 
+  - `isSubscribed` checks for active entitlements across `pro` (Naturalist Tier) and `7_day_pass` identifiers. 
+  - `trialDaysRemaining` computes the days since the user's `firstSeen` date in RevenueCat (representing app installation) and grants a dynamic 7-day trial of the Pro feature set for all new users. 
+  - `isProActive` evaluates to `true` if either the user is subscribed or their trial is active, triggering the `gemini-2.5-pro` inference tier. The `ModelTierBadge` explicitly highlights the trial status (e.g., "7 days of pro remaining") for new users. The `PlanCard` observes `isProActive` in the Profile header, redrawing the subscription tier card to reflect the current state and surfacing the `PaywallView` sheet.
+  - **Backend Model Upgrades**: The Edge Functions coordinate with this logic via `getTierForUser` in `_shared/tierCache.ts`. Even without a RevenueCat webhook firing, the backend queries the `users.created_at` timestamp and dynamically forces the `pro` inference tier if the user is within their 7-day window. Ghost users (who aren't inserted yet) are implicitly assumed to be new and also receive the `pro` tier.
 
 ## RevenueCat Webhook (`revenuecat-webhook`)
 
