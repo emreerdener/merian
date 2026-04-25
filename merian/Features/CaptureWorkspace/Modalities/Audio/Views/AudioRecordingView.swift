@@ -12,7 +12,7 @@ struct AudioRecordingView: View {
 
     // MARK: - Carousel State
     @State private var idleImageIndex: Int = 0
-    private let idleImages = ["bird_tree", "frog", "owl"]
+    private let idleImages = ["bird_tree", "frog", "owl", "cicadia", "cricket", "falcon", "rattlesnake", "whale"]
 
     var body: some View {
         GeometryReader { proxy in

@@ -88,8 +88,6 @@ struct Preferences: View {
         } header: {
             Text("Account & app")
         }
-
-        
         Section {
             // MARK: - Sections
             Button { captureModeOrderSettingsActive = true } label: {
@@ -161,8 +159,6 @@ struct Preferences: View {
         } header: {
             Text("Capture behavior")
         }
-
-
 
         #if DEBUG
         Section {

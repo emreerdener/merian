@@ -14,7 +14,7 @@ import os
 
     var isProActive: Bool = false
     var isSubscribed: Bool = false
-    var trialDaysRemaining: Int? = nil
+    var trialDaysRemaining: Int?
     
     var currentOfferings: Offerings?
     var isFetchingOfferings: Bool = false
