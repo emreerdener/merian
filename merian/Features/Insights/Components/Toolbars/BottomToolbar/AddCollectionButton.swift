@@ -34,7 +34,6 @@ struct AddCollectionButton: View {
                 Text("Add to collection")
             }
             .padding(.horizontal, 8)
-            .foregroundColor(.secondary)
         }
         .disabled(!hasScanId)
     }

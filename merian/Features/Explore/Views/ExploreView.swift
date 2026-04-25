@@ -112,7 +112,8 @@ struct ExploreView: View {
 
     private var emptyState: some View {
         EmptyStateView(
-            iconName: "photo.on.rectangle.angled",
+            imageName: "explore-base",
+            imageHeight: 300,
             title: "Nothing shared yet",
             message: "Shared discoveries will show up here once people publish scans to Explore."
         )

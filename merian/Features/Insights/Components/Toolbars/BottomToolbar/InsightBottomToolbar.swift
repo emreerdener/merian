@@ -8,12 +8,18 @@ struct InsightBottomToolbar: ToolbarContent {
     let activeLocalRecord: LocalScanRecord?
     let toggleScanInCollection: (ScanCollection) -> Void
     @Binding var showNewCollectionAlert: Bool
-    let shareDiscovery: () -> Void
+    let shareExternally: () -> Void
+    let onShareToExplore: (() -> Void)?
+    let isSharingToExplore: Bool
     
     var body: some ToolbarContent {
         if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
             ToolbarItemGroup(placement: .bottomBar) {
-                ShareButton(shareDiscovery: shareDiscovery)
+                ShareButton(
+                    shareExternally: shareExternally,
+                    onShareToExplore: onShareToExplore,
+                    isSharingToExplore: isSharingToExplore
+                )
 
                 Spacer()
 

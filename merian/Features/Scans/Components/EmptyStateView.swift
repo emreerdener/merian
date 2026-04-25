@@ -5,6 +5,7 @@ public struct EmptyStateView<Content: View>: View {
     // MARK: - Component State
     let iconName: String?
     let imageName: String?
+    let imageHeight: CGFloat
     let title: String
     let message: String
     let content: Content
@@ -17,8 +18,27 @@ public struct EmptyStateView<Content: View>: View {
         message: String, 
         @ViewBuilder content: () -> Content = { EmptyView() }
     ) {
+        self.init(
+            iconName: iconName,
+            imageName: imageName,
+            imageHeight: 200,
+            title: title,
+            message: message,
+            content: content
+        )
+    }
+
+    public init(
+        iconName: String? = nil,
+        imageName: String? = nil,
+        imageHeight: CGFloat,
+        title: String,
+        message: String,
+        @ViewBuilder content: () -> Content = { EmptyView() }
+    ) {
         self.iconName = iconName
         self.imageName = imageName
+        self.imageHeight = imageHeight
         self.title = title
         self.message = message
         self.content = content()
@@ -33,7 +53,7 @@ public struct EmptyStateView<Content: View>: View {
                 Image(imageName)
                     .resizable()
                     .scaledToFit()
-                    .frame(height: 200)
+                    .frame(height: imageHeight)
                     .padding(.bottom, 16)
             } else if let iconName = iconName {
                 Image(systemName: iconName)

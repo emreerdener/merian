@@ -185,9 +185,6 @@ private extension InsightSheetView {
             showDeleteConfirmation: $viewModel.state.showDeleteConfirmation,
             hasUserPhotos: viewModel.hasUserPhotos,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
-            onShareToExplore: viewModel.canShareToExplore ? {
-                Task { await viewModel.shareToExplore() }
-            } : nil,
             onReanalyze: viewModel.canReanalyze ? {
                 if RevenueCatManager.shared.isProActive {
                     if let record = viewModel.activeLocalRecord {
@@ -217,7 +214,11 @@ private extension InsightSheetView {
                 viewModel.toggleScanInCollection(collection, modelContext: modelContext)
             },
             showNewCollectionAlert: $viewModel.state.showNewCollectionAlert,
-            shareDiscovery: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) }
+            shareExternally: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) },
+            onShareToExplore: viewModel.canShareToExplore ? {
+                Task { await viewModel.shareToExplore() }
+            } : nil,
+            isSharingToExplore: viewModel.state.isSharingToExplore
         )
     }
 }

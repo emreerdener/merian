@@ -14,13 +14,6 @@ struct ExplorePostCard: View {
         return formatter
     }()
 
-    private static let monthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateFormat = "LLLL"
-        return formatter
-    }()
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             mediaView
@@ -28,11 +21,6 @@ struct ExplorePostCard: View {
             VStack(alignment: .leading, spacing: 16) {
                 headerRow
                 authorRow
-
-                if !metadataItems.isEmpty {
-                    metadataRow
-                }
-
                 actionRow
             }
             .padding(18)
@@ -81,6 +69,15 @@ struct ExplorePostCard: View {
         .frame(maxWidth: .infinity)
         .frame(height: 360)
         .clipped()
+        .overlay(alignment: .topLeading) {
+            if let publicLocationLabel = locationBadgeText {
+                ExploreFloatingBadge(
+                    text: publicLocationLabel,
+                    systemImage: "mappin.and.ellipse"
+                )
+                .padding(14)
+            }
+        }
         .overlay(alignment: .topTrailing) {
             menuButton
                 .padding(14)
@@ -124,17 +121,6 @@ struct ExplorePostCard: View {
         }
     }
 
-    private var metadataRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(metadataItems, id: \.self) { item in
-                    ExploreMetadataPill(text: item)
-                }
-            }
-        }
-        .scrollClipDisabled()
-    }
-
     private var actionRow: some View {
         HStack(spacing: 18) {
             ExploreStatButton(
@@ -161,7 +147,7 @@ struct ExplorePostCard: View {
         Menu {
             if post.isOwnedByViewer {
                 Button(role: .destructive, action: onUnshare) {
-                    Label("Remove from Explore", systemImage: "eye.slash")
+                    Label("Remove from Explore", systemImage: "trash")
                 }
             } else {
                 Button(role: .destructive, action: onBlock) {
@@ -175,63 +161,21 @@ struct ExplorePostCard: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(.white)
                 .frame(width: 34, height: 34)
                 .background(.ultraThinMaterial, in: Circle())
                 .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 0.5))
         }
     }
 
-    private var metadataItems: [String] {
-        var items: [String] = []
-
-        if let publicLocationLabel = post.publicLocationLabel,
-           !publicLocationLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            items.append(publicLocationLabel)
-        }
-
-        if let broadTimeDescription {
-            items.append(broadTimeDescription)
-        }
-
-        if let weatherDescription {
-            items.append(weatherDescription)
-        }
-
-        return items
-    }
-
-    private var broadTimeDescription: String? {
-        let timeOfDayText = post.timeOfDay?
-            .replacingOccurrences(of: "_", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .capitalized
-
-        let monthText = monthName(for: post.currentMonth)
-
-        switch (timeOfDayText, monthText) {
-        case let (timeOfDay?, month?):
-            return "\(timeOfDay) in \(month)"
-        case let (timeOfDay?, nil):
-            return timeOfDay
-        case let (nil, month?):
-            return month
-        default:
-            return nil
-        }
-    }
-
-    private var weatherDescription: String? {
-        guard let weatherCondition = post.weatherCondition?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !weatherCondition.isEmpty else {
+    private var locationBadgeText: String? {
+        guard let publicLocationLabel = post.publicLocationLabel?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !publicLocationLabel.isEmpty else {
             return nil
         }
 
-        if let weatherTemperatureF = post.weatherTemperatureF {
-            return "\(weatherCondition.capitalized) \(Int(weatherTemperatureF.rounded()))°F"
-        }
-
-        return weatherCondition.capitalized
+        return publicLocationLabel
     }
 
     private var sharedAtText: String? {
@@ -242,31 +186,27 @@ struct ExplorePostCard: View {
     private func compactCount(_ count: Int) -> String {
         count.formatted(.number.notation(.compactName))
     }
-
-    private func monthName(for month: Int?) -> String? {
-        guard let month, (1...12).contains(month) else { return nil }
-        var components = DateComponents()
-        components.month = month
-        components.day = 1
-        components.year = 2024
-        guard let date = Calendar.current.date(from: components) else { return nil }
-        return ExplorePostCard.monthFormatter.string(from: date)
-    }
 }
 
-private struct ExploreMetadataPill: View {
+private struct ExploreFloatingBadge: View {
     let text: String
+    let systemImage: String
 
     var body: some View {
-        Text(text)
+        Label(text, systemImage: systemImage)
             .font(.footnote)
             .fontWeight(.medium)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white)
+            .lineLimit(1)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
                 Capsule()
-                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.22), lineWidth: 0.75)
             )
     }
 }
