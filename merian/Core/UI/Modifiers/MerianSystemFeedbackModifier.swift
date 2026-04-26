@@ -31,6 +31,13 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.move(edge: toastAlignment == .top ? Edge.top : Edge.bottom).combined(with: .opacity))
                 .zIndex(100)
+                .task(id: message) {
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        toastMessage = nil
+                    }
+                }
             }
 
             CelebrationBanner(

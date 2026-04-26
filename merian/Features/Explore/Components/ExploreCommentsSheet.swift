@@ -41,8 +41,8 @@ struct ExploreCommentsSheet: View {
             .safeAreaInset(edge: .bottom) {
                 composer
                     .background(
-                        Rectangle()
-                            .fill(Color(uiColor: .systemBackground))
+                        Color(uiColor: .systemBackground)
+                            .ignoresSafeArea(edges: .bottom)
                             .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: -4)
                     )
             }

@@ -101,13 +101,13 @@ export async function fetchInteractiveExplorePost(
       user_id,
       unshared_at,
       scan:scans!inner(image_storage_urls,is_tombstoned,geoprivacy),
-      author:users!inner(is_shadowbanned)
+      author:users!explore_posts_user_id_fkey!inner(is_shadowbanned)
     `)
     .eq("id", postId)
     .single();
 
   if (error || !data) {
-    throw makeHttpError(404, "Explore post not found.");
+    throw makeHttpError(404, error ? `DB Error: ${error.message} - ${error.details || ''}` : "Explore post not found.");
   }
 
   const typedRow = data as ExplorePostLookupRow;
