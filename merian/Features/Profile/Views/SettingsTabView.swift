@@ -22,6 +22,7 @@ struct SettingsTabView: View {
     @State private var cameraSettingsActive = false
     @State private var audioRecordingSettingsActive = false
     @State private var captureModeOrderSettingsActive = false
+    @State private var showTestExploreOnboarding = false
     @State private var toastMessage: String?
 
     var body: some View {
@@ -34,7 +35,8 @@ struct SettingsTabView: View {
                     notificationSettingsActive: $notificationSettingsActive,
                     cameraSettingsActive: $cameraSettingsActive,
                     audioRecordingSettingsActive: $audioRecordingSettingsActive,
-                    captureModeOrderSettingsActive: $captureModeOrderSettingsActive
+                    captureModeOrderSettingsActive: $captureModeOrderSettingsActive,
+                    showTestExploreOnboarding: $showTestExploreOnboarding
                 )
 
                 ExportScans(
@@ -99,6 +101,12 @@ struct SettingsTabView: View {
             }
             .sheet(isPresented: $showDeleteConfirmation) {
                 DeleteAccountSheet(supabase: supabase)
+            }
+            .sheet(isPresented: $showTestExploreOnboarding) {
+                ExploreOnboardingPrompt(
+                    onShare: { showTestExploreOnboarding = false },
+                    onDismiss: { showTestExploreOnboarding = false }
+                )
             }
 
             if let message = toastMessage {

@@ -26,4 +26,6 @@ enum UserDefaultsKeys {
     static let hasPromptedForNotificationsPostIdent = "hasPromptedForNotificationsPostIdent"
     /// The user's customized ordering of the primary capture tabs, stored as a comma-separated string.
     static let captureModeOrder = "captureModeOrder"
+    /// Whether the user has seen the one-time Explore onboarding prompt.
+    static let hasSeenExploreOnboarding = "hasSeenExploreOnboarding"
 }

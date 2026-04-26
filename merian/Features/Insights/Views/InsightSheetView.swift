@@ -144,6 +144,17 @@ struct InsightSheetView: View {
         .sheet(isPresented: $viewModel.state.showPaywall) {
             PaywallView()
         }
+        .sheet(isPresented: $viewModel.state.showExploreOnboarding) {
+            ExploreOnboardingPrompt(
+                onShare: {
+                    Task { await viewModel.shareToExplore() }
+                    viewModel.state.showExploreOnboarding = false
+                },
+                onDismiss: {
+                    viewModel.state.showExploreOnboarding = false
+                }
+            )
+        }
     }
 }
 

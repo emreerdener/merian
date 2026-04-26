@@ -367,6 +367,7 @@
 		FAA59A6A28515512E43F0FD1 /* Persona.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F7A65BDC024C65BD4D0767 /* Persona.swift */; };
 		FAE969384943FC018AF0FAE0 /* CandidateActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65612403ABDBC21445243E69 /* CandidateActionBar.swift */; };
 		FAECE180627AC9FCD58E9DA3 /* SafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29970E8D61AA5E64E0B76148 /* SafariView.swift */; };
+		FBB319094C20221B980CFFED /* ExploreOnboardingPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC2E509F0B672C5ECBC9D7B /* ExploreOnboardingPrompt.swift */; };
 		FBD552F932F331C0D412DEE4 /* ScanCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2F826786333CB7FACE40CB /* ScanCollection.swift */; };
 		FC8CCA7E8E74BF81B38515CC /* CaptureControlBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9792FA4EFA7CB43CAC1AC710 /* CaptureControlBar.swift */; };
 		FD84FEF5A734D7B4E58D7701 /* UnderReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEDDFC2BE211CBF973BF691C /* UnderReviewView.swift */; };
@@ -545,7 +546,7 @@
 		584E784CBC0AD3B1BCF3080F /* Capture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Capture.swift; sourceTree = "<group>"; };
 		58507F2BA73789441DA21050 /* FileIOActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIOActor.swift; sourceTree = "<group>"; };
 		58EC75C19697A8A3660ABCD2 /* LiveCapturePageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCapturePageView.swift; sourceTree = "<group>"; };
-		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		59BCD91B24D5D1DF5B542FB0 /* AnalyzingContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyzingContentView.swift; sourceTree = "<group>"; };
 		59DF526286C247EAD0760E55 /* ArchivedVisualsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchivedVisualsView.swift; sourceTree = "<group>"; };
 		5A92AF34FCF40952AE6314B6 /* HeatmapCellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeatmapCellView.swift; sourceTree = "<group>"; };
@@ -660,6 +661,7 @@
 		AE7C79DCC709A10AF23BB62E /* OnboardingStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStep.swift; sourceTree = "<group>"; };
 		AF3293417C508AEF32A9F432 /* DescribeAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeAnalysis.swift; sourceTree = "<group>"; };
 		AF6B1E7DF21BCFB9E9A3D8EE /* DateUtilitiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtilitiesTests.swift; sourceTree = "<group>"; };
+		AFC2E509F0B672C5ECBC9D7B /* ExploreOnboardingPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreOnboardingPrompt.swift; sourceTree = "<group>"; };
 		B03EAD808B1F5D84E75D030C /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		B087E79658BAE6231DCF03D0 /* CircuitBreakerManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircuitBreakerManagerTests.swift; sourceTree = "<group>"; };
 		B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -1621,6 +1623,7 @@
 			isa = PBXGroup;
 			children = (
 				817988C3FD2AFBB40CF908C2 /* ExploreCommentsSheet.swift */,
+				AFC2E509F0B672C5ECBC9D7B /* ExploreOnboardingPrompt.swift */,
 				056F08C17A989D93141D0CFD /* ExplorePostCard.swift */,
 			);
 			path = Components;
@@ -2183,9 +2186,11 @@
 						ProvisioningStyle = Automatic;
 					};
 					D06FD3E9CDCF533A0C2D2843 = {
+						DevelopmentTeam = LDL96V2WT5;
 						ProvisioningStyle = Automatic;
 					};
 					E59BC2C6A28D64E9B810676B = {
+						DevelopmentTeam = LDL96V2WT5;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -2436,6 +2441,7 @@
 				329A6547440C0315A2793585 /* ExploreCommentsSheet.swift in Sources */,
 				A8ADE9D3B16F7163D07BCB1F /* ExploreErrorFormatter.swift in Sources */,
 				4C4278CEE932DFCFFFAB382A /* ExploreFeedViewModel.swift in Sources */,
+				FBB319094C20221B980CFFED /* ExploreOnboardingPrompt.swift in Sources */,
 				9C26D9C856B59453B7E4D6DB /* ExplorePostCard.swift in Sources */,
 				1B1CD14D538E4F4C31CDF2F1 /* ExploreView.swift in Sources */,
 				F52C7C262FEE4E7EAC92F90A /* ExportScans.swift in Sources */,
@@ -2675,7 +2681,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -2698,7 +2704,7 @@
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;
@@ -2846,7 +2852,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -2951,7 +2957,7 @@
 				CODE_SIGN_ENTITLEMENTS = Merian/Configuration/Merian.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = TA8S64ST9W;
+				DEVELOPMENT_TEAM = LDL96V2WT5;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Merian/Configuration/Info.plist;

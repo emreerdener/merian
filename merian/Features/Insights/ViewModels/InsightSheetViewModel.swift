@@ -67,6 +67,7 @@ final class InsightSheetViewModel {
         var selectedWikiURL: URL?
         var isSavingPhotos = false
         var isSharingToExplore = false
+        var showExploreOnboarding = false
     }
 
     var state = UIState()
@@ -330,6 +331,19 @@ final class InsightSheetViewModel {
                 && lowerName != "inanimate object"
             if !isValidCelebration {
                 HapticManager.shared.triggerSheetSpring()
+            }
+            
+            if data.isBiological && !UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding) {
+                Task {
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    guard !Task.isCancelled else { return }
+                    if self.canShareToExplore && !UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding) {
+                        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasSeenExploreOnboarding)
+                        withAnimation {
+                            self.state.showExploreOnboarding = true
+                        }
+                    }
+                }
             }
         }
     }

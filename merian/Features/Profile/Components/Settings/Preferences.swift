@@ -17,6 +17,7 @@ struct Preferences: View {
     @Binding var cameraSettingsActive: Bool
     @Binding var audioRecordingSettingsActive: Bool
     @Binding var captureModeOrderSettingsActive: Bool
+    @Binding var showTestExploreOnboarding: Bool
 
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
@@ -177,6 +178,12 @@ struct Preferences: View {
                 Label("View onboarding", systemImage: "arrow.counterclockwise.circle")
             }
             #endif
+            
+            Button {
+                showTestExploreOnboarding = true
+            } label: {
+                Label("Test Explore Onboarding", systemImage: "safari")
+            }
         } header: {
             Text("Developer")
         }
