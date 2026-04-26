@@ -122,25 +122,42 @@ struct ExplorePostCard: View {
     }
 
     private var actionRow: some View {
-        HStack(spacing: 18) {
-            ExploreStatButton(
-                title: "Like",
-                systemImage: post.viewerHasLiked ? "heart.fill" : "heart",
-                value: compactCount(post.likeCount),
-                isHighlighted: post.viewerHasLiked,
-                action: onLike
-            )
+        HStack(spacing: 16) {
+            Button(action: onLike) {
+                HStack(spacing: 6) {
+                    Image(systemName: post.viewerHasLiked ? "heart.fill" : "heart")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(post.viewerHasLiked ? .red : .primary)
+                    Text(compactCount(post.likeCount))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                }
+            }
+            .buttonStyle(.plain)
 
-            ExploreStatButton(
-                title: "Comment",
-                systemImage: "bubble.right",
-                value: compactCount(post.commentCount),
-                isHighlighted: false,
-                action: onComments
-            )
+            Divider()
+                .frame(height: 16)
 
-            Spacer()
+            Button(action: onComments) {
+                HStack(spacing: 6) {
+                    Image(systemName: "bubble.right")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(compactCount(post.commentCount))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                }
+            }
+            .buttonStyle(.plain)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(Color(uiColor: .tertiarySystemFill))
+        )
     }
 
     private var menuButton: some View {
@@ -208,38 +225,5 @@ private struct ExploreFloatingBadge: View {
                 Capsule()
                     .stroke(Color.white.opacity(0.22), lineWidth: 0.75)
             )
-    }
-}
-
-private struct ExploreStatButton: View {
-    let title: String
-    let systemImage: String
-    let value: String
-    let isHighlighted: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 15, weight: .semibold))
-
-                Text(value)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .foregroundStyle(isHighlighted ? Color.red : Color.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(isHighlighted ? Color.red.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
-            )
-        }
-        .buttonStyle(.plain)
     }
 }
