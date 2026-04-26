@@ -227,6 +227,101 @@ struct IdentifyResponse: Codable {
 
 ---
 
+## Explore Edge Nodes
+
+Explore traffic is intentionally separate from the identify pipeline. The iOS client uses dedicated Edge Functions for feed reads and social interactions, all authenticated through the same Supabase session headers used elsewhere in the app.
+
+### `/get-explore-feed`
+
+Returns reverse-chronological public Explore posts. The backend reads from `public.get_explore_feed(...)`, which already filters out:
+
+- unshared posts
+- tombstoned scans
+- scans with no remaining image URLs
+- private geoprivacy scans
+- shadowbanned authors
+- both directions of user blocking
+
+Current response shape:
+
+```json
+{
+  "data": [
+    {
+      "post_id": "uuid",
+      "scan_id": "uuid",
+      "hero_image_url": "https://...",
+      "shared_at": "2026-04-26T17:22:11.000Z",
+      "author_user_id": "uuid",
+      "author_name": "Emre E.",
+      "author_avatar_url": "https://lh3.googleusercontent.com/...",
+      "species_common_name": "Monarch Butterfly",
+      "species_scientific_name": "Danaus plexippus",
+      "public_location_label": "Austin, TX",
+      "time_of_day": "afternoon",
+      "current_month": 4,
+      "weather_condition": "clear",
+      "weather_temperature_f": 78.2,
+      "like_count": 3,
+      "comment_count": 1,
+      "viewer_has_liked": false,
+      "is_owned_by_viewer": false
+    }
+  ]
+}
+```
+
+`author_avatar_url` is a copied public projection stored on `public.users.public_avatar_url`. It is never read directly from `auth.users` on the client.
+
+### `/get-explore-comments`
+
+Returns comment rows for a single Explore post. The read path enforces the same private-geoprivacy and mutual-block filters as the feed. Comment rows include the public author label and a `viewer_can_delete` boolean so the UI can surface delete affordances for comment owners and post owners.
+
+### `/share-scan-to-explore` and `/unshare-explore-post`
+
+- `share-scan-to-explore` creates or reactivates a manual-share Explore post for an eligible biological image scan.
+- `unshare-explore-post` soft-removes the post from the public feed via `unshared_at` without deleting the underlying scan.
+
+### `/set-explore-post-like`
+
+Idempotently toggles liked state for the current viewer and returns:
+
+- `post_id`
+- `viewer_has_liked`
+- `like_count`
+
+Important regression note: boolean request bodies must treat `liked: false` as a valid value, not as a missing parameter. The shared `requireParams` helper was hardened accordingly.
+
+### `/create-explore-comment` and `/delete-explore-comment`
+
+- Create/delete plain-text comments on Explore posts.
+- Server-side body cap: 500 characters.
+- The response returns the updated `comment_count` so the feed can stay optimistic without a full reload.
+
+### iOS Mapping
+
+The Explore client decodes these endpoints via:
+
+- `merian/Core/Network/ExploreAPIModels.swift`
+- `merian/Core/Network/MerianNetworkClient.swift`
+- `merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
+
+The current feed UI uses only a subset of the payload for visible card rendering:
+
+- `author_name`
+- `author_avatar_url`
+- `public_location_label`
+- `species_common_name`
+- `species_scientific_name`
+- `hero_image_url`
+- `like_count`
+- `comment_count`
+- `viewer_has_liked`
+
+Time and weather metadata remain in the contract for future Explore presentation experiments, but are not currently rendered on the primary feed card.
+
+---
+
 ## Deno `/identify-multimodal` Edge Node
 
 A unified identification pipeline that merges the capabilities of `/identify`, `/identify-describe`, and `/audio-spec` into a single multi-modal entry point. The current iOS client routes new inference traffic here. Supports array-based compositions of images, audio, and descriptive context.

@@ -11,6 +11,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     let sharedAt: String
     let authorUserId: String
     let authorName: String
+    let authorAvatarUrl: String?
     let speciesCommonName: String
     let speciesScientificName: String
     let publicLocationLabel: String?

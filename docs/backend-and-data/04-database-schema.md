@@ -15,6 +15,11 @@ Tracks the global state of the anonymous/authenticated user.
 - `total_species_discovered` (Int): Calculated at the database level via a Postgres `AFTER INSERT` trigger (`update_user_species_count()`). To avoid TOCTOU race conditions during bulk offline uploads, it recalculates the sum via a subquery (`COUNT(DISTINCT species_id)`) rather than auto-incrementing. DO NOT MANUALLY UPDATE THIS FROM CLIENT CODE OR EDGE FUNCTIONS. This metric is also maintained via an `AFTER DELETE` trigger (`decrement_user_species_count()`) that deducts from the sum when a user deletes their last scan of a species.
 - `abuse_strikes` (INT, DEFAULT 0): Incremented by the `/identify` background moderation pipeline each time Gemini's safety ratings flag submitted media as `MEDIUM` or `HIGH` probability, or when `finishReason === "SAFETY"`. Never decremented automatically. See [Safety & Moderation](../development-guides/10-safety-and-moderation.md).
 - `is_shadowbanned` (BOOLEAN, DEFAULT false): Set to `true` when `abuse_strikes` reaches 3. Shadowbanned users continue to receive AI identification responses (the HTTP response is unchanged), but all background ingestion silently halts — no scans are persisted. Not currently read by the iOS client.
+- `public_author_name` (TEXT, NOT NULL): Explore-facing public display label derived from auth metadata (`First L.`) when safe, otherwise from a stable alias fallback (`Explorer ABC123`). Added in migration `20260425000000_add_explore_posts.sql`.
+- `public_identity_source` (TEXT, NOT NULL): Source marker for the Explore author label. CHECK-constrained to `alias` | `derived_name` | `display_name`. Added in migration `20260425000000_add_explore_posts.sql`.
+- `public_avatar_url` (TEXT, nullable): Public Explore avatar URL copied from auth metadata (`avatar_url` or `picture`) for authenticated users when available. `NULL` for ghost users or accounts with no provider avatar. Added in migration `20260426000000_add_public_author_avatar_to_explore.sql`.
+
+**Public identity refresh helpers**: `refresh_public_author_identity(target_user_id)` and `handle_new_user()` maintain the Explore-facing identity projection. These functions never expose raw auth metadata directly; they copy only the safe public fields (`public_author_name`, `public_identity_source`, `public_avatar_url`) onto `public.users`.
 
 
 ### `species_dictionary`
@@ -153,6 +158,39 @@ Registers blocked users so they are excluded from Discovery feeds.
 
 - `blocker_id` (UUID - Foreign Key): The user executing the block.
 - `blocked_id` (UUID - Foreign Key): The UUID of the blocked user.
+
+### `explore_posts`
+
+Manual-share public feed wrapper around `scans`. Added in migration `20260425000000_add_explore_posts.sql`.
+
+- `id` (UUID): Primary key.
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE): The post author.
+- `scan_id` (UUID FK → `scans.id`, CASCADE DELETE, UNIQUE): The backing scan. V1 enforces one active Explore post per scan.
+- `shared_at` (TIMESTAMPTZ): Reverse-chronological feed ordering key.
+- `unshared_at` (TIMESTAMPTZ, nullable): Soft-removes the post from the public feed without deleting the scan.
+- `like_count` / `comment_count` (INT): Denormalized counters maintained by triggers.
+
+**Ephemeral-media rule**: V1 Explore reuses `scans.image_storage_urls` directly. If the scan is tombstoned, private, or later loses all image URLs, the Explore post disappears from the public feed automatically.
+
+### `explore_post_likes`
+
+Like edge table for Explore posts. Added in migration `20260425000000_add_explore_posts.sql`.
+
+- `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE)
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE)
+- `created_at` (TIMESTAMPTZ)
+- Composite primary key: `(post_id, user_id)` for idempotent likes.
+
+### `explore_post_comments`
+
+Comment table for Explore posts. Added in migration `20260425000000_add_explore_posts.sql`.
+
+- `id` (UUID): Primary key.
+- `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE)
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE)
+- `body` (TEXT): Server-capped and non-blank.
+- `created_at` (TIMESTAMPTZ)
+- `deleted_at` (TIMESTAMPTZ, nullable): Soft delete marker used for moderation-safe removals.
 
 ### `00007_auto_purge_nonbio_cron.sql` (Lifecycle Sync)
 

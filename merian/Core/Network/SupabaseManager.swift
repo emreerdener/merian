@@ -27,6 +27,13 @@ import Supabase
         currentUser?.isAnonymous ?? true
     }
 
+    var currentUserAvatarUrl: URL? {
+        guard let urlString = currentUser?.userMetadata["avatar_url"]?.stringValue ?? currentUser?.userMetadata["picture"]?.stringValue else {
+            return nil
+        }
+        return URL(string: urlString)
+    }
+
     // MARK: - Apple Sign-In State
     private var currentNonce: String?
     private var activeAppleAuth: ASAuthorizationController?

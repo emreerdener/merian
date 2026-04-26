@@ -49,6 +49,7 @@ struct ExploreCommentsSheet: View {
         }
         .presentationDetents([.fraction(0.6), .large])
         .presentationDragIndicator(.visible)
+        .presentationBackground(Color(uiColor: .systemBackground))
         .onChange(of: viewModel.commentDraft) { _, newValue in
             if newValue.count > 500 {
                 viewModel.commentDraft = String(newValue.prefix(500))
@@ -97,6 +98,19 @@ struct ExploreCommentsSheet: View {
             }
 
             HStack(alignment: .bottom, spacing: 12) {
+                if SupabaseManager.shared.isAuthenticated, let avatarUrl = SupabaseManager.shared.currentUserAvatarUrl {
+                    AsyncImage(url: avatarUrl) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
+                        Color(uiColor: .tertiarySystemFill)
+                    }
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+                    .padding(.bottom, 6)
+                }
+
                 TextField("Add a comment", text: $viewModel.commentDraft, axis: .vertical)
                     .lineLimit(1...4)
                     .padding(.horizontal, 14)

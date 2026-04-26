@@ -15,9 +15,14 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
   - Species common name and scientific name
   - Author label
   - General location only, at city or state level
-  - Broad time context
-  - Weather data when available
-  - Like and comment actions
+  - Author avatar for authenticated users when a public avatar URL is available
+  - Like, comment, and external share actions
+- The current V1 card layout is:
+  - Author row above the image
+  - Full-width square image
+  - Species common/scientific name plaque over the bottom-left of the image
+  - Action row below the image
+- Broad time context and weather data remain available as optional feed metadata, but are not currently rendered on the primary card UI.
 - Any imported or captured photo already present in the scan library should be eligible for sharing.
 - Future scope: feed cards can open a public species page once that separate species-page project exists.
 
@@ -57,15 +62,18 @@ Recommended V1 shape on `public.users`:
 - `public_author_name TEXT NOT NULL`
 - `public_identity_source TEXT NOT NULL`
   - Allowed values: `alias`, `derived_name`, `display_name`
+- `public_avatar_url TEXT NULL`
 
 Rules:
 
 - Ghost users default to a stable alias.
 - Authenticated users default to `First L.` derived from auth metadata when available.
 - If no safe first-name metadata exists, authenticated users also fall back to the stable alias.
+- If auth metadata includes a provider avatar (`avatar_url` or `picture`), Merian may copy it into `public_avatar_url` for Explore rendering.
+- Ghost users should leave `public_avatar_url` null.
 - If Merian later adds editable public names, that should update `public_author_name` and switch the source to `display_name`.
-- Feed and comments should only ever render `public_author_name`.
-- Email, full raw auth metadata, and provider profile data must never be exposed directly in Explore payloads.
+- Feed and comments should only ever render `public_author_name`, and the feed may optionally render `public_avatar_url`.
+- Email and raw auth metadata must never be exposed directly in Explore payloads. Public avatar access should happen only through the copied `public.users.public_avatar_url` field.
 
 This gives us the "show a user if logged in, otherwise show an alias" behavior without coupling Explore to private identity fields.
 
@@ -77,13 +85,13 @@ Each Explore card should contain:
 - Common name
 - Scientific name
 - Author label
+- Optional author avatar
 - General location label
-- Broad time label
-- Weather summary when available
 - Like count
 - Comment count
 - Like button
 - Comment button
+- External share button
 - Overflow actions for block/report/unshare when appropriate
 
 V1 card behavior:
@@ -91,6 +99,7 @@ V1 card behavior:
 - Tapping the card body does nothing.
 - Tapping comments opens an inline sheet or modal comment view.
 - Tapping the overflow menu exposes actions, not navigation.
+- The Explore sheet header includes a placeholder bell button reserving space for a future notifications/activity view.
 
 ## Public Metadata Rules
 
@@ -106,11 +115,13 @@ Time:
 
 - Render broad buckets such as `Morning`, `Afternoon`, `Evening`, or `Night`.
 - A month or season can be included if useful, but V1 should avoid minute-level or exact timestamp display.
+- The current V1 feed card does not render time metadata, but the feed contract may still return it for future use.
 
 Weather:
 
 - Show only if already available on the scan.
 - Use lightweight display such as `Rainy`, `Clear`, or `68F`.
+- The current V1 feed card does not render weather metadata, but the feed contract may still return it for future use.
 
 ## Eligibility Rules
 
@@ -259,8 +270,9 @@ Recommended response fields:
 - `post_id`
 - `scan_id`
 - `hero_image_url`
-  - `shared_at`
+- `shared_at`
 - `author_name`
+- `author_avatar_url`
 - `species_common_name`
 - `species_scientific_name`
 - `public_location_label`
@@ -311,15 +323,15 @@ Recommended feature module:
 
 - `merian/Features/Explore/Views/ExploreView.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
-- `merian/Features/Explore/Models/ExploreModels.swift`
+- `merian/Core/Network/ExploreAPIModels.swift`
 - `merian/Features/Explore/Components/ExplorePostCard.swift`
-- `merian/Features/Explore/Components/ExploreCommentSheet.swift`
+- `merian/Features/Explore/Components/ExploreCommentsSheet.swift`
 
 Routing changes:
 
 - Add `.explore` to `CaptureWorkspaceViewModel.ActiveSheet`
 - Route the Explore tab through `CameraSheetRouter`
-- Replace the current "Coming soon" Explore tooltip in `MainTabBar`
+- Open Explore directly from `MainTabBar`
 
 Share entry points:
 
@@ -332,6 +344,8 @@ Client behavior:
 - Likes/comments/shares do not use the offline queue
 - Feed pagination should be incremental
 - Like and comment counts should update optimistically
+- Explore feed share uses the system share sheet with species text plus the current hero image URL
+- The sheet toolbar includes a placeholder bell icon that currently surfaces a "coming soon" toast for future Explore activity
 
 ## Implementation Phases
 
@@ -382,11 +396,13 @@ When the public species-page project exists:
 
 - A user can manually share an eligible image scan to Explore.
 - A shared post appears in a reverse-chronological public feed.
-- The feed shows privacy-safe author identity, general location, broad time context, and weather when available.
+- The feed shows privacy-safe author identity and general location.
+- Authenticated authors can show a public avatar when a provider avatar URL is available.
 - Ghost users can participate with stable aliases.
 - Authenticated users show a safe public author label.
 - Exact coordinates never appear in Explore payloads.
 - Users can like and comment on posts.
+- Users can externally share posts from the feed.
 - Users can block and report from Explore surfaces.
 - Unsharing removes the post from the public feed without deleting the scan.
 - Posts disappear from Explore once their backing scan media is no longer available.

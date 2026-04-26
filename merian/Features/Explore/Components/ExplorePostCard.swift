@@ -4,167 +4,224 @@ struct ExplorePostCard: View {
     let post: ExplorePost
     let onLike: () -> Void
     let onComments: () -> Void
+    let onShare: () -> Void
     let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
 
-    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter
-    }()
+    @State private var isShowingDoubleTapHeart = false
+    @State private var doubleTapHeartScale: CGFloat = 0.7
+    @State private var doubleTapHeartOpacity = 0.0
+    @State private var doubleTapHeartTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            headerRow
+                .padding(.horizontal, 8)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+
             mediaView
 
-            VStack(alignment: .leading, spacing: 16) {
-                headerRow
-                authorRow
-                actionRow
-            }
-            .padding(18)
+            actionRow
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onDisappear {
+            doubleTapHeartTask?.cancel()
+            doubleTapHeartTask = nil
+        }
     }
 
     private var mediaView: some View {
-        AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
-            switch phase {
-            case .success(let image):
-                image
-                    .resizable()
-                    .scaledToFill()
-            case .failure:
-                ZStack {
-                    LinearGradient(
-                        colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+        ZStack(alignment: .bottomLeading) {
+            AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
 
-                    Image(systemName: "photo")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-            case .empty:
-                ZStack {
+                        Image(systemName: "photo")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                case .empty:
+                    ZStack {
+                        Color(uiColor: .tertiarySystemFill)
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                    }
+                @unknown default:
                     Color(uiColor: .tertiarySystemFill)
-                    ProgressView()
-                        .progressViewStyle(.circular)
                 }
-            @unknown default:
-                Color(uiColor: .tertiarySystemFill)
             }
+
+            if isShowingDoubleTapHeart {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 92, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+                    .scaleEffect(doubleTapHeartScale)
+                    .opacity(doubleTapHeartOpacity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+            }
+
+            speciesOverlay
+                .padding(14)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 360)
+        .aspectRatio(1, contentMode: .fit)
         .clipped()
-        .overlay(alignment: .topLeading) {
-            if let publicLocationLabel = locationBadgeText {
-                ExploreFloatingBadge(
-                    text: publicLocationLabel,
-                    systemImage: "mappin.and.ellipse"
-                )
-                .padding(14)
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            menuButton
-                .padding(14)
-        }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2, perform: handleDoubleTapLike)
     }
 
     private var headerRow: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(post.speciesCommonName.capitalized)
-                    .font(.title3)
-                    .fontWeight(.bold)
+        HStack(alignment: .center, spacing: 12) {
+            authorAvatarView
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(post.authorName)
+                    .font(.headline)
+                    .fontWeight(.semibold)
                     .foregroundStyle(.primary)
 
-                Text(post.speciesScientificName)
-                    .font(.subheadline)
-                    .italic()
-                    .foregroundStyle(.secondary)
+                if let locationText = locationText {
+                    Text(locationText)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 12)
+
+            menuButton
         }
     }
 
-    private var authorRow: some View {
-        HStack(spacing: 10) {
-            Label {
-                Text(post.authorName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-            } icon: {
-                Image(systemName: "person.crop.circle.fill")
-                    .foregroundStyle(.secondary)
+    @ViewBuilder
+    private var authorAvatarView: some View {
+        if let avatarUrl = resolvedAuthorAvatarUrl {
+            AsyncImage(url: avatarUrl) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    fallbackAuthorAvatar
+                case .empty:
+                    Color(uiColor: .tertiarySystemFill)
+                @unknown default:
+                    fallbackAuthorAvatar
+                }
             }
-
-            if let sharedText = sharedAtText {
-                Text(sharedText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            .frame(width: 38, height: 38)
+            .clipShape(Circle())
+        } else {
+            fallbackAuthorAvatar
         }
+    }
+
+    private var fallbackAuthorAvatar: some View {
+        Image(systemName: "person.crop.circle")
+            .font(.system(size: 38, weight: .regular))
+            .foregroundStyle(.primary)
+    }
+
+    private var resolvedAuthorAvatarUrl: URL? {
+        if let avatarUrlString = post.authorAvatarUrl,
+           let avatarUrl = URL(string: avatarUrlString) {
+            return avatarUrl
+        }
+
+        let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
+        let isCurrentUsersPost = post.isOwnedByViewer || currentUserId == post.authorUserId
+        if isCurrentUsersPost {
+            return SupabaseManager.shared.currentUserAvatarUrl
+        }
+
+        return nil
+    }
+
+    private var speciesOverlay: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(post.speciesCommonName.capitalized)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+
+            Text(post.speciesScientificName)
+                .font(.footnote)
+                .italic()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.5), .white.opacity(0.0), .white.opacity(0.2)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.5
+                )
+        )
+        .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 4)
     }
 
     private var actionRow: some View {
-        HStack(spacing: 16) {
-            Button(action: onLike) {
-                HStack(spacing: 6) {
-                    Image(systemName: post.viewerHasLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(post.viewerHasLiked ? .red : .primary)
-                    Text(compactCount(post.likeCount))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-                }
+        HStack(spacing: 20) {
+            ExploreFeedActionButton(
+                systemImage: post.viewerHasLiked ? "heart.fill" : "heart",
+                value: compactCount(post.likeCount),
+                isHighlighted: post.viewerHasLiked,
+                action: onLike
+            )
+
+            ExploreFeedActionButton(
+                systemImage: "bubble.right",
+                value: compactCount(post.commentCount),
+                isHighlighted: false,
+                action: onComments
+            )
+
+            Spacer(minLength: 12)
+
+            Button(action: onShare) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 24, weight: .regular))
+                    .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
-
-            Divider()
-                .frame(height: 16)
-
-            Button(action: onComments) {
-                HStack(spacing: 6) {
-                    Image(systemName: "bubble.right")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.primary)
-                    Text(compactCount(post.commentCount))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-                }
-            }
-            .buttonStyle(.plain)
+            .accessibilityLabel("Share post")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(
-            Capsule()
-                .fill(Color(uiColor: .tertiarySystemFill))
-        )
     }
 
     private var menuButton: some View {
         Menu {
             if post.isOwnedByViewer {
                 Button(role: .destructive, action: onUnshare) {
-                    Label("Remove from Explore", systemImage: "trash")
+                    Label("Remove post", systemImage: "trash")
                 }
             } else {
                 Button(role: .destructive, action: onBlock) {
@@ -177,15 +234,14 @@ struct ExplorePostCard: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 0.5))
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.primary)
+                .frame(width: 32, height: 32, alignment: .center)
         }
+        .buttonStyle(.plain)
     }
 
-    private var locationBadgeText: String? {
+    private var locationText: String? {
         guard let publicLocationLabel = post.publicLocationLabel?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !publicLocationLabel.isEmpty else {
@@ -195,35 +251,62 @@ struct ExplorePostCard: View {
         return publicLocationLabel
     }
 
-    private var sharedAtText: String? {
-        guard let sharedAtDate = post.sharedAtDate else { return nil }
-        return ExplorePostCard.relativeDateFormatter.localizedString(for: sharedAtDate, relativeTo: Date())
-    }
-
     private func compactCount(_ count: Int) -> String {
         count.formatted(.number.notation(.compactName))
     }
+
+    private func handleDoubleTapLike() {
+        if !post.viewerHasLiked {
+            onLike()
+        }
+
+        doubleTapHeartTask?.cancel()
+        isShowingDoubleTapHeart = true
+        doubleTapHeartScale = 0.7
+        doubleTapHeartOpacity = 0.0
+
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+            doubleTapHeartScale = 1.0
+            doubleTapHeartOpacity = 1.0
+        }
+
+        doubleTapHeartTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeOut(duration: 0.35)) {
+                doubleTapHeartScale = 1.12
+                doubleTapHeartOpacity = 0.0
+            }
+
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+
+            isShowingDoubleTapHeart = false
+            doubleTapHeartTask = nil
+        }
+    }
 }
 
-private struct ExploreFloatingBadge: View {
-    let text: String
+private struct ExploreFeedActionButton: View {
     let systemImage: String
+    let value: String
+    let isHighlighted: Bool
+    let action: () -> Void
 
     var body: some View {
-        Label(text, systemImage: systemImage)
-            .font(.footnote)
-            .fontWeight(.medium)
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                Capsule()
-                    .fill(.ultraThinMaterial)
-            )
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.22), lineWidth: 0.75)
-            )
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 27, weight: .regular))
+                    .foregroundStyle(isHighlighted ? Color.red : Color.primary)
+
+                Text(value)
+                    .font(.headline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }

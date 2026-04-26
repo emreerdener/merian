@@ -27,6 +27,14 @@ struct ExploreView: View {
                             .font(.system(size: 16, weight: .bold))
                     }
                 }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: { viewModel.showNotificationsPlaceholder() }) {
+                        Image(systemName: "bell")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                    .accessibilityLabel("Notifications")
+                }
             }
         }
         .task {
@@ -54,13 +62,12 @@ struct ExploreView: View {
     private var feedScrollView: some View {
         ScrollView {
             LazyVStack(spacing: 24) {
-                feedHeader
-
                 ForEach(viewModel.posts) { post in
                     ExplorePostCard(
                         post: post,
                         onLike: { Task { await viewModel.toggleLike(for: post) } },
                         onComments: { Task { await viewModel.openComments(for: post) } },
+                        onShare: { viewModel.share(post) },
                         onUnshare: { Task { await viewModel.unshare(post) } },
                         onBlock: { Task { await viewModel.blockAuthor(of: post) } },
                         onReport: { Task { await viewModel.report(post) } }
@@ -75,28 +82,15 @@ struct ExploreView: View {
                         .progressViewStyle(.circular)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .padding(.top, 12)
             .padding(.bottom, 24)
         }
         .refreshable {
             await viewModel.loadInitialFeed(force: true)
         }
-    }
-
-    private var feedHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Shared discoveries from the Merian community.")
-                .font(.headline)
-                .fontWeight(.semibold)
-
-            Text("Browse recent finds, leave lightweight feedback, and keep the focus on species rather than profiles.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var loadingState: some View {
@@ -122,7 +116,7 @@ struct ExploreView: View {
     private func errorState(message: String) -> some View {
         EmptyStateView(
             iconName: "exclamationmark.triangle",
-            title: "Couldn’t load Explore",
+            title: "Couldn’t load posts",
             message: message
         ) {
             Button {

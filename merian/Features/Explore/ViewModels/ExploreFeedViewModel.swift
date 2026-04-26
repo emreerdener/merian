@@ -54,6 +54,10 @@ final class ExploreFeedViewModel {
             hasReachedEndOfFeed = freshPosts.count < feedPageSize
             errorMessage = nil
             reconcileActiveCommentsPost()
+        } catch is CancellationError {
+            // Silently absorb cancellation
+        } catch let error as URLError where error.code == .cancelled {
+            // Silently absorb URLSession cancellation
         } catch {
             if posts.isEmpty {
                 errorMessage = ExploreErrorFormatter.message(for: error)
@@ -83,6 +87,10 @@ final class ExploreFeedViewModel {
             feedOffset += nextPage.count
             hasReachedEndOfFeed = nextPage.count < feedPageSize
             reconcileActiveCommentsPost()
+        } catch is CancellationError {
+            // Absorb
+        } catch let error as URLError where error.code == .cancelled {
+            // Absorb
         } catch {
             toastMessage = ExploreErrorFormatter.message(for: error)
         }
@@ -263,6 +271,30 @@ final class ExploreFeedViewModel {
         } else {
             toastMessage = "Could not block this user right now."
         }
+    }
+
+    func share(_ post: ExplorePost) {
+        var shareText = post.speciesCommonName.capitalized
+        if !post.speciesScientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            shareText += " (\(post.speciesScientificName))"
+        }
+        if let publicLocationLabel = post.publicLocationLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !publicLocationLabel.isEmpty {
+            shareText += " in \(publicLocationLabel)"
+        }
+
+        var items: [Any] = [shareText]
+        if let heroImageURL = URL(string: post.heroImageUrl) {
+            items.append(heroImageURL)
+        }
+
+        ShareSheetUtility.present(items: items)
+        HapticManager.shared.triggerSelectionPulse()
+    }
+
+    func showNotificationsPlaceholder() {
+        HapticManager.shared.triggerSelectionPulse()
+        toastMessage = "Explore notifications coming soon"
     }
 
     private func indexForPost(id: String) -> Int? {
