@@ -59,13 +59,16 @@ struct ExploreView: View {
             await viewModel.loadInitialFeed()
         }
         .task {
-            await viewModel.refreshUnreadNotificationCount()
+            await viewModel.startUnreadNotificationUpdates()
 
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
                 guard !Task.isCancelled else { break }
                 await viewModel.refreshUnreadNotificationCount()
             }
+        }
+        .onDisappear {
+            viewModel.stopUnreadNotificationUpdates()
         }
         .sheet(
             isPresented: Binding(
@@ -231,6 +234,10 @@ struct ExploreView: View {
             try? await Task.sleep(nanoseconds: 150_000_000)
             openPostDetail(for: post)
         } catch {
+            MerianLog.network.error(
+                "Failed to open Explore notification \(notification.id, privacy: .private): \(error.localizedDescription, privacy: .private)"
+            )
+            AppTelemetry.trackExploreNotificationOpenFailed(type: notification.type.rawValue)
             HapticManager.shared.triggerErrorThump()
             viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
         }

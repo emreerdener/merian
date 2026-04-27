@@ -7,7 +7,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Sharing is manual per eligible scan. A scan does not become public just because its `geoprivacy` is `open`.
 - Explore is image-only in V1. Audio is out of scope.
 - Post descriptions/captions are out of scope in V1.
-- Explore ships an in-app notifications feed for likes and comments. Remote APNs push delivery remains a fast follow.
+- Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible likes/comments can also fan out to APNs pushes for users who opt into Explore activity notifications.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.
 - The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
 - Explore does not include public user profile pages in V1.
@@ -46,7 +46,6 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 
 - Audio posts
 - Captions, hashtags, follows, DMs, or profile pages
-- Remote APNs push notifications for feed interactions
 - Complex ranking beyond reverse chronological order
 - Public species pages in this scope
 
@@ -292,7 +291,7 @@ Existing endpoint reuse:
 
 - Reuse `/block-user` for author and commenter blocking.
 
-The in-app notifications feed is the Explore source of truth. Remote APNs fan-out can layer on later, but it is not part of the shipped V1 backend surface.
+The in-app notifications feed is the Explore source of truth. Remote APNs fan-out layers on top of that same notification row model through push-device registration plus a server-side webhook trigger.
 
 ## Feed Query Rules
 
@@ -357,6 +356,7 @@ Notifications:
 - Comment notifications should create one row per visible comment.
 - Self-likes and self-comments should never create notifications.
 - Opening the notifications sheet should mark the fetched rows as read only after the initial fetch succeeds.
+- Users can independently opt into remote Explore activity pushes without enabling discovery-result alerts.
 
 Blocking:
 
@@ -444,8 +444,6 @@ Client behavior:
 ### Phase 6: Fast Follow Ups
 
 - Public species page route from Explore cards
-- Remote APNs push notifications for Explore activity
-- Explore-specific notification preferences
 - Public user profile pages
 - Audio Explore posts
 - Ranking and recommendation logic
@@ -474,6 +472,8 @@ When the public species-page project exists:
 - Tapping the feed comment icon opens a bottom-sheet comment view.
 - The detail page shows inline comments plus privacy-safe telemetry and public species cards.
 - The bell icon shows an unread count and opens an in-app notifications sheet for likes and comments on the viewer's posts.
+- The bell unread count is refreshed on foreground, on a lightweight fallback poll, and by a Supabase realtime subscription to the viewer's notification rows.
+- Users can opt into remote Explore activity pushes separately from discovery-result alerts.
 - Users can block and report from Explore surfaces.
 - Unsharing removes the post from the public feed without deleting the scan.
 - Posts disappear from Explore once their backing scan media is no longer available.

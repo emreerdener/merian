@@ -70,7 +70,7 @@ The in-app notifications feed is backed by `public.explore_post_notifications`, 
 
 `get-explore-post` is an important routing helper for the iOS client: it returns a single feed-card projection so notification taps and future deep links do not depend on the target post already existing in the currently paged `ExploreFeedViewModel.posts` array.
 
-Explore activity is currently in-app only. Remote APNs push fan-out is intentionally not shipped yet because the app/backend do not yet have a completed device-token registration and storage path for Explore-specific pushes.
+Explore activity now supports optional remote APNs delivery on top of the in-app feed. The app registers APNs device tokens through `register-push-device`, stores them in `public.user_push_devices`, and a Postgres trigger on `public.explore_post_notifications` uses `pg_net` to invoke `send-push-notification` whenever a visible notification row is inserted or a like aggregate count increases.
 
 ## The Webhook Node (`revenuecat-webhook`)
 

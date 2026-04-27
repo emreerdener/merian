@@ -42,6 +42,10 @@ final class ExploreNotificationsViewModel {
         } catch let error as URLError where error.code == .cancelled {
             return false
         } catch {
+            MerianLog.network.error(
+                "Explore notifications fetch failed: \(error.localizedDescription, privacy: .private)"
+            )
+            AppTelemetry.trackExploreNotificationsFetchFailed(context: "sheet_load")
             errorMessage = ExploreErrorFormatter.message(for: error)
             return false
         }

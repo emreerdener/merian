@@ -20,6 +20,8 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackError("UnitTestTrigger")
         AppTelemetry.trackOfflineQueued()
         AppTelemetry.trackOnboardingCompleted()
+        AppTelemetry.trackExploreNotificationsFetchFailed(context: "sheet_load")
+        AppTelemetry.trackExploreNotificationOpenFailed(type: "comment")
     }
 
     func testIsInitializedAfterSetUp() {

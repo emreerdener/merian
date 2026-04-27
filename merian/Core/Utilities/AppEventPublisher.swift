@@ -8,6 +8,8 @@ enum AppEvent {
     
     /// Dispatched via push notification tap to deep-link the user directly to a newly uploaded model.
     case appDidEnterActivePhaseWithScan(scanId: String)
+    /// Dispatched via push notification tap to deep-link the user directly to an Explore post.
+    case appDidEnterActivePhaseWithExplorePost(postId: String)
     
     /// Dispatched when the app wakes up after being in the background for longer than the session timeout limit.
     /// Used to snap the UI back to a clean camera state.

@@ -467,6 +467,24 @@ Marks the viewer's Explore notifications as read and returns the number of rows 
 
 The current iOS client calls this only after `/get-explore-notifications` succeeds, matching the shipped "clear the unread badge when the sheet opens successfully" behavior.
 
+### `/register-push-device`
+
+Registers or refreshes the current iOS device for optional remote Explore activity pushes:
+
+```json
+{
+  "device_token": "lowercasehex...",
+  "platform": "ios",
+  "environment": "sandbox",
+  "explore_enabled": true
+}
+```
+
+- The endpoint is authenticated with the viewer's existing Supabase session, just like the other Explore nodes.
+- `device_token` is normalized to lowercase and upserted by `(device_token, platform, environment)`.
+- `explore_enabled` is feature-specific. Users can opt into Explore activity pushes without also enabling discovery-result alerts.
+- The server stores these rows in `public.user_push_devices`. Delivery failures from APNs feed back into that table via `last_error_*` fields and `is_active`.
+
 ### iOS Mapping
 
 The Explore client decodes these endpoints via:
@@ -498,10 +516,11 @@ The Explore detail page additionally uses:
 - `weather_condition` + `weather_temperature_f` for optional public weather telemetry
 - `/get-explore-comments` for the inline thread and composer state
 - `/get-explore-unread-notification-count` for the bell badge and `/get-explore-notifications` plus `/mark-explore-notifications-read` for the in-app activity sheet
+- `/register-push-device` to sync the APNs token plus the Explore-specific push preference
 
 Time and weather metadata remain in the contract for future Explore presentation experiments, but are not currently rendered on the primary feed card.
 
-Explore notifications are currently in-app only. Remote APNs delivery is a deliberate follow-up and is not yet part of the shipped contract.
+Remote Explore APNs delivery is layered on top of this contract through the internal `send-push-notification` webhook path. That webhook is not called by the iOS client directly; it is triggered server-side from `public.explore_post_notifications`.
 
 ---
 

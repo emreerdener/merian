@@ -4,11 +4,19 @@ import UserNotifications
 /// Abstracted detail view establishing a parent/child routing flow specifically isolating Notification configuration.
 /// Ensures the primary Profile `Preferences` list does not organically expand into an unscrollable behemoth.
 struct NotificationSettingsView: View {
+    private enum PendingNotificationToggle {
+        case discovery
+        case achievements
+        case explore
+    }
+
     @AppStorage(UserDefaultsKeys.isPushNotificationsEnabled) private var isPushNotificationsEnabled: Bool = false
-    @AppStorage("isAchievementNotificationsEnabled") private var isAchievementNotificationsEnabled: Bool = false
+    @AppStorage(UserDefaultsKeys.isAchievementNotificationsEnabled) private var isAchievementNotificationsEnabled: Bool = false
+    @AppStorage(UserDefaultsKeys.isExploreNotificationsEnabled) private var isExploreNotificationsEnabled: Bool = false
     
     @State private var showPermissionPrompt = false
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var pendingPermissionToggle: PendingNotificationToggle?
     
     var body: some View {
         List {
@@ -16,7 +24,7 @@ struct NotificationSettingsView: View {
                 SettingsToggleRow(
                     title: "Discovery alerts",
                     description: "Receive a notification whenever the AI successfully identifies a species.",
-                    isOn: binding(for: $isPushNotificationsEnabled)
+                    isOn: binding(for: $isPushNotificationsEnabled, target: .discovery)
                 )
             } header: {
                 Text("Inference events")
@@ -28,16 +36,42 @@ struct NotificationSettingsView: View {
                 SettingsToggleRow(
                     title: "Achievements & milestones",
                     description: "Get notified when you unlock new ecological awards.",
-                    isOn: binding(for: $isAchievementNotificationsEnabled)
+                    isOn: binding(for: $isAchievementNotificationsEnabled, target: .achievements)
                 )
             } header: {
                 Text("Gamification")
             }
+
+            Section {
+                SettingsToggleRow(
+                    title: "Explore activity",
+                    description: "Receive a push when someone likes or comments on one of your Explore posts.",
+                    isOn: binding(for: $isExploreNotificationsEnabled, target: .explore) {
+                        Task { @MainActor in
+                            await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
+                                reason: "explore_setting_changed"
+                            )
+                        }
+                    }
+                )
+            } header: {
+                Text("Explore")
+            } footer: {
+                Text("This controls remote Explore activity pushes only. The in-app notifications feed remains available inside Explore.")
+            }
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showPermissionPrompt) {
-            PostIdentificationNotificationSheetView {
+        .sheet(isPresented: $showPermissionPrompt, onDismiss: {
+            pendingPermissionToggle = nil
+            fetchStatus()
+        }) {
+            PostIdentificationNotificationSheetView { granted in
+                if granted {
+                    applyPendingPermissionToggle()
+                } else {
+                    pendingPermissionToggle = nil
+                }
                 fetchStatus()
                 showPermissionPrompt = false
             }
@@ -57,12 +91,17 @@ struct NotificationSettingsView: View {
         }
     }
     
-    private func binding(for appStorage: Binding<Bool>) -> Binding<Bool> {
+    private func binding(
+        for appStorage: Binding<Bool>,
+        target: PendingNotificationToggle,
+        onCommit: (() -> Void)? = nil
+    ) -> Binding<Bool> {
         Binding(
             get: { appStorage.wrappedValue },
             set: { newValue in
                 if newValue {
                     if authorizationStatus == .notDetermined {
+                        pendingPermissionToggle = target
                         showPermissionPrompt = true
                     } else if authorizationStatus == .denied || authorizationStatus == .provisional {
                         if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -70,12 +109,33 @@ struct NotificationSettingsView: View {
                         }
                     } else {
                         appStorage.wrappedValue = true
-                        AppDIContainer.shared.pushNotificationManager.requestAuthorization()
+                        onCommit?()
                     }
                 } else {
                     appStorage.wrappedValue = false
+                    onCommit?()
                 }
             }
         )
+    }
+
+    private func applyPendingPermissionToggle() {
+        guard let pendingPermissionToggle else { return }
+
+        switch pendingPermissionToggle {
+        case .discovery:
+            isPushNotificationsEnabled = true
+        case .achievements:
+            isAchievementNotificationsEnabled = true
+        case .explore:
+            isExploreNotificationsEnabled = true
+            Task { @MainActor in
+                await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
+                    reason: "explore_setting_enabled_after_authorization"
+                )
+            }
+        }
+
+        self.pendingPermissionToggle = nil
     }
 }

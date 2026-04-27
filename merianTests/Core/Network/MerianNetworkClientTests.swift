@@ -201,6 +201,28 @@ struct MerianNetworkClientTests {
         
         try await MerianNetworkClient.shared.requestDwcAExport(scope: "user")
     }
+
+    @Test func testRegisterPushDeviceEndpoint() async throws {
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        MockURLProtocol.mockEndpoints["/register-push-device"] = { request in
+            #expect(request.url?.path.hasSuffix("/register-push-device") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(request.httpBody)
+            let payload = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            #expect(payload?["device_token"] as? String == "abc123")
+            #expect(payload?["platform"] as? String == "ios")
+            #expect(payload?["environment"] as? String == "sandbox")
+            #expect(payload?["explore_enabled"] as? Bool == true)
+            return (mockResponse, Data("{}".utf8))
+        }
+
+        try await MerianNetworkClient.shared.registerPushDevice(
+            deviceToken: "abc123",
+            environment: "sandbox",
+            exploreEnabled: true
+        )
+    }
     
     @Test func testSubmitFlagIssue() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!

@@ -1,6 +1,10 @@
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import {
+  jsonResponse,
+  logStructuredError,
+  withEdgeHandler,
+} from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import { fetchExplorePost } from "./db.ts";
@@ -18,7 +22,17 @@ serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const postId = requireUuid(body.post_id, "post_id");
-    const data = await fetchExplorePost(user.id, postId, supabaseAdmin);
+    let data;
+    try {
+      data = await fetchExplorePost(user.id, postId, supabaseAdmin);
+    } catch (error) {
+      logStructuredError("explore_notification_open_fetch_failed", {
+        user_id: user.id,
+        post_id: postId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
 
     if (!data) {
       return jsonResponse({ error: "Explore post not found" }, 404);

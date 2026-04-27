@@ -15,6 +15,17 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
     /// Prevents duplicate notifications when both the live and background paths complete
     /// for the same scan in close succession (e.g. simulator re-attach or fast network).
     @ObservationIgnored private var notifiedScanIds: Set<String> = []
+    @ObservationIgnored private var isSyncingRemotePushRegistration = false
+
+    private var currentDeviceToken: String? {
+        get { UserDefaults.standard.string(forKey: UserDefaultsKeys.remotePushDeviceToken) }
+        set { UserDefaults.standard.set(newValue, forKey: UserDefaultsKeys.remotePushDeviceToken) }
+    }
+
+    private var effectiveExplorePushEnabled: Bool {
+        UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
+            && UserDefaults.standard.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
+    }
 
     private override init() {
         super.init()
@@ -48,29 +59,84 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let isGranted = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
             Task { @MainActor in
-                if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) != isGranted {
-                    UserDefaults.standard.set(isGranted, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+                if UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization) != isGranted {
+                    UserDefaults.standard.set(isGranted, forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
                 }
+                self.registerForRemoteNotificationsIfAuthorized()
+                await self.syncRemotePushRegistrationIfPossible(reason: "permission_state_sync")
             }
         }
     }
 
-    func requestAuthorization(completion: @escaping () -> Void = {}) {
+    func requestAuthorization(completion: @escaping (Bool) -> Void = { _ in }) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             Task { @MainActor in
                 if let error = error {
                     MerianLog.hardware.debug("Failed to request push notification authorization: \(error, privacy: .private)")
-                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
                 } else if granted {
                     MerianLog.hardware.debug("Push notification authorization granted.")
-                    UserDefaults.standard.set(true, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+                    UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
+                    self.registerForRemoteNotificationsIfAuthorized()
                 } else {
                     MerianLog.hardware.debug("Push notification authorization denied.")
-                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
                 }
-                completion()
+                await self.syncRemotePushRegistrationIfPossible(reason: "authorization_request")
+                completion(granted)
             }
         }
+    }
+
+    func registerForRemoteNotificationsIfAuthorized() {
+        guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization) else {
+            return
+        }
+        #if canImport(UIKit)
+        UIApplication.shared.registerForRemoteNotifications()
+        #endif
+    }
+
+    func handleRemoteDeviceToken(_ deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        currentDeviceToken = token
+        MerianLog.hardware.debug("Registered APNs device token.")
+
+        Task {
+            await syncRemotePushRegistrationIfPossible(reason: "device_token_received")
+        }
+    }
+
+    func handleRemoteRegistrationFailure(_ error: Error) {
+        MerianLog.hardware.error("APNs device registration failed: \(error.localizedDescription, privacy: .private)")
+    }
+
+    func syncRemotePushRegistrationIfPossible(reason: String) async {
+        guard !isSyncingRemotePushRegistration else { return }
+        guard let deviceToken = currentDeviceToken, !deviceToken.isEmpty else { return }
+
+        isSyncingRemotePushRegistration = true
+        defer { isSyncingRemotePushRegistration = false }
+
+        do {
+            try await MerianNetworkClient.shared.registerPushDevice(
+                deviceToken: deviceToken,
+                environment: currentPushEnvironment,
+                exploreEnabled: effectiveExplorePushEnabled
+            )
+        } catch {
+            MerianLog.hardware.error(
+                "Remote push registration sync failed (\(reason, privacy: .public)): \(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    private var currentPushEnvironment: String {
+        #if DEBUG
+        return "sandbox"
+        #else
+        return "production"
+        #endif
     }
 
     /// Schedules a local notification to alert the user that the AI has finished analyzing their scan.
@@ -184,6 +250,18 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
 
     /// Extracted for testability since `UNNotificationResponse` cannot be cleanly mocked in XCTest.
     nonisolated func handleNotificationAction(userInfo: [AnyHashable: Any], actionIdentifier: String) {
+        if let type = userInfo["type"] as? String, type == "explore_activity",
+           let postId = userInfo["postId"] as? String {
+            guard actionIdentifier != UNNotificationDismissActionIdentifier else { return }
+            Task { @MainActor in
+                MerianLog.hardware.debug(
+                    "Explore push notification tapped — routing to postId \(postId, privacy: .private)"
+                )
+                AppEventPublisher.shared.send(.appDidEnterActivePhaseWithExplorePost(postId: postId))
+            }
+            return
+        }
+
         if let scanId = userInfo["scanId"] as? String {
             if actionIdentifier != UNNotificationDismissActionIdentifier {
                 Task { @MainActor in
@@ -207,7 +285,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
     ) {
         let type = notification.request.content.userInfo["type"] as? String
         
-        if type != "achievement", UserDefaults.standard.bool(forKey: "suppressInferenceBanners") {
+        if type == "explore_activity" {
+            completionHandler([.banner, .sound, .list])
+        } else if type != "achievement", UserDefaults.standard.bool(forKey: "suppressInferenceBanners") {
             completionHandler([])
         } else {
             completionHandler([.banner, .sound, .list])

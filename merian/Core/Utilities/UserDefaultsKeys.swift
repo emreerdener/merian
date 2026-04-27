@@ -7,8 +7,16 @@ import Foundation
 enum UserDefaultsKeys {
     /// Whether the user has an unseen scan result waiting in the Scans sheet.
     static let hasUnseenScan = "hasUnseenScan"
-    /// Whether push notifications are enabled (mirrors OS authorization status).
+    /// Whether discovery-complete notifications are enabled.
     static let isPushNotificationsEnabled = "isPushNotificationsEnabled"
+    /// Whether the OS has granted notification authorization for this app.
+    static let hasPushNotificationAuthorization = "hasPushNotificationAuthorization"
+    /// Whether achievement notifications are enabled.
+    static let isAchievementNotificationsEnabled = "isAchievementNotificationsEnabled"
+    /// Whether Explore activity notifications are enabled.
+    static let isExploreNotificationsEnabled = "isExploreNotificationsEnabled"
+    /// Last APNs device token registered by the app, stored as lowercase hex.
+    static let remotePushDeviceToken = "remotePushDeviceToken"
     /// Whether the live on-device inference viewfinder pass is paused (Legacy Viewfinder mode).
     static let isLiveInferencePaused = "isLiveInferencePaused"
     /// Whether swipe-to-zoom direction is inverted (down = zoom in, up = zoom out).

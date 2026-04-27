@@ -1,0 +1,494 @@
+import {
+  assertEquals,
+  assertExists,
+} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
+
+const DEFAULT_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL") ?? DEFAULT_DB_URL;
+
+async function withDbTest(
+  fn: (client: Client) => Promise<void>,
+): Promise<void> {
+  const client = new Client(DB_URL);
+
+  try {
+    await client.connect();
+  } catch (error) {
+    console.warn(
+      `[exploreNotificationsDb.test] Skipping DB integration test. Could not connect to ${DB_URL}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return;
+  }
+
+  try {
+    await client.queryArray("BEGIN");
+    await fn(client);
+  } finally {
+    try {
+      await client.queryArray("ROLLBACK");
+    } catch {
+      // Ignore rollback failures during cleanup.
+    }
+    await client.end();
+  }
+}
+
+async function insertUser(
+  client: Client,
+  id: string,
+  publicName: string,
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.users (
+        id,
+        email,
+        public_author_name,
+        public_identity_source
+      )
+      VALUES ($1, $2, $3, 'alias')
+    `,
+    [id, `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`, publicName],
+  );
+}
+
+async function insertScan(
+  client: Client,
+  id: string,
+  userId: string,
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.scans (
+        id,
+        user_id,
+        image_storage_urls,
+        ai_confidence_score
+      )
+      VALUES ($1, $2, ARRAY['https://media.merian.app/test-image.webp'], 0.91)
+    `,
+    [id, userId],
+  );
+}
+
+async function insertExplorePost(
+  client: Client,
+  id: string,
+  userId: string,
+  scanId: string,
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.explore_posts (
+        id,
+        user_id,
+        scan_id
+      )
+      VALUES ($1, $2, $3)
+    `,
+    [id, userId, scanId],
+  );
+}
+
+async function seedVisibleExplorePost(
+  client: Client,
+  ownerName = "Owner Explorer",
+): Promise<{ ownerId: string; postId: string; scanId: string }> {
+  const ownerId = crypto.randomUUID();
+  const scanId = crypto.randomUUID();
+  const postId = crypto.randomUUID();
+
+  await insertUser(client, ownerId, ownerName);
+  await insertScan(client, scanId, ownerId);
+  await insertExplorePost(client, postId, ownerId, scanId);
+
+  return { ownerId, postId, scanId };
+}
+
+type NotificationRow = {
+  id: string;
+  action_count: number;
+  is_read: boolean;
+  recent_actor_ids: string[];
+  triggering_user_id: string | null;
+};
+
+async function fetchLikeNotification(
+  client: Client,
+  ownerId: string,
+  postId: string,
+): Promise<NotificationRow | null> {
+  const result = await client.queryObject<NotificationRow>(
+    `
+      SELECT
+        id,
+        action_count,
+        is_read,
+        recent_actor_ids,
+        triggering_user_id
+      FROM public.explore_post_notifications
+      WHERE user_id = $1
+        AND post_id = $2
+        AND type = 'like_aggregated'
+    `,
+    [ownerId, postId],
+  );
+
+  return result.rows[0] ?? null;
+}
+
+type NotificationFeedRow = {
+  notification_id: string;
+  type: "like_aggregated" | "comment";
+  recent_actor_names: string[];
+  action_count: number;
+  triggering_user_name: string | null;
+  comment_body: string | null;
+  is_read: boolean;
+};
+
+type PushPayloadRow = {
+  notification_id: string;
+  recipient_user_id: string;
+  post_id: string;
+  type: "like_aggregated" | "comment";
+  action_count: number;
+  comment_body: string | null;
+  triggering_user_name: string | null;
+  recent_actor_names: string[];
+};
+
+Deno.test("Explore notifications DB - like aggregation, RPC fetch, mark read, and unlike cleanup", async () => {
+  await withDbTest(async (client) => {
+    const { ownerId, postId } = await seedVisibleExplorePost(client);
+    const likerOneId = crypto.randomUUID();
+    const likerTwoId = crypto.randomUUID();
+
+    await insertUser(client, likerOneId, "Liker One");
+    await insertUser(client, likerTwoId, "Liker Two");
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_likes (post_id, user_id, created_at)
+        VALUES ($1, $2, '2026-04-27T10:00:00Z')
+      `,
+      [postId, likerOneId],
+    );
+
+    let notification = await fetchLikeNotification(client, ownerId, postId);
+    assertExists(notification);
+    assertEquals(notification.action_count, 1);
+    assertEquals(notification.is_read, false);
+    assertEquals(notification.recent_actor_ids, [likerOneId]);
+    assertEquals(notification.triggering_user_id, likerOneId);
+
+    const markReadResult = await client.queryObject<{ count: number }>(
+      `SELECT public.mark_explore_notifications_read($1) AS count`,
+      [ownerId],
+    );
+    assertEquals(markReadResult.rows[0]?.count, 1);
+
+    notification = await fetchLikeNotification(client, ownerId, postId);
+    assertExists(notification);
+    assertEquals(notification.is_read, true);
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_likes (post_id, user_id, created_at)
+        VALUES ($1, $2, '2026-04-27T10:05:00Z')
+      `,
+      [postId, likerTwoId],
+    );
+
+    notification = await fetchLikeNotification(client, ownerId, postId);
+    assertExists(notification);
+    assertEquals(notification.action_count, 2);
+    assertEquals(notification.is_read, false);
+    assertEquals(notification.recent_actor_ids, [likerTwoId, likerOneId]);
+    assertEquals(notification.triggering_user_id, likerTwoId);
+
+    const feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, 0)
+        WHERE type = 'like_aggregated'
+      `,
+      [ownerId],
+    );
+    assertEquals(feedResult.rows.length, 1);
+    assertEquals(feedResult.rows[0].recent_actor_names, ["Liker Two", "Liker One"]);
+    assertEquals(feedResult.rows[0].action_count, 2);
+    assertEquals(feedResult.rows[0].triggering_user_name, "Liker Two");
+    assertEquals(feedResult.rows[0].is_read, false);
+
+    const pushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [notification.id],
+    );
+    assertEquals(pushPayloadResult.rows.length, 1);
+    assertEquals(pushPayloadResult.rows[0].post_id, postId);
+    assertEquals(pushPayloadResult.rows[0].action_count, 2);
+    assertEquals(pushPayloadResult.rows[0].triggering_user_name, "Liker Two");
+    assertEquals(pushPayloadResult.rows[0].recent_actor_names, ["Liker Two", "Liker One"]);
+
+    const unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [ownerId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 1);
+
+    await client.queryArray(
+      `
+        DELETE FROM public.explore_post_likes
+        WHERE post_id = $1
+          AND user_id = $2
+      `,
+      [postId, likerOneId],
+    );
+
+    notification = await fetchLikeNotification(client, ownerId, postId);
+    assertExists(notification);
+    assertEquals(notification.action_count, 1);
+    assertEquals(notification.recent_actor_ids, [likerTwoId]);
+
+    await client.queryArray(
+      `
+        DELETE FROM public.explore_post_likes
+        WHERE post_id = $1
+          AND user_id = $2
+      `,
+      [postId, likerTwoId],
+    );
+
+    notification = await fetchLikeNotification(client, ownerId, postId);
+    assertEquals(notification, null);
+  });
+});
+
+Deno.test("Explore notifications DB - self-like does not create a notification", async () => {
+  await withDbTest(async (client) => {
+    const { ownerId, postId } = await seedVisibleExplorePost(client);
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_likes (post_id, user_id)
+        VALUES ($1, $2)
+      `,
+      [postId, ownerId],
+    );
+
+    const notification = await fetchLikeNotification(client, ownerId, postId);
+    assertEquals(notification, null);
+
+    const unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [ownerId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 0);
+  });
+});
+
+Deno.test("Explore notifications DB - comment lifecycle suppresses self and recreates on restore", async () => {
+  await withDbTest(async (client) => {
+    const { ownerId, postId } = await seedVisibleExplorePost(client);
+    const commenterId = crypto.randomUUID();
+    const commentId = crypto.randomUUID();
+
+    await insertUser(client, commenterId, "Helpful Commenter");
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body)
+        VALUES ($1, $2, $3, 'Beautiful find')
+      `,
+      [commentId, postId, commenterId],
+    );
+
+    let feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, 0)
+        WHERE type = 'comment'
+      `,
+      [ownerId],
+    );
+    assertEquals(feedResult.rows.length, 1);
+    assertEquals(feedResult.rows[0].triggering_user_name, "Helpful Commenter");
+    assertEquals(feedResult.rows[0].comment_body, "Beautiful find");
+    assertEquals(feedResult.rows[0].action_count, 1);
+    const commentNotificationId = feedResult.rows[0].notification_id;
+
+    let pushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [commentNotificationId],
+    );
+    assertEquals(pushPayloadResult.rows.length, 1);
+    assertEquals(pushPayloadResult.rows[0].triggering_user_name, "Helpful Commenter");
+    assertEquals(pushPayloadResult.rows[0].comment_body, "Beautiful find");
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_post_comments
+        SET deleted_at = NOW()
+        WHERE id = $1
+      `,
+      [commentId],
+    );
+
+    feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, 0)
+        WHERE type = 'comment'
+      `,
+      [ownerId],
+    );
+    assertEquals(feedResult.rows.length, 0);
+
+    pushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [commentNotificationId],
+    );
+    assertEquals(pushPayloadResult.rows.length, 0);
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_post_comments
+        SET deleted_at = NULL
+        WHERE id = $1
+      `,
+      [commentId],
+    );
+
+    feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, 0)
+        WHERE type = 'comment'
+      `,
+      [ownerId],
+    );
+    assertEquals(feedResult.rows.length, 1);
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body)
+        VALUES ($1, $2, $3, 'Talking to myself')
+      `,
+      [crypto.randomUUID(), postId, ownerId],
+    );
+
+    const unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [ownerId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 1);
+  });
+});
+
+Deno.test("Explore notifications DB - blocked comment actors are filtered and unshare deletes rows", async () => {
+  await withDbTest(async (client) => {
+    const { ownerId, postId } = await seedVisibleExplorePost(client);
+    const actorId = crypto.randomUUID();
+    const commentId = crypto.randomUUID();
+
+    await insertUser(client, actorId, "Blocked Actor");
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body)
+        VALUES ($1, $2, $3, 'This should disappear when blocked')
+      `,
+      [commentId, postId, actorId],
+    );
+
+    const commentNotificationResult = await client.queryObject<{ id: string }>(
+      `
+        SELECT id
+        FROM public.explore_post_notifications
+        WHERE comment_id = $1
+      `,
+      [commentId],
+    );
+    assertEquals(commentNotificationResult.rows.length, 1);
+
+    let unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [ownerId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 1);
+
+    await client.queryArray(
+      `
+        INSERT INTO public.user_blocks (blocker_id, blocked_id)
+        VALUES ($1, $2)
+      `,
+      [ownerId, actorId],
+    );
+
+    let feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, 0)
+        WHERE type = 'comment'
+      `,
+      [ownerId],
+    );
+    assertEquals(feedResult.rows.length, 0);
+
+    const pushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [commentNotificationResult.rows[0].id],
+    );
+    assertEquals(pushPayloadResult.rows.length, 0);
+
+    unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [ownerId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 0);
+
+    await client.queryArray(
+      `
+        DELETE FROM public.user_blocks
+        WHERE blocker_id = $1
+          AND blocked_id = $2
+      `,
+      [ownerId, actorId],
+    );
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_posts
+        SET unshared_at = NOW()
+        WHERE id = $1
+      `,
+      [postId],
+    );
+
+    const notificationCountResult = await client.queryObject<{ count: number }>(
+      `
+        SELECT COUNT(*)::INT AS count
+        FROM public.explore_post_notifications
+        WHERE user_id = $1
+      `,
+      [ownerId],
+    );
+    assertEquals(notificationCountResult.rows[0]?.count, 0);
+  });
+});

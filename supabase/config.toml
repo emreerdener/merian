@@ -498,3 +498,9 @@ verify_jwt = false
 
 [functions.mark-explore-notifications-read]
 verify_jwt = false
+
+[functions.register-push-device]
+verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false

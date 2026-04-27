@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Supabase
 import SwiftUI
 
 @MainActor
@@ -34,4 +35,6 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var activeCommentsRequestId = UUID()
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
     @ObservationIgnored var isRefreshingUnreadNotificationCount = false
+    @ObservationIgnored var unreadNotificationsChannel: RealtimeChannelV2?
+    @ObservationIgnored var unreadNotificationListenerTask: Task<Void, Never>?
 }

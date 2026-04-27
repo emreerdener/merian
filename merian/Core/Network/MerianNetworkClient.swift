@@ -934,6 +934,18 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreMarkNotificationsReadResponse.self, from: data).markedCount
     }
 
+    func registerPushDevice(deviceToken: String, environment: String, exploreEnabled: Bool) async throws {
+        let functionUrl = try endpointURL("register-push-device")
+        let payload: [String: Any] = [
+            "device_token": deviceToken,
+            "platform": "ios",
+            "environment": environment,
+            "explore_enabled": exploreEnabled
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
     func shareScanToExplore(scanId: String, restoredObjectKeys: [String]? = nil) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
         var payload: [String: Any] = ["scan_id": scanId]

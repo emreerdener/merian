@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PostIdentificationNotificationSheetView: View {
-    let onDismiss: () -> Void
+    let onComplete: (Bool) -> Void
 
     var body: some View {
         VStack(spacing: 24) {
@@ -24,8 +24,8 @@ struct PostIdentificationNotificationSheetView: View {
             
             VStack(spacing: 16) {
                 Button {
-                    AppDIContainer.shared.pushNotificationManager.requestAuthorization {
-                        onDismiss()
+                    AppDIContainer.shared.pushNotificationManager.requestAuthorization { granted in
+                        onComplete(granted)
                     }
                 } label: {
                     Text("Enable notifications")
@@ -38,8 +38,7 @@ struct PostIdentificationNotificationSheetView: View {
                 }
                 
                 Button {
-                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
-                    onDismiss()
+                    onComplete(false)
                 } label: {
                     Text("Not right now")
                         .font(.subheadline)

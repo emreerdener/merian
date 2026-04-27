@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Combine
 import UserNotifications
 @testable import Merian
 
@@ -52,5 +53,34 @@ struct PushNotificationManagerTests {
         manager.sendUploadFailedNotification()
         
         #expect(true)
+    }
+
+    @Test func testExploreNotificationTapPublishesDeepLinkEvent() async throws {
+        let manager = PushNotificationManager.shared
+        let publisher = AppEventPublisher.shared.publisher
+        let expectedPostId = "explore-post-123"
+
+        let eventTask = Task<AppEvent?, Never> {
+            for await event in publisher.values {
+                return event
+            }
+            return nil
+        }
+
+        manager.handleNotificationAction(
+            userInfo: [
+                "type": "explore_activity",
+                "postId": expectedPostId,
+            ],
+            actionIdentifier: UNNotificationDefaultActionIdentifier
+        )
+
+        let event = await eventTask.value
+        guard case .appDidEnterActivePhaseWithExplorePost(let postId)? = event else {
+            Issue.record("Expected an Explore deep-link event from the push tap handler.")
+            return
+        }
+
+        #expect(postId == expectedPostId)
     }
 }

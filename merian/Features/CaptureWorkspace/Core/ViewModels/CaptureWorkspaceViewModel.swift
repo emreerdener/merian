@@ -22,6 +22,8 @@ final class CaptureWorkspaceViewModel {
     
     // MARK: - UI & Navigation State
     var activeSheet: ActiveSheet?
+    var pendingExplorePostId: String?
+    var explorePresentationIdentity = UUID()
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
     var editingCropIndex: Int?
@@ -85,6 +87,8 @@ final class CaptureWorkspaceViewModel {
                     self?.activeSheet = .paywall
                 case .appDidEnterActivePhaseWithScan(let scanId):
                     self?.handleDeepLinkRoute(scanId: scanId)
+                case .appDidEnterActivePhaseWithExplorePost(let postId):
+                    self?.handleExploreDeepLinkRoute(postId: postId)
                 case .triggerRefinement(let record):
                     self?.startRefinementScan(from: record)
                 default:
@@ -136,6 +140,12 @@ final class CaptureWorkspaceViewModel {
         } catch {
             MerianLog.general.error("Failed to route to scanId \(scanId, privacy: .private): \(error, privacy: .private)")
         }
+    }
+
+    private func handleExploreDeepLinkRoute(postId: String) {
+        pendingExplorePostId = postId
+        explorePresentationIdentity = UUID()
+        activeSheet = .explore
     }
     
     // MARK: - User Intents

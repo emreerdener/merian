@@ -50,8 +50,8 @@ import os
             defaults.set(Array(unlockedAchievements), forKey: unlockedAchievementsKey)
             MerianLog.general.debug("Achievement unlocked: \(award.title, privacy: .public)")
 
-            let achievementsEnabled = defaults.object(forKey: "isAchievementNotificationsEnabled") as? Bool ?? false
-            let systemPushEnabled = defaults.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+            let achievementsEnabled = defaults.object(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled) as? Bool ?? false
+            let systemPushEnabled = defaults.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
 
             if achievementsEnabled && systemPushEnabled {
                 PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)

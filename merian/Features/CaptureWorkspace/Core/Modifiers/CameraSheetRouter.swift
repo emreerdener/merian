@@ -35,7 +35,11 @@ struct CameraSheetRouter: ViewModifier {
                     case .profile:
                         ProfileView()
                     case .explore:
-                        ExploreView()
+                        ExploreView(initialPostId: viewModel.pendingExplorePostId)
+                            .id(viewModel.explorePresentationIdentity)
+                            .onDisappear {
+                                viewModel.pendingExplorePostId = nil
+                            }
                     case .scans:
                         ScansSheetView(isInsightSheetOpen: Binding(
                             get: { viewModel.activeSheet == .insight },
@@ -50,7 +54,8 @@ struct CameraSheetRouter: ViewModifier {
                 .presentationDragIndicator(.hidden)
             }
             .sheet(isPresented: $showNotificationPrompt) {
-                PostIdentificationNotificationSheetView {
+                PostIdentificationNotificationSheetView { granted in
+                    UserDefaults.standard.set(granted, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
                     showNotificationPrompt = false
                 }
                 .presentationDetents([.height(320)])

@@ -58,6 +58,18 @@ enum AppTelemetry {
         send("OnboardingCompleted")
     }
 
+    // MARK: - Explore Events
+
+    /// Records a user-visible Explore notifications fetch failure.
+    static func trackExploreNotificationsFetchFailed(context: String) {
+        send("ExploreNotificationsFetchFailed", with: ["context": context])
+    }
+
+    /// Records a failed attempt to open an Explore notification target.
+    static func trackExploreNotificationOpenFailed(type: String) {
+        send("ExploreNotificationOpenFailed", with: ["type": type])
+    }
+
     // MARK: - Hardware Events
 
     /// Records a thermal throttling event.

@@ -22,6 +22,7 @@ final class AppLifecycleManager {
         container.usageManager.evaluateDailyRefresh()
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()
+        container.pushNotificationManager.registerForRemoteNotificationsIfAuthorized()
         
         // Evaluate session timeout: if the app has been in the background for more than 5 minutes,
         // snap the UI back to a clean camera state.
@@ -42,6 +43,7 @@ final class AppLifecycleManager {
 
         Task {
             await container.supabaseManager.initializeGhostSession()
+            await container.pushNotificationManager.syncRemotePushRegistrationIfPossible(reason: "app_active")
             container.offlineQueueManager.purgeSoftDeletedRecords()
             container.offlineQueueManager.syncPendingScans()
             // Recover scans whose upload completed but inference was interrupted

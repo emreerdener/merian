@@ -219,6 +219,22 @@ In-app Explore activity feed for post owners. Added in migration `20260427010000
 - `sync_like_notification_for_post(target_post_id)` recomputes aggregated like notifications from the authoritative `explore_post_likes` table after every insert/delete, excludes self-likes, refreshes `recent_actor_ids`, resets `is_read = false`, and deletes the row when the non-self like count reaches `0`.
 - Comment notification triggers suppress self-comments, create a notification row on insert, delete the row when the comment is soft-deleted, and recreate it if the comment is restored.
 - A post-level trigger deletes Explore notifications when `explore_posts.unshared_at` is set, keeping the activity feed aligned with the existing soft-unshare model.
+- A push-delivery trigger invokes the `send-push-notification` Edge Function for newly inserted comment rows and for like-aggregate updates where `action_count` increased.
+
+### `user_push_devices`
+
+Remote push device registry for Explore activity delivery. Added in migration `20260427010002_add_explore_push_delivery.sql`.
+
+- `id` (UUID): Primary key.
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE): Owning Merian user.
+- `device_token` (TEXT): Lowercase APNs token, unique per `(device_token, platform, environment)`.
+- `platform` (TEXT): Currently `'ios'`.
+- `environment` (TEXT): `'sandbox'` or `'production'` so debug and release tokens are routed to the correct APNs host.
+- `explore_enabled` (BOOLEAN): Whether this device should receive remote Explore activity pushes.
+- `is_active` (BOOLEAN): Disabled when APNs reports a terminal token failure.
+- `last_registered_at` (TIMESTAMPTZ): Last successful registration heartbeat from the app.
+- `last_error_at` / `last_error_reason` (TIMESTAMPTZ / TEXT, nullable): Most recent push delivery failure metadata.
+- `created_at` / `updated_at` (TIMESTAMPTZ): Auditing fields.
 
 ### Explore read RPCs
 
@@ -230,6 +246,7 @@ Explore uses SQL RPCs to project a privacy-safe public read model out of `explor
 - `public.get_explore_notifications(self_id UUID, max_limit INTEGER, notification_offset INTEGER)`: Returns the owner's in-app Explore activity feed. Like rows are aggregated, comment rows are filtered against comment soft deletes and both-direction user blocks, and `recent_actor_names` preserves the server-side actor order from `recent_actor_ids`.
 - `public.get_unread_explore_notification_count(self_id UUID)`: Returns the unread bell badge count for visible Explore notifications only.
 - `public.mark_explore_notifications_read(self_id UUID)`: Marks all of the viewer's Explore notification rows as read. The iOS client calls this only after a successful notifications fetch.
+- `public.get_explore_push_notification_payload(target_notification_id UUID)`: Internal push-delivery projection used by `send-push-notification`. It filters hidden/unshared/blocked activity the same way the in-app feed does and returns APNs-safe actor names plus comment body text for one notification row.
 
 These RPCs intentionally avoid exact coordinates, raw auth metadata, or private scan-only fields. They allow Explore to reuse safe species visuals such as taxonomy and habitat/distribution cards without mounting the private Insight `InferenceEngine`.
 
