@@ -392,7 +392,6 @@ struct ExplorePostDetailView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 12)
     }
@@ -425,12 +424,14 @@ struct ExplorePostDetailView: View {
                         } label: {
                             Label("Delete comment", systemImage: "trash")
                         }
+                        .tint(.red)
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
                             .frame(width: 28, height: 28)
                     }
+                    .tint(.primary)
                 }
             }
 
