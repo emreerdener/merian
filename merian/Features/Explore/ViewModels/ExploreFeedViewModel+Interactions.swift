@@ -105,11 +105,6 @@ extension ExploreFeedViewModel {
         HapticManager.shared.triggerSelectionPulse()
     }
 
-    func showNotificationsPlaceholder() {
-        HapticManager.shared.triggerSelectionPulse()
-        toastMessage = "Explore notifications coming soon"
-    }
-
     func indexForPost(id: String) -> Int? {
         posts.firstIndex(where: { $0.id == id })
     }

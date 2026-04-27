@@ -79,7 +79,7 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server 
 }
 ```
 
-`description` is an optional plain-text string generated client-side by `ObservationContext.serialized()` — a pre-rendered key:value summary of the user's structured observation (e.g. `"Class: Insect\nColors: brown, grey\n..."`). It is appended to the Gemini context string at the edge function to ground identification before the vision model runs. `observation_context` is the full structured JSON object matching the iOS `ObservationContext` model; it is persisted server-side as `public.scans.user_observation_context` (JSONB) and returned to `LocalScanRecord.observationContextJSON` on the iOS layer. Both fields are `null` for image-only scans. The edge function accepts an array guard (`!Array.isArray(observation_context)`) before writing to prevent an accidental array submission from being persisted as malformed JSONB.
+`description` is an optional plain-text string generated client-side by `ObservationContext.serialized()` — a pre-rendered key:value summary of the user's structured observation (e.g. `"Class: Insect\nColors: brown, grey\n..."`). It is appended to the Gemini context string at the edge function to ground identification before the vision model runs. `observation_context` is the full structured JSON object matching the iOS `ObservationContext` model; it is persisted server-side as `public.scans.user_observation_context` (JSONB) and lands in the local mixed-media scan representation via `LocalScanRecord.observationContextsJSON` and `capturedMediaJSON`. Both fields are `null` for image-only scans. The edge function accepts an array guard (`!Array.isArray(observation_context)`) before writing to prevent an accidental array submission from being persisted as malformed JSONB.
 
 `currentMonth` and `timeOfDay` are derived from the image's own capture date (`telemetry.timestamp`) when available — not always from the current wall clock. For gallery photos with a valid EXIF date, this ensures Gemini receives the correct season and light context for the original photo (e.g., an October photo scanned in April sends `Month: 10`, not `Month: 4`). Falls back to current date/time for live captures and gallery photos with no EXIF.
 
@@ -273,6 +273,47 @@ Current response shape:
 
 `author_avatar_url` is a copied public projection stored on `public.users.public_avatar_url`. It is never read directly from `auth.users` on the client.
 
+### `/get-explore-post`
+
+Returns the same Explore card projection as `/get-explore-feed`, but for a single post:
+
+```json
+{
+  "post_id": "uuid"
+}
+```
+
+This endpoint exists for notification routing and future deep links. It solves the case where the tapped post is not already present in the currently loaded in-memory feed page.
+
+Current response shape:
+
+```json
+{
+  "data": {
+    "post_id": "uuid",
+    "scan_id": "uuid",
+    "hero_image_url": "https://...",
+    "shared_at": "2026-04-26T17:22:11.000Z",
+    "author_user_id": "uuid",
+    "author_name": "Emre E.",
+    "author_avatar_url": "https://lh3.googleusercontent.com/...",
+    "species_common_name": "Monarch Butterfly",
+    "species_scientific_name": "Danaus plexippus",
+    "public_location_label": "Austin, TX",
+    "time_of_day": "afternoon",
+    "current_month": 4,
+    "weather_condition": "clear",
+    "weather_temperature_f": 78.2,
+    "like_count": 3,
+    "comment_count": 1,
+    "viewer_has_liked": false,
+    "is_owned_by_viewer": false
+  }
+}
+```
+
+If the post is no longer visible to the viewer because it was unshared, blocked, tombstoned, or lost media, the endpoint returns `404`.
+
 ### `/get-explore-post-detail`
 
 Returns the public species-detail payload for a single Explore post. The backend reads from `public.get_explore_post_detail(...)`, which enforces the same filters as the main feed:
@@ -323,6 +364,7 @@ Returns comment rows for a single Explore post. The read path enforces the same 
 
 - `share-scan-to-explore` creates or reactivates a manual-share Explore post for an eligible biological image scan.
 - `unshare-explore-post` soft-removes the post from the public feed via `unshared_at` without deleting the underlying scan.
+- Unsharing also purges any Explore notifications tied to that post so the activity feed cannot route into hidden content.
 
 ### `/set-explore-post-like`
 
@@ -334,11 +376,96 @@ Idempotently toggles liked state for the current viewer and returns:
 
 Important regression note: boolean request bodies must treat `liked: false` as a valid value, not as a missing parameter. The shared `requireParams` helper was hardened accordingly.
 
+Notification side effects:
+
+- Like notifications are maintained server-side through `explore_post_notifications`.
+- The server aggregates likes into one row per recipient/post rather than inserting one notification row per like.
+- Self-likes do not create notifications.
+
 ### `/create-explore-comment` and `/delete-explore-comment`
 
 - Create/delete plain-text comments on Explore posts.
 - Server-side body cap: 500 characters.
 - The response returns the updated `comment_count` so the feed can stay optimistic without a full reload.
+- Comment notifications are created and removed server-side through triggers on `explore_post_comments`.
+- Self-comments do not create notifications.
+
+### `/get-explore-notifications`
+
+Returns the viewer's in-app Explore activity feed. The request body is optional:
+
+```json
+{
+  "limit": 50,
+  "offset": 0
+}
+```
+
+- `limit` defaults to `50` and is capped server-side.
+- `offset` defaults to `0`.
+- The read path mirrors Explore visibility rules: unshared posts, tombstoned scans, posts with no remaining media, private-geoprivacy scans, shadowbanned owners, blocked actors, and soft-deleted comments are filtered out.
+
+Current response shape:
+
+```json
+{
+  "data": [
+    {
+      "notification_id": "uuid",
+      "post_id": "uuid",
+      "type": "like_aggregated",
+      "comment_id": null,
+      "triggering_user_id": "uuid",
+      "triggering_user_name": "User C",
+      "comment_body": null,
+      "recent_actor_names": ["User C", "User B"],
+      "action_count": 2,
+      "is_read": false,
+      "created_at": "2026-04-27T12:00:00.000Z",
+      "updated_at": "2026-04-27T12:05:00.000Z"
+    },
+    {
+      "notification_id": "uuid",
+      "post_id": "uuid",
+      "type": "comment",
+      "comment_id": "uuid",
+      "triggering_user_id": "uuid",
+      "triggering_user_name": "User D",
+      "comment_body": "Beautiful find",
+      "recent_actor_names": [],
+      "action_count": 1,
+      "is_read": false,
+      "created_at": "2026-04-27T12:06:00.000Z",
+      "updated_at": "2026-04-27T12:06:00.000Z"
+    }
+  ]
+}
+```
+
+### `/get-explore-unread-notification-count`
+
+Returns the unread bell badge count for visible Explore notifications:
+
+```json
+{
+  "unread_count": 3
+}
+```
+
+Unlike most read endpoints, this response returns the scalar at the top level rather than nesting it under `data`.
+
+### `/mark-explore-notifications-read`
+
+Marks the viewer's Explore notifications as read and returns the number of rows updated:
+
+```json
+{
+  "success": true,
+  "marked_count": 3
+}
+```
+
+The current iOS client calls this only after `/get-explore-notifications` succeeds, matching the shipped "clear the unread badge when the sheet opens successfully" behavior.
 
 ### iOS Mapping
 
@@ -347,6 +474,9 @@ The Explore client decodes these endpoints via:
 - `merian/Core/Network/ExploreAPIModels.swift`
 - `merian/Core/Network/MerianNetworkClient.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
+- `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
+- `merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
+- `merian/Features/Explore/Models/ExploreNotification.swift`
 
 The current feed UI uses only a subset of the payload for visible card rendering:
 
@@ -362,12 +492,16 @@ The current feed UI uses only a subset of the payload for visible card rendering
 
 The Explore detail page additionally uses:
 
+- `/get-explore-post` for notification-driven navigation into posts that are not already loaded in the current feed page
 - `/get-explore-post-detail` for taxonomy and habitat/distribution data
 - `time_of_day` + `current_month` to derive broad public observation context such as `Morning • April`
 - `weather_condition` + `weather_temperature_f` for optional public weather telemetry
 - `/get-explore-comments` for the inline thread and composer state
+- `/get-explore-unread-notification-count` for the bell badge and `/get-explore-notifications` plus `/mark-explore-notifications-read` for the in-app activity sheet
 
 Time and weather metadata remain in the contract for future Explore presentation experiments, but are not currently rendered on the primary feed card.
+
+Explore notifications are currently in-app only. Remote APNs delivery is a deliberate follow-up and is not yet part of the shipped contract.
 
 ---
 

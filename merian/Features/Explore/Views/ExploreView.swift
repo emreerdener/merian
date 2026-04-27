@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ExploreView: View {
     @Environment(\.dismiss) private var dismiss
@@ -50,16 +51,21 @@ struct ExploreView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: { viewModel.showNotificationsPlaceholder() }) {
-                        Image(systemName: "bell")
-                            .font(.system(size: 16, weight: .bold))
-                    }
-                    .accessibilityLabel("Notifications")
+                    bellButton
                 }
             }
         }
         .task {
             await viewModel.loadInitialFeed()
+        }
+        .task {
+            await viewModel.refreshUnreadNotificationCount()
+
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                guard !Task.isCancelled else { break }
+                await viewModel.refreshUnreadNotificationCount()
+            }
         }
         .sheet(
             isPresented: Binding(
@@ -70,6 +76,27 @@ struct ExploreView: View {
             if let post = viewModel.activeCommentsPost {
                 ExploreCommentsSheet(viewModel: viewModel, post: post)
             }
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.isNotificationsSheetPresented },
+                set: { if !$0 { viewModel.dismissNotifications() } }
+            ),
+            onDismiss: {
+                Task { await viewModel.refreshUnreadNotificationCount() }
+            }
+        ) {
+            ExploreNotificationsSheet(
+                onUnreadNotificationsCleared: {
+                    viewModel.unreadNotificationCount = 0
+                },
+                onOpenNotification: { notification in
+                    await openNotification(notification)
+                }
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            Task { await viewModel.refreshUnreadNotificationCount() }
         }
         .merianSystemFeedback(
             toastMessage: Binding(
@@ -158,6 +185,55 @@ struct ExploreView: View {
             postId: post.id,
             shouldFocusCommentComposer: focusCommentComposer
         )
+    }
+
+    private var bellButton: some View {
+        Button(action: { viewModel.presentNotifications() }) {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "bell")
+                    .font(.system(size: 16, weight: .bold))
+
+                if viewModel.unreadNotificationCount > 0 {
+                    Text(badgeText)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, viewModel.unreadNotificationCount > 9 ? 5 : 0)
+                        .frame(minWidth: 18, minHeight: 18)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.red)
+                        )
+                        .offset(x: 10, y: -8)
+                }
+            }
+        }
+        .accessibilityLabel(accessibilityNotificationLabel)
+    }
+
+    private var badgeText: String {
+        if viewModel.unreadNotificationCount > 99 {
+            return "99+"
+        }
+        return "\(viewModel.unreadNotificationCount)"
+    }
+
+    private var accessibilityNotificationLabel: String {
+        if viewModel.unreadNotificationCount == 0 {
+            return "Notifications"
+        }
+        return "Notifications, \(viewModel.unreadNotificationCount) unread"
+    }
+
+    private func openNotification(_ notification: ExploreNotification) async {
+        do {
+            let post = try await viewModel.preparePostForNavigation(postId: notification.postId)
+            viewModel.dismissNotifications()
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            openPostDetail(for: post)
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+        }
     }
 }
 

@@ -475,6 +475,18 @@ verify_jwt = false
 [functions.get-explore-comments]
 verify_jwt = false
 
+[functions.get-explore-post]
+verify_jwt = false
+
+[functions.get-explore-post-detail]
+verify_jwt = false
+
+[functions.get-explore-notifications]
+verify_jwt = false
+
+[functions.get-explore-unread-notification-count]
+verify_jwt = false
+
 [functions.set-explore-post-like]
 verify_jwt = false
 
@@ -482,4 +494,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.delete-explore-comment]
+verify_jwt = false
+
+[functions.mark-explore-notifications-read]
 verify_jwt = false

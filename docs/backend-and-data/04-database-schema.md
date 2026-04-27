@@ -193,12 +193,43 @@ Comment table for Explore posts. Added in migration `20260425000000_add_explore_
 - `created_at` (TIMESTAMPTZ)
 - `deleted_at` (TIMESTAMPTZ, nullable): Soft delete marker used for moderation-safe removals.
 
+### `explore_post_notifications`
+
+In-app Explore activity feed for post owners. Added in migration `20260427010000_add_explore_notifications.sql`.
+
+- `id` (UUID): Primary key.
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE): Notification recipient. In V1 this is always the Explore post owner.
+- `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE): The post the activity belongs to.
+- `type` (`public.explore_notification_type`): `'like_aggregated'` | `'comment'`.
+- `comment_id` (UUID FK → `explore_post_comments.id`, nullable): Present only for comment notifications.
+- `triggering_user_id` (UUID FK → `users.id`, nullable): The latest actor for aggregated likes or the comment author for comment rows.
+- `recent_actor_ids` (UUID array): Latest liker IDs for aggregated-like rows, capped at 3 entries.
+- `action_count` (INT): Aggregate like count for `'like_aggregated'` rows. Always `1` for comment notifications.
+- `is_read` (BOOLEAN): Client-controlled read state for the in-app bell badge and notifications sheet.
+- `created_at` / `updated_at` (TIMESTAMPTZ): Ordering keys for the notifications feed.
+
+**Uniqueness + RLS**:
+
+- Partial unique index on `(user_id, post_id, type)` where `type = 'like_aggregated'` guarantees a single aggregated like row per owner/post.
+- Partial unique index on `comment_id` where `type = 'comment'` guarantees one notification row per comment.
+- Row Level Security allows users to `SELECT` and `UPDATE` only their own notification rows.
+
+**Lifecycle triggers**:
+
+- `sync_like_notification_for_post(target_post_id)` recomputes aggregated like notifications from the authoritative `explore_post_likes` table after every insert/delete, excludes self-likes, refreshes `recent_actor_ids`, resets `is_read = false`, and deletes the row when the non-self like count reaches `0`.
+- Comment notification triggers suppress self-comments, create a notification row on insert, delete the row when the comment is soft-deleted, and recreate it if the comment is restored.
+- A post-level trigger deletes Explore notifications when `explore_posts.unshared_at` is set, keeping the activity feed aligned with the existing soft-unshare model.
+
 ### Explore read RPCs
 
 Explore uses SQL RPCs to project a privacy-safe public read model out of `explore_posts`, `scans`, `users`, and `species_dictionary`.
 
 - `public.get_explore_feed(self_id UUID, max_limit INTEGER, feed_offset INTEGER)`: Returns reverse-chronological feed rows with public author identity, hero image URL, coarse location, optional public telemetry (`time_of_day`, `current_month`, `weather_condition`, `weather_temperature_f`), denormalized like/comment counts, and viewer-specific flags (`viewer_has_liked`, `is_owned_by_viewer`). The query excludes unshared posts, tombstoned scans, scans with no remaining image URLs, private-geoprivacy scans, shadowbanned authors, and both directions of user blocking. `author_avatar_url` is sourced from `public.users.public_avatar_url`, never directly from `auth.users`.
+- `public.get_explore_post(self_id UUID, target_post_id UUID)`: Returns the same card projection as `get_explore_feed` for a single post. This is used by notification taps and future deep-link paths so routing does not depend on the post already being present in the loaded in-memory feed page.
 - `public.get_explore_post_detail(self_id UUID, target_post_id UUID)`: Returns a single public species-detail projection for the Explore detail page. Fields currently include `species_dictionary_id`, taxonomy ranks (`kingdom`, `phylum`, `class`, `order`, `family`, `genus`), `habitat_description`, `gbif_taxon_key`, `iucn_red_list_status`, and `wikipedia_overview`. It enforces the same unshared/media/geoprivacy/shadowban/block filters as the feed.
+- `public.get_explore_notifications(self_id UUID, max_limit INTEGER, notification_offset INTEGER)`: Returns the owner's in-app Explore activity feed. Like rows are aggregated, comment rows are filtered against comment soft deletes and both-direction user blocks, and `recent_actor_names` preserves the server-side actor order from `recent_actor_ids`.
+- `public.get_unread_explore_notification_count(self_id UUID)`: Returns the unread bell badge count for visible Explore notifications only.
+- `public.mark_explore_notifications_read(self_id UUID)`: Marks all of the viewer's Explore notification rows as read. The iOS client calls this only after a successful notifications fetch.
 
 These RPCs intentionally avoid exact coordinates, raw auth metadata, or private scan-only fields. They allow Explore to reuse safe species visuals such as taxonomy and habitat/distribution cards without mounting the private Insight `InferenceEngine`.
 
@@ -210,7 +241,7 @@ Configures the automated garbage collection pipeline using `pg_cron` and `pg_net
 
 _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.swift`. If a schema mismatch occurs during a production app update, the application executes a `fatalError` crash rather than silently wiping `URL.documentsDirectory` and the `ModelContainer` state. To prevent crashes as the schema evolves, Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage` closures that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`) without corrupting local scan data._
 
-**File layout:** The universally active models natively live in the global namespace within `merian/Models/ActiveSchema/`. Historical schema snapshots live in their own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV27.swift`). The file `merian/Models/SchemaVersions.swift` declares `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md` (or run it via `/schema_update` command):
+**File layout:** The universally active models natively live in the global namespace within `merian/Models/ActiveSchema/`. Historical schema snapshots live in their own file (`merian/Models/Schema/SchemaV1.swift` through `SchemaV39.swift`). The file `merian/Models/SchemaVersions.swift` declares `MerianMigrationPlan` — the ordered list of schemas and migration stages. When bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md` (or run it via `/schema_update` command):
 
 1. **Run `python3 .agents/workflows/freeze_schema.py {N} --apply`** — generates a frozen `LocalScanRecord` snapshot for `SchemaV{N}.swift` from the current `ActiveSchema/` before any changes. Move the generated class into the enum body (not the extension block the script outputs).
 2. Update `SchemaV{N}.swift` `models` array to use fully-qualified `MerianSchemaV{N}.LocalScanRecord.self` references — this locks the checksum and prevents the iOS 26 "equal model references" crash for custom migration stages.
@@ -220,7 +251,11 @@ _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.
 
 There is **no need** to update model references in `MerianApp.swift`, nor anywhere else in the application, because the entire app dynamically inherits `CurrentSchema` and the active global models natively.
 
-The current active schema is `MerianSchemaV38`. Added in V38: `LocalScanRecord.audioFilePath` (`String?`, additive nullable — lightweight migration, no data transform). Added in V37: `LocalScanRecord.observationContextJSON` and `OfflineQueuedScan.observationContextJSON` (both `String?`).
+The current active schema is `MerianSchemaV40`. Recent milestones:
+
+- V38 added single-value audio/context storage (`audioFilePath`, `observationContextJSON`) to both local and offline scan models.
+- V39 normalized those payloads into array-based intermediates (`audioFilePaths`, `observationContextsJSON`) for mixed-media migration safety.
+- V40 added `capturedMediaJSON` and `coverImagePath`, backfilling the ordered mixed-media history used by the current active models.
 
 **Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse` contains nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps `scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`) structs. `EdgeResponse` also contains a nested `IdentificationCandidate` struct (`scientific_name: String`, `confidence_score: Double`, `distinguishing_feature: String?`) and a `candidates: [IdentificationCandidate]?` field mapping the `/identify` response candidates array. `distinguishing_feature` is required in the Gemini schema and TypeScript types but optional in Swift (`String?`) for graceful decoding of pre-migration JSONB rows that have the two-field shape. `EdgeResponse` additionally contains a nested `ImageQuality` struct (`sharpness: Int?`, `framing: Int?`, `diagnostic_utility: Int?`, `overall_score: Int?`) and an `image_quality: ImageQuality?` field. When adding new fields to either Edge Function response, update both the TypeScript schema and the corresponding Swift `Codable` struct simultaneously.
 
@@ -241,11 +276,12 @@ The current active schema is `MerianSchemaV38`. Added in V38: `LocalScanRecord.a
 
 ### `OfflineQueuedScan`
 
-Captures state when network connectivity is unavailable. `MerianSchemaV13` adds `zoomFactor` so the active zoom level is preserved through offline queuing and replayed to the Edge function when connectivity is restored.
+Captures state when network connectivity is unavailable. `MerianSchemaV13` added `zoomFactor` so the active zoom level is preserved through offline queuing and replayed to the Edge function when connectivity is restored. `MerianSchemaV40` now stores the staged mixed-media payload as an ordered JSON timeline rather than parallel image/context/audio arrays.
 
 - `id`: String (UUID)
 - `timestamp`: Date
-- `localImagePaths`: [String] (References to high-res WEBPs written inside `URL.documentsDirectory`)
+- `capturedMediaJSON`: String? (Added in `MerianSchemaV40`. JSON-encoded ordered sequence of staged media items used for offline replay. Backfilled from V39's separate image, description, and audio arrays.)
+- `coverImagePath`: String? (Added in `MerianSchemaV40`. First image extracted from `capturedMediaJSON`, used for queue thumbnails without reparsing the entire media payload.)
 - `gpsLatitude`, `gpsLongitude`, `gpsElevation`: Double?
 - `weatherCondition`, `locationName`: String?
 - `weatherTemperatureF`, `blurScore`: Double?
@@ -253,7 +289,6 @@ Captures state when network connectivity is unavailable. `MerianSchemaV13` adds 
 - `zoomFactor`: Double? (Added in `MerianSchemaV13`. Active zoom factor at capture. `nil` at 1× — omitted when it carries no signal.)
 - `scanStateRaw`: Int (Added in `MerianSchemaV33`. Raw value of `ScanQueueState`, replacing the old `isUploaded: Bool` + `isDeleted: Bool` pair. Stored as `Int` for `#Predicate` compatibility. Valid values: `0` = `.pending`, `1` = `.uploading`, `2` = `.staged`, `3` = `.inferencing`, `5` = `.failed` (raw value 4 reserved). Defaults to `0` (`.pending`). Access via the typed `queueState: ScanQueueState` computed property — never read `scanStateRaw` directly in business logic. The `migrateV32toV33` custom migration stage backfills this field from the old booleans: `isDeleted=true` → `5`, `isUploaded=true` → `2`, else → `0`.)
 - `stagedR2Keys`: [String]? (Added in `MerianSchemaV33`. Cloudflare R2 object keys written atomically by `BackgroundDatabaseActor.markScanAsStaged` when the last image upload receives HTTP 200. Eliminating auth-dependent key reconstruction at inference time — keys are recorded at upload-completion time under the auth session that performed the upload, preventing the 403 IDOR edge case that occurred when keys were reconstructed hours later from an expired session. `nil` for scans migrated from V32; `replayInferenceForUploadedScans` falls back to reconstructing keys from the current session for those records.)
-- `observationContextJSON`: String? (Added in `MerianSchemaV37`. Raw JSON of the `ObservationContext` staged at capture time. Read by `buildExtractedScanData` and threaded through the offline inference pipeline as `ExtractedScanData.observationContextJSON`. `MerianNetworkClient.buildMultiModalRequestBody(...)` decodes it into `observation_contexts` for the Gemini prompt while preserving the structured object for persistence. `nil` for image-only scans.)
 
 ### `LocalScanRecord` (Scans)
 
@@ -262,11 +297,13 @@ Tracks locally synchronized species scans for the Scans library.
 - `id`: String (UUID bound 1-to-1 to the Postgres/Cloudflare `/scans` row ID, resolving the Duplicate Tile race condition).
 - `speciesId`: String (UUID linking scan tiles for the same `scientificName`).
 - `timestamp`: Date
+- `captureDate`: Date? (Original asset capture date when available. Distinct from `timestamp`, which tracks when the scan record was created.)
+- `capturedMediaJSON`: String? (Added in `MerianSchemaV40`. JSON-encoded ordered mixed-media timeline for the scan, backfilled from the V39 image/context/audio representation.)
+- `coverImagePath`: String? (Added in `MerianSchemaV40`. First image extracted from `capturedMediaJSON`, used as the primary thumbnail path.)
 - `scientificName`: String
 - `commonName`: String
 - `confidenceScore`: Double?
-- `localImagePath`: String? (Path to the local capture binary, or the primary historical Cloudflare remote URL for archived scans).
-- `additionalImagePaths`: [String]? (Subsequent Cloudflare URL payloads, kept separate from `localImagePath` to avoid Image Carousel duplication).
+- Image, audio, and description items are restored from `capturedMediaJSON` rather than separate active-schema media columns.
 - ~~`insightDescription`~~: Removed in `MerianSchemaV17`. Per-scan AI reasoning is now stored exclusively in `aiReasoning` (see below). The V17 custom migration stage backfills `aiReasoning` from `insightDescription` for any pre-V15 records that had a description but no `aiReasoning` value.
 - `hazardType`: String — hazard classification for the species. One of: `"none"` | `"poisonous"` | `"venomous"` | `"allergenic"` | `"irritant"`. Added in `MerianSchemaV16`. Migration `migrateV15toV16` maps old `isPoisonous = true` records to `hazardType = "poisonous"`.
 - `isBiological`: Bool (from Edge)
@@ -286,7 +323,7 @@ Tracks locally synchronized species scans for the Scans library.
 - `userIdentificationOverride`: String? (Added in `MerianSchemaV29`. The scientific name the user selected when overriding the AI's primary identification via `CandidatesCard`. `nil` when the user confirmed the AI or hasn't reviewed. Synced to `public.scans.user_identification_override` via `InferenceEngine.syncIdentificationReviewToCloud`. A lightweight migration (`migrateV28toV29`) handles the version bump.)
 - `userConfirmedIdentification`: Bool (Added in `MerianSchemaV29`, defaults to `false`. Set to `true` when the user taps "Yes, correct" in `CandidatesCard`. Cloud-synced via `InferenceEngine.syncIdentificationReviewToCloud` (same PATCH payload as `userIdentificationOverride`). Backfilled from `public.scans.user_confirmed_identification` by `ScanRepository.ingestScans` and `updateExistingScans`. `updateExistingScans` propagates this field in the `true` direction only — a cloud `false` (written by `resetIdentificationReview` on another device) does not overwrite a local `true`. Full bidirectional review-state sync across devices is deferred. Used to trigger the `ConfidenceBadge` "Confirmed" state and to render `ConfirmedView` in `CandidatesCard`.)
 - `userReviewStateRaw`: String (Added in `MerianSchemaV36`, defaults to `"unreviewed"`. Replaces the boolean/string combinator logic and maps cleanly to the `UserReviewState` Swift enum and the `public.user_review_state` Postgres enum. Cloud-synced via `InferenceEngine.syncIdentificationReviewToCloud`.)
-- `observationContextJSON`: String? (Added in `MerianSchemaV37`. Raw JSON string of the structured `ObservationContext` staged by the user before submission. Mirrors `public.scans.user_observation_context` (JSONB) — sent to the active edge function as `observation_contexts` and persisted server-side. `nil` for image-only scans and for all scans captured before V37. A lightweight migration (`migrateV36toV37`) handles the version bump — no data transform required since the field is optional with a nil default. Never mutated after scan creation.)
+- `observationContextsJSON`: [String]? (Added in `MerianSchemaV39`. Raw JSON array of structured `ObservationContext` values staged by the user before submission. Replaced the singular `observationContextJSON` field from V38 as part of the mixed-media migration. Mirrors the structured description entries that are serialized into `capturedMediaJSON` in V40.)
 - `isFlagged`: Bool (Added in `MerianSchemaV31`, defaults to `false`. Indicates the user rejected the AI payload and opted to flag the local scan for upstream moderation review. Drives the `ConfidenceBadge` 'Under Review' state in UI, which mounts `UnderReviewView` inside the explanation sheet. A lightweight migration (`migrateV30toV31`) handles the schema bump without data transformation.)
 - `imageQualityScore`: Int? (Added in `MerianSchemaV30`. Gemini's 0–100 overall image quality rating for the captured photo, persisted from `image_quality.overall_score` in the `/identify` response. Immutable after init (`let` in `SpeciesData`) — the score is a property of the image, not something that changes. `nil` for scans captured before V30. A lightweight migration (`migrateV29toV30`) handles the version bump — no data transform required since the field is optional with a nil default. Backfilled from `public.scans.image_quality_score` by `ScanRepository.updateExistingScans` when the local value is nil and the cloud has a value. Gathered for future community reference-photo curation use cases.)
 - `lookalikesData`: Data? (Added in `MerianSchemaV27`. JSON-encoded `[SimilarSpeciesEntry]` blob persisting the full rich lookalike payload — `scientificName`, `commonName`, `referenceImageUrl`, `iucnRedListStatus` — through the SwiftData layer. Written by `InferenceEngine.fetchAndApplyEnrichment` after decoding the `/enrich-scan` response. `InferenceEngine.load(from:)` decodes this field first; if nil, it falls back to the flat `similarSpecies: [String]?` array. A lightweight migration (`migrateV26toV27`) handles the version bump — no data transform is required since the field is optional with a nil default on existing records.)
@@ -310,7 +347,6 @@ Tracks locally synchronized species scans for the Scans library.
 - `captureDate`: Date? — Secondary date field distinct from `timestamp`. Stores the EXIF capture date from the original photo asset when available.
 - `inferenceTier`: String? — Records the Gemini model tier (`"flash"` or `"pro"`) used for this scan. Forwarded from the `/identify` response. Used by `InferenceEngine` to apply the correct confidence threshold for diagnostics display.
 - `hasBeenViewed`: Bool — Defaults to `true` on historical cloud-synced records. Set to `false` on newly inferred scans so the Scans library can display a "New" badge until the user opens the insight sheet.
-- `audioFilePath`: String? (Added in `MerianSchemaV38`. Local file path to the audio recording associated with this scan. `nil` for scans without audio or scans captured before V38. A lightweight migration (`migrateV37toV38`) handles the version bump.)
 
 ### `ScanCollection` (User Albums)
 

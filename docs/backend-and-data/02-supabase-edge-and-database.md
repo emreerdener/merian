@@ -58,6 +58,20 @@ The `/identify-multimodal` Edge Function is the primary client-facing inference 
 5. Candidate handling on `/identify-multimodal` now matches `/identify`: scientific names are sanitized before cache lookup/persistence, `candidates` are stripped at `confidence_score >= diagnosticTrigger`, cached English common names are attached synchronously when available, and cache misses are enriched in the background so the next scan is warm.
 6. Persisted multimodal scan media still lands in `scans.image_storage_urls`; there is no shipped `audioR2Keys` request contract on the active multimodal path.
 
+## The Explore Social Surface
+
+Explore uses a dedicated set of Edge Functions and SQL RPCs rather than sharing the identify pipeline. The current shipped surface includes:
+
+- feed + detail reads: `get-explore-feed`, `get-explore-post`, `get-explore-post-detail`, `get-explore-comments`
+- mutations: `share-scan-to-explore`, `unshare-explore-post`, `set-explore-post-like`, `create-explore-comment`, `delete-explore-comment`, `report-explore-content`
+- activity reads: `get-explore-notifications`, `get-explore-unread-notification-count`, `mark-explore-notifications-read`
+
+The in-app notifications feed is backed by `public.explore_post_notifications`, not by local client state. Like notifications are recomputed from the authoritative `explore_post_likes` table after each insert/delete so concurrency cannot drift the aggregate count, comment notifications are created and removed via triggers on `explore_post_comments`, self-notifications are suppressed server-side, and notification rows are pruned when a post is unshared or a comment is soft-deleted.
+
+`get-explore-post` is an important routing helper for the iOS client: it returns a single feed-card projection so notification taps and future deep links do not depend on the target post already existing in the currently paged `ExploreFeedViewModel.posts` array.
+
+Explore activity is currently in-app only. Remote APNs push fan-out is intentionally not shipped yet because the app/backend do not yet have a completed device-token registration and storage path for Explore-specific pushes.
+
 ## The Webhook Node (`revenuecat-webhook`)
 
 The `revenuecat-webhook` function drives async tier migrations (`pro` ↔ `free`). Because Deno enforces a 10-second processing limit, bulk R2 operations are deferred via `runBackground(task)` from `_shared/edgeHandler.ts`. The webhook secret is validated using `timingSafeCompare()`, a constant-time XOR comparison, rather than plain string equality — this prevents timing attacks. The deferred task queries orphaned `public_uploads/free/` objects from the `scans` table and issues `AWS SDK PUT` copy commands to move them into the `/pro/` bucket. To prevent IDOR attacks on S3 deletes, the function validates that the `originalUserId` parsed from `image_storage_urls` matches the `userId` associated with the webhook trigger. **Concurrent webhook idempotency** (`storage.ts`): Before issuing a copy for a URL, the function checks whether the URL already contains the target prefix (e.g., `/pro/`). If it does, the copy is skipped rather than retried — this handles concurrent webhook retry deliveries from RevenueCat without creating duplicate objects or spurious `403` errors. **Tier cache invalidation**: After writing the new tier to the `users` table, the function immediately calls `setTierCache(userId, tier)` from `_shared/tierCache.ts` to update the in-process isolate cache. Without this, a Pro purchaser would receive `gemini-2.5-flash` calls (free tier) for up to 5 minutes while the TTL-based cache holds the stale `"free"` entry.

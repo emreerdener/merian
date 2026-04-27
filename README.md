@@ -102,7 +102,7 @@ Merian is a field-ready biological identification app built around zero-friction
 | Email Services | Resend |
 
 **Minimum deployment target**: iOS 17
-**Current schema**: MerianSchemaV13
+**Current schema**: MerianSchemaV40
 
 ---
 

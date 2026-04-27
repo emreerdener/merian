@@ -10,8 +10,10 @@ final class ExploreFeedViewModel {
     var isLoadingMore = false
     var errorMessage: String?
     var toastMessage: String?
+    var unreadNotificationCount = 0
 
     var isCommentsSheetPresented = false
+    var isNotificationsSheetPresented = false
     var activeCommentsPostId: String?
     var comments: [ExploreComment] = []
     var isCommentsLoading = false
@@ -31,4 +33,5 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var hasReachedEndOfFeed = false
     @ObservationIgnored var activeCommentsRequestId = UUID()
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
+    @ObservationIgnored var isRefreshingUnreadNotificationCount = false
 }

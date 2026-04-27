@@ -7,7 +7,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Sharing is manual per eligible scan. A scan does not become public just because its `geoprivacy` is `open`.
 - Explore is image-only in V1. Audio is out of scope.
 - Post descriptions/captions are out of scope in V1.
-- Notifications for likes and comments are deferred.
+- Explore ships an in-app notifications feed for likes and comments. Remote APNs push delivery remains a fast follow.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.
 - The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
 - Explore does not include public user profile pages in V1.
@@ -46,7 +46,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 
 - Audio posts
 - Captions, hashtags, follows, DMs, or profile pages
-- Push notifications for feed interactions
+- Remote APNs push notifications for feed interactions
 - Complex ranking beyond reverse chronological order
 - Public species pages in this scope
 
@@ -108,7 +108,7 @@ V1 card behavior:
 - Tapping the card body pushes a dedicated Explore post detail page inside the Explore navigation stack.
 - Tapping comments from the feed opens a bottom-sheet comment view for that post.
 - Tapping the overflow menu exposes actions, not navigation.
-- The Explore sheet header includes a placeholder bell button reserving space for a future notifications/activity view.
+- The Explore sheet header includes a bell button with an unread badge that opens the in-app notifications/activity view.
 
 ## Post Detail Page
 
@@ -267,10 +267,18 @@ Recommended V1 endpoints:
   - Removes the post from the feed
 - `get-explore-feed`
   - Returns reverse-chronological Explore cards
+- `get-explore-post`
+  - Returns a single Explore card projection for notification routing and deep links
 - `get-explore-post-detail`
   - Returns public species-detail data for a single Explore post
 - `get-explore-comments`
   - Returns paginated comments for a post
+- `get-explore-notifications`
+  - Returns the viewer's Explore activity feed
+- `get-explore-unread-notification-count`
+  - Returns the unread badge count for the bell icon
+- `mark-explore-notifications-read`
+  - Marks the viewer's Explore notifications as read
 - `set-explore-post-like`
   - Idempotently sets liked state for the viewer
 - `create-explore-comment`
@@ -283,6 +291,8 @@ Recommended V1 endpoints:
 Existing endpoint reuse:
 
 - Reuse `/block-user` for author and commenter blocking.
+
+The in-app notifications feed is the Explore source of truth. Remote APNs fan-out can layer on later, but it is not part of the shipped V1 backend surface.
 
 ## Feed Query Rules
 
@@ -340,6 +350,14 @@ Comments:
 - Post owner should also be allowed to remove comments on their own post
 - Feed comment entry uses a bottom sheet; detail-page commenting is inline
 
+Notifications:
+
+- The in-app notifications feed is the source of truth for Explore activity.
+- Like notifications should aggregate to one row per owner/post, maintain the latest actor names, and reset `is_read` whenever a new like arrives.
+- Comment notifications should create one row per visible comment.
+- Self-likes and self-comments should never create notifications.
+- Opening the notifications sheet should mark the fetched rows as read only after the initial fetch succeeds.
+
 Blocking:
 
 - If user A blocks user B, B's Explore posts and comments should disappear for A.
@@ -355,9 +373,14 @@ Recommended feature module:
 
 - `merian/Features/Explore/Views/ExploreView.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
+- `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
+- `merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
+- `merian/Features/Explore/Models/ExploreNotification.swift`
 - `merian/Core/Network/ExploreAPIModels.swift`
 - `merian/Features/Explore/Components/ExplorePostCard.swift`
 - `merian/Features/Explore/Components/ExploreCommentsSheet.swift`
+- `merian/Features/Explore/Components/NotificationRowView.swift`
+- `merian/Features/Explore/Views/ExploreNotificationsSheet.swift`
 
 Routing changes:
 
@@ -380,7 +403,7 @@ Client behavior:
 - Feed comment taps present `ExploreCommentsSheet`; detail-page comments render inline with the thread
 - Explore feed share uses the system share sheet with species text plus the current hero image URL
 - The detail page uses a separate public species payload so it can render safe `Taxonomy` and `Habitat & distribution` cards without loading private scan state
-- The sheet toolbar includes a placeholder bell icon that currently surfaces a "coming soon" toast for future Explore activity
+- The sheet toolbar bell shows an unread badge, opens the in-app notifications sheet, and uses `get-explore-post` so notification taps can route into posts that are not already present in the loaded feed page
 
 ## Implementation Phases
 
@@ -416,11 +439,13 @@ Client behavior:
 - Add inline detail-page comments and composer
 - Add a public species-detail payload for safe card reuse
 - Reuse public-safe Insight visuals such as `TaxonomyCard`
+- Add the in-app notifications sheet, unread badge, and single-post fetch path used by notification taps
 
-### Phase 6: Future Follow-Ups
+### Phase 6: Fast Follow Ups
 
 - Public species page route from Explore cards
-- Notifications
+- Remote APNs push notifications for Explore activity
+- Explore-specific notification preferences
 - Public user profile pages
 - Audio Explore posts
 - Ranking and recommendation logic
@@ -448,6 +473,7 @@ When the public species-page project exists:
 - Tapping a feed post opens a public post detail page.
 - Tapping the feed comment icon opens a bottom-sheet comment view.
 - The detail page shows inline comments plus privacy-safe telemetry and public species cards.
+- The bell icon shows an unread count and opens an in-app notifications sheet for likes and comments on the viewer's posts.
 - Users can block and report from Explore surfaces.
 - Unsharing removes the post from the public feed without deleting the scan.
 - Posts disappear from Explore once their backing scan media is no longer available.

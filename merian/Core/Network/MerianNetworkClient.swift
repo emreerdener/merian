@@ -897,11 +897,41 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreCommentsResponse.self, from: data).data
     }
 
+    func getExplorePost(postId: String) async throws -> ExplorePost {
+        let functionUrl = try endpointURL("get-explore-post")
+        let bodyData = try JSONSerialization.data(withJSONObject: ["post_id": postId])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExplorePostResponse.self, from: data).data
+    }
+
     func getExplorePostDetail(postId: String) async throws -> ExplorePostDetail {
         let functionUrl = try endpointURL("get-explore-post-detail")
         let bodyData = try JSONSerialization.data(withJSONObject: ["post_id": postId])
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExplorePostDetailResponse.self, from: data).data
+    }
+
+    func getExploreNotifications(limit: Int = 50, offset: Int = 0) async throws -> [ExploreNotification] {
+        let functionUrl = try endpointURL("get-explore-notifications")
+        let payload: [String: Any] = [
+            "limit": limit,
+            "offset": offset
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreNotificationsResponse.self, from: data).data
+    }
+
+    func getUnreadExploreNotificationCount() async throws -> Int {
+        let functionUrl = try endpointURL("get-explore-unread-notification-count")
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: Data("{}".utf8))
+        return try makeExploreDecoder().decode(ExploreUnreadNotificationCountResponse.self, from: data).unreadCount
+    }
+
+    func markExploreNotificationsRead() async throws -> Int {
+        let functionUrl = try endpointURL("mark-explore-notifications-read")
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: Data("{}".utf8))
+        return try makeExploreDecoder().decode(ExploreMarkNotificationsReadResponse.self, from: data).markedCount
     }
 
     func shareScanToExplore(scanId: String, restoredObjectKeys: [String]? = nil) async throws -> ExploreShareResponse {

@@ -4,6 +4,10 @@ struct ExploreFeedResponse: Decodable {
     let data: [ExplorePost]
 }
 
+struct ExplorePostResponse: Decodable {
+    let data: ExplorePost
+}
+
 struct ExplorePost: Decodable, Identifiable, Equatable {
     let postId: String
     let scanId: String
@@ -38,6 +42,19 @@ struct ExploreCommentsResponse: Decodable {
 
 struct ExplorePostDetailResponse: Decodable {
     let data: ExplorePostDetail
+}
+
+struct ExploreNotificationsResponse: Decodable {
+    let data: [ExploreNotification]
+}
+
+struct ExploreUnreadNotificationCountResponse: Decodable {
+    let unreadCount: Int
+}
+
+struct ExploreMarkNotificationsReadResponse: Decodable {
+    let success: Bool
+    let markedCount: Int
 }
 
 struct ExplorePostDetail: Decodable {
