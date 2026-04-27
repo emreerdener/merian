@@ -2,6 +2,8 @@ import SwiftUI
 
 struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
     @Binding var toastMessage: String?
+    @Binding var toastActionTitle: String?
+    @Binding var toastAction: (() -> Void)?
     @Binding var showCelebration: Bool
     var commonNameForCelebration: String
     var toastAlignment: SwiftUI.Alignment
@@ -17,12 +19,32 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                     ToastBanner(onDismiss: {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             toastMessage = nil
+                            toastActionTitle = nil
+                            toastAction = nil
                         }
                     }) {
-                        Text(message)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
+                        HStack(spacing: 12) {
+                            Text(message)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                            
+                            if let actionTitle = toastActionTitle, let action = toastAction {
+                                Button(action: {
+                                    action()
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        toastMessage = nil
+                                        toastActionTitle = nil
+                                        toastAction = nil
+                                    }
+                                }) {
+                                    Text(actionTitle)
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
                     }
                     .padding(toastAlignment == .top ? Edge.Set.top : Edge.Set.bottom, toastAlignment == .top ? 16 : 60)
                     
@@ -36,6 +58,8 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                     guard !Task.isCancelled else { return }
                     withAnimation(.easeInOut(duration: 0.2)) {
                         toastMessage = nil
+                        toastActionTitle = nil
+                        toastAction = nil
                     }
                 }
             }
@@ -51,12 +75,16 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
 extension View {
     func merianSystemFeedback(
         toastMessage: Binding<String?>,
+        toastActionTitle: Binding<String?> = .constant(nil),
+        toastAction: Binding<(() -> Void)?> = .constant(nil),
         showCelebration: Binding<Bool> = .constant(false),
         commonNameForCelebration: String = "",
         toastAlignment: Alignment = .bottom
     ) -> some View {
         self.modifier(MerianSystemFeedbackModifier(
             toastMessage: toastMessage,
+            toastActionTitle: toastActionTitle,
+            toastAction: toastAction,
             showCelebration: showCelebration,
             commonNameForCelebration: commonNameForCelebration,
             toastAlignment: toastAlignment

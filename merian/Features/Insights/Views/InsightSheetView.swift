@@ -155,6 +155,9 @@ struct InsightSheetView: View {
                 }
             )
         }
+        .sheet(isPresented: $viewModel.state.showExploreSheet) {
+            ExploreView(initialPostId: viewModel.state.sharedExplorePostId)
+        }
     }
 }
 
@@ -166,6 +169,8 @@ private extension InsightSheetView {
         InsightContentView(viewModel: viewModel, queuedScan: queuedScan)
             .merianSystemFeedback(
                 toastMessage: $viewModel.state.toastMessage,
+                toastActionTitle: $viewModel.toastActionTitle,
+                toastAction: $viewModel.toastAction,
                 showCelebration: $viewModel.state.showCelebration,
                 commonNameForCelebration: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
             )
@@ -229,7 +234,11 @@ private extension InsightSheetView {
             onShareToExplore: viewModel.canShareToExplore ? {
                 Task { await viewModel.shareToExplore() }
             } : nil,
-            isSharingToExplore: viewModel.state.isSharingToExplore
+            isSharingToExplore: viewModel.state.isSharingToExplore,
+            sharedExplorePostId: viewModel.state.sharedExplorePostId,
+            onViewInExplore: {
+                viewModel.state.showExploreSheet = true
+            }
         )
     }
 }

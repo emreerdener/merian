@@ -5,6 +5,12 @@ struct ExploreView: View {
     @State private var viewModel = ExploreFeedViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
 
+    init(initialPostId: String? = nil) {
+        if let postId = initialPostId {
+            _selectedPostRoute = State(initialValue: ExplorePostRoute(postId: postId, shouldFocusCommentComposer: false))
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Group {

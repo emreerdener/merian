@@ -11,6 +11,8 @@ struct InsightBottomToolbar: ToolbarContent {
     let shareExternally: () -> Void
     let onShareToExplore: (() -> Void)?
     let isSharingToExplore: Bool
+    var sharedExplorePostId: String?
+    var onViewInExplore: (() -> Void)?
     
     var body: some ToolbarContent {
         if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
@@ -18,7 +20,9 @@ struct InsightBottomToolbar: ToolbarContent {
                 ShareButton(
                     shareExternally: shareExternally,
                     onShareToExplore: onShareToExplore,
-                    isSharingToExplore: isSharingToExplore
+                    isSharingToExplore: isSharingToExplore,
+                    sharedExplorePostId: sharedExplorePostId,
+                    onViewInExplore: onViewInExplore
                 )
 
                 Spacer()

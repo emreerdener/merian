@@ -76,10 +76,14 @@ struct ExplorePostDetailView: View {
                     }
                 }
             } else {
-                Color.clear
-                    .task {
-                        dismiss()
-                    }
+                if !viewModel.hasLoadedFeedOnce || viewModel.isLoadingInitialFeed {
+                    Skeleton()
+                } else {
+                    Color.clear
+                        .task {
+                            dismiss()
+                        }
+                }
             }
         }
         .onChange(of: viewModel.commentDraft) { _, newValue in
@@ -537,5 +541,149 @@ struct ExplorePostDetailView: View {
     private func createdAtText(for comment: ExploreComment) -> String? {
         guard let createdAtDate = comment.createdAtDate else { return nil }
         return createdAtDate.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
+extension ExplorePostDetailView {
+    struct Skeleton: View {
+        @Environment(\.colorScheme) private var colorScheme
+        @State private var isGlowing = false
+
+        var body: some View {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    headerRow
+                        .padding(.horizontal, 12)
+                        .padding(.top, 12)
+                        .padding(.bottom, 12)
+
+                    mediaView
+
+                    actionRow
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
+                        .padding(.bottom, 12)
+
+                    VStack(spacing: 24) {
+                        speciesSection
+
+                        insightCardsSection
+
+                        insightCardsSection
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
+                }
+            }
+            .opacity(isGlowing ? 1.0 : 0.6)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    isGlowing = true
+                }
+            }
+            .accessibilityHidden(true)
+        }
+
+        private var headerRow: some View {
+            HStack(alignment: .center, spacing: 12) {
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(width: 38, height: 38)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemFill))
+                    .frame(width: 112, height: 16)
+
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(placeholderFill(secondary: true))
+                        .frame(width: 88, height: 12)
+                }
+
+                Spacer(minLength: 12)
+
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(width: 28, height: 28)
+            }
+        }
+
+        private var mediaView: some View {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            placeholderFill(secondary: true),
+                            placeholderFill()
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(maxWidth: .infinity)
+                .aspectRatio(1, contentMode: .fit)
+                .clipped()
+        }
+
+        private var actionRow: some View {
+            HStack(spacing: 20) {
+                actionGroup
+                actionGroup
+
+                Spacer(minLength: 12)
+
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(width: 24, height: 24)
+            }
+        }
+
+        private var actionGroup: some View {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(placeholderFill(secondary: true))
+                    .frame(width: 24, height: 24)
+
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(placeholderFill())
+                    .frame(width: 18, height: 14)
+            }
+        }
+        
+        private var speciesSection: some View {
+            VStack(alignment: .center, spacing: 8) {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(placeholderFill(secondary: true))
+                    .frame(width: 140, height: 16)
+
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(placeholderFill())
+                    .frame(width: 220, height: 28)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        
+        private var insightCardsSection: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 120)
+            }
+        }
+
+        private func placeholderFill(secondary: Bool = false) -> Color {
+            if colorScheme == .dark {
+                return secondary
+                    ? Color(uiColor: .secondarySystemFill)
+                    : Color(uiColor: .tertiarySystemFill)
+            }
+
+            let base = secondary
+                ? Color(uiColor: .secondarySystemFill)
+                : Color(uiColor: .tertiarySystemFill)
+            return base.opacity(isGlowing ? 0.86 : 0.66)
+        }
     }
 }

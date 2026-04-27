@@ -29,11 +29,16 @@ final class InsightSheetViewModel {
         }
     }
 
+    var toastActionTitle: String?
+    var toastAction: (() -> Void)?
+
     /// Wipes all memory-retained states that persist across SwiftUI sheet presentations since `activeSheet == .insight` evaluates to identical IDs natively.
     func reset() {
         mediaDecodeTask?.cancel()
         mediaDecodeTask = nil
         state = UIState()
+        toastActionTitle = nil
+        toastAction = nil
         activeLocalRecord = nil
         queuedContext = nil
         cachedActiveMedia = nil
@@ -68,6 +73,8 @@ final class InsightSheetViewModel {
         var isSavingPhotos = false
         var isSharingToExplore = false
         var showExploreOnboarding = false
+        var sharedExplorePostId: String?
+        var showExploreSheet = false
     }
 
     var state = UIState()
@@ -397,10 +404,15 @@ final class InsightSheetViewModel {
         defer { state.isSharingToExplore = false }
 
         do {
-            _ = try await MerianNetworkClient.shared.shareScanToExplore(scanId: record.id)
+            let response = try await MerianNetworkClient.shared.shareScanToExplore(scanId: record.id)
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.sharedExplorePostId = response.postId
                 state.toastMessage = "Shared to Explore"
+                toastActionTitle = "View"
+                toastAction = { [weak self] in
+                    self?.state.showExploreSheet = true
+                }
             }
         } catch {
             HapticManager.shared.triggerErrorThump()
