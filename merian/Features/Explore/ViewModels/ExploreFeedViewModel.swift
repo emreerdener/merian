@@ -11,6 +11,7 @@ final class ExploreFeedViewModel {
     var errorMessage: String?
     var toastMessage: String?
 
+    var isCommentsSheetPresented = false
     var activeCommentsPostId: String?
     var comments: [ExploreComment] = []
     var isCommentsLoading = false
@@ -97,13 +98,19 @@ final class ExploreFeedViewModel {
     }
 
     func openComments(for post: ExplorePost) async {
-        activeCommentsPostId = post.id
-        comments = []
-        commentDraft = ""
-        commentErrorMessage = nil
-        let requestId = UUID()
-        activeCommentsRequestId = requestId
+        let requestId = beginCommentsSession(for: post)
         await loadCommentsForActivePost(requestId: requestId)
+    }
+
+    func openCommentsSheet(for post: ExplorePost) async {
+        let requestId = beginCommentsSession(for: post)
+        isCommentsSheetPresented = true
+        await loadCommentsForActivePost(requestId: requestId)
+    }
+
+    func dismissCommentsSheet() {
+        isCommentsSheetPresented = false
+        dismissComments()
     }
 
     func dismissComments() {
@@ -299,6 +306,16 @@ final class ExploreFeedViewModel {
 
     private func indexForPost(id: String) -> Int? {
         posts.firstIndex(where: { $0.id == id })
+    }
+
+    private func beginCommentsSession(for post: ExplorePost) -> UUID {
+        activeCommentsPostId = post.id
+        comments = []
+        commentDraft = ""
+        commentErrorMessage = nil
+        let requestId = UUID()
+        activeCommentsRequestId = requestId
+        return requestId
     }
 
     private func updateCommentCount(postId: String, commentCount: Int) {

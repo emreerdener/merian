@@ -897,6 +897,13 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreCommentsResponse.self, from: data).data
     }
 
+    func getExplorePostDetail(postId: String) async throws -> ExplorePostDetail {
+        let functionUrl = try endpointURL("get-explore-post-detail")
+        let bodyData = try JSONSerialization.data(withJSONObject: ["post_id": postId])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExplorePostDetailResponse.self, from: data).data
+    }
+
     func shareScanToExplore(scanId: String) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
         let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])

@@ -5,6 +5,7 @@ struct ExplorePostCard: View {
     let onLike: () -> Void
     let onComments: () -> Void
     let onShare: () -> Void
+    let onOpenDetail: () -> Void
     let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
@@ -84,32 +85,47 @@ struct ExplorePostCard: View {
         .aspectRatio(1, contentMode: .fit)
         .clipped()
         .contentShape(Rectangle())
-        .onTapGesture(count: 2, perform: handleDoubleTapLike)
+        .gesture(mediaTapGesture)
     }
 
     private var headerRow: some View {
         HStack(alignment: .center, spacing: 12) {
-            authorAvatarView
+            HStack(alignment: .center, spacing: 12) {
+                authorAvatarView
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(post.authorName)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(post.authorName)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
 
-                if let locationText = locationText {
-                    Text(locationText)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if let locationText = locationText {
+                        Text(locationText)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
             }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onOpenDetail)
 
             Spacer(minLength: 12)
 
             menuButton
         }
+    }
+
+    private var mediaTapGesture: some Gesture {
+        ExclusiveGesture(
+            TapGesture(count: 2).onEnded {
+                handleDoubleTapLike()
+            },
+            TapGesture().onEnded {
+                onOpenDetail()
+            }
+        )
     }
 
     @ViewBuilder
@@ -256,6 +272,8 @@ struct ExplorePostCard: View {
     }
 
     private func handleDoubleTapLike() {
+        HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
+
         if !post.viewerHasLiked {
             onLike()
         }
@@ -313,6 +331,9 @@ private struct ExploreFeedActionButton: View {
 
 extension ExplorePostCard {
     struct Skeleton: View {
+        @Environment(\.colorScheme) private var colorScheme
+        @State private var isGlowing = false
+
         var body: some View {
             VStack(alignment: .leading, spacing: 0) {
                 headerRow
@@ -328,7 +349,14 @@ extension ExplorePostCard {
                     .padding(.bottom, 10)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .shimmering()
+            .overlay(glowOverlay)
+            .shadow(color: glowShadowColor, radius: isGlowing ? 22 : 10, x: 0, y: 0)
+            .opacity(isGlowing ? 1.0 : 0.92)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    isGlowing = true
+                }
+            }
             .accessibilityHidden(true)
         }
 
@@ -341,10 +369,10 @@ extension ExplorePostCard {
                 VStack(alignment: .leading, spacing: 6) {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(Color(uiColor: .secondarySystemFill))
-                        .frame(width: 112, height: 16)
+                    .frame(width: 112, height: 16)
 
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .fill(placeholderFill(secondary: true))
                         .frame(width: 88, height: 12)
                 }
 
@@ -362,12 +390,17 @@ extension ExplorePostCard {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(uiColor: .tertiarySystemFill),
-                                Color(uiColor: .secondarySystemFill)
+                                placeholderFill(secondary: true),
+                                placeholderFill()
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 0, style: .continuous)
+                            .fill(glowColor.opacity(isGlowing ? 0.14 : 0.04))
+                            .blur(radius: isGlowing ? 18 : 8)
                     )
 
                 speciesOverlay
@@ -381,11 +414,11 @@ extension ExplorePostCard {
         private var speciesOverlay: some View {
             VStack(alignment: .leading, spacing: 6) {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color.white.opacity(0.55))
+                    .fill(glowColor.opacity(isGlowing ? 0.8 : 0.55))
                     .frame(width: 170, height: 16)
 
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color.white.opacity(0.4))
+                    .fill(glowColor.opacity(isGlowing ? 0.62 : 0.4))
                     .frame(width: 130, height: 12)
             }
             .padding(.horizontal, 14)
@@ -422,13 +455,43 @@ extension ExplorePostCard {
         private var actionGroup: some View {
             HStack(spacing: 8) {
                 Circle()
-                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .fill(placeholderFill(secondary: true))
                     .frame(width: 24, height: 24)
 
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemFill))
+                    .fill(placeholderFill())
                     .frame(width: 18, height: 14)
             }
+        }
+
+        private var glowOverlay: some View {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(glowColor.opacity(isGlowing ? 0.42 : 0.14), lineWidth: 1)
+                .blur(radius: isGlowing ? 12 : 6)
+                .padding(.horizontal, 4)
+        }
+
+        private var glowColor: Color {
+            colorScheme == .dark ? .white : Color(red: 0.92, green: 0.95, blue: 1.0)
+        }
+
+        private var glowShadowColor: Color {
+            colorScheme == .dark
+                ? glowColor.opacity(isGlowing ? 0.18 : 0.06)
+                : glowColor.opacity(isGlowing ? 0.65 : 0.24)
+        }
+
+        private func placeholderFill(secondary: Bool = false) -> Color {
+            if colorScheme == .dark {
+                return secondary
+                    ? Color(uiColor: .secondarySystemFill)
+                    : Color(uiColor: .tertiarySystemFill)
+            }
+
+            let base = secondary
+                ? Color(uiColor: .secondarySystemFill)
+                : Color(uiColor: .tertiarySystemFill)
+            return base.opacity(isGlowing ? 0.86 : 0.66)
         }
     }
 }

@@ -192,6 +192,15 @@ Comment table for Explore posts. Added in migration `20260425000000_add_explore_
 - `created_at` (TIMESTAMPTZ)
 - `deleted_at` (TIMESTAMPTZ, nullable): Soft delete marker used for moderation-safe removals.
 
+### Explore read RPCs
+
+Explore uses SQL RPCs to project a privacy-safe public read model out of `explore_posts`, `scans`, `users`, and `species_dictionary`.
+
+- `public.get_explore_feed(self_id UUID, max_limit INTEGER, feed_offset INTEGER)`: Returns reverse-chronological feed rows with public author identity, hero image URL, coarse location, optional public telemetry (`time_of_day`, `current_month`, `weather_condition`, `weather_temperature_f`), denormalized like/comment counts, and viewer-specific flags (`viewer_has_liked`, `is_owned_by_viewer`). The query excludes unshared posts, tombstoned scans, scans with no remaining image URLs, private-geoprivacy scans, shadowbanned authors, and both directions of user blocking. `author_avatar_url` is sourced from `public.users.public_avatar_url`, never directly from `auth.users`.
+- `public.get_explore_post_detail(self_id UUID, target_post_id UUID)`: Returns a single public species-detail projection for the Explore detail page. Fields currently include `species_dictionary_id`, taxonomy ranks (`kingdom`, `phylum`, `class`, `order`, `family`, `genus`), `habitat_description`, `gbif_taxon_key`, `iucn_red_list_status`, and `wikipedia_overview`. It enforces the same unshared/media/geoprivacy/shadowban/block filters as the feed.
+
+These RPCs intentionally avoid exact coordinates, raw auth metadata, or private scan-only fields. They allow Explore to reuse safe species visuals such as taxonomy and habitat/distribution cards without mounting the private Insight `InferenceEngine`.
+
 ### `00007_auto_purge_nonbio_cron.sql` (Lifecycle Sync)
 
 Configures the automated garbage collection pipeline using `pg_cron` and `pg_net`. Schedules an HTTP POST to the `/functions/v1/auto-purge-nonbio` Deno node at 03:00 UTC, authenticating via `SUPABASE_SERVICE_ROLE_KEY` from `vault.decrypted_secrets`. Bridges logical `is_biological_subject = false` database purges with Cloudflare R2 object deletion to prevent storage bloat.

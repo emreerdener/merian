@@ -36,6 +36,73 @@ struct ExploreCommentsResponse: Decodable {
     let data: [ExploreComment]
 }
 
+struct ExplorePostDetailResponse: Decodable {
+    let data: ExplorePostDetail
+}
+
+struct ExplorePostDetail: Decodable {
+    let postId: String
+    let speciesDictionaryId: String?
+    let taxonomyKingdom: String?
+    let taxonomyPhylum: String?
+    let taxonomyClass: String?
+    let taxonomyOrder: String?
+    let taxonomyFamily: String?
+    let taxonomyGenus: String?
+    let habitatDescription: String?
+    let gbifTaxonKey: Int?
+    let iucnRedListStatus: String?
+    let wikipediaOverview: String?
+
+    var taxonomyData: TaxonomyData? {
+        let taxonomy = TaxonomyData(
+            kingdom: taxonomyKingdom,
+            phylum: taxonomyPhylum,
+            className: taxonomyClass,
+            order: taxonomyOrder,
+            family: taxonomyFamily,
+            genus: taxonomyGenus
+        )
+
+        let values = [
+            taxonomy.kingdom,
+            taxonomy.phylum,
+            taxonomy.className,
+            taxonomy.order,
+            taxonomy.family,
+            taxonomy.genus
+        ]
+
+        return values.contains { value in
+            guard let value else { return false }
+            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } ? taxonomy : nil
+    }
+
+    var hasHabitatDistributionContent: Bool {
+        if let habitatDescription,
+           !habitatDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        return gbifTaxonKey != nil
+    }
+
+    var hasOverviewContent: Bool {
+        if let iucnRedListStatus,
+           !iucnRedListStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        if let wikipediaOverview,
+           wikipediaOverview.trimmingCharacters(in: .whitespacesAndNewlines).count >= 60 {
+            return true
+        }
+
+        return false
+    }
+}
+
 struct ExploreComment: Decodable, Identifiable, Equatable {
     let commentId: String
     let postId: String

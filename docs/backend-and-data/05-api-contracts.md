@@ -273,9 +273,51 @@ Current response shape:
 
 `author_avatar_url` is a copied public projection stored on `public.users.public_avatar_url`. It is never read directly from `auth.users` on the client.
 
+### `/get-explore-post-detail`
+
+Returns the public species-detail payload for a single Explore post. The backend reads from `public.get_explore_post_detail(...)`, which enforces the same filters as the main feed:
+
+- unshared posts are excluded
+- tombstoned scans are excluded
+- scans with no remaining image URLs are excluded
+- private geoprivacy scans are excluded
+- shadowbanned authors are excluded
+- both directions of user blocking are excluded
+
+Request body:
+
+```json
+{
+  "post_id": "uuid"
+}
+```
+
+Current response shape:
+
+```json
+{
+  "data": {
+    "post_id": "uuid",
+    "species_dictionary_id": "uuid",
+    "taxonomy_kingdom": "Animalia",
+    "taxonomy_phylum": "Arthropoda",
+    "taxonomy_class": "Insecta",
+    "taxonomy_order": "Lepidoptera",
+    "taxonomy_family": "Nymphalidae",
+    "taxonomy_genus": "Danaus",
+    "habitat_description": "Often found in open meadows, milkweed patches, and migration corridors.",
+    "gbif_taxon_key": 5130978,
+    "iucn_red_list_status": "least_concern",
+    "wikipedia_overview": "The monarch butterfly is a milkweed butterfly in the family Nymphalidae..."
+  }
+}
+```
+
+This endpoint exists so Explore can render public species cards on the detail page without loading private scan state or the Insight `InferenceEngine`.
+
 ### `/get-explore-comments`
 
-Returns comment rows for a single Explore post. The read path enforces the same private-geoprivacy and mutual-block filters as the feed. Comment rows include the public author label and a `viewer_can_delete` boolean so the UI can surface delete affordances for comment owners and post owners.
+Returns comment rows for a single Explore post. The read path enforces the same private-geoprivacy and mutual-block filters as the feed. Comment rows include the public author label and a `viewer_can_delete` boolean so the UI can surface delete affordances for comment owners and post owners. This endpoint powers both the feed's bottom-sheet comments view and the inline comment thread on the Explore detail page.
 
 ### `/share-scan-to-explore` and `/unshare-explore-post`
 
@@ -317,6 +359,13 @@ The current feed UI uses only a subset of the payload for visible card rendering
 - `like_count`
 - `comment_count`
 - `viewer_has_liked`
+
+The Explore detail page additionally uses:
+
+- `/get-explore-post-detail` for taxonomy and habitat/distribution data
+- `time_of_day` + `current_month` to derive broad public observation context such as `Morning • April`
+- `weather_condition` + `weather_temperature_f` for optional public weather telemetry
+- `/get-explore-comments` for the inline thread and composer state
 
 Time and weather metadata remain in the contract for future Explore presentation experiments, but are not currently rendered on the primary feed card.
 

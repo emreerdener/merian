@@ -8,7 +8,8 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Explore is image-only in V1. Audio is out of scope.
 - Post descriptions/captions are out of scope in V1.
 - Notifications for likes and comments are deferred.
-- Explore cards do not open post detail pages in V1.
+- Explore feed posts open a dedicated public post detail page when the user taps the post body.
+- The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
 - Explore does not include public user profile pages in V1.
 - Feed cards may show:
   - Hero image
@@ -22,7 +23,15 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
   - Full-width square image
   - Species common/scientific name plaque over the bottom-left of the image
   - Action row below the image
-- Broad time context and weather data remain available as optional feed metadata, but are not currently rendered on the primary card UI.
+- The current V1 detail layout is:
+  - Author row
+  - Full-width hero image
+  - Like, comment, and share actions
+  - Species section
+  - Public species insight cards
+  - Privacy-safe telemetry cards
+  - Inline comments with an inline composer
+- Broad time context and weather data remain available as optional feed metadata. They are not rendered on the primary feed card UI, but they may appear as sanitized telemetry on the detail page.
 - Any imported or captured photo already present in the scan library should be eligible for sharing.
 - Future scope: feed cards can open a public species page once that separate species-page project exists.
 
@@ -96,10 +105,30 @@ Each Explore card should contain:
 
 V1 card behavior:
 
-- Tapping the card body does nothing.
-- Tapping comments opens an inline sheet or modal comment view.
+- Tapping the card body pushes a dedicated Explore post detail page inside the Explore navigation stack.
+- Tapping comments from the feed opens a bottom-sheet comment view for that post.
 - Tapping the overflow menu exposes actions, not navigation.
 - The Explore sheet header includes a placeholder bell button reserving space for a future notifications/activity view.
+
+## Post Detail Page
+
+The Explore detail page is a fuller public reading surface for a shared post.
+
+It should contain:
+
+- The same privacy-safe author identity used on the feed
+- A full-width hero image
+- Like, comment, and external share actions
+- Common and scientific names
+- Public species insight cards backed by `species_dictionary`
+- Privacy-safe telemetry such as general location, broad time context, weather, and shared date
+- An inline comment thread with an inline composer
+
+Interaction model:
+
+- Feed comment taps intentionally stay in a bottom sheet for quick engagement without leaving the feed.
+- Detail-page comment taps should scroll/focus the inline composer rather than opening another modal.
+- The detail page should not mount private `InferenceEngine` state. It should use a public Explore detail payload.
 
 ## Public Metadata Rules
 
@@ -115,13 +144,13 @@ Time:
 
 - Render broad buckets such as `Morning`, `Afternoon`, `Evening`, or `Night`.
 - A month or season can be included if useful, but V1 should avoid minute-level or exact timestamp display.
-- The current V1 feed card does not render time metadata, but the feed contract may still return it for future use.
+- The current V1 feed card does not render time metadata, but the feed contract may still return it for detail-page telemetry use.
 
 Weather:
 
 - Show only if already available on the scan.
 - Use lightweight display such as `Rainy`, `Clear`, or `68F`.
-- The current V1 feed card does not render weather metadata, but the feed contract may still return it for future use.
+- The current V1 feed card does not render weather metadata, but the feed contract may still return it for detail-page telemetry use.
 
 ## Eligibility Rules
 
@@ -238,6 +267,8 @@ Recommended V1 endpoints:
   - Removes the post from the feed
 - `get-explore-feed`
   - Returns reverse-chronological Explore cards
+- `get-explore-post-detail`
+  - Returns public species-detail data for a single Explore post
 - `get-explore-comments`
   - Returns paginated comments for a post
 - `set-explore-post-like`
@@ -307,6 +338,7 @@ Comments:
 - Server-side length cap
 - Comment author can delete their own comment
 - Post owner should also be allowed to remove comments on their own post
+- Feed comment entry uses a bottom sheet; detail-page commenting is inline
 
 Blocking:
 
@@ -344,7 +376,10 @@ Client behavior:
 - Likes/comments/shares do not use the offline queue
 - Feed pagination should be incremental
 - Like and comment counts should update optimistically
+- Feed cards can single-tap into detail and double-tap the image to like
+- Feed comment taps present `ExploreCommentsSheet`; detail-page comments render inline with the thread
 - Explore feed share uses the system share sheet with species text plus the current hero image URL
+- The detail page uses a separate public species payload so it can render safe `Taxonomy` and `Habitat & distribution` cards without loading private scan state
 - The sheet toolbar includes a placeholder bell icon that currently surfaces a "coming soon" toast for future Explore activity
 
 ## Implementation Phases
@@ -374,7 +409,15 @@ Client behavior:
 - Add block/report action flows
 - Add telemetry for share, like, comment, block, and report events
 
-### Phase 5: Future Follow-Ups
+### Phase 5: Public Post Detail
+
+- Add pushed Explore detail navigation from the feed
+- Add privacy-safe telemetry cards on the detail page
+- Add inline detail-page comments and composer
+- Add a public species-detail payload for safe card reuse
+- Reuse public-safe Insight visuals such as `TaxonomyCard`
+
+### Phase 6: Future Follow-Ups
 
 - Public species page route from Explore cards
 - Notifications
@@ -384,11 +427,10 @@ Client behavior:
 
 ## Future Species Page Integration
 
-This RFC intentionally keeps Explore cards non-navigating in V1.
-
 When the public species-page project exists:
 
-- Tapping the card body can route to `species_dictionary`'s public page
+- The Explore detail page can route from its species section into `species_dictionary`'s future public page
+- Feed cards can either continue opening detail first or optionally deep-link through the same route later
 - The Explore data model does not need to change
 - The feed can keep reading species metadata from the underlying scan and species join
 
@@ -403,6 +445,9 @@ When the public species-page project exists:
 - Exact coordinates never appear in Explore payloads.
 - Users can like and comment on posts.
 - Users can externally share posts from the feed.
+- Tapping a feed post opens a public post detail page.
+- Tapping the feed comment icon opens a bottom-sheet comment view.
+- The detail page shows inline comments plus privacy-safe telemetry and public species cards.
 - Users can block and report from Explore surfaces.
 - Unsharing removes the post from the public feed without deleting the scan.
 - Posts disappear from Explore once their backing scan media is no longer available.

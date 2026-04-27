@@ -60,9 +60,13 @@ The Scans tab is the user's primary offline biological journal.
 
 ### Explore Feed
 - **Sheet-Based Public Feed**: `ExploreView` renders as a top-level sheet routed from `MainTabBar` through `CameraSheetRouter` and `CaptureWorkspaceViewModel.ActiveSheet.explore`.
-- **Feed Layout**: `ExplorePostCard` now follows a social-feed structure instead of a framed card: author row above, full-width square image, species plaque over the image bottom-left, then like/comment/share actions below. Cards are intentionally non-navigating in V1.
+- **Feed Layout**: `ExplorePostCard` follows a social-feed structure instead of a framed card: author row above, full-width square image, species plaque over the image bottom-left, then like/comment/share actions below.
+- **Detail Navigation**: Tapping the feed post body pushes a dedicated Explore detail page inside the Explore `NavigationStack`. The detail page expands the same post into a fuller public surface with author row, hero image, species section, public telemetry, public species cards, and an inline comments thread.
 - **Privacy-Safe Identity**: Author labels render from the public Explore identity projection, not directly from raw auth payloads. Authenticated authors may additionally show a copied public avatar URL when available; ghost users fall back to iconography.
-- **Interactions**: Likes and comments are optimistic and online-only. Comment entry uses a dedicated `ExploreCommentsSheet`. A system share button on each post exports species text plus the hero image URL. Overflow menus expose block/report/unshare actions depending on ownership.
+- **Interactions**: Likes and comments are optimistic and online-only. Feed comment entry uses a dedicated `ExploreCommentsSheet`, while the detail page keeps its comment thread and composer inline. The feed image supports double-tap to like with a transient centered heart overlay. A system share button on each post exports species text plus the hero image URL. Overflow menus expose block/report/unshare actions depending on ownership.
+- **Public Species Cards**: The Explore detail page reuses a safe subset of the Insight visual language without mounting private `InferenceEngine` state. Today that includes `TaxonomyCard` plus an Explore-specific public `Habitat & distribution` card backed by `species_dictionary` and `GBIFHeatmapMapView`.
+- **Public Telemetry**: The detail page surfaces only coarse/public-safe telemetry, such as general location, broad time context (`Morning`, `April`), weather, and shared date. Exact coordinates and raw scan telemetry never appear in Explore.
+- **Loading Treatment**: Initial feed loading uses glowing skeleton posts that mirror the live feed card layout rather than a spinner-only state.
 - **Placeholder Notifications Entry Point**: The Explore toolbar includes a bell icon placeholder reserving a future Explore activity surface where users will eventually see likes and comments on their posts.
 
 ### Memory Integrity (`ImageDownsampler` & Concurrency)
