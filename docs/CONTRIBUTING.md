@@ -17,9 +17,11 @@ Before contributing, please review our core architectural tenets. Refactoring co
 2.  **Supabase CLI**: For testing edge functions locally, you will need the Supabase CLI installed.
 3.  **Project Generation**: We do not commit the `.xcodeproj` or `.xcworkspace`. Use XcodeGen to generate the project file natively:
     ```bash
+    cp Signing.local.example.xcconfig Signing.local.xcconfig
     xcodegen generate
     open Merian.xcodeproj
     ```
+    Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your personal Apple Developer Team ID. Do not hardcode a real team ID into `project.yml` or the shared `Signing.xcconfig`.
 
 ## Testing Protocol
 

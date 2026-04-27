@@ -1,6 +1,6 @@
 # Keychain and Secrets Management
 
-This document explains what storage mechanism to use for sensitive data, API keys, and persistent identity tokens in Merian.
+This document explains what storage mechanism to use for persistent identity tokens, app-facing client configuration, and true backend-only secrets in Merian.
 
 ---
 
@@ -29,11 +29,19 @@ This document explains what storage mechanism to use for sensitive data, API key
 
 ## API Key Rules
 
-**Absolute rule: no API key may appear in any `.swift` file, `Info.plist`, or committed `.xcconfig` file.**
+Merian uses two different categories of keys/configuration:
+
+- **Public client config**: values the iOS app needs at runtime. These are not true secrets because they ship in the client bundle and can be extracted by a motivated user.
+- **Backend-only secrets**: values that would grant admin, server, provider, or signing authority if exposed. These must never ship in the app.
+
+**Absolute rule: no true backend secret may appear in any `.swift` file, `Info.plist`, or iOS `.xcconfig` file.**
 
 - `GEMINI_API_KEY` — lives exclusively in Supabase Edge secrets. The iOS binary has no knowledge of this key. All Gemini calls go through the `/identify` Edge function.
 - `SUPABASE_SERVICE_ROLE_KEY` — lives exclusively in Supabase Edge secrets. Never in the iOS app.
-- `SUPABASE_ANON_KEY` — this is the public Supabase project key (safe to expose). It is injected via `Config.xcconfig` into `MerianEnvironment.swift` and is NOT a secret.
+- `SUPABASE_ANON_KEY` — this is public client config, not a secret. It is injected via `Config.xcconfig` into `MerianEnvironment.swift`.
+- `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `TELEMETRY_APP_ID`, `GIDClientID`, and `REVERSED_CLIENT_ID` are also public client config values used by the app at runtime.
+
+That means committed client config is acceptable for values in the second group, while the first group must stay server-side only.
 
 `MerianEnvironment.swift` reads all build-config keys from `Bundle.main.infoDictionary` at runtime, crashing with a `fatalError` if any required key is absent:
 

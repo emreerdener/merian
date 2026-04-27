@@ -18,7 +18,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Logarithmic zoom meter with optical stop indicators, haptic detents at each lens transition, and a tick-elongation animation around the active position.
 
 ### Identification
-- Powered by **Google Gemini 2.5 Flash** (free tier) and **Gemini 2.5 Pro** (Pro tier), routed via Deno Edge Functions on Supabase. API keys never touch the client binary.
+- Powered by **Google Gemini 2.5 Flash** (free tier) and **Gemini 2.5 Pro** (Pro tier), routed via Deno Edge Functions on Supabase. Private provider secrets never touch the client binary.
 - Structured JSON output schema enforced server-side: common name, scientific name, full Linnaean taxonomy, ecology type, IUCN Red List status, invasiveness flag, confidence score, dominant colors, categorical group tags, and a lookalike diagnostic comparison.
 - Concurrent on-device `VNClassifyImageRequest` drives the scanning overlay's status phrases while the network round-trip runs.
 - Environmental telemetry attached to every inference call: GPS coordinates, elevation, LiDAR depth scale, weather condition and temperature, semantic location, zoom factor, time of day, month, and device locale.
@@ -119,11 +119,14 @@ Merian is a field-ready biological identification app built around zero-friction
 ```bash
 git clone https://github.com/your-org/merian.git
 cd merian
+cp Signing.local.example.xcconfig Signing.local.xcconfig
 xcodegen generate
 open Merian.xcodeproj
 ```
 
-Configure the required API keys in your `.xcconfig` files (Supabase URL, anon key, Gemini API key). These are never bundled into the binary directly.
+Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your Apple Developer Team ID before opening the project. This file is ignored by git so your local signing choice survives `xcodegen generate`.
+
+Configure the required app-facing client config in your `.xcconfig` files. Public client values like `SUPABASE_URL` and `SUPABASE_ANON_KEY` are used by the app at runtime; true backend secrets like `GEMINI_API_KEY` must stay server-side only.
 
 ### Local Backend
 
