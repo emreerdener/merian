@@ -92,6 +92,8 @@ private struct GBIFMedia: Decodable {
     /// Scientific names for which `fetchAndApplyEnrichment` has successfully completed on the
     /// live-inference path. Stored in UserDefaults with a 24-hour expiration.
     @ObservationIgnored private var enrichedSpeciesTimestamps: [String: Double] = UserDefaults.standard.dictionary(forKey: "enrichedSpeciesTimestamps") as? [String: Double] ?? [:]
+    /// One-time global reset guard for stale locally cached lookalikes.
+    @ObservationIgnored private static var localLookalikesCacheResetInFlight = false
 
     /// Set to the Date 60 seconds in the future the first time `enrich-scan` returns HTTP 429. All subsequent
     /// `fetchAndApplyEnrichment` calls bail out immediately if this date is in the future.
@@ -155,6 +157,34 @@ private struct GBIFMedia: Decodable {
         let ts = Date.now.timeIntervalSinceReferenceDate
         enrichedSpeciesTimestamps[name] = ts
         UserDefaults.standard.set(enrichedSpeciesTimestamps, forKey: "enrichedSpeciesTimestamps")
+    }
+
+    private func hasUsableLookalikeTaxonomy(_ taxonomy: TaxonomyData?) -> Bool {
+        taxonomy?.hasUsableLookalikeValidation == true
+    }
+
+    private func shouldResetLocalLookalikesCache() -> Bool {
+        UserDefaults.standard.integer(forKey: UserDefaultsKeys.localLookalikesCacheResetVersion) <
+        MerianConfig.localLookalikesCacheResetVersion
+    }
+
+    private func scheduleLocalLookalikesCacheResetIfNeeded(modelContext: ModelContext?) {
+        guard shouldResetLocalLookalikesCache(),
+              !Self.localLookalikesCacheResetInFlight,
+              let container = modelContext?.container else { return }
+
+        Self.localLookalikesCacheResetInFlight = true
+        Task.detached(priority: .utility) {
+            let dbActor = BackgroundDatabaseActor(modelContainer: container)
+            await dbActor.clearAllLocalLookalikesCache()
+            await MainActor.run {
+                UserDefaults.standard.set(
+                    MerianConfig.localLookalikesCacheResetVersion,
+                    forKey: UserDefaultsKeys.localLookalikesCacheResetVersion
+                )
+                Self.localLookalikesCacheResetInFlight = false
+            }
+        }
     }
 
     // MARK: - External API Session
@@ -568,7 +598,8 @@ private struct GBIFMedia: Decodable {
                             // species in the current session — causing the retry state on every
                             // subsequent scan of the same species with no auto path out.
                             if !capturedIsEnriched && !Task.isCancelled,
-                               self.speciesData?.habitatDescription != nil {
+                               self.speciesData?.habitatDescription != nil,
+                               self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
                                 self.markSpeciesEnriched(capturedScientificName)
                             }
                         }
@@ -807,7 +838,8 @@ private struct GBIFMedia: Decodable {
                             }
 
                             if !capturedIsEnriched && !Task.isCancelled,
-                               self.speciesData?.habitatDescription != nil {
+                               self.speciesData?.habitatDescription != nil,
+                               self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
                                 self.markSpeciesEnriched(capturedScientificName)
                             }
                         }
@@ -1020,7 +1052,8 @@ private struct GBIFMedia: Decodable {
                             }
 
                             if !capturedIsEnriched && !Task.isCancelled,
-                               self.speciesData?.habitatDescription != nil {
+                               self.speciesData?.habitatDescription != nil,
+                               self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
                                 self.markSpeciesEnriched(capturedScientificName)
                             }
                         }
@@ -1298,7 +1331,8 @@ private struct GBIFMedia: Decodable {
     func fetchAndApplyEnrichment(
         modelContext: ModelContext?,
         needsMetadata: Bool = true,
-        needsLookalikes: Bool = true
+        needsLookalikes: Bool = true,
+        allowLookalikesRetry: Bool = true
     ) async {
         guard let data = speciesData,
               let scanId = data.scanId,
@@ -1472,6 +1506,23 @@ private struct GBIFMedia: Decodable {
                     }
                 }
             }
+        }
+
+        // If lookalikes were requested before taxonomy was available, the backend now returns
+        // null rather than provisional cards. Once metadata lands, retry the lookalikes scope
+        // exactly once so first-open UX still recovers within the same session.
+        if allowLookalikesRetry,
+           needsMetadata,
+           needsLookalikes,
+           speciesData?.scanId == capturedScanId,
+           speciesData?.similarSpecies == nil,
+           hasUsableLookalikeTaxonomy(speciesData?.taxonomy) {
+            await fetchAndApplyEnrichment(
+                modelContext: modelContext,
+                needsMetadata: false,
+                needsLookalikes: true,
+                allowLookalikesRetry: false
+            )
         }
     }
 
@@ -1909,8 +1960,6 @@ private struct GBIFMedia: Decodable {
             self.activeMedia = decoded
         }
 
-        let lookalikesJsonData: Data? = record.lookalikesData
-        let lookalikesLegacyArray: [String]? = record.similarSpecies
         let candidatesRawData: Data? = record.candidatesData
         let overrideName: String? = record.userIdentificationOverride
         // When a manual override is active, display the override scientific name as the title.
@@ -1925,9 +1974,23 @@ private struct GBIFMedia: Decodable {
         let recordScientificName = record.scientificName
         let recordId = record.id
         let safeContext = record.modelContext
+        let shouldResetLocalLookalikes = recordIsBiological && shouldResetLocalLookalikesCache()
+        if shouldResetLocalLookalikes {
+            scheduleLocalLookalikesCacheResetIfNeeded(modelContext: safeContext)
+        }
+        let lookalikesJsonData: Data? = shouldResetLocalLookalikes ? nil : record.lookalikesData
+        let lookalikesLegacyArray: [String]? = shouldResetLocalLookalikes ? nil : record.similarSpecies
         let gbifKey = record.gbifTaxonKey
         let needsWiki = recordIsBiological &&
             (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty)
+        let recordTaxonomy = TaxonomyData(
+            kingdom: record.taxonomyKingdom,
+            phylum: record.taxonomyPhylum,
+            className: record.taxonomyClass,
+            order: record.taxonomyOrder,
+            family: record.taxonomyFamily,
+            genus: record.taxonomyGenus
+        )
         // Decode lookalikesData once here on @MainActor — the blob is small (3 entries × 4 fields).
         // The result is reused for both the needsEnrichment gate check and the UI decode step
         // inside historicHydrationTask, avoiding a second JSONDecoder allocation on the same data.
@@ -1943,9 +2006,9 @@ private struct GBIFMedia: Decodable {
         } ?? false
         // Split enrichment needs by scope so each concurrent call is fired only when required.
         let needsMetadata = recordIsBiological &&
-            (record.habitatDescription == nil || record.gbifTaxonKey == nil)
+            (record.habitatDescription == nil || record.gbifTaxonKey == nil || !hasUsableLookalikeTaxonomy(recordTaxonomy))
         let needsLookalikes = recordIsBiological &&
-            (record.lookalikesData == nil || lookalikesHaveNoCommonNames)
+            (shouldResetLocalLookalikes || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
         let needsEnrichment = needsMetadata || needsLookalikes
 
         // Set speciesData immediately with nil for blob-decoded fields.
@@ -1966,14 +2029,7 @@ private struct GBIFMedia: Decodable {
             isLiveCapture: record.isLiveCapture,
             isInvasive: record.isInvasive,
             ecologyType: record.ecologyType,
-            taxonomy: TaxonomyData(
-                kingdom: record.taxonomyKingdom,
-                phylum: record.taxonomyPhylum,
-                className: record.taxonomyClass,
-                order: record.taxonomyOrder,
-                family: record.taxonomyFamily,
-                genus: record.taxonomyGenus
-            ),
+            taxonomy: recordTaxonomy,
             locationName: record.locationName,
             weatherCondition: record.weatherCondition,
             weatherTemperatureF: record.weatherTemperatureF,
@@ -2068,7 +2124,9 @@ private struct GBIFMedia: Decodable {
                         }
                         self.enrichmentAttemptedScanIds.insert(recordId)
                         await self.fetchAndApplyEnrichment(modelContext: safeContext, needsMetadata: needsMetadata, needsLookalikes: needsLookalikes)
-                        if !Task.isCancelled {
+                        if !Task.isCancelled,
+                           self.speciesData?.habitatDescription != nil,
+                           self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
                             self.markSpeciesEnriched(recordScientificName)
                         }
                         taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse

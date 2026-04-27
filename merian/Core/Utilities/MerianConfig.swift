@@ -34,6 +34,13 @@ enum MerianConfig {
     /// Number of collection records fetched per page during historical sync-down.
     static let collectionsSyncPageSize = 100
 
+    // MARK: - One-Time Recovery
+
+    /// Versioned kill switch for flushing locally persisted similar-species blobs after
+    /// backend validation bugs. Increment when old `lookalikesData` / `similarSpecies`
+    /// should be discarded and rehydrated from the server.
+    static let localLookalikesCacheResetVersion = 1
+
     // MARK: - Bulk Ingestion
 
     /// SwiftData save checkpoint interval during bulk historical scan ingestion.

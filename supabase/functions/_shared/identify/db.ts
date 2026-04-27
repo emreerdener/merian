@@ -46,12 +46,12 @@ export interface SpeciesUpsertData {
   scientific_name: string;
   common_names: Record<string, string | undefined>;
   alternative_common_names?: string[] | null;
-  kingdom?: string;
-  phylum?: string;
-  class?: string;
-  order?: string;
-  family?: string;
-  genus?: string;
+  kingdom?: string | null;
+  phylum?: string | null;
+  class?: string | null;
+  order?: string | null;
+  family?: string | null;
+  genus?: string | null;
   wikipedia_overview?: string | null;
   hazard_type?: string;
   native_region: string;

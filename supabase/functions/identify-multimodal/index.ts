@@ -14,6 +14,7 @@ import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
+import { coalesceTaxonomyValue, normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
 
 import {
   CachedSpeciesRow,
@@ -527,7 +528,7 @@ serve((req: Request) =>
     if (isIdentifiedBio) {
       cachedSpecies = fetchedCachedSpecies;
 
-      if (cachedSpecies?.kingdom) {
+      if (normalizeTaxonomyValue(cachedSpecies?.kingdom)) {
         payloadReadyForClient = hydratePayloadFromCachedSpecies(
           payloadReadyForClient,
           cachedSpecies,
@@ -611,7 +612,7 @@ serve((req: Request) =>
           : Promise.resolve(null);
 
         if (isIdentifiedBio) {
-          if (cachedSpecies?.kingdom) {
+          if (normalizeTaxonomyValue(cachedSpecies?.kingdom)) {
             speciesId = cachedSpecies.id;
           } else if (externalData) {
             const freshSpecies = await fetchCachedSpecies(
@@ -627,12 +628,12 @@ serve((req: Request) =>
                     ? { en: payloadReadyForClient.common_name }
                     : {}),
                 },
-                kingdom: freshSpecies?.kingdom || "Unknown",
-                phylum: freshSpecies?.phylum || "Unknown",
-                class: freshSpecies?.class || "Unknown",
-                order: freshSpecies?.order || "Unknown",
-                family: freshSpecies?.family || "Unknown",
-                genus: freshSpecies?.genus || "Unknown",
+                kingdom: coalesceTaxonomyValue(freshSpecies?.kingdom),
+                phylum: coalesceTaxonomyValue(freshSpecies?.phylum),
+                class: coalesceTaxonomyValue(freshSpecies?.class),
+                order: coalesceTaxonomyValue(freshSpecies?.order),
+                family: coalesceTaxonomyValue(freshSpecies?.family),
+                genus: coalesceTaxonomyValue(freshSpecies?.genus),
                 native_region: "Unknown",
                 wikipedia_url: externalData.wikipediaUrl,
                 wikipedia_overview: externalData.wikiExtract,
@@ -727,12 +728,12 @@ serve((req: Request) =>
                   scientific_name: candidateName,
                   common_names: primaryEnName ? { en: primaryEnName } : {},
                   alternative_common_names: newAltNames,
-                  kingdom: "Unknown",
-                  phylum: "Unknown",
-                  class: "Unknown",
-                  order: "Unknown",
-                  family: "Unknown",
-                  genus: "Unknown",
+                  kingdom: null,
+                  phylum: null,
+                  class: null,
+                  order: null,
+                  family: null,
+                  genus: null,
                   wikipedia_overview: candidateExternalData.wikiExtract ?? null,
                   hazard_type: "none",
                   native_region: "Unknown",

@@ -5,6 +5,7 @@ import {
 import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
 import { trackPostHogEvent } from "./posthog.ts";
+import { normalizeTaxonomyValue } from "./taxonomy.ts";
 
 // Alias for backward compat within this file
 type ResponseSchema = Schema;
@@ -22,12 +23,12 @@ type UsageMetadata = {
 
 export interface EncyclopedicData {
   taxonomy: {
-    kingdom: string;
-    phylum: string;
-    class: string;
-    order: string;
-    family: string;
-    genus: string;
+    kingdom: string | null;
+    phylum: string | null;
+    class: string | null;
+    order: string | null;
+    family: string | null;
+    genus: string | null;
   };
   iucn_red_list_status: string;
   habitat_description: string;
@@ -145,12 +146,12 @@ Given a species scientific name, provide the following data fields: taxonomy, ha
     console.error("Encyclopedic inference fallback failed:", e);
     return {
       taxonomy: {
-        kingdom: "Unknown",
-        phylum: "Unknown",
-        class: "Unknown",
-        order: "Unknown",
-        family: "Unknown",
-        genus: "Unknown",
+        kingdom: null,
+        phylum: null,
+        class: null,
+        order: null,
+        family: null,
+        genus: null,
       },
       iucn_red_list_status: "not_evaluated",
       habitat_description: "No habitat data available.",
@@ -179,13 +180,18 @@ export async function fetchSimilarSpecies(
   scientificName: string,
   taxonomy?: SpeciesTaxonomy | null,
 ): Promise<{ similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } | null> {
+  const normalizedKingdom = normalizeTaxonomyValue(taxonomy?.kingdom);
+  const normalizedClass = normalizeTaxonomyValue(taxonomy?.class);
+  const normalizedOrder = normalizeTaxonomyValue(taxonomy?.order);
+  const normalizedFamily = normalizeTaxonomyValue(taxonomy?.family);
+
   // Build a taxonomic context string so Flash is grounded in the correct kingdom/class/order.
   // Without this, the model can hallucinate cross-kingdom suggestions (e.g. plants for insects).
   const taxonomicContext = [
-    taxonomy?.kingdom ? `Kingdom: ${taxonomy.kingdom}` : null,
-    taxonomy?.class ? `Class: ${taxonomy.class}` : null,
-    taxonomy?.order ? `Order: ${taxonomy.order}` : null,
-    taxonomy?.family ? `Family: ${taxonomy.family}` : null,
+    normalizedKingdom ? `Kingdom: ${normalizedKingdom}` : null,
+    normalizedClass ? `Class: ${normalizedClass}` : null,
+    normalizedOrder ? `Order: ${normalizedOrder}` : null,
+    normalizedFamily ? `Family: ${normalizedFamily}` : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -226,7 +232,7 @@ For each lookalike, provide the exact formally recognized scientific name and th
           required: ["scientific_name", "common_name"],
         },
         description:
-          `Up to 3 closely related but genuinely visually similar lookalike species from the same kingdom${taxonomy?.class ? ` and class (${taxonomy.class})` : ""}, each with a real, formally recognized scientific name and English common name.`,
+          `Up to 3 closely related but genuinely visually similar lookalike species from the same kingdom${normalizedClass ? ` and class (${normalizedClass})` : ""}, each with a real, formally recognized scientific name and English common name.`,
       },
     },
     required: ["similar_species"],

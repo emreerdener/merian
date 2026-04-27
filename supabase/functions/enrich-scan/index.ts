@@ -4,6 +4,7 @@ import { fetchSimilarSpecies, fetchStaticEncyclopedicData, EncyclopedicData } fr
 import { fetchGBIFVernacularNames } from "../_shared/external.ts";
 import { requireParams } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
+import { hasUsableLookalikeTaxonomy, normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
 import {
   getCachedSpecies,
   updateSpeciesEnrichment,
@@ -98,7 +99,7 @@ serve((req: Request) =>
       return jsonResponse({ error: "scope must be \"enrichment\" or \"lookalikes\"" }, 400);
     }
 
-    const cachedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
+    let cachedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
     const speciesId = cachedSpecies?.id ?? null;
 
     // ── ENRICHMENT SCOPE ──────────────────────────────────────────────────────
@@ -131,7 +132,12 @@ serve((req: Request) =>
 
       const hasEnrichment =
         cachedSpecies?.habitat_description !== null &&
-        cachedSpecies?.habitat_description !== undefined;
+        cachedSpecies?.habitat_description !== undefined &&
+        hasUsableLookalikeTaxonomy({
+          kingdom: cachedSpecies?.kingdom,
+          order: cachedSpecies?.order,
+          family: cachedSpecies?.family,
+        });
 
       if (hasEnrichment) {
         console.log(`[enrich-scan:enrichment] CACHE HIT for ${scientific_name}`);
@@ -218,20 +224,25 @@ serve((req: Request) =>
     if (speciesId) {
       const rawLookalikes = await fetchLookalikesFromJoinTable(speciesId, supabaseAdmin);
 
-      // Stale contamination detection: if the primary species' order is known and EVERY
-      // join-table entry has a different known order, the entire cached set was written
-      // without taxonomy context (common when the lookalikes Flash call raced ahead of the
-      // enrichment scope that populates species_dictionary taxonomy). Clear the stale rows,
-      // reset the flash-attempted flag, and fall through to a fresh Flash call.
-      const primaryOrder = cachedSpecies?.order?.toLowerCase() ?? null;
-      if (primaryOrder && rawLookalikes.length > 0) {
+      // Stale contamination detection: if the primary species has a usable order/family and
+      // EVERY cached join-table entry disagrees at that same rank, the cached set predates
+      // the stricter validation rules. Clear and regenerate under the new guards.
+      const primaryOrder = normalizeTaxonomyValue(cachedSpecies?.order);
+      const primaryFamily = normalizeTaxonomyValue(cachedSpecies?.family);
+      if ((primaryOrder || primaryFamily) && rawLookalikes.length > 0) {
         const stale = rawLookalikes.filter(
-          (l) => l._order != null && l._order.toLowerCase() !== primaryOrder,
+          (l) => {
+            if (primaryOrder) {
+              return normalizeTaxonomyValue(l._order)?.toLowerCase() !== primaryOrder.toLowerCase();
+            }
+            return normalizeTaxonomyValue(l._family)?.toLowerCase() !== primaryFamily!.toLowerCase();
+          },
         );
         if (stale.length === rawLookalikes.length) {
           console.warn(
             `[enrich-scan:lookalikes] Stale cross-order contamination for ${scientific_name} ` +
-            `(primary order: ${primaryOrder}). Clearing ${rawLookalikes.length} entries and re-running Flash.`,
+            `(primary order: ${primaryOrder ?? "n/a"}, primary family: ${primaryFamily ?? "n/a"}). ` +
+            `Clearing ${rawLookalikes.length} entries and re-running Flash.`,
           );
           await clearLookalikesForSpecies(speciesId, supabaseAdmin);
           await supabaseAdmin
@@ -240,11 +251,11 @@ serve((req: Request) =>
             .eq("id", speciesId);
           lookalikes = [];
         } else {
-          // Strip the internal _order field before serving to client.
-          lookalikes = rawLookalikes.map(({ _order: _o, ...rest }) => rest);
+          // Strip the internal taxonomy fields before serving to client.
+          lookalikes = rawLookalikes.map(({ _order: _o, _family: _f, ...rest }) => rest);
         }
       } else {
-        lookalikes = rawLookalikes.map(({ _order: _o, ...rest }) => rest);
+        lookalikes = rawLookalikes.map(({ _order: _o, _family: _f, ...rest }) => rest);
       }
 
       // Migration path: join table is empty but TEXT[] has names from the old pipeline —
@@ -260,6 +271,7 @@ serve((req: Request) =>
           supabaseAdmin,
           cachedSpecies?.kingdom,
           cachedSpecies?.order,
+          cachedSpecies?.family,
         );
         lookalikes = migrationResult.lookalikes;
         // migrationResult.persisted is intentionally not used here: the migration path
@@ -285,6 +297,23 @@ serve((req: Request) =>
       );
     }
 
+    // Accuracy-first guard: never ask Flash for durable lookalikes unless the primary
+    // species has real taxonomy. Returning null here is safer than surfacing provisional
+    // cards that would otherwise be cached locally and require a later cleanup.
+    if (!hasUsableLookalikeTaxonomy({
+      kingdom: cachedSpecies?.kingdom,
+      order: cachedSpecies?.order,
+      family: cachedSpecies?.family,
+    })) {
+      console.log(
+        `[enrich-scan:lookalikes] Skipping Flash for ${scientific_name} until validated taxonomy exists.`,
+      );
+      return jsonResponse(
+        { success: true, data: formatLookalikesOnlyPayload(cachedSpecies, []) },
+        200,
+      );
+    }
+
     // Singleflight guard — wait for any in-flight lookalikes Flash call on this isolate
     // and return the persisted result rather than firing a duplicate Gemini call.
     const inFlightLookalikes = _lookalikesInFlight.get(scientific_name);
@@ -294,7 +323,7 @@ serve((req: Request) =>
         const refreshedSpecies = await getCachedSpecies(scientific_name, supabaseAdmin);
         const refreshedId = refreshedSpecies?.id ?? speciesId;
         const refreshedLookalikes = refreshedId
-          ? await fetchLookalikesFromJoinTable(refreshedId, supabaseAdmin)
+          ? (await fetchLookalikesFromJoinTable(refreshedId, supabaseAdmin)).map(({ _order: _o, _family: _f, ...rest }) => rest)
           : [];
         return jsonResponse(
           { success: true, data: formatLookalikesOnlyPayload(refreshedSpecies, refreshedLookalikes) },
@@ -309,13 +338,14 @@ serve((req: Request) =>
     let rejectLookalikesInFlight!: (e: Error) => void;
     _lookalikesInFlight.set(
       scientific_name,
-      new Promise<void>((resolve, reject) => { 
-        resolveLookalikesInFlight = resolve; 
+      new Promise<void>((resolve, reject) => {
+        resolveLookalikesInFlight = resolve;
         rejectLookalikesInFlight = reject;
       }),
     );
 
     try {
+      let validatedSimilarResult: { similar_species: Array<{ scientific_name: string; common_name: string | null }> } | null = null;
       const similarResult = await fetchSimilarSpecies(_user, scientific_name, {
         kingdom: cachedSpecies?.kingdom,
         class: cachedSpecies?.class,
@@ -331,8 +361,17 @@ serve((req: Request) =>
             supabaseAdmin,
             cachedSpecies?.kingdom,
             cachedSpecies?.order,
+            cachedSpecies?.family,
           );
           lookalikes = resolveResult.lookalikes;
+          if (resolveResult.persisted && lookalikes.length > 0) {
+            validatedSimilarResult = {
+              similar_species: lookalikes.map((entry) => ({
+                scientific_name: entry.scientific_name,
+                common_name: entry.common_name,
+              })),
+            };
+          }
           // Only set lookalikes_flash_attempted when the join table was actually written
           // (resolveResult.persisted = true). If primaryKingdom was null, the function
           // returned early without touching the join table — locking the flag in that
@@ -348,17 +387,9 @@ serve((req: Request) =>
             );
           }
         } else {
-          // Species row not yet visible on the read replica (replication lag on first scan).
-          // Return the raw Flash names so the client is not left with null. Image URLs and
-          // IUCN status are unavailable without a DB lookup, but scientific + common names
-          // are enough for the SimilarSpeciesGallery to render. The join table will be
-          // populated on the next enrich-scan call once the row is visible.
-          lookalikes = similarResult.similar_species.map((e) => ({
-            scientific_name: e.scientific_name,
-            common_name: e.common_name,
-            reference_image_url: null,
-            iucn_red_list_status: null,
-          }));
+          // Species row not yet visible on the read replica. Accuracy wins over immediacy:
+          // without dictionary resolution we cannot validate taxonomy or enrich the cards.
+          lookalikes = [];
         }
       }
 
@@ -373,8 +404,9 @@ serve((req: Request) =>
 
       // Await before resolving for the same reason as the enrichment scope — any waiter
       // re-reads species_dictionary immediately after resolution, and must see the updated
-      // similar_species TEXT[] to avoid a stale cache miss on the next call.
-      await updateSpeciesEnrichment(scientific_name, null, similarResult, supabaseAdmin);
+      // similar_species TEXT[] to avoid a stale cache miss on the next call. Persist only
+      // validated lookalike names — never raw LLM output.
+      await updateSpeciesEnrichment(scientific_name, null, validatedSimilarResult, supabaseAdmin);
 
       console.log(`[enrich-scan:lookalikes] CACHE MISS for ${scientific_name}`);
       resolveLookalikesInFlight();

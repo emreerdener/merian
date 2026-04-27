@@ -695,6 +695,33 @@ actor BackgroundDatabaseActor {
         }
     }
 
+    /// One-time recovery path for stale similar-species caches written before the backend
+    /// began enforcing validated taxonomy. Clearing both the rich blob and legacy flat
+    /// array forces future scan opens to rehydrate from the server under the new rules.
+    func clearAllLocalLookalikesCache() {
+        let descriptor = FetchDescriptor<LocalScanRecord>()
+        guard let records = try? modelContext.fetch(descriptor) else { return }
+
+        var mutated = false
+        for record in records where record.isBiological == true {
+            if record.lookalikesData != nil {
+                record.lookalikesData = nil
+                mutated = true
+            }
+            if record.similarSpecies != nil {
+                record.similarSpecies = nil
+                mutated = true
+            }
+        }
+
+        guard mutated else { return }
+        do {
+            try modelContext.save()
+        } catch {
+            MerianLog.data.error("clearAllLocalLookalikesCache: save failed: \(error, privacy: .private)")
+        }
+    }
+
     // MARK: - Identification Override Persistence
 
     /// Persists the user's identification review action to the local SwiftData store.

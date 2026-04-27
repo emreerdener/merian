@@ -317,6 +317,41 @@ struct SpeciesDataTests {
         #expect(lookalikesHaveNoCommonNames == false, "At least one non-nil commonName must suppress enrichment re-trigger")
     }
 
+    @Test func testTaxonomyDataTreatsUnknownAsMissingForLookalikeValidation() {
+        let taxonomy = TaxonomyData(
+            kingdom: "Unknown",
+            phylum: nil,
+            className: nil,
+            order: "Malvales",
+            family: nil,
+            genus: nil
+        )
+
+        #expect(taxonomy.hasUsableLookalikeValidation == false)
+    }
+
+    @Test func testTaxonomyDataRequiresRealKingdomAndOrderOrFamily() {
+        let familyGrounded = TaxonomyData(
+            kingdom: "Plantae",
+            phylum: nil,
+            className: nil,
+            order: nil,
+            family: "Malvaceae",
+            genus: "Sida"
+        )
+        let orderGrounded = TaxonomyData(
+            kingdom: "Animalia",
+            phylum: nil,
+            className: nil,
+            order: "Scorpaeniformes",
+            family: nil,
+            genus: nil
+        )
+
+        #expect(familyGrounded.hasUsableLookalikeValidation == true)
+        #expect(orderGrounded.hasUsableLookalikeValidation == true)
+    }
+
     // MARK: - Identification Candidates: IdentificationCandidate
 
     @Test func testIdentificationCandidateRoundTrip() throws {

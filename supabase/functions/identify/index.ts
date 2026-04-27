@@ -8,6 +8,7 @@ import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
+import { coalesceTaxonomyValue, normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
 
 import { MerianIdentification, ClientPayload, CachedSpeciesRow } from "../_shared/identify/types.ts";
 import { getSystemInstruction, getMerianResponseSchema } from "../_shared/identify/schema.ts";
@@ -508,7 +509,7 @@ serve((req: Request) =>
     if (isIdentifiedBio) {
       cachedSpecies = fetchedCachedSpecies;
 
-      if (cachedSpecies?.kingdom) {
+      if (normalizeTaxonomyValue(cachedSpecies?.kingdom)) {
         console.log(`Cache Hit: Generating payload from DB for ${parsedData.scientific_name}`);
         speciesId = cachedSpecies.id;
         payloadReadyForClient = hydratePayloadFromCachedSpecies(
@@ -611,14 +612,15 @@ serve((req: Request) =>
               scientific_name: parsedData.scientific_name!,
               common_names: newCommonNames,
               alternative_common_names: newAltNames,
-              // Preserve any taxonomy written by a concurrent enrich-scan call.
-              // "Unknown" is only used when no real value exists yet on either snapshot.
-              kingdom: freshSpecies?.kingdom || cachedSpecies?.kingdom || "Unknown",
-              phylum: freshSpecies?.phylum || cachedSpecies?.phylum || "Unknown",
-              class: freshSpecies?.class || cachedSpecies?.class || "Unknown",
-              order: freshSpecies?.order || cachedSpecies?.order || "Unknown",
-              family: freshSpecies?.family || cachedSpecies?.family || "Unknown",
-              genus: freshSpecies?.genus || cachedSpecies?.genus || "Unknown",
+              // Preserve any real taxonomy written by a concurrent enrich-scan call.
+              // Null means "not known yet" and is intentionally safer than the old "Unknown"
+              // sentinel, which polluted lookalike validation and same-genus linking.
+              kingdom: coalesceTaxonomyValue(freshSpecies?.kingdom, cachedSpecies?.kingdom),
+              phylum: coalesceTaxonomyValue(freshSpecies?.phylum, cachedSpecies?.phylum),
+              class: coalesceTaxonomyValue(freshSpecies?.class, cachedSpecies?.class),
+              order: coalesceTaxonomyValue(freshSpecies?.order, cachedSpecies?.order),
+              family: coalesceTaxonomyValue(freshSpecies?.family, cachedSpecies?.family),
+              genus: coalesceTaxonomyValue(freshSpecies?.genus, cachedSpecies?.genus),
               wikipedia_overview:
                 freshSpecies?.wikipedia_overview ??
                 cachedSpecies?.wikipedia_overview ??
@@ -726,12 +728,12 @@ serve((req: Request) =>
                   scientific_name: candidateName,
                   common_names: primaryEnName ? { en: primaryEnName } : {},
                   alternative_common_names: newAltNames,
-                  kingdom: "Unknown",
-                  phylum: "Unknown",
-                  class: "Unknown",
-                  order: "Unknown",
-                  family: "Unknown",
-                  genus: "Unknown",
+                  kingdom: null,
+                  phylum: null,
+                  class: null,
+                  order: null,
+                  family: null,
+                  genus: null,
                   wikipedia_overview: externalData.wikiExtract ?? null,
                   hazard_type: "none",
                   native_region: "Unknown",

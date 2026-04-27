@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { CachedSpeciesData, LookalikeSummary } from "./types.ts";
 import { EncyclopedicData, SimilarSpeciesEntry } from "../_shared/biology.ts";
+import { normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
 
 export async function getCachedSpecies(
   scientificName: string,
@@ -24,6 +25,7 @@ export async function getCachedSpecies(
 /// the array is serialised into the client response.
 export interface LookalikeSummaryInternal extends LookalikeSummary {
   _order: string | null;
+  _family: string | null;
 }
 
 /// Fetches rich lookalike entries from the species_lookalikes join table using a single
@@ -41,7 +43,7 @@ export async function fetchLookalikesFromJoinTable(
   const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
     .select(
-      "lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status, order)",
+      "lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status, order, family)",
     )
     .eq("species_id", speciesId)
     .limit(10);
@@ -59,6 +61,7 @@ export async function fetchLookalikesFromJoinTable(
         reference_image_url: string | null;
         iucn_red_list_status: string | null;
         order: string | null;
+        family: string | null;
       } | null;
     }[]
   )
@@ -69,6 +72,7 @@ export async function fetchLookalikesFromJoinTable(
       reference_image_url: row.lookalike!.reference_image_url,
       iucn_red_list_status: row.lookalike!.iucn_red_list_status,
       _order: row.lookalike!.order,
+      _family: row.lookalike!.family,
     }));
 }
 
@@ -115,26 +119,19 @@ export async function resolveLookalikesToJoinTable(
   supabaseAdmin: SupabaseClient,
   primaryKingdom?: string | null,
   primaryOrder?: string | null,
+  primaryFamily?: string | null,
 ): Promise<ResolveResult> {
   if (entries.length === 0) return { lookalikes: [], persisted: false };
 
-  // When primaryKingdom is absent we have no kingdom baseline to validate against.
-  // Skip the join table write to prevent cross-kingdom entries from persisting in
-  // cache — an unvalidated write here is exactly how pine cones end up as lookalikes
-  // for roses. Return Flash-generated entries directly; the next call after the
-  // enrichment scope populates the species' kingdom will perform the validated write.
-  // persisted: false ensures lookalikes_flash_attempted is NOT set yet — the flag
-  // must only lock once the join table contains validated, kingdom-checked data.
-  if (!primaryKingdom) {
-    return {
-      lookalikes: entries.map((e) => ({
-        scientific_name: e.scientific_name,
-        common_name: e.common_name,
-        reference_image_url: null,
-        iucn_red_list_status: null,
-      })),
-      persisted: false,
-    };
+  const normalizedPrimaryKingdom = normalizeTaxonomyValue(primaryKingdom);
+  const normalizedPrimaryOrder = normalizeTaxonomyValue(primaryOrder);
+  const normalizedPrimaryFamily = normalizeTaxonomyValue(primaryFamily);
+
+  // Durable lookalike cache is only safe when the primary species has real taxonomy.
+  // Placeholder "Unknown" values previously bypassed this guard and allowed unrelated taxa
+  // to validate against each other; normalizeTaxonomyValue collapses those sentinels to null.
+  if (!normalizedPrimaryKingdom || (!normalizedPrimaryOrder && !normalizedPrimaryFamily)) {
+    return { lookalikes: [], persisted: false };
   }
 
   const names = entries.map((e) => e.scientific_name);
@@ -142,7 +139,7 @@ export async function resolveLookalikesToJoinTable(
 
   const { data: matches, error } = await supabaseAdmin
     .from("species_dictionary")
-    .select("id, scientific_name, common_names, reference_image_url, iucn_red_list_status, kingdom, order")
+    .select("id, scientific_name, common_names, reference_image_url, iucn_red_list_status, kingdom, order, family")
     .in("scientific_name", names)
     .limit(10);
 
@@ -156,38 +153,40 @@ export async function resolveLookalikesToJoinTable(
     iucn_red_list_status: string | null;
     kingdom: string | null;
     order: string | null;
+    family: string | null;
   }[];
 
-  // If none of the lookalike species are in species_dictionary yet, return the
-  // Flash-generated entries directly (null referenceImageUrl/iucnRedListStatus) so
-  // common names are not discarded. The client falls back to Wikipedia/iNaturalist
-  // for thumbnail images when referenceImageUrl is null.
   if (typed.length === 0) {
-    return {
-      lookalikes: entries.map((e) => ({
-        scientific_name: e.scientific_name,
-        common_name: e.common_name,
-        reference_image_url: null,
-        iucn_red_list_status: null,
-      })),
-      persisted: false,
-    };
+    return { lookalikes: [], persisted: false };
   }
 
-  // Reject any resolved species whose kingdom differs from the primary species' kingdom.
-  // Also reject cross-order entries when the primary species' order is known — this is the
-  // main guard against Flash generating plausible-but-wrong same-kingdom lookalikes (e.g.
-  // grass as a lookalike for Narcissus: both Plantae, but Poales ≠ Asparagales).
-  // Species with no kingdom/order on record are allowed through (can't verify, not contradicting).
+  // Reject any resolved species whose normalized taxonomy does not positively match the
+  // primary species. Missing candidate taxonomy is treated as unvalidated and therefore
+  // not safe to persist or surface to the client.
   const validated = typed.filter((m) => {
-    if (m.kingdom && m.kingdom.toLowerCase() !== primaryKingdom!.toLowerCase()) return false;
-    if (primaryOrder && m.order && m.order.toLowerCase() !== primaryOrder.toLowerCase()) return false;
+    const normalizedCandidateKingdom = normalizeTaxonomyValue(m.kingdom);
+    if (!normalizedCandidateKingdom || normalizedCandidateKingdom.toLowerCase() !== normalizedPrimaryKingdom.toLowerCase()) {
+      return false;
+    }
+
+    if (normalizedPrimaryOrder) {
+      const normalizedCandidateOrder = normalizeTaxonomyValue(m.order);
+      return normalizedCandidateOrder !== null &&
+        normalizedCandidateOrder.toLowerCase() === normalizedPrimaryOrder.toLowerCase();
+    }
+
+    if (normalizedPrimaryFamily) {
+      const normalizedCandidateFamily = normalizeTaxonomyValue(m.family);
+      return normalizedCandidateFamily !== null &&
+        normalizedCandidateFamily.toLowerCase() === normalizedPrimaryFamily.toLowerCase();
+    }
+
     return true;
   });
 
   if (validated.length === 0) {
     console.warn(
-      `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed taxonomy validation (kingdom: ${primaryKingdom}, order: ${primaryOrder ?? "any"}). Returning empty.`,
+      `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed taxonomy validation (kingdom: ${normalizedPrimaryKingdom}, order: ${normalizedPrimaryOrder ?? "any"}, family: ${normalizedPrimaryFamily ?? "any"}). Returning empty.`,
     );
     return { lookalikes: [], persisted: false };
   }
@@ -234,31 +233,14 @@ export async function resolveLookalikesToJoinTable(
     }
   }
 
-  const matchedNames = new Set(validated.map((m) => m.scientific_name));
-
-  // Append any Flash-generated entries for species not yet in species_dictionary.
-  // These carry common_name from Flash but no reference image or IUCN data — the
-  // client falls back to Wikipedia/iNaturalist for thumbnails when referenceImageUrl is null.
-  const unmatched: LookalikeSummary[] = entries
-    .filter((e) => !matchedNames.has(e.scientific_name))
-    .map((e) => ({
-      scientific_name: e.scientific_name,
-      common_name: e.common_name,
-      reference_image_url: null,
-      iucn_red_list_status: null,
-    }));
-
   return {
-    lookalikes: [
-      ...validated.map((m) => ({
-        scientific_name: m.scientific_name,
-        // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
-        common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
-        reference_image_url: m.reference_image_url,
-        iucn_red_list_status: m.iucn_red_list_status,
-      })),
-      ...unmatched,
-    ],
+    lookalikes: validated.map((m) => ({
+      scientific_name: m.scientific_name,
+      // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
+      common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
+      reference_image_url: m.reference_image_url,
+      iucn_red_list_status: m.iucn_red_list_status,
+    })),
     persisted: true,
   };
 }

@@ -366,6 +366,22 @@ struct TaxonomyData {
     let genus: String?
 }
 
+extension TaxonomyData {
+    static func normalizeComponent(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              trimmed.caseInsensitiveCompare("unknown") != .orderedSame else {
+            return nil
+        }
+        return trimmed
+    }
+
+    var hasUsableLookalikeValidation: Bool {
+        Self.normalizeComponent(kingdom) != nil &&
+        (Self.normalizeComponent(order) != nil || Self.normalizeComponent(family) != nil)
+    }
+}
+
 struct InsightData {
     /// Per-scan AI vision reasoning — unique to the specific photo submitted.
     let aiReasoning: String
