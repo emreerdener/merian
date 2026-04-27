@@ -36,6 +36,8 @@ enum UserDefaultsKeys {
     static let captureModeOrder = "captureModeOrder"
     /// Whether the user has seen the one-time Explore onboarding prompt.
     static let hasSeenExploreOnboarding = "hasSeenExploreOnboarding"
+    /// Whether the user has dismissed the one-time Explore tab "New" chip.
+    static let hasSeenExploreNewChip = "hasSeenExploreNewChip"
     /// Version marker for one-time local similar-species cache resets.
     static let localLookalikesCacheResetVersion = "localLookalikesCacheResetVersion"
 }

@@ -6,6 +6,7 @@ struct MainTabBar: View {
     @Binding var isScansOpen: Bool
     @Binding var isUserProfileOpen: Bool
     @AppStorage(UserDefaultsKeys.hasUnseenScan) private var hasUnseenScan: Bool = false
+    @AppStorage(UserDefaultsKeys.hasSeenExploreNewChip) private var hasSeenExploreNewChip: Bool = false
     
     // MARK: - Visual Layout
     var body: some View {
@@ -17,8 +18,10 @@ struct MainTabBar: View {
                 title: "Explore",
                 action: {
                     HapticManager.shared.triggerSheetSpring()
+                    hasSeenExploreNewChip = true
                     isExploreOpen = true
-                }
+                },
+                chipText: hasSeenExploreNewChip ? nil : "NEW"
             )
 
             // 2. Local Taxonomy Library
@@ -76,6 +79,7 @@ private struct TabBarButton: View {
     let action: () -> Void
     var isDisabled: Bool = false
     var showBadge: Bool = false
+    var chipText: String?
 
     // MARK: - Visual Layout
     var body: some View {
@@ -90,6 +94,20 @@ private struct TabBarButton: View {
                                 .fill(Color.red)
                                 .frame(width: 8, height: 8)
                                 .offset(x: 4, y: -2)
+                        }
+
+                        if let chipText {
+                            Text(chipText)
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.green)
+                                )
+                                .fixedSize()
+                                .offset(x: 16, y: -10)
                         }
                     }
                 Text(title)
