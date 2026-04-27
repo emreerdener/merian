@@ -155,6 +155,7 @@ struct ExplorePostDetailView: View {
                 image
                     .resizable()
                     .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failure:
                 ZStack {
                     LinearGradient(
@@ -167,14 +168,17 @@ struct ExplorePostDetailView: View {
                         .font(.system(size: 32, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .empty:
                 ZStack {
                     Color(uiColor: .tertiarySystemFill)
                     ProgressView()
                         .progressViewStyle(.circular)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             @unknown default:
                 Color(uiColor: .tertiarySystemFill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity)

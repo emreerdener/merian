@@ -44,6 +44,7 @@ struct ExplorePostCard: View {
                     image
                         .resizable()
                         .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .failure:
                     ZStack {
                         LinearGradient(
@@ -56,14 +57,17 @@ struct ExplorePostCard: View {
                             .font(.system(size: 28, weight: .semibold))
                             .foregroundStyle(.secondary)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .empty:
                     ZStack {
                         Color(uiColor: .tertiarySystemFill)
                         ProgressView()
                             .progressViewStyle(.circular)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 @unknown default:
                     Color(uiColor: .tertiarySystemFill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
 
