@@ -1,4 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getR2Config } from "../_shared/aws.ts";
+import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
+import { getTierForUser } from "../_shared/tierCache.ts";
 
 interface ShareEligibleScanRow {
   id: string;
@@ -19,6 +22,7 @@ function makeHttpError(status: number, message: string): Error & { status: numbe
 export async function fetchShareEligibleScan(
   scanId: string,
   userId: string,
+  restoredObjectKeys: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<ShareEligibleScanRow> {
   const { data, error } = await supabaseAdmin
@@ -32,7 +36,7 @@ export async function fetchShareEligibleScan(
     throw makeHttpError(404, "Scan not found.");
   }
 
-  const row = data as ShareEligibleScanRow;
+  let row = data as ShareEligibleScanRow;
 
   if (row.is_tombstoned) {
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
@@ -40,6 +44,33 @@ export async function fetchShareEligibleScan(
 
   if (row.geoprivacy === "private") {
     throw makeHttpError(409, "Private scans cannot be shared to Explore.");
+  }
+
+  if ((row.image_storage_urls?.length ?? 0) === 0 && restoredObjectKeys.length > 0) {
+    const userTier = await getTierForUser(userId, supabaseAdmin);
+    const publicUrls = await promoteSafeMedia(
+      {
+        userId,
+        r2ObjectKeys: restoredObjectKeys,
+        imageBase64s: undefined,
+        userTier,
+        r2Config: getR2Config(),
+      },
+    );
+
+    const { data: updatedRow, error: updateError } = await supabaseAdmin
+      .from("scans")
+      .update({ image_storage_urls: publicUrls })
+      .eq("id", scanId)
+      .eq("user_id", userId)
+      .select("id,user_id,geoprivacy,image_storage_urls,is_tombstoned,species_id,confirmed_species_id")
+      .single();
+
+    if (updateError || !updatedRow) {
+      throw new Error(`Failed to restore shareable scan media: ${updateError?.message ?? "Unknown error"}`);
+    }
+
+    row = updatedRow as ShareEligibleScanRow;
   }
 
   if ((row.image_storage_urls?.length ?? 0) === 0) {

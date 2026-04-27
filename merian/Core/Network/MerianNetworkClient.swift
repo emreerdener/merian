@@ -904,11 +904,35 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExplorePostDetailResponse.self, from: data).data
     }
 
-    func shareScanToExplore(scanId: String) async throws -> ExploreShareResponse {
+    func shareScanToExplore(scanId: String, restoredObjectKeys: [String]? = nil) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
-        let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])
+        var payload: [String: Any] = ["scan_id": scanId]
+        if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
+            payload["restored_object_keys"] = restoredObjectKeys
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExploreShareResponse.self, from: data)
+    }
+
+    func shareScanToExplore(scan: LocalScanRecord) async throws -> ExploreShareResponse {
+        do {
+            return try await shareScanToExplore(scanId: scan.id)
+        } catch {
+            guard shouldAttemptExploreMediaRestore(after: error) else {
+                throw error
+            }
+
+            let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: scan)
+            guard !restoredObjectKeys.isEmpty else {
+                throw error
+            }
+
+            return try await shareScanToExplore(
+                scanId: scan.id,
+                restoredObjectKeys: restoredObjectKeys
+            )
+        }
     }
 
     func unshareExplorePost(postId: String) async throws {
@@ -964,5 +988,77 @@ final class MerianNetworkClient {
         let functionUrl = try endpointURL("block-user")
         let bodyData = try JSONSerialization.data(withJSONObject: ["blocked_id": targetUserId])
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
+    private func shouldAttemptExploreMediaRestore(after error: Error) -> Bool {
+        guard case let MerianError.httpError(statusCode, message) = error,
+              statusCode == 409 else {
+            return false
+        }
+
+        return message.contains("This scan no longer has shareable image media.")
+    }
+
+    private func restoreExploreMediaObjectKeys(for scan: LocalScanRecord) async throws -> [String] {
+        let localImagePaths = resolveRestorableImagePaths(for: scan)
+        guard !localImagePaths.isEmpty else { return [] }
+
+        let fileNames = localImagePaths.enumerated().map { index, path in
+            let ext = URL(fileURLWithPath: path).pathExtension
+            let normalizedExt = ext.isEmpty ? "webp" : ext
+            return "\(scan.id)_explore_restore_\(index).\(normalizedExt)"
+        }
+
+        let uploadUrls = try await generateUploadURLs(fileNames: fileNames)
+        guard uploadUrls.count == localImagePaths.count else {
+            throw MerianError.invalidResponse
+        }
+
+        for (path, uploadUrl) in zip(localImagePaths, uploadUrls) {
+            let fileURL = URL.documentsDirectory.appendingPathComponent(path)
+            let data = try Data(contentsOf: fileURL)
+            try await uploadToR2(
+                url: uploadUrl.signedUrl,
+                data: data,
+                mimeType: exploreRestoreMimeType(for: data)
+            )
+        }
+
+        return uploadUrls.map(\.objectKey)
+    }
+
+    private func resolveRestorableImagePaths(for scan: LocalScanRecord) -> [String] {
+        var candidatePaths: [String] = []
+
+        if let jsonString = scan.capturedMediaJSON,
+           let jsonData = jsonString.data(using: .utf8),
+           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+            candidatePaths.append(contentsOf: items.compactMap { item in
+                guard case .image(let path) = item else { return nil }
+                return path
+            })
+        }
+
+        if candidatePaths.isEmpty, let coverImagePath = scan.coverImagePath {
+            candidatePaths.append(coverImagePath)
+        }
+
+        var resolved: [String] = []
+        for path in candidatePaths where !path.starts(with: "http") {
+            let fileURL = URL.documentsDirectory.appendingPathComponent(path)
+            if FileManager.default.fileExists(atPath: fileURL.path), !resolved.contains(path) {
+                resolved.append(path)
+            }
+        }
+
+        return resolved
+    }
+
+    private func exploreRestoreMimeType(for data: Data) -> String {
+        guard data.count >= 3 else { return "image/webp" }
+        let prefix = [UInt8](data.prefix(3))
+        return (prefix[0] == 0xFF && prefix[1] == 0xD8 && prefix[2] == 0xFF)
+            ? "image/jpeg"
+            : "image/webp"
     }
 }
