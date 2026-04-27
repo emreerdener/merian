@@ -310,3 +310,125 @@ private struct ExploreFeedActionButton: View {
         .buttonStyle(.plain)
     }
 }
+
+extension ExplorePostCard {
+    struct Skeleton: View {
+        var body: some View {
+            VStack(alignment: .leading, spacing: 0) {
+                headerRow
+                    .padding(.horizontal, 8)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+
+                mediaView
+
+                actionRow
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 10)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .shimmering()
+            .accessibilityHidden(true)
+        }
+
+        private var headerRow: some View {
+            HStack(alignment: .center, spacing: 12) {
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(width: 38, height: 38)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemFill))
+                        .frame(width: 112, height: 16)
+
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .frame(width: 88, height: 12)
+                }
+
+                Spacer(minLength: 12)
+
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(width: 28, height: 28)
+            }
+        }
+
+        private var mediaView: some View {
+            ZStack(alignment: .bottomLeading) {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(uiColor: .tertiarySystemFill),
+                                Color(uiColor: .secondarySystemFill)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                speciesOverlay
+                    .padding(14)
+            }
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
+            .clipped()
+        }
+
+        private var speciesOverlay: some View {
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.white.opacity(0.55))
+                    .frame(width: 170, height: 16)
+
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.white.opacity(0.4))
+                    .frame(width: 130, height: 12)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.5), .white.opacity(0.0), .white.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
+            .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 4)
+        }
+
+        private var actionRow: some View {
+            HStack(spacing: 20) {
+                actionGroup
+                actionGroup
+
+                Spacer(minLength: 12)
+
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(width: 24, height: 24)
+            }
+        }
+
+        private var actionGroup: some View {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(width: 24, height: 24)
+
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemFill))
+                    .frame(width: 18, height: 14)
+            }
+        }
+    }
+}

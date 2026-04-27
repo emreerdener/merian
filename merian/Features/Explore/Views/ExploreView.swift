@@ -94,14 +94,15 @@ struct ExploreView: View {
     }
 
     private var loadingState: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .progressViewStyle(.circular)
-            Text("Loading shared discoveries...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        ScrollView {
+            LazyVStack(spacing: 24) {
+                ForEach(0..<3, id: \.self) { _ in
+                    ExplorePostCard.Skeleton()
+                }
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyState: some View {
