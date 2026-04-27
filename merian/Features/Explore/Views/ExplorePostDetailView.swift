@@ -149,41 +149,43 @@ struct ExplorePostDetailView: View {
     }
 
     private func heroImage(for post: ExplorePost) -> some View {
-        AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
-            switch phase {
-            case .success(let image):
-                image
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .failure:
-                ZStack {
-                    LinearGradient(
-                        colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay(
+                AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .failure:
+                        ZStack {
+                            LinearGradient(
+                                colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
 
-                    Image(systemName: "photo")
-                        .font(.system(size: 32, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                            Image(systemName: "photo")
+                                .font(.system(size: 32, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .empty:
+                        ZStack {
+                            Color(uiColor: .tertiarySystemFill)
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    @unknown default:
+                        Color(uiColor: .tertiarySystemFill)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .empty:
-                ZStack {
-                    Color(uiColor: .tertiarySystemFill)
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            @unknown default:
-                Color(uiColor: .tertiarySystemFill)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipped()
+            )
+            .clipped()
     }
 
     private func actionRow(for post: ExplorePost, scrollProxy: ScrollViewProxy) -> some View {
@@ -614,19 +616,21 @@ extension ExplorePostDetailView {
         }
 
         private var mediaView: some View {
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            placeholderFill(secondary: true),
-                            placeholderFill()
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(maxWidth: .infinity)
+            Color.clear
                 .aspectRatio(1, contentMode: .fit)
+                .overlay(
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    placeholderFill(secondary: true),
+                                    placeholderFill()
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
                 .clipped()
         }
 

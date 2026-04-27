@@ -37,59 +37,60 @@ struct ExplorePostCard: View {
     }
 
     private var mediaView: some View {
-        ZStack(alignment: .bottomLeading) {
-            AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .failure:
-                    ZStack {
-                        LinearGradient(
-                            colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay(
+                AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .failure:
+                        ZStack {
+                            LinearGradient(
+                                colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
 
-                        Image(systemName: "photo")
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .empty:
-                    ZStack {
-                        Color(uiColor: .tertiarySystemFill)
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                @unknown default:
-                    Color(uiColor: .tertiarySystemFill)
+                            Image(systemName: "photo")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .empty:
+                        ZStack {
+                            Color(uiColor: .tertiarySystemFill)
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    @unknown default:
+                        Color(uiColor: .tertiarySystemFill)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+            )
+            .clipped()
+            .overlay(alignment: .bottomLeading) {
+                speciesOverlay
+                    .padding(14)
+            }
+            .overlay {
+                if isShowingDoubleTapHeart {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 92, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+                        .scaleEffect(doubleTapHeartScale)
+                        .opacity(doubleTapHeartOpacity)
+                        .allowsHitTesting(false)
                 }
             }
-
-            if isShowingDoubleTapHeart {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 92, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
-                    .scaleEffect(doubleTapHeartScale)
-                    .opacity(doubleTapHeartOpacity)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .allowsHitTesting(false)
-            }
-
-            speciesOverlay
-                .padding(14)
-        }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipped()
-        .contentShape(Rectangle())
-        .gesture(mediaTapGesture)
+            .contentShape(Rectangle())
+            .gesture(mediaTapGesture)
     }
 
     private var headerRow: some View {
@@ -389,30 +390,31 @@ extension ExplorePostCard {
         }
 
         private var mediaView: some View {
-            ZStack(alignment: .bottomLeading) {
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                placeholderFill(secondary: true),
-                                placeholderFill()
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay(
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    placeholderFill(secondary: true),
+                                    placeholderFill()
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 0, style: .continuous)
-                            .fill(glowColor.opacity(isGlowing ? 0.14 : 0.04))
-                            .blur(radius: isGlowing ? 18 : 8)
-                    )
-
-                speciesOverlay
-                    .padding(14)
-            }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .clipped()
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 0, style: .continuous)
+                                .fill(glowColor.opacity(isGlowing ? 0.14 : 0.04))
+                                .blur(radius: isGlowing ? 18 : 8)
+                        )
+                )
+                .clipped()
+                .overlay(alignment: .bottomLeading) {
+                    speciesOverlay
+                        .padding(14)
+                }
         }
 
         private var speciesOverlay: some View {
