@@ -613,7 +613,7 @@ extension ExplorePostDetailView {
                         .padding(.top, 14)
                         .padding(.bottom, 12)
 
-                    VStack(spacing: 24) {
+                    VStack(spacing: 32) {
                         speciesSection
 
                         insightCardsSection
