@@ -86,13 +86,24 @@ extension ExploreFeedViewModel {
         }
     }
 
-    func deleteComment(_ comment: ExploreComment) async {
+    func removeComment(_ comment: ExploreComment) async {
         do {
             let response = try await MerianNetworkClient.shared.deleteExploreComment(commentId: comment.id)
             comments.removeAll { $0.id == response.commentId }
             updateCommentCount(postId: comment.postId, commentCount: response.commentCount)
             HapticManager.shared.triggerSelectionPulse()
-            toastMessage = "Comment removed"
+            toastMessage = comment.removalSuccessMessage
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            toastMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    func reportComment(_ comment: ExploreComment) async {
+        do {
+            try await MerianNetworkClient.shared.reportExploreComment(commentId: comment.id)
+            HapticManager.shared.triggerSuccessPulse()
+            toastMessage = "Report submitted. Thanks!"
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)

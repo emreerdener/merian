@@ -60,6 +60,11 @@ struct ExplorePostDetailView: View {
                     .background(Color(uiColor: .systemBackground))
                     .navigationTitle(post.speciesCommonName.capitalized)
                     .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            detailMenuButton(for: post)
+                        }
+                    }
                     .task(id: post.id) {
                         async let detailTask: Void = loadPostDetail()
                         async let commentsTask: Void = viewModel.openComments(for: post)
@@ -111,11 +116,8 @@ struct ExplorePostDetailView: View {
                         .lineLimit(1)
                 }
             }
-
-            Spacer(minLength: 12)
-
-            detailMenuButton(for: post)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -417,14 +419,24 @@ struct ExplorePostDetailView: View {
 
                 Spacer()
 
-                if comment.viewerCanDelete {
+                if comment.hasOverflowActions {
                     Menu {
-                        Button(role: .destructive) {
-                            Task { await viewModel.deleteComment(comment) }
-                        } label: {
-                            Label("Delete comment", systemImage: "trash")
+                        if comment.viewerCanDelete || comment.viewerCanModerate {
+                            Button(role: .destructive) {
+                                Task { await viewModel.removeComment(comment) }
+                            } label: {
+                                Label(comment.removalActionTitle, systemImage: "trash")
+                            }
+                            .tint(.red)
                         }
-                        .tint(.red)
+
+                        if comment.viewerCanReport {
+                            Button(role: .destructive) {
+                                Task { await viewModel.reportComment(comment) }
+                            } label: {
+                                Label("Report comment", systemImage: "flag")
+                            }
+                        }
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 14, weight: .bold))
@@ -475,11 +487,7 @@ struct ExplorePostDetailView: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(.primary)
-                .frame(width: 32, height: 32, alignment: .center)
         }
-        .buttonStyle(.plain)
     }
 
     private func focusComments(using scrollProxy: ScrollViewProxy, animated: Bool = true) {
@@ -607,13 +615,8 @@ extension ExplorePostDetailView {
                         .fill(placeholderFill(secondary: true))
                         .frame(width: 88, height: 12)
                 }
-
-                Spacer(minLength: 12)
-
-                Circle()
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 28, height: 28)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
 
         private var mediaView: some View {

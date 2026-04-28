@@ -192,22 +192,21 @@ struct ExploreView: View {
 
     private var bellButton: some View {
         Button(action: { viewModel.presentNotifications() }) {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: "bell")
-                    .font(.system(size: 16, weight: .bold))
-
-                if viewModel.unreadNotificationCount > 0 {
-                    Text(badgeText)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.white)
-                        .padding(.horizontal, viewModel.unreadNotificationCount > 9 ? 5 : 0)
-                        .frame(minWidth: 18, minHeight: 18)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.red)
-                        )
-                        .offset(x: 10, y: -8)
-                }
+            Image(systemName: "bell")
+                .font(.system(size: 16, weight: .bold))
+        }
+        .overlay(alignment: .topTrailing) {
+            if viewModel.unreadNotificationCount > 0 {
+                Text(badgeText)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, viewModel.unreadNotificationCount > 9 ? 5 : 0)
+                    .frame(minWidth: 18, minHeight: 18)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.red)
+                    )
+                    .offset(x: 4, y: -4)
             }
         }
         .accessibilityLabel(accessibilityNotificationLabel)
@@ -232,7 +231,7 @@ struct ExploreView: View {
             let post = try await viewModel.preparePostForNavigation(postId: notification.postId)
             viewModel.dismissNotifications()
             try? await Task.sleep(nanoseconds: 150_000_000)
-            openPostDetail(for: post)
+            openPostDetail(for: post, focusCommentComposer: notification.type == .comment)
         } catch {
             MerianLog.network.error(
                 "Failed to open Explore notification \(notification.id, privacy: .private): \(error.localizedDescription, privacy: .private)"

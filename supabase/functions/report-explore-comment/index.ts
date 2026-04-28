@@ -1,0 +1,56 @@
+// deno-lint-ignore no-import-prefix
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { requireParams } from "../_shared/http.ts";
+import { requireUuid } from "../_shared/explore.ts";
+import { fetchReportableComment, upsertExploreCommentReport } from "./db.ts";
+
+const VALID_REPORT_REASONS = new Set([
+  "Spam",
+  "Harassment",
+  "Inappropriate content",
+  "Other",
+]);
+
+serve((req: Request) =>
+  withEdgeHandler(req, async (user, supabaseAdmin) => {
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    const paramErr = requireParams(body, ["comment_id", "reason"]);
+    if (paramErr) return paramErr;
+
+    const commentId = requireUuid(body.comment_id, "comment_id");
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    const details = typeof body.details === "string"
+      ? body.details.trim().slice(0, 500)
+      : null;
+
+    if (!VALID_REPORT_REASONS.has(reason)) {
+      return jsonResponse(
+        { error: `Invalid reason. Must be one of: ${[...VALID_REPORT_REASONS].join(", ")}.` },
+        400,
+      );
+    }
+
+    const comment = await fetchReportableComment(commentId, user.id, supabaseAdmin);
+    await upsertExploreCommentReport({
+      commentId: comment.commentId,
+      postId: comment.postId,
+      reporterUserId: user.id,
+      commentAuthorUserId: comment.commentAuthorUserId,
+      reason,
+      details,
+    }, supabaseAdmin);
+
+    return jsonResponse({
+      success: true,
+      comment_id: commentId,
+      message: "Report submitted for moderation.",
+    }, 200);
+  }),
+);

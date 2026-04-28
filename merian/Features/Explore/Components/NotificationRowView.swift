@@ -49,14 +49,17 @@ struct NotificationRowView: View {
                         .padding(.top, 2)
                 } else {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
                         .padding(.top, 4)
                 }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(backgroundFill)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(backgroundFill)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
@@ -141,7 +144,7 @@ struct NotificationRowView: View {
 
     private var relativeTimestamp: String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
+        formatter.unitsStyle = .abbreviated
         if let updatedAtDate = notification.updatedAtDate {
             return formatter.localizedString(for: updatedAtDate, relativeTo: Date())
         }

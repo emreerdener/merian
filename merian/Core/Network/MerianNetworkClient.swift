@@ -1012,6 +1012,21 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreDeleteCommentResponse.self, from: data)
     }
 
+    func reportExploreComment(
+        commentId: String,
+        reason: String = "Inappropriate content",
+        details: String = "Reported from Explore comments"
+    ) async throws {
+        let functionUrl = try endpointURL("report-explore-comment")
+        let payload: [String: Any] = [
+            "comment_id": commentId,
+            "reason": reason,
+            "details": details
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
     // MARK: - Moderation
 
     func submitFlagIssue(scanId: String, flagReason: String, userSuggestion: String, userId: String) async throws {

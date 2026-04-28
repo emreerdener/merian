@@ -174,19 +174,31 @@ struct ExploreCommentsSheet: View {
 
                 Spacer()
 
-                if comment.viewerCanDelete {
+                if comment.hasOverflowActions {
                     Menu {
-                        Button(role: .destructive) {
-                            Task { await viewModel.deleteComment(comment) }
-                        } label: {
-                            Label("Delete comment", systemImage: "trash")
+                        if comment.viewerCanDelete || comment.viewerCanModerate {
+                            Button(role: .destructive) {
+                                Task { await viewModel.removeComment(comment) }
+                            } label: {
+                                Label(comment.removalActionTitle, systemImage: "trash")
+                            }
+                            .tint(.red)
+                        }
+
+                        if comment.viewerCanReport {
+                            Button(role: .destructive) {
+                                Task { await viewModel.reportComment(comment) }
+                            } label: {
+                                Label("Report comment", systemImage: "flag")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
                             .frame(width: 28, height: 28)
                     }
+                    .tint(.primary)
                 }
             }
 

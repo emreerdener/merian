@@ -52,6 +52,8 @@ serve((req: Request) =>
         body: rawBody,
         created_at: inserted.created_at,
         viewer_can_delete: true,
+        viewer_can_moderate: false,
+        viewer_can_report: false,
       },
       comment_count: commentCount,
     });

@@ -128,12 +128,26 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
     let body: String
     let createdAt: String
     let viewerCanDelete: Bool
+    let viewerCanModerate: Bool
+    let viewerCanReport: Bool
 
     var id: String { commentId }
 
     var createdAtDate: Date? {
         DateUtilities.iso8601FractionalFormatter.date(from: createdAt)
             ?? DateUtilities.iso8601Formatter.date(from: createdAt)
+    }
+
+    var hasOverflowActions: Bool {
+        viewerCanDelete || viewerCanModerate || viewerCanReport
+    }
+
+    var removalActionTitle: String {
+        viewerCanModerate ? "Remove from post" : "Delete comment"
+    }
+
+    var removalSuccessMessage: String {
+        viewerCanModerate ? "Comment removed from post" : "Comment deleted"
     }
 }
 
@@ -161,4 +175,5 @@ struct ExploreDeleteCommentResponse: Decodable {
     let success: Bool
     let commentId: String
     let commentCount: Int
+    let action: String
 }

@@ -63,10 +63,10 @@ The `/identify-multimodal` Edge Function is the primary client-facing inference 
 Explore uses a dedicated set of Edge Functions and SQL RPCs rather than sharing the identify pipeline. The current shipped surface includes:
 
 - feed + detail reads: `get-explore-feed`, `get-explore-post`, `get-explore-post-detail`, `get-explore-comments`
-- mutations: `share-scan-to-explore`, `unshare-explore-post`, `set-explore-post-like`, `create-explore-comment`, `delete-explore-comment`, `report-explore-content`
+- mutations: `share-scan-to-explore`, `unshare-explore-post`, `set-explore-post-like`, `create-explore-comment`, `delete-explore-comment`, `report-explore-comment`
 - activity reads: `get-explore-notifications`, `get-explore-unread-notification-count`, `mark-explore-notifications-read`
 
-The in-app notifications feed is backed by `public.explore_post_notifications`, not by local client state. Like notifications are recomputed from the authoritative `explore_post_likes` table after each insert/delete so concurrency cannot drift the aggregate count, comment notifications are created and removed via triggers on `explore_post_comments`, self-notifications are suppressed server-side, and notification rows are pruned when a post is unshared or a comment is soft-deleted.
+The in-app notifications feed is backed by `public.explore_post_notifications`, not by local client state. Like notifications are recomputed from the authoritative `explore_post_likes` table after each insert/delete so concurrency cannot drift the aggregate count, comment notifications are created and removed via triggers on `explore_post_comments`, self-notifications are suppressed server-side, and notification rows are pruned when a post is unshared or a comment is author-deleted or owner-moderated.
 
 `get-explore-post` is an important routing helper for the iOS client: it returns a single feed-card projection so notification taps and future deep links do not depend on the target post already existing in the currently paged `ExploreFeedViewModel.posts` array.
 

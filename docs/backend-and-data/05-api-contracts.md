@@ -358,7 +358,13 @@ This endpoint exists so Explore can render public species cards on the detail pa
 
 ### `/get-explore-comments`
 
-Returns comment rows for a single Explore post. The read path enforces the same private-geoprivacy and mutual-block filters as the feed. Comment rows include the public author label and a `viewer_can_delete` boolean so the UI can surface delete affordances for comment owners and post owners. This endpoint powers both the feed's bottom-sheet comments view and the inline comment thread on the Explore detail page.
+Returns comment rows for a single Explore post. The read path enforces the same private-geoprivacy and mutual-block filters as the feed. Comment rows include the public author label plus three viewer capability flags:
+
+- `viewer_can_delete`: The viewer authored this comment and may delete it.
+- `viewer_can_moderate`: The viewer owns the Explore post and may remove someone else's comment from that post.
+- `viewer_can_report`: The viewer may report this comment for abuse review.
+
+This endpoint powers both the feed's bottom-sheet comments view and the inline comment thread on the Explore detail page.
 
 ### `/share-scan-to-explore` and `/unshare-explore-post`
 
@@ -389,6 +395,22 @@ Notification side effects:
 - The response returns the updated `comment_count` so the feed can stay optimistic without a full reload.
 - Comment notifications are created and removed server-side through triggers on `explore_post_comments`.
 - Self-comments do not create notifications.
+
+Removal semantics:
+
+- If the current viewer authored the comment, `/delete-explore-comment` sets `deleted_at`.
+- If the current viewer owns the Explore post but did not author the comment, `/delete-explore-comment` performs an owner moderation action by setting `moderated_at` and `moderated_by_user_id`.
+- Both paths remove the comment from public reads and decrement `comment_count`, but they remain distinguishable in the database for auditability.
+
+### `/report-explore-comment`
+
+Creates or updates a moderation report for an Explore comment without removing it immediately.
+
+- Required body fields: `comment_id`, `reason`
+- Optional body field: `details`
+- Current allowed `reason` values: `Spam`, `Harassment`, `Inappropriate content`, `Other`
+- Users cannot report their own comments.
+- Duplicate reports by the same user collapse into a single row keyed by `(comment_id, reporter_user_id)`.
 
 ### `/get-explore-notifications`
 

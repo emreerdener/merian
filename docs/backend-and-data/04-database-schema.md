@@ -191,7 +191,26 @@ Comment table for Explore posts. Added in migration `20260425000000_add_explore_
 - `user_id` (UUID FK → `users.id`, CASCADE DELETE)
 - `body` (TEXT): Server-capped and non-blank.
 - `created_at` (TIMESTAMPTZ)
-- `deleted_at` (TIMESTAMPTZ, nullable): Soft delete marker used for moderation-safe removals.
+- `deleted_at` (TIMESTAMPTZ, nullable): Soft delete marker for author-initiated comment deletion.
+- `moderated_at` (TIMESTAMPTZ, nullable): Soft removal marker when a post owner removes someone else's comment from their post.
+- `moderated_by_user_id` (UUID FK → `users.id`, nullable): Which post owner performed the moderation action.
+
+Only comments where both `deleted_at` and `moderated_at` are `NULL` are visible in Explore reads and counted in `explore_posts.comment_count`.
+
+### `explore_comment_reports`
+
+Moderation queue ingress for abusive Explore comments. Added in migration `20260427113000_add_explore_comment_moderation.sql`.
+
+- `id` (UUID): Primary key.
+- `comment_id` (UUID FK → `explore_post_comments.id`, CASCADE DELETE)
+- `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE)
+- `reporter_user_id` (UUID FK → `users.id`, CASCADE DELETE)
+- `comment_author_user_id` (UUID FK → `users.id`, CASCADE DELETE)
+- `reason` (TEXT): Current client values are `Spam`, `Harassment`, `Inappropriate content`, or `Other`.
+- `details` (TEXT, nullable): Optional freeform context from the caller.
+- `created_at` (TIMESTAMPTZ): Report creation time.
+
+Uniqueness is enforced on `(comment_id, reporter_user_id)` so repeat reports from the same viewer update the existing row instead of creating duplicates.
 
 ### `explore_post_notifications`
 

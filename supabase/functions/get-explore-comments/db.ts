@@ -8,6 +8,8 @@ export interface ExploreCommentRow {
   body: string;
   created_at: string;
   viewer_can_delete: boolean;
+  viewer_can_moderate: boolean;
+  viewer_can_report: boolean;
 }
 
 export async function fetchExploreComments(
