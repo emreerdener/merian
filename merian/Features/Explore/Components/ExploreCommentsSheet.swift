@@ -5,6 +5,7 @@ struct ExploreCommentsSheet: View {
     let post: ExplorePost
 
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var isComposerFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -113,6 +114,9 @@ struct ExploreCommentsSheet: View {
 
                 TextField("Add a comment", text: $viewModel.commentDraft, axis: .vertical)
                     .lineLimit(1...4)
+                    .focused($isComposerFocused)
+                    .submitLabel(.done)
+                    .onSubmit { isComposerFocused = false }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
                     .background(

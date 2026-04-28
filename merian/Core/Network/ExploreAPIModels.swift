@@ -66,6 +66,7 @@ struct ExplorePostDetail: Decodable {
     let taxonomyOrder: String?
     let taxonomyFamily: String?
     let taxonomyGenus: String?
+    let aiReasoning: String?
     let habitatDescription: String?
     let gbifTaxonKey: Int?
     let iucnRedListStatus: String?
@@ -117,6 +118,12 @@ struct ExplorePostDetail: Decodable {
         }
 
         return false
+    }
+
+    var trimmedAiReasoning: String? {
+        guard let aiReasoning else { return nil }
+        let trimmed = aiReasoning.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

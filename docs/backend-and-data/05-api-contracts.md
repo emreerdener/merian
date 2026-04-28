@@ -346,6 +346,7 @@ Current response shape:
     "taxonomy_order": "Lepidoptera",
     "taxonomy_family": "Nymphalidae",
     "taxonomy_genus": "Danaus",
+    "ai_reasoning": "The bright orange wings with black veining and white-spotted margins are consistent with a monarch rather than the mimicking viceroy.",
     "habitat_description": "Often found in open meadows, milkweed patches, and migration corridors.",
     "gbif_taxon_key": 5130978,
     "iucn_red_list_status": "least_concern",
@@ -355,6 +356,14 @@ Current response shape:
 ```
 
 This endpoint exists so Explore can render public species cards on the detail page without loading private scan state or the Insight `InferenceEngine`.
+
+`ai_reasoning` is returned conditionally from the backing `scans` row, not copied into `explore_posts`. It is only exposed when the scan still reflects the original AI identification:
+
+- `is_flagged = false`
+- `user_review_state != 'user_overridden'`
+- `user_identification_override IS NULL`
+
+That means the Explore detail page automatically hides the reasoning if the user later flags the identification or overrides it, while still allowing AI-confirmed scans to show the original per-photo reasoning.
 
 ### `/get-explore-comments`
 

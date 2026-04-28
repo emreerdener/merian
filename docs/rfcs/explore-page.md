@@ -269,7 +269,7 @@ Recommended V1 endpoints:
 - `get-explore-post`
   - Returns a single Explore card projection for notification routing and deep links
 - `get-explore-post-detail`
-  - Returns public species-detail data for a single Explore post
+  - Returns public species-detail data for a single Explore post, including conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden
 - `get-explore-comments`
   - Returns paginated comments for a post
 - `get-explore-notifications`
@@ -284,8 +284,8 @@ Recommended V1 endpoints:
   - Creates a comment
 - `delete-explore-comment`
   - Deletes a comment if permitted
-- `report-explore-content`
-  - Reports a post or comment for trust-and-safety review
+- `report-explore-comment`
+  - Reports a comment for trust-and-safety review
 
 Existing endpoint reuse:
 

@@ -238,6 +238,15 @@ struct ExplorePostDetailView: View {
                 .font(.system(.largeTitle, design: .serif).weight(.bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
+
+            if let aiReasoning = detail?.trimmedAiReasoning {
+                Text(styledAiReasoning(text: aiReasoning, scientificName: post.speciesScientificName))
+                    .font(.system(.body))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .padding(.top, 8)
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -360,6 +369,8 @@ struct ExplorePostDetailView: View {
                 TextField("Add a comment", text: $viewModel.commentDraft, axis: .vertical)
                     .lineLimit(1...4)
                     .focused($isComposerFocused)
+                    .submitLabel(.done)
+                    .onSubmit { isComposerFocused = false }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
                     .background(
@@ -557,6 +568,28 @@ struct ExplorePostDetailView: View {
     private func createdAtText(for comment: ExploreComment) -> String? {
         guard let createdAtDate = comment.createdAtDate else { return nil }
         return createdAtDate.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func styledAiReasoning(text: String, scientificName: String) -> AttributedString {
+        let cleanText = text
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "_", with: "")
+        var result = AttributedString(cleanText)
+
+        let normalizedScientificName = scientificName
+            .replacingOccurrences(of: "'", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !normalizedScientificName.isEmpty {
+            var searchRange = result.startIndex..<result.endIndex
+            while let range = result[searchRange].range(of: normalizedScientificName, options: .caseInsensitive) {
+                result[range].font = .system(.body, design: .monospaced)
+                result[range].backgroundColor = Color.secondary.opacity(0.15)
+                searchRange = range.upperBound..<result.endIndex
+            }
+        }
+
+        return result
     }
 }
 

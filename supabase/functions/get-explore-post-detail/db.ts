@@ -9,6 +9,7 @@ export interface ExplorePostDetailRow {
   taxonomy_order?: string | null;
   taxonomy_family?: string | null;
   taxonomy_genus?: string | null;
+  ai_reasoning?: string | null;
   habitat_description?: string | null;
   gbif_taxon_key?: number | null;
   iucn_red_list_status?: string | null;
