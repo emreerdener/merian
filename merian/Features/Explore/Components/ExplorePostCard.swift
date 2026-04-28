@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ExplorePostCard: View {
     let post: ExplorePost
@@ -40,36 +41,41 @@ struct ExplorePostCard: View {
         Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay(
-                AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case .failure:
-                        ZStack {
-                            LinearGradient(
-                                colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                ExploreTransientZoomView(
+                    onSingleTap: onOpenDetail,
+                    onDoubleTap: handleDoubleTapLike
+                ) {
+                    AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        case .failure:
+                            ZStack {
+                                LinearGradient(
+                                    colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
 
-                            Image(systemName: "photo")
-                                .font(.system(size: 28, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case .empty:
-                        ZStack {
-                            Color(uiColor: .tertiarySystemFill)
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    @unknown default:
-                        Color(uiColor: .tertiarySystemFill)
+                                Image(systemName: "photo")
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        case .empty:
+                            ZStack {
+                                Color(uiColor: .tertiarySystemFill)
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        @unknown default:
+                            Color(uiColor: .tertiarySystemFill)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
                     }
                 }
             )
@@ -90,7 +96,6 @@ struct ExplorePostCard: View {
                 }
             }
             .contentShape(Rectangle())
-            .gesture(mediaTapGesture)
     }
 
     private var headerRow: some View {
@@ -120,17 +125,6 @@ struct ExplorePostCard: View {
 
             menuButton
         }
-    }
-
-    private var mediaTapGesture: some Gesture {
-        ExclusiveGesture(
-            TapGesture(count: 2).onEnded {
-                handleDoubleTapLike()
-            },
-            TapGesture().onEnded {
-                onOpenDetail()
-            }
-        )
     }
 
     @ViewBuilder
@@ -499,5 +493,183 @@ extension ExplorePostCard {
                 : Color(uiColor: .tertiarySystemFill)
             return base.opacity(isGlowing ? 0.86 : 0.66)
         }
+    }
+}
+
+struct ExploreTransientZoomView<Content: View>: UIViewControllerRepresentable {
+    private let content: Content
+    private let onSingleTap: (() -> Void)?
+    private let onDoubleTap: (() -> Void)?
+
+    init(
+        onSingleTap: (() -> Void)? = nil,
+        onDoubleTap: (() -> Void)? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.content = content()
+        self.onSingleTap = onSingleTap
+        self.onDoubleTap = onDoubleTap
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let viewController = UIViewController()
+        viewController.view.backgroundColor = .clear
+
+        let scrollView = ExploreTransientZoomScrollView()
+        scrollView.delegate = context.coordinator
+        scrollView.maximumZoomScale = 4.0
+        scrollView.minimumZoomScale = 1.0
+        scrollView.bouncesZoom = true
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.backgroundColor = .clear
+        scrollView.contentInsetAdjustmentBehavior = .never
+        scrollView.clipsToBounds = true
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        let hostingController = UIHostingController(rootView: content)
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+
+        viewController.view.addSubview(scrollView)
+        scrollView.addSubview(hostingController.view)
+
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: viewController.view.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: viewController.view.bottomAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: viewController.view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: viewController.view.trailingAnchor),
+            hostingController.view.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+            hostingController.view.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+            hostingController.view.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+            hostingController.view.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
+        ])
+
+        viewController.addChild(hostingController)
+        hostingController.didMove(toParent: viewController)
+
+        context.coordinator.hostingController = hostingController
+        context.coordinator.onSingleTap = onSingleTap
+        context.coordinator.onDoubleTap = onDoubleTap
+
+        if onDoubleTap != nil {
+            let doubleTapRecognizer = UITapGestureRecognizer(
+                target: context.coordinator,
+                action: #selector(Coordinator.handleDoubleTap(_:))
+            )
+            doubleTapRecognizer.numberOfTapsRequired = 2
+            scrollView.addGestureRecognizer(doubleTapRecognizer)
+            context.coordinator.doubleTapRecognizer = doubleTapRecognizer
+        }
+
+        if onSingleTap != nil {
+            let singleTapRecognizer = UITapGestureRecognizer(
+                target: context.coordinator,
+                action: #selector(Coordinator.handleSingleTap(_:))
+            )
+            if let doubleTapRecognizer = context.coordinator.doubleTapRecognizer {
+                singleTapRecognizer.require(toFail: doubleTapRecognizer)
+            }
+            scrollView.addGestureRecognizer(singleTapRecognizer)
+            context.coordinator.singleTapRecognizer = singleTapRecognizer
+        }
+
+        return viewController
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        context.coordinator.hostingController?.rootView = content
+        context.coordinator.onSingleTap = onSingleTap
+        context.coordinator.onDoubleTap = onDoubleTap
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        var hostingController: UIHostingController<Content>?
+        var onSingleTap: (() -> Void)?
+        var onDoubleTap: (() -> Void)?
+        weak var singleTapRecognizer: UITapGestureRecognizer?
+        weak var doubleTapRecognizer: UITapGestureRecognizer?
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            hostingController?.view
+        }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            guard let view = hostingController?.view else { return }
+
+            let offsetX = max((scrollView.bounds.width - scrollView.contentSize.width) * 0.5, 0)
+            let offsetY = max((scrollView.bounds.height - scrollView.contentSize.height) * 0.5, 0)
+            view.center = CGPoint(
+                x: scrollView.contentSize.width * 0.5 + offsetX,
+                y: scrollView.contentSize.height * 0.5 + offsetY
+            )
+        }
+
+        func scrollViewDidEndZooming(
+            _ scrollView: UIScrollView,
+            with view: UIView?,
+            atScale scale: CGFloat
+        ) {
+            snapBackToIdentity(scrollView)
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            guard scrollView.zoomScale > scrollView.minimumZoomScale + 0.01 else { return }
+
+            if decelerate {
+                scrollView.setContentOffset(scrollView.contentOffset, animated: false)
+            }
+
+            snapBackToIdentity(scrollView)
+        }
+
+        @objc
+        func handleSingleTap(_ recognizer: UITapGestureRecognizer) {
+            guard let scrollView = recognizer.view as? UIScrollView,
+                  scrollView.zoomScale <= scrollView.minimumZoomScale + 0.01 else {
+                return
+            }
+
+            onSingleTap?()
+        }
+
+        @objc
+        func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
+            guard let scrollView = recognizer.view as? UIScrollView,
+                  scrollView.zoomScale <= scrollView.minimumZoomScale + 0.01 else {
+                return
+            }
+
+            onDoubleTap?()
+        }
+
+        private func snapBackToIdentity(_ scrollView: UIScrollView) {
+            UIView.animate(
+                withDuration: 0.38,
+                delay: 0,
+                usingSpringWithDamping: 0.72,
+                initialSpringVelocity: 0.3,
+                options: [.allowUserInteraction, .beginFromCurrentState]
+            ) {
+                scrollView.setZoomScale(1.0, animated: false)
+                scrollView.contentOffset = .zero
+            }
+        }
+    }
+}
+
+private final class ExploreTransientZoomScrollView: UIScrollView {
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === panGestureRecognizer {
+            return zoomScale > minimumZoomScale + 0.01
+        }
+
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
 }
