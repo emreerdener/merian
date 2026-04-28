@@ -79,16 +79,12 @@ import Supabase
                 self.currentUser = session.user
                 self.isAuthenticated = true
 
-                let userId = session.user.id.uuidString
-                if userId != lastLinkedUserId {
+                if await self.ensureTelemetryLinkedIfNeeded(for: session.user) {
                     // Only link telemetry and trigger historical sync when the active user
                     // identity actually changes. The Supabase SDK fires two auth events on
                     // cold start (local cache + server validation), both with the same user —
                     // skipping the duplicate avoids a redundant RevenueCat logIn round-trip,
                     // a duplicate PostHog identify, and a second concurrent historical sync.
-                    lastLinkedUserId = userId
-                    await self.linkExternalTelemetry(user: session.user)
-
                     // Sync historical scans on session restore to capture re-installs.
                     // Stamp lastHistoricalSyncDate here so AppLifecycleManager's 15-minute
                     // throttle gate sees this sync and skips its own redundant call — without
@@ -123,6 +119,15 @@ import Supabase
         PostHogManager.shared.identifyUser(userId: userId)
     }
 
+    @discardableResult
+    private func ensureTelemetryLinkedIfNeeded(for user: User) async -> Bool {
+        let userId = user.id.uuidString
+        guard userId != lastLinkedUserId else { return false }
+        lastLinkedUserId = userId
+        await linkExternalTelemetry(user: user)
+        return true
+    }
+
     // MARK: - Ghost Session
 
     /// Creates an anonymous session for new users. Skips creation if a session exists or
@@ -131,7 +136,7 @@ import Supabase
         do {
             let session = try await client.auth.session
             MerianLog.auth.debug("Existing session resolved on device.")
-            await linkExternalTelemetry(user: session.user)
+            _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
         } catch {
             let errString = String(describing: error)
 
@@ -146,7 +151,7 @@ import Supabase
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
                     MerianLog.auth.debug("Ghost session established: \(authResponse.user.id.uuidString, privacy: .private)")
-                    await linkExternalTelemetry(user: authResponse.user)
+                    _ = await ensureTelemetryLinkedIfNeeded(for: authResponse.user)
                 } catch {
                     MerianLog.auth.debug("Failed to establish ghost session: \(error.localizedDescription, privacy: .private)")
                 }
@@ -216,7 +221,7 @@ import Supabase
 
             try await self.finalizeOAuthLogin(provider: .google, idToken: idToken, accessToken: accessToken, nonce: nil)
             let session = try await client.auth.session
-            await linkExternalTelemetry(user: session.user)
+            _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
 
             KeychainManager.shared.set(true, forKey: "Merian_HasAuthenticatedOAuth")
             MerianLog.auth.debug("Google Sign-In complete.")
@@ -359,7 +364,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
             do {
                 try await self.finalizeOAuthLogin(provider: .apple, idToken: idTokenString, accessToken: nil, nonce: nonce)
                 let session = try await client.auth.session
-                await linkExternalTelemetry(user: session.user)
+                _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
                 KeychainManager.shared.set(true, forKey: "Merian_HasAuthenticatedOAuth")
                 MerianLog.auth.debug("Apple Sign-In complete.")
             } catch {

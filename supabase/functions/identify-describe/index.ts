@@ -6,6 +6,12 @@ import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
+  buildObservationPrompt,
+  normalizeCurrentMonth,
+  sanitizeLifeStage,
+  sanitizeReproductiveCondition,
+} from "../_shared/identify/context.ts";
+import {
   CachedSpeciesRow,
   ClientPayload,
   MerianIdentification,
@@ -23,33 +29,6 @@ import {
   updateGroupTags,
   insertDescribeScan,
 } from "./db.ts";
-
-// Enum guards — keep in sync with life_stage_enum and reproductive_condition_enum in DB.
-const VALID_LIFE_STAGES = new Set([
-  "egg", "larva", "pupa", "nymph", "juvenile", "subadult",
-  "adult", "seedling", "sapling", "unknown",
-]);
-const VALID_REPRODUCTIVE_CONDITIONS = new Set([
-  "flowering", "fruiting", "budding", "vegetative", "sporing",
-  "pregnant", "gravid", "mating", "spawning", "nesting", "dormant", "not_applicable",
-]);
-
-function normalizeCurrentMonth(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const month = Math.trunc(value);
-    return month >= 1 && month <= 12 ? month : undefined;
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (/^\d{1,2}$/.test(trimmed)) {
-      const month = Number(trimmed);
-      return month >= 1 && month <= 12 ? month : undefined;
-    }
-  }
-
-  return undefined;
-}
 
 // Text-only model configs — no image parts, so thinking budgets are smaller.
 // Flash text calls for describes are less ambiguous than vision (the user already
@@ -78,52 +57,6 @@ const modelConfigs = {
     },
   },
 };
-
-// ---------------------------------------------------------------------------
-// Context preamble builder — injects geographic/seasonal telemetry as text
-// so the model receives the same environmental context as the vision path.
-// ---------------------------------------------------------------------------
-
-function buildObservationPrompt(
-  description: string,
-  telemetry: {
-    safeGpsLat: number | null;
-    safeGpsLon: number | null;
-    gpsElevation?: number;
-    semanticLocation?: string;
-    weatherCondition?: string;
-    weatherTemperatureF?: number;
-    deviceLocale?: string;
-    deviceTimeZone?: string;
-    deviceRegion?: string;
-    currentMonth?: number;
-    timeOfDay?: string;
-  },
-): string {
-  const contextItems = [
-    telemetry.safeGpsLat != null && telemetry.safeGpsLon != null
-      ? `GPS:${telemetry.safeGpsLat},${telemetry.safeGpsLon}` : null,
-    telemetry.gpsElevation != null ? `Elev:${telemetry.gpsElevation}m` : null,
-    telemetry.semanticLocation ? `Loc:${telemetry.semanticLocation}` : null,
-    telemetry.weatherCondition ? `Wx:${telemetry.weatherCondition}` : null,
-    telemetry.weatherTemperatureF != null ? `Temp:${telemetry.weatherTemperatureF}F` : null,
-    telemetry.deviceLocale ? `Locale:${telemetry.deviceLocale}` : null,
-    telemetry.deviceTimeZone ? `TZ:${telemetry.deviceTimeZone}` : null,
-    telemetry.deviceRegion ? `Region:${telemetry.deviceRegion}` : null,
-    telemetry.currentMonth ? `Month:${telemetry.currentMonth}` : null,
-    telemetry.timeOfDay ? `Time:${telemetry.timeOfDay}` : null,
-  ].filter(Boolean);
-
-  const contextBlock = contextItems.length > 0
-    ? `Context: ${contextItems.join(", ")}.\n\n`
-    : "";
-
-  return `${contextBlock}Observation Description:\n${description}`;
-}
-
-// ---------------------------------------------------------------------------
-// Handler
-// ---------------------------------------------------------------------------
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -282,12 +215,10 @@ serve((req: Request) =>
           ? Math.min(Math.round(parsedData.individual_count), 99999)
           : undefined;
     }
-    if (parsedData.life_stage != null && !VALID_LIFE_STAGES.has(parsedData.life_stage)) {
-      parsedData.life_stage = "unknown";
-    }
-    if (parsedData.reproductive_condition != null && !VALID_REPRODUCTIVE_CONDITIONS.has(parsedData.reproductive_condition)) {
-      parsedData.reproductive_condition = "not_applicable";
-    }
+    parsedData.life_stage = sanitizeLifeStage(parsedData.life_stage)
+      ?? parsedData.life_stage;
+    parsedData.reproductive_condition = sanitizeReproductiveCondition(parsedData.reproductive_condition)
+      ?? parsedData.reproductive_condition;
 
     // Describes always have zero blur (no image).
     parsedData.blur_score = 0;

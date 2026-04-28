@@ -104,8 +104,7 @@ extension OfflineQueueManager {
         let adoptedAudioPaths = Set(explicitlyAdoptedAudioPaths)
         
         if let jsonStr = scan.capturedMediaJSON,
-           let jsonData = jsonStr.data(using: .utf8),
-           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+           let items = MediaJSONParser.serializedItems(jsonString: jsonStr) {
             for item in items {
                 switch item {
                 case .image(let path):
@@ -147,8 +146,7 @@ extension OfflineQueueManager {
             let failedScans = try context.fetch(descriptor)
             for scan in failedScans {
                 if let jsonStr = scan.capturedMediaJSON,
-                   let jsonData = jsonStr.data(using: .utf8),
-                   let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                   let items = MediaJSONParser.serializedItems(jsonString: jsonStr) {
                     for item in items {
                         switch item {
                         case .image(let path), .audio(let path):

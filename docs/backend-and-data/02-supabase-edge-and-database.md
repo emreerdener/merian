@@ -248,3 +248,9 @@ For a production deployment, the following secrets MUST be set in the Supabase V
 - **`RESEND_API_KEY`**: The API Key from Resend for sending transactional emails (like DwC-A exports).
 - **`RESEND_FROM_EMAIL`**: The verified sender domain (e.g., `exports@merian.app`). If absent, it falls back to Resend's testing domain `onboarding@resend.dev` which will FAIL unless sending to the developer's registered account.
 - **`DWC_A_SECRET_SALT`**: A high-entropy salt used to generate stable but anonymized IDs for global exports.
+
+## 2026-04 Hardening Updates
+
+- Edge telemetry parsing is now centralized through `_shared/identify/context.ts`, which keeps month normalization and enum clamping identical across image, describe, multimodal, and audio endpoints.
+- Audio preprocessing is now shared via `_shared/audioProcessing.ts`, removing the old dual-maintenance WAV pipeline between `/audio-spec` and `/identify-multimodal`.
+- The discovery-feed JS fallback remains strictly secondary to the Postgres RPC path and now bounds over-fetch using the current block-list size instead of a fixed always-extra query window.

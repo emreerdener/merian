@@ -55,56 +55,59 @@ final class SpeechManager {
         recognitionRequest = request
         let manager = self
         
-        try await Task.detached { [manager] in
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
-            
-            #if targetEnvironment(simulator)
-            // Simulator specific fix: iOS forces 0 Hz sample rates randomly causing -10851 aborts.
-            try? audioSession.setPreferredSampleRate(48000)
-            #endif
-            
-            try audioSession.setActive(true)
-            
-            // Accessing inputNode for the first time negotiates hardware and triggers IPC.
-            // MUST be detached so the Main Thread is yielded and free to receive mediaserverd callbacks.
-            let inputNode = engine.inputNode
-            let recordingFormat = inputNode.outputFormat(forBus: 0)
-            guard recordingFormat.sampleRate > 0 else {
-                throw PermissionError() // HAL returned 0 Hz, bail.
-            }
-            
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-                request.append(buffer)
+        do {
+            try await Task.detached { [manager] in
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
                 
-                guard let channelData = buffer.floatChannelData?[0] else { return }
-                let frames = buffer.frameLength
-                var rms: Float = 0
-                for i in 0..<Int(frames) {
-                    rms += channelData[i] * channelData[i]
-                }
-                if frames > 0 {
-                    rms = sqrt(rms / Float(frames))
+                #if targetEnvironment(simulator)
+                // Simulator specific fix: iOS forces 0 Hz sample rates randomly causing -10851 aborts.
+                try? audioSession.setPreferredSampleRate(48000)
+                #endif
+                
+                try audioSession.setActive(true)
+                
+                // Accessing inputNode for the first time negotiates hardware and triggers IPC.
+                // MUST be detached so the Main Thread is yielded and free to receive mediaserverd callbacks.
+                let inputNode = engine.inputNode
+                let recordingFormat = inputNode.outputFormat(forBus: 0)
+                guard recordingFormat.sampleRate > 0 else {
+                    throw PermissionError() // HAL returned 0 Hz, bail.
                 }
                 
-                // Convert to a 0.0 - 1.0 scale
-                let minDb: Float = -60.0
-                let db = 20 * log10(max(rms, 1e-6))
-                let level = CGFloat(max(0.0, min(1.0, (db - minDb) / (0 - minDb))))
-                
-                Task { @MainActor in
-                    manager.audioLevel = level
+                inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+                    request.append(buffer)
+                    
+                    guard let channelData = buffer.floatChannelData?[0] else { return }
+                    let frames = buffer.frameLength
+                    var rms: Float = 0
+                    for i in 0..<Int(frames) {
+                        rms += channelData[i] * channelData[i]
+                    }
+                    if frames > 0 {
+                        rms = sqrt(rms / Float(frames))
+                    }
+                    
+                    // Convert to a 0.0 - 1.0 scale
+                    let minDb: Float = -60.0
+                    let db = 20 * log10(max(rms, 1e-6))
+                    let level = CGFloat(max(0.0, min(1.0, (db - minDb) / (0 - minDb))))
+                    
+                    Task { @MainActor in
+                        manager.audioLevel = level
+                    }
                 }
-            }
-            
-            engine.prepare()
-            try engine.start()
-        }.value
+                
+                engine.prepare()
+                try engine.start()
+            }.value
+        } catch {
+            handleCancelledStartup()
+            throw error
+        }
         
         if Task.isCancelled {
-            Task.detached {
-                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-            }
+            handleCancelledStartup()
             return
         }
         
@@ -129,6 +132,7 @@ final class SpeechManager {
     
     func stopDictation() {
         teardownAudioEngine()
+        audioLevel = 0.0
         isRecording = false
     }
     
@@ -147,4 +151,16 @@ final class SpeechManager {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
+
+    private func handleCancelledStartup() {
+        teardownAudioEngine()
+        audioLevel = 0.0
+        isRecording = false
+    }
+
+#if DEBUG
+    func debugHandleStartupCancellation() {
+        handleCancelledStartup()
+    }
+#endif
 }

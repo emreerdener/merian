@@ -34,6 +34,12 @@ import {
 import { processWAV } from "./audio.ts";
 import { resolveImagePayloads } from "../_shared/identify/media.ts";
 import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
+import {
+  buildContextText,
+  normalizeCurrentMonth,
+  sanitizeLifeStage,
+  sanitizeReproductiveCondition,
+} from "../_shared/identify/context.ts";
 
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import {
@@ -70,51 +76,6 @@ You are an expert encyclopedic field-guide biologist and taxonomist with special
 - **Holistic Evaluation:** Evaluate the provided audio spectrograms AND visual images sequentially before formulating a combined taxonomic confidence score.
 - **Modality Synthesis:** Weigh BOTH visual and acoustic evidence. Prioritize the bio-acoustic trace unless it clearly contradicts the vision context or the vision context is overwhelmingly diagnostic.
 - **Reporting:** Your \`ai_reasoning\` MUST encompass BOTH modalities, explaining how they corroborate or contradict each other.`;
-
-const VALID_LIFE_STAGES = new Set([
-  "egg",
-  "larva",
-  "pupa",
-  "nymph",
-  "juvenile",
-  "subadult",
-  "adult",
-  "seedling",
-  "sapling",
-  "unknown",
-]);
-
-const VALID_REPRODUCTIVE_CONDITIONS = new Set([
-  "flowering",
-  "fruiting",
-  "budding",
-  "vegetative",
-  "sporing",
-  "pregnant",
-  "gravid",
-  "mating",
-  "spawning",
-  "nesting",
-  "dormant",
-  "not_applicable",
-]);
-
-function normalizeCurrentMonth(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const month = Math.trunc(value);
-    return month >= 1 && month <= 12 ? month : undefined;
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (/^\d{1,2}$/.test(trimmed)) {
-      const month = Number(trimmed);
-      return month >= 1 && month <= 12 ? month : undefined;
-    }
-  }
-
-  return undefined;
-}
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -278,29 +239,24 @@ serve((req: Request) =>
       partsArray.push({ inlineData: { mimeType: "audio/wav", data: audio } });
     }
 
-    const telemetryItems = [
-      safeGpsLat != null && safeGpsLon != null
-        ? `GPS:${safeGpsLat},${safeGpsLon}`
-        : null,
-      gpsElevation != null ? `Elev:${gpsElevation}m` : null,
-      depthScaleText ? `Depth:${depthScaleText}` : null,
-      zoomFactor != null && Number.isFinite(zoomFactor) && zoomFactor > 1
-        ? `Zoom:${zoomFactor.toFixed(1)}x`
-        : null,
-      (estimatedSizeCm != null && Number.isFinite(estimatedSizeCm) &&
-          estimatedSizeCm > 0)
-        ? `Size:${estimatedSizeCm}cm`
-        : null,
-      semanticLocation ? `Loc:${semanticLocation}` : null,
-      weatherCondition ? `Wx:${weatherCondition}` : null,
-      weatherTemperatureF != null ? `Temp:${weatherTemperatureF}F` : null,
-      deviceLocale ? `Locale:${deviceLocale}` : null,
-      deviceTimeZone ? `TZ:${deviceTimeZone}` : null,
-      deviceRegion ? `Region:${deviceRegion}` : null,
-      currentMonth != null ? `Month:${currentMonth}` : null,
-      timeOfDay ? `Time:${timeOfDay}` : null,
-    ].filter(Boolean).join(", ");
-    partsArray.push({ text: `Context: ${telemetryItems || "no telemetry"}.` });
+    partsArray.push({
+      text: buildContextText({
+        safeGpsLat,
+        safeGpsLon,
+        gpsElevation,
+        depthScaleText,
+        zoomFactor,
+        estimatedSizeCm,
+        semanticLocation,
+        weatherCondition,
+        weatherTemperatureF,
+        deviceLocale,
+        deviceTimeZone,
+        deviceRegion,
+        currentMonth,
+        timeOfDay,
+      }),
+    });
 
     if (partsArray.length === 1 && !hasObservationContextText) {
       return jsonResponse({
@@ -418,26 +374,26 @@ serve((req: Request) =>
           ? Math.min(Math.round(parsedData.individual_count), 99999)
           : undefined;
     }
-    if (
-      parsedData.life_stage != null &&
-      !VALID_LIFE_STAGES.has(parsedData.life_stage)
-    ) {
+    const sanitizedLifeStage = sanitizeLifeStage(parsedData.life_stage);
+    if (parsedData.life_stage != null && sanitizedLifeStage != parsedData.life_stage) {
       logStructuredError("multimodal/unknown_life_stage", {
         user_id: user.id,
         value: parsedData.life_stage,
       });
-      parsedData.life_stage = "unknown";
     }
+    parsedData.life_stage = sanitizedLifeStage;
+
+    const sanitizedReproductiveCondition = sanitizeReproductiveCondition(parsedData.reproductive_condition);
     if (
       parsedData.reproductive_condition != null &&
-      !VALID_REPRODUCTIVE_CONDITIONS.has(parsedData.reproductive_condition)
+      sanitizedReproductiveCondition != parsedData.reproductive_condition
     ) {
       logStructuredError("multimodal/unknown_reproductive_condition", {
         user_id: user.id,
         value: parsedData.reproductive_condition,
       });
-      parsedData.reproductive_condition = "not_applicable";
     }
+    parsedData.reproductive_condition = sanitizedReproductiveCondition;
     parsedData.blur_score = Math.max(
       0,
       (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10,
@@ -528,7 +484,7 @@ serve((req: Request) =>
     if (isIdentifiedBio) {
       cachedSpecies = fetchedCachedSpecies;
 
-      if (normalizeTaxonomyValue(cachedSpecies?.kingdom)) {
+      if (cachedSpecies && normalizeTaxonomyValue(cachedSpecies.kingdom)) {
         payloadReadyForClient = hydratePayloadFromCachedSpecies(
           payloadReadyForClient,
           cachedSpecies,
@@ -612,7 +568,7 @@ serve((req: Request) =>
           : Promise.resolve(null);
 
         if (isIdentifiedBio) {
-          if (normalizeTaxonomyValue(cachedSpecies?.kingdom)) {
+          if (cachedSpecies && normalizeTaxonomyValue(cachedSpecies.kingdom)) {
             speciesId = cachedSpecies.id;
           } else if (externalData) {
             const freshSpecies = await fetchCachedSpecies(

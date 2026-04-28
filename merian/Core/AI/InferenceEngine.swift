@@ -120,22 +120,40 @@ private struct GBIFMedia: Decodable {
     /// rather than allowed to stack — prevents OOM during rapid offline-queue replay where
     /// multiple wiki/GBIF/enrichment writes can stack faster than SQLite drains them.
     private let backgroundWriteTaskCap = 8
+    /// Monotonic session token for the bounded background-write queue. Resetting the engine
+    /// increments the generation so queued work from a previous scan session cannot drain into
+    /// the next one after cancellation.
+    @ObservationIgnored private var backgroundWriteGeneration: UInt64 = 0
 
-    @ObservationIgnored private var pendingBackgroundTasks: [@Sendable () async -> Void] = []
+    private struct PendingBackgroundWrite {
+        let generation: UInt64
+        let operation: @Sendable () async -> Void
+    }
+    @ObservationIgnored private var pendingBackgroundTasks: [PendingBackgroundWrite] = []
 
     private func executeTrackedBackgroundTask(operation: @escaping @Sendable () async -> Void) {
+        let generation = backgroundWriteGeneration
         guard backgroundWriteTasks.count < backgroundWriteTaskCap else {
-            pendingBackgroundTasks.append(operation)
+            pendingBackgroundTasks.append(PendingBackgroundWrite(generation: generation, operation: operation))
             return
         }
+        startTrackedBackgroundTask(operation: operation, generation: generation)
+    }
+
+    private func startTrackedBackgroundTask(
+        operation: @escaping @Sendable () async -> Void,
+        generation: UInt64
+    ) {
+        guard generation == backgroundWriteGeneration else { return }
         let id = UUID()
         let task = Task { [weak self] in
-            defer { 
-                Task { @MainActor [weak self] in 
+            defer {
+                Task { @MainActor [weak self] in
                     self?.backgroundWriteTasks.removeValue(forKey: id)
                     self?.drainPendingBackgroundTasks()
-                } 
+                }
             }
+            guard !Task.isCancelled else { return }
             await operation()
         }
         backgroundWriteTasks[id] = task
@@ -143,9 +161,19 @@ private struct GBIFMedia: Decodable {
 
     @MainActor
     private func drainPendingBackgroundTasks() {
-        guard backgroundWriteTasks.count < backgroundWriteTaskCap, !pendingBackgroundTasks.isEmpty else { return }
-        let next = pendingBackgroundTasks.removeFirst()
-        executeTrackedBackgroundTask(operation: next)
+        while backgroundWriteTasks.count < backgroundWriteTaskCap, !pendingBackgroundTasks.isEmpty {
+            let next = pendingBackgroundTasks.removeFirst()
+            guard next.generation == backgroundWriteGeneration else { continue }
+            startTrackedBackgroundTask(operation: next.operation, generation: next.generation)
+        }
+    }
+
+    @MainActor
+    private func resetTrackedBackgroundWrites() {
+        backgroundWriteGeneration &+= 1
+        pendingBackgroundTasks.removeAll(keepingCapacity: false)
+        for task in backgroundWriteTasks.values { task.cancel() }
+        backgroundWriteTasks.removeAll(keepingCapacity: false)
     }
 
     private func isSpeciesEnriched(_ name: String) -> Bool {
@@ -227,8 +255,7 @@ private struct GBIFMedia: Decodable {
         self.enrichmentWriteTask = nil
         self.localClassificationTask?.cancel()
         self.phaseRotationTask?.cancel()
-        for task in self.backgroundWriteTasks.values { task.cancel() }
-        self.backgroundWriteTasks.removeAll()
+        self.resetTrackedBackgroundWrites()
 
         // Reset scan identity and processing flags.
         self.activeScanId = nil
@@ -283,6 +310,7 @@ private struct GBIFMedia: Decodable {
         self.phaseRotationTask?.cancel()
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
+        self.resetTrackedBackgroundWrites()
 
         // Reset loading flags synchronously before the cancelled tasks' defer blocks can run
         // on @MainActor. Without this, a stale defer from the old task can fire after the new
@@ -1886,8 +1914,7 @@ private struct GBIFMedia: Decodable {
         self.historicHydrationTask?.cancel()
         self.localClassificationTask?.cancel()
         self.phaseRotationTask?.cancel()
-        for task in self.backgroundWriteTasks.values { task.cancel() }
-        self.backgroundWriteTasks.removeAll()
+        self.resetTrackedBackgroundWrites()
         // Cancel GBIF hydration so stale image URLs cannot be written to a record
         // that is no longer active after the user fires a new scan or navigates away.
         self.gbifHydrationTask?.cancel()
@@ -1909,6 +1936,28 @@ private struct GBIFMedia: Decodable {
         activeWeatherCondition = nil
         activeTemperatureF = nil
     }
+
+#if DEBUG
+    struct DebugBackgroundWriteState: Sendable {
+        let active: Int
+        let pending: Int
+        let generation: UInt64
+    }
+
+    var debugBackgroundWriteTaskCap: Int { backgroundWriteTaskCap }
+
+    func debugBackgroundWriteState() -> DebugBackgroundWriteState {
+        DebugBackgroundWriteState(
+            active: backgroundWriteTasks.count,
+            pending: pendingBackgroundTasks.count,
+            generation: backgroundWriteGeneration
+        )
+    }
+
+    func debugEnqueueTrackedBackgroundTask(_ operation: @escaping @Sendable () async -> Void) {
+        executeTrackedBackgroundTask(operation: operation)
+    }
+#endif
 
     /// Removes an invalid image URL from the carousel and from the stored `referenceImageUrl` field.
     func dropInvalidCarouselImage(_ identifier: String) {

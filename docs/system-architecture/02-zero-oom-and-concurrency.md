@@ -824,3 +824,11 @@ This ensures:
 1. **Zero memory leaks:** The `.task` modifier bounds the execution lifecycle to the view. When the view disappears, the task is automatically cancelled and destroyed.
 2. **Battery and API safety:** The `maxRetries` cap and the exponential backoff (e.g., 2s, 4s, 8s, 16s, 32s) prevent a permanently offline device from infinitely polling the network layer.
 3. **Seamless UX:** The UI remains in a silent "loading" skeleton state throughout the retry window, resolving automatically when connectivity restores without requiring a user tap.
+
+## 2026-04 Hardening Updates
+
+- `MerianApp` no longer wipes the SwiftData store on every `ModelContainer` init failure. Recovery is now corruption-specific, quarantines `default.store` + WAL/SHM siblings first, and fails closed on non-corruption startup errors.
+- `InferenceEngine` now guards background-write replay with a generation token. `prepareForNewScan()` and `cancelActiveRequest()` both clear pending closures and invalidate stale write tasks so cancelled work cannot mutate the next scan session.
+- `AudioCaptureManager` and `SpeechManager` now guarantee full teardown on startup cancellation and early failures: tap removal, engine stop, task cancellation, stream finishing, and session deactivation all happen on every exit path.
+- The spectrogram and SNR hot paths no longer use repeated `removeFirst()` array shifts. They now keep bounded circular buffers for visible spectrogram history and trailing noise-floor history.
+- Non-biological bulk deletion now commits SwiftData and `PendingCloudDeletionTask` state before file removal, eliminating the broken "DB row survives but media is already gone" failure mode.

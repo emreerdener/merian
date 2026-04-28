@@ -4,16 +4,7 @@ import SwiftUI
 // MARK: - Gamification Database Engine
 extension ProfileDatabaseActor {
     func calculateAwards() -> [AwardPayload] {
-        var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
-        // CRITICAL SEC FIX: Severely drop V8/JetSam memory expansion bounds manually limit columns
-        descriptor.propertiesToFetch = [
-            \.scientificName, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType,
-            \.weatherTemperatureF, \.gpsElevation, \.timestamp, \.isInvasive,
-            \.iucnRedListStatus, \.hazardType, \.confidenceScore
-        ]
-        
-        guard let allRecords = try? modelContext.fetch(descriptor) else { return [] }
-        return AchievementsCalculator.calculate(from: allRecords)
+        calculateAwardsProjection()
     }
 }
 

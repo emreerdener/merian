@@ -222,3 +222,9 @@ All magic numbers governing the sync pipeline live in `MerianConfig.swift` (Core
 | `diskSpaceThreshold` | 500 MB | Minimum free space before archive/rescue operations |
 | `archiveRescueWindowStartDays` | 80 | Free Tier ASP rescue window start |
 | `archiveRescueWindowEndDays` | 88 | Free Tier ASP rescue window end |
+
+## 2026-04 Hardening Updates
+
+- Offline scan completion now preserves the user’s original capture timestamp all the way through `processAndCleanupOfflineScan`. Replayed scans no longer jump to the top of the library purely because they synced later.
+- The deletion side of the offline pipeline now follows a strict order: persist `PendingCloudDeletionTask` + local row deletion first, then remove local media after the SwiftData save commits.
+- `InferenceEngine` cancellation now clears stale pending background DB writes before the next scan starts, which prevents old offline cleanup/hydration work from leaking into a new session.

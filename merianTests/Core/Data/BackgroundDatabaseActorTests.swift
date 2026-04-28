@@ -36,6 +36,119 @@ struct BackgroundDatabaseActorTests {
         #expect(payloads.first?.id == queuedScan.id, "Sendable Payload struct MUST explicitly carry the offline scan UUID")
     }
 
+    @Test func testProcessAndCleanupOfflineScanPreservesOriginalTimestamp() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+
+        let originalTimestamp = Date(timeIntervalSince1970: 1_712_345_678)
+        let resultData = Data(
+            """
+            {
+              "success": true,
+              "data": {
+                "scan_id": "offline_scan_001",
+                "is_biological_subject": true,
+                "is_live_capture": true,
+                "ecology_type": "wild",
+                "is_invasive": false,
+                "scientific_name": "Danaus plexippus",
+                "common_name": "Monarch Butterfly",
+                "confidence_score": 0.98,
+                "taxonomy": {
+                  "kingdom": "Animalia",
+                  "class": "Insecta",
+                  "order": "Lepidoptera",
+                  "family": "Nymphalidae",
+                  "genus": "Danaus"
+                },
+                "insight_data": {
+                  "hazard_type": "none",
+                  "ai_reasoning": "Migratory butterfly with orange and black wings."
+                }
+              }
+            }
+            """.utf8
+        )
+
+        let processingResult = await actor.processAndCleanupOfflineScan(
+            resultData: resultData,
+            originalImagePaths: ["offline_monarch.webp"],
+            scanId: "offline_queue_001",
+            originalTimestamp: originalTimestamp
+        )
+
+        #expect(processingResult.finalScanId == "offline_scan_001")
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == "offline_scan_001" })
+        let record = try #require(context.fetch(descriptor).first)
+        #expect(record.timestamp == originalTimestamp, "Offline scan timestamp must preserve capture chronology")
+        #expect(record.captureDate == originalTimestamp, "captureDate must remain the original capture time")
+    }
+
+    @Test func testBulkDeleteNonBiologicalScansCommitsBeforeReturningPaths() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = LocalScanRecord(
+            id: "nonbio_delete_001",
+            speciesId: "nonbio_species",
+            scientificName: "Concrete slab",
+            commonName: "Concrete slab",
+            timestamp: Date(),
+            isBiological: false,
+            isLiveCapture: false,
+            ecologyType: "unknown"
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let deletedPaths = try await actor.bulkDeleteNonBiologicalScans(payloads: [
+            .init(id: scan.id, imagePaths: ["nonbio_001.webp", "https://merian.app/cloud.webp"])
+        ])
+
+        let recordDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == "nonbio_delete_001" })
+        let taskDescriptor = FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == "nonbio_delete_001" })
+        #expect(try context.fetch(recordDescriptor).isEmpty, "Record should be deleted once the actor returns success")
+        #expect(try context.fetch(taskDescriptor).count == 1, "Cloud deletion task must be committed atomically with the delete")
+        #expect(deletedPaths == ["nonbio_001.webp"], "Only local file paths should be returned for post-commit deletion")
+    }
+
+    @Test func testBulkDeleteNonBiologicalScansRollsBackOnSaveFailure() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "nonbio_conflict_001"
+
+        let scan = LocalScanRecord(
+            id: scanId,
+            speciesId: "nonbio_species_conflict",
+            scientificName: "Parking cone",
+            commonName: "Parking cone",
+            timestamp: Date(),
+            isBiological: false,
+            isLiveCapture: false,
+            ecologyType: "unknown"
+        )
+        context.insert(scan)
+        context.insert(PendingCloudDeletionTask(scanId: scanId))
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+
+        do {
+            _ = try await actor.bulkDeleteNonBiologicalScans(payloads: [
+                .init(id: scanId, imagePaths: ["should_not_delete.webp"])
+            ])
+            Issue.record("Expected unique-constraint save failure to throw")
+        } catch {
+            let recordDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+            let taskDescriptor = FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == scanId })
+
+            #expect(try context.fetch(recordDescriptor).count == 1, "Rollback must preserve the original record when save fails")
+            #expect(try context.fetch(taskDescriptor).count == 1, "Rollback must not duplicate or remove the existing cloud deletion task")
+        }
+    }
+
     // MARK: - updateScanWithOverride: V29 identification review persistence
 
     @Test func testUpdateScanWithOverrideSetsOverrideString() async throws {

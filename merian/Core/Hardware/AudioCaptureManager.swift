@@ -55,6 +55,8 @@ final class AudioCaptureManager {
     private var audioPlayer: AVAudioPlayer?
     private var playbackProgressTask: Task<Void, Never>?
     private var dspTask: Task<Void, Never>?
+    private var spectrogramContinuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
+    private var spectrogramHistory = CircularBuffer<SpectrogramColumn>(capacity: AudioCaptureManager.columnCap)
     private var snrHoldTicks: Int = 0
     private var isStartingRecording: Bool = false
 
@@ -104,93 +106,94 @@ final class AudioCaptureManager {
         let actor = spectrogram
         let manager = self
 
-        try await Task.detached { [manager] in
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+        do {
+            try await Task.detached { [manager] in
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.record, mode: .measurement, options: .duckOthers)
 
-            #if targetEnvironment(simulator)
-            try? session.setPreferredSampleRate(48000)
-            #endif
+                #if targetEnvironment(simulator)
+                try? session.setPreferredSampleRate(48000)
+                #endif
 
-            try session.setActive(true)
+                try session.setActive(true)
 
-            let inputNode = engine.inputNode
-            let fmt = inputNode.outputFormat(forBus: 0)
-            guard fmt.sampleRate > 0 else { throw AudioCaptureError.hardwareSampleRateZero }
+                let inputNode = engine.inputNode
+                let fmt = inputNode.outputFormat(forBus: 0)
+                guard fmt.sampleRate > 0 else { throw AudioCaptureError.hardwareSampleRateZero }
 
-            // Write canonical Int16 PCM WAV regardless of the hardware's native Float32
-            // layout. AVAudioFile converts Float32→Int16 automatically on each write, and
-            // Int16 PCM (audioFormat=1) is the one format the edge audio parsers handle
-            // unconditionally — avoiding the WAVEFORMATEXTENSIBLE
-            // (audioFormat=0xFFFE) WAV variant that non-interleaved Float32 can produce.
-            guard let int16Fmt = AVAudioFormat(
-                commonFormat: .pcmFormatInt16,
-                sampleRate: fmt.sampleRate,
-                channels: fmt.channelCount,
-                interleaved: true
-            ) else { throw AudioCaptureError.hardwareSampleRateZero }
-            let file = try AVAudioFile(forWriting: fileURL, settings: int16Fmt.settings)
+                // Write canonical Int16 PCM WAV regardless of the hardware's native Float32
+                // layout. AVAudioFile converts Float32→Int16 automatically on each write, and
+                // Int16 PCM (audioFormat=1) is the one format the edge audio parsers handle
+                // unconditionally — avoiding the WAVEFORMATEXTENSIBLE
+                // (audioFormat=0xFFFE) WAV variant that non-interleaved Float32 can produce.
+                guard let int16Fmt = AVAudioFormat(
+                    commonFormat: .pcmFormatInt16,
+                    sampleRate: fmt.sampleRate,
+                    channels: fmt.channelCount,
+                    interleaved: true
+                ) else { throw AudioCaptureError.hardwareSampleRateZero }
+                let file = try AVAudioFile(forWriting: fileURL, settings: int16Fmt.settings)
 
-            let (stream, continuation) = AsyncStream.makeStream(
-                of: AVAudioPCMBuffer.self,
-                bufferingPolicy: .bufferingNewest(2)
-            )
+                let (stream, continuation) = AsyncStream.makeStream(
+                    of: AVAudioPCMBuffer.self,
+                    bufferingPolicy: .bufferingNewest(2)
+                )
 
-            await MainActor.run { [weak manager] in
-                manager?.dspTask?.cancel()
-                manager?.dspTask = Task.detached { [weak manager] in
-                    for await buffer in stream {
-                        if Task.isCancelled { break }
-                        guard let col = await actor.process(buffer: buffer) else { continue }
-                        let snr = await actor.snrLevel(from: col)
+                await MainActor.run { [weak manager] in
+                    manager?.spectrogramContinuation = continuation
+                    manager?.dspTask?.cancel()
+                    manager?.dspTask = Task.detached { [weak manager] in
+                        for await buffer in stream {
+                            if Task.isCancelled { break }
+                            guard let col = await actor.process(buffer: buffer) else { continue }
+                            let snr = await actor.snrLevel(from: col)
 
-                        await MainActor.run { [weak manager] in
-                            guard let manager else { return }
-                            manager.spectrogramColumns.append(col)
-                            if manager.spectrogramColumns.count > AudioCaptureManager.columnCap {
-                                manager.spectrogramColumns.removeFirst()
-                            }
+                            await MainActor.run { [weak manager] in
+                                guard let manager else { return }
+                                manager.spectrogramHistory.append(col)
+                                manager.spectrogramColumns = manager.spectrogramHistory.elements
 
-                            let severity: [SNRLevel: Int] = [.clear: 0, .caution: 1, .warning: 2, .clipping: 3]
-                            let currentSeverity = severity[manager.snrLevel] ?? 0
-                            let newSeverity = severity[snr] ?? 0
+                                let severity: [SNRLevel: Int] = [.clear: 0, .caution: 1, .warning: 2, .clipping: 3]
+                                let currentSeverity = severity[manager.snrLevel] ?? 0
+                                let newSeverity = severity[snr] ?? 0
 
-                            if newSeverity > currentSeverity {
-                                manager.snrLevel = snr
-                                manager.snrHoldTicks = 24 // ~2 seconds at ~85ms per buffer slice
-                            } else if newSeverity == currentSeverity && newSeverity > 0 {
-                                manager.snrHoldTicks = 24
-                            } else if manager.snrHoldTicks > 0 {
-                                manager.snrHoldTicks -= 1
-                            } else {
-                                manager.snrLevel = snr
+                                if newSeverity > currentSeverity {
+                                    manager.snrLevel = snr
+                                    manager.snrHoldTicks = 24 // ~2 seconds at ~85ms per buffer slice
+                                } else if newSeverity == currentSeverity && newSeverity > 0 {
+                                    manager.snrHoldTicks = 24
+                                } else if manager.snrHoldTicks > 0 {
+                                    manager.snrHoldTicks -= 1
+                                } else {
+                                    manager.snrLevel = snr
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Defensive removal: prevents the crash if a tap is somehow still installed
-            // (e.g. rapid start→stop→start before the async engine setup fully completes).
-            inputNode.removeTap(onBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 4096, format: fmt) { buffer, _ in
-                // Sequential write from the audio thread — no concurrency hazard.
-                try? file.write(from: buffer)
+                // Defensive removal: prevents the crash if a tap is somehow still installed
+                // (e.g. rapid start→stop→start before the async engine setup fully completes).
+                inputNode.removeTap(onBus: 0)
+                inputNode.installTap(onBus: 0, bufferSize: 4096, format: fmt) { buffer, _ in
+                    // Sequential write from the audio thread — no concurrency hazard.
+                    try? file.write(from: buffer)
 
-                // Yield to the bounded pipeline, dropping oldest if the spectrogram actor falls behind.
-                guard let retainedBuffer = AudioCaptureManager.copyPCMBuffer(buffer) else { return }
-                continuation.yield(retainedBuffer)
-            }
+                    // Yield to the bounded pipeline, dropping oldest if the spectrogram actor falls behind.
+                    guard let retainedBuffer = AudioCaptureManager.copyPCMBuffer(buffer) else { return }
+                    continuation.yield(retainedBuffer)
+                }
 
-            engine.prepare()
-            try engine.start()
-        }.value
+                engine.prepare()
+                try engine.start()
+            }.value
+        } catch {
+            handleCancelledOrFailedStartup()
+            throw error
+        }
 
         if Task.isCancelled {
-            Task.detached {
-                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-            }
-            cleanupPendingFile()
+            handleCancelledOrFailedStartup()
             return
         }
 
@@ -274,9 +277,7 @@ final class AudioCaptureManager {
         isRecording = false
         isPaused = false
         recordingProgress = 0
-        spectrogramColumns = []
-        snrLevel = .clear
-        snrHoldTicks = 0
+        resetSpectrogramState()
         audioFilePath = nil
         pendingPlaybackPath = nil
         pendingFileName = nil
@@ -369,9 +370,7 @@ final class AudioCaptureManager {
             try? FileManager.default.removeItem(at: url)
             pendingPlaybackPath = nil
         }
-        spectrogramColumns = []
-        snrLevel = .clear
-        snrHoldTicks = 0
+        resetSpectrogramState()
     }
 
     // MARK: - Private
@@ -388,6 +387,8 @@ final class AudioCaptureManager {
     }
 
     private func teardownEngine() {
+        spectrogramContinuation?.finish()
+        spectrogramContinuation = nil
         // Remove tap before stopping — prevents the audio thread from writing into a
         // stopped engine and avoids AVAudioEngine assertion failures on some iOS builds.
         audioEngine.inputNode.removeTap(onBus: 0)
@@ -406,4 +407,35 @@ final class AudioCaptureManager {
         try? FileManager.default.removeItem(at: url)
         pendingFileName = nil
     }
+
+    private func handleCancelledOrFailedStartup() {
+        teardownEngine()
+        cleanupPendingFile()
+        isRecording = false
+        isPaused = false
+        recordingProgress = 0
+        resetSpectrogramState()
+    }
+
+    private func resetSpectrogramState() {
+        spectrogramHistory.removeAll()
+        spectrogramColumns = []
+        snrLevel = .clear
+        snrHoldTicks = 0
+        Task { await spectrogram.reset() }
+    }
+
+#if DEBUG
+    func debugStageStartupState(fileName: String, dspTask: Task<Void, Never>? = nil) {
+        pendingFileName = fileName
+        self.dspTask = dspTask
+    }
+
+    func debugHandleCancelledStartup() {
+        handleCancelledOrFailedStartup()
+    }
+
+    var debugHasDSPTask: Bool { dspTask != nil }
+    var debugPendingFileName: String? { pendingFileName }
+#endif
 }

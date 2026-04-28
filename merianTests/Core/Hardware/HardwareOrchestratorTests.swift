@@ -22,7 +22,7 @@ struct HardwareOrchestratorTests {
         let initialUploadTries = OfflineQueueManager.shared.unsyncedItemsCount
         
         // Act: Fire Offline Sync dynamically with Expedition bounds active
-        await OfflineQueueManager.shared.syncPendingScans()
+        OfflineQueueManager.shared.syncPendingScans()
         
         // Assert Offline Queue skips syncing while battery bounds are aggressive
         #expect(OfflineQueueManager.shared.unsyncedItemsCount == initialUploadTries, "Pending offline queue should short-circuit and completely ignore queue execution natively when protecting hardware limits")
@@ -110,5 +110,43 @@ struct HardwareOrchestratorTests {
         // Reset defaults
         UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
         orchestrator.evaluateConstraints(thermalState: .nominal)
+    }
+}
+
+@MainActor
+struct AudioCaptureManagerLifecycleTests {
+    @Test func testCancelledStartupCleansPendingRecordingResources() async throws {
+        let manager = AudioCaptureManager()
+        let fileName = "\(UUID().uuidString).wav"
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try Data("pending-audio".utf8).write(to: fileURL)
+
+        manager.debugStageStartupState(
+            fileName: fileName,
+            dspTask: Task {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
+        )
+
+        manager.debugHandleCancelledStartup()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        #expect(FileManager.default.fileExists(atPath: fileURL.path) == false, "Cancelled recording startup must remove the pending temp file")
+        #expect(manager.debugHasDSPTask == false, "Cancelled recording startup must cancel and clear the DSP task")
+        #expect(manager.debugPendingFileName == nil, "Cancelled recording startup must clear pending file bookkeeping")
+    }
+}
+
+@MainActor
+struct SpeechManagerLifecycleTests {
+    @Test func testCancelledStartupResetsDictationState() {
+        let manager = SpeechManager()
+        manager.audioLevel = 0.75
+        manager.isRecording = true
+
+        manager.debugHandleStartupCancellation()
+
+        #expect(manager.audioLevel == 0.0, "Cancelled dictation startup must reset the live level meter")
+        #expect(manager.isRecording == false, "Cancelled dictation startup must leave recording disabled")
     }
 }

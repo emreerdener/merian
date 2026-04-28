@@ -151,25 +151,30 @@ struct NonBiologicalScansView: View {
     private func clearAllNonBiologicalScans() {
         isClearingAll = true
         let payloads = nonBioRecords.map { scan in
-            var paths: [String] = []
-            if let jsonStr = scan.capturedMediaJSON,
-               let jsonData = jsonStr.data(using: .utf8),
-               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                paths = items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
-            }
+            let paths = scan.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
             return BackgroundDatabaseActor.ScanErasurePayload(id: scan.id, imagePaths: paths)
         }
         let container = modelContext.container
         
         Task.detached(priority: .userInitiated) {
             let backgroundActor = BackgroundDatabaseActor(modelContainer: container)
-            await backgroundActor.bulkDeleteNonBiologicalScans(payloads: payloads)
-            
-            await MainActor.run {
-                isClearingAll = false
-                HapticManager.shared.triggerSuccessPulse()
-                withAnimation { toastMessage = "Scans cleared" }
-                Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
+
+            do {
+                let deletedPaths = try await backgroundActor.bulkDeleteNonBiologicalScans(payloads: payloads)
+                await FileIOActor.shared.deleteImages(at: deletedPaths)
+
+                await MainActor.run {
+                    isClearingAll = false
+                    HapticManager.shared.triggerSuccessPulse()
+                    withAnimation { toastMessage = "Scans cleared" }
+                    Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
+                }
+            } catch {
+                await MainActor.run {
+                    isClearingAll = false
+                    HapticManager.shared.triggerErrorThump()
+                    withAnimation { toastMessage = "Couldn't clear scans" }
+                }
             }
         }
     }
@@ -220,27 +225,29 @@ extension BackgroundDatabaseActor {
         let imagePaths: [String]
     }
     
-    func bulkDeleteNonBiologicalScans(payloads: [ScanErasurePayload]) {
-        let documentsDirectory = URL.documentsDirectory
+    func bulkDeleteNonBiologicalScans(payloads: [ScanErasurePayload]) throws -> [String] {
+        var imagePathsToDelete: [String] = []
         for payload in payloads {
-            // Delete the raw .webp bytes physically
-            for path in payload.imagePaths {
-                let fileURL = documentsDirectory.appendingPathComponent(path)
-                try? FileManager.default.removeItem(at: fileURL)
-            }
-            
             // Delete the LocalScanRecord natively
             let scanId = payload.id
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
             if let record = (try? modelContext.fetch(descriptor))?.first {
                 modelContext.delete(record)
             }
+
+            imagePathsToDelete.append(contentsOf: payload.imagePaths.filter { !$0.starts(with: "http") })
             
             // Insert PendingCloudDeletionTask queueing remote Edge deletion
             let pendingTask = PendingCloudDeletionTask(scanId: scanId, timestamp: Date())
             modelContext.insert(pendingTask)
         }
-        
-        try? modelContext.save()
+
+        do {
+            try modelContext.save()
+            return imagePathsToDelete
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 }

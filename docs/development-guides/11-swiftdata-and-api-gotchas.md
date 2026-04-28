@@ -488,3 +488,9 @@ if let scan = (try? modelContext.fetch(descriptor))?.first {
 **`gridId` namespacing**: `LocalScanRecord.id` and `QueuedScanSnapshot.id` share the same UUID (both use `client_scan_id`). Without namespacing, `LazyVGrid`'s `ForEach` produces duplicate `AnyHashable` keys, causing SwiftUI to skip one tile entirely. `gridId = "q_\(id)"` guarantees a distinct key for every queued-scan tile.
 
 **`InsightSheetViewModel.queuedContext: QueuedScanContext?`**: All computed properties that previously switched on a live `OfflineQueuedScan?` now switch on `queuedContext == nil`. `AnalyzingContentView` receives `queuedContext: QueuedScanContext?` rather than a `@Model` reference — it reads `queuedContext?.locationName`, etc. — so no attribute is ever accessed post-deletion.
+
+## 2026-04 Hardening Updates
+
+- Treat `ModelContainer` startup failures as data-loss-sensitive. Only corruption-class failures may trigger store recovery, and any recovery flow must quarantine `default.store`, `default.store-wal`, and `default.store-shm` before attempting recreation.
+- Never delete local media before the corresponding SwiftData delete/save succeeds. Broken ordering leaves detached records pointing at missing files and is now explicitly forbidden.
+- Background actor delete paths must use `rollback()` on save failure rather than `try? save()`. Silent save failure is architecture drift, not acceptable resilience.

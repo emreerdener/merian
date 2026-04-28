@@ -195,10 +195,11 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             if Task.isCancelled { return }
 
             guard let self = self else { return }
+            let transientMap = Dictionary(uniqueKeysWithValues: self.allScans.map { ($0.id, $0) })
 
             if text.isEmpty && catMatch == "all" {
                 let sortOpt = self.sortOption
-                let recordsPrimitives = self.allScans.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
+                let recordsPrimitives = transientMap.values.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
                 
                 let sortedIds = await Task.detached(priority: .userInitiated) {
                     return ScansManager.executeDetachedSort(on: recordsPrimitives, sortOption: sortOpt).map { $0.id }
@@ -206,7 +207,6 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
                 if Task.isCancelled { return }
                 
-                let transientMap = Dictionary(uniqueKeysWithValues: self.allScans.map { ($0.id, $0) })
                 let finalSorted = sortedIds.compactMap { transientMap[$0] }
                 withAnimation { 
                     self.filteredScans = finalSorted 
@@ -229,7 +229,6 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             
             if Task.isCancelled { return }
             
-            let transientMap = Dictionary(uniqueKeysWithValues: self.allScans.map { ($0.id, $0) })
             let filteredSubset = matchingIds.compactMap { transientMap[$0] }
             let sortOpt = self.sortOption
             let subsetPrimitives = filteredSubset.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
@@ -389,6 +388,37 @@ struct RawScanSnapshot: Sendable {
 
 @ModelActor
 actor SearchDatabaseActor {
+    private static func buildSearchString(
+        commonName: String,
+        scientificName: String,
+        ecologyType: String,
+        semanticTags: [String],
+        customTags: [String],
+        isInvasive: Bool,
+        taxonomyClass: String?,
+        taxonomyOrder: String?,
+        taxonomyFamily: String?,
+        aiReasoning: String?,
+        locationName: String?,
+        habitatDescription: String?,
+        weatherCondition: String?,
+        lifeStage: String?,
+        reproductiveCondition: String?,
+        similarSpecies: [String]?,
+        iucnRedListStatus: String?,
+        hazardType: String,
+        ecologicalInteractions: [String]?
+    ) -> String {
+        let tags = semanticTags.joined(separator: " ")
+        let taxonomyTerms = [taxonomyClass, taxonomyOrder, taxonomyFamily]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        let groupName = commonGroupName(for: taxonomyClass)
+        let hazard = hazardType == "none" ? "" : hazardType
+
+        return "\(commonName) \(scientificName) \(ecologyType) \(tags) \(customTags.joined(separator: " ")) \(isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(aiReasoning ?? "") \(locationName ?? "") \(habitatDescription ?? "") \(weatherCondition ?? "") \(lifeStage ?? "") \(reproductiveCondition ?? "") \(similarSpecies?.joined(separator: " ") ?? "") \(iucnRedListStatus ?? "") \(hazard) \(ecologicalInteractions?.joined(separator: " ") ?? "")".lowercased()
+    }
+
     /// Builds `SearchableScan` payloads from pre-extracted `RawScanSnapshot` values.
     ///
     /// Called on the full-rebuild path where `allScans` is already resident in `@MainActor`
@@ -399,14 +429,29 @@ actor SearchDatabaseActor {
         processed.reserveCapacity(snapshots.count)
         for snapshot in snapshots {
             if Task.isCancelled { break }
-            let tags = snapshot.semanticTags.joined(separator: " ")
-            let taxonomyTerms = [snapshot.taxonomyClass, snapshot.taxonomyOrder, snapshot.taxonomyFamily]
-                .compactMap { $0 }.joined(separator: " ")
-            let groupName = commonGroupName(for: snapshot.taxonomyClass)
-            let rawString = "\(snapshot.commonName) \(snapshot.scientificName) \(snapshot.ecologyType) \(tags) \(snapshot.customTags.joined(separator: " ")) \(snapshot.isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(snapshot.aiReasoning ?? "") \(snapshot.locationName ?? "") \(snapshot.habitatDescription ?? "") \(snapshot.weatherCondition ?? "") \(snapshot.lifeStage ?? "") \(snapshot.reproductiveCondition ?? "") \(snapshot.similarSpecies?.joined(separator: " ") ?? "") \(snapshot.iucnRedListStatus ?? "") \(snapshot.hazardType == "none" ? "" : snapshot.hazardType) \(snapshot.ecologicalInteractions?.joined(separator: " ") ?? "")".lowercased()
             processed.append(SearchableScan(
                 id: snapshot.id,
-                searchString: rawString,
+                searchString: Self.buildSearchString(
+                    commonName: snapshot.commonName,
+                    scientificName: snapshot.scientificName,
+                    ecologyType: snapshot.ecologyType,
+                    semanticTags: snapshot.semanticTags,
+                    customTags: snapshot.customTags,
+                    isInvasive: snapshot.isInvasive,
+                    taxonomyClass: snapshot.taxonomyClass,
+                    taxonomyOrder: snapshot.taxonomyOrder,
+                    taxonomyFamily: snapshot.taxonomyFamily,
+                    aiReasoning: snapshot.aiReasoning,
+                    locationName: snapshot.locationName,
+                    habitatDescription: snapshot.habitatDescription,
+                    weatherCondition: snapshot.weatherCondition,
+                    lifeStage: snapshot.lifeStage,
+                    reproductiveCondition: snapshot.reproductiveCondition,
+                    similarSpecies: snapshot.similarSpecies,
+                    iucnRedListStatus: snapshot.iucnRedListStatus,
+                    hazardType: snapshot.hazardType,
+                    ecologicalInteractions: snapshot.ecologicalInteractions
+                ),
                 ecologyType: snapshot.ecologyType.lowercased(),
                 kingdom: snapshot.taxonomyKingdom?.lowercased() ?? "",
                 className: snapshot.taxonomyClass?.lowercased() ?? ""
@@ -439,30 +484,29 @@ actor SearchDatabaseActor {
             if Task.isCancelled { break }
             guard let record = recordMap[id] else { continue }
 
-            let tags = record.semanticTags.joined(separator: " ")
-            // Taxonomy class/order/family are appended so users can search Latin names
-            // (e.g. "aves", "passeriformes"). commonGroupName maps the class to plain
-            // English synonyms (e.g. "aves" → "bird birds") so casual queries work too.
-            let taxonomyTerms = [record.taxonomyClass, record.taxonomyOrder, record.taxonomyFamily]
-                .compactMap { $0 }.joined(separator: " ")
-            let groupName = SearchDatabaseActor.commonGroupName(for: record.taxonomyClass)
-
-            let reasoning = record.aiReasoning ?? ""
-            let location = record.locationName ?? ""
-            let habitat = record.habitatDescription ?? ""
-            let weather = record.weatherCondition ?? ""
-            let lifeStage = record.lifeStage ?? ""
-            let reproductive = record.reproductiveCondition ?? ""
-            let lookalike = record.similarSpecies?.joined(separator: " ") ?? ""
-            let iucn = record.iucnRedListStatus ?? ""
-            let hazard = record.hazardType == "none" ? "" : record.hazardType
-            let interactions = record.ecologicalInteractions?.joined(separator: " ") ?? ""
-
-            let rawString = "\(record.commonName) \(record.scientificName) \(record.ecologyType) \(tags) \(record.customTags.joined(separator: " ")) \(record.isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(reasoning) \(location) \(habitat) \(weather) \(lifeStage) \(reproductive) \(lookalike) \(iucn) \(hazard) \(interactions)".lowercased()
-
             processed.append(SearchableScan(
                 id: record.id,
-                searchString: rawString,
+                searchString: Self.buildSearchString(
+                    commonName: record.commonName,
+                    scientificName: record.scientificName,
+                    ecologyType: record.ecologyType,
+                    semanticTags: record.semanticTags,
+                    customTags: record.customTags,
+                    isInvasive: record.isInvasive,
+                    taxonomyClass: record.taxonomyClass,
+                    taxonomyOrder: record.taxonomyOrder,
+                    taxonomyFamily: record.taxonomyFamily,
+                    aiReasoning: record.aiReasoning,
+                    locationName: record.locationName,
+                    habitatDescription: record.habitatDescription,
+                    weatherCondition: record.weatherCondition,
+                    lifeStage: record.lifeStage,
+                    reproductiveCondition: record.reproductiveCondition,
+                    similarSpecies: record.similarSpecies,
+                    iucnRedListStatus: record.iucnRedListStatus,
+                    hazardType: record.hazardType,
+                    ecologicalInteractions: record.ecologicalInteractions
+                ),
                 ecologyType: record.ecologyType.lowercased(),
                 kingdom: record.taxonomyKingdom?.lowercased() ?? "",
                 className: record.taxonomyClass?.lowercased() ?? ""

@@ -287,3 +287,10 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Not `@MainActor` — `PostHogSDK` is thread-safe, so `configure()` genuinely runs on the background thread pool when dispatched via `Task.detached` in `MerianApp.init()`.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()` guards on this flag and logs a warning rather than calling `PostHogSDK.shared.identify()` before setup completes — guards against a race where auth state restores before the background configure task finishes.
 - Calls `reset()` on sign-out to clear the PostHog session.
+
+## 2026-04 Hardening Updates
+
+- `InferenceEngine` now treats pending background writes as generation-scoped work. Any scan reset or cancellation invalidates the old generation before the next scan can enqueue or drain background mutations.
+- `AudioCaptureManager` owns full startup failure cleanup. Cancellation after `AVAudioSession` activation now still removes the input tap, stops the engine, cancels DSP work, finishes the spectrogram stream, and clears pending temp files.
+- `SpeechManager` now routes every startup failure and cancellation path through `teardownAudioEngine()`, leaving no live tap, task, or stale `audioLevel` state behind.
+- `SupabaseManager` now deduplicates external telemetry linking per user session via `ensureTelemetryLinkedIfNeeded(for:)`, preventing cold-start and session-restore churn from re-triggering RevenueCat/PostHog link work repeatedly.

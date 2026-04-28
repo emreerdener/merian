@@ -1,7 +1,23 @@
 import Foundation
 
+protocol AchievementRecordRepresentable {
+    var scientificName: String { get }
+    var timestamp: Date { get }
+    var taxonomyKingdom: String? { get }
+    var taxonomyClass: String? { get }
+    var ecologyType: String { get }
+    var weatherTemperatureF: Double? { get }
+    var gpsElevation: Double? { get }
+    var isInvasive: Bool { get }
+    var iucnRedListStatus: String? { get }
+    var hazardType: String { get }
+    var confidenceScore: Double? { get }
+}
+
+extension LocalScanRecord: AchievementRecordRepresentable {}
+
 struct AchievementsCalculator {
-    static func calculate(from allRecords: [LocalScanRecord]) -> [AwardPayload] {
+    static func calculate<Record: AchievementRecordRepresentable>(from allRecords: [Record]) -> [AwardPayload] {
         var fungiSpecies = Set<String>(); var fungiDate: Date?
         var plantsSpecies = Set<String>(); var plantsDate: Date?
         var insectsSpecies = Set<String>(); var insectsDate: Date?

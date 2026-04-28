@@ -19,18 +19,9 @@ struct BiologicalView: View {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
             guard let record = try? viewModel.activeLocalRecord?.modelContext?.fetch(descriptor).first ?? viewModel.activeLocalRecord else { return }
             
-            var hasCloudImage = false
-            var imageCount = 0
-            if let jsonStr = record.capturedMediaJSON,
-               let jsonData = jsonStr.data(using: .utf8),
-               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                for item in items {
-                    if case .image(let path) = item {
-                        imageCount += 1
-                        if path.starts(with: "http") { hasCloudImage = true }
-                    }
-                }
-            }
+            let imagePaths = record.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
+            let hasCloudImage = record.capturedMediaJSON.map(MediaJSONParser.hasCloudImage(jsonString:)) ?? false
+            let imageCount = imagePaths.count
             guard !hasCloudImage, imageCount <= 1 else { return }
             
             HapticManager.shared.triggerSelectionPulse()

@@ -90,3 +90,9 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 - The Archive Safety Protocol runs at most once per 24-hour wall-clock period. Do not trigger it manually from other call sites.
 - **Always call `replayInferenceForUploadedScans()` immediately after `syncPendingScans()` in `handleActivePhase()`.** `NWPathMonitor` only fires when connectivity changes, not when the app returns to foreground on an already-stable connection. Without this call, scans whose upload completed while the app was backgrounded are permanently stuck and never recovered. Do not remove this call or move it to a throttled path.
 - All async work inside `handleActivePhase` is intentionally fire-and-forget (`Task {}`). Errors are logged but never surface to the user during a phase transition.
+
+## 2026-04 Hardening Updates
+
+- App startup now uses corruption-specific store recovery. A generic `ModelContainer` init failure is no longer treated as permission to delete the local SwiftData store.
+- Recovery-first startup behavior is now: attempt normal open, inspect the error chain for SQLite/Core Data corruption signatures, quarantine the store bundle if corruption is confirmed, then retry container creation exactly once.
+- `handleActivePhase()` continues to be the right place for replay recovery, but any new lifecycle work must not resurrect stale scan mutations. `InferenceEngine` now invalidates pending background writes whenever a scan is cancelled or a new scan begins.

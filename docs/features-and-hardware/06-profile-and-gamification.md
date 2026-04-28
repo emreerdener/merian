@@ -153,3 +153,9 @@ The `Achievements` component sorts awards using a `smartSort` heuristic: recentl
 ## ExportScans (DWC-A)
 
 `ExportScans` (Settings) calls `MerianNetworkClient.shared.requestDwcAExport()`, which hits the `/request-export-dwca` Edge function with a 15-second timeout. This enqueues an asynchronous export job server-side rather than blocking on the CPU-intensive archive generation. The user receives a notification or email when the export is ready. See `docs/backend-and-data/05-api-contracts.md` for the full endpoint contract.
+
+## 2026-04 Hardening Updates
+
+- Profile analytics now share a single projection-style fetch for streaks, heatmap construction, and achievement calculation instead of repeatedly scanning the full library through separate fetch paths.
+- Achievement calculation is now projection-friendly via `AchievementRecordRepresentable`, so awards can be computed from lightweight analytics payloads without materializing full model objects.
+- Offline scan timestamp preservation now directly protects gamification correctness: streaks, monthly heatmaps, and species chronology are computed from the original capture date rather than delayed sync time.

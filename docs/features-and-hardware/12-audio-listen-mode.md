@@ -399,3 +399,9 @@ Mirrors the other inference endpoints: Gemini API failures → 503 (transient, i
 | Offline replay audio dispatch path | **Complete** — dedicated audio branch in `dispatchInferenceDownloadTask` |
 | Two-phase R2 audio upload (`audio_r2_key`) | **Deferred** — documented in `07-background-inference-body-safe.md` as future work |
 | `deleteQueuedScan` / purge audio cleanup | **Complete** — cleans Documents WAV on delete/purge |
+
+## 2026-04 Hardening Updates
+
+- Recording startup cancellation is now fully symmetric with normal stop: input tap removed, engine stopped, DSP task cancelled, spectrogram stream finished, session deactivated, and temp WAV deleted.
+- Live spectrogram history and `SpectrogramActor` noise-floor tracking now use bounded circular buffers instead of repeated `removeFirst()` shifts in the hot path.
+- `AudioCaptureManager` now centralizes spectrogram reset through one helper so cancellation, discard, and full reset all clear identical UI/audio state.

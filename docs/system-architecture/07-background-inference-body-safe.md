@@ -39,3 +39,9 @@ That future contract is **not implemented today**. The current client/server pai
 - iOS request builder: `MerianNetworkClient.buildMultiModalRequest(...)`
 - Replay dispatcher: `OfflineQueueManager+URLSession.dispatchInferenceDownloadTask(...)`
 - Edge handler: `supabase/functions/identify-multimodal/index.ts`
+
+## 2026-04 Hardening Updates
+
+- `InferenceEngine.pendingBackgroundTasks` is now generation-scoped rather than an unbounded logical queue across scan sessions. Resetting for a new scan or cancelling the active request clears pending closures and invalidates previously spawned background write tasks.
+- Queue draining now rejects stale generations instead of replaying old Wikipedia/GBIF/award writes into the next live scan.
+- This keeps the zero-OOM bounded queue behavior intact while restoring scan handoff correctness under rapid cancel/restart flows.

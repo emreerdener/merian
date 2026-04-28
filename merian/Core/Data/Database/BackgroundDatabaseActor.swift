@@ -38,12 +38,7 @@ actor BackgroundDatabaseActor {
             return []
         }
         return pending.map { scan in
-            var paths: [String] = []
-            if let jsonStr = scan.capturedMediaJSON,
-               let jsonData = jsonStr.data(using: .utf8),
-               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                paths = items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
-            }
+            let paths = scan.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
             return PendingScanPayload(id: scan.id, localImagePaths: paths)
         }
     }
@@ -391,6 +386,7 @@ actor BackgroundDatabaseActor {
         from mappedData: SpeciesData,
         recordId: String,
         speciesId: String,
+        timestamp: Date,
         captureDate: Date,
         capturedMediaJSON: String? = nil,
         coverImagePath: String? = nil,
@@ -401,7 +397,7 @@ actor BackgroundDatabaseActor {
             speciesId: speciesId,
             scientificName: mappedData.scientificName,
             commonName: mappedData.commonName,
-            timestamp: Date(),
+            timestamp: timestamp,
             captureDate: captureDate,
             capturedMediaJSON: capturedMediaJSON,
             coverImagePath: coverImagePath,
@@ -481,6 +477,7 @@ actor BackgroundDatabaseActor {
                 from: mappedData,
                 recordId: recordId,
                 speciesId: activeSpeciesId,
+                timestamp: originalTimestamp,
                 captureDate: originalTimestamp,
                 capturedMediaJSON: capturedMediaJSON,
                 coverImagePath: originalImagePaths.first,
@@ -557,6 +554,7 @@ actor BackgroundDatabaseActor {
             from: mappedData,
             recordId: recordId,
             speciesId: activeSpeciesId,
+            timestamp: Date(),
             captureDate: Date(), // Live captures always match current time
             capturedMediaJSON: capturedMediaJSON,
             coverImagePath: localImagePaths.first,
@@ -611,6 +609,7 @@ actor BackgroundDatabaseActor {
             from: mappedData,
             recordId: recordId,
             speciesId: activeSpeciesId,
+            timestamp: Date(),
             captureDate: Date(),
             capturedMediaJSON: capturedMediaJSON,
             coverImagePath: nil,

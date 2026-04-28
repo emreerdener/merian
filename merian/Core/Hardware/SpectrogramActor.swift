@@ -17,6 +17,41 @@ enum SNRLevel: Sendable, Equatable {
     case clipping    // peak > 0.95 — move mic away
 }
 
+struct CircularBuffer<Element> {
+    private var storage: [Element?]
+    private var head = 0
+    private var countValue = 0
+
+    init(capacity: Int) {
+        precondition(capacity > 0, "CircularBuffer capacity must be positive")
+        storage = Array(repeating: nil, count: capacity)
+    }
+
+    var count: Int { countValue }
+
+    var elements: [Element] {
+        guard countValue > 0 else { return [] }
+        return (0..<countValue).compactMap { storage[(head + $0) % storage.count] }
+    }
+
+    mutating func append(_ element: Element) {
+        if countValue < storage.count {
+            storage[(head + countValue) % storage.count] = element
+            countValue += 1
+            return
+        }
+
+        storage[head] = element
+        head = (head + 1) % storage.count
+    }
+
+    mutating func removeAll() {
+        storage = Array(repeating: nil, count: storage.count)
+        head = 0
+        countValue = 0
+    }
+}
+
 // MARK: - Spectrogram Actor
 
 /// Off-main-thread DSP worker. All FFT and mel-scale math runs here via a
@@ -29,14 +64,14 @@ actor SpectrogramActor {
 
     static let fftSize = 2048
     static let outputBinCount = 64
+    private static let noiseFloorCapacity = 96
 
     private let log2n: vDSP_Length
     private var fftSetup: FFTSetup?
     private var hannWindow: [Float]
 
     // Rolling minimum RMS over ~2 seconds — used as the estimated noise floor.
-    private var noiseFloorHistory: [Float] = []
-    private let noiseFloorCapacity = 96
+    private var noiseFloorHistory = CircularBuffer<Float>(capacity: SpectrogramActor.noiseFloorCapacity)
 
     init() {
         log2n = vDSP_Length(log2f(Float(SpectrogramActor.fftSize)))
@@ -121,13 +156,10 @@ actor SpectrogramActor {
         if column.peak > 0.95 { return .clipping }
 
         noiseFloorHistory.append(column.rms)
-        if noiseFloorHistory.count > noiseFloorCapacity {
-            noiseFloorHistory.removeFirst()
-        }
 
         // The "floor" is the minimum RMS over the trailing window — effectively
         // stripping out transient speech/birds to find the raw room/environment noise.
-        let floor = noiseFloorHistory.min() ?? column.rms
+        let floor = noiseFloorHistory.elements.min() ?? column.rms
 
         // Absolute noise floor thresholds
         // 0.08  (~ -22 dBFS) -> Heavy wind, traffic, severe interference

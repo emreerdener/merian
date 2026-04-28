@@ -311,3 +311,9 @@ Permission requests happen inside `startDictation` — not at app launch or onbo
 `SpeechManager` is `@MainActor`. All stored properties (`isRecording`, `audioEngine`, `recognitionRequest`, `recognitionTask`) are `@MainActor`-isolated. The `onResult` callback is typed `@MainActor @escaping (String) -> Void` — this guarantees the closure (which captures `@MainActor`-isolated `@State` from `CaptureWorkspaceView`) executes on `@MainActor` without a `@Sendable` actor-crossing, eliminating Swift 6 strict concurrency warnings at the capture site.
 
 The `AVAudioEngine` tap callback (`installTap`) fires on a private audio thread and appends buffers to `recognitionRequest` — this is safe because `SFSpeechAudioBufferRecognitionRequest.append(_:)` is documented as thread-safe. The recognition result handler dispatches back to `@MainActor` via `Task { @MainActor [weak self] in ... }`.
+
+## 2026-04 Hardening Updates
+
+- `startDictation` cancellation now always tears the engine back down, even if cancellation happens after the audio session was activated and the tap was installed.
+- `handleCancelledStartup()` now resets `audioLevel` and `isRecording` in addition to calling `teardownAudioEngine()`, so a failed startup cannot leave stale level-meter or recording UI behind.
+- The dictation lifecycle contract is now "activate late, teardown on every failure path, and never rely on the happy-path stop call to release engine resources."

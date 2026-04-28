@@ -72,12 +72,7 @@ final class InsightMediaExportManager {
     // MARK: - Batch Item Export
     func batchSaveUserPhotos(records: [LocalScanRecord], completion: @escaping (Int) -> Void) {
         let payloads = records.map { scan -> SavePhotosPayload in
-            var paths: [String] = []
-            if let jsonStr = scan.capturedMediaJSON,
-               let jsonData = jsonStr.data(using: .utf8),
-               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                paths = items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
-            }
+            let paths = scan.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
             return SavePhotosPayload(localImagePath: paths.first, additionalImagePaths: paths.count > 1 ? Array(paths.dropFirst()) : nil, referenceImageUrl: scan.referenceImageUrl)
         }
         
@@ -90,12 +85,7 @@ final class InsightMediaExportManager {
     // MARK: - Batch Item Sharing
     func batchShareDiscovery(records: [LocalScanRecord], presentShareSheet: @escaping ([Any]) -> Void) {
         let payloads = records.map { scan -> SharePayload in
-            var path: String?
-            if let jsonStr = scan.capturedMediaJSON,
-               let jsonData = jsonStr.data(using: .utf8),
-               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                path = items.compactMap { if case .image(let p) = $0 { return p } else { return nil } }.first
-            }
+            let path = scan.capturedMediaJSON.flatMap(MediaJSONParser.primaryImagePath(jsonString:))
             return SharePayload(commonName: scan.commonName, scientificName: scan.scientificName, localImagePath: path, referenceImageUrl: scan.referenceImageUrl)
         }
         

@@ -69,3 +69,21 @@ export function requireParams(
     400,
   );
 }
+
+/**
+ * Parses a JSON object body and returns a standardized 400 response when the
+ * payload is missing or malformed.
+ */
+export async function parseJsonBody(
+  req: Request,
+): Promise<Record<string, unknown> | Response> {
+  try {
+    const body = await req.json();
+    if (body && typeof body === "object" && !Array.isArray(body)) {
+      return body as Record<string, unknown>;
+    }
+    return jsonResponse({ error: "JSON body must be an object." }, 400);
+  } catch {
+    return jsonResponse({ error: "Invalid JSON body" }, 400);
+  }
+}

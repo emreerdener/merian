@@ -234,3 +234,9 @@ Most `@ModelActor` actors are created ad-hoc (per operation) rather than stored 
 | Validate image paths | `FileIOActor.shared` |
 | Push collections to Edge | `BackgroundDatabaseActor` (ad-hoc) |
 | Persist enrichment data after enrich-scan returns | `BackgroundDatabaseActor` (ad-hoc) |
+
+## 2026-04 Hardening Updates
+
+- `BackgroundDatabaseActor.buildScanRecord` now preserves the original capture timestamp for offline inserts. Offline replay no longer rewrites chronology to "time of sync", so library ordering, streaks, heatmaps, and analytics stay faithful to when the user actually captured the scan.
+- The non-biological bulk-delete actor path now inserts cloud-deletion tombstones and deletes SwiftData rows first, then saves transactionally. Local files are purged only after the save succeeds.
+- Save failures inside bulk deletion now rollback the actor `ModelContext` and surface the error to the caller instead of being swallowed with `try?`.

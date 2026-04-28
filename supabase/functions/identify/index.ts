@@ -9,6 +9,12 @@ import { getTierForUser } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { coalesceTaxonomyValue, normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
+import {
+  buildContextText,
+  normalizeCurrentMonth,
+  sanitizeLifeStage,
+  sanitizeReproductiveCondition,
+} from "../_shared/identify/context.ts";
 
 import { MerianIdentification, ClientPayload, CachedSpeciesRow } from "../_shared/identify/types.ts";
 import { getSystemInstruction, getMerianResponseSchema } from "../_shared/identify/schema.ts";
@@ -87,37 +93,6 @@ const modelConfigs = {
     },
   },
 };
-
-// Canonical sets of valid Postgres enum values for life_stage and
-// reproductive_condition. Any value Gemini returns that is not in these sets
-// is clamped to the safe default before insertScan, so a future Gemini schema
-// expansion never causes a 22P02 enum error that silently drops the scan row.
-// Keep in sync with life_stage_enum and reproductive_condition_enum in the DB.
-const VALID_LIFE_STAGES = new Set([
-  "egg", "larva", "pupa", "nymph", "juvenile", "subadult",
-  "adult", "seedling", "sapling", "unknown",
-]);
-const VALID_REPRODUCTIVE_CONDITIONS = new Set([
-  "flowering", "fruiting", "budding", "vegetative", "sporing",
-  "pregnant", "gravid", "mating", "spawning", "nesting", "dormant", "not_applicable",
-]);
-
-function normalizeCurrentMonth(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const month = Math.trunc(value);
-    return month >= 1 && month <= 12 ? month : undefined;
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (/^\d{1,2}$/.test(trimmed)) {
-      const month = Number(trimmed);
-      return month >= 1 && month <= 12 ? month : undefined;
-    }
-  }
-
-  return undefined;
-}
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -220,30 +195,6 @@ serve((req: Request) =>
 
     const modelCfg = userTier === "pro" ? modelConfigs.pro : modelConfigs.flash;
 
-    const telemetryItems = [
-      safeGpsLat != null && safeGpsLon != null ? `GPS:${safeGpsLat},${safeGpsLon}` : null,
-      gpsElevation != null ? `Elev:${gpsElevation}m` : null,
-      depthScaleText ? `Depth:${depthScaleText}` : null,
-      zoomFactor != null && zoomFactor > 1 ? `Zoom:${zoomFactor.toFixed(1)}x` : null,
-      // Subject size is a primary morphological discriminator — many species pairs (e.g.
-      // fungi, insects, plants) are visually indistinguishable except by size. Validated
-      // with the same guard used before DB insertion; the 50,000 cap is omitted here
-      // because a value that large is nonsensical context and the DB guard already handles it.
-      (estimated_size_cm != null && Number.isFinite(estimated_size_cm) && estimated_size_cm > 0)
-        ? `Size:${estimated_size_cm}cm` : null,
-      semanticLocation ? `Loc:${semanticLocation}` : null,
-      weatherCondition ? `Wx:${weatherCondition}` : null,
-      weatherTemperatureF != null ? `Temp:${weatherTemperatureF}F` : null,
-      deviceLocale ? `Locale:${deviceLocale}` : null,
-      // Fallback geographic context when GPS is not authorised.
-      // TZ (e.g. "America/Los_Angeles") narrows the plausible species pool by region;
-      // Region (e.g. "US") adds country-level signal. Both require zero permissions.
-      deviceTimeZone ? `TZ:${deviceTimeZone}` : null,
-      deviceRegion ? `Region:${deviceRegion}` : null,
-      normalizedCurrentMonth != null ? `Month:${normalizedCurrentMonth}` : null,
-      timeOfDay ? `Time:${timeOfDay}` : null,
-    ].filter(Boolean);
-
     // Build the multipart content array. Image parts always come first so the model
     // anchors its visual read before seeing the user's text. The description part is
     // appended only when the user staged a describe note alongside their images —
@@ -255,7 +206,27 @@ serve((req: Request) =>
         : [];
 
     const parts: Part[] = [
-      { text: `Context: ${telemetryItems.join(", ")}. Perform biological identification.` },
+      {
+        text: buildContextText(
+          {
+            safeGpsLat,
+            safeGpsLon,
+            gpsElevation,
+            depthScaleText,
+            zoomFactor,
+            estimatedSizeCm: estimated_size_cm,
+            semanticLocation,
+            weatherCondition,
+            weatherTemperatureF,
+            deviceLocale,
+            deviceTimeZone,
+            deviceRegion,
+            currentMonth: normalizedCurrentMonth,
+            timeOfDay,
+          },
+          "Perform biological identification.",
+        ),
+      },
       ...base64Payloads.map((payload) => ({
         inlineData: { mimeType: mimeType || "image/webp", data: payload },
       })),
@@ -421,23 +392,26 @@ serve((req: Request) =>
     // Clamp enum fields to known-valid Postgres values. Gemini may return a
     // biologically correct term not yet in the DB enum — without this guard the
     // insertScan call throws 22P02 and silently drops the entire scan row.
-    if (parsedData.life_stage != null && !VALID_LIFE_STAGES.has(parsedData.life_stage)) {
+    const sanitizedLifeStage = sanitizeLifeStage(parsedData.life_stage);
+    if (parsedData.life_stage != null && sanitizedLifeStage != parsedData.life_stage) {
       logStructuredError("identify/unknown_life_stage", {
         user_id: user.id,
         value: parsedData.life_stage,
       });
-      parsedData.life_stage = "unknown";
     }
+    parsedData.life_stage = sanitizedLifeStage;
+
+    const sanitizedReproductiveCondition = sanitizeReproductiveCondition(parsedData.reproductive_condition);
     if (
       parsedData.reproductive_condition != null &&
-      !VALID_REPRODUCTIVE_CONDITIONS.has(parsedData.reproductive_condition)
+      sanitizedReproductiveCondition != parsedData.reproductive_condition
     ) {
       logStructuredError("identify/unknown_reproductive_condition", {
         user_id: user.id,
         value: parsedData.reproductive_condition,
       });
-      parsedData.reproductive_condition = "not_applicable";
     }
+    parsedData.reproductive_condition = sanitizedReproductiveCondition;
 
     // Derive blur_score from sharpness (1-10) for latency savings
     parsedData.blur_score = Math.max(0, (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10);
@@ -509,7 +483,7 @@ serve((req: Request) =>
     if (isIdentifiedBio) {
       cachedSpecies = fetchedCachedSpecies;
 
-      if (normalizeTaxonomyValue(cachedSpecies?.kingdom)) {
+      if (cachedSpecies && normalizeTaxonomyValue(cachedSpecies.kingdom)) {
         console.log(`Cache Hit: Generating payload from DB for ${parsedData.scientific_name}`);
         speciesId = cachedSpecies.id;
         payloadReadyForClient = hydratePayloadFromCachedSpecies(

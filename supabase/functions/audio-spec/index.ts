@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { Schema, Type } from "https://esm.sh/@google/genai@1.0.0";
-import { encodeBase64, decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
 import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
@@ -10,6 +10,8 @@ import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
+import { processWavBuffer, TARGET_AUDIO_SAMPLE_RATE } from "../_shared/audioProcessing.ts";
+import { buildContextText, normalizeCurrentMonth } from "../_shared/identify/context.ts";
 
 import { AudioClientRequest, AudioIdentification, AudioClientPayload, AudioCandidate } from "./types.ts";
 import {
@@ -19,39 +21,8 @@ import {
   insertScan,
   updateGroupTags,
 } from "./db.ts";
-import {
-  parseWavHeader,
-  extractSamplesAsFloat32,
-  mixToMono,
-  trimSilence,
-  resampleLinear,
-  encodeWav16,
-} from "./wav.ts";
-
-// Target sample rate for Gemini audio ingestion.
-// Downsampling from 48 kHz → 16 kHz reduces payload size ~3× without meaningful
-// loss of bioacoustic frequency content (most calls fall well below 8 kHz Nyquist).
-const TARGET_SAMPLE_RATE = 16_000;
-
 // Gemini confidence threshold below which candidates are forwarded to the iOS client.
 const DIAGNOSTIC_TRIGGER = 0.95;
-
-function normalizeCurrentMonth(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const month = Math.trunc(value);
-    return month >= 1 && month <= 12 ? month : undefined;
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (/^\d{1,2}$/.test(trimmed)) {
-      const month = Number(trimmed);
-      return month >= 1 && month <= 12 ? month : undefined;
-    }
-  }
-
-  return undefined;
-}
 
 const BIOACOUSTIC_SYSTEM_INSTRUCTION = `# Role
 You are a world-class bioacoustic field biologist with expertise in identifying species from their acoustic signatures across all taxa: birds, insects, frogs, mammals, and other wildlife.
@@ -173,46 +144,21 @@ serve((req: Request) =>
     }
 
     // 2. Process audio: parse → mono → trim silence → resample → re-encode
-    // DUAL-MAINTENANCE: The WAV processing algorithm exists in both /audio-spec/index.ts and 
-    // /identify-multimodal/audio.ts. Any future changes must be applied to both.
     let base64Audio: string;
     try {
-      const header = parseWavHeader(rawWavBuffer);
-      const interleaved = extractSamplesAsFloat32(rawWavBuffer, header);
-      const mono = mixToMono(interleaved, header.numChannels);
-      const trimmed = trimSilence(mono, header.sampleRate);
-      const resampled = resampleLinear(trimmed, header.sampleRate, TARGET_SAMPLE_RATE);
-      // Require at least 0.5 s of audio at 16 kHz after silence trimming.
-      // A header-only WAV (resampled.length === 0) would be rejected by Gemini anyway;
-      // returning 400 here gives the client a clean, actionable error.
-      if (resampled.length < 8_000) {
-        return jsonResponse({ error: "Audio too short to identify. Please record a longer clip." }, 400);
-      }
-      const processedWav = encodeWav16(resampled, TARGET_SAMPLE_RATE);
-      base64Audio = encodeBase64(processedWav);
+      const processedAudio = processWavBuffer(rawWavBuffer);
+      base64Audio = processedAudio.base64Audio;
       console.log(
-        `[audio-spec] WAV: ${header.sampleRate}Hz ${header.numChannels}ch → ${TARGET_SAMPLE_RATE}Hz mono, ` +
-        `trimmed ${mono.length}→${trimmed.length} samples, encoded ${processedWav.byteLength} bytes`,
+        `[audio-spec] WAV: ${processedAudio.sourceSampleRate}Hz ${processedAudio.sourceChannels}ch → ` +
+        `${TARGET_AUDIO_SAMPLE_RATE}Hz mono, trimmed ${processedAudio.originalSampleCount}` +
+        `→${processedAudio.trimmedSampleCount} samples, resampled=${processedAudio.resampledSampleCount}, ` +
+        `encoded ${processedAudio.encodedByteLength} bytes`,
       );
     } catch (wavErr) {
       const msg = wavErr instanceof Error ? wavErr.message : String(wavErr);
       logStructuredError("audio_spec/wav_parse_failed", { user_id: user.id, error: msg });
       return jsonResponse({ error: "Invalid audio file format." }, 400);
     }
-
-    // 3. Build telemetry context string (mirrors identify/index.ts telemetryItems pattern)
-    const telemetryItems = [
-      safeGpsLat != null && safeGpsLon != null ? `GPS:${safeGpsLat},${safeGpsLon}` : null,
-      gps_elevation != null ? `Elev:${gps_elevation}m` : null,
-      semantic_location ? `Loc:${semantic_location}` : null,
-      weather_condition ? `Wx:${weather_condition}` : null,
-      weather_temperature_f != null ? `Temp:${weather_temperature_f}F` : null,
-      device_locale ? `Locale:${device_locale}` : null,
-      device_time_zone ? `TZ:${device_time_zone}` : null,
-      device_region ? `Region:${device_region}` : null,
-      normalizedCurrentMonth != null ? `Month:${normalizedCurrentMonth}` : null,
-      time_of_day ? `Time:${time_of_day}` : null,
-    ].filter(Boolean).join(", ");
 
     // 4. Resolve user tier for PostHog tracking (non-blocking, cached after first scan)
     const userTier = await getTierForUser(user.id, supabaseAdmin);
@@ -235,7 +181,24 @@ serve((req: Request) =>
           {
             role: "user",
             parts: [
-              { text: `Context: ${telemetryItems || "no telemetry"}. Perform bioacoustic identification.` },
+              {
+                text: buildContextText(
+                  {
+                    safeGpsLat,
+                    safeGpsLon,
+                    gpsElevation: gps_elevation,
+                    semanticLocation: semantic_location,
+                    weatherCondition: weather_condition,
+                    weatherTemperatureF: weather_temperature_f,
+                    deviceLocale: device_locale,
+                    deviceTimeZone: device_time_zone,
+                    deviceRegion: device_region,
+                    currentMonth: normalizedCurrentMonth,
+                    timeOfDay: time_of_day,
+                  },
+                  "Perform bioacoustic identification.",
+                ),
+              },
               { inlineData: { mimeType: "audio/wav", data: base64Audio } },
             ],
           },

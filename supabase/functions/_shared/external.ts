@@ -3,6 +3,37 @@
  * Normalises to Title Case and deduplicates. Returns an empty array on timeout,
  * non-OK response, or no English entries — never throws.
  */
+function normalizeVernacularName(name: string): string {
+  return name
+    .split(" ")
+    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function collectEnglishVernacularNames(results: unknown): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+
+  for (const entry of (results as Array<Record<string, unknown>> | undefined) ?? []) {
+    const language = entry.language;
+    if (language !== "eng" && language !== "en") continue;
+
+    const rawName = typeof entry.vernacularName === "string"
+      ? entry.vernacularName.trim()
+      : "";
+    if (!rawName) continue;
+
+    const normalized = normalizeVernacularName(rawName);
+    const dedupeKey = normalized.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+
+    seen.add(dedupeKey);
+    names.push(normalized);
+  }
+
+  return names;
+}
+
 export async function fetchGBIFVernacularNames(gbifKey: number): Promise<string[]> {
   try {
     const res = await fetch(
@@ -11,22 +42,7 @@ export async function fetchGBIFVernacularNames(gbifKey: number): Promise<string[
     );
     if (!res.ok) return [];
     const json = await res.json();
-    const seen = new Set<string>();
-    const names: string[] = [];
-    for (const entry of json.results ?? []) {
-      if (entry.language !== "eng" && entry.language !== "en") continue;
-      const name: string = (entry.vernacularName ?? "").trim();
-      if (!name) continue;
-      const normalised = name
-        .split(" ")
-        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-        .join(" ");
-      if (!seen.has(normalised.toLowerCase())) {
-        seen.add(normalised.toLowerCase());
-        names.push(normalised);
-      }
-    }
-    return names;
+    return collectEnglishVernacularNames(json.results);
   } catch {
     return [];
   }
@@ -91,22 +107,7 @@ export async function fetchExternalEnrichment(scientificName: string) {
 
           if (vernacularOutcome.status === "fulfilled" && vernacularOutcome.value.ok) {
             const vernacularJson = await vernacularOutcome.value.json();
-            // GBIF returns { results: [{ vernacularName, language, ... }] }.
-            // Filter to English, deduplicate, and normalise to Title Case.
-            const seen = new Set<string>();
-            for (const entry of vernacularJson.results ?? []) {
-              if (entry.language !== "eng" && entry.language !== "en") continue;
-              const name: string = (entry.vernacularName ?? "").trim();
-              if (!name) continue;
-              const normalised = name
-                .split(" ")
-                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-                .join(" ");
-              if (!seen.has(normalised.toLowerCase())) {
-                seen.add(normalised.toLowerCase());
-                vernacularNames.push(normalised);
-              }
-            }
+            vernacularNames = collectEnglishVernacularNames(vernacularJson.results);
           }
         }
         return { key, urls, vernacularNames };

@@ -73,6 +73,15 @@ function isMissingFilteredFeedRpc(error: unknown): boolean {
     message.includes("PGRST202");
 }
 
+function fallbackFetchLimit(limit: number, blockedCount: number): number {
+  if (blockedCount <= 0) return limit;
+  const extraSlots = Math.min(
+    limit,
+    Math.max(Math.ceil(limit * 0.2), Math.min(blockedCount, 50)),
+  );
+  return limit + extraSlots;
+}
+
 export async function fetchDiscoveryFeed(
   selfId: string,
   limit: number,
@@ -121,11 +130,12 @@ export async function fetchDiscoveryFeed(
     console.warn(
       "[get-filtered-discovery-feed] RPC missing; falling back to JS block filtering.",
     );
-    const overFetchLimit = limit + Math.max(20, Math.ceil(limit * 0.2));
-    const [blockedIds, rawFeed] = await Promise.all([
-      fetchBlockedUserIds(selfId, supabaseAdmin),
-      fetchDiscoveryFeedViaFallback(selfId, overFetchLimit, supabaseAdmin),
-    ]);
+    const blockedIds = await fetchBlockedUserIds(selfId, supabaseAdmin);
+    const rawFeed = await fetchDiscoveryFeedViaFallback(
+      selfId,
+      fallbackFetchLimit(limit, blockedIds.length),
+      supabaseAdmin,
+    );
     const excludedSet = new Set(blockedIds);
     return rawFeed.filter((scan) =>
       scan.user_id != null && !excludedSet.has(scan.user_id)

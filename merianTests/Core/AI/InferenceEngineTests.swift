@@ -6,6 +6,10 @@ import SwiftData
 @MainActor
 @Suite("Inference Engine Tests", .serialized)
 struct InferenceEngineTests {
+    actor CounterBox {
+        private(set) var value = 0
+        func increment() { value += 1 }
+    }
     
     init() {
         let config = URLSessionConfiguration.ephemeral
@@ -143,6 +147,54 @@ struct InferenceEngineTests {
         // which filters out non-existent disk paths — cannot assert file paths in the unit test sandbox.
 
         #expect(engine.isProcessing == false, "Processing state should return to false synchronously")
+    }
+
+    @Test func testPrepareForNewScanClearsPendingBackgroundWrites() async throws {
+        let engine = InferenceEngine()
+        let counter = CounterBox()
+
+        for _ in 0..<engine.debugBackgroundWriteTaskCap {
+            engine.debugEnqueueTrackedBackgroundTask {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
+        }
+        engine.debugEnqueueTrackedBackgroundTask {
+            await counter.increment()
+        }
+
+        #expect(engine.debugBackgroundWriteState().pending == 1)
+
+        engine.prepareForNewScan()
+        try? await Task.sleep(nanoseconds: 150_000_000)
+
+        let state = engine.debugBackgroundWriteState()
+        #expect(state.active == 0, "prepareForNewScan must cancel all active background writes")
+        #expect(state.pending == 0, "prepareForNewScan must clear queued background writes")
+        #expect(await counter.value == 0, "Queued background writes from the old scan must never run after reset")
+    }
+
+    @Test func testCancelActiveRequestClearsPendingBackgroundWrites() async throws {
+        let engine = InferenceEngine()
+        let counter = CounterBox()
+
+        for _ in 0..<engine.debugBackgroundWriteTaskCap {
+            engine.debugEnqueueTrackedBackgroundTask {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
+        }
+        engine.debugEnqueueTrackedBackgroundTask {
+            await counter.increment()
+        }
+
+        #expect(engine.debugBackgroundWriteState().pending == 1)
+
+        engine.cancelActiveRequest()
+        try? await Task.sleep(nanoseconds: 150_000_000)
+
+        let state = engine.debugBackgroundWriteState()
+        #expect(state.active == 0, "cancelActiveRequest must cancel all active background writes")
+        #expect(state.pending == 0, "cancelActiveRequest must clear queued background writes")
+        #expect(await counter.value == 0, "Queued background writes from the cancelled scan must never run")
     }
 
     // MARK: - load(from:) enrichment gate: all-null common names
@@ -1005,7 +1057,7 @@ struct InferenceEngineTests {
                 engine.isProcessing = false
                 engine.activeScanId = nil
             }
-            // No-op body — task exits immediately, triggering the defer
+            await Task.yield()
         }
         engine.inferenceTask = task
         _ = try? await task.value   // wait for defer to complete on @MainActor

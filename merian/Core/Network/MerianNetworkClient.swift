@@ -1085,16 +1085,7 @@ final class MerianNetworkClient {
     }
 
     private func resolveRestorableImagePaths(for scan: LocalScanRecord) -> [String] {
-        var candidatePaths: [String] = []
-
-        if let jsonString = scan.capturedMediaJSON,
-           let jsonData = jsonString.data(using: .utf8),
-           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-            candidatePaths.append(contentsOf: items.compactMap { item in
-                guard case .image(let path) = item else { return nil }
-                return path
-            })
-        }
+        var candidatePaths = scan.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
 
         if candidatePaths.isEmpty, let coverImagePath = scan.coverImagePath {
             candidatePaths.append(coverImagePath)

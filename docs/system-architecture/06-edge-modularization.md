@@ -220,3 +220,9 @@ Token Usage [identify | <tier>]: Prompt: X | Candidates: Y | Thinking: Z | Total
 ```
 
 `llm_thinking_tokens` is also forwarded in the `ScanCompleted` PostHog event for cost analytics. The vision model call uses `_genAI.models.generateContent()` (not the deprecated `getGenerativeModel` pattern), with `thinkingConfig` passed inside the `config` object alongside `systemInstruction`, `temperature`, and `maxOutputTokens`.
+
+## 2026-04 Hardening Updates
+
+- Telemetry-context building, month normalization, and life-stage / reproductive-condition clamping now live in `_shared/identify/context.ts` and are reused by `identify`, `identify-describe`, `identify-multimodal`, and `audio-spec`.
+- The WAV preprocessing pipeline is now centralized in `_shared/audioProcessing.ts`; `audio-spec` and `identify-multimodal` no longer carry two divergent copies of the same decode/trim/resample/encode logic.
+- Explore interaction handlers now reuse `_shared/http.parseJsonBody`, reducing repeated request-body parsing scaffolding while keeping UUID validation and domain checks local to the Explore boundary.

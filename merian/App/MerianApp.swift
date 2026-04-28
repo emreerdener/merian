@@ -1,3 +1,4 @@
+import CoreData
 import GoogleSignIn
 import SwiftData
 import SwiftUI
@@ -18,6 +19,100 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         Task { @MainActor in
             PushNotificationManager.shared.handleRemoteRegistrationFailure(error)
         }
+    }
+}
+
+// MARK: - Store Recovery
+
+enum ModelStoreRecoveryCoordinator {
+    private static let sqliteCorruptionCodes: Set<Int> = [11, 26] // SQLITE_CORRUPT, SQLITE_NOTADB
+    private static let corruptionPhrases = [
+        "database disk image is malformed",
+        "file is not a database",
+        "file is encrypted or is not a database",
+        "sqlite_corrupt",
+        "sqlite_notadb",
+        "malformed database schema",
+        "corrupt"
+    ]
+
+    static func defaultStoreURL() -> URL {
+        URL.applicationSupportDirectory.appending(path: "default.store")
+    }
+
+    static func shouldAttemptRecovery(for error: Error) -> Bool {
+        errorChain(from: error).contains { candidate in
+            let nsError = candidate as NSError
+            if nsError.domain == NSSQLiteErrorDomain, sqliteCorruptionCodes.contains(nsError.code) {
+                return true
+            }
+            if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileReadCorruptFileError {
+                return true
+            }
+
+            let normalizedText = [
+                nsError.localizedDescription,
+                nsError.userInfo[NSDebugDescriptionErrorKey] as? String,
+                nsError.userInfo[NSLocalizedFailureReasonErrorKey] as? String
+            ]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: "\n")
+
+            return corruptionPhrases.contains { normalizedText.contains($0) }
+        }
+    }
+
+    @discardableResult
+    static func quarantineStoreArtifacts(at storeURL: URL, fileManager: FileManager = .default) throws -> URL {
+        let artifacts = storeArtifacts(for: storeURL, fileManager: fileManager)
+        guard !artifacts.isEmpty else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+
+        let quarantineRoot = storeURL.deletingLastPathComponent().appending(path: "store-quarantine", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: quarantineRoot, withIntermediateDirectories: true)
+
+        let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let quarantineDirectory = quarantineRoot.appending(path: "\(timestamp)-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: quarantineDirectory, withIntermediateDirectories: false)
+
+        for artifact in artifacts {
+            let destination = quarantineDirectory.appending(path: artifact.lastPathComponent)
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.moveItem(at: artifact, to: destination)
+        }
+
+        return quarantineDirectory
+    }
+
+    private static func storeArtifacts(for storeURL: URL, fileManager: FileManager) -> [URL] {
+        let candidates = [
+            storeURL,
+            URL(fileURLWithPath: storeURL.path + "-shm"),
+            URL(fileURLWithPath: storeURL.path + "-wal")
+        ]
+        return candidates.filter { fileManager.fileExists(atPath: $0.path) }
+    }
+
+    private static func errorChain(from rootError: Error) -> [Error] {
+        var collected: [Error] = []
+        var stack: [Error] = [rootError]
+
+        while let next = stack.popLast() {
+            collected.append(next)
+            let nsError = next as NSError
+
+            if let nestedError = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+                stack.append(nestedError)
+            }
+            if let nestedErrors = nsError.userInfo[NSDetailedErrorsKey] as? [NSError] {
+                stack.append(contentsOf: nestedErrors)
+            }
+        }
+
+        return collected
     }
 }
 
@@ -45,31 +140,26 @@ struct MerianApp: App {
         }
 
         do {
-            let schema = Schema(versionedSchema: CurrentSchema.self)
-            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-            container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
+            container = try Self.makePersistentContainer()
             AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
         } catch {
             MerianLog.general.error("CRITICAL: Failed to initialize ModelContainer. Error: \(error.localizedDescription)")
-            
-            // Attempt to recover by wiping the corrupted store
-            let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
+
+            guard ModelStoreRecoveryCoordinator.shouldAttemptRecovery(for: error) else {
+                fatalError("Could not initialize ModelContainer safely. Recovery was skipped because the failure did not match a verified corruption signature. Error: \(error)")
+            }
+
             do {
-                if FileManager.default.fileExists(atPath: storeURL.path) {
-                    try? FileManager.default.removeItem(at: storeURL)
-                    let shmURL = URL(fileURLWithPath: storeURL.path + "-shm")
-                    try? FileManager.default.removeItem(at: shmURL)
-                    let walURL = URL(fileURLWithPath: storeURL.path + "-wal")
-                    try? FileManager.default.removeItem(at: walURL)
-                }
-                
-                let schema = Schema(versionedSchema: CurrentSchema.self)
-                let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-                container = try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
+                let quarantineDirectory = try ModelStoreRecoveryCoordinator.quarantineStoreArtifacts(
+                    at: ModelStoreRecoveryCoordinator.defaultStoreURL()
+                )
+                container = try Self.makePersistentContainer()
                 AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
-                MerianLog.general.error("RECOVERY: Successfully recreated an empty ModelContainer after wiping corrupted store.")
+                MerianLog.general.error(
+                    "RECOVERY: Quarantined suspected-corrupt store artifacts to \(quarantineDirectory.lastPathComponent, privacy: .public) and recreated a fresh ModelContainer."
+                )
             } catch let recoveryError {
-                fatalError("Could not recover ModelContainer. Initial error: \(error), Recovery error: \(recoveryError)")
+                fatalError("Could not recover ModelContainer after quarantining the suspected corrupted store. Initial error: \(error), Recovery error: \(recoveryError)")
             }
         }
         
@@ -85,6 +175,12 @@ struct MerianApp: App {
     // MARK: - State Management
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @AppStorage("themeMode") private var themeMode: ThemeMode = .system
+
+    private static func makePersistentContainer() throws -> ModelContainer {
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
+    }
 
     // MARK: - Scene Hierarchy
     var body: some Scene {
