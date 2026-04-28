@@ -116,6 +116,7 @@ struct ExploreView: View {
                 ForEach(viewModel.posts) { post in
                     ExplorePostCard(
                         post: post,
+                        mediaReloadGeneration: viewModel.mediaReloadGeneration,
                         onLike: { Task { await viewModel.toggleLike(for: post) } },
                         onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
                         onShare: { viewModel.share(post) },

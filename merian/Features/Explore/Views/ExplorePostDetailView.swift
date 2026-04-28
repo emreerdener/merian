@@ -155,38 +155,10 @@ struct ExplorePostDetailView: View {
             .aspectRatio(1, contentMode: .fit)
             .overlay(
                 ExploreTransientZoomView {
-                    AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        case .failure:
-                            ZStack {
-                                LinearGradient(
-                                    colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-
-                                Image(systemName: "photo")
-                                    .font(.system(size: 32, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        case .empty:
-                            ZStack {
-                                Color(uiColor: .tertiarySystemFill)
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        @unknown default:
-                            Color(uiColor: .tertiarySystemFill)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    }
+                    ExploreHeroImageView(
+                        imageUrl: post.heroImageUrl,
+                        reloadGeneration: viewModel.mediaReloadGeneration
+                    )
                 }
             )
             .clipped()

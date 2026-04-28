@@ -3,6 +3,7 @@ import UIKit
 
 struct ExplorePostCard: View {
     let post: ExplorePost
+    let mediaReloadGeneration: UInt64
     let onLike: () -> Void
     let onComments: () -> Void
     let onShare: () -> Void
@@ -45,38 +46,10 @@ struct ExplorePostCard: View {
                     onSingleTap: onOpenDetail,
                     onDoubleTap: handleDoubleTapLike
                 ) {
-                    AsyncImage(url: URL(string: post.heroImageUrl)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        case .failure:
-                            ZStack {
-                                LinearGradient(
-                                    colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-
-                                Image(systemName: "photo")
-                                    .font(.system(size: 28, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        case .empty:
-                            ZStack {
-                                Color(uiColor: .tertiarySystemFill)
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        @unknown default:
-                            Color(uiColor: .tertiarySystemFill)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    }
+                    ExploreHeroImageView(
+                        imageUrl: post.heroImageUrl,
+                        reloadGeneration: mediaReloadGeneration
+                    )
                 }
             )
             .clipped()
@@ -302,6 +275,72 @@ struct ExplorePostCard: View {
             isShowingDoubleTapHeart = false
             doubleTapHeartTask = nil
         }
+    }
+}
+
+struct ExploreHeroImageView: View {
+    let imageUrl: String
+    let reloadGeneration: UInt64
+
+    @State private var loadedImage: UIImage?
+    @State private var hasFailedToLoad = false
+
+    var body: some View {
+        Group {
+            if let loadedImage {
+                Image(uiImage: loadedImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if hasFailedToLoad {
+                failurePlaceholder
+            } else {
+                loadingPlaceholder
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .task(id: "\(imageUrl)|\(reloadGeneration)") {
+            loadedImage = nil
+            hasFailedToLoad = false
+
+            let image = await LocalImageLoader.shared.loadImage(
+                fromPath: nil,
+                fallbackUrl: imageUrl,
+                maxDimension: Int(MerianConfig.displayImageMaxSize)
+            )
+            guard !Task.isCancelled else { return }
+
+            if let image {
+                loadedImage = image
+            } else {
+                hasFailedToLoad = true
+            }
+        }
+    }
+
+    private var loadingPlaceholder: some View {
+        ZStack {
+            Color(uiColor: .tertiarySystemFill)
+            ProgressView()
+                .progressViewStyle(.circular)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var failurePlaceholder: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(uiColor: .tertiarySystemFill), Color(uiColor: .secondarySystemFill)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Image(systemName: "photo")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

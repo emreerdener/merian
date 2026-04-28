@@ -20,6 +20,7 @@ extension ExploreFeedViewModel {
             )
 
             posts = freshPosts
+            mediaReloadGeneration &+= 1
             feedOffset = freshPosts.count
             hasLoadedFeedOnce = true
             hasReachedEndOfFeed = freshPosts.count < feedPageSize

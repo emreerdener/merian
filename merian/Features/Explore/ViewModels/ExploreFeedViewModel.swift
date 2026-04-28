@@ -37,4 +37,5 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var isRefreshingUnreadNotificationCount = false
     @ObservationIgnored var unreadNotificationsChannel: RealtimeChannelV2?
     @ObservationIgnored var unreadNotificationListenerTask: Task<Void, Never>?
+    @ObservationIgnored var mediaReloadGeneration: UInt64 = 0
 }
