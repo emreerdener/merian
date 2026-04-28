@@ -25,6 +25,11 @@ extension ExploreFeedViewModel {
             hasReachedEndOfFeed = freshPosts.count < feedPageSize
             errorMessage = nil
             reconcileActiveCommentsPost()
+            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenExplorePost)
+
+            if let latestSharedAt = freshPosts.first?.sharedAt {
+                UserDefaults.standard.set(latestSharedAt, forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt)
+            }
         } catch is CancellationError {
             // Silently absorb cancellation
         } catch let error as URLError where error.code == .cancelled {

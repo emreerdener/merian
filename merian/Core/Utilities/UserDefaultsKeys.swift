@@ -38,6 +38,10 @@ enum UserDefaultsKeys {
     static let hasSeenExploreOnboarding = "hasSeenExploreOnboarding"
     /// Whether the user has dismissed the one-time Explore tab "New" chip.
     static let hasSeenExploreNewChip = "hasSeenExploreNewChip"
+    /// Whether the Explore feed has a newer post than the one the user most recently saw.
+    static let hasUnseenExplorePost = "hasUnseenExplorePost"
+    /// The `sharedAt` timestamp of the newest Explore post successfully loaded by the user.
+    static let lastSeenExplorePostSharedAt = "lastSeenExplorePostSharedAt"
     /// Version marker for one-time local similar-species cache resets.
     static let localLookalikesCacheResetVersion = "localLookalikesCacheResetVersion"
 }

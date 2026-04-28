@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct MainTabBar: View {
     // MARK: - Navigation Dependencies
@@ -7,6 +8,8 @@ struct MainTabBar: View {
     @Binding var isUserProfileOpen: Bool
     @AppStorage(UserDefaultsKeys.hasUnseenScan) private var hasUnseenScan: Bool = false
     @AppStorage(UserDefaultsKeys.hasSeenExploreNewChip) private var hasSeenExploreNewChip: Bool = false
+    @AppStorage(UserDefaultsKeys.hasUnseenExplorePost) private var hasUnseenExplorePost: Bool = false
+    @AppStorage(UserDefaultsKeys.lastSeenExplorePostSharedAt) private var lastSeenExplorePostSharedAt: String = ""
     
     // MARK: - Visual Layout
     var body: some View {
@@ -21,7 +24,8 @@ struct MainTabBar: View {
                     hasSeenExploreNewChip = true
                     isExploreOpen = true
                 },
-                chipText: hasSeenExploreNewChip ? nil : "NEW"
+                showBadge: hasUnseenExplorePost,
+                chipText: hasUnseenExplorePost || hasSeenExploreNewChip ? nil : "NEW"
             )
 
             // 2. Local Taxonomy Library
@@ -67,6 +71,39 @@ struct MainTabBar: View {
                     lineWidth: 0.5
                 )
         )
+        .task {
+            await refreshExploreBadge()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            Task {
+                await refreshExploreBadge()
+            }
+        }
+    }
+
+    private func refreshExploreBadge() async {
+        do {
+            let latestPost = try await MerianNetworkClient.shared.getExploreFeed(limit: 1, offset: 0).first
+
+            guard let latestPost else {
+                hasUnseenExplorePost = false
+                return
+            }
+
+            guard let latestPostDate = latestPost.sharedAtDate else { return }
+            guard !lastSeenExplorePostSharedAt.isEmpty else { return }
+
+            guard let lastSeenPostDate = DateUtilities.iso8601FractionalFormatter.date(from: lastSeenExplorePostSharedAt)
+                ?? DateUtilities.iso8601Formatter.date(from: lastSeenExplorePostSharedAt) else {
+                return
+            }
+
+            hasUnseenExplorePost = latestPostDate > lastSeenPostDate
+        } catch {
+            MerianLog.network.debug(
+                "Failed to refresh Explore tab badge: \(error.localizedDescription, privacy: .private)"
+            )
+        }
     }
 }
 

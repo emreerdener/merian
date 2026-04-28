@@ -405,6 +405,7 @@ final class InsightSheetViewModel {
 
         do {
             let response = try await MerianNetworkClient.shared.shareScanToExplore(scan: record)
+            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenExplorePost)
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.sharedExplorePostId = response.postId

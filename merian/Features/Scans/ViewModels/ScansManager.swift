@@ -336,6 +336,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     func shareToExplore(scan: LocalScanRecord) async {
         do {
             _ = try await MerianNetworkClient.shared.shareScanToExplore(scan: scan)
+            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenExplorePost)
             HapticManager.shared.triggerSuccessPulse()
             showToast(message: "Shared to Explore")
         } catch {
