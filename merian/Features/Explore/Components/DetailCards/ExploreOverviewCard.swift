@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct ExploreOverviewCard: View {
+    let scientificName: String
     let iucnRedListStatus: String?
     let wikipediaOverview: String?
+
+    @State private var isSafariPresented = false
+    @State private var selectedWikiURL: URL?
 
     private var normalizedIucnStatus: (text: String, isGood: Bool?)? {
         guard let rawStatus = iucnRedListStatus?.lowercased()
@@ -99,10 +103,38 @@ struct ExploreOverviewCard: View {
                             .lineLimit(8)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    if let wikiUrl = URL(string: "https://en.wikipedia.org/wiki/\(scientificName.replacingOccurrences(of: " ", with: "_"))") {
+                        Button(action: {
+                            selectedWikiURL = wikiUrl
+                            isSafariPresented = true
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "safari")
+                                Text("Read more on Wikipedia")
+                                    .font(.headline)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                        }
+                        .foregroundColor(.blue)
+                        .background(.regularMaterial)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+                        )
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .card()
+            .sheet(isPresented: $isSafariPresented) {
+                if let safeUrl = selectedWikiURL {
+                    SafariView(url: safeUrl)
+                        .ignoresSafeArea()
+                }
+            }
         }
     }
 

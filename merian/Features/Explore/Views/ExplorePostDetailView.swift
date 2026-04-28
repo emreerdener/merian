@@ -255,6 +255,7 @@ struct ExplorePostDetailView: View {
                 } else {
                     if let detail, detail.hasOverviewContent {
                         ExploreOverviewCard(
+                            scientificName: post.speciesScientificName,
                             iucnRedListStatus: detail.iucnRedListStatus,
                             wikipediaOverview: detail.wikipediaOverview
                         )
