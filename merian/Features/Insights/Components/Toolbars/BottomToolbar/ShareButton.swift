@@ -20,17 +20,18 @@ struct ShareButton: View {
         onShareToExplore != nil || onViewInExplore != nil
     }
 
+    private var exploreHeadline: String {
+        sharedExplorePostId != nil ? "Published" : "Share with community"
+    }
+
+    // BUTTONS TEXT
     private var exploreActionTitle: String {
         sharedExplorePostId != nil ? "View post" : "Share discovery"
     }
 
-    private var exploreHeadline: String {
-        sharedExplorePostId != nil ? "Shared to community" : "Share discovery"
-    }
-
     private var exploreDescription: String {
         if sharedExplorePostId != nil {
-            return "Your discovery is now visible to the community."
+            return "Your discovery is visible to the community."
         }
         return "Publish this discovery so others can learn and explore."
     }
@@ -55,28 +56,15 @@ struct ShareButton: View {
         .sheet(isPresented: $showingOptions, onDismiss: handlePendingAction) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Share")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .padding(.top, 8)
-
-                    exploreFeaturePanel
-
+                    // SHARE TO EXTERNAL APPS
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Share outside Merian")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
-
                         Button {
                             pendingAction = .externalShare
                             showingOptions = false
                         } label: {
                             HStack(spacing: 14) {
-                                
-
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text("Messages, Mail, AirDrop, and more")
+                                    Text("Messages, Mail, and more")
                                         .font(.headline)
                                         .foregroundStyle(.primary)
                                         .multilineTextAlignment(.leading)
@@ -93,7 +81,6 @@ struct ShareButton: View {
 
                                Image(systemName: "square.and.arrow.up")
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(.blue)
                             }
                             .padding(16)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -108,9 +95,10 @@ struct ShareButton: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    exploreFeaturePanel
                 }
                 .padding(.horizontal, 24)
-                .padding(.top, 16)
+                .padding(.top, 32)
                 .padding(.bottom, 24)
             }
             .presentationDetents([.medium, .large])
@@ -129,7 +117,7 @@ struct ShareButton: View {
                     Image("compass")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 34, height: 34)
+                        .frame(width: 40, height: 40)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -162,20 +150,18 @@ struct ShareButton: View {
                 pendingAction = sharedExplorePostId != nil ? .viewInExplore : .shareToExplore
                 showingOptions = false
             } label: {
-                HStack {
+                HStack(alignment: .center) {
                     Label(
                         isSharingToExplore && sharedExplorePostId == nil
-                            ? "Sharing to Explore..."
+                            ? "Sharing..."
                             : exploreActionTitle,
                         systemImage: sharedExplorePostId != nil ? "arrow.up.right.square" : "safari"
                     )
                     .font(.headline)
-
-                    Spacer(minLength: 12)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .background(
                     Capsule(style: .continuous)
                         .fill(Color.white.opacity(0.18))
