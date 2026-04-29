@@ -427,6 +427,7 @@ private struct ExploreMapPreviewCard: View {
                         .foregroundStyle(.primary)
                         .frame(width: 32, height: 32)
                 }
+                .tint(.primary)
             }
 
             HStack(spacing: 10) {
