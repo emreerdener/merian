@@ -18,8 +18,7 @@ extension ExploreFeedViewModel {
                 limit: feedPageSize
             )
 
-            posts = freshPosts
-            mediaReloadGeneration &+= 1
+            store.setFeedPosts(freshPosts)
             hasLoadedFeedOnce = true
             hasReachedEndOfFeed = freshPosts.count < feedPageSize
             updateFeedCursor(using: freshPosts)
@@ -86,7 +85,6 @@ extension ExploreFeedViewModel {
     func appendUniquePosts(_ nextPage: [ExplorePost]) {
         guard !nextPage.isEmpty else { return }
 
-        let existingIds = Set(posts.map(\.id))
-        posts.append(contentsOf: nextPage.filter { existingIds.contains($0.id) == false })
+        store.appendUniqueFeedPosts(nextPage)
     }
 }

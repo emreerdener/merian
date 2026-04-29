@@ -39,6 +39,7 @@ struct ExploreView: View {
                     ExploreMapView(
                         viewModel: mapViewModel,
                         feedViewModel: viewModel,
+                        postStore: viewModel.store,
                         onOpenDetail: { post, focusCommentComposer in
                             openPostDetail(for: post, focusCommentComposer: focusCommentComposer)
                         }

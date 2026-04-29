@@ -46,7 +46,7 @@ extension ExploreFeedViewModel {
     }
 
     func preparePostForNavigation(postId: String) async throws -> ExplorePost {
-        if posts.contains(where: { $0.id == postId }) {
+        if store.post(id: postId) != nil {
             let refreshedPost = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
             upsertPost(refreshedPost)
             return refreshedPost

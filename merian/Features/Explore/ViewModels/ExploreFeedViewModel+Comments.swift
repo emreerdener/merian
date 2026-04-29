@@ -181,13 +181,12 @@ extension ExploreFeedViewModel {
     }
 
     func updateCommentCount(postId: String, commentCount: Int) {
-        guard let index = indexForPost(id: postId) else { return }
-        posts[index].commentCount = max(0, commentCount)
+        store.updateCommentCount(postId: postId, commentCount: commentCount)
     }
 
     func reconcileActiveCommentsPost() {
         guard let activeCommentsPostId else { return }
-        if posts.contains(where: { $0.id == activeCommentsPostId }) == false {
+        if store.post(id: activeCommentsPostId) == nil {
             dismissComments()
         }
     }

@@ -57,7 +57,7 @@ The Explore feed and map shell are now live. The current shipped implementation 
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction.
 - Publication state still lives on `explore_posts`, but the shipped map does not store coordinates on `explore_posts`. Spatial reads currently project privacy-safe coordinates from `public.scans.gps_lat_public` / `gps_long_public` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` and a server-side fallback so newly shared scans with exact coordinates are normalized/backfilled correctly and do not disappear from the map.
-- `ExploreFeedViewModel` is the current shared in-memory mutation source across feed and map. There is no separate shipped `ExplorePostStore` yet.
+- `ExplorePostStore` now owns shared Explore post state across feed, map, detail, comments, and notification-driven navigation, while `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
 - Feed pagination now uses a `(shared_at, post_id)` cursor as the canonical shipped model.
 
 ## Recommended Product Model
@@ -654,7 +654,7 @@ Technical notes:
 - Debounce camera-driven fetch eligibility rather than firing a network request on every frame
 - Reuse the existing Explore detail route already owned by `ExploreView`
 - Keep selection state local to the map view model so the feed view model does not absorb spatial UI concerns
-- In the shipped V1, feed and map mutations converge through `ExploreFeedViewModel`, which acts as the current shared in-memory mutation source for likes, comment counts, unshares, reports, and blocks
+- In the current shipped architecture, feed and map mutations converge through `ExplorePostStore`, which acts as the shared in-memory source for likes, comment counts, unshares, reports, and blocks while screen-specific view models keep their own UI state
 
 ### Search And Caching Behavior
 

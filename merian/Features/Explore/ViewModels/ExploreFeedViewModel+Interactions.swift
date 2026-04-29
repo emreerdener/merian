@@ -3,20 +3,22 @@ import Foundation
 extension ExploreFeedViewModel {
     func toggleLike(for post: ExplorePost) async {
         upsertPost(post)
-        guard let index = indexForPost(id: post.id) else { return }
         guard !likeRequestsInFlight.contains(post.id) else { return }
 
-        let previousLikedState = posts[index].viewerHasLiked
-        let previousLikeCount = posts[index].likeCount
+        guard let optimisticState = store.toggleLikeOptimistically(postId: post.id),
+              let optimisticPost = store.post(id: post.id) else {
+            return
+        }
+
+        let previousLikedState = optimisticState.previousLikedState
+        let previousLikeCount = optimisticState.previousLikeCount
         likeRequestsInFlight.insert(post.id)
         defer { likeRequestsInFlight.remove(post.id) }
-        posts[index].viewerHasLiked.toggle()
-        posts[index].likeCount = max(0, previousLikeCount + (posts[index].viewerHasLiked ? 1 : -1))
 
         do {
             let response = try await MerianNetworkClient.shared.setExplorePostLike(
                 postId: post.id,
-                liked: posts[index].viewerHasLiked
+                liked: optimisticPost.viewerHasLiked
             )
             applyLikeState(
                 postId: response.postId,
@@ -112,17 +114,13 @@ extension ExploreFeedViewModel {
         posts.firstIndex(where: { $0.id == id })
     }
 
-    func upsertPost(_ post: ExplorePost) {
-        if let index = posts.firstIndex(where: { $0.id == post.id }) {
-            posts[index] = post
-        } else {
-            posts.append(post)
-        }
+    func upsertPost(_ post: ExplorePost, includeInFeed: Bool = false) {
+        store.upsert(post, includeInFeed: includeInFeed)
         reconcileActiveCommentsPost()
     }
 
     func removePost(id: String) {
-        posts.removeAll { $0.id == id }
+        store.removePost(id: id)
         if activeCommentsPostId == id {
             dismissComments()
         }
@@ -130,7 +128,7 @@ extension ExploreFeedViewModel {
     }
 
     func removePosts(byAuthorUserId authorUserId: String) {
-        posts.removeAll { $0.authorUserId == authorUserId }
+        store.removePosts(byAuthorUserId: authorUserId)
         if activeCommentsPost?.authorUserId == authorUserId {
             dismissComments()
         }
@@ -138,8 +136,6 @@ extension ExploreFeedViewModel {
     }
 
     func applyLikeState(postId: String, likeCount: Int, viewerHasLiked: Bool) {
-        guard let index = indexForPost(id: postId) else { return }
-        posts[index].likeCount = max(0, likeCount)
-        posts[index].viewerHasLiked = viewerHasLiked
+        store.applyLikeState(postId: postId, likeCount: likeCount, viewerHasLiked: viewerHasLiked)
     }
 }

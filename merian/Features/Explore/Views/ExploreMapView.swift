@@ -4,6 +4,7 @@ import SwiftUI
 struct ExploreMapView: View {
     @Bindable var viewModel: ExploreMapViewModel
     @Bindable var feedViewModel: ExploreFeedViewModel
+    @Bindable var postStore: ExplorePostStore
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
     @State private var ignoreNextBackgroundTap = false
 
@@ -33,8 +34,8 @@ struct ExploreMapView: View {
         .task {
             await viewModel.loadInitialData(using: environmentContextManager)
         }
-        .onChange(of: feedViewModel.posts) { _, updatedPosts in
-            viewModel.syncPosts(from: updatedPosts)
+        .onChange(of: postStore.changeVersion) { _, _ in
+            viewModel.syncPosts(from: postStore.allPosts)
         }
     }
 
@@ -176,7 +177,7 @@ struct ExploreMapView: View {
 
     private var resolvedSelectedPost: ExplorePost? {
         guard let mapPost = viewModel.selectedPost else { return nil }
-        return feedViewModel.posts.first(where: { $0.id == mapPost.id }) ?? mapPost.asExplorePost
+        return postStore.post(id: mapPost.id) ?? mapPost.asExplorePost
     }
 
     private var infoChip: some View {
@@ -280,7 +281,7 @@ struct ExploreMapView: View {
     private func toggleLike(for post: ExplorePost) async {
         feedViewModel.upsertPost(post)
         await feedViewModel.toggleLike(for: post)
-        viewModel.syncPosts(from: feedViewModel.posts)
+        viewModel.syncPosts(from: postStore.allPosts)
     }
 
     private func unshare(_ post: ExplorePost) async {

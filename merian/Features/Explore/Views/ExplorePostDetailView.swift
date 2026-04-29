@@ -15,7 +15,7 @@ struct ExplorePostDetailView: View {
     private let commentsComposerId = "explore-comments-composer"
 
     private var currentPost: ExplorePost? {
-        viewModel.posts.first(where: { $0.id == postId })
+        viewModel.post(id: postId)
     }
 
     var body: some View {
