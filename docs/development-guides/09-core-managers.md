@@ -273,6 +273,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - `consumeScan()` — called once at enqueue time inside `OfflineQueueManager.insertAndPersistRecord`, before the `OfflineQueuedScan` record is inserted. Every scan that enters the queue is already paid for; `syncPendingScans` has no quota checks.
 - `refundScan()` — restores the consumed token if inference fails unrecoverably (task cancellation, JSON decoding failure, network error).
 - Grants 2 free daily scans via `UserDefaults` keyed against `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day boundaries via `evaluateDailyRefresh()`, called from `AppDIContainer.handleActivePhase()` on foreground transitions.
+- **Debug-only override**: In `DEBUG` builds, setting the `MERIAN_DISABLE_FREE_SCAN_LIMIT=1` scheme environment variable makes `canPerformScan()` always return `true`, skips quota mutation in `consumeScan()` / `refundScan()`, and emits a one-time `MerianLog.general.warning(...)` console message. This keeps local development unblocked without reintroducing a production hardcoded bypass.
 - Full contract documented in [02-revenue-and-identity.md](../features-and-hardware/02-revenue-and-identity.md#usage-limits-usagemanager).
 
 ### `SocialGuardManager`

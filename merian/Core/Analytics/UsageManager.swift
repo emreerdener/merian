@@ -21,15 +21,48 @@ import Observation
     private var lastScanDateKey: String { "Merian_LastScanDate_\(DeviceIdentityManager.shared.deviceId)" }
     private var scansUsedKey: String { "Merian_ScansUsedToday_\(DeviceIdentityManager.shared.deviceId)" }
 
+#if DEBUG
+    static var debugFreeScanLimitOverride: Bool?
+    private static let freeScanLimitOverrideEnvironmentKey = "MERIAN_DISABLE_FREE_SCAN_LIMIT"
+    private var hasLoggedFreeScanLimitOverride = false
+#endif
+
     private init() {
         freeScansRemaining = maxFreeScansPerDay
         evaluateDailyRefresh()
+    }
+
+    private var isFreeScanLimitOverrideEnabled: Bool {
+#if DEBUG
+        if let debugFreeScanLimitOverride = Self.debugFreeScanLimitOverride {
+            return debugFreeScanLimitOverride
+        }
+
+        return ProcessInfo.processInfo.environment[Self.freeScanLimitOverrideEnvironmentKey] == "1"
+#else
+        return false
+#endif
+    }
+
+    private func logFreeScanLimitOverrideIfNeeded() {
+#if DEBUG
+        guard isFreeScanLimitOverrideEnabled, !hasLoggedFreeScanLimitOverride else { return }
+        hasLoggedFreeScanLimitOverride = true
+        MerianLog.general.warning("TEMP OVERRIDE ACTIVE: free daily scan limit is disabled via MERIAN_DISABLE_FREE_SCAN_LIMIT.")
+#endif
     }
 
     // MARK: - Quota
 
     /// Resets the scan count if the calendar day has changed.
     func evaluateDailyRefresh() {
+        if isFreeScanLimitOverrideEnabled {
+            logFreeScanLimitOverrideIfNeeded()
+            freeScansRemaining = maxFreeScansPerDay
+            showPaywall = false
+            return
+        }
+
         let lastDate = defaults.object(forKey: lastScanDateKey) as? Date ?? Date.distantPast
 
         if !Calendar.current.isDateInToday(lastDate) {
@@ -47,11 +80,21 @@ import Observation
 
     /// Returns true if the user is allowed to perform another scan.
     func canPerformScan(isProActive: Bool) -> Bool {
+        if isFreeScanLimitOverrideEnabled {
+            logFreeScanLimitOverrideIfNeeded()
+            return true
+        }
+
         return isProActive || freeScansRemaining > 0
     }
 
     /// Records a scan as consumed, updating the daily count.
     func consumeScan() {
+        if isFreeScanLimitOverrideEnabled {
+            logFreeScanLimitOverrideIfNeeded()
+            return
+        }
+
         let used = defaults.integer(forKey: scansUsedKey) + 1
         defaults.set(used, forKey: scansUsedKey)
         defaults.set(Date(), forKey: lastScanDateKey)
@@ -60,6 +103,11 @@ import Observation
 
     /// Refunds a scan when processing fails and the user should not be charged.
     func refundScan() {
+        if isFreeScanLimitOverrideEnabled {
+            logFreeScanLimitOverrideIfNeeded()
+            return
+        }
+
         let currentUsed = defaults.integer(forKey: scansUsedKey)
         if currentUsed > 0 {
             defaults.set(currentUsed - 1, forKey: scansUsedKey)
