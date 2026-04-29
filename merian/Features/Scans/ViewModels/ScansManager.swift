@@ -13,6 +13,13 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
 @MainActor
 @Observable final class ScansManager {
+    #if DEBUG
+    enum SearchDebugEvent: Equatable {
+        case indexingCompleted(documentCount: Int)
+        case searchCompleted(query: String, resultCount: Int)
+    }
+    #endif
+
     // MARK: - UI Published State
     var searchQuery: String = ""
     var filteredScans: [LocalScanRecord] = []
@@ -72,6 +79,9 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     @ObservationIgnored private var sortPrimitivesById: [String: ScanSortPrimitive] = [:]
     @ObservationIgnored private var allScanSortPrimitives: [ScanSortPrimitive] = []
     @ObservationIgnored private var sortedAllScanIDsCache: [String: [String]] = [:]
+    #if DEBUG
+    @ObservationIgnored var debugEventHandler: ((SearchDebugEvent) -> Void)?
+    #endif
     
     // MARK: - Data Indexing Pipeline
     private func rebuildSearchCaches(oldScans: [LocalScanRecord]) {
@@ -111,18 +121,24 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
         let addedScans = allScans.filter { !oldIds.contains($0.id) }
         let removedIds = oldIds.subtracting(newIds)
+        var workingSnapshot = searchIndexSnapshot
 
         if !removedIds.isEmpty {
-            searchIndexSnapshot = searchIndexSnapshot.removing(ids: removedIds)
+            workingSnapshot = workingSnapshot.removing(ids: removedIds)
         }
 
         guard let firstScan = allScans.first, let container = firstScan.modelContext?.container else {
-            self.searchIndexSnapshot = .empty
+            commitSearchIndexSnapshot(.empty)
             return
         }
 
-        if addedScans.isEmpty && self.searchIndexSnapshot.count == allScans.count {
+        if addedScans.isEmpty && workingSnapshot.count == allScans.count {
+            commitSearchIndexSnapshot(workingSnapshot)
             return
+        }
+
+        if workingSnapshot.count != searchIndexSnapshot.count {
+            setSearchIndexSnapshot(workingSnapshot, emitCompletion: false)
         }
 
         let needsFullRebuild = self.searchIndexSnapshot.isEmpty && !allScans.isEmpty
@@ -162,7 +178,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 let snapshot = SearchIndexSnapshot(searchableScans: processed)
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
-                    self?.searchIndexSnapshot = snapshot
+                    self?.commitSearchIndexSnapshot(snapshot)
                 }
             }
         } else {
@@ -177,7 +193,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
                     guard let self else { return }
-                    self.searchIndexSnapshot = self.searchIndexSnapshot.upserting(processedNewScans)
+                    self.commitSearchIndexSnapshot(self.searchIndexSnapshot.upserting(processedNewScans))
                 }
             }
         }
@@ -186,7 +202,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     // MARK: - Dedicated Reindexing
     private func forceReindex(scanId: String) {
         guard let scan = allScans.first(where: { $0.id == scanId }), let container = scan.modelContext?.container else { return }
-        self.searchIndexSnapshot = self.searchIndexSnapshot.removing(ids: Set([scanId]))
+        setSearchIndexSnapshot(self.searchIndexSnapshot.removing(ids: Set([scanId])), emitCompletion: false)
 
         // Cancel any prior reindex so two rapid calls cannot both append to searchableData,
         // which would produce duplicate SearchableScan entries in the search index.
@@ -198,7 +214,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                self.searchIndexSnapshot = self.searchIndexSnapshot.upserting(newPayload)
+                self.commitSearchIndexSnapshot(self.searchIndexSnapshot.upserting(newPayload))
             }
         }
     }
@@ -235,19 +251,13 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 if Task.isCancelled { return }
                 
                 let finalSorted = self.records(for: sortedIds)
-                withAnimation { 
-                    self.filteredScans = finalSorted 
-                    self.isFiltering = false
-                }
+                self.completeSearch(with: finalSorted, query: text)
                 return
             }
             
             let searchIndex = self.searchIndexSnapshot
             if searchIndex.isEmpty {
-                withAnimation {
-                    self.filteredScans = []
-                    self.isFiltering = false
-                }
+                self.completeSearch(with: [], query: text)
                 return
             }
             
@@ -267,10 +277,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             
             let finalSorted = self.records(for: sortedIds)
             
-            withAnimation {
-                self.filteredScans = finalSorted
-                self.isFiltering = false
-            }
+            self.completeSearch(with: finalSorted, query: text)
         }
     }
     
@@ -324,6 +331,37 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             sortedAllScanIDsCache[sortOption.rawValue] = sortedIds
         }
         return sortedIds
+    }
+
+    private func commitSearchIndexSnapshot(_ snapshot: SearchIndexSnapshot) {
+        setSearchIndexSnapshot(snapshot, emitCompletion: true)
+    }
+
+    private func setSearchIndexSnapshot(_ snapshot: SearchIndexSnapshot, emitCompletion: Bool) {
+        searchIndexSnapshot = snapshot
+        if emitCompletion {
+            emitIndexingCompletedEvent()
+        }
+    }
+
+    private func completeSearch(with scans: [LocalScanRecord], query: String) {
+        withAnimation {
+            filteredScans = scans
+            isFiltering = false
+        }
+        emitSearchCompletedEvent(query: query, resultCount: scans.count)
+    }
+
+    private func emitIndexingCompletedEvent() {
+        #if DEBUG
+        debugEventHandler?(.indexingCompleted(documentCount: searchIndexSnapshot.count))
+        #endif
+    }
+
+    private func emitSearchCompletedEvent(query: String, resultCount: Int) {
+        #if DEBUG
+        debugEventHandler?(.searchCompleted(query: query, resultCount: resultCount))
+        #endif
     }
     
     // MARK: - Batch Selection Operations

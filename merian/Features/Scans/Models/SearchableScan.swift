@@ -45,6 +45,7 @@ enum SearchCategoryBucket: String, CaseIterable, Sendable {
 struct SearchIndexSnapshot: Sendable {
     struct IndexedTerms: Sendable {
         let words: [String]
+        let unigrams: [String]
         let bigrams: [String]
         let trigrams: [String]
     }
@@ -53,6 +54,7 @@ struct SearchIndexSnapshot: Sendable {
 
     private(set) var documentsById: [String: SearchableScan] = [:]
     private(set) var wordIndex: [String: [String]] = [:]
+    private(set) var unigramIndex: [String: [String]] = [:]
     private(set) var bigramIndex: [String: [String]] = [:]
     private(set) var trigramIndex: [String: [String]] = [:]
     private(set) var categoryIndex: [SearchCategoryBucket: [String]] = [:]
@@ -101,9 +103,7 @@ struct SearchIndexSnapshot: Sendable {
 
         switch normalizedToken.count {
         case 1:
-            // Single-character queries are inherently broad. Fall back to verification on the
-            // filtered candidate set rather than exploding the index with one-character grams.
-            return allDocumentIDs
+            return unigramIndex[normalizedToken] ?? []
         case 2:
             if let exactBigramMatches = bigramIndex[normalizedToken] {
                 return exactBigramMatches
@@ -147,16 +147,19 @@ struct SearchIndexSnapshot: Sendable {
 
         let terms = SearchIndexTokenizer.indexedTerms(for: scan.searchString)
         var updatedWordIndex = wordIndex
+        var updatedUnigramIndex = unigramIndex
         var updatedBigramIndex = bigramIndex
         var updatedTrigramIndex = trigramIndex
         var updatedCategoryIndex = categoryIndex
-
+        
         Self.append(scan.id, to: &updatedWordIndex, terms: terms.words)
+        Self.append(scan.id, to: &updatedUnigramIndex, terms: terms.unigrams)
         Self.append(scan.id, to: &updatedBigramIndex, terms: terms.bigrams)
         Self.append(scan.id, to: &updatedTrigramIndex, terms: terms.trigrams)
         updatedCategoryIndex[scan.categoryBucket, default: []].append(scan.id)
-
+        
         wordIndex = updatedWordIndex
+        unigramIndex = updatedUnigramIndex
         bigramIndex = updatedBigramIndex
         trigramIndex = updatedTrigramIndex
         categoryIndex = updatedCategoryIndex
@@ -169,16 +172,19 @@ struct SearchIndexSnapshot: Sendable {
 
         let terms = SearchIndexTokenizer.indexedTerms(for: removedScan.searchString)
         var updatedWordIndex = wordIndex
+        var updatedUnigramIndex = unigramIndex
         var updatedBigramIndex = bigramIndex
         var updatedTrigramIndex = trigramIndex
         var updatedCategoryIndex = categoryIndex
-
+        
         Self.remove(id, from: &updatedWordIndex, terms: terms.words)
+        Self.remove(id, from: &updatedUnigramIndex, terms: terms.unigrams)
         Self.remove(id, from: &updatedBigramIndex, terms: terms.bigrams)
         Self.remove(id, from: &updatedTrigramIndex, terms: terms.trigrams)
         Self.remove(id, from: &updatedCategoryIndex, category: removedScan.categoryBucket)
-
+        
         wordIndex = updatedWordIndex
+        unigramIndex = updatedUnigramIndex
         bigramIndex = updatedBigramIndex
         trigramIndex = updatedTrigramIndex
         categoryIndex = updatedCategoryIndex
@@ -231,10 +237,12 @@ enum SearchIndexTokenizer {
     static func indexedTerms(for searchString: String) -> SearchIndexSnapshot.IndexedTerms {
         let tokens = uniqueTokens(from: searchString)
 
+        var unigrams = Set<String>()
         var bigrams = Set<String>()
         var trigrams = Set<String>()
 
         for token in tokens {
+            unigrams.formUnion(ngrams(from: token, length: 1))
             if token.count >= 2 {
                 bigrams.formUnion(ngrams(from: token, length: 2))
             }
@@ -245,6 +253,7 @@ enum SearchIndexTokenizer {
 
         return SearchIndexSnapshot.IndexedTerms(
             words: Array(tokens),
+            unigrams: Array(unigrams),
             bigrams: Array(bigrams),
             trigrams: Array(trigrams)
         )

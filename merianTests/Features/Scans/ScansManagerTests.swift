@@ -51,15 +51,50 @@ final class ScansManagerTests: XCTestCase {
         return record
     }
 
-    private func waitForIndexing() async throws {
-        try await Task.sleep(nanoseconds: 150_000_000)
+    private func waitForIndexing(
+        expectedDocumentCount: Int? = nil,
+        after trigger: @MainActor () -> Void
+    ) async {
+        await waitForDebugEvent(description: "search indexing completed", after: trigger) { event in
+            guard case let .indexingCompleted(documentCount) = event else { return false }
+            guard let expectedDocumentCount else { return true }
+            return documentCount == expectedDocumentCount
+        }
     }
 
-    private func waitForSearchCompletion(for query: String) async throws {
-        let delay: UInt64 = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? 100_000_000
-            : 250_000_000
-        try await Task.sleep(nanoseconds: delay)
+    private func waitForSearchCompletion(
+        for query: String,
+        after trigger: @MainActor () -> Void
+    ) async {
+        let normalizedQuery = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        await waitForDebugEvent(description: "search completed", after: trigger) { event in
+            guard case let .searchCompleted(completedQuery, _) = event else { return false }
+            return completedQuery == normalizedQuery
+        }
+    }
+
+    private func waitForDebugEvent(
+        description: String,
+        after trigger: @MainActor () -> Void,
+        matching predicate: @escaping @MainActor (ScansManager.SearchDebugEvent) -> Bool
+    ) async {
+        #if DEBUG
+        let expectation = expectation(description: description)
+        var fulfilled = false
+
+        searchManager.debugEventHandler = { event in
+            guard !fulfilled, predicate(event) else { return }
+            fulfilled = true
+            expectation.fulfill()
+        }
+
+        trigger()
+        await fulfillment(of: [expectation], timeout: 2.0)
+        searchManager.debugEventHandler = nil
+        #else
+        XCTFail("ScansManager debug hooks are unavailable outside DEBUG builds.")
+        trigger()
+        #endif
     }
     
     func testEmptySearchReturnsAllScans() async throws {
@@ -78,8 +113,9 @@ final class ScansManagerTests: XCTestCase {
         newerScan.timestamp = Date(timeIntervalSince1970: 200)
 
         searchManager.allScans = [olderScan, newerScan]
-        searchManager.performSearch(query: "")
-        try await waitForSearchCompletion(for: "")
+        await waitForSearchCompletion(for: "") {
+            searchManager.performSearch(query: "")
+        }
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [newerScan.id, olderScan.id])
     }
@@ -100,11 +136,13 @@ final class ScansManagerTests: XCTestCase {
             taxonomyKingdom: "Fungi"
         )
 
-        searchManager.allScans = [taggedBird, mushroom]
-        try await waitForIndexing()
+        await waitForIndexing(expectedDocumentCount: 2) {
+            searchManager.allScans = [taggedBird, mushroom]
+        }
 
-        searchManager.performSearch(query: "backyard")
-        try await waitForSearchCompletion(for: "backyard")
+        await waitForSearchCompletion(for: "backyard") {
+            searchManager.performSearch(query: "backyard")
+        }
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [taggedBird.id])
     }
@@ -122,13 +160,61 @@ final class ScansManagerTests: XCTestCase {
             taxonomyKingdom: "Fungi"
         )
 
-        searchManager.allScans = [taggedBird, mushroom]
-        try await waitForIndexing()
+        await waitForIndexing(expectedDocumentCount: 2) {
+            searchManager.allScans = [taggedBird, mushroom]
+        }
 
-        searchManager.performSearch(query: "yard")
-        try await waitForSearchCompletion(for: "yard")
+        await waitForSearchCompletion(for: "yard") {
+            searchManager.performSearch(query: "yard")
+        }
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [taggedBird.id])
+    }
+
+    func testSingleCharacterCandidateIndexUsesUnigramPostingList() {
+        let zebra = SearchableScan(
+            id: "zebra",
+            searchString: "zebra finch taeniopygia guttata",
+            ecologyType: "wild",
+            kingdom: "",
+            className: "aves"
+        )
+        let oak = SearchableScan(
+            id: "oak",
+            searchString: "oak quercus alba",
+            ecologyType: "plant",
+            kingdom: "plantae",
+            className: ""
+        )
+
+        let snapshot = SearchIndexSnapshot(searchableScans: [zebra, oak])
+
+        XCTAssertEqual(Set(snapshot.candidateIDs(matching: "z")), [zebra.id])
+        XCTAssertEqual(Set(snapshot.candidateIDs(matching: "q")), [oak.id])
+    }
+
+    func testSingleCharacterSearchUsesUnigramIndex() async throws {
+        let zebra = createTestScan(
+            commonName: "Zebra Finch",
+            scientificName: "Taeniopygia guttata",
+            ecologyType: "wild"
+        )
+        let oak = createTestScan(
+            commonName: "Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "plant",
+            taxonomyKingdom: "Plantae"
+        )
+
+        await waitForIndexing(expectedDocumentCount: 2) {
+            searchManager.allScans = [zebra, oak]
+        }
+
+        await waitForSearchCompletion(for: "z") {
+            searchManager.performSearch(query: "z")
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [zebra.id])
     }
     
     func testTaxonomicCategoryFiltering() async throws {
@@ -145,28 +231,77 @@ final class ScansManagerTests: XCTestCase {
             taxonomyKingdom: "Plantae"
         )
 
-        searchManager.allScans = [bird, plant]
-        try await waitForIndexing()
+        await waitForIndexing(expectedDocumentCount: 2) {
+            searchManager.allScans = [bird, plant]
+        }
 
-        searchManager.performSearch(query: "", category: "Birds")
-        try await waitForSearchCompletion(for: "")
+        await waitForSearchCompletion(for: "") {
+            searchManager.performSearch(query: "", category: "Birds")
+        }
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [bird.id])
     }
 
-    func testDebounceCancellation() async throws { return }
+    func testDebounceCancellation() async throws {
+        let bird = createTestScan(
+            commonName: "Backyard Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+        let oak = createTestScan(
+            commonName: "Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "plant",
+            taxonomyKingdom: "Plantae"
+        )
+
+        await waitForIndexing(expectedDocumentCount: 2) {
+            searchManager.allScans = [bird, oak]
+        }
+
+        #if DEBUG
+        let cancelledQueryExpectation = expectation(description: "superseded query should not complete")
+        cancelledQueryExpectation.isInverted = true
+        let replacementQueryExpectation = expectation(description: "replacement query completes")
+        var completedQueries: [String] = []
+
+        searchManager.debugEventHandler = { event in
+            guard case let .searchCompleted(query, _) = event else { return }
+            completedQueries.append(query)
+
+            if query == "backyard" {
+                cancelledQueryExpectation.fulfill()
+            }
+
+            if query == "oak" {
+                replacementQueryExpectation.fulfill()
+            }
+        }
+        defer { searchManager.debugEventHandler = nil }
+
+        searchManager.performSearch(query: "backyard")
+        searchManager.performSearch(query: "oak")
+
+        await fulfillment(of: [replacementQueryExpectation, cancelledQueryExpectation], timeout: 0.5, enforceOrder: false)
+
+        XCTAssertEqual(completedQueries, ["oak"])
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [oak.id])
+        #else
+        XCTFail("ScansManager debug hooks are unavailable outside DEBUG builds.")
+        #endif
+    }
     
     func testCustomTag_DynamicHotSwap() async throws {
         // 1. Create a dummy scan with default empty custom tags
         let scan = createTestScan(commonName: "Test Bird", scientificName: "Testius avius", ecologyType: "wild")
-        searchManager.allScans = [scan]
-        
-        // Let the asynchronous batch string extraction run once
-        try await Task.sleep(nanoseconds: 100_000_000)
-        
+        await waitForIndexing(expectedDocumentCount: 1) {
+            searchManager.allScans = [scan]
+        }
+
         // Perform an initial empty search
-        searchManager.performSearch(query: "")
-        try await Task.sleep(nanoseconds: 200_000_000) // Debounce timeout
+        await waitForSearchCompletion(for: "") {
+            searchManager.performSearch(query: "")
+        }
         XCTAssertEqual(searchManager.filteredScans.count, 1)
         
         // 2. Add a custom tag directly modifying the object
@@ -175,19 +310,20 @@ final class ScansManagerTests: XCTestCase {
         
         // Perform a search for the new tag before firing the notification — Should yield 0 results
         // because SearchDatabaseActor runs ONLY on delta inserts normally.
-        searchManager.performSearch(query: "backyard")
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitForSearchCompletion(for: "backyard") {
+            searchManager.performSearch(query: "backyard")
+        }
         XCTAssertEqual(searchManager.filteredScans.count, 0)
         
         // 3. Emit the hot-swap trigger precisely simulating UserTagsCard behavior
-        NotificationCenter.default.post(name: NSNotification.Name("ScanRequiresSearchIndexUpdate"), object: nil, userInfo: ["scanId": scan.id])
-        
-        // Give ScansManager time to reindex inside its internal detached task pool.
-        try await Task.sleep(nanoseconds: 100_000_000)
-        
+        await waitForIndexing(expectedDocumentCount: 1) {
+            NotificationCenter.default.post(name: NSNotification.Name("ScanRequiresSearchIndexUpdate"), object: nil, userInfo: ["scanId": scan.id])
+        }
+
         // Perform search again for backyard
-        searchManager.performSearch(query: "backyard")
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await waitForSearchCompletion(for: "backyard") {
+            searchManager.performSearch(query: "backyard")
+        }
         
         // The tag should now be correctly indexed via the background thread swapping logic!
         XCTAssertEqual(searchManager.filteredScans.count, 1)
