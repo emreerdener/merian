@@ -18,6 +18,13 @@ final class SpeechManager {
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    private var audioSessionLease: AudioSessionCoordinator.Lease?
+
+    #if targetEnvironment(simulator)
+    private static let preferredRecordSampleRate: Double? = 48_000
+    #else
+    private static let preferredRecordSampleRate: Double? = nil
+    #endif
 
     func startDictation(onResult: @MainActor @escaping (String) -> Void) async throws {
         guard !isStarting, !isRecording else { return }
@@ -57,15 +64,12 @@ final class SpeechManager {
         
         do {
             try await Task.detached { [manager] in
-                let audioSession = AVAudioSession.sharedInstance()
-                try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
-                
-                #if targetEnvironment(simulator)
-                // Simulator specific fix: iOS forces 0 Hz sample rates randomly causing -10851 aborts.
-                try? audioSession.setPreferredSampleRate(48000)
-                #endif
-                
-                try audioSession.setActive(true)
+                let lease = try await AudioSessionCoordinator.shared.activate(
+                    .recordMeasurement(preferredSampleRate: SpeechManager.preferredRecordSampleRate)
+                )
+                await MainActor.run {
+                    manager.audioSessionLease = lease
+                }
                 
                 // Accessing inputNode for the first time negotiates hardware and triggers IPC.
                 // MUST be detached so the Main Thread is yielded and free to receive mediaserverd callbacks.
@@ -145,10 +149,10 @@ final class SpeechManager {
 
         recognitionRequest = nil
         recognitionTask = nil
-
-        // Prevent mediaserverd IPC wait from deadlocking MainActor tearing down the session
-        Task.detached {
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        let lease = audioSessionLease
+        audioSessionLease = nil
+        Task {
+            await AudioSessionCoordinator.shared.deactivate(ifCurrent: lease)
         }
     }
 

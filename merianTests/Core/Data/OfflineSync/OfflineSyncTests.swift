@@ -107,7 +107,7 @@ final class OfflineSyncTests: XCTestCase {
         // runInferencePipeline's transient catch block calls transitionScanToStaged (not
         // activeScanUploadIds.remove — that set was removed in V33). Verify the retry-count
         // boundary that gates whether the scan is reset to .staged or tombstoned.
-        let maxRetries = OfflineQueueManager.maxUploadRetries
+        let maxRetries = await MainActor.run { OfflineQueueManager.maxUploadRetries }
 
         // Below threshold → transitionScanToStaged is called, scan stays retryable.
         XCTAssertFalse(1 >= maxRetries, "First transient failure must not tombstone — scan should reset to .staged via transitionScanToStaged")

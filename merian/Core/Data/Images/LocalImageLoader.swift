@@ -21,6 +21,10 @@ actor LocalImageLoader {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 300
+        config.httpMaximumConnectionsPerHost = 4
+        config.httpShouldSetCookies = false
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
         return URLSession(configuration: config)
     }()
     

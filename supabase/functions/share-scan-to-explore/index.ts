@@ -1,7 +1,7 @@
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { requireParams } from "../_shared/http.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { requireUuid, syncPublicAuthorIdentity } from "../_shared/explore.ts";
 import { fetchShareEligibleScan, upsertExplorePost } from "./db.ts";
 
@@ -38,12 +38,9 @@ function normalizeRestoredObjectKeys(value: unknown, userId: string): string[] {
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await req.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const parsedBody = await parseJsonBody(req);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody;
 
     const paramErr = requireParams(body, ["scan_id"]);
     if (paramErr) return paramErr;

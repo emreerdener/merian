@@ -3,6 +3,45 @@ import Foundation
 
 // MARK: - Error
 
+actor AudioSessionCoordinator {
+    enum Configuration: Sendable {
+        case recordMeasurement(preferredSampleRate: Double?)
+        case playback
+    }
+
+    struct Lease: Sendable {
+        fileprivate let token: UInt64
+    }
+
+    static let shared = AudioSessionCoordinator()
+
+    private var activeToken: UInt64 = 0
+
+    func activate(_ configuration: Configuration) throws -> Lease {
+        activeToken &+= 1
+        let lease = Lease(token: activeToken)
+        let session = AVAudioSession.sharedInstance()
+
+        switch configuration {
+        case .recordMeasurement(let preferredSampleRate):
+            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+            if let preferredSampleRate {
+                try? session.setPreferredSampleRate(preferredSampleRate)
+            }
+        case .playback:
+            try session.setCategory(.playback, mode: .default)
+        }
+
+        try session.setActive(true)
+        return lease
+    }
+
+    func deactivate(ifCurrent lease: Lease?) {
+        guard let lease, lease.token == activeToken else { return }
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
+
 enum AudioCaptureError: LocalizedError {
     case microphonePermissionDenied
     case hardwareSampleRateZero
@@ -54,11 +93,19 @@ final class AudioCaptureManager {
     private var recordingTask: Task<Void, Never>?
     private var audioPlayer: AVAudioPlayer?
     private var playbackProgressTask: Task<Void, Never>?
+    private var playbackCompletionTask: Task<Void, Never>?
     private var dspTask: Task<Void, Never>?
     private var spectrogramContinuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
     private var spectrogramHistory = CircularBuffer<SpectrogramColumn>(capacity: AudioCaptureManager.columnCap)
     private var snrHoldTicks: Int = 0
     private var isStartingRecording: Bool = false
+    private var audioSessionLease: AudioSessionCoordinator.Lease?
+
+    #if targetEnvironment(simulator)
+    private static let preferredRecordSampleRate: Double? = 48_000
+    #else
+    private static let preferredRecordSampleRate: Double? = nil
+    #endif
 
     nonisolated private static func copyPCMBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameCapacity) else {
@@ -108,14 +155,12 @@ final class AudioCaptureManager {
 
         do {
             try await Task.detached { [manager] in
-                let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-
-                #if targetEnvironment(simulator)
-                try? session.setPreferredSampleRate(48000)
-                #endif
-
-                try session.setActive(true)
+                let lease = try await AudioSessionCoordinator.shared.activate(
+                    .recordMeasurement(preferredSampleRate: AudioCaptureManager.preferredRecordSampleRate)
+                )
+                await MainActor.run { [weak manager] in
+                    manager?.audioSessionLease = lease
+                }
 
                 let inputNode = engine.inputNode
                 let fmt = inputNode.outputFormat(forBus: 0)
@@ -233,11 +278,13 @@ final class AudioCaptureManager {
     /// Resumes a paused recording, rebuilding the countdown from current progress.
     func resumeRecording() {
         guard isRecording, isPaused else { return }
-        Task {
-            await Task.detached {
-                try? AVAudioSession.sharedInstance().setActive(true)
-            }.value
+        Task { [weak self] in
+            guard let self else { return }
             do {
+                let lease = try await AudioSessionCoordinator.shared.activate(
+                    .recordMeasurement(preferredSampleRate: Self.preferredRecordSampleRate)
+                )
+                self.audioSessionLease = lease
                 try audioEngine.start()
             } catch {
                 cancelRecording()
@@ -274,6 +321,8 @@ final class AudioCaptureManager {
         stopPlayback()
         recordingTask?.cancel()
         recordingTask = nil
+        playbackCompletionTask?.cancel()
+        playbackCompletionTask = nil
         isRecording = false
         isPaused = false
         recordingProgress = 0
@@ -287,8 +336,8 @@ final class AudioCaptureManager {
     // MARK: - Review / Playback
 
     /// Plays the pending recording through the speaker. Auto-clears `isPlaying` at end-of-file.
-    /// Uses Task.detached to activate the playback AVAudioSession off MainActor,
-    /// mirroring the pattern used for recording setup.
+    /// Session activation is serialized through `AudioSessionCoordinator` so a stale stop path
+    /// cannot deactivate a newer playback or recording session.
     func playPendingRecording() {
         guard let path = pendingPlaybackPath, !isPlaying else { return }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(path)
@@ -302,6 +351,7 @@ final class AudioCaptureManager {
 
         // Poll currentTime at ~30 fps to drive the scrub line.
         playbackProgressTask?.cancel()
+        playbackCompletionTask?.cancel()
         playbackProgressTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 33_000_000)
@@ -311,38 +361,59 @@ final class AudioCaptureManager {
             }
         }
 
-        Task.detached { [weak self] in
-            let session = AVAudioSession.sharedInstance()
-            try? session.setCategory(.playback, mode: .default)
-            try? session.setActive(true)
-            await MainActor.run {
-                if resumeProgress > 0 {
-                    capturedPlayer.currentTime = capturedPlayer.duration * resumeProgress
+        playbackCompletionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let lease = try? await AudioSessionCoordinator.shared.activate(.playback)
+            guard let lease else {
+                if self.audioPlayer === capturedPlayer {
+                    self.stopPlayback()
                 }
-                _ = capturedPlayer.play()
+                return
             }
 
+            guard !Task.isCancelled else {
+                await AudioSessionCoordinator.shared.deactivate(ifCurrent: lease)
+                return
+            }
+
+            self.audioSessionLease = lease
+            guard self.audioPlayer === capturedPlayer else {
+                self.releaseAudioSessionLease()
+                return
+            }
+
+            if resumeProgress > 0 {
+                capturedPlayer.currentTime = capturedPlayer.duration * resumeProgress
+            }
+            _ = capturedPlayer.play()
+
             let duration = capturedPlayer.duration
-            let remaining = duration * (1 - resumeProgress)
+            let remaining = max(0, duration * (1 - resumeProgress))
             try? await Task.sleep(nanoseconds: UInt64((remaining + 0.3) * 1_000_000_000))
-            // Reference equality guards against a stop → re-play race:
-            // if the user stopped and started a new playback, audioPlayer is a different instance.
-            await MainActor.run { [weak self] in
-                guard let self, self.audioPlayer === capturedPlayer else { return }
+            guard !Task.isCancelled else { return }
+
+            if self.audioPlayer === capturedPlayer {
+                self.playbackProgressTask?.cancel()
+                self.playbackProgressTask = nil
                 self.isPlaying = false
                 self.audioPlayer = nil
                 self.playbackProgress = 0
+                self.playbackCompletionTask = nil
+                self.releaseAudioSessionLease()
             }
         }
     }
 
     func stopPlayback() {
+        playbackCompletionTask?.cancel()
+        playbackCompletionTask = nil
         playbackProgressTask?.cancel()
         playbackProgressTask = nil
         audioPlayer?.stop()
         audioPlayer = nil
         isPlaying = false
         playbackProgress = 0
+        releaseAudioSessionLease()
     }
 
     /// Seeks playback to a fractional position (0…1). Works while playing or paused.
@@ -395,9 +466,14 @@ final class AudioCaptureManager {
         audioEngine.stop()
         dspTask?.cancel()
         dspTask = nil
-        // Deactivate asynchronously to prevent mediaserverd IPC from blocking MainActor.
-        Task.detached {
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        releaseAudioSessionLease()
+    }
+
+    private func releaseAudioSessionLease() {
+        let lease = audioSessionLease
+        audioSessionLease = nil
+        Task {
+            await AudioSessionCoordinator.shared.deactivate(ifCurrent: lease)
         }
     }
 

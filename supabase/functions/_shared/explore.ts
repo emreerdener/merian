@@ -146,3 +146,20 @@ export async function fetchInteractiveExplorePost(
 
   return { id: typedRow.id, ownerUserId: typedRow.user_id };
 }
+
+export async function assertCanInteractWithExplorePost(
+  postId: string,
+  requesterUserId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<{ id: string; ownerUserId: string }> {
+  const post = await fetchInteractiveExplorePost(postId, supabaseAdmin);
+
+  if (
+    post.ownerUserId !== requesterUserId &&
+    await hasMutualBlock(requesterUserId, post.ownerUserId, supabaseAdmin)
+  ) {
+    throw makeHttpError(403, "You cannot interact with this Explore post.");
+  }
+
+  return post;
+}

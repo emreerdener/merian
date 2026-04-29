@@ -50,12 +50,87 @@ final class ScansManagerTests: XCTestCase {
         try? context.save()
         return record
     }
+
+    private func waitForIndexing() async throws {
+        try await Task.sleep(nanoseconds: 150_000_000)
+    }
+
+    private func waitForSearchCompletion(for query: String) async throws {
+        let delay: UInt64 = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? 100_000_000
+            : 250_000_000
+        try await Task.sleep(nanoseconds: delay)
+    }
     
-    func testEmptySearchReturnsAllScans() async throws { return }
+    func testEmptySearchReturnsAllScans() async throws {
+        let olderScan = createTestScan(
+            commonName: "Older Robin",
+            scientificName: "Turdus migratorius",
+            ecologyType: "wild"
+        )
+        olderScan.timestamp = Date(timeIntervalSince1970: 100)
+
+        let newerScan = createTestScan(
+            commonName: "Newer Sparrow",
+            scientificName: "Passer domesticus",
+            ecologyType: "wild"
+        )
+        newerScan.timestamp = Date(timeIntervalSince1970: 200)
+
+        searchManager.allScans = [olderScan, newerScan]
+        searchManager.performSearch(query: "")
+        try await waitForSearchCompletion(for: "")
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [newerScan.id, olderScan.id])
+    }
     
-    func testTextSearchFiltering() async throws { return }
+    func testTextSearchFiltering() async throws {
+        let taggedBird = createTestScan(
+            commonName: "Backyard Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild",
+            semanticTags: ["garden"],
+            taxonomyClass: "Aves"
+        )
+        taggedBird.customTags = ["backyard"]
+        let mushroom = createTestScan(
+            commonName: "Forest Mushroom",
+            scientificName: "Amanita muscaria",
+            ecologyType: "fungus",
+            taxonomyKingdom: "Fungi"
+        )
+
+        searchManager.allScans = [taggedBird, mushroom]
+        try await waitForIndexing()
+
+        searchManager.performSearch(query: "backyard")
+        try await waitForSearchCompletion(for: "backyard")
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [taggedBird.id])
+    }
     
-    func testTaxonomicCategoryFiltering() async throws { return }
+    func testTaxonomicCategoryFiltering() async throws {
+        let bird = createTestScan(
+            commonName: "Blue Jay",
+            scientificName: "Cyanocitta cristata",
+            ecologyType: "wild",
+            taxonomyClass: "Aves"
+        )
+        let plant = createTestScan(
+            commonName: "Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "plant",
+            taxonomyKingdom: "Plantae"
+        )
+
+        searchManager.allScans = [bird, plant]
+        try await waitForIndexing()
+
+        searchManager.performSearch(query: "", category: "Birds")
+        try await waitForSearchCompletion(for: "")
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [bird.id])
+    }
 
     func testDebounceCancellation() async throws { return }
     

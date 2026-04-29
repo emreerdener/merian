@@ -32,4 +32,18 @@ final class UsageManagerTests: XCTestCase {
         usageManager.refundScan()
         XCTAssertEqual(usageManager.freeScansRemaining, 2)
     }
+
+    func testCanPerformScanRespectsDailyQuotaForFreeTier() {
+        let usageManager = UsageManager.shared
+
+        usageManager.evaluateDailyRefresh()
+        XCTAssertTrue(usageManager.canPerformScan(isProActive: false))
+
+        usageManager.consumeScan()
+        usageManager.consumeScan()
+
+        XCTAssertEqual(usageManager.freeScansRemaining, 0)
+        XCTAssertFalse(usageManager.canPerformScan(isProActive: false))
+        XCTAssertTrue(usageManager.canPerformScan(isProActive: true))
+    }
 }

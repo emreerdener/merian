@@ -5,6 +5,7 @@ import Observation
 import os
 import Photos
 import UIKit
+import UniformTypeIdentifiers
 
 // MARK: - Core Camera Roll Bridge
 /// Manages fetching the most recent photo thumbnail from the user's camera roll securely without extracting PII.
@@ -83,6 +84,11 @@ import UIKit
         case url(URL)
     }
 
+    private enum ProcessedResourcePayload: Sendable {
+        case data(Data)
+        case fileURL(URL, deleteAfterUse: Bool)
+    }
+
     private func executePhotoLibraryWrite(payload: ResourcePayload, location: CLLocation?, accessLevel: PHAccessLevel) async -> Bool {
         let currentStatus = PHPhotoLibrary.authorizationStatus(for: accessLevel)
         let status: PHAuthorizationStatus
@@ -99,18 +105,14 @@ import UIKit
         }
         
         do {
-            let processedPayload: ResourcePayload = await Task.detached {
-                switch payload {
-                case .data(let data):
-                    return .data(self.stripGPS(from: data) ?? data)
-                case .url(let url):
-                    if let fileData = try? Data(contentsOf: url),
-                       let stripped = self.stripGPS(from: fileData) {
-                        return .data(stripped)
-                    }
-                    return payload
-                }
+            let processedPayload = await Task.detached(priority: .utility) {
+                Self.process(payload: payload)
             }.value
+            defer {
+                if case .fileURL(let url, true) = processedPayload {
+                    try? FileManager.default.removeItem(at: url)
+                }
+            }
             
             try await PHPhotoLibrary.shared().performChanges {
                 let request = PHAssetCreationRequest.forAsset()
@@ -118,7 +120,7 @@ import UIKit
                 switch processedPayload {
                 case .data(let data):
                     request.addResource(with: .photo, data: data, options: nil)
-                case .url(let url):
+                case .fileURL(let url, _):
                     request.addResource(with: .photo, fileURL: url, options: nil)
                 }
                 
@@ -153,7 +155,7 @@ import UIKit
     
     // MARK: - Privacy & EXIF Scrubbing
     /// Resolves memory buffers and strips precise PII GPS dict arrays securely
-    nonisolated private func stripGPS(from data: Data) -> Data? {
+    nonisolated private static func stripGPS(from data: Data) -> Data? {
         return autoreleasepool {
             guard let source = CGImageSourceCreateWithData(data as CFData, nil),
                   let type = CGImageSourceGetType(source) else {
@@ -176,5 +178,56 @@ import UIKit
             
             return mutableData as Data
         }
+    }
+
+    nonisolated private static func process(payload: ResourcePayload) -> ProcessedResourcePayload {
+        switch payload {
+        case .data(let data):
+            return .data(Self.stripGPS(from: data) ?? data)
+        case .url(let url):
+            if let scrubbedURL = Self.stripGPS(fromFileAt: url) {
+                return .fileURL(scrubbedURL, deleteAfterUse: scrubbedURL != url)
+            }
+            return .fileURL(url, deleteAfterUse: false)
+        }
+    }
+
+    nonisolated private static func stripGPS(fromFileAt url: URL) -> URL? {
+        autoreleasepool {
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let type = CGImageSourceGetType(source),
+                  var properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+                return nil
+            }
+
+            properties[kCGImagePropertyGPSDictionary] = nil
+
+            let fileExtension = preferredFilenameExtension(for: type, fallbackURL: url)
+            let outputURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(fileExtension)
+
+            guard let destination = CGImageDestinationCreateWithURL(outputURL as CFURL, type, 1, nil) else {
+                return nil
+            }
+
+            CGImageDestinationAddImageFromSource(destination, source, 0, properties as CFDictionary)
+            guard CGImageDestinationFinalize(destination) else {
+                try? FileManager.default.removeItem(at: outputURL)
+                return nil
+            }
+
+            return outputURL
+        }
+    }
+
+    nonisolated private static func preferredFilenameExtension(for type: CFString, fallbackURL: URL) -> String {
+        if let preferred = UTType(type as String)?.preferredFilenameExtension {
+            return preferred
+        }
+        if !fallbackURL.pathExtension.isEmpty {
+            return fallbackURL.pathExtension
+        }
+        return "jpg"
     }
 }

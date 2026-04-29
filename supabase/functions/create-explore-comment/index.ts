@@ -3,9 +3,8 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
-  fetchInteractiveExplorePost,
+  assertCanInteractWithExplorePost,
   fetchPublicAuthorName,
-  hasMutualBlock,
   requireUuid,
   syncPublicAuthorIdentity,
 } from "../_shared/explore.ts";
@@ -29,10 +28,7 @@ serve((req: Request) =>
       return jsonResponse({ error: "body must be 500 characters or fewer." }, 400);
     }
 
-    const post = await fetchInteractiveExplorePost(postId, supabaseAdmin);
-    if (post.ownerUserId !== user.id && await hasMutualBlock(user.id, post.ownerUserId, supabaseAdmin)) {
-      return jsonResponse({ error: "You cannot interact with this Explore post." }, 403);
-    }
+    await assertCanInteractWithExplorePost(postId, user.id, supabaseAdmin);
 
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
     const inserted = await insertExploreComment(postId, user.id, rawBody, supabaseAdmin);

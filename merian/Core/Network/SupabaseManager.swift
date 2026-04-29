@@ -50,6 +50,10 @@ import Supabase
     /// throughout the engine layer. Fire-and-forget tasks with no handle cannot be inspected,
     /// restarted, or cleanly shut down.
     @ObservationIgnored private var authListenerTask: Task<Void, Never>?
+    /// Single-flight guard for anonymous session creation. Multiple callers can reach
+    /// `initializeGhostSession()` while the first network round-trip is suspended; without this
+    /// handle they each attempt a fresh anonymous sign-in and race to replace the active session.
+    @ObservationIgnored private var ghostSessionTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -133,6 +137,23 @@ import Supabase
     /// Creates an anonymous session for new users. Skips creation if a session exists or
     /// if the error is network/expiry — preserving any existing Apple Sign-In identity.
     func initializeGhostSession() async {
+        if let existingTask = ghostSessionTask {
+            await existingTask.value
+            return
+        }
+
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performGhostSessionInitialization()
+            await MainActor.run { [weak self] in
+                self?.ghostSessionTask = nil
+            }
+        }
+        ghostSessionTask = task
+        await task.value
+    }
+
+    private func performGhostSessionInitialization() async {
         do {
             let session = try await client.auth.session
             MerianLog.auth.debug("Existing session resolved on device.")

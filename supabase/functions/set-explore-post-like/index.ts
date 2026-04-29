@@ -3,8 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
-  fetchInteractiveExplorePost,
-  hasMutualBlock,
+  assertCanInteractWithExplorePost,
   requireUuid,
 } from "../_shared/explore.ts";
 import { fetchExplorePostLikeCount, setExplorePostLike } from "./db.ts";
@@ -23,10 +22,7 @@ serve((req: Request) =>
       return jsonResponse({ error: "liked must be a boolean." }, 400);
     }
 
-    const post = await fetchInteractiveExplorePost(postId, supabaseAdmin);
-    if (post.ownerUserId !== user.id && await hasMutualBlock(user.id, post.ownerUserId, supabaseAdmin)) {
-      return jsonResponse({ error: "You cannot interact with this Explore post." }, 403);
-    }
+    await assertCanInteractWithExplorePost(postId, user.id, supabaseAdmin);
 
     await setExplorePostLike(postId, user.id, body.liked, supabaseAdmin);
     const likeCount = await fetchExplorePostLikeCount(postId, supabaseAdmin);

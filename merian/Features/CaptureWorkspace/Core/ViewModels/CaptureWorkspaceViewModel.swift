@@ -1,4 +1,5 @@
 import Combine
+import CoreLocation
 import Observation
 import Photos
 import PhotosUI
@@ -14,6 +15,66 @@ final class CaptureWorkspaceViewModel {
     enum ActiveSheet: String, Identifiable {
         case insight, paywall, scans, profile, explore
         var id: String { rawValue }
+    }
+
+    private struct GalleryImportBudget: Sendable {
+        let availableSlots: Int
+        let canPerformScan: Bool
+    }
+
+    private struct HistoricalEnvironmentContextSnapshot: Sendable {
+        let latitude: CLLocationDegrees?
+        let longitude: CLLocationDegrees?
+        let locationName: String?
+        let weatherCondition: String?
+        let weatherTemperature: Double?
+        let captureDate: Date?
+
+        init(context: EnvironmentContext) {
+            latitude = context.location?.coordinate.latitude
+            longitude = context.location?.coordinate.longitude
+            locationName = context.locationName
+            weatherCondition = context.weatherCondition
+            weatherTemperature = context.weatherTemperature
+            captureDate = context.captureDate
+        }
+
+        init(captureDate: Date) {
+            latitude = nil
+            longitude = nil
+            locationName = nil
+            weatherCondition = nil
+            weatherTemperature = nil
+            self.captureDate = captureDate
+        }
+
+        func makeEnvironmentContext() -> EnvironmentContext {
+            let location: CLLocation?
+            if let latitude, let longitude {
+                location = CLLocation(latitude: latitude, longitude: longitude)
+            } else {
+                location = nil
+            }
+
+            return EnvironmentContext(
+                location: location,
+                locationName: locationName,
+                weatherCondition: weatherCondition,
+                weatherTemperature: weatherTemperature,
+                captureDate: captureDate
+            )
+        }
+    }
+
+    private enum PreparedDisplayDataStrategy: Sendable {
+        case reencodeDisplaySized
+        case memoryMapOriginalFile
+    }
+
+    private struct PreparedStagedImage: Sendable {
+        let compressedData: Data
+        let displayData: Data
+        let historicalContext: HistoricalEnvironmentContextSnapshot?
     }
     
     // MARK: - Dependencies
@@ -150,87 +211,140 @@ final class CaptureWorkspaceViewModel {
     
     // MARK: - User Intents
     
-    func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext: ModelContext) {
+    func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext _: ModelContext) {
         guard !newItems.isEmpty else { return }
 
         let isPro = self.diContainer.revenueCatManager.isProActive
-        
-        Task.detached(priority: .userInitiated) { [weak self, isPro] in
+        let importBudget = prepareGalleryImportBudget(isPro: isPro)
+        self.selectedPhotoItems.removeAll()
+
+        guard importBudget.availableSlots > 0 else { return }
+
+        guard importBudget.canPerformScan else {
+            AppTelemetry.trackPaywallImpression()
+            self.activeSheet = .paywall
+            return
+        }
+
+        let itemsToProcess = Array(newItems.prefix(importBudget.availableSlots))
+
+        Task.detached(priority: .userInitiated) { [weak self, isPro, itemsToProcess] in
             guard let self = self else { return }
-            
-            let itemsToProcess = newItems
-            await MainActor.run { self.selectedPhotoItems.removeAll() }
-            
+
+            var preparedImports: [PreparedStagedImage] = []
+            preparedImports.reserveCapacity(itemsToProcess.count)
+
             for newItem in itemsToProcess {
-                // Fast-fail check to protect strictly against exceeding the image cap natively
-                if await MainActor.run(resultType: Bool.self, body: { self.stagedCapture.images.count >= stagedImageCapacity }) {
-                    break
-                }
-                
+                if Task.isCancelled { return }
                 guard let wrapper = try? await newItem.loadTransferable(type: ImageFileWrapper.self) else { continue }
                 let validUrl = wrapper.url
-                
+
                 // Scope the defer explicitly into an immediate do-block to guarantee memory unlocks natively per-loop
                 do {
                     defer { try? FileManager.default.removeItem(at: validUrl) }
-                    
-                    // Attempt to retrieve native PHAsset context to map historical GPS / Weather
-                    var historicalContext: EnvironmentContext?
-                    if let localId = newItem.itemIdentifier {
-                        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
-                        if let asset = fetchResult.firstObject {
-                            if let location = asset.location, let creationDate = asset.creationDate {
-                                historicalContext = await self.diContainer.environmentContextManager.fetchHistoricalContext(location: location, date: creationDate)
-                            } else if let creationDate = asset.creationDate {
-                                historicalContext = EnvironmentContext(location: nil, captureDate: creationDate)
-                            }
-                        }
-                    }
-                    
-                    let canPerformScan = await MainActor.run { self.diContainer.usageManager.canPerformScan(isProActive: isPro) }
-                    if canPerformScan {
-                        // Inference payload: tier-conditional longest edge — 768 px for Flash (free),
-                        // 1024 px for Pro. Matches the camera shutter path for consistent token costs per tier.
-                        let inferenceCGImage = ImageDownsampler.downsample(url: validUrl, maxSize: MerianConfig.inferenceImageMaxSize(isProActive: isPro))
 
-                        if let cgImage = inferenceCGImage {
-                            let rawImage = UIImage(cgImage: cgImage)
-                            let finalSafeData: Data = ImageCropProcessor.encode(cgImage) ?? Data()
-
-                            // Display payload: 2048 px — written to disk so the insight sheet and
-                            // scan library render crisp.
-                            let displaySafeData: Data = autoreleasepool {
-                                guard let displayCGImage = ImageDownsampler.downsample(url: validUrl, maxSize: MerianConfig.displayImageMaxSize) else {
-                                    return finalSafeData
-                                }
-                                return ImageCropProcessor.encode(displayCGImage) ?? finalSafeData
-                            }
-
-                            guard !finalSafeData.isEmpty else { continue }
-                            let historicalContextSnapshot = historicalContext
-                            await MainActor.run {
-                                let identifiable = IdentifiableImage(
-                                    image: rawImage,
-                                    environmentContext: historicalContextSnapshot,
-                                    isFromGallery: true
-                                )
-                                self.stagedCapture.images.append(StagedImage(
-                                    compressedData: finalSafeData,
-                                    displayData: displaySafeData,
-                                    uiImage: rawImage,
-                                    original: identifiable
-                                ))
-                            }
-                        }
-                    } else {
-                        await MainActor.run {
-                            AppTelemetry.trackPaywallImpression()
-                            self.activeSheet = .paywall
-                        }
-                        break // Break immediately if hit paywall limits natively
-                    }
+                    let historicalContext = await self.historicalContextSnapshot(for: newItem.itemIdentifier)
+                    guard let preparedImport = try self.prepareStagedImage(
+                        from: validUrl,
+                        isPro: isPro,
+                        historicalContext: historicalContext,
+                        displayDataStrategy: .reencodeDisplaySized
+                    ) else { continue }
+                    preparedImports.append(preparedImport)
                 }
             }
+
+            guard !Task.isCancelled, !preparedImports.isEmpty else { return }
+            await self.commitPreparedStagedImages(preparedImports)
+        }
+    }
+
+    private func prepareGalleryImportBudget(isPro: Bool) -> GalleryImportBudget {
+        GalleryImportBudget(
+            availableSlots: max(0, stagedImageCapacity - stagedCapture.images.count),
+            canPerformScan: diContainer.usageManager.canPerformScan(isProActive: isPro)
+        )
+    }
+
+    private func historicalContextSnapshot(for localIdentifier: String?) async -> HistoricalEnvironmentContextSnapshot? {
+        guard let localIdentifier else { return nil }
+
+        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
+        guard let asset = fetchResult.firstObject else { return nil }
+
+        if let location = asset.location, let creationDate = asset.creationDate {
+            let historicalContext = await diContainer.environmentContextManager.fetchHistoricalContext(
+                location: location,
+                date: creationDate
+            )
+            return HistoricalEnvironmentContextSnapshot(context: historicalContext)
+        }
+
+        if let creationDate = asset.creationDate {
+            return HistoricalEnvironmentContextSnapshot(captureDate: creationDate)
+        }
+
+        return nil
+    }
+
+    private nonisolated func prepareStagedImage(
+        from fileURL: URL,
+        isPro: Bool,
+        historicalContext: HistoricalEnvironmentContextSnapshot?,
+        displayDataStrategy: PreparedDisplayDataStrategy
+    ) throws -> PreparedStagedImage? {
+        // Inference payload: tier-conditional longest edge — 768 px for Flash (free),
+        // 1024 px for Pro. Matches the camera shutter path for consistent token costs per tier.
+        guard let inferenceCGImage = ImageDownsampler.downsample(
+            url: fileURL,
+            maxSize: MerianConfig.inferenceImageMaxSize(isProActive: isPro)
+        ) else { return nil }
+
+        let compressedData = ImageCropProcessor.encode(inferenceCGImage) ?? Data()
+        guard !compressedData.isEmpty else { return nil }
+
+        let displayData: Data
+        switch displayDataStrategy {
+        case .reencodeDisplaySized:
+            displayData = autoreleasepool {
+                guard let displayCGImage = ImageDownsampler.downsample(
+                    url: fileURL,
+                    maxSize: MerianConfig.displayImageMaxSize
+                ) else {
+                    return compressedData
+                }
+                return ImageCropProcessor.encode(displayCGImage) ?? compressedData
+            }
+        case .memoryMapOriginalFile:
+            displayData = try Data(contentsOf: fileURL, options: [.mappedIfSafe])
+        }
+
+        guard !displayData.isEmpty else { return nil }
+        return PreparedStagedImage(
+            compressedData: compressedData,
+            displayData: displayData,
+            historicalContext: historicalContext
+        )
+    }
+
+    private func commitPreparedStagedImages(_ preparedImports: [PreparedStagedImage]) {
+        let availableSlots = max(0, stagedImageCapacity - stagedCapture.images.count)
+        guard availableSlots > 0 else { return }
+
+        for preparedImport in preparedImports.prefix(availableSlots) {
+            guard let rawImage = UIImage(data: preparedImport.compressedData) else { continue }
+
+            let identifiable = IdentifiableImage(
+                image: rawImage,
+                environmentContext: preparedImport.historicalContext?.makeEnvironmentContext(),
+                isFromGallery: true
+            )
+            stagedCapture.images.append(StagedImage(
+                compressedData: preparedImport.compressedData,
+                displayData: preparedImport.displayData,
+                uiImage: rawImage,
+                original: identifiable
+            ))
         }
     }
     
@@ -264,19 +378,12 @@ final class CaptureWorkspaceViewModel {
             let fileURL = URL.documentsDirectory.appendingPathComponent(localPath)
             
             do {
-                let rawData = try Data(contentsOf: fileURL)
-                let inferenceSize = MerianConfig.inferenceImageMaxSize(isProActive: isPro)
-                
-                var inferenceData: Data?
-                var rawImage: UIImage?
-                
-                if let cgInference = ImageDownsampler.downsample(url: fileURL, maxSize: inferenceSize) {
-                    rawImage = UIImage(cgImage: cgInference)
-                    inferenceData = ImageCropProcessor.encode(cgInference)
-                }
-                
-                let finalSafeData = inferenceData ?? rawData
-                guard let finalImage = rawImage ?? UIImage(data: rawData) else {
+                guard let preparedRefinement = try self.prepareStagedImage(
+                    from: fileURL,
+                    isPro: isPro,
+                    historicalContext: nil,
+                    displayDataStrategy: .memoryMapOriginalFile
+                ) else {
                     await MainActor.run { self.isStagingRefinement = false }
                     return
                 }
@@ -284,13 +391,7 @@ final class CaptureWorkspaceViewModel {
                 try Task.checkCancellation()
                 
                 await MainActor.run {
-                    let identifiable = IdentifiableImage(image: finalImage, environmentContext: nil, isFromGallery: true)
-                    self.stagedCapture.images.append(StagedImage(
-                        compressedData: finalSafeData,
-                        displayData: rawData,
-                        uiImage: finalImage,
-                        original: identifiable
-                    ))
+                    self.commitPreparedStagedImages([preparedRefinement])
                     self.isStagingRefinement = false
                 }
             } catch {

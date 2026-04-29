@@ -62,14 +62,47 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     
     // MARK: - Data Ingestion
     var allScans: [LocalScanRecord] = [] {
-        didSet { updateSearchableData(oldScans: oldValue) }
+        didSet { rebuildSearchCaches(oldScans: oldValue) }
     }
     
     @ObservationIgnored private var searchableData: [SearchableScan] = []
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var indexingTask: Task<Void, Never>?
+    @ObservationIgnored private var scanIndexById: [String: Int] = [:]
+    @ObservationIgnored private var sortPrimitivesById: [String: ScanSortPrimitive] = [:]
+    @ObservationIgnored private var allScanSortPrimitives: [ScanSortPrimitive] = []
+    @ObservationIgnored private var sortedAllScanIDsCache: [String: [String]] = [:]
     
     // MARK: - Data Indexing Pipeline
+    private func rebuildSearchCaches(oldScans: [LocalScanRecord]) {
+        var updatedScanIndexById: [String: Int] = [:]
+        updatedScanIndexById.reserveCapacity(allScans.count)
+
+        var updatedSortPrimitivesById: [String: ScanSortPrimitive] = [:]
+        updatedSortPrimitivesById.reserveCapacity(allScans.count)
+
+        var updatedAllScanSortPrimitives: [ScanSortPrimitive] = []
+        updatedAllScanSortPrimitives.reserveCapacity(allScans.count)
+
+        for (index, scan) in allScans.enumerated() {
+            let primitive = ScanSortPrimitive(
+                id: scan.id,
+                timestamp: scan.timestamp,
+                commonName: scan.commonName
+            )
+            updatedScanIndexById[scan.id] = index
+            updatedSortPrimitivesById[scan.id] = primitive
+            updatedAllScanSortPrimitives.append(primitive)
+        }
+
+        scanIndexById = updatedScanIndexById
+        sortPrimitivesById = updatedSortPrimitivesById
+        allScanSortPrimitives = updatedAllScanSortPrimitives
+        sortedAllScanIDsCache.removeAll(keepingCapacity: true)
+
+        updateSearchableData(oldScans: oldScans)
+    }
+
     private func updateSearchableData(oldScans: [LocalScanRecord]) {
         indexingTask?.cancel()
         
@@ -195,19 +228,12 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             if Task.isCancelled { return }
 
             guard let self = self else { return }
-            let transientMap = Dictionary(uniqueKeysWithValues: self.allScans.map { ($0.id, $0) })
 
             if text.isEmpty && catMatch == "all" {
-                let sortOpt = self.sortOption
-                let recordsPrimitives = transientMap.values.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
-                
-                let sortedIds = await Task.detached(priority: .userInitiated) {
-                    return ScansManager.executeDetachedSort(on: recordsPrimitives, sortOption: sortOpt).map { $0.id }
-                }.value
-
+                let sortedIds = await self.sortedAllScanIDs(for: self.sortOption)
                 if Task.isCancelled { return }
                 
-                let finalSorted = sortedIds.compactMap { transientMap[$0] }
+                let finalSorted = self.records(for: sortedIds)
                 withAnimation { 
                     self.filteredScans = finalSorted 
                     self.isFiltering = false
@@ -229,9 +255,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             
             if Task.isCancelled { return }
             
-            let filteredSubset = matchingIds.compactMap { transientMap[$0] }
             let sortOpt = self.sortOption
-            let subsetPrimitives = filteredSubset.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
+            let subsetPrimitives = self.sortPrimitives(for: matchingIds)
             
             let sortedIds = await Task.detached(priority: .userInitiated) {
                 return ScansManager.executeDetachedSort(on: subsetPrimitives, sortOption: sortOpt).map { $0.id }
@@ -239,7 +264,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             
             if Task.isCancelled { return }
             
-            let finalSorted = sortedIds.compactMap { transientMap[$0] }
+            let finalSorted = self.records(for: sortedIds)
             
             withAnimation {
                 self.filteredScans = finalSorted
@@ -267,6 +292,37 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     private func applySort() {
         // Run sort without query context
         performSearch(query: self.searchQuery)
+    }
+
+    private func sortPrimitives(for ids: [String]) -> [ScanSortPrimitive] {
+        ids.compactMap { sortPrimitivesById[$0] }
+    }
+
+    private func records(for ids: [String]) -> [LocalScanRecord] {
+        ids.compactMap { id in
+            guard let index = scanIndexById[id], allScans.indices.contains(index) else {
+                return allScans.first { $0.id == id }
+            }
+
+            let record = allScans[index]
+            return record.id == id ? record : allScans.first { $0.id == id }
+        }
+    }
+
+    private func sortedAllScanIDs(for sortOption: ScanSortOption) async -> [String] {
+        if let cached = sortedAllScanIDsCache[sortOption.rawValue] {
+            return cached
+        }
+
+        let primitives = allScanSortPrimitives
+        let sortedIds = await Task.detached(priority: .userInitiated) {
+            ScansManager.executeDetachedSort(on: primitives, sortOption: sortOption).map(\.id)
+        }.value
+
+        if !Task.isCancelled {
+            sortedAllScanIDsCache[sortOption.rawValue] = sortedIds
+        }
+        return sortedIds
     }
     
     // MARK: - Batch Selection Operations

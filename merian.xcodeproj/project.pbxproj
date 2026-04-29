@@ -36,8 +36,6 @@
 		1A3235395220BD080416A2A8 /* ZoomSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D559CDA6F3F1B368761675 /* ZoomSliderView.swift */; };
 		1AF43A34D958F0AD5B596EC8 /* InferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1044C34325AE2EFB4EC21358 /* InferenceEngine.swift */; };
 		1B1CD14D538E4F4C31CDF2F1 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDCED1906350CA652F84C8E /* ExploreView.swift */; };
-		1B1CD14D538E4F4C31CDF2F2 /* ExploreMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F708192A3B4E /* ExploreMapView.swift */; };
-		1B1CD14D538E4F4C31CDF2F3 /* ExploreMapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F708192A3B4F /* ExploreMapViewModel.swift */; };
 		1B24CE3DB82C58CA835665D5 /* OnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261F0BA802A906A13D6B118B /* OnboardingViewModelTests.swift */; };
 		1B395B6577F08196EDF81C8D /* ObservationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61EADC8CCCE5DD165B300B9E /* ObservationContext.swift */; };
 		1B6BFA65E4FD0F69771A22F5 /* InferenceEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BED795DDD156C8FE18D565B /* InferenceEngineTests.swift */; };
@@ -197,10 +195,12 @@
 		7EFA2CCB6FD122F19E728C41 /* InsightContentRouterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6908BCA696ADD64596A658 /* InsightContentRouterView.swift */; };
 		7FF18AF3AEEEC04CA16B4931 /* SubjectKeywordMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3A2CE23F5F10DBD535CE9A /* SubjectKeywordMatcher.swift */; };
 		8019D74BB8F99A511D0B9E87 /* SettingsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCD55303C65996C541DA348D /* SettingsTabView.swift */; };
+		8031EBDF2856E5F6032A8EE5 /* ExploreMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BAEBE6A179240F7C068A0F8 /* ExploreMapView.swift */; };
 		80923B86E3B63DA5F4791FBC /* MerianWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8166641171629DC4E41B081 /* MerianWatchApp.swift */; };
 		80BE05A5590D93EA4E6799A2 /* SelectMultipleScansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48431C009B47EDB4A2754301 /* SelectMultipleScansView.swift */; };
 		80C106D8E5139E7AB4562265 /* AchievementsCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27F0A2EFA98596621422AEA9 /* AchievementsCalculatorTests.swift */; };
 		8207D692319EE85F907508D3 /* SchemaV11.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9EA7B5B49BE570AFD0006D9 /* SchemaV11.swift */; };
+		824AEBC05764DEB73E43DB76 /* ExploreMapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D12AADF28880E577A1DC53 /* ExploreMapViewModel.swift */; };
 		82A7AC91B518970DFDB2F0D4 /* ShutterButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6412B0225D0F943A22EAFAC2 /* ShutterButton.swift */; };
 		82F9EA459C4780AC2B6A5977 /* SchemaV30.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA180C4D8B313439212A4F6 /* SchemaV30.swift */; };
 		834D516F4D97459FEEB028D0 /* SubjectFunnels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9756D60ED723E6FE6091396 /* SubjectFunnels.swift */; };
@@ -635,10 +635,12 @@
 		84FF5120CF359D3E87CB4529 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		858C07DDB3180571D9B60945 /* SchemaV29.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV29.swift; sourceTree = "<group>"; };
 		875FA54EA3B5CDA0D7838DE9 /* DescribeInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribeInputView.swift; sourceTree = "<group>"; };
+		87D12AADF28880E577A1DC53 /* ExploreMapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapViewModel.swift; sourceTree = "<group>"; };
 		88223EB0D7692EBF3D713611 /* AppTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetry.swift; sourceTree = "<group>"; };
 		88F5F99F447191E2B51D581B /* SchemaV7.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV7.swift; sourceTree = "<group>"; };
 		8A4B5A042D73A245733A8F33 /* SpectrumNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumNode.swift; sourceTree = "<group>"; };
 		8AC83887713BFCE7CADA7E66 /* mock_camera_inference.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = mock_camera_inference.md; sourceTree = "<group>"; };
+		8BAEBE6A179240F7C068A0F8 /* ExploreMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapView.swift; sourceTree = "<group>"; };
 		8BBF1FF23DC8B1EFB852E49C /* InsightSheetViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSheetViewModelTests.swift; sourceTree = "<group>"; };
 		8D2F94F15A55BB9488562387 /* AudioRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecordingView.swift; sourceTree = "<group>"; };
 		8DB476E9827A1DA749AADE21 /* PushNotificationRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationRoutingTests.swift; sourceTree = "<group>"; };
@@ -735,8 +737,6 @@
 		CC35E14BA5AABD47F71C3291 /* CaptureActionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureActionCoordinator.swift; sourceTree = "<group>"; };
 		CD2F826786333CB7FACE40CB /* ScanCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCollection.swift; sourceTree = "<group>"; };
 		CDDCED1906350CA652F84C8E /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
-		F1A2B3C4D5E6F708192A3B4E /* ExploreMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapView.swift; sourceTree = "<group>"; };
-		F1A2B3C4D5E6F708192A3B4F /* ExploreMapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapViewModel.swift; sourceTree = "<group>"; };
 		CEDDFC2BE211CBF973BF691C /* UnderReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderReviewView.swift; sourceTree = "<group>"; };
 		CF124E8F88CCF61F4F474368 /* AppTelemetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetryTests.swift; sourceTree = "<group>"; };
 		D05932FD4CA01A30440F1D79 /* OnboardingStepWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStepWrapper.swift; sourceTree = "<group>"; };
@@ -1111,11 +1111,11 @@
 			isa = PBXGroup;
 			children = (
 				539D3FFA3AC0E18095BD6873 /* ExploreFeedViewModel.swift */,
-				F1A2B3C4D5E6F708192A3B4F /* ExploreMapViewModel.swift */,
 				D3CAFA0808C0D81B320545DE /* ExploreFeedViewModel+Comments.swift */,
 				D070C892403FF1F13363B8B1 /* ExploreFeedViewModel+Feed.swift */,
 				628CF83AC518207E95C83DEA /* ExploreFeedViewModel+Interactions.swift */,
 				126B73C57FAD9EEC6266D0A4 /* ExploreFeedViewModel+Notifications.swift */,
+				87D12AADF28880E577A1DC53 /* ExploreMapViewModel.swift */,
 				2D62D58BBCC152973301A7E5 /* ExploreNotificationsViewModel.swift */,
 			);
 			path = ViewModels;
@@ -1829,7 +1829,7 @@
 		CA581D680847F6B4F4CE5CDE /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				F1A2B3C4D5E6F708192A3B4E /* ExploreMapView.swift */,
+				8BAEBE6A179240F7C068A0F8 /* ExploreMapView.swift */,
 				FADAE89AF7FA28EDC09FE381 /* ExploreNotificationsSheet.swift */,
 				CB6CCD277A637D4EA882A10C /* ExplorePostDetailView.swift */,
 				CDDCED1906350CA652F84C8E /* ExploreView.swift */,
@@ -2532,9 +2532,9 @@
 				4C4278CEE932DFCFFFAB382A /* ExploreFeedViewModel.swift in Sources */,
 				2371ACABF2A085BA0F105111 /* ExploreHabitatDistributionCard.swift in Sources */,
 				9F4BFBF1BE6CC7278F1F2548 /* ExploreLoadingInsightCard.swift in Sources */,
-				1B1CD14D538E4F4C31CDF2F3 /* ExploreMapViewModel.swift in Sources */,
+				8031EBDF2856E5F6032A8EE5 /* ExploreMapView.swift in Sources */,
+				824AEBC05764DEB73E43DB76 /* ExploreMapViewModel.swift in Sources */,
 				F0C4DE3F84C33FA00CC22441 /* ExploreNotification.swift in Sources */,
-				1B1CD14D538E4F4C31CDF2F2 /* ExploreMapView.swift in Sources */,
 				DE7EC21527D1CCD009CF0394 /* ExploreNotificationsSheet.swift in Sources */,
 				45D3FD50D0DA6B52993E38FC /* ExploreNotificationsViewModel.swift in Sources */,
 				DA4CED8FAD3B8B42A5EB7049 /* ExploreObservationContextCard.swift in Sources */,

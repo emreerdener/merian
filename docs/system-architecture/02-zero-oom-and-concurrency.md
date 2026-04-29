@@ -6,8 +6,8 @@ Merian enforces a "Zero-OOM" (Out-Of-Memory), offline-first, and highly concurre
 
 To prevent UI hangs, memory leaks, and OS-level Watchdog terminations, the iOS app architecture imposes strict limits on resource boundaries:
 
-### Swift 6 Structured Concurrency & Task.detached Removal
-Historically, background threading relied heavily on `Task.detached(priority:)`. While successful in offloading work from the `@MainActor`, unconstrained detached tasks evade Swift 6 Sendable boundaries and structured cancellation propagation. Merian abandoned `Task.detached` in favor of strict actor isolation. Features like `SearchFilterActor`, `FileIOActor`, `InferenceProcessingActor`, and `ExportProcessingActor` encapsulate heavy string matching, file system validations, and base64 encodes within their dedicated execution boundaries. Calls crossing these boundaries are mapped as standard `await` invocations off the UI thread via inheriting `Task { }` closures. This achieves background concurrency while inheriting global task cancellation trees.
+### Swift 6 Structured Concurrency & Constrained `Task.detached`
+Historically, background threading relied heavily on `Task.detached(priority:)`. While successful in offloading work from the `@MainActor`, unconstrained detached tasks evade Swift 6 Sendable boundaries and structured cancellation propagation. Merian now constrains detached work to narrow bridge points only: AVFoundation startup where mediaserverd IPC must not block the main actor, and pure CPU / file transforms over `Sendable` snapshots. Long-lived workflows are pushed into actors (`SearchFilterActor`, `FileIOActor`, `InferenceProcessingActor`, `ExportProcessingActor`, `AudioSessionCoordinator`) so cancellation, serialization, and ownership stay explicit.
 
 ### ImageIO, CoreVideo, & UIImage Autoreleasepool Memory Leaks
 When performing bulk downsampling with CoreGraphics (`ImageDownsampler.downsample` and `ImageCropProcessor`), the C-level APIs (`CGImageSourceCreateThumbnailAtIndex`) allocate large transient buffers. In a standard Swift async function looping hundreds of times without yielding, Apple's Objective-C ARC delays flushing these buffers until the overarching task suspends, producing transient RAM spikes that triggered JetSam OOM terminations. Merian resolves this by wrapping the ImageIO rendering blocks inside `autoreleasepool { ... }` boundaries, clearing C-level `NSMutableData` instances immediately on each loop iteration and preserving a clean RAM ceiling.
@@ -15,7 +15,7 @@ When performing bulk downsampling with CoreGraphics (`ImageDownsampler.downsampl
 This identical RAM ceiling violation exists during Apple Vision AI inferences, detached image decoding, manual cropping, and metadata scrubbing. Executing `VNImageRequestHandler` classifications (e.g., `InferenceEngine.swift` and `SizeEstimator.swift`), uncompressing raw blobs via `UIImage(data:)` off the main thread (`ImagesCarousel.swift` and `CropSheetModifier.swift`), or actively parsing EXIF properties during GPS stripping (`PhotoLibraryManager.swift`'s `executePhotoLibraryWrite`) inside detached closures leaves enormous multi-megabyte allocations cached until the CPU rotates out the `Task.detached` context. Merian enforces `autoreleasepool { ... }` wrappers around these entire isolated blocks and explicitly deprecates raw `UIImage(data:)` inflations in favor of constrained `ImageDownsampler.downsample(data:maxSize:)` extractions. This guarantees that unmanaged ImageIO formats immediately relinquish memory back to the system, dropping transient spikes completely and averting JetSam OOM kills during rapid captures, exports, or swipes.
 
 ### LocalImageLoader Unbounded ImageIO Execution
-While pre-fetching bounds concurrent image downloads, unbounded programmatic calls to `LocalImageLoader.loadLocal` and `fetchRemote` historically spawned dozens of unbounded `Task.detached` blocks on the global concurrent executor, driving immediate ImageIO over-subscription JetSam crashes during grid scrolling. The zero-OOM architecture resolves this by inserting a `private static let decodeSemaphore = DispatchSemaphore(value: 4)` directly inside the loader. All detached calls pass through `.wait()` and `.signal()`, acting as a global thread-safe valve against ImageIO concurrency thrash.
+While pre-fetching bounds concurrent image downloads, unbounded programmatic calls to `LocalImageLoader.loadLocal` and `fetchRemote` historically spawned dozens of unbounded `Task.detached` blocks on the global concurrent executor, driving immediate ImageIO over-subscription JetSam crashes during grid scrolling. The zero-OOM architecture resolves this by inserting a `private static let decodeSemaphore = DispatchSemaphore(value: 4)` directly inside the loader. All detached calls pass through `.wait()` and `.signal()`, acting as a global thread-safe valve against ImageIO concurrency thrash. The remote loader's dedicated `mediaSession` is now also capped to `httpMaximumConnectionsPerHost = 4` with `urlCache = nil`, aligning network fan-out with decode capacity and preventing the shared URL cache from ballooning with thumbnail responses.
 
 ### TaskGroup Retain Cycles (`InferenceEngine`)
 Within parallel inference scopes, applying `group.addTask { @MainActor [self] in }` inside `withTaskGroup` unintentionally forced hard retain cycles. If Edge network requests hung, the `InferenceEngine` explicitly retained multi-shot buffers (`activeLiveCaptureDatas`) indefinitely. The architecture strips hard closures, enforcing `@MainActor [weak self]` alongside `guard let self else { return }`, breaking execution cycles and safely allowing `cancelActiveRequest()` to wipe memory footprints without ghost task zombies.
@@ -26,9 +26,14 @@ Repeating `FetchDescriptor` and localized `try? modelContext.save()` blocks acro
 ### SwiftData Memory Exhaustion (`InsightSheetView`, `ScansSheetView`, & `BackgroundDatabaseActor`)
 When querying records from large user-generated biological libraries in SwiftData, executing a generic `FetchDescriptor` and filtering the `records.first(where:)` array synchronously in memory triggers an OS JetSam crash for power users. This applies specifically to underlying actor resolution arrays which expand to multi-megabyte payloads in SQLite mappings.
 
-View models and actor blocks must absolutely not hold persistent strong references to global `@Model` arrays! `ScansManager.swift` originally maintained a parallel `scanMap: [String: LocalScanRecord]` dictionary to accelerate search ID lookups globally. Anchoring thousands of `LocalScanRecord` structures onto a root-level dictionary actively thwarted iOS's ability to seamlessly purge memory cache fault-states. `ScansManager` now strictly limits state via mapped transient `Dictionary(uniqueKeysWithValues: self.allScans.map { ($0.id, $0) })` calls generated dynamically per user keystroke—meaning SwiftData is universally free to context-release invisible properties as OS memory tightens.
+View models and actor blocks must absolutely not hold persistent strong references to global `@Model` arrays! `ScansManager.swift` deliberately avoids a root-level `[String: LocalScanRecord]` cache. Instead, it stores only lightweight lookup primitives: `[String: Int]` index positions into `allScans`, `[String: ScanSortPrimitive]` sort snapshots, and cached sorted ID arrays. This preserves O(1) resolution without pinning every `LocalScanRecord` into an auxiliary dictionary, so SwiftData is still free to release heavyweight model state under pressure.
 
 The same principle applies to `BackgroundDatabaseActor.pushCollectionsToEdge()`, which previously fetched every `ScanCollection` unconditionally including Favorites (which is never synced). The fetch now uses a `#Predicate { $0.name != "Favorites" }` to exclude Favorites at the SQLite layer. `propertiesToFetch` is intentionally absent: `ScanCollection` has only three stored attributes (`id`, `name`, `createdAt`) so there is nothing to skip, and partial-attribute mode can prevent the `scans` relationship fault from firing correctly, causing `scan_ids` to be serialised as `[]`.
+
+### Photo Picker and Refinement Staging Unification (`CaptureWorkspaceViewModel`)
+The gallery import path previously bounced back to `@MainActor` on every selected item to clear picker state, re-check the staged-image cap, re-check the paywall gate, and append each decoded image individually. The refinement path had the opposite problem: it eagerly loaded the full on-disk image into `Data`, then potentially decoded it again into `UIImage`, creating unnecessary byte copies for a path that is supposed to be latency-sensitive and zero-OOM safe.
+
+The flow now snapshots the import budget once on `@MainActor` (`availableSlots` + `canPerformScan`), clears `selectedPhotoItems`, and performs file decode/downsample work in a detached task. Historical metadata is converted into a `HistoricalEnvironmentContextSnapshot: Sendable` before leaving the main actor, and the detached task returns only `PreparedStagedImage` values (`Data` + sendable metadata). Refinement staging uses the same `prepareStagedImage(...)` helper, but keeps the persisted display payload as a memory-mapped `Data(contentsOf:options: [.mappedIfSafe])` view of the original file instead of eagerly copying it. Final insertion back into `stagedCapture.images` happens in a single main-actor commit, preserving Swift 6 isolation while eliminating both the per-item hop churn and the full-file refinement read.
 
 ### SwiftData Relationship Faults (OOM)
 When managing many-to-many SwiftData relationships, mutating the "Many" side (e.g., `collection.scans.append(record)`) forces the underlying SQLite engine to synchronously fault the entire array — potentially thousands of heavy `LocalScanRecord` structures — into active RAM on the Main Thread. For power users, this causes an immediate JetSam Out-Of-Memory termination. To protect the RAM ceiling, inverted "One" side mutation was applied to `ScanCollection` in UI components like `ScanSelectionSheetView` and `CollectionDetailView`. Developers now mutate and read the "One" side of the relationship (e.g., `scan.collections?.append(collection)` and `scan.collections?.removeAll(...)`) rather than the "Many" side (e.g., `collection.scans?.append(record)`), preventing the SQLite engine from expanding massive data arrays into active RAM. Deleting a collection bypasses iterative child array loops entirely. By executing `modelContext.delete(collection)`, the system uses SwiftData's default `.nullify` behavior, severing connections without pulling individual heavy payloads into active memory.
@@ -256,7 +261,7 @@ When executing bulk "Clear All" operations on potentially hundreds of non-biolog
 ### Bulk Export OOM Exhaustion (`InsightMediaExportManager` & `PhotoLibraryManager`)
 When executing `saveUserPhotos()` across the historical file cache and external Cloudflare URLs, loading via `Data(contentsOf: url)` placed multi-megabyte uncompressed JPEGs directly into active RAM. For power users running global bulk exports, this breached iOS memory ceilings and triggered JetSam terminations.
 
-**The Refactor**: Temporarily offloading bytes via `saveImageManual(fileURL:)` shielded application RAM by bridging paths to the SSD, but exposed a native iOS `photod` daemon isolation bug. The Apple `PHAssetCreationRequest.performChanges` block silently drops payloads generated outside the permissioned `URL.documentsDirectory` app sandbox. Merian reverted this approach and re-adopted `Data(contentsOf:)`, loading bytes into application RAM iteratively. Because `ScansSearchView` caps selections at `maxBatchSelectionLimit = 20`, the export footprint is bounded at roughly 200 MB peak — safely within iOS limits while avoiding the sandbox bug.
+**The Refactor**: `PhotoLibraryManager` now has two scrub paths. In-memory `Data` payloads still use `CGImageSourceCreateWithData` because the bytes are already resident. File-backed payloads, however, no longer round-trip through `Data(contentsOf:)`; GPS stripping streams through `CGImageSourceCreateWithURL` and `CGImageDestinationCreateWithURL`, producing a temporary scrubbed file that `PHAssetCreationRequest` imports directly. This removes the worst-case "full file read + scrubbed copy + PhotoKit copy" triple-buffer spike while preserving the metadata-scrub guarantee.
 
 This OOM boundary also affected `ScansSearchView` multi-select. Allowing "Select All" on 2,000 entries would map entirely uncompressed `UIImage` data into the `UIActivityViewController` sharing array, immediately exceeding available memory. To prevent this, selections are capped at 20 (`maxBatchSelectionLimit = 20`). Tapping "Select All" filters `searchManager.filteredScans.prefix(20)`, and manual taps beyond the limit trigger an `ErrorThump` alert.
 
@@ -303,12 +308,10 @@ Generating a global Darwin Core Archive (DwC-A) over the `/request-export-dwca` 
 The `MerianNetworkClient.shared.exportDwcA` task is hoisted into an isolated `Task.detached(priority: .userInitiated)` shell, toggling an insulated `@MainActor` `isExporting` state. Only when the API returns the `200 OK` queue confirmation does execution jump back to the Main Thread to render a completion toast, notifying the user that the archive link has been securely dispatched to their email address.
 
 ### Main Thread Search Thrashing (`ScansManager`)
-When mapping raw SwiftData query results across thousands of user records, extracting strings synchronously inside `@MainActor` property observers (like `allScans.map { ... }` inside `didSet`) causes UI freezes. The 20–50 ms delay produces visible stuttering on every keystroke. `ScansManager` resolves this by stripping the synchronous data structure immediately, extracting lightweight `PersistentIdentifier` ID arrays on the Main Thread and shipping them into an isolated `Task.detached(priority: .userInitiated)`. A dedicated `@ModelActor SearchDatabaseActor` then iterates through the ID array, using the efficient `model(for: id)` hook to fault specific database records into memory progressively, preserving O(1) resolution without violating memory limits. Results are transformed into `SearchableScan` structures, and `await MainActor.run` is called only once the search cache has finished building. To prevent CPU thrashing during rapid typing, the detached sequence is bound to an `indexingTask` reference; earlier task executions are cancelled via `indexingTask?.cancel()` and `Task.isCancelled` checks.
+When mapping raw SwiftData query results across thousands of user records, extracting strings synchronously inside `@MainActor` property observers can cause visible stuttering during library updates. `ScansManager` now splits this work into two paths. Full rebuilds extract `RawScanSnapshot: Sendable` values from `allScans` on `@MainActor` and ship those plain structs into a detached utility task for string construction. Incremental inserts stay inside `SearchDatabaseActor`, which batch-fetches only the new IDs and appends their `SearchableScan` payloads once the work completes. The entire sequence is guarded by `indexingTask` cancellation so rapid changes coalesce cleanly.
 
 ### SwiftData Fault Caching Thrash (`ScansManager`)
-While `SearchDatabaseActor.extractSearchablePayloads` insulated the Main Thread, calling `modelContext.model(for: id)` inside a loop faulted large `LocalScanRecord` structures into the SQLite RAM graph, destroying JetSam caps for 10K+ element lists.
-
-**The Refactor**: The background search abstraction creates localized `@ModelActor` contexts for mapping operations. Because the Swift runtime isolates and executes these mappings inside transient `Task.detached` boundaries, Apple's `ModelContext` deallocates without requiring an explicit `.reset()` hook, restoring the active memory footprint to O(1) scaling.
+While `SearchDatabaseActor.extractSearchablePayloads` insulated the Main Thread, an older implementation still faulted rows individually. The batch-fetch refactor now resolves deltas through one `FetchDescriptor<LocalScanRecord>(predicate: #Predicate { ids.contains($0.id) })`, which materially lowers SQLite churn and prevents thousands of sequential row faults on large libraries.
 
 ### Batch SQLite Fetch in Search Indexer (`SearchDatabaseActor`)
 `SearchDatabaseActor.extractSearchablePayloads` previously accepted `[PersistentIdentifier]` and called `modelContext.model(for: id)` in a loop — N individual full-row SQLite faults for a delta of N records. For a cold-launch rebuild of 5,000 entries this generated 5,000 sequential SQLite reads, pegging the background actor for hundreds of milliseconds.
@@ -331,6 +334,7 @@ Updating or deleting a single record previously triggered the `allScans` observe
 * **Hot-Swap Updates (Custom Tags)**: Because `Set`-based ID diffing inherently ignores internal property mutations on existing scans, updates to fields like `customTags` are handled via an explicit `NSNotification.Name("ScanRequiresSearchIndexUpdate")`. The `ScansManager` catches this trigger, isolates the singular scan ID, and natively hot-swaps only its unigram payload via the background `SearchDatabaseActor` thread in under 10ms.
 * **Initial Rebuild Double-Fetch Elimination**: The full-rebuild branch in `updateSearchableData` previously performed two sequential SwiftData fetches — one on `@MainActor` (via `allScans`) and one inside `SearchDatabaseActor` to materialise the same records a second time for index construction. Because `LocalScanRecord` is a SwiftData `@Model` (non-`Sendable`), it cannot cross actor boundaries directly. The fix introduces `RawScanSnapshot: Sendable` — a plain struct mirroring all 21 `LocalScanRecord` fields — extracted on `@MainActor` from the in-memory `allScans` array, then passed into a `Task.detached` that calls `SearchDatabaseActor.buildSearchablePayloads(from: [RawScanSnapshot])` (a `static` method requiring no `ModelContext` fetch). This eliminates the redundant SQL `SELECT` entirely.
 * **`forceReindex` Task Coalescing**: `forceReindex` (called after every new cloud sync) previously discarded its spawned `Task` handle, allowing rapid successive syncs to launch duplicate concurrent appends into `searchableData`. The task handle is now stored in `indexingTask`; each call cancels the prior task before starting a new one, making append ordering deterministic.
+* **Search-time cache reuse**: Query execution now reuses lightweight `[String: Int]` and `[String: ScanSortPrimitive]` caches built when `allScans` changes. This removes the old per-keystroke `[id: LocalScanRecord]` rebuild while still avoiding a strong parallel model dictionary.
 
 ### UI Body Array Calculations (`UserStats` & Contribution Heatmap)
 Executing heavy O(N) array manipulations (such as `Set(allRecords.map { ... }).count` or `Calendar` date-normalization for a 52-week heatmap) directly inside a SwiftUI `var body: some View` forces the Main Thread to re-evaluate the math on every `@Query` binding update. For Pro users with 5,000+ captures, this causes stuttering during Profile scrolls. Merian moves this work off-thread:
@@ -609,7 +613,7 @@ A single `context.save()` runs after all batches settle, batching all successful
 ### `@MainActor` Sort Offload (`ScansManager`)
 When the Scans library has no active filter and the user changes the sort order, `ScansManager` previously re-sorted the full `allScans` array synchronously on the `@MainActor`. For a library with thousands of records a `localizedCaseInsensitiveCompare` sort can take 20–50 ms, producing a visible hitch during the library transition animation.
 
-For the "no active filter" path — which operates on the full dataset — the sort is now offloaded to a `Task.detached(priority: .userInitiated)` worker. However, because `@Model` entities (`LocalScanRecord`) are non-`Sendable` and cannot safely cross isolation boundaries in Swift 6, they are mapped into lightweight primitive structures before offloading:
+For the "no active filter" path — which operates on the full dataset — the sort is now offloaded to a detached worker and cached by sort option. Because `@Model` entities (`LocalScanRecord`) are non-`Sendable` and cannot safely cross isolation boundaries in Swift 6, they are mapped into lightweight primitive structures before offloading:
 
 ```swift
 struct ScanSortPrimitive: Sendable {
@@ -619,35 +623,29 @@ struct ScanSortPrimitive: Sendable {
 }
 
 let sortOpt = self.sortOption
-let recordsPrimitives = self.allScans.map { ScanSortPrimitive(id: $0.id, timestamp: $0.timestamp, commonName: $0.commonName) }
+let primitives = self.allScanSortPrimitives
 
 let sortedIds = await Task.detached(priority: .userInitiated) {
-    return ScansManager.executeDetachedSort(on: recordsPrimitives, sortOption: sortOpt).map { $0.id }
+    return ScansManager.executeDetachedSort(on: primitives, sortOption: sortOpt).map { $0.id }
 }.value
 
-let finalSorted = sortedIds.compactMap { self.scanMap[$0] }
+self.sortedAllScanIDsCache[sortOpt.rawValue] = sortedIds
+let finalSorted = self.records(for: sortedIds)
 await MainActor.run { self.filteredScans = finalSorted }
 ```
 
-The snapshot capture is a mapped primitive array, so the detached task holds no reference to the `@MainActor`-isolated `ScansManager` or un-safe model references. The main thread is only blocked for the final O(1) single-assignment `scanMap` hash resolution.
+The detached task holds no reference to the `@MainActor`-isolated `ScansManager` or unsafe model references. Once the sorted IDs are cached, subsequent query clears and sort toggles can reuse the same full-library order without rebuilding it.
 
-### O(N) `scanMap` Rebuild (`ScansManager`)
-`ScansManager` maintains a `[String: LocalScanRecord]` dictionary (`scanMap`) for O(1) scan lookups by ID. After every `allScans` change, the previous implementation rebuilt this dictionary from scratch:
-
-```swift
-var newMap: [String: LocalScanRecord] = [:]
-for scan in allScans { newMap[scan.id] = scan }
-self.scanMap = newMap
-```
-
-For a library with thousands of records, rebuilding the full dictionary on every single insertion or deletion was O(n) CPU work on the `@MainActor`. Because the `allScans` diff is already computed (yielding `addedScans` and `removedIds`), the rebuild was replaced with incremental patching:
+### Lightweight ID/Primitive Cache (`ScansManager`)
+`ScansManager` still needs efficient ID → record resolution, but a full `[String: LocalScanRecord]` map keeps a second strong reference set to every model object. The replacement cache keeps only the minimum metadata:
 
 ```swift
-for scan in addedScans { self.scanMap[scan.id] = scan }
-for id in removedIds   { self.scanMap.removeValue(forKey: id) }
+@ObservationIgnored private var scanIndexById: [String: Int] = [:]
+@ObservationIgnored private var sortPrimitivesById: [String: ScanSortPrimitive] = [:]
+@ObservationIgnored private var allScanSortPrimitives: [ScanSortPrimitive] = []
 ```
 
-This reduces the `scanMap` update from O(total library) to O(delta) — constant time for typical single-record mutations.
+The caches are rebuilt once when `allScans` changes, then reused across all query/filter/sort passes. `scanIndexById` resolves back into the current `allScans` array for the final UI result, while `sortPrimitivesById` avoids recreating primitive sort payloads on every keystroke. This keeps CPU predictable without violating the zero-strong-duplicate-model rule.
 
 ### Concurrent Archive Downloads with Sliding Window (`ArchiveManager`)
 `initiatePrePurgeSync(pendingImages:)` previously downloaded images to the Photo Library in a serial `for` loop — one `PHPhotoLibrary.performChanges` call at a time. For users archiving dozens of images before a purge cycle, serial execution left NVMe bandwidth idle between operations.
@@ -829,6 +827,7 @@ This ensures:
 
 - `MerianApp` no longer wipes the SwiftData store on every `ModelContainer` init failure. Recovery is now corruption-specific, quarantines `default.store` + WAL/SHM siblings first, and fails closed on non-corruption startup errors.
 - `InferenceEngine` now guards background-write replay with a generation token. `prepareForNewScan()` and `cancelActiveRequest()` both clear pending closures and invalidate stale write tasks so cancelled work cannot mutate the next scan session.
-- `AudioCaptureManager` and `SpeechManager` now guarantee full teardown on startup cancellation and early failures: tap removal, engine stop, task cancellation, stream finishing, and session deactivation all happen on every exit path.
+- `AudioCaptureManager` and `SpeechManager` now guarantee full teardown on startup cancellation and early failures: tap removal, engine stop, task cancellation, stream finishing, and session deactivation all happen on every exit path. `AudioSessionCoordinator` serializes activation/deactivation with lease tokens so stale teardown work cannot deactivate a newer session.
 - The spectrogram and SNR hot paths no longer use repeated `removeFirst()` array shifts. They now keep bounded circular buffers for visible spectrogram history and trailing noise-floor history.
 - Non-biological bulk deletion now commits SwiftData and `PendingCloudDeletionTask` state before file removal, eliminating the broken "DB row survives but media is already gone" failure mode.
+- `SupabaseManager` now guards anonymous auth bootstrap with a single `ghostSessionTask`, preventing multiple suspended callers from racing `signInAnonymously()` against the same empty session state.

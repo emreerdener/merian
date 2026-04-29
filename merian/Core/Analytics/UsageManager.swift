@@ -47,9 +47,7 @@ import Observation
 
     /// Returns true if the user is allowed to perform another scan.
     func canPerformScan(isProActive: Bool) -> Bool {
-        #warning("TEMPORARY OVERRIDE: Daily scan limit bypassed for testing. Remove before launch!")
-        return true
-        // return isProActive || freeScansRemaining > 0
+        return isProActive || freeScansRemaining > 0
     }
 
     /// Records a scan as consumed, updating the daily count.
