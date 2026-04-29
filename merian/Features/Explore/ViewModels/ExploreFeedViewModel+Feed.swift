@@ -15,15 +15,14 @@ extension ExploreFeedViewModel {
 
         do {
             let freshPosts = try await MerianNetworkClient.shared.getExploreFeed(
-                limit: feedPageSize,
-                offset: 0
+                limit: feedPageSize
             )
 
             posts = freshPosts
             mediaReloadGeneration &+= 1
-            feedOffset = freshPosts.count
             hasLoadedFeedOnce = true
             hasReachedEndOfFeed = freshPosts.count < feedPageSize
+            updateFeedCursor(using: freshPosts)
             errorMessage = nil
             reconcileActiveCommentsPost()
             UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenExplorePost)
@@ -55,14 +54,20 @@ extension ExploreFeedViewModel {
         defer { isLoadingMore = false }
 
         do {
+            guard let nextFeedCursorSharedAt, let nextFeedCursorPostId else {
+                hasReachedEndOfFeed = true
+                return
+            }
+
             let nextPage = try await MerianNetworkClient.shared.getExploreFeed(
                 limit: feedPageSize,
-                offset: feedOffset
+                beforeSharedAt: nextFeedCursorSharedAt,
+                beforePostId: nextFeedCursorPostId
             )
 
-            posts.append(contentsOf: nextPage)
-            feedOffset += nextPage.count
+            appendUniquePosts(nextPage)
             hasReachedEndOfFeed = nextPage.count < feedPageSize
+            updateFeedCursor(using: nextPage)
             reconcileActiveCommentsPost()
         } catch is CancellationError {
             // Absorb
@@ -71,5 +76,17 @@ extension ExploreFeedViewModel {
         } catch {
             toastMessage = ExploreErrorFormatter.message(for: error)
         }
+    }
+
+    func updateFeedCursor(using page: [ExplorePost]) {
+        nextFeedCursorSharedAt = page.last?.sharedAt
+        nextFeedCursorPostId = page.last?.id
+    }
+
+    func appendUniquePosts(_ nextPage: [ExplorePost]) {
+        guard !nextPage.isEmpty else { return }
+
+        let existingIds = Set(posts.map(\.id))
+        posts.append(contentsOf: nextPage.filter { existingIds.contains($0.id) == false })
     }
 }

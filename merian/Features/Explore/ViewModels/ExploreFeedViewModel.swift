@@ -29,7 +29,8 @@ final class ExploreFeedViewModel {
 
     @ObservationIgnored let feedPageSize = 20
     @ObservationIgnored let commentsPageSize = 100
-    @ObservationIgnored var feedOffset = 0
+    @ObservationIgnored var nextFeedCursorSharedAt: String?
+    @ObservationIgnored var nextFeedCursorPostId: String?
     @ObservationIgnored var hasLoadedFeedOnce = false
     @ObservationIgnored var hasReachedEndOfFeed = false
     @ObservationIgnored var activeCommentsRequestId = UUID()

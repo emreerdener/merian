@@ -83,7 +83,7 @@ struct MainTabBar: View {
 
     private func refreshExploreBadge() async {
         do {
-            let latestPost = try await MerianNetworkClient.shared.getExploreFeed(limit: 1, offset: 0).first
+            let latestPost = try await MerianNetworkClient.shared.getExploreFeed(limit: 1).first
 
             guard let latestPost else {
                 hasUnseenExplorePost = false

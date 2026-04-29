@@ -233,7 +233,7 @@ Explore traffic is intentionally separate from the identify pipeline. The iOS cl
 
 ### `/get-explore-feed`
 
-Returns reverse-chronological public Explore posts. The backend reads from `public.get_explore_feed(...)`, which already filters out:
+Returns reverse-chronological public Explore posts. New app builds page this endpoint with a cursor; the edge layer still accepts offset-based requests from older builds during rollout. The backend reads from `public.get_explore_feed_cursor(...)` for cursor callers and falls back to `public.get_explore_feed(...)` for legacy offset callers. Both paths already filter out:
 
 - unshared posts
 - tombstoned scans
@@ -241,6 +241,29 @@ Returns reverse-chronological public Explore posts. The backend reads from `publ
 - private geoprivacy scans
 - shadowbanned authors
 - both directions of user blocking
+
+Primary request body for cursor paging:
+
+```json
+{
+  "limit": 20,
+  "before_shared_at": "2026-04-28T21:18:00.000Z",
+  "before_post_id": "uuid"
+}
+```
+
+- omit `before_shared_at` and `before_post_id` for the first page
+- both cursor fields must be provided together
+- ordering is stable on `(shared_at DESC, post_id DESC)`
+
+Legacy rollout fallback:
+
+```json
+{
+  "limit": 20,
+  "offset": 40
+}
+```
 
 Current response shape:
 

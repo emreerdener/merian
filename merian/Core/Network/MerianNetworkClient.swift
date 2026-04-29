@@ -874,12 +874,19 @@ final class MerianNetworkClient {
 
     // MARK: - Explore
 
-    func getExploreFeed(limit: Int = 20, offset: Int = 0) async throws -> [ExplorePost] {
+    func getExploreFeed(
+        limit: Int = 20,
+        beforeSharedAt: String? = nil,
+        beforePostId: String? = nil
+    ) async throws -> [ExplorePost] {
         let functionUrl = try endpointURL("get-explore-feed")
-        let payload: [String: Any] = [
-            "limit": limit,
-            "offset": offset
-        ]
+        var payload: [String: Any] = ["limit": limit]
+
+        if let beforeSharedAt, let beforePostId {
+            payload["before_shared_at"] = beforeSharedAt
+            payload["before_post_id"] = beforePostId
+        }
+
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExploreFeedResponse.self, from: data).data

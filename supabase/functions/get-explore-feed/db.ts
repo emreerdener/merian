@@ -21,17 +21,34 @@ export interface ExploreFeedRow {
   is_owned_by_viewer: boolean;
 }
 
+interface ExploreFeedCursor {
+  beforeSharedAt?: string | null;
+  beforePostId?: string | null;
+  offset?: number | null;
+}
+
 export async function fetchExploreFeed(
   userId: string,
   limit: number,
-  offset: number,
+  cursor: ExploreFeedCursor,
   supabaseAdmin: SupabaseClient,
 ): Promise<ExploreFeedRow[]> {
-  const { data, error } = await supabaseAdmin.rpc("get_explore_feed", {
-    self_id: userId,
-    max_limit: limit,
-    feed_offset: offset,
-  });
+  const usesCursor = !!cursor.beforeSharedAt && !!cursor.beforePostId;
+  const rpcName = usesCursor ? "get_explore_feed_cursor" : "get_explore_feed";
+  const rpcArgs = usesCursor
+    ? {
+        self_id: userId,
+        max_limit: limit,
+        before_shared_at: cursor.beforeSharedAt,
+        before_post_id: cursor.beforePostId,
+      }
+    : {
+        self_id: userId,
+        max_limit: limit,
+        feed_offset: cursor.offset ?? 0,
+      };
+
+  const { data, error } = await supabaseAdmin.rpc(rpcName, rpcArgs);
 
   if (error) {
     throw new Error(`Failed to fetch Explore feed: ${error.message}`);
