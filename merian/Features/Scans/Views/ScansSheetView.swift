@@ -121,7 +121,7 @@ struct ScansSheetView: View {
         .onAppear {
             syncStateLocally()
             refreshQueuedScans()
-            prefetchLeadingThumbnails(from: searchManager.allScans)
+            refreshThumbnailPipeline()
             hasUnseenScan = false
             PushNotificationManager.shared.setBadgeCount(0)
         }
@@ -135,6 +135,7 @@ struct ScansSheetView: View {
         }
         .onChange(of: rawRecords) { _, _ in
             syncStateLocally()
+            refreshThumbnailPipeline()
         }
         .onChange(of: collections) { _, _ in
             searchManager.collections = collections
@@ -146,6 +147,7 @@ struct ScansSheetView: View {
             // completed and the @Query save notification was never processed by the sheet.
             refreshQueuedScans()
             syncStateFromStore()
+            refreshThumbnailPipeline()
         }
     }
     
@@ -161,10 +163,24 @@ struct ScansSheetView: View {
     /// Fires 18 concurrent image loads before LazyVGrid renders, filling the first visible
     /// screen (6 rows × 3 columns on the largest supported iPhone) with no gray placeholders.
     private func prefetchLeadingThumbnails(from records: [LocalScanRecord]) {
-        let slice = records.prefix(18).map {
-            (imagePath: $0.coverImagePath, fallbackUrl: $0.referenceImageUrl)
+        let slice = records.prefix(18).map { record in
+            let presentation = record.scanThumbnailPresentation
+            return (imagePath: presentation.imagePath, fallbackUrl: presentation.fallbackImageUrl)
         }
         LocalImageLoader.shared.prefetch(records: Array(slice), maxDimension: prefetchThumbnailSize)
+    }
+
+    private func refreshThumbnailPipeline() {
+        let records = searchManager.allScans
+        prefetchLeadingThumbnails(from: records)
+
+        let backfillCandidates = records.compactMap(ScanThumbnailBackfillCandidate.init(record:))
+        guard !backfillCandidates.isEmpty else { return }
+
+        let container = modelContext.container
+        Task(priority: .utility) {
+            await ScanThumbnailBackfillActor.shared.backfill(records: backfillCandidates, modelContainer: container)
+        }
     }
 
     /// Fetches the current `OfflineQueuedScan` list directly from the model context and

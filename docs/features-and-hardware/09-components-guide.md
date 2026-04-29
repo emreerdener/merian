@@ -22,6 +22,8 @@ The central navigational routing anchor for the application, designed as a custo
 
 Provides a standardized visual protocol for scans that have been archived or flagged. It encapsulates dark scrim overlays, watermark iconography, and desaturation modifiers, ensuring that any scan presented in a "historic" or "vaulted" context renders accurately within a grid matrix.
 
+`ArchivedVisualsView` is no longer used as the generic fallback for every scan tile with no immediately loadable bitmap. `ScanThumbnail` now distinguishes between archived/missing visual assets and non-visual analyses that are waiting on a biological reference image. Those non-visual paths render a dedicated placeholder (`Reference pending`, `Reference unavailable`) keyed off the capture modality instead of implying that a photo once existed and was archived.
+
 ## 4. Scroll Physics: `FadingScrollView`
 **Location**: `Core/UI/Components/FadingScrollView.swift`
 

@@ -8,6 +8,42 @@ enum SerializedMediaItem: Codable, Equatable {
     case description(ObservationContext)
 }
 
+enum CapturedMediaKind: String, Sendable, Equatable {
+    case audio
+    case describe
+    case audioAndDescribe
+    case other
+}
+
+struct CapturedMediaSummary: Sendable, Equatable {
+    let hasImage: Bool
+    let hasAudio: Bool
+    let hasDescription: Bool
+
+    static let empty = CapturedMediaSummary(hasImage: false, hasAudio: false, hasDescription: false)
+
+    var hasNonVisualMedia: Bool {
+        hasAudio || hasDescription
+    }
+
+    var isNonVisualOnly: Bool {
+        !hasImage && hasNonVisualMedia
+    }
+
+    var preferredThumbnailKind: CapturedMediaKind? {
+        switch (hasAudio, hasDescription) {
+        case (true, true):
+            return .audioAndDescribe
+        case (true, false):
+            return .audio
+        case (false, true):
+            return .describe
+        case (false, false):
+            return nil
+        }
+    }
+}
+
 /// Canonical decoder for persisted media JSON shared by live and historic scan flows.
 enum MediaJSONParser {
     static func serializedItems(jsonString: String) -> [SerializedMediaItem]? {
@@ -37,6 +73,33 @@ enum MediaJSONParser {
 
     static func hasCloudImage(jsonString: String) -> Bool {
         imagePaths(jsonString: jsonString).contains { $0.starts(with: "http") }
+    }
+
+    static func modalitySummary(jsonString: String) -> CapturedMediaSummary {
+        guard let items = serializedItems(jsonString: jsonString) else {
+            return .empty
+        }
+
+        var hasImage = false
+        var hasAudio = false
+        var hasDescription = false
+
+        for item in items {
+            switch item {
+            case .image:
+                hasImage = true
+            case .audio:
+                hasAudio = true
+            case .description:
+                hasDescription = true
+            }
+        }
+
+        return CapturedMediaSummary(
+            hasImage: hasImage,
+            hasAudio: hasAudio,
+            hasDescription: hasDescription
+        )
     }
 
     static func parse(jsonString: String) -> ActiveScanMedia? {

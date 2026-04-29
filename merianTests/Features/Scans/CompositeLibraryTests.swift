@@ -15,6 +15,12 @@ struct CompositeLibraryTests {
         return ModelContext(container)
     }
 
+    private func makeCapturedMediaJSON(_ items: [SerializedMediaItem]) throws -> String {
+        let data = try JSONEncoder().encode(items)
+        #expect(String(data: data, encoding: .utf8) != nil, "Captured media JSON must encode as UTF-8 text")
+        return String(decoding: data, as: UTF8.self)
+    }
+
     // MARK: - Test 1: OfflineQueuedScan IDs are unique across multiple inserts
 
     @Test func testOfflineQueuedScanIDsAreUnique() throws {
@@ -116,5 +122,55 @@ struct CompositeLibraryTests {
         #expect(selected.count == 1, "Only LocalScanRecord entries should be returned by getSelectedLocalRecords()")
         #expect(selected.first?.id == localScan.id, "The queued scan ID must not match any LocalScanRecord")
         #expect(!selected.contains(where: { $0.id == queuedScan.id }), "Queued scan ID must be unreachable via the selection engine")
+    }
+
+    // MARK: - Test 5: audio-only scans prefer reference-thumbnail fallback instead of archived visuals
+
+    @Test func testAudioOnlyScansPreferReferenceFallback() throws {
+        let audioJson = try makeCapturedMediaJSON([.audio("field-recording.wav")])
+        let record = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Buteo jamaicensis",
+            commonName: "Red-tailed Hawk",
+            capturedMediaJSON: audioJson,
+            coverImagePath: nil,
+            semanticTags: [],
+            hazardType: "none",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let presentation = record.scanThumbnailPresentation
+
+        #expect(presentation.imagePath == nil, "Audio-only scans should not advertise a local image path")
+        #expect(presentation.fallbackImageUrl == nil, "The test scan starts without a persisted reference image")
+        #expect(presentation.placeholderStyle == .pendingReference(.audio), "Audio-only biological scans should wait for a reference image instead of rendering as archived")
+        #expect(ScanThumbnailBackfillCandidate(record: record) != nil, "Audio-only biological scans without images should be eligible for thumbnail backfill")
+    }
+
+    // MARK: - Test 6: unknown non-visual scans surface a terminal placeholder and skip backfill
+
+    @Test func testUnknownDescribeScansSkipThumbnailBackfill() throws {
+        let descriptionJson = try makeCapturedMediaJSON([.description(ObservationContext(freeText: "brown bird in shadows"))])
+        let record = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Taxonomy Unavailable",
+            commonName: "Unknown Subject",
+            capturedMediaJSON: descriptionJson,
+            coverImagePath: nil,
+            semanticTags: [],
+            hazardType: "none",
+            isBiological: true,
+            isLiveCapture: false,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+
+        let presentation = record.scanThumbnailPresentation
+
+        #expect(presentation.placeholderStyle == .unavailableReference(.describe), "Unknown non-visual scans should show a non-visual terminal placeholder instead of pretending a fallback image exists")
+        #expect(ScanThumbnailBackfillCandidate(record: record) == nil, "Unknown subjects should not enter the background reference-thumbnail backfill queue")
     }
 }

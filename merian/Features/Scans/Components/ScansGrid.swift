@@ -107,7 +107,7 @@ struct ScansGrid<MenuContent: View>: View {
                     HapticManager.shared.triggerSheetSpring()
                     onSelect(scan)
                 }) {
-                    ScanThumbnail(imagePath: scan.coverImagePath, fallbackImageUrl: scan.referenceImageUrl, maxDimension: thumbnailSize)
+                    ScanThumbnail(record: scan, maxDimension: thumbnailSize)
                         .overlay(
                             ZStack {
                                 if !scan.hasBeenViewed {
